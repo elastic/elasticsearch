@@ -46,6 +46,7 @@ import static org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat.TERMS_D
 
 public class ES87TSDBDocValuesProducer extends DocValuesProducer {
     private final Map<String, NumericEntry> numerics = new HashMap<>();
+    private final Map<String, BinaryEntry> binaries = new HashMap<>();
     private final Map<String, SortedEntry> sorted = new HashMap<>();
     private final Map<String, SortedSetEntry> sortedSets = new HashMap<>();
     private final Map<String, SortedNumericEntry> sortedNumerics = new HashMap<>();
@@ -119,7 +120,160 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
 
     @Override
     public BinaryDocValues getBinary(FieldInfo field) throws IOException {
-        throw new UnsupportedOperationException("Unsupported binary doc values for field [" + field.name + "]");
+        BinaryEntry entry = binaries.get(field.name);
+        if (entry.docsWithFieldOffset == -2) {
+            return DocValues.emptyBinary();
+        }
+
+        final IndexInput bytesSlice = data.slice("fixed-binary", entry.dataOffset, entry.dataLength);
+
+        if (entry.docsWithFieldOffset == -1) {
+            // dense
+            if (entry.minLength == entry.maxLength) {
+                // fixed length
+                final int length = entry.maxLength;
+                return new DenseBinaryDocValues(maxDoc) {
+                    final BytesRef bytes = new BytesRef(new byte[length], 0, length);
+
+                    @Override
+                    public BytesRef binaryValue() throws IOException {
+                        bytesSlice.seek((long) doc * length);
+                        bytesSlice.readBytes(bytes.bytes, 0, length);
+                        return bytes;
+                    }
+                };
+            } else {
+                // variable length
+                final RandomAccessInput addressesData = this.data.randomAccessSlice(entry.addressesOffset, entry.addressesLength);
+                final LongValues addresses = DirectMonotonicReader.getInstance(entry.addressesMeta, addressesData);
+                return new DenseBinaryDocValues(maxDoc) {
+                    final BytesRef bytes = new BytesRef(new byte[entry.maxLength], 0, entry.maxLength);
+
+                    @Override
+                    public BytesRef binaryValue() throws IOException {
+                        long startOffset = addresses.get(doc);
+                        bytes.length = (int) (addresses.get(doc + 1L) - startOffset);
+                        bytesSlice.seek(startOffset);
+                        bytesSlice.readBytes(bytes.bytes, 0, bytes.length);
+                        return bytes;
+                    }
+                };
+            }
+        } else {
+            // sparse
+            final IndexedDISI disi = new IndexedDISI(
+                data,
+                entry.docsWithFieldOffset,
+                entry.docsWithFieldLength,
+                entry.jumpTableEntryCount,
+                entry.denseRankPower,
+                entry.numDocsWithField
+            );
+            if (entry.minLength == entry.maxLength) {
+                // fixed length
+                final int length = entry.maxLength;
+                return new SparseBinaryDocValues(disi) {
+                    final BytesRef bytes = new BytesRef(new byte[length], 0, length);
+
+                    @Override
+                    public BytesRef binaryValue() throws IOException {
+                        bytesSlice.seek((long) disi.index() * length);
+                        bytesSlice.readBytes(bytes.bytes, 0, length);
+                        return bytes;
+                    }
+                };
+            } else {
+                // variable length
+                final RandomAccessInput addressesData = this.data.randomAccessSlice(entry.addressesOffset, entry.addressesLength);
+                final LongValues addresses = DirectMonotonicReader.getInstance(entry.addressesMeta, addressesData);
+                return new SparseBinaryDocValues(disi) {
+                    final BytesRef bytes = new BytesRef(new byte[entry.maxLength], 0, entry.maxLength);
+
+                    @Override
+                    public BytesRef binaryValue() throws IOException {
+                        final int index = disi.index();
+                        long startOffset = addresses.get(index);
+                        bytes.length = (int) (addresses.get(index + 1L) - startOffset);
+                        bytesSlice.seek(startOffset);
+                        bytesSlice.readBytes(bytes.bytes, 0, bytes.length);
+                        return bytes;
+                    }
+                };
+            }
+        }
+    }
+
+    private abstract static class DenseBinaryDocValues extends BinaryDocValues {
+
+        final int maxDoc;
+        int doc = -1;
+
+        DenseBinaryDocValues(int maxDoc) {
+            this.maxDoc = maxDoc;
+        }
+
+        @Override
+        public int nextDoc() throws IOException {
+            return advance(doc + 1);
+        }
+
+        @Override
+        public int docID() {
+            return doc;
+        }
+
+        @Override
+        public long cost() {
+            return maxDoc;
+        }
+
+        @Override
+        public int advance(int target) throws IOException {
+            if (target >= maxDoc) {
+                return doc = NO_MORE_DOCS;
+            }
+            return doc = target;
+        }
+
+        @Override
+        public boolean advanceExact(int target) throws IOException {
+            doc = target;
+            return true;
+        }
+    }
+
+    private abstract static class SparseBinaryDocValues extends BinaryDocValues {
+
+        final IndexedDISI disi;
+
+        SparseBinaryDocValues(IndexedDISI disi) {
+            this.disi = disi;
+        }
+
+        @Override
+        public int nextDoc() throws IOException {
+            return disi.nextDoc();
+        }
+
+        @Override
+        public int docID() {
+            return disi.docID();
+        }
+
+        @Override
+        public long cost() {
+            return disi.cost();
+        }
+
+        @Override
+        public int advance(int target) throws IOException {
+            return disi.advance(target);
+        }
+
+        @Override
+        public boolean advanceExact(int target) throws IOException {
+            return disi.advanceExact(target);
+        }
     }
 
     @Override
@@ -573,7 +727,7 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
             if (type == ES87TSDBDocValuesFormat.NUMERIC) {
                 numerics.put(info.name, readNumeric(meta));
             } else if (type == ES87TSDBDocValuesFormat.BINARY) {
-                throw new CorruptIndexException("unsupported type: " + type, meta);
+                binaries.put(info.name, readBinary(meta));
             } else if (type == ES87TSDBDocValuesFormat.SORTED) {
                 sorted.put(info.name, readSorted(meta));
             } else if (type == ES87TSDBDocValuesFormat.SORTED_SET) {
@@ -614,6 +768,30 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
             entry.valuesOffset = meta.readLong();
             entry.valuesLength = meta.readLong();
         }
+    }
+
+    private BinaryEntry readBinary(IndexInput meta) throws IOException {
+        final BinaryEntry entry = new BinaryEntry();
+        entry.dataOffset = meta.readLong();
+        entry.dataLength = meta.readLong();
+        entry.docsWithFieldOffset = meta.readLong();
+        entry.docsWithFieldLength = meta.readLong();
+        entry.jumpTableEntryCount = meta.readShort();
+        entry.denseRankPower = meta.readByte();
+        entry.numDocsWithField = meta.readInt();
+        entry.minLength = meta.readInt();
+        entry.maxLength = meta.readInt();
+        if (entry.minLength < entry.maxLength) {
+            entry.addressesOffset = meta.readLong();
+
+            // Old count of uncompressed addresses
+            long numAddresses = entry.numDocsWithField + 1L;
+
+            final int blockShift = meta.readVInt();
+            entry.addressesMeta = DirectMonotonicReader.loadMeta(meta, numAddresses, blockShift);
+            entry.addressesLength = meta.readLong();
+        }
+        return entry;
     }
 
     private static SortedNumericEntry readSortedNumeric(IndexInput meta) throws IOException {
@@ -1087,6 +1265,21 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
         DirectMonotonicReader.Meta indexMeta;
         long valuesOffset;
         long valuesLength;
+    }
+
+    private static class BinaryEntry {
+        long dataOffset;
+        long dataLength;
+        long docsWithFieldOffset;
+        long docsWithFieldLength;
+        short jumpTableEntryCount;
+        byte denseRankPower;
+        int numDocsWithField;
+        int minLength;
+        int maxLength;
+        long addressesOffset;
+        long addressesLength;
+        DirectMonotonicReader.Meta addressesMeta;
     }
 
     private static class SortedNumericEntry extends NumericEntry {

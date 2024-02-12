@@ -43,8 +43,10 @@ import org.junit.Before;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -108,7 +110,7 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
         expectThrows(ResourceNotFoundException.class, () -> awaitDeleteConnector(connectorIdToDelete));
     }
 
-    public void testUpdateConnectorConfiguration() throws Exception {
+    public void testUpdateConnectorConfiguration_FullConfiguration() throws Exception {
         Connector connector = ConnectorTestUtils.getRandomConnector();
         String connectorId = randomUUID();
         DocWriteResponse resp = buildRequestAndAwaitPutConnector(connectorId, connector);
@@ -116,14 +118,97 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
 
         UpdateConnectorConfigurationAction.Request updateConfigurationRequest = new UpdateConnectorConfigurationAction.Request(
             connectorId,
-            connector.getConfiguration()
+            connector.getConfiguration(),
+            null
         );
 
         DocWriteResponse updateResponse = awaitUpdateConnectorConfiguration(updateConfigurationRequest);
         assertThat(updateResponse.status(), equalTo(RestStatus.OK));
 
-        // Configuration update is handled via painless script. ScriptEngine is mocked for unit tests.
+        // Full configuration update is handled via painless script. ScriptEngine is mocked for unit tests.
         // More comprehensive tests are defined in yamlRestTest.
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/enterprise-search-team/issues/6351")
+    public void testUpdateConnectorConfiguration_PartialValuesUpdate() throws Exception {
+        Connector connector = ConnectorTestUtils.getRandomConnector();
+        String connectorId = randomUUID();
+        DocWriteResponse resp = buildRequestAndAwaitPutConnector(connectorId, connector);
+        assertThat(resp.status(), anyOf(equalTo(RestStatus.CREATED), equalTo(RestStatus.OK)));
+
+        Map<String, Object> connectorNewConfiguration = connector.getConfiguration()
+            .entrySet()
+            .stream()
+            .collect(
+                Collectors.toMap(
+                    Map.Entry::getKey,
+                    entry -> Map.of(ConnectorConfiguration.VALUE_FIELD.getPreferredName(), randomAlphaOfLengthBetween(3, 10))
+                )
+            );
+
+        UpdateConnectorConfigurationAction.Request updateConfigurationRequest = new UpdateConnectorConfigurationAction.Request(
+            connectorId,
+            null,
+            connectorNewConfiguration
+        );
+
+        DocWriteResponse updateResponse = awaitUpdateConnectorConfiguration(updateConfigurationRequest);
+        assertThat(updateResponse.status(), equalTo(RestStatus.OK));
+
+        Connector indexedConnector = awaitGetConnector(connectorId);
+
+        Map<String, ConnectorConfiguration> indexedConnectorConfiguration = indexedConnector.getConfiguration();
+
+        for (String configKey : indexedConnectorConfiguration.keySet()) {
+            assertThat(indexedConnectorConfiguration.get(configKey).getValue(), equalTo(connectorNewConfiguration.get(configKey)));
+        }
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/enterprise-search-team/issues/6351")
+    public void testUpdateConnectorConfiguration_PartialValuesUpdate_SelectedKeys() throws Exception {
+        Connector connector = ConnectorTestUtils.getRandomConnector();
+        String connectorId = randomUUID();
+        DocWriteResponse resp = buildRequestAndAwaitPutConnector(connectorId, connector);
+        assertThat(resp.status(), anyOf(equalTo(RestStatus.CREATED), equalTo(RestStatus.OK)));
+
+        Set<String> configKeys = connector.getConfiguration().keySet();
+
+        Set<String> keysToUpdate = new HashSet<>(randomSubsetOf(configKeys));
+
+        Map<String, Object> connectorNewConfigurationPartialValuesUpdate = keysToUpdate.stream()
+            .collect(
+                Collectors.toMap(
+                    key -> key,
+                    key -> Map.of(ConnectorConfiguration.VALUE_FIELD.getPreferredName(), randomAlphaOfLengthBetween(3, 10))
+                )
+            );
+
+        UpdateConnectorConfigurationAction.Request updateConfigurationRequest = new UpdateConnectorConfigurationAction.Request(
+            connectorId,
+            null,
+            connectorNewConfigurationPartialValuesUpdate
+        );
+
+        DocWriteResponse updateResponse = awaitUpdateConnectorConfiguration(updateConfigurationRequest);
+        assertThat(updateResponse.status(), equalTo(RestStatus.OK));
+
+        Connector indexedConnector = awaitGetConnector(connectorId);
+
+        Map<String, ConnectorConfiguration> indexedConnectorConfiguration = indexedConnector.getConfiguration();
+
+        for (String configKey : indexedConnectorConfiguration.keySet()) {
+            if (keysToUpdate.contains(configKey)) {
+                assertThat(
+                    indexedConnectorConfiguration.get(configKey).getValue(),
+                    equalTo(connectorNewConfigurationPartialValuesUpdate.get(configKey))
+                );
+            } else {
+                assertThat(
+                    indexedConnectorConfiguration.get(configKey).getValue(),
+                    equalTo(connector.getConfiguration().get(configKey).getValue())
+                );
+            }
+        }
     }
 
     public void testUpdateConnectorPipeline() throws Exception {

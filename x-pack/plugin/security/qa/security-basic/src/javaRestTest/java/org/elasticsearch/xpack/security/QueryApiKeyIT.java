@@ -44,12 +44,6 @@ import static org.hamcrest.Matchers.oneOf;
 
 public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
 
-    private static final String API_KEY_ADMIN_AUTH_HEADER = "Basic YXBpX2tleV9hZG1pbjpzZWN1cml0eS10ZXN0LXBhc3N3b3Jk";
-    private static final String API_KEY_USER_AUTH_HEADER = "Basic YXBpX2tleV91c2VyOnNlY3VyaXR5LXRlc3QtcGFzc3dvcmQ=";
-    private static final String TEST_USER_AUTH_HEADER = "Basic c2VjdXJpdHlfdGVzdF91c2VyOnNlY3VyaXR5LXRlc3QtcGFzc3dvcmQ=";
-    private static final String SYSTEM_WRITE_ROLE_NAME = "system_write";
-    private static final String SUPERUSER_WITH_SYSTEM_WRITE = "superuser_with_system_write";
-
     public void testQuery() throws IOException {
         createApiKeys();
         createUser("someone");
@@ -342,8 +336,8 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
             });
         }
 
-        createSystemWriteRole(SYSTEM_WRITE_ROLE_NAME);
-        String systemWriteCreds = createUser(SUPERUSER_WITH_SYSTEM_WRITE, new String[] { "superuser", SYSTEM_WRITE_ROLE_NAME });
+        createSystemWriteRole("system_write");
+        String systemWriteCreds = createUser("superuser_with_system_write", new String[] { "superuser", "system_write" });
 
         // test keys with no "type" field are still considered of type "rest"
         // this is so in order to accommodate pre-8.9 API keys which where all of type "rest" implicitly
@@ -676,7 +670,7 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
         return responseException;
     }
 
-    private void assertQuery(String authHeader, String body, Consumer<List<Map<String, Object>>> apiKeysVerifier) throws IOException {
+    void assertQuery(String authHeader, String body, Consumer<List<Map<String, Object>>> apiKeysVerifier) throws IOException {
         final Request request = new Request("GET", "/_security/_query/api_key");
         request.setJsonEntity(body);
         request.setOptions(request.getOptions().toBuilder().addHeader(HttpHeaders.AUTHORIZATION, authHeader));
@@ -754,11 +748,11 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
         );
     }
 
-    private Tuple<String, String> createApiKey(String name, Map<String, Object> metadata, String authHeader) throws IOException {
+    static Tuple<String, String> createApiKey(String name, Map<String, Object> metadata, String authHeader) throws IOException {
         return createApiKey(name, null, metadata, authHeader);
     }
 
-    private Tuple<String, String> createApiKey(
+    static Tuple<String, String> createApiKey(
         String name,
         Map<String, Object> roleDescriptors,
         Map<String, Object> metadata,
@@ -767,7 +761,7 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
         return createApiKey(name, randomFrom("10d", null), roleDescriptors, metadata, authHeader);
     }
 
-    private Tuple<String, String> createApiKey(
+    static Tuple<String, String> createApiKey(
         String name,
         String expiration,
         Map<String, Object> roleDescriptors,
@@ -796,21 +790,74 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
         return new Tuple<>((String) m.get("id"), (String) m.get("api_key"));
     }
 
-    private String createAndInvalidateApiKey(String name, String authHeader) throws IOException {
-        final Tuple<String, String> tuple = createApiKey(name, null, authHeader);
-        final Request request = new Request("DELETE", "/_security/api_key");
-        request.setOptions(request.getOptions().toBuilder().addHeader(HttpHeaders.AUTHORIZATION, authHeader));
+    static Tuple<String, String> grantApiKey(
+        String name,
+        String expiration,
+        Map<String, Object> metadata,
+        String authHeader,
+        String username
+    ) throws IOException {
+        return grantApiKey(name, expiration, null, metadata, authHeader, username);
+    }
+
+    static Tuple<String, String> grantApiKey(
+        String name,
+        String expiration,
+        Map<String, Object> roleDescriptors,
+        Map<String, Object> metadata,
+        String authHeader,
+        String username
+    ) throws IOException {
+        final Request request = new Request("POST", "/_security/api_key/grant");
+        final String roleDescriptorsString = XContentTestUtils.convertToXContent(
+            roleDescriptors == null ? Map.of() : roleDescriptors,
+            XContentType.JSON
+        ).utf8ToString();
+        final String metadataString = XContentTestUtils.convertToXContent(metadata == null ? Map.of() : metadata, XContentType.JSON)
+            .utf8ToString();
+        final String apiKeyString;
+        if (expiration == null) {
+            apiKeyString = Strings.format("""
+                {"name":"%s", "role_descriptors":%s, "metadata":%s}""", name, roleDescriptorsString, metadataString);
+        } else {
+            apiKeyString = Strings.format("""
+                {"name":"%s", "expiration": "%s", "role_descriptors":%s,\
+                "metadata":%s}""", name, expiration, roleDescriptorsString, metadataString);
+        }
         request.setJsonEntity(Strings.format("""
-            {"ids": ["%s"],"owner":true}""", tuple.v1()));
-        assertOK(client().performRequest(request));
+            {
+              "grant_type": "password",
+              "username": "%s",
+              "password": "super-strong-password",
+              "api_key": %s
+            }
+            """, username, apiKeyString));
+        request.setOptions(request.getOptions().toBuilder().addHeader(HttpHeaders.AUTHORIZATION, authHeader));
+        final Response response = client().performRequest(request);
+        assertOK(response);
+        final Map<String, Object> m = responseAsMap(response);
+        return new Tuple<>((String) m.get("id"), (String) m.get("api_key"));
+    }
+
+    static String createAndInvalidateApiKey(String name, String authHeader) throws IOException {
+        final Tuple<String, String> tuple = createApiKey(name, null, authHeader);
+        invalidateApiKey(tuple.v1(), true, authHeader);
         return tuple.v1();
     }
 
-    private String createUser(String username) throws IOException {
+    static void invalidateApiKey(String id, boolean owner, String authHeader) throws IOException {
+        final Request request = new Request("DELETE", "/_security/api_key");
+        request.setOptions(request.getOptions().toBuilder().addHeader(HttpHeaders.AUTHORIZATION, authHeader));
+        request.setJsonEntity(Strings.format("""
+            {"ids": ["%s"],"owner":%s}""", id, owner));
+        assertOK(client().performRequest(request));
+    }
+
+    static String createUser(String username) throws IOException {
         return createUser(username, new String[0]);
     }
 
-    private String createUser(String username, String[] roles) throws IOException {
+    static String createUser(String username, String[] roles) throws IOException {
         final Request request = new Request("POST", "/_security/user/" + username);
         Map<String, Object> body = Map.ofEntries(Map.entry("roles", roles), Map.entry("password", "super-strong-password".toString()));
         request.setJsonEntity(XContentTestUtils.convertToXContent(body, XContentType.JSON).utf8ToString());
@@ -819,7 +866,7 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
         return basicAuthHeaderValue(username, new SecureString("super-strong-password".toCharArray()));
     }
 
-    private void createSystemWriteRole(String roleName) throws IOException {
+    static void createSystemWriteRole(String roleName) throws IOException {
         final Request addRole = new Request("POST", "/_security/role/" + roleName);
         addRole.setJsonEntity("""
             {
@@ -835,7 +882,7 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
         assertOK(response);
     }
 
-    private void expectWarnings(Request request, String... expectedWarnings) {
+    static void expectWarnings(Request request, String... expectedWarnings) {
         final Set<String> expected = Set.of(expectedWarnings);
         RequestOptions options = request.getOptions().toBuilder().setWarningsHandler(warnings -> {
             final Set<String> actual = Set.copyOf(warnings);
@@ -845,7 +892,7 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
         request.setOptions(options);
     }
 
-    private void updateApiKeys(String creds, String script, Collection<String> ids) throws IOException {
+    static void updateApiKeys(String creds, String script, Collection<String> ids) throws IOException {
         if (ids.isEmpty()) {
             return;
         }

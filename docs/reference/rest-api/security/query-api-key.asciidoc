@@ -242,7 +242,7 @@ By default, you cannot page through more than 10,000 hits using the `from` and
 `size`::
 (Optional, integer) The number of hits to return. Must not be negative and defaults to `10`.
 The `size` parameter can be set to `0`, in which case no API key matches are returned,
-but the aggregation is still computed and returned.
+only the aggregation results.
 +
 By default, you cannot page through more than 10,000 hits using the `from` and
 `size` parameters. To page through more hits, use the

@@ -14,6 +14,7 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
@@ -562,30 +563,25 @@ public class ObjectMapper extends Mapper {
                 if (subobjects == false && existingMapper instanceof ObjectMapper objectMapper) {
                     objectMapper.flatten(objectMergeContext.getMapperBuilderContext()).forEach(m -> mergedMappers.put(m.simpleName(), m));
                 } else {
-                    mergedMappers.put(existingMapper.simpleName(), existingMapper);
+                    putMergedMapper(mergedMappers, existingMapper);
                 }
             }
             for (Mapper mergeWithMapper : mergeWithObject) {
                 Mapper mergeIntoMapper = mergedMappers.get(mergeWithMapper.simpleName());
                 if (mergeIntoMapper == null) {
                     if (subobjects == false && mergeWithMapper instanceof ObjectMapper objectMapper) {
-                        objectMapper.flatten(objectMergeContext.getMapperBuilderContext()).forEach(m -> {
-                            if (objectMergeContext.decrementFieldBudgetIfPossible(mergeWithMapper.getTotalFieldsCount())) {
-                                mergedMappers.put(m.simpleName(), m);
-                            }
-                        });
+                        objectMapper.flatten(objectMergeContext.getMapperBuilderContext())
+                            .stream()
+                            .filter(m -> objectMergeContext.decrementFieldBudgetIfPossible(m.getTotalFieldsCount()))
+                            .forEach(m -> putMergedMapper(mergedMappers, m));
                     } else if (objectMergeContext.decrementFieldBudgetIfPossible(mergeWithMapper.getTotalFieldsCount())) {
-                        mergedMappers.put(mergeWithMapper.simpleName(), mergeWithMapper);
+                        putMergedMapper(mergedMappers, mergeWithMapper);
                     } else if (mergeWithMapper instanceof ObjectMapper om) {
-                        ObjectMapper truncated = truncateObjectMapper(reason, objectMergeContext, om);
-                        if (truncated != null) {
-                            mergedMappers.put(truncated.simpleName(), truncated);
-                        }
+                        putMergedMapper(mergedMappers, truncateObjectMapper(reason, objectMergeContext, om));
                     }
                 } else if (mergeIntoMapper instanceof ObjectMapper objectMapper) {
                     assert subobjects : "existing object mappers are supposed to be flattened if subobjects is false";
-                    ObjectMapper merged = objectMapper.merge(mergeWithMapper, reason, objectMergeContext);
-                    mergedMappers.put(merged.simpleName(), merged);
+                    putMergedMapper(mergedMappers, objectMapper.merge(mergeWithMapper, reason, objectMergeContext));
                 } else {
                     assert mergeIntoMapper instanceof FieldMapper || mergeIntoMapper instanceof FieldAliasMapper;
                     if (mergeWithMapper instanceof NestedObjectMapper) {
@@ -597,14 +593,19 @@ public class ObjectMapper extends Mapper {
                     // If we're merging template mappings when creating an index, then a field definition always
                     // replaces an existing one.
                     if (reason == MergeReason.INDEX_TEMPLATE) {
-                        mergedMappers.put(mergeWithMapper.simpleName(), mergeWithMapper);
+                        putMergedMapper(mergedMappers, mergeWithMapper);
                     } else {
-                        Mapper merged = mergeIntoMapper.merge(mergeWithMapper, objectMergeContext);
-                        mergedMappers.put(merged.simpleName(), merged);
+                        putMergedMapper(mergedMappers, mergeIntoMapper.merge(mergeWithMapper, objectMergeContext));
                     }
                 }
             }
             return Map.copyOf(mergedMappers);
+        }
+
+        private static void putMergedMapper(Map<String, Mapper> mergedMappers, @Nullable Mapper merged) {
+            if (merged != null) {
+                mergedMappers.put(merged.simpleName(), merged);
+            }
         }
 
         private static ObjectMapper truncateObjectMapper(MergeReason reason, MapperMergeContext context, ObjectMapper objectMapper) {

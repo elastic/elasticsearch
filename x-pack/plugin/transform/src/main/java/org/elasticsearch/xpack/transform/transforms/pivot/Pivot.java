@@ -14,13 +14,13 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
@@ -89,18 +89,11 @@ public class Pivot extends AbstractCompositeAggFunction {
     public void deduceMappings(
         Client client,
         Map<String, String> headers,
+        String transformId,
         SourceConfig sourceConfig,
         final ActionListener<Map<String, String>> listener
     ) {
-        SchemaUtil.deduceMappings(
-            client,
-            headers,
-            config,
-            sourceConfig.getIndex(),
-            sourceConfig.getQueryConfig().getQuery(),
-            sourceConfig.getRuntimeMappings(),
-            listener
-        );
+        SchemaUtil.deduceMappings(client, headers, transformId, settings, config, sourceConfig, listener);
     }
 
     /**
@@ -204,11 +197,15 @@ public class Pivot extends AbstractCompositeAggFunction {
 
             builder.endArray();
             builder.endObject(); // sources
-            XContentParser parser = builder.generator()
-                .contentType()
-                .xContent()
-                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, BytesReference.bytes(builder).streamInput());
-            compositeAggregation = CompositeAggregationBuilder.PARSER.parse(parser, COMPOSITE_AGGREGATION_NAME);
+            try (
+                XContentParser parser = XContentHelper.createParserNotCompressed(
+                    LoggingDeprecationHandler.XCONTENT_PARSER_CONFIG,
+                    BytesReference.bytes(builder),
+                    builder.generator().contentType()
+                )
+            ) {
+                compositeAggregation = CompositeAggregationBuilder.PARSER.parse(parser, COMPOSITE_AGGREGATION_NAME);
+            }
         } catch (IOException e) {
             throw new RuntimeException(
                 TransformMessages.getMessage(TransformMessages.TRANSFORM_FAILED_TO_CREATE_COMPOSITE_AGGREGATION, "pivot"),

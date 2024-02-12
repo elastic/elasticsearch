@@ -32,6 +32,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_RESIZE_SOUR
 import static org.elasticsearch.cluster.routing.ExpectedShardSizeEstimator.getExpectedShardSize;
 import static org.elasticsearch.cluster.routing.ExpectedShardSizeEstimator.shouldReserveSpaceForInitializingShard;
 import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
+import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_STORE_TYPE;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SNAPSHOT_PARTIAL_SETTING;
@@ -44,13 +45,10 @@ public class ExpectedShardSizeEstimatorTests extends ESAllocationTestCase {
     public void testShouldFallbackToDefaultExpectedShardSize() {
 
         var state = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata(index("my-index"))).build();
-        var shard = newShardRouting(
-            new ShardId("my-index", "_na_", 0),
-            randomIdentifier(),
-            true,
-            ShardRoutingState.INITIALIZING,
-            randomFrom(RecoverySource.EmptyStoreRecoverySource.INSTANCE, RecoverySource.ExistingStoreRecoverySource.INSTANCE)
-        );
+        var shard = shardRoutingBuilder(new ShardId("my-index", "_na_", 0), randomIdentifier(), true, ShardRoutingState.INITIALIZING)
+            .withRecoverySource(
+                randomFrom(RecoverySource.EmptyStoreRecoverySource.INSTANCE, RecoverySource.ExistingStoreRecoverySource.INSTANCE)
+            ).build();
 
         var allocation = createRoutingAllocation(state, ClusterInfo.EMPTY, SnapshotShardSizeInfo.EMPTY);
 
@@ -65,13 +63,9 @@ public class ExpectedShardSizeEstimatorTests extends ESAllocationTestCase {
 
         var shardSize = randomLongBetween(100, 1000);
         var state = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata(index("my-index"))).build();
-        var shard = newShardRouting(
-            new ShardId("my-index", "_na_", 0),
-            randomIdentifier(),
-            true,
-            ShardRoutingState.INITIALIZING,
-            RecoverySource.PeerRecoverySource.INSTANCE
-        );
+        var shard = shardRoutingBuilder(new ShardId("my-index", "_na_", 0), randomIdentifier(), true, ShardRoutingState.INITIALIZING)
+            .withRecoverySource(RecoverySource.PeerRecoverySource.INSTANCE)
+            .build();
 
         var clusterInfo = createClusterInfo(shard, shardSize);
         var allocation = createRoutingAllocation(state, clusterInfo, SnapshotShardSizeInfo.EMPTY);
@@ -119,13 +113,9 @@ public class ExpectedShardSizeEstimatorTests extends ESAllocationTestCase {
         var snapshot = new Snapshot("repository", new SnapshotId("snapshot-1", "na"));
         var indexId = new IndexId("my-index", "_na_");
 
-        var shard = newShardRouting(
-            new ShardId("my-index", "_na_", 0),
-            randomIdentifier(),
-            true,
-            ShardRoutingState.INITIALIZING,
-            new RecoverySource.SnapshotRecoverySource(randomUUID(), snapshot, IndexVersion.current(), indexId)
-        );
+        var shard = shardRoutingBuilder(new ShardId("my-index", "_na_", 0), randomIdentifier(), true, ShardRoutingState.INITIALIZING)
+            .withRecoverySource(new RecoverySource.SnapshotRecoverySource(randomUUID(), snapshot, IndexVersion.current(), indexId))
+            .build();
 
         var snapshotShardSizeInfo = new SnapshotShardSizeInfo(
             Map.of(new InternalSnapshotsInfoService.SnapshotShard(snapshot, indexId, shard.shardId()), snapshotShardSize)
@@ -147,18 +137,14 @@ public class ExpectedShardSizeEstimatorTests extends ESAllocationTestCase {
 
         var sourceShardSize = randomLongBetween(100, 1000);
         var source = newShardRouting(new ShardId("source", "_na_", 0), randomIdentifier(), true, ShardRoutingState.STARTED);
-        var target = newShardRouting(
-            new ShardId("target", "_na_", 0),
-            randomIdentifier(),
-            true,
-            ShardRoutingState.INITIALIZING,
-            RecoverySource.LocalShardsRecoverySource.INSTANCE
-        );
+        var target = shardRoutingBuilder(new ShardId("target", "_na_", 0), randomIdentifier(), true, ShardRoutingState.INITIALIZING)
+            .withRecoverySource(RecoverySource.LocalShardsRecoverySource.INSTANCE)
+            .build();
 
         var state = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(
                 metadata(
-                    IndexMetadata.builder("source").settings(indexSettings(IndexVersion.current(), 2, 0)),
+                    IndexMetadata.builder("source").settings(indexSettings(IndexVersion.current(), 1, 0)),
                     IndexMetadata.builder("target")
                         .settings(
                             indexSettings(IndexVersion.current(), 1, 0) //

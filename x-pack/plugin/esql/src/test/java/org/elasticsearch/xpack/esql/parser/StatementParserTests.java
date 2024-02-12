@@ -54,6 +54,7 @@ import java.time.Period;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
@@ -226,7 +227,7 @@ public class StatementParserTests extends ESTestCase {
                 List.of(
                     new Alias(
                         EMPTY,
-                        "fn(a+1)",
+                        "fn(a + 1)",
                         new UnresolvedFunction(EMPTY, "fn", DEFAULT, List.of(new Add(EMPTY, attribute("a"), integer(1))))
                     )
                 )
@@ -579,32 +580,32 @@ public class StatementParserTests extends ESTestCase {
     }
 
     public void testMetadataFieldOnOtherSources() {
+        expectError("row a = 1 metadata _index", "line 1:20: extraneous input '_index' expecting <EOF>");
+        expectError("show functions metadata _index", "line 1:16: token recognition error at: 'm'");
         expectError(
-            "row a = 1 [metadata _index]",
-            "1:11: mismatched input '[' expecting {<EOF>, '|', 'and', ',', 'or', '+', '-', '*', '/', '%'}"
+            "explain [from foo] metadata _index",
+            "line 1:20: mismatched input 'metadata' expecting {'|', ',', OPENING_BRACKET, ']', 'metadata'}"
         );
-        expectError("show functions [metadata _index]", "line 1:16: token recognition error at: '['");
-        expectError("explain [from foo] [metadata _index]", "line 1:20: mismatched input '[' expecting {'|', ',', OPENING_BRACKET, ']'}");
     }
 
     public void testMetadataFieldMultipleDeclarations() {
-        expectError("from test [metadata _index, _version, _index]", "1:40: metadata field [_index] already declared [@1:21]");
+        expectError("from test metadata _index, _version, _index", "1:39: metadata field [_index] already declared [@1:20]");
     }
 
     public void testMetadataFieldUnsupportedPrimitiveType() {
-        expectError("from test [metadata _tier]", "line 1:22: unsupported metadata field [_tier]");
+        expectError("from test metadata _tier", "line 1:21: unsupported metadata field [_tier]");
     }
 
     public void testMetadataFieldUnsupportedCustomType() {
-        expectError("from test [metadata _feature]", "line 1:22: unsupported metadata field [_feature]");
+        expectError("from test metadata _feature", "line 1:21: unsupported metadata field [_feature]");
     }
 
     public void testMetadataFieldNotFoundNonExistent() {
-        expectError("from test [metadata _doesnot_compute]", "line 1:22: unsupported metadata field [_doesnot_compute]");
+        expectError("from test metadata _doesnot_compute", "line 1:21: unsupported metadata field [_doesnot_compute]");
     }
 
     public void testMetadataFieldNotFoundNormalField() {
-        expectError("from test [metadata emp_no]", "line 1:22: unsupported metadata field [emp_no]");
+        expectError("from test metadata emp_no", "line 1:21: unsupported metadata field [emp_no]");
     }
 
     public void testDissectPattern() {
@@ -676,7 +677,16 @@ public class StatementParserTests extends ESTestCase {
 
     public void testEnrich() {
         assertEquals(
-            new Enrich(EMPTY, PROCESSING_CMD_INPUT, new Literal(EMPTY, "countries", KEYWORD), new EmptyAttribute(EMPTY), null, List.of()),
+            new Enrich(
+                EMPTY,
+                PROCESSING_CMD_INPUT,
+                null,
+                new Literal(EMPTY, "countries", KEYWORD),
+                new EmptyAttribute(EMPTY),
+                null,
+                Map.of(),
+                List.of()
+            ),
             processingCommand("enrich countries")
         );
 
@@ -684,12 +694,29 @@ public class StatementParserTests extends ESTestCase {
             new Enrich(
                 EMPTY,
                 PROCESSING_CMD_INPUT,
+                null,
+                new Literal(EMPTY, "index-policy", KEYWORD),
+                new UnresolvedAttribute(EMPTY, "field_underscore"),
+                null,
+                Map.of(),
+                List.of()
+            ),
+            processingCommand("enrich index-policy ON field_underscore")
+        );
+
+        Enrich.Mode mode = randomFrom(Enrich.Mode.values());
+        assertEquals(
+            new Enrich(
+                EMPTY,
+                PROCESSING_CMD_INPUT,
+                mode,
                 new Literal(EMPTY, "countries", KEYWORD),
                 new UnresolvedAttribute(EMPTY, "country_code"),
                 null,
+                Map.of(),
                 List.of()
             ),
-            processingCommand("enrich countries ON country_code")
+            processingCommand("enrich _" + mode.name() + ":countries ON country_code")
         );
 
         expectError("from a | enrich countries on foo* ", "Using wildcards (*) in ENRICH WITH projections is not allowed [foo*]");
@@ -701,6 +728,10 @@ public class StatementParserTests extends ESTestCase {
         expectError(
             "from a | enrich countries on foo with x* = bar ",
             "Using wildcards (*) in ENRICH WITH projections is not allowed [x*]"
+        );
+        expectError(
+            "from a | enrich typo:countries on foo",
+            "line 1:18: Unrecognized value [typo], ENRICH policy qualifier needs to be one of [_ANY, _COORDINATOR, _REMOTE]"
         );
     }
 
@@ -723,8 +754,9 @@ public class StatementParserTests extends ESTestCase {
     }
 
     public void testUsageOfProject() {
-        processingCommand("project a");
-        assertWarnings("PROJECT command is no longer supported, please use KEEP instead");
+        String query = "from test | project foo, bar";
+        ParsingException e = expectThrows(ParsingException.class, "Expected syntax error for " + query, () -> statement(query));
+        assertThat(e.getMessage(), containsString("mismatched input 'project' expecting"));
     }
 
     public void testInputParams() {

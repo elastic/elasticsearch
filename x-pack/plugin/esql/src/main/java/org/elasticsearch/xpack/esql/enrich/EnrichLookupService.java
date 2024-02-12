@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.UnavailableShardsException;
+import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
@@ -24,14 +25,12 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.compute.OwningChannelActionListener;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.lucene.BlockReaderFactories;
 import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -42,6 +41,7 @@ import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.ShardId;
@@ -73,6 +73,7 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
+import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
@@ -161,12 +162,13 @@ public class EnrichLookupService {
             }
             ShardIterator shardIt = shardIterators.get(0);
             ShardRouting shardRouting = shardIt.nextOrNull();
+            ShardId shardId = shardIt.shardId();
             if (shardRouting == null) {
-                delegate.onFailure(new UnavailableShardsException(shardIt.shardId(), "enrich index is not available"));
+                delegate.onFailure(new UnavailableShardsException(shardId, "enrich index is not available"));
                 return;
             }
             DiscoveryNode targetNode = clusterState.nodes().get(shardRouting.currentNodeId());
-            LookupRequest lookupRequest = new LookupRequest(sessionId, shardIt.shardId(), matchType, matchField, inputPage, extractFields);
+            var lookupRequest = new LookupRequest(sessionId, shardId, matchType, matchField, inputPage, extractFields);
             // TODO: handle retry and avoid forking for the local lookup
             try (ThreadContext.StoredContext unused = threadContext.stashWithOrigin(ClientHelper.ENRICH_ORIGIN)) {
                 transportService.sendChildRequest(
@@ -273,20 +275,39 @@ public class EnrichLookupService {
                 NamedExpression extractField = extractFields.get(i);
                 final ElementType elementType = PlannerUtils.toElementType(extractField.dataType());
                 mergingTypes[i] = elementType;
-                var loaders = BlockReaderFactories.loaders(
-                    List.of(searchContext),
-                    extractField instanceof Alias a ? ((NamedExpression) a.child()).name() : extractField.name(),
-                    EsqlDataTypes.isUnsupported(extractField.dataType())
+                EsPhysicalOperationProviders.ShardContext ctx = new EsPhysicalOperationProviders.DefaultShardContext(
+                    0,
+                    searchContext.getSearchExecutionContext(),
+                    searchContext.request().getAliasFilter()
                 );
-                fields.add(new ValuesSourceReaderOperator.FieldInfo(extractField.name(), loaders));
+                BlockLoader loader = ctx.blockLoader(
+                    extractField instanceof Alias a ? ((NamedExpression) a.child()).name() : extractField.name(),
+                    EsqlDataTypes.isUnsupported(extractField.dataType()),
+                    MappedFieldType.FieldExtractPreference.NONE
+                );
+                fields.add(
+                    new ValuesSourceReaderOperator.FieldInfo(
+                        extractField.name(),
+                        PlannerUtils.toElementType(extractField.dataType()),
+                        shardIdx -> {
+                            if (shardIdx != 0) {
+                                throw new IllegalStateException("only one shard");
+                            }
+                            return loader;
+                        }
+                    )
+                );
             }
             intermediateOperators.add(
                 new ValuesSourceReaderOperator(
                     driverContext.blockFactory(),
                     fields,
-                    List.of(new ValuesSourceReaderOperator.ShardContext(searchContext.searcher().getIndexReader(), () -> {
-                        throw new UnsupportedOperationException("can't load _source as part of enrich");
-                    })),
+                    List.of(
+                        new ValuesSourceReaderOperator.ShardContext(
+                            searchContext.searcher().getIndexReader(),
+                            searchContext::newSourceLoader
+                        )
+                    ),
                     0
                 )
             );
@@ -369,7 +390,7 @@ public class EnrichLookupService {
         @Override
         public void messageReceived(LookupRequest request, TransportChannel channel, Task task) {
             request.incRef();
-            ActionListener<LookupResponse> listener = ActionListener.runBefore(new OwningChannelActionListener<>(channel), request::decRef);
+            ActionListener<LookupResponse> listener = ActionListener.runBefore(new ChannelActionListener<>(channel), request::decRef);
             doLookup(
                 request.sessionId,
                 (CancellableTask) task,
@@ -378,7 +399,9 @@ public class EnrichLookupService {
                 request.matchField,
                 request.inputPage,
                 request.extractFields,
-                listener.map(LookupResponse::new)
+                listener.delegateFailureAndWrap(
+                    (l, outPage) -> ActionListener.respondAndRelease(l, new LookupResponse(outPage, blockFactory))
+                )
             );
         }
     }
@@ -417,7 +440,9 @@ public class EnrichLookupService {
             this.shardId = new ShardId(in);
             this.matchType = in.readString();
             this.matchField = in.readString();
-            this.inputPage = new Page(new BlockStreamInput(in, blockFactory));
+            try (BlockStreamInput bsi = new BlockStreamInput(in, blockFactory)) {
+                this.inputPage = new Page(bsi);
+            }
             this.toRelease = inputPage;
             PlanStreamInput planIn = new PlanStreamInput(in, PlanNameRegistry.INSTANCE, in.namedWriteableRegistry(), null);
             this.extractFields = planIn.readCollectionAsList(readerFromPlanReader(PlanStreamInput::readNamedExpression));
@@ -509,17 +534,26 @@ public class EnrichLookupService {
     private static class LookupResponse extends TransportResponse {
         private Page page;
         private final RefCounted refs = AbstractRefCounted.of(this::releasePage);
+        private final BlockFactory blockFactory;
+        private long reservedBytes = 0;
 
-        LookupResponse(Page page) {
+        LookupResponse(Page page, BlockFactory blockFactory) {
             this.page = page;
+            this.blockFactory = blockFactory;
         }
 
         LookupResponse(StreamInput in, BlockFactory blockFactory) throws IOException {
-            this.page = new Page(new BlockStreamInput(in, blockFactory));
+            try (BlockStreamInput bsi = new BlockStreamInput(in, blockFactory)) {
+                this.page = new Page(bsi);
+            }
+            this.blockFactory = blockFactory;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
+            long bytes = page.ramBytesUsedByBlocks();
+            blockFactory.breaker().addEstimateBytesAndMaybeBreak(bytes, "serialize enrich lookup response");
+            reservedBytes += bytes;
             page.writeTo(out);
         }
 
@@ -530,6 +564,7 @@ public class EnrichLookupService {
         }
 
         private void releasePage() {
+            blockFactory.breaker().addWithoutBreaking(-reservedBytes);
             if (page != null) {
                 Releasables.closeExpectNoException(page::releaseBlocks);
             }

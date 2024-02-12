@@ -44,7 +44,7 @@ public final class StringUtils {
 
     private static final String INVALID_REGEX_SEQUENCE = "Invalid sequence - escape character is not followed by special wildcard char";
 
-    // CamelCase to camel_case
+    // CamelCase to camel_case (and isNaN to is_nan)
     public static String camelCaseToUnderscore(String string) {
         if (Strings.hasText(string) == false) {
             return EMPTY;
@@ -57,7 +57,8 @@ public final class StringUtils {
             char ch = s.charAt(i);
             if (Character.isAlphabetic(ch)) {
                 if (Character.isUpperCase(ch)) {
-                    if (i > 0 && previousCharWasUp == false) {
+                    // append `_` when encountering a capital after a small letter, but only if not the last letter.
+                    if (i > 0 && i < s.length() - 1 && previousCharWasUp == false) {
                         sb.append("_");
                     }
                     previousCharWasUp = true;

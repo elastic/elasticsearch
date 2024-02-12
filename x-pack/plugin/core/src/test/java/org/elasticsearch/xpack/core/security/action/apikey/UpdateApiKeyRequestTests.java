@@ -8,13 +8,10 @@
 package org.elasticsearch.xpack.core.security.action.apikey;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.restriction.WorkflowResolver;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -22,49 +19,19 @@ import java.util.Map;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.containsStringIgnoringCase;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
 
 public class UpdateApiKeyRequestTests extends ESTestCase {
 
     public void testNullValuesValidForNonIds() {
-        final var request = new UpdateApiKeyRequest("id", null, null);
+        final var request = new UpdateApiKeyRequest("id", null, null, null);
         assertNull(request.validate());
-    }
-
-    public void testSerialization() throws IOException {
-        final boolean roleDescriptorsPresent = randomBoolean();
-        final List<RoleDescriptor> descriptorList;
-        if (roleDescriptorsPresent == false) {
-            descriptorList = null;
-        } else {
-            final int numDescriptors = randomIntBetween(0, 4);
-            descriptorList = new ArrayList<>();
-            for (int i = 0; i < numDescriptors; i++) {
-                descriptorList.add(new RoleDescriptor("role_" + i, new String[] { "all" }, null, null));
-            }
-        }
-
-        final var id = randomAlphaOfLength(10);
-        final var metadata = ApiKeyTests.randomMetadata();
-        final var request = new UpdateApiKeyRequest(id, descriptorList, metadata);
-        assertThat(request.getType(), is(ApiKey.Type.REST));
-
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
-            request.writeTo(out);
-            try (StreamInput in = out.bytes().streamInput()) {
-                final var serialized = new UpdateApiKeyRequest(in);
-                assertEquals(id, serialized.getId());
-                assertEquals(descriptorList, serialized.getRoleDescriptors());
-                assertEquals(metadata, serialized.getMetadata());
-                assertEquals(request.getType(), serialized.getType());
-            }
-        }
     }
 
     public void testMetadataKeyValidation() {
         final var reservedKey = "_" + randomAlphaOfLengthBetween(0, 10);
         final var metadataValue = randomAlphaOfLengthBetween(1, 10);
-        UpdateApiKeyRequest request = new UpdateApiKeyRequest(randomAlphaOfLength(10), null, Map.of(reservedKey, metadataValue));
+
+        UpdateApiKeyRequest request = new UpdateApiKeyRequest(randomAlphaOfLength(10), null, Map.of(reservedKey, metadataValue), null);
         final ActionRequestValidationException ve = request.validate();
         assertNotNull(ve);
         assertThat(ve.validationErrors().size(), equalTo(1));
@@ -98,6 +65,7 @@ public class UpdateApiKeyRequestTests extends ESTestCase {
                     new RoleDescriptor.Restriction(workflows.toArray(String[]::new))
                 )
             ),
+            null,
             null
         );
         final ActionRequestValidationException ve1 = request1.validate();

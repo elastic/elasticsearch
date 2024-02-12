@@ -226,21 +226,17 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
         createNSnapshots(repoName, randomIntBetween(1, 5));
         expectThrows(
             ActionRequestValidationException.class,
-            () -> clusterAdmin().prepareGetSnapshots(repoName)
+            clusterAdmin().prepareGetSnapshots(repoName)
                 .setVerbose(false)
                 .setSort(GetSnapshotsRequest.SortBy.DURATION)
                 .setSize(GetSnapshotsRequest.NO_LIMIT)
-                .execute()
-                .actionGet()
         );
         expectThrows(
             ActionRequestValidationException.class,
-            () -> clusterAdmin().prepareGetSnapshots(repoName)
+            clusterAdmin().prepareGetSnapshots(repoName)
                 .setVerbose(false)
                 .setSort(GetSnapshotsRequest.SortBy.START_TIME)
                 .setSize(randomIntBetween(1, 100))
-                .execute()
-                .actionGet()
         );
     }
 

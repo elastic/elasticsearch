@@ -36,9 +36,10 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
     public static final ParseField QUERY_FIELD = new ParseField("query");
     public static final ParseField SAMPLE_SIZE_FIELD = new ParseField("sample_size");
     public static final ParseField INDICES_FIELD = new ParseField("indices");
-    public static final ParseField STACKTRACE_IDS_FIELD = new ParseField("stacktrace_ids");
+    public static final ParseField STACKTRACE_IDS_FIELD = new ParseField("stacktrace_ids_field");
     public static final ParseField REQUESTED_DURATION_FIELD = new ParseField("requested_duration");
     public static final ParseField AWS_COST_FACTOR_FIELD = new ParseField("aws_cost_factor");
+    public static final ParseField AZURE_COST_FACTOR_FIELD = new ParseField("azure_cost_factor");
     public static final ParseField CUSTOM_CO2_PER_KWH = new ParseField("co2_per_kwh");
     public static final ParseField CUSTOM_DATACENTER_PUE = new ParseField("datacenter_pue");
     public static final ParseField CUSTOM_PER_CORE_WATT_X86 = new ParseField("per_core_watt_x86");
@@ -47,11 +48,12 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
     private static final int DEFAULT_SAMPLE_SIZE = 20_000;
 
     private QueryBuilder query;
-    private Integer sampleSize;
+    private int sampleSize;
     private String indices;
-    private String stackTraceIds;
+    private String stackTraceIdsField;
     private Double requestedDuration;
     private Double awsCostFactor;
+    private Double azureCostFactor;
     private Double customCO2PerKWH;
     private Double customDatacenterPUE;
     private Double customPerCoreWattX86;
@@ -64,28 +66,30 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
     private Boolean adjustSampleCount;
 
     public GetStackTracesRequest() {
-        this(null, null, null, null, null, null, null, null, null, null, null);
+        this(null, null, null, null, null, null, null, null, null, null, null, null);
     }
 
     public GetStackTracesRequest(
         Integer sampleSize,
         Double requestedDuration,
         Double awsCostFactor,
+        Double azureCostFactor,
         QueryBuilder query,
         String indices,
-        String stackTraceIds,
+        String stackTraceIdsField,
         Double customCO2PerKWH,
         Double customDatacenterPUE,
         Double customPerCoreWattX86,
         Double customPerCoreWattARM64,
         Double customCostPerCoreHour
     ) {
-        this.sampleSize = sampleSize;
+        this.sampleSize = sampleSize != null ? sampleSize : DEFAULT_SAMPLE_SIZE;
         this.requestedDuration = requestedDuration;
         this.awsCostFactor = awsCostFactor;
+        this.azureCostFactor = azureCostFactor;
         this.query = query;
         this.indices = indices;
-        this.stackTraceIds = stackTraceIds;
+        this.stackTraceIdsField = stackTraceIdsField;
         this.customCO2PerKWH = customCO2PerKWH;
         this.customDatacenterPUE = customDatacenterPUE;
         this.customPerCoreWattX86 = customPerCoreWattX86;
@@ -98,8 +102,8 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
         TransportAction.localOnly();
     }
 
-    public Integer getSampleSize() {
-        return sampleSize != null ? sampleSize : DEFAULT_SAMPLE_SIZE;
+    public int getSampleSize() {
+        return sampleSize;
     }
 
     public Double getRequestedDuration() {
@@ -108,6 +112,10 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
 
     public Double getAwsCostFactor() {
         return awsCostFactor;
+    }
+
+    public Double getAzureCostFactor() {
+        return azureCostFactor;
     }
 
     public Double getCustomCO2PerKWH() {
@@ -138,8 +146,8 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
         return indices;
     }
 
-    public String getStackTraceIds() {
-        return stackTraceIds;
+    public String getStackTraceIdsField() {
+        return stackTraceIdsField;
     }
 
     public boolean isAdjustSampleCount() {
@@ -170,11 +178,13 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
                 } else if (INDICES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     this.indices = parser.text();
                 } else if (STACKTRACE_IDS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    this.stackTraceIds = parser.text();
+                    this.stackTraceIdsField = parser.text();
                 } else if (REQUESTED_DURATION_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     this.requestedDuration = parser.doubleValue();
                 } else if (AWS_COST_FACTOR_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     this.awsCostFactor = parser.doubleValue();
+                } else if (AZURE_COST_FACTOR_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                    this.azureCostFactor = parser.doubleValue();
                 } else if (CUSTOM_CO2_PER_KWH.match(currentFieldName, parser.getDeprecationHandler())) {
                     this.customCO2PerKWH = parser.doubleValue();
                 } else if (CUSTOM_DATACENTER_PUE.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -215,14 +225,14 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
         if (indices != null) {
-            if (stackTraceIds == null || stackTraceIds.isEmpty()) {
+            if (stackTraceIdsField == null || stackTraceIdsField.isEmpty()) {
                 validationException = addValidationError(
                     "[" + STACKTRACE_IDS_FIELD.getPreferredName() + "] is mandatory",
                     validationException
                 );
             }
         } else {
-            if (stackTraceIds != null) {
+            if (stackTraceIdsField != null) {
                 validationException = addValidationError(
                     "[" + STACKTRACE_IDS_FIELD.getPreferredName() + "] must not be set",
                     validationException
@@ -232,6 +242,7 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
         validationException = requirePositive(SAMPLE_SIZE_FIELD, sampleSize, validationException);
         validationException = requirePositive(REQUESTED_DURATION_FIELD, requestedDuration, validationException);
         validationException = requirePositive(AWS_COST_FACTOR_FIELD, awsCostFactor, validationException);
+        validationException = requirePositive(AZURE_COST_FACTOR_FIELD, azureCostFactor, validationException);
         validationException = requirePositive(CUSTOM_CO2_PER_KWH, customCO2PerKWH, validationException);
         validationException = requirePositive(CUSTOM_DATACENTER_PUE, customDatacenterPUE, validationException);
         validationException = requirePositive(CUSTOM_PER_CORE_WATT_X86, customPerCoreWattX86, validationException);
@@ -257,10 +268,11 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
                 // generating description lazily since the query could be large
                 StringBuilder sb = new StringBuilder();
                 appendField(sb, "indices", indices);
-                appendField(sb, "stacktrace_ids", stackTraceIds);
+                appendField(sb, "stacktrace_ids_field", stackTraceIdsField);
                 appendField(sb, "sample_size", sampleSize);
                 appendField(sb, "requested_duration", requestedDuration);
                 appendField(sb, "aws_cost_factor", awsCostFactor);
+                appendField(sb, "azure_cost_factor", azureCostFactor);
                 appendField(sb, "co2_per_kwh", customCO2PerKWH);
                 appendField(sb, "datacenter_pue", customDatacenterPUE);
                 appendField(sb, "per_core_watt_x86", customPerCoreWattX86);
@@ -295,7 +307,7 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
         return Objects.equals(query, that.query)
             && Objects.equals(sampleSize, that.sampleSize)
             && Objects.equals(indices, that.indices)
-            && Objects.equals(stackTraceIds, that.stackTraceIds);
+            && Objects.equals(stackTraceIdsField, that.stackTraceIdsField);
     }
 
     @Override
@@ -306,7 +318,7 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
         // Resampler to produce a consistent downsampling results, relying on the default hashCode implementation of `query` will
         // produce consistent results per node but not across the cluster. To avoid this, we produce the hashCode based on the
         // string representation instead, which will produce consistent results for the entire cluster and across node restarts.
-        return Objects.hash(Objects.toString(query, "null"), sampleSize, indices, stackTraceIds);
+        return Objects.hash(Objects.toString(query, "null"), sampleSize, indices, stackTraceIdsField);
     }
 
     @Override

@@ -27,13 +27,11 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
-import java.util.concurrent.ExecutionException;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.common.util.CollectionUtils.appendToCopy;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.instanceOf;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class GetHealthActionIT extends ESIntegTestCase {
@@ -172,16 +170,10 @@ public class GetHealthActionIT extends ESIntegTestCase {
             testIndicator(client, ilmIndicatorStatus, true);
 
             // Next, test that if we ask for a nonexistent indicator, we get an exception
-            {
-                ExecutionException exception = expectThrows(
-                    ExecutionException.class,
-                    () -> client.execute(
-                        GetHealthAction.INSTANCE,
-                        new GetHealthAction.Request(NONEXISTENT_INDICATOR_NAME, randomBoolean(), 1000)
-                    ).get()
-                );
-                assertThat(exception.getCause(), instanceOf(ResourceNotFoundException.class));
-            }
+            expectThrows(
+                ResourceNotFoundException.class,
+                client.execute(GetHealthAction.INSTANCE, new GetHealthAction.Request(NONEXISTENT_INDICATOR_NAME, randomBoolean(), 1000))
+            );
 
             // Check health api stats
             {

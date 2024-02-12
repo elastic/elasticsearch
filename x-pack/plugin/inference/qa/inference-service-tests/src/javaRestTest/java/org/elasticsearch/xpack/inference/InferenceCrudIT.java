@@ -3,6 +3,8 @@
  * or more contributor license agreements. Licensed under the Elastic License
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
+ *
+ * this file has been contributed to by a Generative AI
  */
 
 package org.elasticsearch.xpack.inference;
@@ -46,6 +48,13 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
         var singleModel = (List<Map<String, Object>>) getModels("se_model_1", TaskType.SPARSE_EMBEDDING).get("models");
         assertThat(singleModel, hasSize(1));
         assertEquals("se_model_1", singleModel.get(0).get("model_id"));
+
+        for (int i = 0; i < 5; i++) {
+            deleteModel("se_model_" + i, TaskType.SPARSE_EMBEDDING);
+        }
+        for (int i = 0; i < 4; i++) {
+            deleteModel("te_model_" + i, TaskType.TEXT_EMBEDDING);
+        }
     }
 
     public void testGetModelWithWrongTaskType() throws IOException {
@@ -57,13 +66,34 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
         );
     }
 
+    public void testDeleteModelWithWrongTaskType() throws IOException {
+        putModel("sparse_embedding_model", mockServiceModelConfig(), TaskType.SPARSE_EMBEDDING);
+        var e = expectThrows(ResponseException.class, () -> deleteModel("sparse_embedding_model", TaskType.TEXT_EMBEDDING));
+        assertThat(
+            e.getMessage(),
+            containsString("Requested task type [text_embedding] does not match the model's task type [sparse_embedding]")
+        );
+    }
+
     @SuppressWarnings("unchecked")
     public void testGetModelWithAnyTaskType() throws IOException {
-        String modelId = "sparse_embedding_model";
-        putModel(modelId, mockServiceModelConfig(), TaskType.SPARSE_EMBEDDING);
-        var singleModel = (List<Map<String, Object>>) getModels(modelId, TaskType.ANY).get("models");
-        System.out.println("MODEL" + singleModel);
+        String inferenceEntityId = "sparse_embedding_model";
+        putModel(inferenceEntityId, mockServiceModelConfig(), TaskType.SPARSE_EMBEDDING);
+        var singleModel = (List<Map<String, Object>>) getModels(inferenceEntityId, TaskType.ANY).get("models");
+        assertEquals(inferenceEntityId, singleModel.get(0).get("model_id"));
+        assertEquals(TaskType.SPARSE_EMBEDDING.toString(), singleModel.get(0).get("task_type"));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testApisWithoutTaskType() throws IOException {
+        String modelId = "no_task_type_in_url";
+        putModel(modelId, mockServiceModelConfig(TaskType.SPARSE_EMBEDDING));
+        var singleModel = (List<Map<String, Object>>) getModel(modelId).get("models");
         assertEquals(modelId, singleModel.get(0).get("model_id"));
         assertEquals(TaskType.SPARSE_EMBEDDING.toString(), singleModel.get(0).get("task_type"));
+
+        var inference = inferOnMockService(modelId, List.of(randomAlphaOfLength(10)));
+        assertNonEmptyInferenceResults(inference, 1, TaskType.SPARSE_EMBEDDING);
+        deleteModel(modelId);
     }
 }

@@ -13,12 +13,12 @@ composed_of:
 - apm@settings
 - apm-10d@lifecycle
 - traces-apm@mappings
-- apm@custom
+- traces@custom
 - traces-apm@custom
 - ecs@mappings
 ignore_missing_component_templates:
+- traces@custom
 - traces-apm@custom
-- apm@custom
 template:
   settings:
     index:

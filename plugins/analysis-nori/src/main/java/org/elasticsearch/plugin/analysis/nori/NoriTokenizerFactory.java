@@ -25,6 +25,8 @@ import java.io.StringReader;
 import java.util.List;
 import java.util.Locale;
 
+import static org.elasticsearch.index.IndexVersions.UPGRADE_LUCENE_9_9_1;
+
 public class NoriTokenizerFactory extends AbstractTokenizerFactory {
     private static final String USER_DICT_PATH_OPTION = "user_dictionary";
     private static final String USER_DICT_RULES_OPTION = "user_dictionary_rules";
@@ -80,7 +82,10 @@ public class NoriTokenizerFactory extends AbstractTokenizerFactory {
      * that the duplicate check feature is supported.
      */
     private static boolean isSupportDuplicateCheck(IndexSettings indexSettings) {
-        return indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.ES_VERSION_8_13);
+        var idxVersion = indexSettings.getIndexVersionCreated();
+        // Explicitly exclude the range of versions greater than NORI_DUPLICATES, that
+        // are also in 8.12. The only version in this range is UPGRADE_LUCENE_9_9_1.
+        return idxVersion.onOrAfter(IndexVersions.NORI_DUPLICATES) && idxVersion != UPGRADE_LUCENE_9_9_1;
     }
 
     public static KoreanTokenizer.DecompoundMode getMode(Settings settings) {

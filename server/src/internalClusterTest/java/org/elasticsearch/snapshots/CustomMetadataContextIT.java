@@ -8,6 +8,7 @@
 package org.elasticsearch.snapshots;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -30,7 +31,6 @@ import java.util.Map;
 import java.util.function.Function;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertRequestBuilderThrows;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -65,7 +65,8 @@ public class CustomMetadataContextIT extends AbstractSnapshotIntegTestCase {
             .get();
 
         logger.info("make sure old repository wasn't restored");
-        assertRequestBuilderThrows(clusterAdmin().prepareGetRepositories("test-repo-1"), RepositoryMissingException.class);
+        ActionRequestBuilder<?, ?> builder = clusterAdmin().prepareGetRepositories("test-repo-1");
+        expectThrows(RepositoryMissingException.class, builder);
         assertThat(clusterAdmin().prepareGetRepositories("test-repo-2").get().repositories().size(), equalTo(1));
     }
 

@@ -29,17 +29,13 @@ public class CountDistinctBytesRefAggregator {
         current.collect(v);
     }
 
-    public static void combineStates(HllStates.SingleState current, HllStates.SingleState state) {
-        current.merge(0, state.hll, 0);
-    }
-
     public static void combineIntermediate(HllStates.SingleState current, BytesRef inValue) {
         current.merge(0, inValue, 0);
     }
 
     public static Block evaluateFinal(HllStates.SingleState state, DriverContext driverContext) {
         long result = state.cardinality();
-        return LongBlock.newConstantBlockWith(result, 1, driverContext.blockFactory());
+        return driverContext.blockFactory().newConstantLongBlockWith(result, 1);
     }
 
     public static HllStates.GroupingState initGrouping(BigArrays bigArrays, int precision) {
@@ -64,7 +60,7 @@ public class CountDistinctBytesRefAggregator {
     }
 
     public static Block evaluateFinal(HllStates.GroupingState state, IntVector selected, DriverContext driverContext) {
-        try (LongBlock.Builder builder = LongBlock.newBlockBuilder(selected.getPositionCount(), driverContext.blockFactory())) {
+        try (LongBlock.Builder builder = driverContext.blockFactory().newLongBlockBuilder(selected.getPositionCount())) {
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 int group = selected.getInt(i);
                 long count = state.cardinality(group);

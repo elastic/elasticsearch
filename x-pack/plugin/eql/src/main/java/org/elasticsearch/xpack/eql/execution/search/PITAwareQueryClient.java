@@ -100,6 +100,7 @@ public class PITAwareQueryClient extends BasicQueryClient {
     }
 
     private void makeRequestPITCompatible(SearchRequest request) {
+        request.indicesOptions(SearchRequest.DEFAULT_INDICES_OPTIONS);
         SearchSourceBuilder source = request.source();
         // don't increase the keep alive
         source.pointInTimeBuilder(new PointInTimeBuilder(pitId));

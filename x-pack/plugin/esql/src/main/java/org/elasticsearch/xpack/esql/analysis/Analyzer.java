@@ -12,7 +12,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
-import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolution;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -43,7 +43,6 @@ import org.elasticsearch.xpack.ql.expression.UnresolvedStar;
 import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.ql.index.EsIndex;
-import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.plan.TableIdentifier;
 import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
@@ -85,8 +84,10 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.NESTED;
 
 public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerContext> {
-    static final List<Attribute> NO_FIELDS = List.of(
-        new ReferenceAttribute(Source.EMPTY, "<no-fields>", DataTypes.NULL, null, Nullability.TRUE, null, false)
+    // marker list of attributes for plans that do not have any concrete fields to return, but have other computed columns to return
+    // ie from test | stats c = count(*)
+    public static final List<Attribute> NO_FIELDS = List.of(
+        new ReferenceAttribute(Source.EMPTY, "<no-fields>", DataTypes.NULL, null, Nullability.TRUE, null, true)
     );
     private static final Iterable<RuleExecutor.Batch<LogicalPlan>> rules;
 
@@ -209,52 +210,35 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 // the policy does not exist
                 return plan;
             }
-            String policyName = (String) plan.policyName().fold();
-            EnrichPolicyResolution policyRes = context.enrichResolution()
-                .resolvedPolicies()
-                .stream()
-                .filter(x -> x.policyName().equals(policyName))
-                .findFirst()
-                .orElse(new EnrichPolicyResolution(policyName, null, null));
-
-            IndexResolution idx = policyRes.index();
-            EnrichPolicy policy = policyRes.policy();
-
-            var policyNameExp = policy == null || idx == null
-                ? new UnresolvedAttribute(
-                    plan.policyName().source(),
-                    policyName,
-                    null,
-                    unresolvedPolicyError(policyName, context.enrichResolution())
-                )
-                : plan.policyName();
-
-            var matchField = policy != null && (plan.matchField() == null || plan.matchField() instanceof EmptyAttribute)
-                ? new UnresolvedAttribute(plan.source(), policy.getMatchField())
-                : plan.matchField();
-
-            List<NamedExpression> enrichFields = policy == null || idx == null
-                ? (plan.enrichFields() == null ? List.of() : plan.enrichFields())
-                : calculateEnrichFields(
+            final String policyName = (String) plan.policyName().fold();
+            final var resolved = context.enrichResolution().getResolvedPolicy(policyName, plan.mode());
+            if (resolved != null) {
+                var policy = new EnrichPolicy(resolved.matchType(), null, List.of(), resolved.matchField(), resolved.enrichFields());
+                var matchField = plan.matchField() == null || plan.matchField() instanceof EmptyAttribute
+                    ? new UnresolvedAttribute(plan.source(), policy.getMatchField())
+                    : plan.matchField();
+                List<NamedExpression> enrichFields = calculateEnrichFields(
                     plan.source(),
                     policyName,
-                    mappingAsAttributes(plan.source(), idx.get().mapping()),
+                    mappingAsAttributes(plan.source(), resolved.mapping()),
                     plan.enrichFields(),
                     policy
                 );
-
-            return new Enrich(plan.source(), plan.child(), policyNameExp, matchField, policyRes, enrichFields);
-        }
-
-        private String unresolvedPolicyError(String policyName, EnrichResolution enrichResolution) {
-            List<String> potentialMatches = StringUtils.findSimilar(policyName, enrichResolution.existingPolicies());
-            String msg = "unresolved enrich policy [" + policyName + "]";
-            if (CollectionUtils.isEmpty(potentialMatches) == false) {
-                msg += ", did you mean "
-                    + (potentialMatches.size() == 1 ? "[" + potentialMatches.get(0) + "]" : "any of " + potentialMatches)
-                    + "?";
+                return new Enrich(
+                    plan.source(),
+                    plan.child(),
+                    plan.mode(),
+                    plan.policyName(),
+                    matchField,
+                    policy,
+                    resolved.concreteIndices(),
+                    enrichFields
+                );
+            } else {
+                String error = context.enrichResolution().getError(policyName, plan.mode());
+                var policyNameExp = new UnresolvedAttribute(plan.policyName().source(), policyName, null, error);
+                return new Enrich(plan.source(), plan.child(), plan.mode(), policyNameExp, plan.matchField(), null, Map.of(), List.of());
             }
-            return msg;
         }
 
         public static List<NamedExpression> calculateEnrichFields(
@@ -463,26 +447,24 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // otherwise resolve them
             else {
                 Map<NamedExpression, Integer> priorities = new LinkedHashMap<>();
-                for (Attribute attribute : childOutput) {
-                    for (var proj : projections) {
-                        List<Attribute> resolved;
-                        int priority;
-                        if (proj instanceof UnresolvedStar) {
-                            resolved = childOutput;
-                            priority = 2;
-                        } else if (proj instanceof UnresolvedAttribute ua) {
-                            resolved = resolveAgainstList(ua, childOutput);
-                            priority = Regex.isSimpleMatchPattern(ua.name()) ? 1 : 0;
-                        } else {
-                            resolved = List.of(attribute);
-                            priority = 0;
-                        }
-                        for (Attribute attr : resolved) {
-                            Integer previousPrio = priorities.get(attr);
-                            if (previousPrio == null || previousPrio >= priority) {
-                                priorities.remove(attr);
-                                priorities.put(attr, priority);
-                            }
+                for (var proj : projections) {
+                    final List<Attribute> resolved;
+                    final int priority;
+                    if (proj instanceof UnresolvedStar) {
+                        resolved = childOutput;
+                        priority = 2;
+                    } else if (proj instanceof UnresolvedAttribute ua) {
+                        resolved = resolveAgainstList(ua, childOutput);
+                        priority = Regex.isSimpleMatchPattern(ua.name()) ? 1 : 0;
+                    } else {
+                        assert false : "unexpected projection: " + proj;
+                        throw new IllegalStateException("unexpected projection: " + proj);
+                    }
+                    for (Attribute attr : resolved) {
+                        Integer previousPrio = priorities.get(attr);
+                        if (previousPrio == null || previousPrio >= priority) {
+                            priorities.remove(attr);
+                            priorities.put(attr, priority);
                         }
                     }
                 }
@@ -584,7 +566,16 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         "Unsupported type [" + resolved.dataType() + "] for enrich matching field [" + ua.name() + "]; only KEYWORD allowed"
                     );
                 }
-                return new Enrich(enrich.source(), enrich.child(), enrich.policyName(), resolved, enrich.policy(), enrich.enrichFields());
+                return new Enrich(
+                    enrich.source(),
+                    enrich.child(),
+                    enrich.mode(),
+                    enrich.policyName(),
+                    resolved,
+                    enrich.policy(),
+                    enrich.concreteIndices(),
+                    enrich.enrichFields()
+                );
             }
             return enrich;
         }

@@ -27,7 +27,7 @@ public class ValidateTransformAction extends ActionType<ValidateTransformAction.
     public static final String NAME = "cluster:admin/transform/validate";
 
     private ValidateTransformAction() {
-        super(NAME, ValidateTransformAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<Request> {

@@ -34,7 +34,7 @@ import java.util.Set;
  */
 public class TransportPutRepositoryAction extends AcknowledgedTransportMasterNodeAction<PutRepositoryRequest> {
 
-    public static final ActionType<AcknowledgedResponse> TYPE = ActionType.acknowledgedResponse("cluster:admin/repository/put");
+    public static final ActionType<AcknowledgedResponse> TYPE = new ActionType<>("cluster:admin/repository/put");
     private final RepositoriesService repositoriesService;
 
     @Inject

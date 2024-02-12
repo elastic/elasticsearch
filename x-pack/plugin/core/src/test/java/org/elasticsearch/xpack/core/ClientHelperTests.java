@@ -24,7 +24,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.search.internal.InternalSearchResponse;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -248,16 +248,7 @@ public class ClientHelperTests extends ESTestCase {
 
         PlainActionFuture<SearchResponse> searchFuture = new PlainActionFuture<>();
         searchFuture.onResponse(
-            new SearchResponse(
-                InternalSearchResponse.EMPTY_WITH_TOTAL_HITS,
-                null,
-                0,
-                0,
-                0,
-                0L,
-                ShardSearchFailure.EMPTY_ARRAY,
-                SearchResponse.Clusters.EMPTY
-            )
+            SearchResponseUtils.emptyWithTotalHits(null, 0, 0, 0, 0L, ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY)
         );
         when(client.search(any())).thenReturn(searchFuture);
         assertExecutionWithOrigin(Collections.emptyMap(), client);
@@ -272,16 +263,7 @@ public class ClientHelperTests extends ESTestCase {
 
         PlainActionFuture<SearchResponse> searchFuture = new PlainActionFuture<>();
         searchFuture.onResponse(
-            new SearchResponse(
-                InternalSearchResponse.EMPTY_WITH_TOTAL_HITS,
-                null,
-                0,
-                0,
-                0,
-                0L,
-                ShardSearchFailure.EMPTY_ARRAY,
-                SearchResponse.Clusters.EMPTY
-            )
+            SearchResponseUtils.emptyWithTotalHits(null, 0, 0, 0, 0L, ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY)
         );
         when(client.search(any())).thenReturn(searchFuture);
         Map<String, String> headers = Map.of(
@@ -307,16 +289,7 @@ public class ClientHelperTests extends ESTestCase {
 
         PlainActionFuture<SearchResponse> searchFuture = new PlainActionFuture<>();
         searchFuture.onResponse(
-            new SearchResponse(
-                InternalSearchResponse.EMPTY_WITH_TOTAL_HITS,
-                null,
-                0,
-                0,
-                0,
-                0L,
-                ShardSearchFailure.EMPTY_ARRAY,
-                SearchResponse.Clusters.EMPTY
-            )
+            SearchResponseUtils.emptyWithTotalHits(null, 0, 0, 0, 0L, ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY)
         );
         when(client.search(any())).thenReturn(searchFuture);
         Map<String, String> unrelatedHeaders = Map.of(randomAlphaOfLength(10), "anything");

@@ -22,19 +22,31 @@ public class MapperBuilderContext {
      * The root context, to be used when building a tree of mappers
      */
     public static MapperBuilderContext root(boolean isSourceSynthetic, boolean isDataStream) {
-        return new MapperBuilderContext(null, isSourceSynthetic, isDataStream, ObjectMapper.Defaults.DYNAMIC);
+        return new MapperBuilderContext(null, isSourceSynthetic, isDataStream, false, ObjectMapper.Defaults.DYNAMIC);
     }
 
     private final String path;
     private final boolean isSourceSynthetic;
     private final boolean isDataStream;
+    private final boolean parentObjectContainsDimensions;
     private final ObjectMapper.Dynamic dynamic;
 
-    MapperBuilderContext(String path, boolean isSourceSynthetic, boolean isDataStream, ObjectMapper.Dynamic dynamic) {
+    MapperBuilderContext(String path) {
+        this(path, false, false, false, ObjectMapper.Defaults.DYNAMIC);
+    }
+
+    MapperBuilderContext(
+        String path,
+        boolean isSourceSynthetic,
+        boolean isDataStream,
+        boolean parentObjectContainsDimensions,
+        ObjectMapper.Dynamic dynamic
+    ) {
         Objects.requireNonNull(dynamic, "dynamic must not be null");
         this.path = path;
         this.isSourceSynthetic = isSourceSynthetic;
         this.isDataStream = isDataStream;
+        this.parentObjectContainsDimensions = parentObjectContainsDimensions;
         this.dynamic = dynamic;
     }
 
@@ -46,7 +58,13 @@ public class MapperBuilderContext {
      * @return a new MapperBuilderContext with this context as its parent
      */
     public MapperBuilderContext createChildContext(String name, @Nullable ObjectMapper.Dynamic dynamic) {
-        return new MapperBuilderContext(buildFullName(name), isSourceSynthetic, isDataStream, getDynamic(dynamic));
+        return new MapperBuilderContext(
+            buildFullName(name),
+            isSourceSynthetic,
+            isDataStream,
+            parentObjectContainsDimensions,
+            getDynamic(dynamic)
+        );
     }
 
     protected ObjectMapper.Dynamic getDynamic(@Nullable ObjectMapper.Dynamic dynamic) {
@@ -75,6 +93,13 @@ public class MapperBuilderContext {
      */
     public boolean isDataStream() {
         return isDataStream;
+    }
+
+    /**
+     * Are these field mappings being built dimensions?
+     */
+    public boolean parentObjectContainsDimensions() {
+        return parentObjectContainsDimensions;
     }
 
     public ObjectMapper.Dynamic getDynamic() {

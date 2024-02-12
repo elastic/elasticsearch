@@ -33,8 +33,8 @@ import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 import java.io.Closeable;
 import java.time.Clock;
+import java.util.EnumSet;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -198,13 +198,16 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
         this.clock = Clock.systemUTC();
         this.pollInterval = POLL_INTERVAL_SETTING.get(settings);
         this.enabled = ENABLED_SETTING.get(settings);
-        this.outputModes = new HashSet<>(OUTPUT_MODE_SETTING.get(settings));
+        this.outputModes = EnumSet.copyOf(OUTPUT_MODE_SETTING.get(settings));
         this.meterRegistry = meterRegistry;
         this.metricWriter = metricWriter == null ? LongGaugeMetric::set : metricWriter;
         this.logWriter = logWriter == null ? logger::info : logWriter;
 
         // create metric for overall level metrics
-        this.redMetrics.put("overall", LongGaugeMetric.create(this.meterRegistry, "es.health.overall.red", "Overall: Red", "{cluster}"));
+        this.redMetrics.put(
+            "overall",
+            LongGaugeMetric.create(this.meterRegistry, "es.health.overall.red.status", "Overall: Red", "{cluster}")
+        );
     }
 
     private void registerListeners() {
@@ -371,7 +374,7 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
                 if (metric == null) {
                     metric = LongGaugeMetric.create(
                         this.meterRegistry,
-                        String.format(Locale.ROOT, "es.health.%s.red", metricName),
+                        String.format(Locale.ROOT, "es.health.%s.red.status", metricName),
                         String.format(Locale.ROOT, "%s: Red", metricName),
                         "{cluster}"
                     );
@@ -385,7 +388,7 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
     }
 
     private void updateOutputModes(List<OutputMode> newMode) {
-        this.outputModes = new HashSet<>(newMode);
+        this.outputModes = EnumSet.copyOf(newMode);
     }
 
     /**

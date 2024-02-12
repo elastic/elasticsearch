@@ -244,7 +244,7 @@ public class TransportCloseJobAction extends TransportTasksAction<
         }
 
         List<String> openJobIds;
-        List<String> closingJobIds;
+        final List<String> closingJobIds;
     }
 
     /**
@@ -616,8 +616,8 @@ public class TransportCloseJobAction extends TransportTasksAction<
     }
 
     static class WaitForCloseRequest {
-        List<PersistentTasksCustomMetadata.PersistentTask<?>> persistentTasks = new ArrayList<>();
-        List<String> jobsToFinalize = new ArrayList<>();
+        final List<PersistentTasksCustomMetadata.PersistentTask<?>> persistentTasks = new ArrayList<>();
+        final List<String> jobsToFinalize = new ArrayList<>();
 
         public boolean hasJobsToWaitFor() {
             return persistentTasks.isEmpty() == false;

@@ -12,13 +12,13 @@ import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsActi
 import org.elasticsearch.action.admin.indices.create.AutoCreateAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
-import org.elasticsearch.action.admin.indices.mapping.put.AutoPutMappingAction;
+import org.elasticsearch.action.admin.indices.mapping.put.TransportAutoPutMappingAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
-import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsAction;
+import org.elasticsearch.action.admin.indices.settings.put.TransportUpdateSettingsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
-import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.delete.TransportDeleteIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesAction;
-import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.delete.TransportDeleteAction;
 import org.elasticsearch.action.get.TransportGetAction;
@@ -32,7 +32,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.ilm.action.GetLifecycleAction;
-import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
+import org.elasticsearch.xpack.core.ilm.action.ILMActions;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkAction;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequest;
@@ -131,7 +131,7 @@ public class ElasticServiceAccountsTests extends ESTestCase {
             ".logs-endpoint.action.responses-" + randomAlphaOfLengthBetween(1, 20),
             ".logs-endpoint.heartbeat-" + randomAlphaOfLengthBetween(1, 20)
         ).stream().map(this::mockIndexAbstraction).forEach(index -> {
-            assertThat(role.indices().allowedIndicesMatcher(AutoPutMappingAction.NAME).test(index), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(TransportAutoPutMappingAction.TYPE.name()).test(index), is(true));
             assertThat(role.indices().allowedIndicesMatcher(AutoCreateAction.NAME).test(index), is(true));
             assertThat(role.indices().allowedIndicesMatcher(TransportDeleteAction.NAME).test(index), is(true));
             assertThat(role.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(index), is(true));
@@ -142,11 +142,11 @@ public class ElasticServiceAccountsTests extends ESTestCase {
             assertThat(role.indices().allowedIndicesMatcher(TransportMultiGetAction.NAME).test(index), is(false));
             assertThat(role.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(index), is(false));
             assertThat(role.indices().allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name()).test(index), is(false));
-            assertThat(role.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(index), is(false));
+            assertThat(role.indices().allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name()).test(index), is(false));
         });
 
         final IndexAbstraction profilingIndex = mockIndexAbstraction("profiling-" + randomAlphaOfLengthBetween(1, 20));
-        assertThat(role.indices().allowedIndicesMatcher(AutoPutMappingAction.NAME).test(profilingIndex), is(true));
+        assertThat(role.indices().allowedIndicesMatcher(TransportAutoPutMappingAction.TYPE.name()).test(profilingIndex), is(true));
         assertThat(role.indices().allowedIndicesMatcher(AutoCreateAction.NAME).test(profilingIndex), is(false));
         assertThat(role.indices().allowedIndicesMatcher(TransportDeleteAction.NAME).test(profilingIndex), is(true));
         assertThat(role.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(profilingIndex), is(false));
@@ -157,10 +157,10 @@ public class ElasticServiceAccountsTests extends ESTestCase {
         assertThat(role.indices().allowedIndicesMatcher(TransportMultiGetAction.NAME).test(profilingIndex), is(true));
         assertThat(role.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(profilingIndex), is(true));
         assertThat(role.indices().allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name()).test(profilingIndex), is(true));
-        assertThat(role.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(profilingIndex), is(false));
+        assertThat(role.indices().allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name()).test(profilingIndex), is(false));
 
         List.of("synthetics-" + randomAlphaOfLengthBetween(1, 20)).stream().map(this::mockIndexAbstraction).forEach(index -> {
-            assertThat(role.indices().allowedIndicesMatcher(AutoPutMappingAction.NAME).test(index), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(TransportAutoPutMappingAction.TYPE.name()).test(index), is(true));
             assertThat(role.indices().allowedIndicesMatcher(AutoCreateAction.NAME).test(index), is(true));
             assertThat(role.indices().allowedIndicesMatcher(TransportDeleteAction.NAME).test(index), is(true));
             assertThat(role.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(index), is(true));
@@ -171,7 +171,7 @@ public class ElasticServiceAccountsTests extends ESTestCase {
             assertThat(role.indices().allowedIndicesMatcher(TransportMultiGetAction.NAME).test(index), is(true));
             assertThat(role.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(index), is(true));
             assertThat(role.indices().allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name()).test(index), is(true));
-            assertThat(role.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(index), is(false));
+            assertThat(role.indices().allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name()).test(index), is(false));
         });
 
         List.of(
@@ -196,7 +196,7 @@ public class ElasticServiceAccountsTests extends ESTestCase {
             assertThat(role.indices().allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name()).test(dotFleetIndex), is(true));
             assertThat(role.indices().allowedIndicesMatcher(IndicesStatsAction.NAME).test(dotFleetIndex), is(true));
             assertThat(role.indices().allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name()).test(dotFleetIndex), is(false));
-            assertThat(role.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(dotFleetIndex), is(false));
+            assertThat(role.indices().allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name()).test(dotFleetIndex), is(false));
             assertThat(role.indices().allowedIndicesMatcher("indices:foo").test(dotFleetIndex), is(false));
         });
 
@@ -211,7 +211,7 @@ public class ElasticServiceAccountsTests extends ESTestCase {
         assertThat(role.indices().allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name()).test(dotFleetSecretsIndex), is(true));
         assertThat(role.indices().allowedIndicesMatcher(IndicesStatsAction.NAME).test(dotFleetSecretsIndex), is(false));
         assertThat(role.indices().allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name()).test(dotFleetSecretsIndex), is(false));
-        assertThat(role.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(dotFleetSecretsIndex), is(false));
+        assertThat(role.indices().allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name()).test(dotFleetSecretsIndex), is(false));
         assertThat(role.indices().allowedIndicesMatcher("indices:foo").test(dotFleetSecretsIndex), is(false));
 
         final TransportRequest request = mock(TransportRequest.class);
@@ -230,7 +230,7 @@ public class ElasticServiceAccountsTests extends ESTestCase {
         assertThat(role.indices().allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name()).test(apmSampledTracesIndex), is(true));
         assertThat(role.indices().allowedIndicesMatcher(IndicesStatsAction.NAME).test(apmSampledTracesIndex), is(true));
         assertThat(role.indices().allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name()).test(apmSampledTracesIndex), is(false));
-        assertThat(role.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(apmSampledTracesIndex), is(false));
+        assertThat(role.indices().allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name()).test(apmSampledTracesIndex), is(false));
 
         final String privilegeName = randomAlphaOfLengthBetween(3, 16);
         assertThat(
@@ -332,9 +332,9 @@ public class ElasticServiceAccountsTests extends ESTestCase {
         assertThat(role.cluster().check(PutRoleAction.NAME, request, authentication), is(true));
 
         // manage_index_templates
-        assertThat(role.cluster().check(PutIndexTemplateAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(TransportPutIndexTemplateAction.TYPE.name(), request, authentication), is(true));
         assertThat(role.cluster().check(GetIndexTemplatesAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(DeleteIndexTemplateAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(TransportDeleteIndexTemplateAction.TYPE.name(), request, authentication), is(true));
 
         // monitoring
         assertThat(role.cluster().check(MonitoringBulkAction.NAME, request, authentication), is(true));
@@ -342,7 +342,13 @@ public class ElasticServiceAccountsTests extends ESTestCase {
 
         // manage_ilm
         assertThat(role.cluster().check(GetLifecycleAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(PutLifecycleAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(ILMActions.PUT.name(), request, authentication), is(true));
+
+        // Connector secrets. Enterprise Search has read and write access.
+        assertThat(role.cluster().check("cluster:admin/xpack/connector/secret/delete", request, authentication), is(true));
+        assertThat(role.cluster().check("cluster:admin/xpack/connector/secret/get", request, authentication), is(true));
+        assertThat(role.cluster().check("cluster:admin/xpack/connector/secret/post", request, authentication), is(true));
+        assertThat(role.cluster().check("cluster:admin/xpack/connector/secret/put", request, authentication), is(true));
 
         List.of(
             "search-" + randomAlphaOfLengthBetween(1, 20),
@@ -375,7 +381,10 @@ public class ElasticServiceAccountsTests extends ESTestCase {
             assertThat(role.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(enterpriseSearchIndex), is(true));
             assertThat(role.indices().allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name()).test(enterpriseSearchIndex), is(true));
             assertThat(role.indices().allowedIndicesMatcher(IndicesStatsAction.NAME).test(enterpriseSearchIndex), is(true));
-            assertThat(role.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(enterpriseSearchIndex), is(true));
+            assertThat(
+                role.indices().allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name()).test(enterpriseSearchIndex),
+                is(true)
+            );
             assertThat(role.indices().allowedIndicesMatcher(RefreshAction.NAME).test(enterpriseSearchIndex), is(true));
             assertThat(role.indices().allowedIndicesMatcher("indices:foo").test(enterpriseSearchIndex), is(false));
         });

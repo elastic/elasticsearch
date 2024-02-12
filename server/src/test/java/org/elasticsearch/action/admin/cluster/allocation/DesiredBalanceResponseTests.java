@@ -179,9 +179,14 @@ public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase
             randomClusterInfo()
         );
 
-        Map<String, Object> json = createParser(
-            ChunkedToXContent.wrapAsToXContent(response).toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)
-        ).map();
+        Map<String, Object> json;
+        try (
+            var parser = createParser(
+                ChunkedToXContent.wrapAsToXContent(response).toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)
+            )
+        ) {
+            json = parser.map();
+        }
         assertThat(json.keySet(), containsInAnyOrder("stats", "cluster_balance_stats", "routing_table", "cluster_info"));
 
         // stats

@@ -69,7 +69,7 @@ import static org.elasticsearch.index.IndexSettings.PREFER_ILM_SETTING;
 public final class DataStream implements SimpleDiffable<DataStream>, ToXContentObject, IndexAbstraction {
 
     public static final FeatureFlag FAILURE_STORE_FEATURE_FLAG = new FeatureFlag("failure_store");
-    public static final TransportVersion ADDED_FAILURE_STORE_TRANSPORT_VERSION = TransportVersions.DATA_STREAM_FAILURE_STORE_ADDED;
+    public static final TransportVersion ADDED_FAILURE_STORE_TRANSPORT_VERSION = TransportVersions.V_8_12_0;
 
     public static boolean isFailureStoreEnabled() {
         return FAILURE_STORE_FEATURE_FLAG.isEnabled();
@@ -110,6 +110,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     private final IndexMode indexMode;
     @Nullable
     private final DataStreamLifecycle lifecycle;
+    private final boolean rolloverOnWrite;
     private final boolean failureStore;
     private final List<Index> failureIndices;
 
@@ -140,7 +141,41 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             indexMode,
             lifecycle,
             failureStore,
-            failureIndices
+            failureIndices,
+            false
+        );
+    }
+
+    public DataStream(
+        String name,
+        List<Index> indices,
+        long generation,
+        Map<String, Object> metadata,
+        boolean hidden,
+        boolean replicated,
+        boolean system,
+        boolean allowCustomRouting,
+        IndexMode indexMode,
+        DataStreamLifecycle lifecycle,
+        boolean failureStore,
+        List<Index> failureIndices,
+        boolean rolloverOnWrite
+    ) {
+        this(
+            name,
+            indices,
+            generation,
+            metadata,
+            hidden,
+            replicated,
+            system,
+            System::currentTimeMillis,
+            allowCustomRouting,
+            indexMode,
+            lifecycle,
+            failureStore,
+            failureIndices,
+            rolloverOnWrite
         );
     }
 
@@ -158,7 +193,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         IndexMode indexMode,
         DataStreamLifecycle lifecycle,
         boolean failureStore,
-        List<Index> failureIndices
+        List<Index> failureIndices,
+        boolean rolloverOnWrite
     ) {
         this.name = name;
         this.indices = List.copyOf(indices);
@@ -176,6 +212,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         this.failureStore = failureStore;
         this.failureIndices = failureIndices;
         assert assertConsistent(this.indices);
+        this.rolloverOnWrite = rolloverOnWrite;
     }
 
     // mainly available for testing
@@ -234,6 +271,10 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     @Override
     public Index getWriteIndex() {
         return indices.get(indices.size() - 1);
+    }
+
+    public boolean rolloverOnWrite() {
+        return rolloverOnWrite;
     }
 
     /**
@@ -616,7 +657,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             indexMode,
             lifecycle,
             failureStore,
-            failureIndices
+            failureIndices,
+            rolloverOnWrite
         );
     }
 
@@ -859,15 +901,16 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             readName(in),
             readIndices(in),
             in.readVLong(),
-            in.readMap(),
+            in.readGenericMap(),
             in.readBoolean(),
             in.readBoolean(),
             in.readBoolean(),
             in.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0) ? in.readBoolean() : false,
             in.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0) ? in.readOptionalEnum(IndexMode.class) : null,
-            in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_020) ? in.readOptionalWriteable(DataStreamLifecycle::new) : null,
+            in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X) ? in.readOptionalWriteable(DataStreamLifecycle::new) : null,
             in.getTransportVersion().onOrAfter(DataStream.ADDED_FAILURE_STORE_TRANSPORT_VERSION) ? in.readBoolean() : false,
-            in.getTransportVersion().onOrAfter(DataStream.ADDED_FAILURE_STORE_TRANSPORT_VERSION) ? readIndices(in) : List.of()
+            in.getTransportVersion().onOrAfter(DataStream.ADDED_FAILURE_STORE_TRANSPORT_VERSION) ? readIndices(in) : List.of(),
+            in.getTransportVersion().onOrAfter(TransportVersions.LAZY_ROLLOVER_ADDED) ? in.readBoolean() : false
         );
     }
 
@@ -901,12 +944,15 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0)) {
             out.writeOptionalEnum(indexMode);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_020)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
             out.writeOptionalWriteable(lifecycle);
         }
         if (out.getTransportVersion().onOrAfter(DataStream.ADDED_FAILURE_STORE_TRANSPORT_VERSION)) {
             out.writeBoolean(failureStore);
             out.writeCollection(failureIndices);
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.LAZY_ROLLOVER_ADDED)) {
+            out.writeBoolean(rolloverOnWrite);
         }
     }
 
@@ -923,11 +969,15 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     public static final ParseField LIFECYCLE = new ParseField("lifecycle");
     public static final ParseField FAILURE_STORE_FIELD = new ParseField("failure_store");
     public static final ParseField FAILURE_INDICES_FIELD = new ParseField("failure_indices");
+    public static final ParseField ROLLOVER_ON_WRITE_FIELD = new ParseField("rollover_on_write");
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<DataStream, Void> PARSER = new ConstructingObjectParser<>(
-        "data_stream",
-        args -> new DataStream(
+    private static final ConstructingObjectParser<DataStream, Void> PARSER = new ConstructingObjectParser<>("data_stream", args -> {
+        // Fields behind a feature flag need to be parsed last otherwise the parser will fail when the feature flag is disabled.
+        // Until the feature flag is removed we keep them separately to be mindful of this.
+        boolean failureStoreEnabled = DataStream.isFailureStoreEnabled() && args[11] != null && (boolean) args[11];
+        List<Index> failureStoreIndices = DataStream.isFailureStoreEnabled() && args[12] != null ? (List<Index>) args[12] : List.of();
+        return new DataStream(
             (String) args[0],
             (List<Index>) args[1],
             (Long) args[2],
@@ -938,10 +988,11 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             args[7] != null && (boolean) args[7],
             args[8] != null ? IndexMode.fromString((String) args[8]) : null,
             (DataStreamLifecycle) args[9],
-            DataStream.isFailureStoreEnabled() && args[10] != null && (boolean) args[10],
-            DataStream.isFailureStoreEnabled() && args[11] != null ? (List<Index>) args[11] : List.of()
-        )
-    );
+            failureStoreEnabled,
+            failureStoreIndices,
+            args[10] != null && (boolean) args[10]
+        );
+    });
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), NAME_FIELD);
@@ -962,6 +1013,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), ALLOW_CUSTOM_ROUTING);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), INDEX_MODE);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> DataStreamLifecycle.fromXContent(p), LIFECYCLE);
+        PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), ROLLOVER_ON_WRITE_FIELD);
+        // The fields behind the feature flag should always be last.
         if (DataStream.isFailureStoreEnabled()) {
             PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), FAILURE_STORE_FIELD);
             PARSER.declareObjectArray(
@@ -1014,6 +1067,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             builder.field(LIFECYCLE.getPreferredName());
             lifecycle.toXContent(builder, params, rolloverConfiguration);
         }
+        builder.field(ROLLOVER_ON_WRITE_FIELD.getPreferredName(), rolloverOnWrite);
         builder.endObject();
         return builder;
     }
@@ -1034,7 +1088,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             && indexMode == that.indexMode
             && Objects.equals(lifecycle, that.lifecycle)
             && failureStore == that.failureStore
-            && failureIndices.equals(that.failureIndices);
+            && failureIndices.equals(that.failureIndices)
+            && rolloverOnWrite == that.rolloverOnWrite;
     }
 
     @Override
@@ -1051,7 +1106,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             indexMode,
             lifecycle,
             failureStore,
-            failureIndices
+            failureIndices,
+            rolloverOnWrite
         );
     }
 

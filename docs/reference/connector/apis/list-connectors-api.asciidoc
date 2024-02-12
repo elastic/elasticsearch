@@ -1,12 +1,11 @@
 [role="xpack"]
 [[list-connector-api]]
 === List connectors API
-
-preview::[]
-
 ++++
 <titleabbrev>List connectors</titleabbrev>
 ++++
+
+preview::[]
 
 Returns information about all stored connectors.
 

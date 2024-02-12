@@ -44,7 +44,6 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-@SuppressWarnings("removal")
 public class TransformProgressIT extends TransformSingleNodeTestCase {
     private static final String REVIEWS_INDEX_NAME = "reviews";
 

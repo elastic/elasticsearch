@@ -29,8 +29,11 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 @ServerlessScope(Scope.PUBLIC)
 public class RestDeleteByQueryAction extends AbstractBulkByQueryRestHandler<DeleteByQueryRequest, DeleteByQueryAction> {
 
-    public RestDeleteByQueryAction() {
+    private final NamedWriteableRegistry namedWriteableRegistry;
+
+    public RestDeleteByQueryAction(NamedWriteableRegistry namedWriteableRegistry) {
         super(DeleteByQueryAction.INSTANCE);
+        this.namedWriteableRegistry = namedWriteableRegistry;
     }
 
     @Override
@@ -51,7 +54,7 @@ public class RestDeleteByQueryAction extends AbstractBulkByQueryRestHandler<Dele
 
     @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        return doPrepareRequest(request, client, false, false);
+        return doPrepareRequest(request, namedWriteableRegistry, client, false, false);
     }
 
     @Override

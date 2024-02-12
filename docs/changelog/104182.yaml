@@ -1,0 +1,5 @@
+pr: 104182
+summary: "Apm-data: fix `@custom` component templates"
+area: Data streams
+type: bug
+issues: []

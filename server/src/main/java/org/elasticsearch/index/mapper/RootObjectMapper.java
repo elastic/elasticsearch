@@ -18,6 +18,8 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DynamicTemplate.XContentFieldType;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -43,6 +45,7 @@ import static org.elasticsearch.index.mapper.TypeParsers.parseDateTimeFormatter;
 
 public class RootObjectMapper extends ObjectMapper {
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(RootObjectMapper.class);
+    private static final int MAX_NESTING_LEVEL_FOR_PASS_THROUGH_OBJECTS = 20;
 
     /**
      * Parameter used when serializing {@link RootObjectMapper} and request that the runtime section is skipped.
@@ -73,6 +76,8 @@ public class RootObjectMapper extends ObjectMapper {
         protected final Map<String, RuntimeField> runtimeFields = new HashMap<>();
         protected Explicit<Boolean> dateDetection = Defaults.DATE_DETECTION;
         protected Explicit<Boolean> numericDetection = Defaults.NUMERIC_DETECTION;
+
+        private static final Logger logger = LogManager.getLogger(RootObjectMapper.Builder.class);
 
         public Builder(String name, Explicit<Boolean> subobjects) {
             super(name, subobjects);
@@ -106,18 +111,97 @@ public class RootObjectMapper extends ObjectMapper {
 
         @Override
         public RootObjectMapper build(MapperBuilderContext context) {
+            Map<String, Mapper> mappers = buildMappers(context.createChildContext(null, dynamic));
+            mappers.putAll(getAliasMappers(mappers, context));
             return new RootObjectMapper(
                 name,
                 enabled,
                 subobjects,
                 dynamic,
-                buildMappers(context.createChildContext(null, dynamic)),
+                mappers,
                 new HashMap<>(runtimeFields),
                 dynamicDateTimeFormatters,
                 dynamicTemplates,
                 dateDetection,
                 numericDetection
             );
+        }
+
+        Map<String, Mapper> getAliasMappers(Map<String, Mapper> mappers, MapperBuilderContext context) {
+            Map<String, Mapper> aliasMappers = new HashMap<>();
+            Map<String, ObjectMapper.Builder> objectIntermediates = new HashMap<>(1);
+            getAliasMappers(mappers, aliasMappers, objectIntermediates, context, 0);
+            for (var entry : objectIntermediates.entrySet()) {
+                aliasMappers.put(entry.getKey(), entry.getValue().build(context));
+            }
+            return aliasMappers;
+        }
+
+        void getAliasMappers(
+            Map<String, Mapper> mappers,
+            Map<String, Mapper> aliasMappers,
+            Map<String, ObjectMapper.Builder> objectIntermediates,
+            MapperBuilderContext context,
+            int level
+        ) {
+            if (level >= MAX_NESTING_LEVEL_FOR_PASS_THROUGH_OBJECTS) {
+                logger.warn("Exceeded maximum nesting level for searching for pass-through object fields within object fields.");
+                return;
+            }
+            for (Mapper mapper : mappers.values()) {
+                // Create aliases for all fields in child passthrough mappers and place them under the root object.
+                if (mapper instanceof PassThroughObjectMapper passthroughMapper) {
+                    for (Mapper internalMapper : passthroughMapper.mappers.values()) {
+                        if (internalMapper instanceof FieldMapper fieldMapper) {
+                            // If there's a conflicting alias with the same name at the root level, we don't want to throw an error
+                            // to avoid indexing disruption.
+                            // TODO: record an error without affecting document indexing, so that it can be investigated later.
+                            Mapper conflict = mappers.get(fieldMapper.simpleName());
+                            if (conflict != null) {
+                                if (conflict.typeName().equals(FieldAliasMapper.CONTENT_TYPE) == false
+                                    || ((FieldAliasMapper) conflict).path().equals(fieldMapper.mappedFieldType.name()) == false) {
+                                    logger.warn(
+                                        "Root alias for field "
+                                            + fieldMapper.name()
+                                            + " conflicts with existing field or alias, skipping alias creation."
+                                    );
+                                }
+                            } else {
+                                // Check if the field name contains dots, as aliases require nesting within objects in this case.
+                                String[] fieldNameParts = fieldMapper.simpleName().split("\\.");
+                                if (fieldNameParts.length == 0) {
+                                    throw new IllegalArgumentException("field name cannot contain only dots");
+                                }
+                                if (fieldNameParts.length == 1) {
+                                    // No nesting required, add the alias directly to the root.
+                                    FieldAliasMapper aliasMapper = new FieldAliasMapper.Builder(fieldMapper.simpleName()).path(
+                                        fieldMapper.mappedFieldType.name()
+                                    ).build(context);
+                                    aliasMappers.put(aliasMapper.simpleName(), aliasMapper);
+                                } else {
+                                    // Nest the alias within object(s).
+                                    String realFieldName = fieldNameParts[fieldNameParts.length - 1];
+                                    Mapper.Builder fieldBuilder = new FieldAliasMapper.Builder(realFieldName).path(
+                                        fieldMapper.mappedFieldType.name()
+                                    );
+                                    for (int i = fieldNameParts.length - 2; i >= 0; --i) {
+                                        String intermediateObjectName = fieldNameParts[i];
+                                        ObjectMapper.Builder intermediate = objectIntermediates.computeIfAbsent(
+                                            intermediateObjectName,
+                                            s -> new ObjectMapper.Builder(intermediateObjectName, ObjectMapper.Defaults.SUBOBJECTS)
+                                        );
+                                        intermediate.add(fieldBuilder);
+                                        fieldBuilder = intermediate;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } else if (mapper instanceof ObjectMapper objectMapper) {
+                    // Call recursively to check child fields. The level guards against long recursive call sequences.
+                    getAliasMappers(objectMapper.mappers, aliasMappers, objectIntermediates, context, level + 1);
+                }
+            }
         }
     }
 
@@ -153,6 +237,22 @@ public class RootObjectMapper extends ObjectMapper {
         builder.enabled = enabled;
         builder.dynamic = dynamic;
         return builder;
+    }
+
+    @Override
+    RootObjectMapper withoutMappers() {
+        return new RootObjectMapper(
+            simpleName(),
+            enabled,
+            subobjects,
+            dynamic,
+            Map.of(),
+            Map.of(),
+            dynamicDateTimeFormatters,
+            dynamicTemplates,
+            dateDetection,
+            numericDetection
+        );
     }
 
     /**
@@ -192,16 +292,22 @@ public class RootObjectMapper extends ObjectMapper {
     }
 
     @Override
-    protected MapperBuilderContext createChildContext(MapperBuilderContext mapperBuilderContext, String name) {
-        assert Objects.equals(mapperBuilderContext.buildFullName("foo"), "foo");
-        return mapperBuilderContext.createChildContext(null, dynamic);
+    protected MapperMergeContext createChildContext(MapperMergeContext mapperMergeContext, String name) {
+        assert Objects.equals(mapperMergeContext.getMapperBuilderContext().buildFullName("foo"), "foo");
+        return mapperMergeContext.createChildContext(null, dynamic);
     }
 
     @Override
-    public RootObjectMapper merge(Mapper mergeWith, MergeReason reason, MapperBuilderContext parentBuilderContext) {
-        final var mergeResult = MergeResult.build(this, mergeWith, reason, parentBuilderContext);
+    public RootObjectMapper merge(Mapper mergeWith, MergeReason reason, MapperMergeContext parentMergeContext) {
+        if (mergeWith instanceof RootObjectMapper == false) {
+            MapperErrors.throwObjectMappingConflictError(mergeWith.name());
+        }
+        return merge((RootObjectMapper) mergeWith, reason, parentMergeContext);
+    }
+
+    RootObjectMapper merge(RootObjectMapper mergeWithObject, MergeReason reason, MapperMergeContext parentMergeContext) {
+        final var mergeResult = MergeResult.build(this, mergeWithObject, reason, parentMergeContext);
         final Explicit<Boolean> numericDetection;
-        RootObjectMapper mergeWithObject = (RootObjectMapper) mergeWith;
         if (mergeWithObject.numericDetection.explicit()) {
             numericDetection = mergeWithObject.numericDetection;
         } else {
@@ -242,12 +348,13 @@ public class RootObjectMapper extends ObjectMapper {
             dynamicTemplates = this.dynamicTemplates;
         }
         final Map<String, RuntimeField> runtimeFields = new HashMap<>(this.runtimeFields);
-        assert this.runtimeFields != mergeWithObject.runtimeFields;
         for (Map.Entry<String, RuntimeField> runtimeField : mergeWithObject.runtimeFields.entrySet()) {
             if (runtimeField.getValue() == null) {
                 runtimeFields.remove(runtimeField.getKey());
-            } else {
+            } else if (runtimeFields.containsKey(runtimeField.getKey())) {
                 runtimeFields.put(runtimeField.getKey(), runtimeField.getValue());
+            } else if (parentMergeContext.decrementFieldBudgetIfPossible(1)) {
+                runtimeFields.put(runtimeField.getValue().name(), runtimeField.getValue());
             }
         }
 
@@ -501,5 +608,10 @@ public class RootObjectMapper extends ObjectMapper {
             }
         }
         return false;
+    }
+
+    @Override
+    public int getTotalFieldsCount() {
+        return mappers.values().stream().mapToInt(Mapper::getTotalFieldsCount).sum() + runtimeFields.size();
     }
 }

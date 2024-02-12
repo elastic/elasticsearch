@@ -6,7 +6,8 @@
 
 [source,esql]
 ----
-STATS [column1 =] expression1[, ..., [columnN =] expressionN] [BY grouping_column1[, ..., grouping_columnN]]
+STATS [column1 =] expression1[, ..., [columnN =] expressionN] 
+[BY grouping_expression1[, ..., grouping_expressionN]]
 ----
 
 *Parameters*
@@ -18,8 +19,10 @@ equal to the corresponding expression (`expressionX`).
 `expressionX`::
 An expression that computes an aggregated value.
 
-`grouping_columnX`::
-The column containing the values to group by.
+`grouping_expressionX`::
+An expression that outputs the values to group by.
+
+NOTE: Individual `null` values are skipped when computing aggregations.
 
 *Description*
 
@@ -28,14 +31,14 @@ and calculate one or more aggregated values over the grouped rows. If `BY` is
 omitted, the output table contains exactly one row with the aggregations applied
 over the entire dataset.
 
-The following aggregation functions are supported:
+The following <<esql-agg-functions,aggregation functions>> are supported:
 
 include::../functions/aggregation-functions.asciidoc[tag=agg_list]
 
 NOTE: `STATS` without any groups is much much faster than adding a group.
 
-NOTE: Grouping on a single column is currently much more optimized than grouping
-      on many columns. In some tests we have seen grouping on a single `keyword`
+NOTE: Grouping on a single expression is currently much more optimized than grouping
+      on many expressions. In some tests we have seen grouping on a single `keyword`
       column to be five times faster than grouping on two `keyword` columns. Do 
       not try to work around this by combining the two columns together with 
       something like <<esql-concat>> and then grouping - that is not going to be
@@ -47,11 +50,11 @@ Calculating a statistic and grouping by the values of another column:
 
 [source.merge.styled,esql]
 ----
-include::{esql-specs}/docs.csv-spec[tag=stats]
+include::{esql-specs}/stats.csv-spec[tag=stats]
 ----
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
-include::{esql-specs}/docs.csv-spec[tag=stats-result]
+include::{esql-specs}/stats.csv-spec[tag=stats-result]
 |===
 
 Omitting `BY` returns one row with the aggregations applied over the entire
@@ -59,24 +62,80 @@ dataset:
 
 [source.merge.styled,esql]
 ----
-include::{esql-specs}/docs.csv-spec[tag=statsWithoutBy]
+include::{esql-specs}/stats.csv-spec[tag=statsWithoutBy]
 ----
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
-include::{esql-specs}/docs.csv-spec[tag=statsWithoutBy-result]
+include::{esql-specs}/stats.csv-spec[tag=statsWithoutBy-result]
 |===
 
 It's possible to calculate multiple values:
 
-[source,esql]
+[source.merge.styled,esql]
 ----
-include::{esql-specs}/docs.csv-spec[tag=statsCalcMultipleValues]
+include::{esql-specs}/stats.csv-spec[tag=statsCalcMultipleValues]
 ----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/stats.csv-spec[tag=statsCalcMultipleValues-result]
+|===
 
 It's also possible to group by multiple values (only supported for long and
 keyword family fields):
 
 [source,esql]
 ----
-include::{esql-specs}/docs.csv-spec[tag=statsGroupByMultipleValues]
+include::{esql-specs}/stats.csv-spec[tag=statsGroupByMultipleValues]
 ----
+
+Both the aggregating functions and the grouping expressions accept other
+functions. This is useful for using `STATS...BY` on multivalue columns.
+For example, to calculate the average salary change, you can use `MV_AVG` to
+first average the multiple values per employee, and use the result with the
+`AVG` function:
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/stats.csv-spec[tag=docsStatsAvgNestedExpression]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/stats.csv-spec[tag=docsStatsAvgNestedExpression-result]
+|===
+
+An example of grouping by an expression is grouping employees on the first
+letter of their last name:
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/stats.csv-spec[tag=docsStatsByExpression]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/stats.csv-spec[tag=docsStatsByExpression-result]
+|===
+
+Specifying the output column name is optional. If not specified, the new column
+name is equal to the expression. The following query returns a column named
+`AVG(salary)`:
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/stats.csv-spec[tag=statsUnnamedColumn]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/stats.csv-spec[tag=statsUnnamedColumn-result]
+|===
+
+Because this name contains special characters, <<esql-identifiers,it needs to be
+quoted>> with backticks (+{backtick}+) when using it in subsequent commands:
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/stats.csv-spec[tag=statsUnnamedColumnEval]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/stats.csv-spec[tag=statsUnnamedColumnEval-result]
+|===

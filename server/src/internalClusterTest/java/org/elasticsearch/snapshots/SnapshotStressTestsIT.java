@@ -24,11 +24,14 @@ import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.support.ListenableActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
+import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -309,6 +312,10 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
             final int cleanerCount = between(0, 2);
             for (int i = 0; i < cleanerCount; i++) {
                 startCleaner();
+            }
+
+            if (randomBoolean()) {
+                startNodeShutdownMarker();
             }
 
             if (completedSnapshotLatch.await(30, TimeUnit.SECONDS)) {
@@ -1163,6 +1170,104 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
             });
         }
 
+        private void startNodeShutdownMarker() {
+            enqueueAction(() -> {
+                boolean rerun = true;
+                if (usually()) {
+                    return;
+                }
+                try (TransferableReleasables localReleasables = new TransferableReleasables()) {
+                    if (localReleasables.add(blockFullClusterRestart()) == null) {
+                        return;
+                    }
+
+                    final var node = randomFrom(shuffledNodes);
+
+                    if (localReleasables.add(tryAcquirePermit(node.permits)) == null) {
+                        return;
+                    }
+
+                    final var clusterService = cluster.getCurrentMasterNodeInstance(ClusterService.class);
+
+                    SubscribableListener
+
+                        .<Void>newForked(
+                            l -> clusterService.submitUnbatchedStateUpdateTask(
+                                "mark [" + node + "] for removal",
+                                new ClusterStateUpdateTask() {
+                                    @Override
+                                    public ClusterState execute(ClusterState currentState) {
+                                        assertTrue(
+                                            Strings.toString(currentState),
+                                            currentState.metadata().nodeShutdowns().getAll().isEmpty()
+                                        );
+                                        final var nodeId = currentState.nodes().resolveNode(node.nodeName).getId();
+                                        return currentState.copyAndUpdateMetadata(
+                                            mdb -> mdb.putCustom(
+                                                NodesShutdownMetadata.TYPE,
+                                                new NodesShutdownMetadata(
+                                                    Map.of(
+                                                        nodeId,
+                                                        SingleNodeShutdownMetadata.builder()
+                                                            .setNodeId(nodeId)
+                                                            .setType(SingleNodeShutdownMetadata.Type.REMOVE)
+                                                            .setStartedAtMillis(clusterService.threadPool().absoluteTimeInMillis())
+                                                            .setReason("test")
+                                                            .build()
+                                                    )
+                                                )
+                                            )
+                                        );
+                                    }
+
+                                    @Override
+                                    public void onFailure(Exception e) {
+                                        l.onFailure(e);
+                                    }
+
+                                    @Override
+                                    public void clusterStateProcessed(ClusterState initialState, ClusterState newState) {
+                                        l.onResponse(null);
+                                    }
+                                }
+                            )
+                        )
+
+                        .<Void>andThen(
+                            (l, ignored) -> clusterService.submitUnbatchedStateUpdateTask(
+                                "unmark [" + node + "] for removal",
+                                new ClusterStateUpdateTask() {
+                                    @Override
+                                    public ClusterState execute(ClusterState currentState) {
+                                        return currentState.copyAndUpdateMetadata(
+                                            mdb -> mdb.putCustom(NodesShutdownMetadata.TYPE, NodesShutdownMetadata.EMPTY)
+                                        );
+                                    }
+
+                                    @Override
+                                    public void onFailure(Exception e) {
+                                        l.onFailure(e);
+                                    }
+
+                                    @Override
+                                    public void clusterStateProcessed(ClusterState initialState, ClusterState newState) {
+                                        l.onResponse(null);
+                                    }
+                                }
+                            )
+                        )
+
+                        .addListener(mustSucceed(ignored -> startNodeShutdownMarker()));
+
+                    rerun = false;
+                } finally {
+                    if (rerun) {
+                        startNodeShutdownMarker();
+                    }
+                }
+            });
+        }
+
         @Nullable // if we couldn't block node restarts
         private Releasable blockNodeRestarts() {
             try (TransferableReleasables localReleasables = new TransferableReleasables()) {
@@ -1483,7 +1588,7 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
         private final TrackedCluster.TrackedRepository trackedRepository;
         private final String snapshotName;
         private final Semaphore permits = new Semaphore(Integer.MAX_VALUE);
-        private final AtomicReference<ListenableActionFuture<SnapshotInfo>> snapshotInfoFutureRef = new AtomicReference<>();
+        private final AtomicReference<SubscribableListener<SnapshotInfo>> snapshotInfoFutureRef = new AtomicReference<>();
 
         TrackedSnapshot(TrackedCluster.TrackedRepository trackedRepository, String snapshotName) {
             this.trackedRepository = trackedRepository;
@@ -1522,7 +1627,7 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
         }
 
         void getSnapshotInfo(Client client, ActionListener<SnapshotInfo> listener) {
-            final ListenableActionFuture<SnapshotInfo> newFuture = new ListenableActionFuture<>();
+            final SubscribableListener<SnapshotInfo> newFuture = new SubscribableListener<>();
 
             final boolean firstRunner = snapshotInfoFutureRef.compareAndSet(null, newFuture);
 

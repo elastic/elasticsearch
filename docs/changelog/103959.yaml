@@ -1,0 +1,5 @@
+pr: 103959
+summary: Add `ApiKey` expiration time to audit log
+area: Security
+type: enhancement
+issues: []

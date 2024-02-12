@@ -782,10 +782,13 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
      * Tests shard recovery throttling on the target node. Node statistics should show throttling time on the target node, while no
      * throttling should be shown on the source node because the target will accept data more slowly than the source's throttling threshold.
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/103204")
     public void testTargetThrottling() throws Exception {
         logger.info("--> starting node A with default settings");
-        final String nodeA = internalCluster().startNode();
+        final String nodeA = internalCluster().startNode(
+            Settings.builder()
+                // Use a high value so that when unthrottling recoveries we do not cause accidental throttling on the source node.
+                .put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), "200mb")
+        );
 
         logger.info("--> creating index on node A");
         ByteSizeValue shardSize = createAndPopulateIndex(INDEX_NAME, 1, SHARD_COUNT_1, REPLICA_COUNT_0).getShards()[0].getStats()
@@ -1036,6 +1039,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         assertThat(recoveryState.getTranslog().recoveredOperations(), greaterThan(0));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105122")
     public void testDoNotInfinitelyWaitForMapping() {
         internalCluster().ensureAtLeastNumDataNodes(3);
         createIndex(
@@ -1913,11 +1917,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
 
                                 // Now the GCP has advanced the replica won't be marked in-sync so respond to the TRANSLOG_OPS request
                                 // to start recovery finalization
-                                try {
-                                    channel.sendResponse(response);
-                                } catch (IOException ex) {
-                                    fail(ex);
-                                }
+                                channel.sendResponse(response);
 
                                 // Wait a short while for finalization to block on advancing the replica's GCP and then delete the index
                                 threadPool.schedule(

@@ -12,6 +12,8 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
@@ -37,7 +39,16 @@ public class Replace extends ScalarFunction implements EvaluatorMapper {
     private final Expression newStr;
     private final Expression regex;
 
-    public Replace(Source source, Expression str, Expression regex, Expression newStr) {
+    @FunctionInfo(
+        returnType = "keyword",
+        description = "The function substitutes in the string any match of the regular expression with the replacement string."
+    )
+    public Replace(
+        Source source,
+        @Param(name = "str", type = { "keyword", "text" }) Expression str,
+        @Param(name = "regex", type = { "keyword", "text" }) Expression regex,
+        @Param(name = "newStr", type = { "keyword", "text" }) Expression newStr
+    ) {
         super(source, Arrays.asList(str, regex, newStr));
         this.str = str;
         this.regex = regex;

@@ -264,7 +264,7 @@ public class IngestClientIT extends ESIntegTestCase {
                 .endObject()
         );
         PutPipelineRequest putPipelineRequest = new PutPipelineRequest("_id2", source, XContentType.JSON);
-        Exception e = expectThrows(ElasticsearchParseException.class, () -> clusterAdmin().putPipeline(putPipelineRequest).actionGet());
+        Exception e = expectThrows(ElasticsearchParseException.class, clusterAdmin().putPipeline(putPipelineRequest));
         assertThat(e.getMessage(), equalTo("processor [test] doesn't support one or more provided configuration parameters [unused]"));
 
         GetPipelineResponse response = clusterAdmin().prepareGetPipeline("_id2").get();

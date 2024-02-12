@@ -102,39 +102,9 @@ public sealed interface BooleanVector extends Vector permits ConstantBooleanVect
     }
 
     /**
-     * Returns a builder using the {@link BlockFactory#getNonBreakingInstance nonbreaking block factory}.
-     * @deprecated use {@link BlockFactory#newBooleanVectorBuilder}
-     */
-    // Eventually, we want to remove this entirely, always passing an explicit BlockFactory
-    @Deprecated
-    static Builder newVectorBuilder(int estimatedSize) {
-        return newVectorBuilder(estimatedSize, BlockFactory.getNonBreakingInstance());
-    }
-
-    /**
-     * Creates a builder that grows as needed. Prefer {@link #newVectorFixedBuilder}
-     * if you know the size up front because it's faster.
-     * @deprecated use {@link BlockFactory#newBooleanVectorBuilder}
-     */
-    @Deprecated
-    static Builder newVectorBuilder(int estimatedSize, BlockFactory blockFactory) {
-        return blockFactory.newBooleanVectorBuilder(estimatedSize);
-    }
-
-    /**
-     * Creates a builder that never grows. Prefer this over {@link #newVectorBuilder}
-     * if you know the size up front because it's faster.
-     * @deprecated use {@link BlockFactory#newBooleanVectorFixedBuilder}
-     */
-    @Deprecated
-    static FixedBuilder newVectorFixedBuilder(int size, BlockFactory blockFactory) {
-        return blockFactory.newBooleanVectorFixedBuilder(size);
-    }
-
-    /**
      * A builder that grows as needed.
      */
-    sealed interface Builder extends Vector.Builder permits BooleanVectorBuilder {
+    sealed interface Builder extends Vector.Builder permits BooleanVectorBuilder, FixedBuilder {
         /**
          * Appends a boolean to the current entry.
          */
@@ -147,13 +117,11 @@ public sealed interface BooleanVector extends Vector permits ConstantBooleanVect
     /**
      * A builder that never grows.
      */
-    sealed interface FixedBuilder extends Vector.Builder permits BooleanVectorFixedBuilder {
+    sealed interface FixedBuilder extends Builder permits BooleanVectorFixedBuilder {
         /**
          * Appends a boolean to the current entry.
          */
-        FixedBuilder appendBoolean(boolean value);
-
         @Override
-        BooleanVector build();
+        FixedBuilder appendBoolean(boolean value);
     }
 }

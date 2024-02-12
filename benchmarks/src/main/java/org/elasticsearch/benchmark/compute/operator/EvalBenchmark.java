@@ -14,7 +14,6 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
-import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
@@ -59,6 +58,12 @@ import java.util.concurrent.TimeUnit;
 @State(Scope.Thread)
 @Fork(1)
 public class EvalBenchmark {
+    private static final BigArrays BIG_ARRAYS = BigArrays.NON_RECYCLING_INSTANCE;  // TODO real big arrays?
+    private static final BlockFactory blockFactory = BlockFactory.getInstance(
+        new NoopCircuitBreaker("noop"),
+        BigArrays.NON_RECYCLING_INSTANCE
+    );
+
     private static final int BLOCK_LENGTH = 8 * 1024;
 
     static final DriverContext driverContext = new DriverContext(
@@ -207,15 +212,15 @@ public class EvalBenchmark {
     private static Page page(String operation) {
         return switch (operation) {
             case "abs", "add", "date_trunc", "equal_to_const" -> {
-                var builder = LongBlock.newBlockBuilder(BLOCK_LENGTH);
+                var builder = blockFactory.newLongBlockBuilder(BLOCK_LENGTH);
                 for (int i = 0; i < BLOCK_LENGTH; i++) {
                     builder.appendLong(i * 100_000);
                 }
                 yield new Page(builder.build());
             }
             case "long_equal_to_long" -> {
-                var lhs = LongBlock.newBlockBuilder(BLOCK_LENGTH);
-                var rhs = LongBlock.newBlockBuilder(BLOCK_LENGTH);
+                var lhs = blockFactory.newLongBlockBuilder(BLOCK_LENGTH);
+                var rhs = blockFactory.newLongBlockBuilder(BLOCK_LENGTH);
                 for (int i = 0; i < BLOCK_LENGTH; i++) {
                     lhs.appendLong(i * 100_000);
                     rhs.appendLong(i * 100_000);
@@ -223,8 +228,8 @@ public class EvalBenchmark {
                 yield new Page(lhs.build(), rhs.build());
             }
             case "long_equal_to_int" -> {
-                var lhs = LongBlock.newBlockBuilder(BLOCK_LENGTH);
-                var rhs = IntBlock.newBlockBuilder(BLOCK_LENGTH);
+                var lhs = blockFactory.newLongBlockBuilder(BLOCK_LENGTH);
+                var rhs = blockFactory.newIntBlockBuilder(BLOCK_LENGTH);
                 for (int i = 0; i < BLOCK_LENGTH; i++) {
                     lhs.appendLong(i * 100_000);
                     rhs.appendInt(i * 100_000);
@@ -232,7 +237,7 @@ public class EvalBenchmark {
                 yield new Page(lhs.build(), rhs.build());
             }
             case "mv_min", "mv_min_ascending" -> {
-                var builder = LongBlock.newBlockBuilder(BLOCK_LENGTH);
+                var builder = blockFactory.newLongBlockBuilder(BLOCK_LENGTH);
                 if (operation.endsWith("ascending")) {
                     builder.mvOrdering(Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING);
                 }

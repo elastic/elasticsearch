@@ -1,0 +1,11 @@
+pr: 103434
+summary: Lower the `look_ahead_time` index setting's max value from 7 days to 2 hours.
+area: TSDB
+type: breaking
+issues: []
+breaking:
+  title: Lower the `look_ahead_time` index setting's max value
+  area: Index setting
+  details: "Lower the `look_ahead_time` index setting's max value from 7 days to 2 hours."
+  impact: "Any value between 2 hours and 7 days will be as a look ahead time  of 2 hours is defined"
+  notable: false

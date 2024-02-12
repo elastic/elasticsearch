@@ -20,7 +20,7 @@ exit_code=$?
 end_time=$(date +%s)
 
 duration=$((end_time - start_time))
-if [ $duration -lt 5 ]; then
+if [ $duration -lt 10 ]; then
   /opt/jetty-home/bin/jetty.sh run
   exit_code=$?
 fi

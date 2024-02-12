@@ -108,7 +108,7 @@ public class ZeroShotClassificationConfigUpdateTests extends AbstractNlpConfigUp
             randomBoolean() ? null : randomAlphaOfLength(8)
         );
 
-        assertThat(originalConfig, equalTo(new ZeroShotClassificationConfigUpdate.Builder().build().apply(originalConfig)));
+        assertThat(originalConfig, equalTo(originalConfig.apply(new ZeroShotClassificationConfigUpdate.Builder().build())));
 
         assertThat(
             new ZeroShotClassificationConfig(
@@ -120,7 +120,7 @@ public class ZeroShotClassificationConfigUpdateTests extends AbstractNlpConfigUp
                 List.of("foo", "bar"),
                 originalConfig.getResultsField()
             ),
-            equalTo(new ZeroShotClassificationConfigUpdate.Builder().setLabels(List.of("foo", "bar")).build().apply(originalConfig))
+            equalTo(originalConfig.apply(new ZeroShotClassificationConfigUpdate.Builder().setLabels(List.of("foo", "bar")).build()))
         );
         assertThat(
             new ZeroShotClassificationConfig(
@@ -132,7 +132,7 @@ public class ZeroShotClassificationConfigUpdateTests extends AbstractNlpConfigUp
                 originalConfig.getLabels().orElse(null),
                 originalConfig.getResultsField()
             ),
-            equalTo(new ZeroShotClassificationConfigUpdate.Builder().setMultiLabel(true).build().apply(originalConfig))
+            equalTo(originalConfig.apply(new ZeroShotClassificationConfigUpdate.Builder().setMultiLabel(true).build()))
         );
         assertThat(
             new ZeroShotClassificationConfig(
@@ -144,7 +144,7 @@ public class ZeroShotClassificationConfigUpdateTests extends AbstractNlpConfigUp
                 originalConfig.getLabels().orElse(null),
                 "updated-field"
             ),
-            equalTo(new ZeroShotClassificationConfigUpdate.Builder().setResultsField("updated-field").build().apply(originalConfig))
+            equalTo(originalConfig.apply(new ZeroShotClassificationConfigUpdate.Builder().setResultsField("updated-field").build()))
         );
 
         Tokenization.Truncate truncate = randomFrom(Tokenization.Truncate.values());
@@ -160,9 +160,11 @@ public class ZeroShotClassificationConfigUpdateTests extends AbstractNlpConfigUp
                 originalConfig.getResultsField()
             ),
             equalTo(
-                new ZeroShotClassificationConfigUpdate.Builder().setTokenizationUpdate(
-                    createTokenizationUpdate(originalConfig.getTokenization(), truncate, null)
-                ).build().apply(originalConfig)
+                originalConfig.apply(
+                    new ZeroShotClassificationConfigUpdate.Builder().setTokenizationUpdate(
+                        createTokenizationUpdate(originalConfig.getTokenization(), truncate, null)
+                    ).build()
+                )
             )
         );
     }
@@ -178,39 +180,11 @@ public class ZeroShotClassificationConfigUpdateTests extends AbstractNlpConfigUp
             null
         );
 
-        Exception ex = expectThrows(Exception.class, () -> new ZeroShotClassificationConfigUpdate.Builder().build().apply(originalConfig));
+        Exception ex = expectThrows(Exception.class, () -> originalConfig.apply(new ZeroShotClassificationConfigUpdate.Builder().build()));
         assertThat(
             ex.getMessage(),
             containsString("stored configuration has no [labels] defined, supplied inference_config update must supply [labels]")
         );
-    }
-
-    public void testIsNoop() {
-        assertTrue(new ZeroShotClassificationConfigUpdate.Builder().build().isNoop(ZeroShotClassificationConfigTests.createRandom()));
-
-        var originalConfig = new ZeroShotClassificationConfig(
-            List.of("contradiction", "neutral", "entailment"),
-            randomBoolean() ? null : VocabularyConfigTests.createRandom(),
-            randomBoolean() ? null : BertTokenizationTests.createRandom(),
-            randomAlphaOfLength(10),
-            randomBoolean(),
-            null,
-            randomBoolean() ? null : randomAlphaOfLength(8)
-        );
-
-        var update = new ZeroShotClassificationConfigUpdate.Builder().setLabels(List.of("glad", "sad", "mad")).build();
-        assertFalse(update.isNoop(originalConfig));
-
-        originalConfig = new ZeroShotClassificationConfig(
-            List.of("contradiction", "neutral", "entailment"),
-            randomBoolean() ? null : VocabularyConfigTests.createRandom(),
-            randomBoolean() ? null : BertTokenizationTests.createRandom(),
-            randomAlphaOfLength(10),
-            randomBoolean(),
-            List.of("glad", "sad", "mad"),
-            randomBoolean() ? null : randomAlphaOfLength(8)
-        );
-        assertTrue(update.isNoop(originalConfig));
     }
 
     public static ZeroShotClassificationConfigUpdate createRandom() {

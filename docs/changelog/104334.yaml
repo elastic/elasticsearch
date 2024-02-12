@@ -1,0 +1,5 @@
+pr: 104334
+summary: Automatically download the ELSER model when PUT in `_inference`
+area: Machine Learning
+type: enhancement
+issues: []

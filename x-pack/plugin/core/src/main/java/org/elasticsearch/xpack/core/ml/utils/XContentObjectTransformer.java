@@ -18,6 +18,7 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.deprecation.LoggingDeprecationAccumulationHandler;
 
@@ -82,8 +83,11 @@ public class XContentObjectTransformer<T extends ToXContentObject> {
         LoggingDeprecationAccumulationHandler deprecationLogger = new LoggingDeprecationAccumulationHandler();
         try (
             XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().map(stringObjectMap);
-            XContentParser parser = XContentType.JSON.xContent()
-                .createParser(registry, deprecationLogger, BytesReference.bytes(xContentBuilder).streamInput())
+            XContentParser parser = XContentHelper.createParserNotCompressed(
+                XContentParserConfiguration.EMPTY.withRegistry(registry).withDeprecationHandler(deprecationLogger),
+                BytesReference.bytes(xContentBuilder),
+                XContentType.JSON
+            )
         ) {
             T retVal = parserFunction.apply(parser);
             deprecationWarnings.addAll(deprecationLogger.getDeprecations());

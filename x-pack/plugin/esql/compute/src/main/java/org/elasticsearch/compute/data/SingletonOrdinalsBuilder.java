@@ -27,7 +27,7 @@ public class SingletonOrdinalsBuilder implements BlockLoader.SingletonOrdinalsBu
     public SingletonOrdinalsBuilder(BlockFactory blockFactory, SortedDocValues docValues, int count) {
         this.blockFactory = blockFactory;
         this.docValues = docValues;
-        blockFactory.adjustBreaker(ordsSize(count), false);
+        blockFactory.adjustBreaker(ordsSize(count));
         this.ords = new int[count];
     }
 
@@ -41,10 +41,6 @@ public class SingletonOrdinalsBuilder implements BlockLoader.SingletonOrdinalsBu
     public SingletonOrdinalsBuilder appendOrd(int value) {
         ords[count++] = value;
         return this;
-    }
-
-    int[] ords() {
-        return ords;
     }
 
     @Override
@@ -62,7 +58,7 @@ public class SingletonOrdinalsBuilder implements BlockLoader.SingletonOrdinalsBu
         try {
             long breakerSize = ordsSize(ords.length);
             // Increment breaker for sorted ords.
-            blockFactory.adjustBreaker(breakerSize, false);
+            blockFactory.adjustBreaker(breakerSize);
             try {
                 int[] sortedOrds = ords.clone();
                 Arrays.sort(sortedOrds);
@@ -70,7 +66,7 @@ public class SingletonOrdinalsBuilder implements BlockLoader.SingletonOrdinalsBu
 
                 try (BreakingBytesRefBuilder copies = new BreakingBytesRefBuilder(blockFactory.breaker(), "ords")) {
                     long offsetsAndLength = RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (uniqueCount + 1) * Integer.BYTES;
-                    blockFactory.adjustBreaker(offsetsAndLength, false);
+                    blockFactory.adjustBreaker(offsetsAndLength);
                     breakerSize += offsetsAndLength;
                     int[] offsets = new int[uniqueCount + 1];
                     for (int o = 0; o < uniqueCount; o++) {
@@ -102,7 +98,7 @@ public class SingletonOrdinalsBuilder implements BlockLoader.SingletonOrdinalsBu
                     }
                 }
             } finally {
-                blockFactory.adjustBreaker(-breakerSize, false);
+                blockFactory.adjustBreaker(-breakerSize);
             }
         } catch (IOException e) {
             throw new UncheckedIOException("error resolving ordinals", e);
@@ -111,7 +107,7 @@ public class SingletonOrdinalsBuilder implements BlockLoader.SingletonOrdinalsBu
 
     @Override
     public void close() {
-        blockFactory.adjustBreaker(-ordsSize(ords.length), false);
+        blockFactory.adjustBreaker(-ordsSize(ords.length));
     }
 
     @Override

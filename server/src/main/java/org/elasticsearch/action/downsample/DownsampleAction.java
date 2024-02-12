@@ -35,7 +35,7 @@ public class DownsampleAction extends ActionType<AcknowledgedResponse> {
     public static final TimeValue DEFAULT_WAIT_TIMEOUT = new TimeValue(1, TimeUnit.DAYS);
 
     private DownsampleAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME);
     }
 
     public static class Request extends MasterNodeRequest<Request> implements IndicesRequest, ToXContentObject {
@@ -62,7 +62,7 @@ public class DownsampleAction extends ActionType<AcknowledgedResponse> {
             super(in);
             sourceIndex = in.readString();
             targetIndex = in.readString();
-            waitTimeout = in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_054)
+            waitTimeout = in.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)
                 ? TimeValue.parseTimeValue(in.readString(), "timeout")
                 : DEFAULT_WAIT_TIMEOUT;
             downsampleConfig = new DownsampleConfig(in);
@@ -89,7 +89,7 @@ public class DownsampleAction extends ActionType<AcknowledgedResponse> {
             out.writeString(sourceIndex);
             out.writeString(targetIndex);
             out.writeString(
-                out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_054)
+                out.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)
                     ? waitTimeout.getStringRep()
                     : DEFAULT_WAIT_TIMEOUT.getStringRep()
             );

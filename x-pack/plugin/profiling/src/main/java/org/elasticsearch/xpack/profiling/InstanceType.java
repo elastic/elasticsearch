@@ -23,9 +23,9 @@ final class InstanceType implements ToXContentObject {
     final String name;
 
     InstanceType(String provider, String region, String name) {
-        this.provider = provider;
-        this.region = region;
-        this.name = name;
+        this.provider = provider != null ? provider : "";
+        this.region = region != null ? region : "";
+        this.name = name != null ? name : "";
     }
 
     /**
@@ -35,16 +35,47 @@ final class InstanceType implements ToXContentObject {
      * @return the {@link InstanceType}
      */
     public static InstanceType fromHostSource(Map<String, Object> source) {
+        // Check and handle AWS.
+        String region = (String) source.get("ec2.placement.region");
+        if (region != null) {
+            String instanceType = (String) source.get("ec2.instance_type");
+            return new InstanceType("aws", region, instanceType);
+        }
+
+        // Check and handle GCP.
+        String zone = (String) source.get("gce.instance.zone");
+        if (zone != null) {
+            // example: "gce.instance.zone": "projects/123456789/zones/europe-west1-b"
+            region = zone.substring(zone.lastIndexOf('/') + 1);
+            // region consist of the zone's first two tokens
+            String[] tokens = region.split("-", 3);
+            if (tokens.length > 2) {
+                region = tokens[0] + "-" + tokens[1];
+            }
+
+            // Support for the instanceType name requires GCP data containing it.
+            // These are not publically available, so we don't support it for now.
+            return new InstanceType("gcp", region, null);
+        }
+
+        // Check and handle Azure.
+        // example: "azure.compute.location": "eastus2"
+        region = (String) source.get("azure.compute.location");
+        if (region != null) {
+            // example: "azure.compute.vmsize": "Standard_D2s_v3"
+            String instanceType = (String) source.get("azure.compute.vmsize");
+            return new InstanceType("azure", region, instanceType);
+        }
+
+        // Support for configured tags (ECS).
         // Example of tags:
         // "profiling.host.tags": [
         // "cloud_provider:aws",
         // "cloud_environment:qa",
         // "cloud_region:eu-west-1",
         // ],
-        String provider = "";
-        String region = "";
-        String instanceType = "";
-
+        String provider = null;
+        region = null;
         List<String> tags = listOf(source.get("profiling.host.tags"));
         for (String tag : tags) {
             String[] kv = tag.toLowerCase(Locale.ROOT).split(":", 2);
@@ -59,14 +90,7 @@ final class InstanceType implements ToXContentObject {
             }
         }
 
-        // We only support AWS for 8.12, but plan for GCP and Azure later.
-        // "gcp": check 'gce.instance.name' or 'gce.instance.name' to extract the instanceType
-        // "azure": extract the instanceType
-        if ("aws".equals(provider)) {
-            instanceType = (String) source.get("ec2.instance_type");
-        }
-
-        return new InstanceType(provider, region, instanceType);
+        return new InstanceType(provider, region, null);
     }
 
     @SuppressWarnings("unchecked")
@@ -99,7 +123,7 @@ final class InstanceType implements ToXContentObject {
             return false;
         }
         InstanceType that = (InstanceType) o;
-        return Objects.equals(provider, that.provider) && Objects.equals(region, that.region) && Objects.equals(name, that.name);
+        return provider.equals(that.provider) && region.equals(that.region) && name.equals(that.name);
     }
 
     @Override
@@ -109,6 +133,6 @@ final class InstanceType implements ToXContentObject {
 
     @Override
     public String toString() {
-        return name + " in region " + region;
+        return "provider '" + name + "' in region '" + region + "'";
     }
 }

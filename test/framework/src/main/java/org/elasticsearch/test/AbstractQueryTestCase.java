@@ -152,10 +152,14 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                 randomBoolean(),
                 shuffleProtectedFields()
             );
-            assertParsedQuery(createParser(xContentType.xContent(), shuffledXContent), testQuery);
+            try (var parser = createParser(xContentType.xContent(), shuffledXContent)) {
+                assertParsedQuery(parser, testQuery);
+            }
             for (Map.Entry<String, QB> alternateVersion : getAlternateVersions().entrySet()) {
                 String queryAsString = alternateVersion.getKey();
-                assertParsedQuery(createParser(JsonXContent.jsonXContent, queryAsString), alternateVersion.getValue());
+                try (var parser = createParser(JsonXContent.jsonXContent, queryAsString)) {
+                    assertParsedQuery(parser, alternateVersion.getValue());
+                }
             }
         }
     }
@@ -424,12 +428,15 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
 
     protected QueryBuilder parseQuery(AbstractQueryBuilder<?> builder) throws IOException {
         BytesReference bytes = XContentHelper.toXContent(builder, XContentType.JSON, false);
-        return parseQuery(createParser(JsonXContent.jsonXContent, bytes));
+        try (var parser = createParser(JsonXContent.jsonXContent, bytes)) {
+            return parseQuery(parser);
+        }
     }
 
     protected QueryBuilder parseQuery(String queryAsString) throws IOException {
-        XContentParser parser = createParser(JsonXContent.jsonXContent, queryAsString);
-        return parseQuery(parser);
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, queryAsString)) {
+            return parseQuery(parser);
+        }
     }
 
     protected QueryBuilder parseQuery(XContentParser parser) throws IOException {
@@ -651,9 +658,13 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             QB testQuery = createTestQueryBuilder();
             XContentType xContentType = XContentType.JSON;
             String toString = Strings.toString(testQuery);
-            assertParsedQuery(createParser(xContentType.xContent(), toString), testQuery);
+            try (var parser = createParser(xContentType.xContent(), toString)) {
+                assertParsedQuery(parser, testQuery);
+            }
             BytesReference bytes = XContentHelper.toXContent(testQuery, xContentType, false);
-            assertParsedQuery(createParser(xContentType.xContent(), bytes), testQuery);
+            try (var parser = createParser(xContentType.xContent(), bytes)) {
+                assertParsedQuery(parser, testQuery);
+            }
         }
     }
 

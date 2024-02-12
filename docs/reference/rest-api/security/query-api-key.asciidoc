@@ -52,17 +52,30 @@ You can specify the following parameters in the request body:
 (Optional, string) A <<query-dsl,query>> to filter which API keys to return.
 The query supports a subset of query types, including
 <<query-dsl-match-all-query,`match_all`>>, <<query-dsl-bool-query,`bool`>>,
-<<query-dsl-term-query,`term`>>, <<query-dsl-terms-query,`terms`>>, <<query-dsl-ids-query,`ids`>>,
-<<query-dsl-prefix-query,`prefix`>>, <<query-dsl-wildcard-query,`wildcard`>>, <<query-dsl-exists-query,`exists`>>,
-and <<query-dsl-range-query,`range`>>.
+<<query-dsl-term-query,`term`>>, <<query-dsl-terms-query,`terms`>>,
+<<query-dsl-match-query,`match`>>, <<query-dsl-ids-query,`ids`>>,
+<<query-dsl-prefix-query,`prefix`>>, <<query-dsl-wildcard-query,`wildcard`>>,
+<<query-dsl-exists-query,`exists`>>, <<query-dsl-range-query,`range`>>,
+and <<query-dsl-simple-query-string-query,`simple query string`>>
 +
 You can query the following public values associated with an API key.
++
+NOTE: The queryable string values associated with API keys are internally mapped as <<keyword,`keywords`>>.
+Consequently, if no <<analysis-analyzers,`analyzer`>> parameter is specified for a
+<<query-dsl-match-query,`match`>> query, then the provided match query string is interpreted as
+a single keyword value. Such a <<query-dsl-match-query,`match`>> query is hence equivalent to a
+<<query-dsl-term-query,`term`>> query.
 +
 .Valid values for `query`
 [%collapsible%open]
 ====
 `id`::
 ID of the API key. Note `id` must be queried with the <<query-dsl-ids-query,`ids`>> query.
+
+`type`::
+API keys can be of type `rest`, if created via the <<security-api-create-api-key, Create API key>> or
+the <<security-api-grant-api-key, Grant API key>> APIs, or of type `cross_cluster` if created via
+the <<security-api-create-cross-cluster-api-key, Create Cross-Cluster API key>> API.
 
 `name`::
 Name of the API key.
@@ -87,9 +100,13 @@ Username of the API key owner.
 Realm name of the API key owner.
 
 `metadata`::
-Metadata field associated with the API key, such as `metadata.my_field`. Because
-metadata is stored as a <<flattened,flattened>> field type, all fields act like
-`keyword` fields when querying and sorting.
+Metadata field associated with the API key, such as `metadata.my_field`.
+Metadata is internally indexed as a <<flattened,flattened>> field type.
+This means that all fields act like `keyword` fields when querying and sorting.
+It's not possible to refer to a subset of metadata fields using wildcard
+patterns, e.g. `metadata.field*`, even for query types that support field
+name patterns. Lastly, all the metadata fields can be searched together when
+simply mentioning `metadata` (not followed by any dot and sub-field name).
 
 NOTE: You cannot query the role descriptors of an API key.
 ====

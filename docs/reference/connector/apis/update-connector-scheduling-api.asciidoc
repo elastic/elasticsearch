@@ -1,11 +1,10 @@
 [[update-connector-scheduling-api]]
 === Update connector scheduling API
-
-preview::[]
-
 ++++
 <titleabbrev>Update connector scheduling</titleabbrev>
 ++++
+
+preview::[]
 
 Updates the `scheduling` configuration of a connector.
 

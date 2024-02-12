@@ -927,9 +927,7 @@ public final class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, Analy
         protected LogicalPlan rule(Filter f) {
             if (f.child() instanceof Project p) {
                 for (Expression n : p.projections()) {
-                    if (n instanceof Alias) {
-                        n = ((Alias) n).child();
-                    }
+                    n = Alias.unwrap(n);
                     // no literal or aggregates - it's a 'regular' projection
                     if (n.foldable() == false && Functions.isAggregate(n) == false
                     // folding might not work (it might wait for the optimizer)
@@ -1014,12 +1012,7 @@ public final class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, Analy
             Set<NamedExpression> missing = new LinkedHashSet<>();
 
             for (Expression filterAgg : from.collect(Functions::isAggregate)) {
-                if (Expressions.anyMatch(target.aggregates(), a -> {
-                    if (a instanceof Alias) {
-                        a = ((Alias) a).child();
-                    }
-                    return a.equals(filterAgg);
-                }) == false) {
+                if (Expressions.anyMatch(target.aggregates(), a -> Alias.unwrap(a).equals(filterAgg)) == false) {
                     missing.add(Expressions.wrapAsNamed(filterAgg));
                 }
             }
@@ -1066,12 +1059,7 @@ public final class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, Analy
                     List<NamedExpression> missing = new ArrayList<>();
 
                     for (Expression orderedAgg : aggs) {
-                        if (Expressions.anyMatch(a.aggregates(), e -> {
-                            if (e instanceof Alias) {
-                                e = ((Alias) e).child();
-                            }
-                            return e.equals(orderedAgg);
-                        }) == false) {
+                        if (Expressions.anyMatch(a.aggregates(), e -> Alias.unwrap(e).equals(orderedAgg)) == false) {
                             missing.add(Expressions.wrapAsNamed(orderedAgg));
                         }
                     }

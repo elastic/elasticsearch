@@ -29,7 +29,7 @@ public class DeleteExpiredDataAction extends ActionType<DeleteExpiredDataAction.
     public static final String NAME = "cluster:admin/xpack/ml/delete_expired_data";
 
     private DeleteExpiredDataAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
     public static class Request extends ActionRequest {

@@ -158,6 +158,23 @@ public class NerConfig implements NlpConfig {
     }
 
     @Override
+    public InferenceConfig apply(InferenceConfigUpdate update) {
+        if (update instanceof NerConfigUpdate configUpdate) {
+            return new NerConfig(
+                vocabularyConfig,
+                (configUpdate.getTokenizationUpdate() == null) ? tokenization : configUpdate.getTokenizationUpdate().apply(tokenization),
+                classificationLabels,
+                Optional.ofNullable(update.getResultsField()).orElse(resultsField)
+            );
+        } else if (update instanceof TokenizationConfigUpdate tokenizationUpdate) {
+            var updatedTokenization = getTokenization().updateWindowSettings(tokenizationUpdate.getSpanSettings());
+            return new NerConfig(this.vocabularyConfig, updatedTokenization, this.classificationLabels, this.resultsField);
+        } else {
+            throw incompatibleUpdateException(update.getName());
+        }
+    }
+
+    @Override
     public MlConfigVersion getMinimalSupportedMlConfigVersion() {
         return MlConfigVersion.V_8_0_0;
     }

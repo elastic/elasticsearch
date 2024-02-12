@@ -6,6 +6,9 @@ setup:
       indices.create:
         index: test
         body:
+          settings:
+            index:
+              number_of_shards: 2
           mappings:
             properties:
               name:
@@ -134,3 +137,189 @@ setup:
   - match: {hits.hits.0._id: "3"}
   - match: {hits.hits.0.fields.name.0: "rabbit.jpg"}
   - match: {hits.hits.0.inner_hits.nested.hits.hits.0.fields.nested.0.paragraph_id.0: "0"}
+---
+"nested kNN search inner_hits size > 1":
+  - skip:
+      version: ' - 8.12.99'
+      reason: 'inner_hits on nested kNN search added in 8.13'
+
+  - do:
+      index:
+        index: test
+        id: "4"
+        body:
+          name: moose.jpg
+          nested:
+            - paragraph_id: 0
+              vector: [ -0.5, 100.0, -13, 14.8, -156.0 ]
+            - paragraph_id: 2
+              vector: [ 0, 100.0, 0, 14.8, -156.0 ]
+            - paragraph_id: 3
+              vector: [ 0, 1.0, 0, 1.8, -15.0 ]
+
+  - do:
+      index:
+        index: test
+        id: "5"
+        body:
+          name: moose.jpg
+          nested:
+            - paragraph_id: 0
+              vector: [ -0.5, 100.0, -13, 14.8, -156.0 ]
+            - paragraph_id: 2
+              vector: [ 0, 100.0, 0, 14.8, -156.0 ]
+            - paragraph_id: 3
+              vector: [ 0, 1.0, 0, 1.8, -15.0 ]
+
+  - do:
+      index:
+        index: test
+        id: "6"
+        body:
+          name: moose.jpg
+          nested:
+            - paragraph_id: 0
+              vector: [ -0.5, 100.0, -13, 14.8, -156.0 ]
+            - paragraph_id: 2
+              vector: [ 0, 100.0, 0, 14.8, -156.0 ]
+            - paragraph_id: 3
+              vector: [ 0, 1.0, 0, 1.8, -15.0 ]
+  - do:
+      indices.refresh: { }
+
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ "name" ]
+          knn:
+            field: nested.vector
+            query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+            k: 3
+            num_candidates: 5
+            inner_hits: {size: 2, fields: ["nested.paragraph_id"], _source: false}
+
+  - match: {hits.total.value: 3}
+  - length: { hits.hits.0.inner_hits.nested.hits.hits: 2 }
+  - length: { hits.hits.1.inner_hits.nested.hits.hits: 2 }
+  - length: { hits.hits.2.inner_hits.nested.hits.hits: 2 }
+
+  - match: { hits.hits.0.fields.name.0: "moose.jpg" }
+  - match: { hits.hits.0.inner_hits.nested.hits.hits.0.fields.nested.0.paragraph_id.0: "0" }
+
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ "name" ]
+          knn:
+            field: nested.vector
+            query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+            k: 5
+            num_candidates: 5
+            inner_hits: {size: 2, fields: ["nested.paragraph_id"], _source: false}
+
+  - match: {hits.total.value: 5}
+  # All these initial matches are "moose.jpg", which has 3 nested vectors, but two are closest
+  - match: {hits.hits.0.fields.name.0: "moose.jpg"}
+  - length: { hits.hits.0.inner_hits.nested.hits.hits: 2 }
+  - match: { hits.hits.0.inner_hits.nested.hits.hits.0.fields.nested.0.paragraph_id.0: "0" }
+  - match: { hits.hits.0.inner_hits.nested.hits.hits.1.fields.nested.0.paragraph_id.0: "2" }
+  - match: {hits.hits.1.fields.name.0: "moose.jpg"}
+  - length: { hits.hits.1.inner_hits.nested.hits.hits: 2 }
+  - match: { hits.hits.1.inner_hits.nested.hits.hits.0.fields.nested.0.paragraph_id.0: "0" }
+  - match: { hits.hits.1.inner_hits.nested.hits.hits.1.fields.nested.0.paragraph_id.0: "2" }
+  - match: {hits.hits.2.fields.name.0: "moose.jpg"}
+  - length: { hits.hits.2.inner_hits.nested.hits.hits: 2 }
+  - match: { hits.hits.2.inner_hits.nested.hits.hits.0.fields.nested.0.paragraph_id.0: "0" }
+  - match: { hits.hits.2.inner_hits.nested.hits.hits.1.fields.nested.0.paragraph_id.0: "2" }
+  - match: {hits.hits.3.fields.name.0: "moose.jpg"}
+  - length: { hits.hits.3.inner_hits.nested.hits.hits: 2 }
+  - match: { hits.hits.3.inner_hits.nested.hits.hits.0.fields.nested.0.paragraph_id.0: "0" }
+  - match: { hits.hits.3.inner_hits.nested.hits.hits.1.fields.nested.0.paragraph_id.0: "2" }
+  # Rabbit only has one passage vector
+  - match: {hits.hits.4.fields.name.0: "rabbit.jpg"}
+  - length: { hits.hits.4.inner_hits.nested.hits.hits: 1 }
+
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ "name" ]
+          knn:
+            field: nested.vector
+            query_vector: [ -0.5, 90.0, -10, 14.8, -156.0 ]
+            k: 3
+            num_candidates: 3
+            filter: {term: {name: "cow.jpg"}}
+            inner_hits: {size: 3, fields: ["nested.paragraph_id"], _source: false}
+
+  - match: {hits.total.value: 1}
+  - match: { hits.hits.0._id: "1" }
+  - length: { hits.hits.0.inner_hits.nested.hits.hits: 2 }
+  - match: { hits.hits.0.inner_hits.nested.hits.hits.0.fields.nested.0.paragraph_id.0: "0" }
+  - match: { hits.hits.0.inner_hits.nested.hits.hits.1.fields.nested.0.paragraph_id.0: "1" }
+---
+"nested kNN search inner_hits & boosting":
+  - skip:
+      version: ' - 8.12.99'
+      reason: 'inner_hits on nested kNN search added in 8.13'
+      features: close_to
+
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ "name" ]
+          knn:
+            field: nested.vector
+            query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+            k: 3
+            num_candidates: 5
+            inner_hits: {size: 2, fields: ["nested.paragraph_id"], _source: false}
+
+  - close_to: { hits.hits.0._score: {value: 0.00909090, error: 0.00001} }
+  - close_to: { hits.hits.0.inner_hits.nested.hits.hits.0._score: {value: 0.00909090, error: 0.00001} }
+  - close_to: { hits.hits.1._score: {value: 0.0021519717, error: 0.00001} }
+  - close_to: { hits.hits.1.inner_hits.nested.hits.hits.0._score: {value: 0.0021519717, error: 0.00001} }
+  - close_to: { hits.hits.2._score: {value: 0.00001, error: 0.00001} }
+  - close_to: { hits.hits.2.inner_hits.nested.hits.hits.0._score: {value: 0.00001, error: 0.00001} }
+
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ "name" ]
+          knn:
+            field: nested.vector
+            query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+            k: 3
+            num_candidates: 5
+            boost: 2
+            inner_hits: {size: 2, fields: ["nested.paragraph_id"], _source: false}
+  - close_to: { hits.hits.0._score:  {value: 0.0181818, error: 0.00001} }
+  - close_to: { hits.hits.0.inner_hits.nested.hits.hits.0._score:  {value: 0.0181818, error: 0.00001} }
+  - close_to: { hits.hits.1._score:  {value: 0.0043039434, error: 0.00001} }
+  - close_to: { hits.hits.1.inner_hits.nested.hits.hits.0._score:  {value: 0.0043039434, error: 0.00001} }
+  - close_to: { hits.hits.2._score:  {value: 0.00002, error: 0.00001} }
+  - close_to: { hits.hits.2.inner_hits.nested.hits.hits.0._score:  {value: 0.00002, error: 0.00001} }
+---
+"nested kNN search inner_hits & profiling":
+  - skip:
+      version: ' - 8.12.99'
+      reason: 'bugfix for inner_hits and profiling in 8.13'
+  - do:
+      search:
+        index: test
+        body:
+          profile: true
+          fields: [ "name" ]
+          knn:
+            field: nested.vector
+            query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+            k: 3
+            num_candidates: 3
+            inner_hits: {size: 1, fields: ["nested.paragraph_id"], _source: false}
+
+  - match: {hits.total.value: 3}
+  - is_true : profile

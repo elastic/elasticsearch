@@ -13,6 +13,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.RequestValidators;
 import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryAction;
@@ -23,6 +24,7 @@ import org.elasticsearch.action.admin.cluster.repositories.put.TransportPutRepos
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteAction;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.elasticsearch.action.admin.cluster.reroute.TransportClusterRerouteAction;
+import org.elasticsearch.action.admin.cluster.snapshots.clone.TransportCloneSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.TransportCreateSnapshotAction;
@@ -42,11 +44,8 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
-import org.elasticsearch.action.admin.indices.mapping.put.AutoPutMappingAction;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.TransportAutoPutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAction;
-import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresAction;
 import org.elasticsearch.action.admin.indices.shards.TransportIndicesShardStoresAction;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -59,14 +58,17 @@ import org.elasticsearch.action.search.SearchExecutionStatsCollector;
 import org.elasticsearch.action.search.SearchPhaseController;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchTransportAPMMetrics;
 import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.WriteRequest;
@@ -116,6 +118,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.FakeThreadPoolMasterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.cluster.version.CompatibilityVersionsUtils;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.network.NetworkModule;
@@ -127,6 +130,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
+import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
@@ -170,16 +174,23 @@ import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.reservedstate.service.FileSettingsService;
+import org.elasticsearch.rest.action.search.SearchResponseMetrics;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.FetchPhase;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.tracing.Tracer;
+import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.transport.DisruptableMockTransport;
+import org.elasticsearch.transport.TestTransportChannel;
+import org.elasticsearch.transport.TransportInterceptor;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.junit.After;
@@ -198,6 +209,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -222,7 +234,9 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.iterableWithSize;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class SnapshotResiliencyTests extends ESTestCase {
 
@@ -1228,6 +1242,142 @@ public class SnapshotResiliencyTests extends ESTestCase {
         }
     }
 
+    public void testSnapshotCompletedByNodeLeft() {
+
+        // A transport interceptor that throttles the shard snapshot status updates to run one at a time, for more interesting interleavings
+        final TransportInterceptor throttlingInterceptor = new TransportInterceptor() {
+            private final ThrottledTaskRunner runner = new ThrottledTaskRunner(
+                SnapshotsService.UPDATE_SNAPSHOT_STATUS_ACTION_NAME + "-throttle",
+                1,
+                SnapshotResiliencyTests.this::scheduleNow
+            );
+
+            @Override
+            public <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(
+                String action,
+                Executor executor,
+                boolean forceExecution,
+                TransportRequestHandler<T> actualHandler
+            ) {
+                if (action.equals(SnapshotsService.UPDATE_SNAPSHOT_STATUS_ACTION_NAME)) {
+                    return (request, channel, task) -> ActionListener.run(
+                        new ChannelActionListener<>(channel),
+                        l -> runner.enqueueTask(
+                            l.delegateFailureAndWrap(
+                                (ll, ref) -> actualHandler.messageReceived(
+                                    request,
+                                    new TestTransportChannel(ActionListener.releaseAfter(ll, ref)),
+                                    task
+                                )
+                            )
+                        )
+                    );
+                } else {
+                    return actualHandler;
+                }
+            }
+        };
+
+        setupTestCluster(1, 1, node -> node.isMasterNode() ? throttlingInterceptor : TransportService.NOOP_TRANSPORT_INTERCEPTOR);
+
+        final var masterNode = testClusterNodes.randomMasterNodeSafe();
+        final var client = masterNode.client;
+        final var masterClusterService = masterNode.clusterService;
+
+        final var indices = IntStream.range(0, between(1, 4)).mapToObj(i -> "index-" + i).toList();
+        final var repoName = "repo";
+        final var originalSnapshotName = "original-snapshot";
+
+        var testListener = SubscribableListener
+
+            // Create the repo and indices
+            .<Void>newForked(stepListener -> {
+                try (var listeners = new RefCountingListener(stepListener)) {
+                    client().admin()
+                        .cluster()
+                        .preparePutRepository(repoName)
+                        .setType(FsRepository.TYPE)
+                        .setSettings(Settings.builder().put("location", randomAlphaOfLength(10)))
+                        .execute(listeners.acquire(createRepoResponse -> {}));
+
+                    for (final var index : indices) {
+                        client.admin()
+                            .indices()
+                            .create(
+                                new CreateIndexRequest(index).waitForActiveShards(ActiveShardCount.ALL).settings(defaultIndexSettings(1)),
+                                listeners.acquire(createIndexResponse -> {})
+                            );
+                    }
+                }
+            })
+
+            // Take a full snapshot for use as the source for future clones
+            .<Void>andThen(
+                (l, ignored) -> client().admin()
+                    .cluster()
+                    .prepareCreateSnapshot(repoName, originalSnapshotName)
+                    .setWaitForCompletion(true)
+                    .execute(l.map(v -> null))
+            );
+
+        final var snapshotCount = between(1, 10);
+        for (int i = 0; i < snapshotCount; i++) {
+            // Launch a random set of snapshots and clones, one at a time for more interesting interleavings
+            if (randomBoolean()) {
+                final var snapshotName = "snapshot-" + i;
+                testListener = testListener.andThen(
+                    (stepListener, v) -> scheduleNow(
+                        ActionRunnable.wrap(
+                            stepListener,
+                            l -> client.admin()
+                                .cluster()
+                                .prepareCreateSnapshot(repoName, snapshotName)
+                                .setIndices(randomNonEmptySubsetOf(indices).toArray(String[]::new))
+                                .setPartial(true)
+                                .execute(l.map(v1 -> null))
+                        )
+                    )
+                );
+            } else {
+                final var cloneName = "clone-" + i;
+                testListener = testListener.andThen((stepListener, v) -> scheduleNow(ActionRunnable.wrap(stepListener, l -> {
+                    // The clone API only responds when the clone is complete, but we only want to wait until the clone starts so we watch
+                    // the cluster state instead.
+                    ClusterServiceUtils.addTemporaryStateListener(
+                        masterClusterService,
+                        cs -> SnapshotsInProgress.get(cs)
+                            .forRepo(repoName)
+                            .stream()
+                            .anyMatch(
+                                e -> e.snapshot().getSnapshotId().getName().equals(cloneName)
+                                    && e.isClone()
+                                    && e.shardsByRepoShardId().isEmpty() == false
+                            )
+                    ).addListener(l);
+                    client.admin()
+                        .cluster()
+                        .prepareCloneSnapshot(repoName, originalSnapshotName, cloneName)
+                        .setIndices(randomNonEmptySubsetOf(indices).toArray(String[]::new))
+                        .execute(ActionTestUtils.assertNoFailureListener(r -> {}));
+                })));
+            }
+        }
+
+        testListener = testListener.andThen((l, ignored) -> scheduleNow(() -> {
+            // Once all snapshots & clones have started, drop the data node and wait for all snapshot activity to complete
+            testClusterNodes.disconnectNode(testClusterNodes.randomDataNodeSafe());
+            ClusterServiceUtils.addTemporaryStateListener(masterClusterService, cs -> SnapshotsInProgress.get(cs).isEmpty()).addListener(l);
+        }));
+
+        deterministicTaskQueue.runAllRunnableTasks();
+        assertTrue(
+            "executed all runnable tasks but test steps are still incomplete: "
+                + Strings.toString(SnapshotsInProgress.get(masterClusterService.state()), true, true),
+            testListener.isDone()
+        );
+        safeAwait(testListener); // shouldn't throw
+    }
+
     private RepositoryData getRepositoryData(Repository repository) {
         final PlainActionFuture<RepositoryData> res = new PlainActionFuture<>();
         repository.getRepositoryData(deterministicTaskQueue::scheduleNow, res);
@@ -1355,7 +1505,15 @@ public class SnapshotResiliencyTests extends ESTestCase {
     }
 
     private void setupTestCluster(int masterNodes, int dataNodes) {
-        testClusterNodes = new TestClusterNodes(masterNodes, dataNodes);
+        setupTestCluster(masterNodes, dataNodes, ignored -> TransportService.NOOP_TRANSPORT_INTERCEPTOR);
+    }
+
+    private void setupTestCluster(
+        int masterNodes,
+        int dataNodes,
+        TestClusterNodes.TransportInterceptorFactory transportInterceptorFactory
+    ) {
+        testClusterNodes = new TestClusterNodes(masterNodes, dataNodes, transportInterceptorFactory);
         startCluster();
     }
 
@@ -1429,11 +1587,11 @@ public class SnapshotResiliencyTests extends ESTestCase {
          */
         private final Set<String> disconnectedNodes = new HashSet<>();
 
-        TestClusterNodes(int masterNodes, int dataNodes) {
+        TestClusterNodes(int masterNodes, int dataNodes, TransportInterceptorFactory transportInterceptorFactory) {
             for (int i = 0; i < masterNodes; ++i) {
                 nodes.computeIfAbsent("node" + i, nodeName -> {
                     try {
-                        return newMasterNode(nodeName);
+                        return newMasterNode(nodeName, transportInterceptorFactory);
                     } catch (IOException e) {
                         throw new AssertionError(e);
                     }
@@ -1442,7 +1600,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             for (int i = 0; i < dataNodes; ++i) {
                 nodes.computeIfAbsent("data-node" + i, nodeName -> {
                     try {
-                        return newDataNode(nodeName);
+                        return newDataNode(nodeName, transportInterceptorFactory);
                     } catch (IOException e) {
                         throw new AssertionError(e);
                     }
@@ -1458,17 +1616,19 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 .orElseThrow(() -> new AssertionError("Could not find node by id [" + nodeId + ']'));
         }
 
-        private TestClusterNode newMasterNode(String nodeName) throws IOException {
-            return newNode(nodeName, DiscoveryNodeRole.MASTER_ROLE);
+        private TestClusterNode newMasterNode(String nodeName, TransportInterceptorFactory transportInterceptorFactory) throws IOException {
+            return newNode(nodeName, DiscoveryNodeRole.MASTER_ROLE, transportInterceptorFactory);
         }
 
-        private TestClusterNode newDataNode(String nodeName) throws IOException {
-            return newNode(nodeName, DiscoveryNodeRole.DATA_ROLE);
+        private TestClusterNode newDataNode(String nodeName, TransportInterceptorFactory transportInterceptorFactory) throws IOException {
+            return newNode(nodeName, DiscoveryNodeRole.DATA_ROLE, transportInterceptorFactory);
         }
 
-        private TestClusterNode newNode(String nodeName, DiscoveryNodeRole role) throws IOException {
+        private TestClusterNode newNode(String nodeName, DiscoveryNodeRole role, TransportInterceptorFactory transportInterceptorFactory)
+            throws IOException {
             return new TestClusterNode(
-                DiscoveryNodeUtils.builder(randomAlphaOfLength(10)).name(nodeName).roles(Collections.singleton(role)).build()
+                DiscoveryNodeUtils.builder(randomAlphaOfLength(10)).name(nodeName).roles(Collections.singleton(role)).build(),
+                transportInterceptorFactory
             );
         }
 
@@ -1562,11 +1722,17 @@ public class SnapshotResiliencyTests extends ESTestCase {
             return master;
         }
 
+        interface TransportInterceptorFactory {
+            TransportInterceptor createTransportInterceptor(DiscoveryNode node);
+        }
+
         private final class TestClusterNode {
 
             private final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(
                 Stream.concat(ClusterModule.getNamedWriteables().stream(), NetworkModule.getNamedWriteables().stream()).toList()
             );
+
+            private final TransportInterceptorFactory transportInterceptorFactory;
 
             private final TransportService transportService;
 
@@ -1608,8 +1774,9 @@ public class SnapshotResiliencyTests extends ESTestCase {
 
             private Coordinator coordinator;
 
-            TestClusterNode(DiscoveryNode node) throws IOException {
+            TestClusterNode(DiscoveryNode node, TransportInterceptorFactory transportInterceptorFactory) throws IOException {
                 this.node = node;
+                this.transportInterceptorFactory = transportInterceptorFactory;
                 final Environment environment = createEnvironment(node.getName());
                 threadPool = deterministicTaskQueue.getThreadPool(runnable -> DeterministicTaskQueue.onNodeLog(node, runnable));
                 masterService = new FakeThreadPoolMasterService(node.getName(), threadPool, deterministicTaskQueue::scheduleNow);
@@ -1649,6 +1816,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     }
                 );
                 recoverySettings = new RecoverySettings(settings, clusterSettings);
+                FeatureService mockFeatureService = mock(FeatureService.class);
+                when(mockFeatureService.clusterHasFeature(any(), any())).thenReturn(true);
                 mockTransport = new DisruptableMockTransport(node, deterministicTaskQueue) {
                     @Override
                     protected ConnectionStatus getConnectionStatus(DiscoveryNode destination) {
@@ -1693,7 +1862,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 transportService = mockTransport.createTransportService(
                     settings,
                     threadPool,
-                    TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+                    transportInterceptorFactory.createTransportInterceptor(node),
                     a -> node,
                     null,
                     emptySet()
@@ -1938,6 +2107,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                             null,
                             () -> DocumentParsingObserver.EMPTY_INSTANCE
                         ),
+                        mockFeatureService,
                         client,
                         actionFilters,
                         indexNameExpressionResolver,
@@ -1979,7 +2149,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     threadPool
                 );
                 actions.put(
-                    PutMappingAction.INSTANCE,
+                    TransportPutMappingAction.TYPE,
                     new TransportPutMappingAction(
                         transportService,
                         clusterService,
@@ -1992,7 +2162,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     )
                 );
                 actions.put(
-                    AutoPutMappingAction.INSTANCE,
+                    TransportAutoPutMappingAction.TYPE,
                     new TransportAutoPutMappingAction(
                         transportService,
                         clusterService,
@@ -2018,7 +2188,9 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         actionFilters,
                         indexNameExpressionResolver,
                         namedWriteableRegistry,
-                        EmptySystemIndices.INSTANCE.getExecutorSelector()
+                        EmptySystemIndices.INSTANCE.getExecutorSelector(),
+                        new SearchTransportAPMMetrics(TelemetryProvider.NOOP.getMeterRegistry()),
+                        new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry())
                     )
                 );
                 actions.put(
@@ -2078,6 +2250,17 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     )
                 );
                 actions.put(
+                    TransportCloneSnapshotAction.TYPE,
+                    new TransportCloneSnapshotAction(
+                        transportService,
+                        clusterService,
+                        threadPool,
+                        snapshotsService,
+                        actionFilters,
+                        indexNameExpressionResolver
+                    )
+                );
+                actions.put(
                     ClusterRerouteAction.INSTANCE,
                     new TransportClusterRerouteAction(
                         transportService,
@@ -2099,7 +2282,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     )
                 );
                 actions.put(
-                    IndicesShardStoresAction.INSTANCE,
+                    TransportIndicesShardStoresAction.TYPE,
                     new TransportIndicesShardStoresAction(
                         transportService,
                         clusterService,
@@ -2138,8 +2321,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     transportService.getTaskManager(),
                     () -> clusterService.localNode().getId(),
                     transportService.getLocalNodeConnection(),
-                    transportService.getRemoteClusterService(),
-                    new NamedWriteableRegistry(List.of())
+                    transportService.getRemoteClusterService()
                 );
             }
 
@@ -2151,7 +2333,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 scheduleSoon(() -> {
                     try {
                         final TestClusterNode restartedNode = new TestClusterNode(
-                            DiscoveryNodeUtils.create(node.getName(), node.getId(), node.getAddress(), emptyMap(), node.getRoles())
+                            DiscoveryNodeUtils.create(node.getName(), node.getId(), node.getAddress(), emptyMap(), node.getRoles()),
+                            transportInterceptorFactory
                         );
                         nodes.put(node.getName(), restartedNode);
                         restartedNode.start(oldState);

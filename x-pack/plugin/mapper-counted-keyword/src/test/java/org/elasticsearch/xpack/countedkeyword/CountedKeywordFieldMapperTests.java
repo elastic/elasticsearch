@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.countedkeyword;
 
+import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -81,5 +83,16 @@ public class CountedKeywordFieldMapperTests extends MapperTestCase {
         ParsedDocument doc = mapper.parse(source(b -> b.field("dotted.field", "1234")));
         List<IndexableField> fields = doc.rootDoc().getFields("dotted.field");
         assertEquals(1, fields.size());
+    }
+
+    public void testDisableIndex() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(
+            fieldMapping(b -> b.field("type", CountedKeywordFieldMapper.CONTENT_TYPE).field("index", false))
+        );
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "1234")));
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(1, fields.size());
+        assertEquals(IndexOptions.NONE, fields.get(0).fieldType().indexOptions());
+        assertEquals(DocValuesType.SORTED_SET, fields.get(0).fieldType().docValuesType());
     }
 }

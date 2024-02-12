@@ -12,11 +12,13 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.application.connector.ConnectorSyncStatus;
 import org.elasticsearch.xpack.application.connector.ConnectorTestUtils;
+import org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJobType;
 import org.elasticsearch.xpack.application.search.SearchApplicationTestUtils;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
 
 import java.io.IOException;
+import java.util.Collections;
 
 public class ListConnectorSyncJobsActionRequestBWCSerializingTests extends AbstractBWCSerializationTestCase<
     ListConnectorSyncJobsAction.Request> {
@@ -30,8 +32,9 @@ public class ListConnectorSyncJobsActionRequestBWCSerializingTests extends Abstr
         PageParams pageParams = SearchApplicationTestUtils.randomPageParams();
         String connectorId = randomAlphaOfLength(10);
         ConnectorSyncStatus syncStatus = ConnectorTestUtils.getRandomSyncStatus();
+        ConnectorSyncJobType syncJobType = ConnectorTestUtils.getRandomSyncJobType();
 
-        return new ListConnectorSyncJobsAction.Request(pageParams, connectorId, syncStatus);
+        return new ListConnectorSyncJobsAction.Request(pageParams, connectorId, syncStatus, Collections.singletonList(syncJobType));
     }
 
     @Override
@@ -52,7 +55,8 @@ public class ListConnectorSyncJobsActionRequestBWCSerializingTests extends Abstr
         return new ListConnectorSyncJobsAction.Request(
             instance.getPageParams(),
             instance.getConnectorId(),
-            instance.getConnectorSyncStatus()
+            instance.getConnectorSyncStatus(),
+            instance.getConnectorSyncJobTypeList()
         );
     }
 }

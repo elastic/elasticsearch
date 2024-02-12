@@ -34,7 +34,7 @@ import java.util.List;
  */
 public abstract sealed class BlockHash implements Releasable, SeenGroupIds //
     permits BooleanBlockHash, BytesRefBlockHash, DoubleBlockHash, IntBlockHash, LongBlockHash,//
-    PackedValuesBlockHash, BytesRefLongBlockHash, LongLongBlockHash {
+    NullBlockHash, PackedValuesBlockHash, BytesRefLongBlockHash, LongLongBlockHash {
 
     protected final BigArrays bigArrays;
     protected final BlockFactory blockFactory;
@@ -107,6 +107,7 @@ public abstract sealed class BlockHash implements Releasable, SeenGroupIds //
      */
     private static BlockHash newForElementType(int channel, ElementType type, DriverContext driverContext) {
         return switch (type) {
+            case NULL -> new NullBlockHash(channel, driverContext);
             case BOOLEAN -> new BooleanBlockHash(channel, driverContext);
             case INT -> new IntBlockHash(channel, driverContext);
             case LONG -> new LongBlockHash(channel, driverContext);

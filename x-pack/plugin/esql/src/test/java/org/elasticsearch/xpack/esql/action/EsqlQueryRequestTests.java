@@ -31,6 +31,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.containsString;
@@ -55,7 +56,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
                 "filter": %s
                 %s""", query, columnar, locale.toLanguageTag(), filter, paramsString);
 
-        EsqlQueryRequest request = parseEsqlQueryRequest(json);
+        EsqlQueryRequest request = parseEsqlQueryRequestSync(json);
 
         assertEquals(query, request.query());
         assertEquals(columnar, request.columnar());
@@ -67,6 +68,71 @@ public class EsqlQueryRequestTests extends ESTestCase {
         for (int i = 0; i < params.size(); i++) {
             assertEquals(params.get(i), request.params().get(i));
         }
+    }
+
+    public void testParseFieldsForAsync() throws IOException {
+        String query = randomAlphaOfLengthBetween(1, 100);
+        boolean columnar = randomBoolean();
+        Locale locale = randomLocale(random());
+        QueryBuilder filter = randomQueryBuilder();
+
+        List<TypedParamValue> params = randomParameters();
+        boolean hasParams = params.isEmpty() == false;
+        StringBuilder paramsString = paramsString(params, hasParams);
+        boolean keepOnCompletion = randomBoolean();
+        TimeValue waitForCompletion = TimeValue.parseTimeValue(randomTimeValue(), "test");
+        TimeValue keepAlive = TimeValue.parseTimeValue(randomTimeValue(), "test");
+        String json = String.format(
+            Locale.ROOT,
+            """
+                {
+                    "query": "%s",
+                    "columnar": %s,
+                    "locale": "%s",
+                    "filter": %s,
+                    "keep_on_completion": %s,
+                    "wait_for_completion_timeout": "%s",
+                    "keep_alive": "%s"
+                    %s""",
+            query,
+            columnar,
+            locale.toLanguageTag(),
+            filter,
+            keepOnCompletion,
+            waitForCompletion.getStringRep(),
+            keepAlive.getStringRep(),
+            paramsString
+        );
+
+        EsqlQueryRequest request = parseEsqlQueryRequestAsync(json);
+
+        assertEquals(query, request.query());
+        assertEquals(columnar, request.columnar());
+        assertEquals(locale.toLanguageTag(), request.locale().toLanguageTag());
+        assertEquals(locale, request.locale());
+        assertEquals(filter, request.filter());
+        assertEquals(keepOnCompletion, request.keepOnCompletion());
+        assertEquals(waitForCompletion, request.waitForCompletionTimeout());
+        assertEquals(keepAlive, request.keepAlive());
+
+        assertEquals(params.size(), request.params().size());
+        for (int i = 0; i < params.size(); i++) {
+            assertEquals(params.get(i), request.params().get(i));
+        }
+    }
+
+    public void testDefaultValueForOptionalAsyncParams() throws IOException {
+        String query = randomAlphaOfLengthBetween(1, 100);
+        String json = String.format(Locale.ROOT, """
+            {
+                "query": "%s"
+            }
+            """, query);
+        EsqlQueryRequest request = parseEsqlQueryRequestAsync(json);
+        assertEquals(query, request.query());
+        assertFalse(request.keepOnCompletion());
+        assertEquals(TimeValue.timeValueSeconds(1), request.waitForCompletionTimeout());
+        assertEquals(TimeValue.timeValueDays(5), request.keepAlive());
     }
 
     public void testRejectUnknownFields() {
@@ -84,10 +150,15 @@ public class EsqlQueryRequestTests extends ESTestCase {
     }
 
     public void testMissingQueryIsNotValidation() throws IOException {
-        EsqlQueryRequest request = parseEsqlQueryRequest("""
+        String json = """
             {
                 "columnar": true
-            }""");
+            }""";
+        EsqlQueryRequest request = parseEsqlQueryRequestSync(json);
+        assertNotNull(request.validate());
+        assertThat(request.validate().getMessage(), containsString("[query] is required"));
+
+        request = parseEsqlQueryRequestAsync(json);
         assertNotNull(request.validate());
         assertThat(request.validate().getMessage(), containsString("[query] is required"));
     }
@@ -96,10 +167,12 @@ public class EsqlQueryRequestTests extends ESTestCase {
         String query = randomAlphaOfLength(10);
         int id = randomInt();
 
-        EsqlQueryRequest request = parseEsqlQueryRequest("""
+        String requestJson = """
             {
                 "query": "QUERY"
-            }""".replace("QUERY", query));
+            }""".replace("QUERY", query);
+
+        EsqlQueryRequest request = parseEsqlQueryRequestSync(requestJson);
         Task task = request.createTask(id, "transport", EsqlQueryAction.NAME, TaskId.EMPTY_TASK_ID, Map.of());
         assertThat(task.getDescription(), equalTo(query));
 
@@ -180,17 +253,33 @@ public class EsqlQueryRequestTests extends ESTestCase {
     }
 
     private static void assertParserErrorMessage(String json, String message) {
-        Exception e = expectThrows(IllegalArgumentException.class, () -> parseEsqlQueryRequest(json));
+        Exception e = expectThrows(IllegalArgumentException.class, () -> parseEsqlQueryRequestSync(json));
+        assertThat(e.getMessage(), containsString(message));
+
+        e = expectThrows(IllegalArgumentException.class, () -> parseEsqlQueryRequestAsync(json));
         assertThat(e.getMessage(), containsString(message));
     }
 
-    private static EsqlQueryRequest parseEsqlQueryRequest(String json) throws IOException {
+    static EsqlQueryRequest parseEsqlQueryRequestSync(String json) throws IOException {
+        var request = parseEsqlQueryRequest(json, EsqlQueryRequest::fromXContentSync);
+        assertFalse(request.async());
+        return request;
+    }
+
+    static EsqlQueryRequest parseEsqlQueryRequestAsync(String json) throws IOException {
+        var request = parseEsqlQueryRequest(json, EsqlQueryRequest::fromXContentAsync);
+        assertTrue(request.async());
+        return request;
+    }
+
+    static EsqlQueryRequest parseEsqlQueryRequest(String json, Function<XContentParser, EsqlQueryRequest> fromXContentFunc)
+        throws IOException {
         SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
         XContentParserConfiguration config = XContentParserConfiguration.EMPTY.withRegistry(
             new NamedXContentRegistry(searchModule.getNamedXContents())
         );
         try (XContentParser parser = XContentType.JSON.xContent().createParser(config, json)) {
-            return EsqlQueryRequest.fromXContent(parser);
+            return fromXContentFunc.apply(parser);
         }
     }
 

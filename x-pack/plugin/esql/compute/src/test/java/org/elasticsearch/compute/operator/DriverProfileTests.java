@@ -30,19 +30,23 @@ public class DriverProfileTests extends AbstractWireSerializingTestCase<DriverPr
                 new DriverStatus.OperatorStatus("ValuesSourceReader", ValuesSourceReaderOperatorStatusTests.simple())
             )
         );
-        assertThat(
-            Strings.toString(status),
-            equalTo(
-                """
-                    {"operators":["""
-                    + """
-                        {"operator":"LuceneSource","status":"""
-                    + LuceneSourceOperatorStatusTests.simpleToJson()
-                    + "},{\"operator\":\"ValuesSourceReader\",\"status\":"
-                    + ValuesSourceReaderOperatorStatusTests.simpleToJson()
-                    + "}]}"
-            )
-        );
+        assertThat(Strings.toString(status, true, true), equalTo("""
+            {
+              "operators" : [
+                {
+                  "operator" : "LuceneSource",
+                  "status" :
+            """.stripTrailing() + " " + LuceneSourceOperatorStatusTests.simpleToJson().replace("\n", "\n      ") + """
+
+                },
+                {
+                  "operator" : "ValuesSourceReader",
+                  "status" :
+            """.stripTrailing() + " " + ValuesSourceReaderOperatorStatusTests.simpleToJson().replace("\n", "\n      ") + """
+
+                }
+              ]
+            }"""));
     }
 
     @Override

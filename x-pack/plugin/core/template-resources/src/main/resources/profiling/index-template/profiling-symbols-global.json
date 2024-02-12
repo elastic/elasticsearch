@@ -18,7 +18,8 @@
   },
   "priority": 100,
   "_meta": {
-    "description": "Index template for .profiling-symbols-global"
+    "description": "Index template for .profiling-symbols-global",
+    "managed": true
   },
   "version": ${xpack.profiling.template.version}
 }

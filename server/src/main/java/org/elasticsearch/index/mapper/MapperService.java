@@ -45,6 +45,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -56,9 +57,23 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      */
     public enum MergeReason {
         /**
-         * Pre-flight check before sending a mapping update to the master
+         * Pre-flight check before sending a dynamic mapping update to the master
          */
-        MAPPING_UPDATE_PREFLIGHT,
+        MAPPING_AUTO_UPDATE_PREFLIGHT {
+            @Override
+            public boolean isAutoUpdate() {
+                return true;
+            }
+        },
+        /**
+         * Dynamic mapping updates
+         */
+        MAPPING_AUTO_UPDATE {
+            @Override
+            public boolean isAutoUpdate() {
+                return true;
+            }
+        },
         /**
          * Create or update a mapping.
          */
@@ -72,7 +87,11 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
          * if a shard was moved to a different node or for administrative
          * purposes.
          */
-        MAPPING_RECOVERY
+        MAPPING_RECOVERY;
+
+        public boolean isAutoUpdate() {
+            return false;
+        }
     }
 
     public static final String SINGLE_MAPPING_NAME = "_doc";
@@ -100,6 +119,12 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         Property.IndexScope,
         Property.ServerlessPublic
     );
+    public static final Setting<Boolean> INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_LIMIT_SETTING = Setting.boolSetting(
+        "index.mapping.total_fields.ignore_dynamic_beyond_limit",
+        false,
+        Property.Dynamic,
+        Property.IndexScope
+    );
     public static final Setting<Long> INDEX_MAPPING_DEPTH_LIMIT_SETTING = Setting.longSetting(
         "index.mapping.depth.limit",
         20L,
@@ -116,7 +141,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     );
     public static final Setting<Long> INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING = Setting.longSetting(
         "index.mapping.dimension_fields.limit",
-        21,
+        32_768,
         0,
         Property.Dynamic,
         Property.IndexScope
@@ -130,6 +155,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     private final Supplier<MappingParserContext> mappingParserContextSupplier;
 
     private volatile DocumentMapper mapper;
+    private volatile long mappingVersion;
 
     public MapperService(
         ClusterService clusterService,
@@ -298,6 +324,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                 previousMapper = this.mapper;
                 assert assertRefreshIsNotNeeded(previousMapper, type, incomingMapping);
                 this.mapper = newDocumentMapper(incomingMapping, MergeReason.MAPPING_RECOVERY, incomingMappingSource);
+                this.mappingVersion = newIndexMetadata.getMappingVersion();
             }
             String op = previousMapper != null ? "updated" : "added";
             if (logger.isDebugEnabled() && incomingMappingSource.compressed().length < 512) {
@@ -311,7 +338,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     private boolean assertRefreshIsNotNeeded(DocumentMapper currentMapper, String type, Mapping incomingMapping) {
-        Mapping mergedMapping = mergeMappings(currentMapper, incomingMapping, MergeReason.MAPPING_RECOVERY);
+        Mapping mergedMapping = mergeMappings(currentMapper, incomingMapping, MergeReason.MAPPING_RECOVERY, indexSettings);
         // skip the runtime section or removed runtime fields will make the assertion fail
         ToXContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap(RootObjectMapper.TOXCONTENT_SKIP_RUNTIME, "true"));
         CompressedXContent mergedMappingSource;
@@ -362,7 +389,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     public void merge(IndexMetadata indexMetadata, MergeReason reason) {
-        assert reason != MergeReason.MAPPING_UPDATE_PREFLIGHT;
+        assert reason != MergeReason.MAPPING_AUTO_UPDATE_PREFLIGHT;
         MappingMetadata mappingMetadata = indexMetadata.mapping();
         if (mappingMetadata != null) {
             merge(mappingMetadata.type(), mappingMetadata.source(), reason);
@@ -515,11 +542,11 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
     private synchronized DocumentMapper doMerge(String type, MergeReason reason, Map<String, Object> mappingSourceAsMap) {
         Mapping incomingMapping = parseMapping(type, mappingSourceAsMap);
-        Mapping mapping = mergeMappings(this.mapper, incomingMapping, reason);
+        Mapping mapping = mergeMappings(this.mapper, incomingMapping, reason, this.indexSettings);
         // TODO: In many cases the source here is equal to mappingSource so we need not serialize again.
         // We should identify these cases reliably and save expensive serialization here
         DocumentMapper newMapper = newDocumentMapper(mapping, reason, mapping.toCompressedXContent());
-        if (reason == MergeReason.MAPPING_UPDATE_PREFLIGHT) {
+        if (reason == MergeReason.MAPPING_AUTO_UPDATE_PREFLIGHT) {
             return newMapper;
         }
         this.mapper = newMapper;
@@ -556,12 +583,46 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         }
     }
 
-    public static Mapping mergeMappings(DocumentMapper currentMapper, Mapping incomingMapping, MergeReason reason) {
+    public static Mapping mergeMappings(
+        DocumentMapper currentMapper,
+        Mapping incomingMapping,
+        MergeReason reason,
+        IndexSettings indexSettings
+    ) {
+        return mergeMappings(currentMapper, incomingMapping, reason, getMaxFieldsToAddDuringMerge(currentMapper, indexSettings, reason));
+    }
+
+    private static long getMaxFieldsToAddDuringMerge(DocumentMapper currentMapper, IndexSettings indexSettings, MergeReason reason) {
+        if (reason.isAutoUpdate() && indexSettings.isIgnoreDynamicFieldsBeyondLimit()) {
+            // If the index setting ignore_dynamic_beyond_limit is enabled,
+            // data nodes only add new dynamic fields until the limit is reached while parsing documents to be ingested.
+            // However, if there are concurrent mapping updates,
+            // data nodes may add dynamic fields under an outdated assumption that enough capacity is still available.
+            // When data nodes send the dynamic mapping update request to the master node,
+            // it will only add as many fields as there's actually capacity for when merging mappings.
+            long totalFieldsLimit = indexSettings.getMappingTotalFieldsLimit();
+            return Optional.ofNullable(currentMapper)
+                .map(DocumentMapper::mappers)
+                .map(ml -> ml.remainingFieldsUntilLimit(totalFieldsLimit))
+                .orElse(totalFieldsLimit);
+        } else {
+            // Else, we're not limiting the number of fields so that the merged mapping fails validation if it exceeds total_fields.limit.
+            // This is the desired behavior when making an explicit mapping update, even if ignore_dynamic_beyond_limit is enabled.
+            // When ignore_dynamic_beyond_limit is disabled and a dynamic mapping update would exceed the field limit,
+            // the document will get rejected.
+            // Normally, this happens on the data node in DocumentParserContext.addDynamicMapper but if there's a race condition,
+            // data nodes may add dynamic fields under an outdated assumption that enough capacity is still available.
+            // In this case, the master node will reject mapping updates that would exceed the limit when handling the mapping update.
+            return Long.MAX_VALUE;
+        }
+    }
+
+    static Mapping mergeMappings(DocumentMapper currentMapper, Mapping incomingMapping, MergeReason reason, long newFieldsBudget) {
         Mapping newMapping;
         if (currentMapper == null) {
-            newMapping = incomingMapping;
+            newMapping = incomingMapping.withFieldsBudget(newFieldsBudget);
         } else {
-            newMapping = currentMapper.mapping().merge(incomingMapping, reason);
+            newMapping = currentMapper.mapping().merge(incomingMapping, reason, newFieldsBudget);
         }
         return newMapping;
     }
@@ -588,6 +649,10 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      */
     public DocumentMapper documentMapper() {
         return mapper;
+    }
+
+    public long mappingVersion() {
+        return mappingVersion;
     }
 
     /**

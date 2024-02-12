@@ -30,11 +30,12 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.telemetry.tracing.SpanId;
+import org.elasticsearch.telemetry.apm.internal.APMAgentSettings;
+import org.elasticsearch.telemetry.tracing.TraceContext;
+import org.elasticsearch.telemetry.tracing.Traceable;
 
 import java.security.AccessController;
 import java.security.PrivilegedAction;
@@ -42,11 +43,6 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
-
-import static org.elasticsearch.telemetry.apm.internal.APMAgentSettings.APM_ENABLED_SETTING;
-import static org.elasticsearch.telemetry.apm.internal.APMAgentSettings.APM_TRACING_NAMES_EXCLUDE_SETTING;
-import static org.elasticsearch.telemetry.apm.internal.APMAgentSettings.APM_TRACING_NAMES_INCLUDE_SETTING;
-import static org.elasticsearch.telemetry.apm.internal.APMAgentSettings.APM_TRACING_SANITIZE_FIELD_NAMES;
 
 /**
  * This is an implementation of the {@link org.elasticsearch.telemetry.tracing.Tracer} interface, which uses
@@ -61,7 +57,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
     private static final Logger logger = LogManager.getLogger(APMTracer.class);
 
     /** Holds in-flight span information. */
-    private final Map<SpanId, Context> spans = ConcurrentCollections.newConcurrentMap();
+    private final Map<String, Context> spans = ConcurrentCollections.newConcurrentMap();
 
     private volatile boolean enabled;
     private volatile APMServices services;
@@ -89,13 +85,13 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
     record APMServices(Tracer tracer, OpenTelemetry openTelemetry) {}
 
     public APMTracer(Settings settings) {
-        this.includeNames = APM_TRACING_NAMES_INCLUDE_SETTING.get(settings);
-        this.excludeNames = APM_TRACING_NAMES_EXCLUDE_SETTING.get(settings);
-        this.labelFilters = APM_TRACING_SANITIZE_FIELD_NAMES.get(settings);
+        this.includeNames = APMAgentSettings.TELEMETRY_TRACING_NAMES_INCLUDE_SETTING.get(settings);
+        this.excludeNames = APMAgentSettings.TELEMETRY_TRACING_NAMES_EXCLUDE_SETTING.get(settings);
+        this.labelFilters = APMAgentSettings.TELEMETRY_TRACING_SANITIZE_FIELD_NAMES.get(settings);
 
         this.filterAutomaton = buildAutomaton(includeNames, excludeNames);
         this.labelFilterAutomaton = buildAutomaton(labelFilters, List.of());
-        this.enabled = APM_ENABLED_SETTING.get(settings);
+        this.enabled = APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.get(settings);
     }
 
     public void setEnabled(boolean enabled) {
@@ -160,8 +156,9 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
     }
 
     @Override
-    public void startTrace(ThreadContext threadContext, SpanId spanId, String spanName, @Nullable Map<String, Object> attributes) {
-        assert threadContext != null;
+    public void startTrace(TraceContext traceContext, Traceable traceable, String spanName, @Nullable Map<String, Object> attributes) {
+        assert traceContext != null;
+        String spanId = traceable.getSpanId();
         assert spanId != null;
         assert spanName != null;
 
@@ -182,21 +179,21 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
 
             // A span can have a parent span, which here is modelled though a parent span context.
             // Setting this is important for seeing a complete trace in the APM UI.
-            final Context parentContext = getParentContext(threadContext);
+            final Context parentContext = getParentContext(traceContext);
             if (parentContext != null) {
                 spanBuilder.setParent(parentContext);
             }
 
-            setSpanAttributes(threadContext, attributes, spanBuilder);
+            setSpanAttributes(traceContext, attributes, spanBuilder);
 
-            Instant startTime = threadContext.getTransient(Task.TRACE_START_TIME);
+            Instant startTime = traceContext.getTransient(Task.TRACE_START_TIME);
             if (startTime != null) {
                 spanBuilder.setStartTimestamp(startTime);
             }
             final Span span = spanBuilder.startSpan();
             final Context contextForNewSpan = Context.current().with(span);
 
-            updateThreadContext(threadContext, services, contextForNewSpan);
+            updateThreadContext(traceContext, services, contextForNewSpan);
 
             return contextForNewSpan;
         }));
@@ -221,29 +218,29 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         spanBuilder.startSpan();
     }
 
-    private static void updateThreadContext(ThreadContext threadContext, APMServices services, Context context) {
+    private static void updateThreadContext(TraceContext traceContext, APMServices services, Context context) {
         // The new span context can be used as the parent context directly within the same Java process...
-        threadContext.putTransient(Task.APM_TRACE_CONTEXT, context);
+        traceContext.putTransient(Task.APM_TRACE_CONTEXT, context);
 
-        // ...whereas for tasks sent to other ES nodes, we need to put trace HTTP headers into the threadContext so
+        // ...whereas for tasks sent to other ES nodes, we need to put trace HTTP headers into the traceContext so
         // that they can be propagated.
-        services.openTelemetry.getPropagators().getTextMapPropagator().inject(context, threadContext, (tc, key, value) -> {
+        services.openTelemetry.getPropagators().getTextMapPropagator().inject(context, traceContext, (tc, key, value) -> {
             if (isSupportedContextKey(key)) {
                 tc.putHeader(key, value);
             }
         });
     }
 
-    private Context getParentContext(ThreadContext threadContext) {
+    private Context getParentContext(TraceContext traceContext) {
         // https://github.com/open-telemetry/opentelemetry-java/discussions/2884#discussioncomment-381870
         // If you just want to propagate across threads within the same process, you don't need context propagators (extract/inject).
         // You can just pass the Context object directly to another thread (it is immutable and thus thread-safe).
 
         // Attempt to fetch a local parent context first, otherwise look for a remote parent
-        Context parentContext = threadContext.getTransient("parent_" + Task.APM_TRACE_CONTEXT);
+        Context parentContext = traceContext.getTransient("parent_" + Task.APM_TRACE_CONTEXT);
         if (parentContext == null) {
-            final String traceParentHeader = threadContext.getTransient("parent_" + Task.TRACE_PARENT_HTTP_HEADER);
-            final String traceStateHeader = threadContext.getTransient("parent_" + Task.TRACE_STATE);
+            final String traceParentHeader = traceContext.getTransient("parent_" + Task.TRACE_PARENT_HTTP_HEADER);
+            final String traceStateHeader = traceContext.getTransient("parent_" + Task.TRACE_STATE);
 
             if (traceParentHeader != null) {
                 final Map<String, String> traceContextMap = Maps.newMapWithExpectedSize(2);
@@ -276,12 +273,12 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
      * However, if a scope is active, then the APM agent can capture additional information, so this method
      * exists to make it possible to use scopes in the few situation where it makes sense.
      *
-     * @param spanId the ID of a currently-open span for which to open a scope.
+     * @param traceable provides the ID of a currently-open span for which to open a scope.
      * @return a method to close the scope when you are finished with it.
      */
     @Override
-    public Releasable withScope(SpanId spanId) {
-        final Context context = spans.get(spanId);
+    public Releasable withScope(Traceable traceable) {
+        final Context context = spans.get(traceable.getSpanId());
         if (context != null) {
             var scope = AccessController.doPrivileged((PrivilegedAction<Scope>) context::makeCurrent);
             return scope::close;
@@ -327,60 +324,60 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         spanBuilder.setAttribute(org.elasticsearch.telemetry.tracing.Tracer.AttributeKeys.CLUSTER_NAME, clusterName);
     }
 
-    private void setSpanAttributes(ThreadContext threadContext, @Nullable Map<String, Object> spanAttributes, SpanBuilder spanBuilder) {
+    private void setSpanAttributes(TraceContext traceContext, @Nullable Map<String, Object> spanAttributes, SpanBuilder spanBuilder) {
         setSpanAttributes(spanAttributes, spanBuilder);
 
-        final String xOpaqueId = threadContext.getHeader(Task.X_OPAQUE_ID_HTTP_HEADER);
+        final String xOpaqueId = traceContext.getHeader(Task.X_OPAQUE_ID_HTTP_HEADER);
         if (xOpaqueId != null) {
             spanBuilder.setAttribute("es.x-opaque-id", xOpaqueId);
         }
     }
 
     @Override
-    public void addError(SpanId spanId, Throwable throwable) {
-        final var span = Span.fromContextOrNull(spans.get(spanId));
+    public void addError(Traceable traceable, Throwable throwable) {
+        final var span = Span.fromContextOrNull(spans.get(traceable.getSpanId()));
         if (span != null) {
             span.recordException(throwable);
         }
     }
 
     @Override
-    public void setAttribute(SpanId spanId, String key, boolean value) {
-        final var span = Span.fromContextOrNull(spans.get(spanId));
+    public void setAttribute(Traceable traceable, String key, boolean value) {
+        final var span = Span.fromContextOrNull(spans.get(traceable.getSpanId()));
         if (span != null) {
             span.setAttribute(key, value);
         }
     }
 
     @Override
-    public void setAttribute(SpanId spanId, String key, double value) {
-        final var span = Span.fromContextOrNull(spans.get(spanId));
+    public void setAttribute(Traceable traceable, String key, double value) {
+        final var span = Span.fromContextOrNull(spans.get(traceable.getSpanId()));
         if (span != null) {
             span.setAttribute(key, value);
         }
     }
 
     @Override
-    public void setAttribute(SpanId spanId, String key, long value) {
-        final var span = Span.fromContextOrNull(spans.get(spanId));
+    public void setAttribute(Traceable traceable, String key, long value) {
+        final var span = Span.fromContextOrNull(spans.get(traceable.getSpanId()));
         if (span != null) {
             span.setAttribute(key, value);
         }
     }
 
     @Override
-    public void setAttribute(SpanId spanId, String key, String value) {
-        final var span = Span.fromContextOrNull(spans.get(spanId));
+    public void setAttribute(Traceable traceable, String key, String value) {
+        final var span = Span.fromContextOrNull(spans.get(traceable.getSpanId()));
         if (span != null) {
             span.setAttribute(key, value);
         }
     }
 
     @Override
-    public void stopTrace(SpanId spanId) {
-        final var span = Span.fromContextOrNull(spans.remove(spanId));
+    public void stopTrace(Traceable traceable) {
+        final var span = Span.fromContextOrNull(spans.remove(traceable.getSpanId()));
         if (span != null) {
-            logger.trace("Finishing trace [{}]", spanId);
+            logger.trace("Finishing trace [{}]", traceable);
             AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
                 span.end();
                 return null;
@@ -400,8 +397,8 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
     }
 
     @Override
-    public void addEvent(SpanId spanId, String eventName) {
-        final var span = Span.fromContextOrNull(spans.get(spanId));
+    public void addEvent(Traceable traceable, String eventName) {
+        final var span = Span.fromContextOrNull(spans.get(traceable.getSpanId()));
         if (span != null) {
             span.addEvent(eventName);
         }
@@ -425,7 +422,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
     }
 
     // VisibleForTesting
-    Map<SpanId, Context> getSpans() {
+    Map<String, Context> getSpans() {
         return spans;
     }
 

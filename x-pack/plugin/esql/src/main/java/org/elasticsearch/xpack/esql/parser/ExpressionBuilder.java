@@ -15,6 +15,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThanOrEqual;
+import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.InsensitiveEquals;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.regex.RLike;
@@ -33,6 +34,7 @@ import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.InvalidArgumentException;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Alias;
+import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
@@ -58,12 +60,12 @@ import java.math.BigInteger;
 import java.time.Duration;
 import java.time.ZoneId;
 import java.time.temporal.TemporalAmount;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.BiFunction;
 
-import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.parseTemporalAmout;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.DATE_PERIOD;
@@ -103,9 +105,9 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         String text = ctx.getText();
 
         try {
-            return new Literal(source, Double.valueOf(StringUtils.parseDouble(text)), DataTypes.DOUBLE);
-        } catch (QlIllegalArgumentException siae) {
-            throw new ParsingException(source, siae.getMessage());
+            return new Literal(source, StringUtils.parseDouble(text), DataTypes.DOUBLE);
+        } catch (InvalidArgumentException iae) {
+            throw new ParsingException(source, iae.getMessage());
         }
     }
 
@@ -121,7 +123,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             // if it's too large, then quietly try to parse as a float instead
             try {
                 return new Literal(source, StringUtils.parseDouble(text), DataTypes.DOUBLE);
-            } catch (QlIllegalArgumentException ignored) {}
+            } catch (InvalidArgumentException ignored) {}
 
             throw new ParsingException(source, siae.getMessage());
         }
@@ -282,6 +284,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
 
         return switch (op.getSymbol().getType()) {
             case EsqlBaseParser.EQ -> new Equals(source, left, right, zoneId);
+            case EsqlBaseParser.CIEQ -> new InsensitiveEquals(source, left, right);
             case EsqlBaseParser.NEQ -> new Not(source, new Equals(source, left, right, zoneId));
             case EsqlBaseParser.LT -> new LessThan(source, left, right, zoneId);
             case EsqlBaseParser.LTE -> new LessThanOrEqual(source, left, right, zoneId);
@@ -409,13 +412,50 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     public Alias visitField(EsqlBaseParser.FieldContext ctx) {
         UnresolvedAttribute id = visitQualifiedName(ctx.qualifiedName());
         Expression value = expression(ctx.booleanExpression());
-        String name = id == null ? ctx.getText() : id.qualifiedName();
-        return new Alias(source(ctx), name, value);
+        var source = source(ctx);
+        String name = id == null ? source.text() : id.qualifiedName();
+        return new Alias(source, name, value);
     }
 
     @Override
-    public List<NamedExpression> visitGrouping(EsqlBaseParser.GroupingContext ctx) {
-        return ctx != null ? visitList(this, ctx.qualifiedName(), NamedExpression.class) : emptyList();
+    public List<Alias> visitFields(EsqlBaseParser.FieldsContext ctx) {
+        return ctx != null ? visitList(this, ctx.field(), Alias.class) : new ArrayList<>();
+    }
+
+    /**
+     * Similar to {@link #visitFields(EsqlBaseParser.FieldsContext)} however avoids wrapping the expression
+     * into an Alias.
+     */
+    public List<NamedExpression> visitGrouping(EsqlBaseParser.FieldsContext ctx) {
+        List<NamedExpression> list;
+        if (ctx != null) {
+            var fields = ctx.field();
+            list = new ArrayList<>(fields.size());
+            for (EsqlBaseParser.FieldContext field : fields) {
+                NamedExpression ne = null;
+                UnresolvedAttribute id = visitQualifiedName(field.qualifiedName());
+                Expression value = expression(field.booleanExpression());
+                String name = null;
+                if (id == null) {
+                    // when no alias has been specified, see if the underling one can be reused
+                    if (value instanceof Attribute a) {
+                        ne = a;
+                    } else {
+                        name = source(field).text();
+                    }
+                } else {
+                    name = id.qualifiedName();
+                }
+                // wrap when necessary - no alias and no underlying attribute
+                if (ne == null) {
+                    ne = new Alias(source(ctx), name, value);
+                }
+                list.add(ne);
+            }
+        } else {
+            list = new ArrayList<>();
+        }
+        return list;
     }
 
     @Override

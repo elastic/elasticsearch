@@ -11,6 +11,8 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
@@ -32,7 +34,15 @@ public class EndsWith extends ScalarFunction implements EvaluatorMapper {
     private final Expression str;
     private final Expression suffix;
 
-    public EndsWith(Source source, Expression str, Expression suffix) {
+    @FunctionInfo(
+        returnType = "boolean",
+        description = "Returns a boolean that indicates whether a keyword string ends with another string"
+    )
+    public EndsWith(
+        Source source,
+        @Param(name = "str", type = { "keyword", "text" }) Expression str,
+        @Param(name = "suffix", type = { "keyword", "text" }) Expression suffix
+    ) {
         super(source, Arrays.asList(str, suffix));
         this.str = str;
         this.suffix = suffix;

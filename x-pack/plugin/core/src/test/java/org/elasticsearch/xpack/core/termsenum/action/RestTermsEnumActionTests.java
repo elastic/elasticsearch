@@ -14,7 +14,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.rest.RestController;
@@ -38,7 +37,6 @@ import org.junit.BeforeClass;
 
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
@@ -77,14 +75,7 @@ public class RestTermsEnumActionTests extends ESTestCase {
             new HashMap<>();
         actions.put(TermsEnumAction.INSTANCE, transportAction);
 
-        client.initialize(
-            actions,
-            taskManager,
-            () -> "local",
-            mock(Transport.Connection.class),
-            null,
-            new NamedWriteableRegistry(List.of())
-        );
+        client.initialize(actions, taskManager, () -> "local", mock(Transport.Connection.class), null);
         controller.registerHandler(action);
     }
 

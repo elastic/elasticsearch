@@ -59,7 +59,11 @@ setup:
                 type: long
                 index: false
                 doc_values: false
-
+              text:
+                type: text
+              text_noidx:
+                type: text
+                index: false
 
   - do:
       bulk:
@@ -83,7 +87,9 @@ setup:
             "date": "2021-04-28T18:50:04.467Z",
             "date_noidx": "2021-04-28T18:50:04.467Z",
             "ip": "192.168.0.1",
-            "ip_noidx": "192.168.0.1"
+            "ip_noidx": "192.168.0.1",
+            "text": "bar",
+            "text_noidx": "bar"
           }
 
 ---
@@ -96,6 +102,7 @@ fetch:
         body:
           query: 'from test'
 
+  - length: { columns: 18 }
   - match: { columns.0.name: boolean }
   - match: { columns.0.type: boolean }
   - match: { columns.1.name: boolean_noidx }
@@ -128,9 +135,12 @@ fetch:
   - match: { columns.14.type: long }
   - match: { columns.15.name: long_noidx }
   - match: { columns.15.type: long }
+  - match: { columns.16.name: text }
+  - match: { columns.16.type: text }
+  - match: { columns.17.name: text_noidx }
+  - match: { columns.17.type: text }
 
   - length: { values: 1 }
-
   - match: { values.0.0: true }
   - match: { values.0.1: true }
   - match: { values.0.2: "2021-04-28T18:50:04.467Z" }
@@ -147,3 +157,5 @@ fetch:
   - match: { values.0.13: "foo" }
   - match: { values.0.14: 20 }
   - match: { values.0.15: 20 }
+  - match: { values.0.16: "bar" }
+  - match: { values.0.17: "bar" }

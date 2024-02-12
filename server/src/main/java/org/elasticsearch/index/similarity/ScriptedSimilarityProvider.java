@@ -35,9 +35,9 @@ final class ScriptedSimilarityProvider implements TriFunction<Settings, IndexVer
         }
         return new ScriptedSimilarity(
             weightScript == null ? null : weightScript.toString(),
-            weightScriptFactory == null ? null : weightScriptFactory::newInstance,
+            weightScriptFactory,
             script.toString(),
-            scriptFactory::newInstance,
+            scriptFactory,
             discountOverlaps
         );
     }

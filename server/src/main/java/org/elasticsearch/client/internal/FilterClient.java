@@ -62,7 +62,7 @@ public abstract class FilterClient extends AbstractClient {
     }
 
     @Override
-    public Client getRemoteClusterClient(String clusterAlias, Executor responseExecutor) {
+    public RemoteClusterClient getRemoteClusterClient(String clusterAlias, Executor responseExecutor) {
         return in.getRemoteClusterClient(clusterAlias, responseExecutor);
     }
 }

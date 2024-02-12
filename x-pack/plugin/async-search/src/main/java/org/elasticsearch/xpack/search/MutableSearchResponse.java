@@ -11,14 +11,16 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchResponse.Clusters;
+import org.elasticsearch.action.search.SearchResponseMerger;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.internal.InternalSearchResponse;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
 import org.elasticsearch.xpack.core.search.action.AsyncStatusResponse;
 
@@ -35,7 +37,7 @@ import static org.elasticsearch.xpack.core.async.AsyncTaskIndexService.restoreRe
  * creating an async response concurrently. This limits the number of final reduction that can
  * run concurrently to 1 and ensures that we pause the search progress when an {@link AsyncSearchResponse} is built.
  */
-class MutableSearchResponse {
+class MutableSearchResponse implements Releasable {
     private static final TotalHits EMPTY_TOTAL_HITS = new TotalHits(0L, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO);
     private final int totalShards;
     private final int skippedShards;
@@ -61,7 +63,20 @@ class MutableSearchResponse {
     private SearchResponse finalResponse;
     private ElasticsearchException failure;
     private Map<String, List<String>> responseHeaders;
-
+    /**
+     * Set to true when the local cluster has completed (its full SearchResponse
+     * has been received. Only used for CCS minimize_roundtrips=true.
+     */
+    private boolean localClusterComplete;
+    /**
+     * For CCS minimize_roundtrips=true, we collect SearchResponses from each cluster in
+     * order to provide partial results before all clusters have reported back results.
+     */
+    private List<SearchResponse> clusterResponses;
+    /**
+     * Set to true when the final SearchResponse has been received
+     * or a fatal error has occurred.
+     */
     private boolean frozen;
 
     /**
@@ -81,11 +96,16 @@ class MutableSearchResponse {
         this.isPartial = true;
         this.threadContext = threadContext;
         this.totalHits = EMPTY_TOTAL_HITS;
+        this.localClusterComplete = false;
     }
 
     /**
      * Updates the response with the result of a partial reduction.
+     *
+     * @param successfulShards
+     * @param totalHits
      * @param reducedAggs is a strategy for producing the reduced aggs
+     * @param reducePhase
      */
     @SuppressWarnings("HiddenField")
     synchronized void updatePartialResponse(
@@ -118,9 +138,32 @@ class MutableSearchResponse {
             : getShardsInResponseMismatchInfo(response, ccsMinimizeRoundtrips);
 
         this.responseHeaders = threadContext.getResponseHeaders();
+        response.mustIncRef();
+        var existing = this.finalResponse;
         this.finalResponse = response;
+        if (existing != null) {
+            existing.decRef();
+        }
         this.isPartial = isPartialResponse(response);
         this.frozen = true;
+    }
+
+    /**
+     * Indicates that a cluster has finished a search operation. Used for CCS minimize_roundtrips=true only.
+     *
+     * @param clusterAlias alias of cluster that has finished a search operation and returned a SearchResponse.
+     *                     The cluster alias for the local cluster is RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.
+     * @param clusterResponse SearchResponse from cluster 'clusterAlias'
+     */
+    synchronized void updateResponseMinimizeRoundtrips(String clusterAlias, SearchResponse clusterResponse) {
+        if (clusterResponses == null) {
+            clusterResponses = new ArrayList<>();
+        }
+        clusterResponses.add(clusterResponse);
+        clusterResponse.mustIncRef();
+        if (RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(clusterAlias)) {
+            localClusterComplete = true;
+        }
     }
 
     private boolean isPartialResponse(SearchResponse response) {
@@ -156,18 +199,15 @@ class MutableSearchResponse {
     }
 
     private SearchResponse buildResponse(long taskStartTimeNanos, InternalAggregations reducedAggs) {
-        InternalSearchResponse internal = new InternalSearchResponse(
-            new SearchHits(SearchHits.EMPTY, totalHits, Float.NaN),
-            reducedAggs,
-            null,
-            null,
-            false,
-            false,
-            reducePhase
-        );
         long tookInMillis = TimeValue.timeValueNanos(System.nanoTime() - taskStartTimeNanos).getMillis();
         return new SearchResponse(
-            internal,
+            SearchHits.empty(totalHits, Float.NaN),
+            reducedAggs,
+            null,
+            false,
+            false,
+            null,
+            reducePhase,
             null,
             totalShards,
             successfulShards,
@@ -188,34 +228,104 @@ class MutableSearchResponse {
         if (restoreResponseHeaders && responseHeaders != null) {
             restoreResponseHeadersContext(threadContext, responseHeaders);
         }
+
         SearchResponse searchResponse;
         if (finalResponse != null) {
             // We have a final response, use it.
             searchResponse = finalResponse;
+            searchResponse.mustIncRef();
         } else if (clusters == null) {
             // An error occurred before we got the shard list
             searchResponse = null;
         } else {
-            /*
-             * Build the response, reducing aggs if we haven't already and
-             * storing the result of the reduction, so we won't have to reduce
-             * the same aggregation results a second time if nothing has changed.
-             * This does cost memory because we have a reference to the finally
-             * reduced aggs sitting around which can't be GCed until we get an update.
-             */
-            InternalAggregations reducedAggs = reducedAggsSource.get();
-            reducedAggsSource = () -> reducedAggs;
-            searchResponse = buildResponse(task.getStartTimeNanos(), reducedAggs);
+            // partial results branch
+            SearchResponseMerger searchResponseMerger = createSearchResponseMerger(task);
+            try {
+                if (searchResponseMerger == null) { // local-only search or CCS MRT=false
+                    /*
+                     * Build the response, reducing aggs if we haven't already and
+                     * storing the result of the reduction, so we won't have to reduce
+                     * the same aggregation results a second time if nothing has changed.
+                     * This does cost memory because we have a reference to the finally
+                     * reduced aggs sitting around which can't be GCed until we get an update.
+                     */
+                    InternalAggregations reducedAggs = reducedAggsSource.get();
+                    reducedAggsSource = () -> reducedAggs;
+                    searchResponse = buildResponse(task.getStartTimeNanos(), reducedAggs);
+                } else if (localClusterComplete == false) {
+                    /*
+                     * For CCS MRT=true and the local cluster has reported back only partial results
+                     * (subset of shards), so use SearchResponseMerger to do a merge of any full results that
+                     * have come in from remote clusters and the partial results of the local cluster
+                     */
+                    InternalAggregations reducedAggs = reducedAggsSource.get();
+                    reducedAggsSource = () -> reducedAggs;
+                    SearchResponse partialAggsSearchResponse = buildResponse(task.getStartTimeNanos(), reducedAggs);
+                    try {
+                        searchResponse = getMergedResponse(searchResponseMerger, partialAggsSearchResponse);
+                    } finally {
+                        partialAggsSearchResponse.decRef();
+                    }
+                } else {
+                    // For CCS MRT=true when the local cluster has reported back full results (via updateResponseMinimizeRoundtrips)
+                    searchResponse = getMergedResponse(searchResponseMerger);
+                }
+            } finally {
+                if (searchResponseMerger != null) {
+                    searchResponseMerger.close();
+                }
+            }
         }
-        return new AsyncSearchResponse(
-            task.getExecutionId().getEncoded(),
-            searchResponse,
-            failure,
-            isPartial,
-            frozen == false,
-            task.getStartTime(),
-            expirationTime
-        );
+        try {
+            return new AsyncSearchResponse(
+                task.getExecutionId().getEncoded(),
+                searchResponse,
+                failure,
+                isPartial,
+                frozen == false,
+                task.getStartTime(),
+                expirationTime
+            );
+        } finally {
+            if (searchResponse != null) {
+                searchResponse.decRef();
+            }
+        }
+    }
+
+    /**
+     * Creates a SearchResponseMerger from the Supplier of {@link SearchResponseMerger} held by the AsyncSearchTask.
+     * The supplier will be null for local-only searches and CCS minimize_roundtrips=true. In those cases,
+     * this method returns null.
+     *
+     * Otherwise, it creates a new SearchResponseMerger and populates it with all the SearchResponses
+     * received so far (via the updateResponseMinimizeRoundtrips method).
+     *
+     * @param task holds the Supplier of SearchResponseMerger
+     * @return SearchResponseMerger with all responses collected to so far or null
+     *         (for local-only/CCS minimize_roundtrips=false)
+     */
+    private SearchResponseMerger createSearchResponseMerger(AsyncSearchTask task) {
+        if (task.getSearchResponseMergerSupplier() == null) {
+            return null; // local search and CCS minimize_roundtrips=false
+        }
+        return task.getSearchResponseMergerSupplier().get();
+    }
+
+    private SearchResponse getMergedResponse(SearchResponseMerger merger) {
+        return getMergedResponse(merger, null);
+    }
+
+    private SearchResponse getMergedResponse(SearchResponseMerger merger, SearchResponse localPartialAggsOnly) {
+        if (clusterResponses != null) {
+            for (SearchResponse response : clusterResponses) {
+                merger.add(response);
+            }
+        }
+        if (localPartialAggsOnly != null) {
+            merger.add(localPartialAggsOnly);
+        }
+        return merger.getMergedResponse(clusters);
     }
 
     /**
@@ -288,15 +398,20 @@ class MutableSearchResponse {
         if (this.failure != null) {
             reduceException.addSuppressed(this.failure);
         }
-        return new AsyncSearchResponse(
-            task.getExecutionId().getEncoded(),
-            buildResponse(task.getStartTimeNanos(), null),
-            reduceException,
-            isPartial,
-            frozen == false,
-            task.getStartTime(),
-            expirationTime
-        );
+        var response = buildResponse(task.getStartTimeNanos(), null);
+        try {
+            return new AsyncSearchResponse(
+                task.getExecutionId().getEncoded(),
+                response,
+                reduceException,
+                isPartial,
+                frozen == false,
+                task.getStartTime(),
+                expirationTime
+            );
+        } finally {
+            response.decRef();
+        }
     }
 
     private void failIfFrozen() {
@@ -360,6 +475,18 @@ class MutableSearchResponse {
                 );
             }
             throw new IllegalStateException("assert method hit unexpected case for ccsMinimizeRoundtrips=false");
+        }
+    }
+
+    @Override
+    public synchronized void close() {
+        if (finalResponse != null) {
+            finalResponse.decRef();
+        }
+        if (clusterResponses != null) {
+            for (SearchResponse clusterResponse : clusterResponses) {
+                clusterResponse.decRef();
+            }
         }
     }
 }

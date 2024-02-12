@@ -19,6 +19,6 @@ public class SnapshotsStatusAction extends ActionType<SnapshotsStatusResponse> {
     public static final String NAME = "cluster:admin/snapshot/status";
 
     private SnapshotsStatusAction() {
-        super(NAME, SnapshotsStatusResponse::new);
+        super(NAME);
     }
 }

@@ -23,6 +23,7 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.registry.ModelRegistryImpl;
@@ -338,6 +339,11 @@ public class ModelRegistryImplIT extends ESSingleNodeTestCase {
             @Override
             public void writeTo(StreamOutput out) throws IOException {
 
+            }
+
+            @Override
+            public ToXContentObject getFilteredXContentObject() {
+                return this;
             }
         }
 

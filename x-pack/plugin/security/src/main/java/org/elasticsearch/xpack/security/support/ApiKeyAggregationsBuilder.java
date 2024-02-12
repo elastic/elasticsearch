@@ -27,7 +27,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuil
 
 import java.util.function.Consumer;
 
-import static org.elasticsearch.xpack.security.support.ApiKeyFieldNameTranslators.translateQueryFields;
+import static org.elasticsearch.xpack.security.support.ApiKeyFieldNameTranslators.translateQueryBuilderFields;
 
 public class ApiKeyAggregationsBuilder {
 
@@ -97,7 +97,7 @@ public class ApiKeyAggregationsBuilder {
                 // filters the aggregation query to user's allowed API Keys only
                 FilterAggregationBuilder newFilterAggregationBuilder = new FilterAggregationBuilder(
                     filterAggregationBuilder.getName(),
-                    translateQueryFields(filterAggregationBuilder.getFilter(), fieldNameVisitor)
+                    translateQueryBuilderFields(filterAggregationBuilder.getFilter(), fieldNameVisitor)
                 );
                 if (filterAggregationBuilder.getMetadata() != null) {
                     newFilterAggregationBuilder.setMetadata(filterAggregationBuilder.getMetadata());
@@ -110,7 +110,10 @@ public class ApiKeyAggregationsBuilder {
                 // filters the aggregation's bucket queries to user's allowed API Keys only
                 QueryBuilder[] filterQueryBuilders = new QueryBuilder[filtersAggregationBuilder.filters().size()];
                 for (int i = 0; i < filtersAggregationBuilder.filters().size(); i++) {
-                    filterQueryBuilders[i] = translateQueryFields(filtersAggregationBuilder.filters().get(i).filter(), fieldNameVisitor);
+                    filterQueryBuilders[i] = translateQueryBuilderFields(
+                        filtersAggregationBuilder.filters().get(i).filter(),
+                        fieldNameVisitor
+                    );
                 }
                 final FiltersAggregationBuilder newFiltersAggregationBuilder;
                 if (filtersAggregationBuilder.isKeyed()) {

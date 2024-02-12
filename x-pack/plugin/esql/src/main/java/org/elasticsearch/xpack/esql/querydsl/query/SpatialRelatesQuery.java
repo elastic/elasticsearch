@@ -31,13 +31,11 @@ import org.elasticsearch.lucene.spatial.CartesianShapeDocValuesQuery;
 import org.elasticsearch.search.sort.NestedSortBuilder;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.querydsl.query.Query;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 
 import java.io.IOException;
-import java.util.Locale;
 import java.util.Objects;
 import java.util.function.Consumer;
 
@@ -105,12 +103,11 @@ public class SpatialRelatesQuery extends Query {
     }
 
     public ShapeRelation shapeRelation() {
-        return switch (queryRelation.toString().toLowerCase(Locale.ROOT)) {
-            case "intersects" -> ShapeRelation.INTERSECTS;
-            case "disjoint" -> ShapeRelation.DISJOINT;
-            case "within" -> ShapeRelation.WITHIN;
-            case "contains" -> ShapeRelation.CONTAINS;
-            default -> throw new QlIllegalArgumentException("Unknown shape relation [{}]", queryRelation);
+        return switch (queryRelation) {
+            case INTERSECTS -> ShapeRelation.INTERSECTS;
+            case DISJOINT -> ShapeRelation.DISJOINT;
+            case WITHIN -> ShapeRelation.WITHIN;
+            case CONTAINS -> ShapeRelation.CONTAINS;
         };
     }
 

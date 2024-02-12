@@ -202,11 +202,6 @@ You can set the following API key service settings in
 (<<static-cluster-setting,Static>>)
 Set to `false` to disable the built-in API key service. Defaults to `true`.
 
-`xpack.security.authc.api_key.hashing.algorithm`::
-(<<static-cluster-setting,Static>>)
-Specifies the hashing algorithm that is used for securing API key credentials.
-See <<password-hashing-algorithms>>. Defaults to `pbkdf2`.
-
 `xpack.security.authc.api_key.cache.ttl`::
 (<<static-cluster-setting,Static>>)
 The time-to-live for cached API key entries. A API key id and a hash of its
@@ -223,6 +218,31 @@ cache at any given time. Defaults to 10,000.
 The hashing algorithm that is used for the
 in-memory cached API key credentials. For possible values, see <<cache-hash-algo>>.
 Defaults to `ssha256`.
+
+[[api-key-service-settings-delete-retention-period]]
+`xpack.security.authc.api_key.delete.retention_period`::
+(<<dynamic-cluster-setting,Dynamic>>)
+Invalidated or expired API keys older than the retention period are eligible for deletion.
+Defaults to `7d`.
+Note that large real-time clock inaccuracies across the cluster nodes can cause problems
+with evaluating the API key retention period (in the likely case that the node performing
+the invalidation is different from the one performing the deletion).
+
+`xpack.security.authc.api_key.delete.interval`::
+(<<dynamic-cluster-setting,Dynamic>>, Expert)
+Cluster nodes schedule the automatic deletion of invalidated or expired API keys
+that are older than the retention period.
+This setting controls the minimum time interval between two such deletion jobs.
+Defaults to `24h`.
+
+`xpack.security.authc.api_key.delete.timeout`::
+(<<static-cluster-setting,Static>>, Expert)
+Sets the timeout of the internal search and delete call.
+
+`xpack.security.authc.api_key.hashing.algorithm`::
+(<<static-cluster-setting,Static>>)
+Specifies the hashing algorithm that is used for securing API key credentials.
+See <<password-hashing-algorithms>>. Defaults to `pbkdf2`.
 
 [discrete]
 [[security-domain-settings]]

@@ -385,7 +385,7 @@ public class Stateless extends Plugin
         components.add(consistencyService);
         var commitCleaner = new StatelessCommitCleaner(consistencyService, threadPool, objectStoreService);
         components.add(commitCleaner);
-        var commitService = new StatelessCommitService(settings, objectStoreService, clusterService, client, commitCleaner);
+        var commitService = createStatelessCommitService(settings, objectStoreService, clusterService, client, commitCleaner);
         components.add(commitService);
         var clusterStateCleanupService = new StatelessClusterStateCleanupService(threadPool, objectStoreService, clusterService);
         clusterService.addListener(clusterStateCleanupService);
@@ -599,6 +599,16 @@ public class Stateless extends Plugin
         public SharedBlobCacheService<FileCacheKey> get() {
             return sharedBlobCacheService;
         }
+    }
+
+    protected StatelessCommitService createStatelessCommitService(
+        Settings settings,
+        ObjectStoreService objectStoreService,
+        ClusterService clusterService,
+        Client client,
+        StatelessCommitCleaner commitCleaner
+    ) {
+        return new StatelessCommitService(settings, objectStoreService, clusterService, client, commitCleaner);
     }
 
     protected StatelessCommitService wrapStatelessCommitService(StatelessCommitService instance) {

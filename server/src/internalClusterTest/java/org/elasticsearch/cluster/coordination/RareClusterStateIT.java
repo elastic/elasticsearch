@@ -370,7 +370,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
 
             assertBusy(() -> assertTrue(client().prepareGet("index", "2").get().isExists()));
 
-            // The mappings have not been propagated to the replica yet as a consequence the document count not be indexed
+            // The mappings have not been propagated to the replica yet so the document shouldn't be indexed there.
             // We wait on purpose to make sure that the document is not indexed because the shard operation is stalled
             // and not just because it takes time to replicate the indexing request to the replica
             Thread.sleep(100);

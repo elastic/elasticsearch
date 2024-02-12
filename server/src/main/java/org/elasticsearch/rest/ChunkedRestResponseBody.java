@@ -43,7 +43,8 @@ public interface ChunkedRestResponseBody {
     Logger logger = LogManager.getLogger(ChunkedRestResponseBody.class);
 
     /**
-     * @return true once this response has been written fully.
+     * @return {@code true} if this body contains no more chunks and the REST layer should check for a possible continuation by calling
+     * {@link #isEndOfResponse}, or {@code false} if the REST layer should request another chunk from this body using {@link #encodeChunk}.
      */
     boolean isDone();
 

@@ -27,7 +27,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -126,7 +125,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
     ) {
         this.indexPatterns = indexPatterns;
         this.template = template;
-        this.componentTemplates = componentTemplates;
+        this.componentTemplates = componentTemplates == null ? List.of() : componentTemplates;
         this.priority = priority;
         this.version = version;
         this.metadata = metadata;
@@ -274,9 +273,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
             builder.field(TEMPLATE.getPreferredName());
             this.template.toXContent(builder, params, rolloverConfiguration);
         }
-        if (this.componentTemplates == null) {
-            builder.stringListField(COMPOSED_OF.getPreferredName(), Collections.emptyList());
-        } else {
+        if (this.componentTemplates != null) {
             builder.stringListField(COMPOSED_OF.getPreferredName(), this.componentTemplates);
         }
         if (this.priority != null) {

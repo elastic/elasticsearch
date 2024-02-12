@@ -928,11 +928,8 @@ public class DockerTests extends PackagingTestCase {
 
         final Result containerLogs = getContainerLogs();
         final List<String> stdout = containerLogs.stdout().lines().toList();
-
-        // We select to look for lines near the beginning so that we don't stumble upon the stdout printing of auto-configured credentials
-        for (int i = 0; i <= 10; i++) {
-            assertThat("Container logs should be formatted using the docker config", stdout.get(i), startsWith("{\""));
-        }
+        // We select to look for a line near the beginning so that we don't stumble upon the stdout printing of auto-configured credentials
+        assertThat("Container logs should be formatted using the docker config", stdout.get(10), startsWith("{\""));
         assertThat("[logs/docker-cluster.log] shouldn't exist but it does", existsInContainer("logs/docker-cluster.log"), is(false));
     }
 

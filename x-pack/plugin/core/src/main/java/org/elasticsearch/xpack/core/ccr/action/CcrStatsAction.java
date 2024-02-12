@@ -16,6 +16,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xpack.core.ccr.AutoFollowStats;
 
@@ -34,8 +35,11 @@ public class CcrStatsAction extends ActionType<CcrStatsAction.Response> {
 
     public static class Request extends MasterNodeRequest<Request> {
 
+        private TimeValue timeout;
+
         public Request(StreamInput in) throws IOException {
             super(in);
+            timeout = in.readOptionalTimeValue();
         }
 
         public Request() {}
@@ -48,6 +52,19 @@ public class CcrStatsAction extends ActionType<CcrStatsAction.Response> {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
+            out.writeOptionalTimeValue(timeout);
+        }
+
+        public TimeValue getTimeout() {
+            return this.timeout;
+        }
+
+        public void setTimeout(TimeValue timeout) {
+            this.timeout = timeout;
+        }
+
+        public void setTimeout(String timeout) {
+            this.timeout = TimeValue.parseTimeValue(timeout, null, getClass().getSimpleName() + ".timeout");
         }
     }
 

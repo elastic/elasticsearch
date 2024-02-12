@@ -65,7 +65,7 @@ The type of the {infer} task that the model will perform. Available task types:
 (Required, string)
 The type of service supported for the specified task type.
 Available services:
-* `cohere`: 
+* `cohere`: specify the `text_embedding` task type to use the Cohere service. 
 * `elser`: specify the `sparse_embedding` task type to use the ELSER service.
 * `hugging_face`: specify the `text_embedding` task type to use the Hugging Face 
 service.

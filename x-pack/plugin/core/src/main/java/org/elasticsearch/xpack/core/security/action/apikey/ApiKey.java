@@ -182,7 +182,7 @@ public final class ApiKey implements ToXContentObject, Writeable {
         this.creation = in.readInstant();
         this.expiration = in.readOptionalInstant();
         this.invalidated = in.readBoolean();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.GET_API_KEY_INVALIDATION_TIME_ADDED)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             this.invalidation = in.readOptionalInstant();
         } else {
             this.invalidation = null;
@@ -337,7 +337,7 @@ public final class ApiKey implements ToXContentObject, Writeable {
         out.writeInstant(creation);
         out.writeOptionalInstant(expiration);
         out.writeBoolean(invalidated);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.GET_API_KEY_INVALIDATION_TIME_ADDED)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             out.writeOptionalInstant(invalidation);
         }
         out.writeString(username);

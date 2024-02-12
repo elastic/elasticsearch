@@ -11,6 +11,7 @@ package org.elasticsearch.action.admin.indices.rollover;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
@@ -82,8 +83,34 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         AllocationService allocationService,
         MetadataDataStreamsService metadataDataStreamsService
     ) {
+        this(
+            RolloverAction.INSTANCE,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            indexNameExpressionResolver,
+            rolloverService,
+            client,
+            allocationService,
+            metadataDataStreamsService
+        );
+    }
+
+    TransportRolloverAction(
+        ActionType<RolloverResponse> actionType,
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        MetadataRolloverService rolloverService,
+        Client client,
+        AllocationService allocationService,
+        MetadataDataStreamsService metadataDataStreamsService
+    ) {
         super(
-            RolloverAction.NAME,
+            actionType.name(),
             transportService,
             clusterService,
             threadPool,
@@ -221,13 +248,17 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                 if (rolloverRequest.areConditionsMet(trialConditionResults)) {
                     String source = "rollover_index source [" + trialRolloverIndexName + "] to target [" + trialRolloverIndexName + "]";
                     RolloverTask rolloverTask = new RolloverTask(rolloverRequest, statsResponse, trialRolloverResponse, delegate);
-                    rolloverTaskQueue.submitTask(source, rolloverTask, rolloverRequest.masterNodeTimeout());
+                    submitRolloverTask(rolloverRequest, source, rolloverTask);
                 } else {
                     // conditions not met
                     delegate.onResponse(trialRolloverResponse);
                 }
             })
         );
+    }
+
+    void submitRolloverTask(RolloverRequest rolloverRequest, String source, RolloverTask rolloverTask) {
+        rolloverTaskQueue.submitTask(source, rolloverTask, rolloverRequest.masterNodeTimeout());
     }
 
     static Map<String, Boolean> evaluateConditions(final Collection<Condition<?>> conditions, @Nullable final Condition.Stats stats) {

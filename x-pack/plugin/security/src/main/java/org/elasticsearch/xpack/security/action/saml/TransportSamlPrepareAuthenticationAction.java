@@ -8,11 +8,12 @@ package org.elasticsearch.xpack.security.action.saml;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.saml.SamlPrepareAuthenticationAction;
 import org.elasticsearch.xpack.core.security.action.saml.SamlPrepareAuthenticationRequest;
@@ -24,6 +25,7 @@ import org.elasticsearch.xpack.security.authc.saml.SamlUtils;
 import org.opensaml.saml.saml2.core.AuthnRequest;
 
 import java.util.List;
+import java.util.concurrent.Executor;
 
 import static org.elasticsearch.xpack.security.authc.saml.SamlRealm.findSamlRealms;
 
@@ -35,17 +37,20 @@ public final class TransportSamlPrepareAuthenticationAction extends HandledTrans
     SamlPrepareAuthenticationResponse> {
 
     private final Realms realms;
+    private final Executor genericExecutor;
 
     @Inject
     public TransportSamlPrepareAuthenticationAction(TransportService transportService, ActionFilters actionFilters, Realms realms) {
+        // TODO replace SAME when removing workaround for https://github.com/elastic/elasticsearch/issues/97916
         super(
             SamlPrepareAuthenticationAction.NAME,
             transportService,
             actionFilters,
             SamlPrepareAuthenticationRequest::new,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            transportService.getThreadPool().executor(ThreadPool.Names.SAME)
         );
         this.realms = realms;
+        this.genericExecutor = transportService.getThreadPool().generic();
     }
 
     @Override
@@ -54,6 +59,16 @@ public final class TransportSamlPrepareAuthenticationAction extends HandledTrans
         SamlPrepareAuthenticationRequest request,
         ActionListener<SamlPrepareAuthenticationResponse> listener
     ) {
+        // workaround for https://github.com/elastic/elasticsearch/issues/97916 - TODO remove this when we can
+        genericExecutor.execute(ActionRunnable.wrap(listener, l -> doExecuteForked(task, request, l)));
+    }
+
+    private void doExecuteForked(
+        Task task,
+        SamlPrepareAuthenticationRequest request,
+        ActionListener<SamlPrepareAuthenticationResponse> listener
+    ) {
+        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
         List<SamlRealm> realms = findSamlRealms(this.realms, request.getRealmName(), request.getAssertionConsumerServiceURL());
         if (realms.isEmpty()) {
             listener.onFailure(SamlUtils.samlException("Cannot find any matching realm for [{}]", request));

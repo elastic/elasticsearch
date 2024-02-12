@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.inference.services.openai.embeddings;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
@@ -16,38 +18,65 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.inference.services.ServiceUtils;
+import org.elasticsearch.xpack.inference.services.openai.OpenAiParseContext;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 
 /**
  * Defines the task settings for the openai service.
  *
- * @param model the id of the model to use in the requests to openai
+ * @param modelId the id of the model to use in the requests to openai
  * @param user an optional unique identifier representing the end-user, which can help OpenAI to monitor and detect abuse
  *             <a href="https://platform.openai.com/docs/api-reference/embeddings/create">see the openai docs for more details</a>
  */
-public record OpenAiEmbeddingsTaskSettings(String model, @Nullable String user) implements TaskSettings {
+public record OpenAiEmbeddingsTaskSettings(String modelId, @Nullable String user) implements TaskSettings {
 
     public static final String NAME = "openai_embeddings_task_settings";
-    public static final String MODEL = "model";
+    public static final String OLD_MODEL_ID_FIELD = "model";
+    public static final String MODEL_ID = "model_id";
     public static final String USER = "user";
+    private static final String MODEL_DEPRECATION_MESSAGE =
+        "The openai [task_settings.model] field is deprecated. Please use [task_settings.model_id] instead.";
+    private static final Logger logger = LogManager.getLogger(OpenAiEmbeddingsTaskSettings.class);
 
-    public static OpenAiEmbeddingsTaskSettings fromMap(Map<String, Object> map) {
+    public static OpenAiEmbeddingsTaskSettings fromMap(Map<String, Object> map, OpenAiParseContext context) {
         ValidationException validationException = new ValidationException();
 
-        String model = extractRequiredString(map, MODEL, ModelConfigurations.TASK_SETTINGS, validationException);
+        String oldModelId = extractOptionalString(map, OLD_MODEL_ID_FIELD, ModelConfigurations.TASK_SETTINGS, validationException);
+        logOldModelDeprecation(oldModelId, context, logger);
+
+        String modelId = extractOptionalString(map, MODEL_ID, ModelConfigurations.TASK_SETTINGS, validationException);
         String user = extractOptionalString(map, USER, ModelConfigurations.TASK_SETTINGS, validationException);
+
+        var modelIdToUse = getModelId(oldModelId, modelId, validationException);
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
         }
 
-        return new OpenAiEmbeddingsTaskSettings(model, user);
+        return new OpenAiEmbeddingsTaskSettings(modelIdToUse, user);
+    }
+
+    // default for testing
+    static void logOldModelDeprecation(@Nullable String oldModelId, OpenAiParseContext context, Logger logger) {
+        if (OpenAiParseContext.isRequestContext(context) && oldModelId != null) {
+            logger.info(MODEL_DEPRECATION_MESSAGE);
+        }
+    }
+
+    private static String getModelId(@Nullable String oldModelId, @Nullable String modelId, ValidationException validationException) {
+        var modelIdToUse = modelId != null ? modelId : oldModelId;
+
+        if (modelIdToUse == null) {
+            validationException.addValidationError(ServiceUtils.missingSettingErrorMsg(MODEL_ID, ModelConfigurations.TASK_SETTINGS));
+        }
+
+        return modelIdToUse;
     }
 
     /**
@@ -61,14 +90,14 @@ public record OpenAiEmbeddingsTaskSettings(String model, @Nullable String user) 
         OpenAiEmbeddingsTaskSettings originalSettings,
         OpenAiEmbeddingsRequestTaskSettings requestSettings
     ) {
-        var modelToUse = requestSettings.model() == null ? originalSettings.model : requestSettings.model();
+        var modelToUse = requestSettings.modelId() == null ? originalSettings.modelId : requestSettings.modelId();
         var userToUse = requestSettings.user() == null ? originalSettings.user : requestSettings.user();
 
         return new OpenAiEmbeddingsTaskSettings(modelToUse, userToUse);
     }
 
     public OpenAiEmbeddingsTaskSettings {
-        Objects.requireNonNull(model);
+        Objects.requireNonNull(modelId);
     }
 
     public OpenAiEmbeddingsTaskSettings(StreamInput in) throws IOException {
@@ -78,7 +107,7 @@ public record OpenAiEmbeddingsTaskSettings(String model, @Nullable String user) 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(MODEL, model);
+        builder.field(MODEL_ID, modelId);
         if (user != null) {
             builder.field(USER, user);
         }
@@ -93,12 +122,12 @@ public record OpenAiEmbeddingsTaskSettings(String model, @Nullable String user) 
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_OPENAI_ADDED;
+        return TransportVersions.V_8_12_0;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(model);
+        out.writeString(modelId);
         out.writeOptionalString(user);
     }
 }

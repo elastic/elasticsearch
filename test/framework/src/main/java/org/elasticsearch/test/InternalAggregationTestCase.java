@@ -32,6 +32,7 @@ import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService.MultiBucketConsumer;
@@ -43,7 +44,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -115,18 +115,17 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
     public static final int DEFAULT_MAX_BUCKETS = 100000;
     protected static final double TOLERANCE = 1e-10;
 
-    private static final Comparator<InternalAggregation> INTERNAL_AGG_COMPARATOR = (agg1, agg2) -> {
-        if (agg1.canLeadReduction() == agg2.canLeadReduction()) {
-            return 0;
-        } else if (agg1.canLeadReduction() && agg2.canLeadReduction() == false) {
-            return -1;
-        } else {
-            return 1;
-        }
-    };
-
     @SuppressWarnings("this-escape")
     private final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(getNamedWriteables());
+
+    public static InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
+        try (AggregatorReducer reducer = aggregations.get(0).getReducer(reduceContext, aggregations.size())) {
+            for (InternalAggregation aggregation : aggregations) {
+                reducer.accept(aggregation);
+            }
+            return reducer.get();
+        }
+    }
 
     @Override
     protected final NamedWriteableRegistry getNamedWriteableRegistry() {
@@ -241,8 +240,6 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
             }
             int r = randomIntBetween(1, toReduce.size());
             List<InternalAggregation> toPartialReduce = toReduce.subList(0, r);
-            // Sort aggs so that unmapped come last. This mimicks the behavior of InternalAggregations.reduce()
-            toPartialReduce.sort(INTERNAL_AGG_COMPARATOR);
             AggregationReduceContext context = new AggregationReduceContext.ForPartial(
                 bigArrays,
                 mockScriptService,
@@ -250,7 +247,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
                 inputs.builder()
             );
             @SuppressWarnings("unchecked")
-            T reduced = (T) toPartialReduce.get(0).reduce(toPartialReduce, context);
+            T reduced = (T) reduce(toPartialReduce, context);
             int initialBucketCount = 0;
             for (InternalAggregation internalAggregation : toPartialReduce) {
                 initialBucketCount += countInnerBucket(internalAggregation);
@@ -281,10 +278,8 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
             bucketConsumer,
             PipelineTree.EMPTY
         );
-        // Sort aggs so that unmapped come last. This mimicks the behavior of InternalAggregations.reduce()
-        inputs.toReduce().sort(INTERNAL_AGG_COMPARATOR);
         @SuppressWarnings("unchecked")
-        T reduced = (T) inputs.toReduce().get(0).reduce(toReduce, context);
+        T reduced = (T) reduce(toReduce, context);
         doAssertReducedMultiBucketConsumer(reduced, bucketConsumer);
         assertReduced(reduced, inputs.toReduce());
         if (supportsSampling()) {

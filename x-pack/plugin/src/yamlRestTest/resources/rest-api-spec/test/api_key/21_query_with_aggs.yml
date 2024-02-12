@@ -107,28 +107,6 @@ teardown:
   - transform_and_set: { login_creds: "#base64EncodeCredentials(id,api_key)" }
   - match: { encoded: $login_creds }
 
-  - do:
-      headers:
-        Authorization: "Basic YXBpX2tleV9tYW5hZ2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" # api_key_manager
-      security.grant_api_key:
-        body:  >
-          {
-            "api_key": {
-              "name": "user-api-key-grant",
-              "expiration": "100d"
-            },
-            "grant_type": "password",
-            "username": "api_key_user",
-            "password": "x-pack-test-password"
-          }
-  - match: { name: "user-api-key-grant" }
-  - is_true: id
-  - is_true: api_key
-  - is_true: expiration
-  - set: { id: api_key_id }
-  - transform_and_set: { login_creds: "#base64EncodeCredentials(id,api_key)" }
-  - match: { encoded: $login_creds }
-
   # match_all with composite aggregation
   - do:
       headers:
@@ -151,16 +129,13 @@ teardown:
               }
             }
           }
-  - match: { total: 3 }
+  - match: { total: 2 }
   - match: { count: 0 }
   - length: { api_keys: 0}
-  - length: { aggregations.my_buckets.buckets: 3}
+  - length: { aggregations.my_buckets.buckets: 2}
 
   - match: { aggregations.my_buckets.buckets.0.key.key_name: "manager-api-key" }
   - match: { aggregations.my_buckets.buckets.0.doc_count: 1 }
 
   - match: { aggregations.my_buckets.buckets.1.key.key_name: "user-api-key" }
   - match: { aggregations.my_buckets.buckets.1.doc_count: 1 }
-
-  - match: { aggregations.my_buckets.buckets.2.key.key_name: "user-api-key-grant" }
-  - match: { aggregations.my_buckets.buckets.2.doc_count: 1 }

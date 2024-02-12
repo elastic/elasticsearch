@@ -61,6 +61,7 @@ The email of the user.
 
 `enabled`::
 Specifies whether the user is enabled.
+====
 
 [[security-api-query-user-query-params]]
 ==== {api-query-parms-title}
@@ -68,8 +69,6 @@ Specifies whether the user is enabled.
 `with_profile_uid`::
 (Optional, boolean) Determines whether to retrieve the <<user-profile,user profile>> `uid`,
 if exists, for the users. Defaults to `false`.
-
-====
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=from]
 +

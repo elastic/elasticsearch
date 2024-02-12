@@ -10,6 +10,9 @@ package org.elasticsearch.search.fetch.subphase;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.document.DocumentField;
+import org.elasticsearch.index.mapper.IgnoredFieldMapper;
+import org.elasticsearch.index.mapper.LegacyTypeFieldMapper;
+import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
@@ -17,6 +20,9 @@ import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -25,19 +31,25 @@ import java.util.Map;
  * and returns them as document fields.
  */
 public final class FetchFieldsPhase implements FetchSubPhase {
+
+    private static final List<FieldAndFormat> METADATA_FIELDS = Arrays.asList(
+        new FieldAndFormat(RoutingFieldMapper.NAME, null),
+        new FieldAndFormat(IgnoredFieldMapper.NAME, null),
+        new FieldAndFormat(LegacyTypeFieldMapper.NAME, null)
+    );
+
     @Override
     public FetchSubPhaseProcessor getProcessor(FetchContext fetchContext) {
         FetchFieldsContext fetchFieldsContext = fetchContext.fetchFieldsContext();
-        if (fetchFieldsContext == null) {
-            return null;
-        }
-
-        FieldFetcher fieldFetcher = FieldFetcher.create(fetchContext.getSearchExecutionContext(), fetchFieldsContext.fields());
+        List<FieldAndFormat> fields = fetchFieldsContext == null ? null : fetchFieldsContext.fields();
+        FieldFetcher fieldFetcher = FieldFetcher.create(fetchContext.getSearchExecutionContext(), fields);
+        MetadataFetcher metadataFetcher = MetadataFetcher.create(fetchContext.getSearchExecutionContext(), METADATA_FIELDS);
 
         return new FetchSubPhaseProcessor() {
             @Override
             public void setNextReader(LeafReaderContext readerContext) {
                 fieldFetcher.setNextReader(readerContext);
+                metadataFetcher.setNextReader(readerContext);
             }
 
             @Override
@@ -47,11 +59,12 @@ public final class FetchFieldsPhase implements FetchSubPhase {
 
             @Override
             public void process(HitContext hitContext) throws IOException {
-                Map<String, DocumentField> documentFields = fieldFetcher.fetch(hitContext.source(), hitContext.docId());
                 SearchHit hit = hitContext.hit();
+                Map<String, DocumentField> documentFields = fieldFetcher.fetch(hitContext.source(), hitContext.docId());
                 for (Map.Entry<String, DocumentField> entry : documentFields.entrySet()) {
                     hit.setDocumentField(entry.getKey(), entry.getValue());
                 }
+                hit.addDocumentFields(Collections.emptyMap(), metadataFetcher.fetch(hitContext.source(), hitContext.docId()));
             }
         };
     }

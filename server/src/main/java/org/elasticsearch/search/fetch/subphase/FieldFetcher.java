@@ -22,6 +22,7 @@ import org.elasticsearch.search.lookup.Source;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -41,6 +42,9 @@ public class FieldFetcher {
      * Build a FieldFetcher for a given search context and collection of fields and formats
      */
     public static FieldFetcher create(SearchExecutionContext context, Collection<FieldAndFormat> fieldAndFormats) {
+        if (fieldAndFormats == null || fieldAndFormats.isEmpty()) {
+            return new FieldFetcher(Collections.emptyMap(), UnmappedFieldFetcher.EMPTY);
+        }
 
         List<String> unmappedFetchPattern = new ArrayList<>();
         List<ResolvedField> resolvedFields = new ArrayList<>();

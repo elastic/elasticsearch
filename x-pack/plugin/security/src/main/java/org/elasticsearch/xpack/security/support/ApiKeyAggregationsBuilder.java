@@ -40,7 +40,7 @@ public class ApiKeyAggregationsBuilder {
         }
         // Most of these can be supported without much hassle, but they're not useful for the identified use cases so far
         for (PipelineAggregationBuilder pipelineAggregator : aggsBuilder.getPipelineAggregatorFactories()) {
-            throw new IllegalArgumentException("Unsupported pipeline aggregation of type [" + pipelineAggregator.getType() + "]");
+            throw new IllegalArgumentException("Unsupported aggregation of type [" + pipelineAggregator.getType() + "]");
         }
         AggregatorFactories.Builder copiedAggsBuilder = AggregatorFactories.builder();
         for (AggregationBuilder aggregationBuilder : aggsBuilder.getAggregatorFactories()) {
@@ -55,7 +55,7 @@ public class ApiKeyAggregationsBuilder {
         return AggregationBuilder.deepCopy(aggsBuilder, copiedAggsBuilder -> {
             // Most of these can be supported without much hassle, but they're not useful for the identified use cases so far
             for (PipelineAggregationBuilder pipelineAggregator : copiedAggsBuilder.getPipelineAggregations()) {
-                throw new IllegalArgumentException("Unsupported pipeline aggregation of type [" + pipelineAggregator.getType() + "]");
+                throw new IllegalArgumentException("Unsupported aggregation of type [" + pipelineAggregator.getType() + "]");
             }
             if (copiedAggsBuilder instanceof ValuesSourceAggregationBuilder<?> valuesSourceAggregationBuilder) {
                 if (valuesSourceAggregationBuilder instanceof TermsAggregationBuilder == false

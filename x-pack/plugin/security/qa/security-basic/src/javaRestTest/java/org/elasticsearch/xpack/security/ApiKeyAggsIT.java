@@ -583,7 +583,7 @@ public class ApiKeyAggsIT extends SecurityInBasicRestTestCase {
                 """);
             ResponseException exception = expectThrows(ResponseException.class, () -> client().performRequest(request));
             assertThat(exception.getResponse().toString(), exception.getResponse().getStatusLine().getStatusCode(), is(400));
-            assertThat(exception.getMessage(), containsString("Unsupported pipeline aggregation of type [cumulative_cardinality]"));
+            assertThat(exception.getMessage(), containsString("Unsupported aggregation of type [cumulative_cardinality]"));
         }
     }
 

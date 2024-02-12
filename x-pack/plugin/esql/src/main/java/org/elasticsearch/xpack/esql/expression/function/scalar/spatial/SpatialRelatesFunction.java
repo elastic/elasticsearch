@@ -187,7 +187,7 @@ public abstract class SpatialRelatesFunction extends BinaryScalarFunction implem
 
     private static Component2D asLuceneComponent2D(SpatialCrsTypes crsType, Geometry geometry) {
         if (crsType == SpatialCrsTypes.GEO) {
-            var luceneGeometries = LuceneGeometriesUtils.toLatLonGeometry(geometry, false, t -> {});
+            var luceneGeometries = LuceneGeometriesUtils.toLatLonGeometry(geometry, true, t -> {});
             return LatLonGeometry.create(luceneGeometries);
         } else {
             var luceneGeometries = LuceneGeometriesUtils.toXYGeometry(geometry, t -> {});
@@ -232,6 +232,24 @@ public abstract class SpatialRelatesFunction extends BinaryScalarFunction implem
         return reader;
     }
 
+    public static Geometry makeGeometryFromLiteral(Expression expr) {
+        Object value = valueOf(expr);
+
+        if (value instanceof BytesRef bytesRef) {
+            if (EsqlDataTypes.isSpatial(expr.dataType())) {
+                return SpatialCoordinateTypes.UNSPECIFIED.wkbToGeometry(bytesRef);
+            } else {
+                return SpatialCoordinateTypes.UNSPECIFIED.wktToGeometry(bytesRef.utf8ToString());
+            }
+        } else if (value instanceof String string) {
+            return SpatialCoordinateTypes.UNSPECIFIED.wktToGeometry(string);
+        } else {
+            throw new IllegalArgumentException(
+                "Unsupported combination of literal [" + value.getClass().getSimpleName() + "] of type [" + expr.dataType() + "]"
+            );
+        }
+    }
+
     @Override
     public boolean foldable() {
         return left().foldable() && right().foldable();
@@ -260,24 +278,6 @@ public abstract class SpatialRelatesFunction extends BinaryScalarFunction implem
             && fa.getExactInfo().hasExact()
             && isAggregatable.test(fa)
             && EsqlDataTypes.isSpatial(fa.dataType());
-    }
-
-    public static Geometry makeGeometryFromLiteral(Expression expr) {
-        Object value = valueOf(expr);
-
-        if (value instanceof BytesRef bytesRef) {
-            if (EsqlDataTypes.isSpatial(expr.dataType())) {
-                return SpatialCoordinateTypes.UNSPECIFIED.wkbToGeometry(bytesRef);
-            } else {
-                return SpatialCoordinateTypes.UNSPECIFIED.wktToGeometry(bytesRef.utf8ToString());
-            }
-        } else if (value instanceof String string) {
-            return SpatialCoordinateTypes.UNSPECIFIED.wktToGeometry(string);
-        } else {
-            throw new IllegalArgumentException(
-                "Unsupported combination of literal [" + value.getClass().getSimpleName() + "] of type [" + expr.dataType() + "]"
-            );
-        }
     }
 
     @Override
@@ -518,8 +518,7 @@ public abstract class SpatialRelatesFunction extends BinaryScalarFunction implem
         }
 
         protected boolean geometryRelatesGeometry(BytesRef left, BytesRef right) throws IOException {
-            Geometry rightGeom = fromBytesRef(right);
-            Component2D rightComponent2D = makeComponent2D(rightGeom);
+            Component2D rightComponent2D = asLuceneComponent2D(crsType, fromBytesRef(right));
             return geometryRelatesGeometry(left, rightComponent2D);
         }
 
@@ -540,23 +539,14 @@ public abstract class SpatialRelatesFunction extends BinaryScalarFunction implem
         }
 
         protected boolean pointRelatesGeometry(long encoded, Geometry geometry) {
-            // This code path exists for doc-values points, and we could consider re-using the point class to reduce garbage creation
-            Point point = spatialCoordinateType.longAsPoint(encoded);
-            return pointRelatesGeometry(point, geometry);
+            Component2D component2D = asLuceneComponent2D(crsType, geometry);
+            return pointRelatesGeometry(encoded, component2D);
         }
 
         protected boolean pointRelatesGeometry(long encoded, Component2D component2D) {
+            // This code path exists for doc-values points, and we could consider re-using the point class to reduce garbage creation
             Point point = spatialCoordinateType.longAsPoint(encoded);
             return geometryRelatesPoint(component2D, point);
-        }
-
-        protected Component2D makeComponent2D(Geometry geometry) {
-            return asLuceneComponent2D(crsType, geometry);
-        }
-
-        protected boolean pointRelatesGeometry(Point leftPoint, Geometry geometry) {
-            Component2D component2D = makeComponent2D(geometry);
-            return geometryRelatesPoint(component2D, leftPoint);
         }
 
         private boolean geometryRelatesPoint(Component2D component2D, Point point) {

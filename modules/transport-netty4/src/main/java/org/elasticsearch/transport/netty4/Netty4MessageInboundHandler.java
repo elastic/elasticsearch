@@ -8,6 +8,7 @@
 package org.elasticsearch.transport.netty4;
 
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.CompositeByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.ByteToMessageDecoder;
 
@@ -323,17 +324,33 @@ public class Netty4MessageInboundHandler extends ByteToMessageDecoder {
         if (decompressor != null) {
             ByteBuf retainedContent = byteBuf.readSlice(remainingToConsume);
             bytesConsumedThisDecode = decompressor.decompress(Netty4Utils.toBytesReference(retainedContent));
-            retainedContent.skipBytes(bytesConsumedThisDecode);
             bytesConsumed += bytesConsumedThisDecode;
             ReleasableBytesReference decompressed;
             int pagesDecompressed = decompressor.pages();
             if (pagesDecompressed == 0) {
                 endContent(channel, null);
             } else {
-                ByteBuf dec = NettyAllocator.getAllocator().heapBuffer(pagesDecompressed * PageCacheRecycler.BYTE_PAGE_SIZE);
-                while ((decompressed = decompressor.pollDecompressedPage(true)) != null) {
-                    dec.writeBytes(decompressed.array(), decompressed.arrayOffset(), decompressed.length());
-                    decompressed.decRef();
+                // TODO: proper Netty decompressor, the copying here is stupid
+                final ByteBuf dec;
+                if ((long) pagesDecompressed * PageCacheRecycler.BYTE_PAGE_SIZE <= NettyAllocator.suggestedMaxAllocationSize()) {
+                    ByteBuf singleBuffer = NettyAllocator.getAllocator().heapBuffer(pagesDecompressed * PageCacheRecycler.BYTE_PAGE_SIZE);
+                    while ((decompressed = decompressor.pollDecompressedPage(true)) != null) {
+                        singleBuffer.writeBytes(decompressed.array(), decompressed.arrayOffset(), decompressed.length());
+                        decompressed.decRef();
+                    }
+                    dec = singleBuffer;
+                } else {
+                    CompositeByteBuf compositeByteBuf = NettyAllocator.getAllocator().compositeBuffer(Integer.MAX_VALUE);
+                    while ((decompressed = decompressor.pollDecompressedPage(true)) != null) {
+                        if (compositeByteBuf.writableBytes() < decompressed.length()) {
+                            compositeByteBuf.capacity(
+                                Math.toIntExact(compositeByteBuf.capacity() + NettyAllocator.suggestedMaxAllocationSize())
+                            );
+                        }
+                        compositeByteBuf.writeBytes(decompressed.array(), decompressed.arrayOffset(), decompressed.length());
+                        decompressed.decRef();
+                    }
+                    dec = compositeByteBuf;
                 }
                 endContent(channel, dec);
             }

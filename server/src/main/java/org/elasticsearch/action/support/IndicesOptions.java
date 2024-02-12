@@ -997,6 +997,20 @@ public record IndicesOptions(
     }
 
     public static IndicesOptions fromMap(Map<String, Object> map, IndicesOptions defaultSettings) {
+        if (DataStream.isFailureStoreEnabled()) {
+            return fromParameters(
+                map.containsKey(WildcardOptions.EXPAND_WILDCARDS) ? map.get(WildcardOptions.EXPAND_WILDCARDS) : map.get("expandWildcards"),
+                map.containsKey(ConcreteTargetOptions.IGNORE_UNAVAILABLE)
+                    ? map.get(ConcreteTargetOptions.IGNORE_UNAVAILABLE)
+                    : map.get("ignoreUnavailable"),
+                map.containsKey(WildcardOptions.ALLOW_NO_INDICES) ? map.get(WildcardOptions.ALLOW_NO_INDICES) : map.get("allowNoIndices"),
+                map.containsKey(GeneralOptions.IGNORE_THROTTLED) ? map.get(GeneralOptions.IGNORE_THROTTLED) : map.get("ignoreThrottled"),
+                map.containsKey(FailureStoreOptions.FAILURE_STORE_PARAM)
+                    ? map.get(FailureStoreOptions.FAILURE_STORE_PARAM)
+                    : map.get("includeFailureStore"),
+                defaultSettings
+            );
+        }
         return fromParameters(
             map.containsKey(WildcardOptions.EXPAND_WILDCARDS) ? map.get(WildcardOptions.EXPAND_WILDCARDS) : map.get("expandWildcards"),
             map.containsKey(ConcreteTargetOptions.IGNORE_UNAVAILABLE)
@@ -1020,7 +1034,9 @@ public record IndicesOptions(
             || GeneralOptions.IGNORE_THROTTLED.equals(name)
             || "ignoreThrottled".equals(name)
             || WildcardOptions.ALLOW_NO_INDICES.equals(name)
-            || "allowNoIndices".equals(name);
+            || "allowNoIndices".equals(name)
+            || (DataStream.isFailureStoreEnabled() && FailureStoreOptions.FAILURE_STORE_PARAM.equals(name))
+            || (DataStream.isFailureStoreEnabled() && "includeFailureStore".equals(name));
     }
 
     public static IndicesOptions fromParameters(
@@ -1030,18 +1046,37 @@ public record IndicesOptions(
         Object ignoreThrottled,
         IndicesOptions defaultSettings
     ) {
-        if (wildcardsString == null && ignoreUnavailableString == null && allowNoIndicesString == null && ignoreThrottled == null) {
+        return fromParameters(wildcardsString, ignoreUnavailableString, allowNoIndicesString, ignoreThrottled, null, defaultSettings);
+    }
+
+    public static IndicesOptions fromParameters(
+        Object wildcardsString,
+        Object ignoreUnavailableString,
+        Object allowNoIndicesString,
+        Object ignoreThrottled,
+        Object failureStoreString,
+        IndicesOptions defaultSettings
+    ) {
+        if (wildcardsString == null
+            && ignoreUnavailableString == null
+            && allowNoIndicesString == null
+            && ignoreThrottled == null
+            && failureStoreString == null) {
             return defaultSettings;
         }
 
         WildcardOptions wildcards = WildcardOptions.parseParameters(wildcardsString, allowNoIndicesString, defaultSettings.wildcardOptions);
         GeneralOptions generalOptions = GeneralOptions.parseParameter(ignoreThrottled, defaultSettings.generalOptions);
+        FailureStoreOptions failureStoreOptions = DataStream.isFailureStoreEnabled()
+            ? FailureStoreOptions.parseParameters(failureStoreString, defaultSettings.failureStoreOptions)
+            : FailureStoreOptions.DEFAULT;
 
         // note that allowAliasesToMultipleIndices is not exposed, always true (only for internal use)
         return IndicesOptions.builder()
             .concreteTargetOptions(ConcreteTargetOptions.fromParameter(ignoreUnavailableString, defaultSettings.concreteTargetOptions))
             .wildcardOptions(wildcards)
             .generalOptions(generalOptions)
+            .failureStoreOptions(failureStoreOptions)
             .build();
     }
 

@@ -13,74 +13,57 @@ import org.elasticsearch.common.inject.TypeLiteral;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
+import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege.CROSS_CLUSTER_REPLICATION;
-import static org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege.CROSS_CLUSTER_REPLICATION_INTERNAL;
-import static org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege.READ;
-import static org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege.READ_CROSS_CLUSTER;
-import static org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege.VIEW_METADATA;
+import static org.elasticsearch.xpack.core.security.action.apikey.CrossClusterApiKeyRoleDescriptorBuilder.CCR_INDICES_PRIVILEGE_NAMES;
+import static org.elasticsearch.xpack.core.security.action.apikey.CrossClusterApiKeyRoleDescriptorBuilder.CCS_INDICES_PRIVILEGE_NAMES;
 
 public class CrossClusterShardTests extends ESSingleNodeTestCase {
 
-
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Set.of(XPackPlugin.class); //TODO: need to move this test out to a QA test with a dependency on ALL plugins (including xpack plugins)
+        return Set.of(LocalStateCompositeXPackPlugin.class);
     }
 
     @SuppressWarnings("rawtypes")
     public void testMe() throws Exception {
-        try (Node node = node()) {
-            List<Binding<TransportAction>> transportActionBindings =
-                node.injector().findBindingsByType(TypeLiteral.get(TransportAction.class));
-            AtomicInteger actionCount = new AtomicInteger(0);
-            AtomicInteger indexActionCount = new AtomicInteger(0);
-            AtomicInteger matchingIndexActionCount = new AtomicInteger(0);
-            AtomicInteger matchingIndexActionShardCount = new AtomicInteger(0);
+        Node node = node();
+        List<Binding<TransportAction>> transportActionBindings = node.injector().findBindingsByType(TypeLiteral.get(TransportAction.class));
 
-            transportActionBindings.forEach(b -> {
-                actionCount.incrementAndGet();
-                TransportAction action = b.getProvider().get();
-                String actionName = action.actionName;
-                // System.out.println(actionName);
-                if (actionName.startsWith("indices:")) {
-                    indexActionCount.incrementAndGet();
-                    //TODO: add an additional test to ensure that these names are in sync with the string version declared
-                    // in CrossClusterApiKeyRoleDescriptorBuilder
-                    if (READ.predicate().test(actionName)
-                    || READ_CROSS_CLUSTER.predicate().test(actionName)
-                    || VIEW_METADATA.predicate().test(actionName)
-                    || CROSS_CLUSTER_REPLICATION.predicate().test(actionName)
-                    || CROSS_CLUSTER_REPLICATION_INTERNAL.predicate().test(actionName)) {
-                        //The set of all the index actions that permissions allow to cross cluster boundaries
+        transportActionBindings.forEach(b -> {
+            TransportAction action = b.getProvider().get();
+            String actionName = action.actionName;
+            if (actionName.startsWith("indices:")) {
+                // The set of all the index actions that permissions allow to cross cluster boundaries
+                Set<String> crossClusterPrivilegeNames = new HashSet<>();
+                crossClusterPrivilegeNames.addAll(List.of(CCS_INDICES_PRIVILEGE_NAMES));
+                crossClusterPrivilegeNames.addAll(List.of(CCR_INDICES_PRIVILEGE_NAMES));
+                IndexPrivilege allCrossClusterPrivileges = IndexPrivilege.get(crossClusterPrivilegeNames);
+                if (allCrossClusterPrivileges.predicate().test(actionName)) {
 
-                        matchingIndexActionCount.incrementAndGet();
-                        if(action.getClass().getName().toLowerCase(Locale.ROOT).contains("shard")
+                    // Getting to the actual request classes themselves is made difficult by the design of Elasticsearch's transport
+                    // protocol infrastructure combined with JVM type erasure. Therefore, we resort to a crude heuristic here.
+                    if (action.getClass().getName().toLowerCase(Locale.ROOT).contains("shard")
                         || actionName.toLowerCase(Locale.ROOT).contains("shard")) {
-                            // The set of all the index actions that are allowed to go cross cluster that have the word "shard"
-                            matchingIndexActionShardCount.incrementAndGet();
-                            System.out.println("********************");
-                            System.out.println(action.getClass().getName());
-                            System.out.println(actionName);
-                            //TODO: check that these actions implement CrossClusterShardAction
-                        }
+                        logger.info("********************");
+                        logger.info(action.getClass().getName());
+                        logger.info(actionName);
+                        assertNotNull(action.actionName);
+                        // TODO: check that these actions implement CrossClusterShardAction
+                    } else {
+                        logger.info("nope: " + actionName);
                     }
                 }
+            }
 
-            });
-
-            System.out.println(">>>>>>>>>>> actionCount: " + actionCount.get()
-                + ", indexActionCount: " + indexActionCount.get()
-                + ", matchingIndexActionCount: " + matchingIndexActionCount.get()
-                + ", matchingIndexActionShardCount: " + matchingIndexActionShardCount.get());
-        }
+        });
     }
 
 }

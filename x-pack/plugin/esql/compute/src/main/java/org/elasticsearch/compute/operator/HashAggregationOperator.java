@@ -69,8 +69,17 @@ public class HashAggregationOperator implements Operator {
 
     private final DriverContext driverContext;
 
+    /**
+     * Nanoseconds this operator has spent hashing grouping keys.
+     */
     private long hashNanos;
+    /**
+     * Nanoseconds this operator has spent running the aggregations.
+     */
     private long aggregationNanos;
+    /**
+     * Count of pages this operator has processed.
+     */
     private int pagesProcessed;
 
     @SuppressWarnings("this-escape")
@@ -153,6 +162,7 @@ public class HashAggregationOperator implements Operator {
             hashNanos += add.hashStart - System.nanoTime();
         } finally {
             page.releaseBlocks();
+            pagesProcessed++;
         }
     }
 
@@ -242,10 +252,25 @@ public class HashAggregationOperator implements Operator {
             Status::new
         );
 
+        /**
+         * Nanoseconds this operator has spent hashing grouping keys.
+         */
         private final long hashNanos;
+        /**
+         * Nanoseconds this operator has spent running the aggregations.
+         */
         private final long aggregationNanos;
+        /**
+         * Count of pages this operator has processed.
+         */
         private final int pagesProcessed;
 
+        /**
+         * Build.
+         * @param hashNanos Nanoseconds this operator has spent hashing grouping keys.
+         * @param aggregationNanos Nanoseconds this operator has spent running the aggregations.
+         * @param pagesProcessed Count of pages this operator has processed.
+         */
         public Status(long hashNanos, long aggregationNanos, int pagesProcessed) {
             this.hashNanos = hashNanos;
             this.aggregationNanos = aggregationNanos;
@@ -270,14 +295,23 @@ public class HashAggregationOperator implements Operator {
             return ENTRY.name;
         }
 
+        /**
+         * Nanoseconds this operator has spent hashing grouping keys.
+         */
         public long hashNanos() {
             return hashNanos;
         }
 
+        /**
+         * Nanoseconds this operator has spent running the aggregations.
+         */
         public long aggregationNanos() {
             return aggregationNanos;
         }
 
+        /**
+         * Count of pages this operator has processed.
+         */
         public int pagesProcessed() {
             return pagesProcessed;
         }

@@ -43,7 +43,13 @@ public class AggregationOperator implements Operator {
     private final List<Aggregator> aggregators;
     private final DriverContext driverContext;
 
+    /**
+     * Nanoseconds this operator has spent running the aggregations.
+     */
     private long aggregationNanos;
+    /**
+     * Count of pages this operator has processed.
+     */
     private int pagesProcessed;
 
     public record AggregationOperatorFactory(List<Factory> aggregators, AggregatorMode mode) implements OperatorFactory {
@@ -176,9 +182,20 @@ public class AggregationOperator implements Operator {
             Status::new
         );
 
+        /**
+         * Nanoseconds this operator has spent running the aggregations.
+         */
         private final long aggregationNanos;
+        /**
+         * Count of pages this operator has processed.
+         */
         private final int pagesProcessed;
 
+        /**
+         * Build.
+         * @param aggregationNanos Nanoseconds this operator has spent running the aggregations.
+         * @param pagesProcessed Count of pages this operator has processed.
+         */
         public Status(long aggregationNanos, int pagesProcessed) {
             this.aggregationNanos = aggregationNanos;
             this.pagesProcessed = pagesProcessed;
@@ -200,10 +217,16 @@ public class AggregationOperator implements Operator {
             return ENTRY.name;
         }
 
+        /**
+         * Nanoseconds this operator has spent running the aggregations.
+         */
         public long aggregationNanos() {
             return aggregationNanos;
         }
 
+        /**
+         * Count of pages this operator has processed.
+         */
         public int pagesProcessed() {
             return pagesProcessed;
         }

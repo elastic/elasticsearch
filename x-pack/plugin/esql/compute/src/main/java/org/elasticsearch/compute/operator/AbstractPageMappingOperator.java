@@ -143,6 +143,10 @@ public abstract class AbstractPageMappingOperator implements Operator {
             return builder.endObject();
         }
 
+        /**
+         * Render the body of the object for this status. Protected so subclasses
+         * can call it to render the "default" body.
+         */
         protected final XContentBuilder innerToXContent(XContentBuilder builder) throws IOException {
             builder.field("process_nanos", processNanos);
             if (builder.humanReadable()) {

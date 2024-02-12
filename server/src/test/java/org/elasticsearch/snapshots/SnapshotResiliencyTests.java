@@ -165,7 +165,7 @@ import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.node.ResponseCollectorService;
 import org.elasticsearch.plugins.PluginsService;
-import org.elasticsearch.plugins.internal.DocumentParsingObserver;
+import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
@@ -1963,7 +1963,6 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     .client(client)
                     .featureService(new FeatureService(List.of(new IndicesFeatures())))
                     .metaStateService(new MetaStateService(nodeEnv, namedXContentRegistry))
-                    .documentParsingObserverSupplier(() -> DocumentParsingObserver.EMPTY_INSTANCE)
                     .build();
                 final RecoverySettings recoverySettings = new RecoverySettings(settings, clusterSettings);
                 snapshotShardsService = new SnapshotShardsService(
@@ -2105,7 +2104,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                             Collections.emptyList(),
                             client,
                             null,
-                            () -> DocumentParsingObserver.EMPTY_INSTANCE
+                            DocumentParsingProvider.EMPTY_INSTANCE
                         ),
                         mockFeatureService,
                         client,
@@ -2126,7 +2125,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     new UpdateHelper(scriptService),
                     actionFilters,
                     indexingMemoryLimits,
-                    EmptySystemIndices.INSTANCE
+                    EmptySystemIndices.INSTANCE,
+                    DocumentParsingProvider.EMPTY_INSTANCE
                 );
                 actions.put(TransportShardBulkAction.TYPE, transportShardBulkAction);
                 final RestoreService restoreService = new RestoreService(

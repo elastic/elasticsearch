@@ -364,7 +364,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             );
         } else {
             final IndexRequest request = context.getRequestToExecute();
-            DocumentSizeObserver documentSizeObserver = documentParsingProvider.newDocumentSizeObserver(request.getNormalisedBytesParsed());
+            DocumentSizeObserver documentSizeObserver = getDocumentSizeObserver(documentParsingProvider, request);
 
             context.setDocumentSizeObserver(documentSizeObserver);
             final SourceToParse sourceToParse = new SourceToParse(
@@ -452,6 +452,21 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             onComplete(result, context, updateResult, documentParsingProvider);
         }
         return true;
+    }
+
+    /**
+     * Creates a new document size observerl
+     * @param documentParsingProvider a provider to create a new observer.
+     * @param request an index request to provide information about bytes being already parsed.
+     * @return a Fixed version of DocumentSizeObserver if parsing already happened (in IngestService).
+     * It would be pre-populated with information about how many bytes were already parsed
+     * or return a new 'empty' DocumentSizeObserver.
+     */
+    private static DocumentSizeObserver getDocumentSizeObserver(DocumentParsingProvider documentParsingProvider, IndexRequest request) {
+        if (request.getNormalisedBytesParsed() != -1) {
+            return documentParsingProvider.newFixedSizeDocumentObserver(request.getNormalisedBytesParsed());
+        }
+        return documentParsingProvider.newDocumentSizeObserver();
     }
 
     private static Engine.Result exceptionToResult(Exception e, IndexShard primary, boolean isDelete, long version, String id) {

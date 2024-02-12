@@ -1212,7 +1212,7 @@ public class IngestServiceTests extends ESTestCase {
             }
 
             @Override
-            public DocumentSizeObserver newDocumentSizeObserver(long normalisedBytesParsed) {
+            public DocumentSizeObserver newFixedSizeDocumentObserver(long normalisedBytesParsed) {
                 return null;
             }
         };

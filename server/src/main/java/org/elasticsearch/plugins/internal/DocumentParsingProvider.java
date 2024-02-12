@@ -24,7 +24,7 @@ public interface DocumentParsingProvider {
         }
 
         @Override
-        public DocumentSizeObserver newDocumentSizeObserver(long normalisedBytesParsed) {
+        public DocumentSizeObserver newFixedSizeDocumentObserver(long normalisedBytesParsed) {
             return DocumentSizeObserver.EMPTY_INSTANCE;
         }
     };
@@ -35,9 +35,9 @@ public interface DocumentParsingProvider {
     DocumentSizeObserver newDocumentSizeObserver();
 
     /**
-     * @return an observer with a previously observed value (fixed to this value, not continuing) or a new 'empty' observer.
+     * @return an observer with a previously observed value (fixed to this value, not continuing)
      */
-    DocumentSizeObserver newDocumentSizeObserver(long normalisedBytesParsed);
+    DocumentSizeObserver newFixedSizeDocumentObserver(long normalisedBytesParsed);
 
     /**
      * @return an instance of a reporter to use when parsing has been completed and indexing successful

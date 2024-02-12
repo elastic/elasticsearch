@@ -12,6 +12,7 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.tasks.CancellableTask;
@@ -53,6 +54,7 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
     private QueryBuilder query;
     private int sampleSize;
     private String[] indices;
+    private boolean userProvidedIndices;
     private String stackTraceIdsField;
     private Double requestedDuration;
     private Double awsCostFactor;
@@ -92,6 +94,7 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
         this.azureCostFactor = azureCostFactor;
         this.query = query;
         this.indices = indices;
+        this.userProvidedIndices = indices != null && indices.length > 0;
         this.stackTraceIdsField = stackTraceIdsField;
         this.customCO2PerKWH = customCO2PerKWH;
         this.customDatacenterPUE = customDatacenterPUE;
@@ -147,6 +150,10 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
 
     public String[] getIndices() {
         return indices;
+    }
+
+    public boolean isUserProvidedIndices() {
+        return userProvidedIndices;
     }
 
     public String getStackTraceIdsField() {
@@ -205,6 +212,7 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if (INDICES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     this.indices = parseIndices(parser);
+                    this.userProvidedIndices = true;
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "Unexpected token " + token + " in [" + currentFieldName + "].");
                 }
@@ -244,7 +252,7 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (indices != null) {
+        if (userProvidedIndices) {
             if (stackTraceIdsField == null || stackTraceIdsField.isEmpty()) {
                 validationException = addValidationError(
                     "[" + STACKTRACE_IDS_FIELD.getPreferredName() + "] is mandatory",
@@ -347,10 +355,10 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
         indices.add("profiling-stacktraces");
         indices.add("profiling-stackframes");
         indices.add("profiling-executables");
-        if (this.indices == null) {
-            indices.addAll(EventsIndex.indexNames());
-        } else {
+        if (userProvidedIndices) {
             indices.addAll(List.of(this.indices));
+        } else {
+            indices.addAll(EventsIndex.indexNames());
         }
         return indices.toArray(new String[0]);
     }

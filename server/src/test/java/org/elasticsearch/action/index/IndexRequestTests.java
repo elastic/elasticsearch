@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
+import org.elasticsearch.cluster.metadata.DataStreamAlias;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -435,6 +436,25 @@ public class IndexRequestTests extends ESTestCase {
                 e.getMessage(),
                 equalTo("Error get data stream timestamp field: timestamp [10.0] type [class java.lang.Double] error")
             );
+        }
+
+        {
+            // Alias to time series data stream
+            DataStreamAlias alias = new DataStreamAlias("my-alias", List.of(tsdbDataStream), tsdbDataStream, null);
+            var metadataBuilder3 = Metadata.builder(metadata);
+            metadataBuilder3.put(alias.getName(), tsdbDataStream, true, null);
+            var metadata3 = metadataBuilder3.build();
+            IndexRequest request = new IndexRequest(alias.getName());
+            request.opType(DocWriteRequest.OpType.CREATE);
+            request.source(renderSource(source, start1), XContentType.JSON);
+            var result = request.getConcreteWriteIndex(metadata3.getIndicesLookup().get(alias.getName()), metadata3);
+            assertThat(result, equalTo(metadata3.dataStreams().get(tsdbDataStream).getIndices().get(0)));
+
+            request = new IndexRequest(alias.getName());
+            request.opType(DocWriteRequest.OpType.CREATE);
+            request.source(renderSource(source, start2), XContentType.JSON);
+            result = request.getConcreteWriteIndex(metadata3.getIndicesLookup().get(alias.getName()), metadata3);
+            assertThat(result, equalTo(metadata3.dataStreams().get(tsdbDataStream).getIndices().get(1)));
         }
     }
 

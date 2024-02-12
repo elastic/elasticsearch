@@ -173,7 +173,7 @@ class FlattenedFieldParser {
             final String keyedFieldName = FlattenedFieldParser.extractKey(bytesKeyedValue).utf8ToString();
             if (fieldType.isDimension() && fieldType.dimensions().contains(keyedFieldName)) {
                 final BytesRef keyedFieldValue = FlattenedFieldParser.extractValue(bytesKeyedValue);
-                context.getDimensions().addString(rootFieldName + "." + keyedFieldName, keyedFieldValue);
+                context.getDimensions().addString(rootFieldName + "." + keyedFieldName, keyedFieldValue).validate(context.indexSettings());
             }
         }
     }

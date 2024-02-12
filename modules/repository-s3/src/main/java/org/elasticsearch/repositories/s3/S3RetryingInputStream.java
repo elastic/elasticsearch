@@ -29,6 +29,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.repositories.s3.S3BlobStore.configureRequestForMetrics;
 
 /**
  * Wrapper around an S3 object that will retry the {@link GetObjectRequest} if the download fails part-way through, resuming from where
@@ -86,7 +87,7 @@ class S3RetryingInputStream extends InputStream {
         while (true) {
             try (AmazonS3Reference clientReference = blobStore.clientReference()) {
                 final GetObjectRequest getObjectRequest = new GetObjectRequest(blobStore.bucket(), blobKey);
-                getObjectRequest.setRequestMetricCollector(blobStore.getMetricCollector(Operation.GET_OBJECT, purpose));
+                configureRequestForMetrics(getObjectRequest, blobStore, Operation.GET_OBJECT, purpose);
                 if (currentOffset > 0 || start > 0 || end < Long.MAX_VALUE - 1) {
                     assert start + currentOffset <= end
                         : "requesting beyond end, start = " + start + " offset=" + currentOffset + " end=" + end;
@@ -252,7 +253,7 @@ class S3RetryingInputStream extends InputStream {
                 action,
                 blobStore.bucket(),
                 blobKey,
-                purpose,
+                purpose.getKey(),
                 attempt - initialAttempt
             );
         }

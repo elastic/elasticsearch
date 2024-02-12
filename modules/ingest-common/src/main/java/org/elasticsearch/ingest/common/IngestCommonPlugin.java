@@ -17,6 +17,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.ingest.DropProcessor;
 import org.elasticsearch.ingest.PipelineProcessor;
 import org.elasticsearch.ingest.Processor;
@@ -28,6 +29,7 @@ import org.elasticsearch.rest.RestHandler;
 
 import java.util.List;
 import java.util.Map;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import static java.util.Map.entry;
@@ -90,7 +92,8 @@ public class IngestCommonPlugin extends Plugin implements ActionPlugin, IngestPl
         IndexScopedSettings indexScopedSettings,
         SettingsFilter settingsFilter,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<DiscoveryNodes> nodesInCluster
+        Supplier<DiscoveryNodes> nodesInCluster,
+        Predicate<NodeFeature> clusterSupportsFeature
     ) {
         return List.of(new GrokProcessorGetAction.RestAction());
     }

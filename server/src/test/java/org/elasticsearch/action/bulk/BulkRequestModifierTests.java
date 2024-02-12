@@ -38,7 +38,7 @@ public class BulkRequestModifierTests extends ESTestCase {
         }
 
         // wrap the bulk request and fail some of the item requests at random
-        TransportBulkAction.BulkRequestModifier modifier = new TransportBulkAction.BulkRequestModifier(bulkRequest);
+        BulkRequestModifier modifier = new BulkRequestModifier(bulkRequest);
         Set<Integer> failedSlots = new HashSet<>();
         for (int i = 0; modifier.hasNext(); i++) {
             modifier.next();
@@ -91,7 +91,7 @@ public class BulkRequestModifierTests extends ESTestCase {
             originalBulkRequest.add(new IndexRequest("index").id(String.valueOf(i)));
         }
 
-        TransportBulkAction.BulkRequestModifier modifier = new TransportBulkAction.BulkRequestModifier(originalBulkRequest);
+        BulkRequestModifier modifier = new BulkRequestModifier(originalBulkRequest);
 
         final List<Integer> failures = new ArrayList<>();
         // iterate the requests in order, recording that half of them should be failures
@@ -147,7 +147,7 @@ public class BulkRequestModifierTests extends ESTestCase {
             originalBulkRequest.add(new IndexRequest("index").id(String.valueOf(i)));
         }
 
-        TransportBulkAction.BulkRequestModifier modifier = new TransportBulkAction.BulkRequestModifier(originalBulkRequest);
+        BulkRequestModifier modifier = new BulkRequestModifier(originalBulkRequest);
         while (modifier.hasNext()) {
             modifier.next();
         }

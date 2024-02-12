@@ -423,10 +423,15 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
      * @throws IOException
      */
     public void testGetMultiThreaded() throws IOException {
-        int threads = between(2, 10);
-        int regionCount = between(1, 20);
+        final int threads = between(2, 10);
+        final int regionCount = between(1, 20);
+        final boolean incRef = randomBoolean();
         // if we have enough regions, a get should always have a result (except for explicit evict interference)
-        final boolean allowAlreadyClosed = regionCount < threads;
+        // if we incRef, we risk the eviction racing against that, leading to no available region, so allow
+        // the already closed exception in that case.
+        final boolean allowAlreadyClosed = regionCount < threads || incRef;
+
+        logger.info("{} {} {}", threads, regionCount, allowAlreadyClosed);
         Settings settings = Settings.builder()
             .put(NODE_NAME_SETTING.getKey(), "node")
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(regionCount * 100L)).getStringRep())
@@ -466,7 +471,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                                     assert allowAlreadyClosed || e.getMessage().equals("evicted during free region allocation") : e;
                                     throw e;
                                 }
-                                if (cacheFileRegion.tryIncRef()) {
+                                if (incRef && cacheFileRegion.tryIncRef()) {
                                     if (yield[i] == 0) {
                                         Thread.yield();
                                     }

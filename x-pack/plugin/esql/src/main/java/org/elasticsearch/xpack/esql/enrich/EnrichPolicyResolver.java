@@ -228,8 +228,8 @@ public class EnrichPolicyResolver {
 
     private String missingPolicyError(String policyName, Collection<String> targetClusters, List<String> missingClusters) {
         // local cluster only
+        String reason = "cannot find enrich policy [" + policyName + "]";
         if (targetClusters.size() == 1 && Iterables.get(missingClusters, 0).isEmpty()) {
-            String reason = "enrich policy [" + policyName + "] doesn't exist";
             // accessing the policy names directly after we have checked the permission.
             List<String> potentialMatches = StringUtils.findSimilar(policyName, availablePolicies().keySet());
             if (potentialMatches.isEmpty() == false) {
@@ -239,7 +239,7 @@ public class EnrichPolicyResolver {
             return reason;
         }
         String detailed = missingClusters.stream().sorted().map(c -> c.isEmpty() ? "_local" : c).collect(Collectors.joining(", "));
-        return "enrich policy [" + policyName + "] doesn't exist on clusters [" + detailed + "]";
+        return reason + " on clusters [" + detailed + "]";
     }
 
     private void lookupPolicies(

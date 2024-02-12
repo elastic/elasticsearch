@@ -1,0 +1,48 @@
+[discrete]
+[[esql-log]]
+=== `LOG`
+
+*Syntax*
+
+[source,esql]
+----
+LOG([base,] value)
+----
+
+*Parameters*
+
+`base`::
+Numeric expression. If `null`, the function returns `null`. The base is an optional input parameter. If a base is not provided, this function returns the natural logarithm (base e) of a value.
+
+`value`::
+Numeric expression. If `null`, the function returns `null`.
+
+*Description*
+
+Returns the logarithm of a value to a base. The input can be any numeric value, the return value is always a double.
+
+Logs of zero, negative numbers, infinites and base of one return `null` as well as a warning.
+
+*Supported types*
+
+include::types/log.asciidoc[]
+
+*Example*
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/math.csv-spec[tag=log]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/math.csv-spec[tag=log-result]
+|===
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/math.csv-spec[tag=logUnary]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/math.csv-spec[tag=logUnary-result]
+|===

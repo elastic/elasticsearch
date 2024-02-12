@@ -1,0 +1,6 @@
+pr: 105048
+summary: "ES|QL: Fix exception handling on `date_parse` with wrong date pattern"
+area: ES|QL
+type: bug
+issues:
+ - 104124

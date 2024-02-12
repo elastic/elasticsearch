@@ -96,7 +96,6 @@ public final class MapperMergeContext {
             public boolean decrementIfPossible(long fieldSize) {
                 return true;
             }
-
         }
 
         final class Limited implements NewFieldsBudget {
@@ -115,7 +114,6 @@ public final class MapperMergeContext {
                 }
                 return false;
             }
-
         }
     }
 }

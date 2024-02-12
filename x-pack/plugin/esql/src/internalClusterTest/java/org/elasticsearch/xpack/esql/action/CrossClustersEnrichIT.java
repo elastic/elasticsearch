@@ -34,6 +34,8 @@ import org.elasticsearch.xpack.core.enrich.action.DeleteEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.PutEnrichPolicyAction;
 import org.elasticsearch.xpack.enrich.EnrichPlugin;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.junit.After;
@@ -45,6 +47,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -80,6 +83,9 @@ public class CrossClustersEnrichIT extends AbstractMultiClustersTestCase {
         return Settings.builder().put(super.nodeSettings()).put(XPackSettings.SECURITY_ENABLED.getKey(), false).build();
     }
 
+    static final EnrichPolicy hostPolicy = new EnrichPolicy("match", null, List.of("hosts"), "ip", List.of("ip", "os"));
+    static final EnrichPolicy vendorPolicy = new EnrichPolicy("match", null, List.of("vendors"), "os", List.of("os", "vendor"));
+
     @Before
     public void setupHostsEnrich() {
         // the hosts policy are identical on every node
@@ -112,10 +118,28 @@ public class CrossClustersEnrichIT extends AbstractMultiClustersTestCase {
                 client.prepareIndex("hosts").setSource("ip", h.getKey(), "os", h.getValue()).get();
             }
             client.admin().indices().prepareRefresh("hosts").get();
-            EnrichPolicy policy = new EnrichPolicy("match", null, List.of("hosts"), "ip", List.of("ip", "os"));
-            client.execute(PutEnrichPolicyAction.INSTANCE, new PutEnrichPolicyAction.Request("hosts", policy)).actionGet();
+            client.execute(PutEnrichPolicyAction.INSTANCE, new PutEnrichPolicyAction.Request("hosts", hostPolicy)).actionGet();
             client.execute(ExecuteEnrichPolicyAction.INSTANCE, new ExecuteEnrichPolicyAction.Request("hosts")).actionGet();
             assertAcked(client.admin().indices().prepareDelete("hosts"));
+        }
+    }
+
+    @Before
+    public void setupVendorPolicy() {
+        var localVendors = Map.of("Windows", "Microsoft", "MacOS", "Apple", "iOS", "Apple", "Android", "Samsung", "Linux", "Redhat");
+        var c1Vendors = Map.of("Windows", "Microsoft", "MacOS", "Apple", "iOS", "Apple", "Android", "Google", "Linux", "Suse");
+        var c2Vendors = Map.of("Windows", "Microsoft", "MacOS", "Apple", "iOS", "Apple", "Android", "Sony", "Linux", "Ubuntu");
+        var vendors = Map.of(LOCAL_CLUSTER, localVendors, "c1", c1Vendors, "c2", c2Vendors);
+        for (Map.Entry<String, Map<String, String>> e : vendors.entrySet()) {
+            Client client = client(e.getKey());
+            client.admin().indices().prepareCreate("vendors").setMapping("os", "type=keyword", "vendor", "type=keyword").get();
+            for (Map.Entry<String, String> v : e.getValue().entrySet()) {
+                client.prepareIndex("vendors").setSource("os", v.getKey(), "vendor", v.getValue()).get();
+            }
+            client.admin().indices().prepareRefresh("vendors").get();
+            client.execute(PutEnrichPolicyAction.INSTANCE, new PutEnrichPolicyAction.Request("vendors", vendorPolicy)).actionGet();
+            client.execute(ExecuteEnrichPolicyAction.INSTANCE, new ExecuteEnrichPolicyAction.Request("vendors")).actionGet();
+            assertAcked(client.admin().indices().prepareDelete("vendors"));
         }
     }
 
@@ -170,23 +194,23 @@ public class CrossClustersEnrichIT extends AbstractMultiClustersTestCase {
     public void wipeEnrichPolicies() {
         for (String cluster : allClusters()) {
             cluster(cluster).wipe(Set.of());
-            for (String policy : List.of("hosts")) {
+            for (String policy : List.of("hosts", "vendors")) {
                 client(cluster).execute(DeleteEnrichPolicyAction.INSTANCE, new DeleteEnrichPolicyAction.Request(policy));
             }
         }
     }
 
-    static String enrichCommand(String policy, Enrich.Mode mode) {
-        if (mode == Enrich.Mode.ANY && randomBoolean()) {
-            return "ENRICH " + policy;
-        }
-        return "ENRICH[ccq.mode: " + mode + "] " + policy + " ";
+    static String enrichHosts(Enrich.Mode mode) {
+        return EsqlTestUtils.randomEnrichCommand("hosts", mode, hostPolicy.getMatchField(), hostPolicy.getEnrichFields());
+    }
+
+    static String enrichVendors(Enrich.Mode mode) {
+        return EsqlTestUtils.randomEnrichCommand("vendors", mode, vendorPolicy.getMatchField(), vendorPolicy.getEnrichFields());
     }
 
     public void testWithHostsPolicy() {
-        for (Enrich.Mode mode : List.of(Enrich.Mode.ANY)) {
-            String enrich = enrichCommand("hosts", mode);
-            String query = "FROM events | eval ip= TO_STR(host) | " + enrich + " | stats c = COUNT(*) by os | SORT os";
+        for (var mode : Enrich.Mode.values()) {
+            String query = "FROM events | eval ip= TO_STR(host) | " + enrichHosts(mode) + " | stats c = COUNT(*) by os | SORT os";
             try (EsqlQueryResponse resp = runQuery(query)) {
                 List<List<Object>> rows = getValuesList(resp);
                 assertThat(
@@ -203,9 +227,8 @@ public class CrossClustersEnrichIT extends AbstractMultiClustersTestCase {
                 );
             }
         }
-        for (Enrich.Mode mode : List.of(Enrich.Mode.ANY)) {
-            String enrich = enrichCommand("hosts", mode);
-            String query = "FROM *:events | eval ip= TO_STR(host) | " + enrich + " | stats c = COUNT(*) by os | SORT os";
+        for (var mode : Enrich.Mode.values()) {
+            String query = "FROM *:events | eval ip= TO_STR(host) | " + enrichHosts(mode) + " | stats c = COUNT(*) by os | SORT os";
             try (EsqlQueryResponse resp = runQuery(query)) {
                 List<List<Object>> rows = getValuesList(resp);
                 assertThat(
@@ -224,9 +247,8 @@ public class CrossClustersEnrichIT extends AbstractMultiClustersTestCase {
             }
         }
 
-        for (Enrich.Mode mode : List.of(Enrich.Mode.ANY)) {
-            String enrich = enrichCommand("hosts", mode);
-            String query = "FROM *:events,events | eval ip= TO_STR(host) | " + enrich + " | stats c = COUNT(*) by os | SORT os";
+        for (var mode : Enrich.Mode.values()) {
+            String query = "FROM *:events,events | eval ip= TO_STR(host) | " + enrichHosts(mode) + " | stats c = COUNT(*) by os | SORT os";
             try (EsqlQueryResponse resp = runQuery(query)) {
                 List<List<Object>> rows = getValuesList(resp);
                 assertThat(
@@ -246,13 +268,192 @@ public class CrossClustersEnrichIT extends AbstractMultiClustersTestCase {
         }
     }
 
-    public void testUnsupportedEnrichMode() {
-        for (Enrich.Mode mode : List.of(Enrich.Mode.REMOTE, Enrich.Mode.COORDINATOR)) {
-            String enrich = enrichCommand("hosts", mode);
-            String q = "FROM *:events | eval ip= TO_STR(host) | " + enrich + " | stats c = COUNT(*) by os | SORT os";
-            Exception error = expectThrows(IllegalArgumentException.class, () -> runQuery(q).close());
-            assertThat(error.getMessage(), containsString("Enrich modes COORDINATOR and REMOTE are not supported yet"));
+    public void testEnrichHostsAggThenEnrichVendorCoordinator() {
+        for (var hostMode : Enrich.Mode.values()) {
+            String query = String.format(Locale.ROOT, """
+                FROM *:events,events
+                | eval ip= TO_STR(host)
+                | %s
+                | stats c = COUNT(*) by os
+                | %s
+                | stats c = SUM(c) by vendor
+                | sort vendor
+                """, enrichHosts(hostMode), enrichVendors(Enrich.Mode.COORDINATOR));
+            try (EsqlQueryResponse resp = runQuery(query)) {
+                assertThat(
+                    getValuesList(resp),
+                    equalTo(
+                        List.of(
+                            List.of(6L, "Apple"),
+                            List.of(7L, "Microsoft"),
+                            List.of(3L, "Redhat"),
+                            List.of(3L, "Samsung"),
+                            Arrays.asList(3L, (String) null)
+                        )
+                    )
+                );
+            }
         }
+    }
+
+    public void testEnrichTwiceThenAggs() {
+        for (var hostMode : Enrich.Mode.values()) {
+            String query = String.format(Locale.ROOT, """
+                FROM *:events,events
+                | eval ip= TO_STR(host)
+                | %s
+                | %s
+                | stats c = COUNT(*) by vendor
+                | sort vendor
+                """, enrichHosts(hostMode), enrichVendors(Enrich.Mode.COORDINATOR));
+            try (EsqlQueryResponse resp = runQuery(query)) {
+                assertThat(
+                    getValuesList(resp),
+                    equalTo(
+                        List.of(
+                            List.of(6L, "Apple"),
+                            List.of(7L, "Microsoft"),
+                            List.of(3L, "Redhat"),
+                            List.of(3L, "Samsung"),
+                            Arrays.asList(3L, (String) null)
+                        )
+                    )
+                );
+            }
+        }
+    }
+
+    public void testEnrichCoordinatorThenAny() {
+        String query = String.format(Locale.ROOT, """
+            FROM *:events,events
+            | eval ip= TO_STR(host)
+            | %s
+            | %s
+            | stats c = COUNT(*) by vendor
+            | sort vendor
+            """, enrichHosts(Enrich.Mode.COORDINATOR), enrichVendors(Enrich.Mode.ANY));
+        try (EsqlQueryResponse resp = runQuery(query)) {
+            assertThat(
+                getValuesList(resp),
+                equalTo(
+                    List.of(
+                        List.of(6L, "Apple"),
+                        List.of(7L, "Microsoft"),
+                        List.of(3L, "Redhat"),
+                        List.of(3L, "Samsung"),
+                        Arrays.asList(3L, (String) null)
+                    )
+                )
+            );
+        }
+    }
+
+    public void testEnrichCoordinatorWithVendor() {
+        for (Enrich.Mode hostMode : Enrich.Mode.values()) {
+            String query = String.format(Locale.ROOT, """
+                FROM *:events,events
+                | eval ip= TO_STR(host)
+                | %s
+                | %s
+                | stats c = COUNT(*) by vendor
+                | sort vendor
+                """, enrichHosts(hostMode), enrichVendors(Enrich.Mode.COORDINATOR));
+            try (EsqlQueryResponse resp = runQuery(query)) {
+                assertThat(
+                    getValuesList(resp),
+                    equalTo(
+                        List.of(
+                            List.of(6L, "Apple"),
+                            List.of(7L, "Microsoft"),
+                            List.of(3L, "Redhat"),
+                            List.of(3L, "Samsung"),
+                            Arrays.asList(3L, (String) null)
+                        )
+                    )
+                );
+            }
+        }
+
+    }
+
+    public void testEnrichRemoteWithVendor() {
+        for (Enrich.Mode hostMode : List.of(Enrich.Mode.ANY, Enrich.Mode.REMOTE)) {
+            var query = String.format(Locale.ROOT, """
+                FROM *:events,events
+                | eval ip= TO_STR(host)
+                | %s
+                | %s
+                | stats c = COUNT(*) by vendor
+                | sort vendor
+                """, enrichHosts(hostMode), enrichVendors(Enrich.Mode.REMOTE));
+            try (EsqlQueryResponse resp = runQuery(query)) {
+                assertThat(
+                    getValuesList(resp),
+                    equalTo(
+                        List.of(
+                            List.of(6L, "Apple"),
+                            List.of(7L, "Microsoft"),
+                            List.of(1L, "Redhat"),
+                            List.of(2L, "Samsung"),
+                            List.of(1L, "Sony"),
+                            List.of(2L, "Suse"),
+                            Arrays.asList(3L, (String) null)
+                        )
+                    )
+                );
+            }
+        }
+    }
+
+    public void testTopNThenEnrichRemote() {
+        String query = String.format(Locale.ROOT, """
+            FROM *:events,events
+            | eval ip= TO_STR(host)
+            | SORT ip
+            | LIMIT 5
+            | %s
+            """, enrichHosts(Enrich.Mode.REMOTE));
+        var error = expectThrows(VerificationException.class, () -> runQuery(query).close());
+        assertThat(error.getMessage(), containsString("ENRICH with remote policy can't be executed after LIMIT"));
+    }
+
+    public void testLimitThenEnrichRemote() {
+        String query = String.format(Locale.ROOT, """
+            FROM *:events,events
+            | LIMIT 10
+            | eval ip= TO_STR(host)
+            | %s
+            """, enrichHosts(Enrich.Mode.REMOTE));
+        var error = expectThrows(VerificationException.class, () -> runQuery(query).close());
+        assertThat(error.getMessage(), containsString("ENRICH with remote policy can't be executed after LIMIT"));
+    }
+
+    public void testAggThenEnrichRemote() {
+        String query = String.format(Locale.ROOT, """
+            FROM *:events,events
+            | eval ip= TO_STR(host)
+            | %s
+            | stats c = COUNT(*) by os
+            | %s
+            | sort vendor
+            """, enrichHosts(Enrich.Mode.ANY), enrichVendors(Enrich.Mode.REMOTE));
+        var error = expectThrows(VerificationException.class, () -> runQuery(query).close());
+        assertThat(error.getMessage(), containsString("ENRICH with remote policy can't be executed after STATS"));
+    }
+
+    public void testEnrichCoordinatorThenEnrichRemote() {
+        String query = String.format(Locale.ROOT, """
+            FROM *:events,events
+            | eval ip= TO_STR(host)
+            | %s
+            | %s
+            | sort vendor
+            """, enrichHosts(Enrich.Mode.COORDINATOR), enrichVendors(Enrich.Mode.REMOTE));
+        var error = expectThrows(VerificationException.class, () -> runQuery(query).close());
+        assertThat(
+            error.getMessage(),
+            containsString("ENRICH with remote policy can't be executed after another ENRICH with coordinator policy")
+        );
     }
 
     protected EsqlQueryResponse runQuery(String query) {

@@ -44,7 +44,6 @@ public class APMAgentSettings {
 
         clusterSettings.addSettingsUpdateConsumer(TELEMETRY_TRACING_ENABLED_SETTING, enabled -> {
             apmTracer.setEnabled(enabled);
-            this.setAgentSetting("instrument", Boolean.toString(enabled));
             // The agent records data other than spans, e.g. JVM metrics, so we toggle this setting in order to
             // minimise its impact to a running Elasticsearch.
             boolean recording = enabled || clusterSettings.get(TELEMETRY_METRICS_ENABLED_SETTING);
@@ -73,7 +72,6 @@ public class APMAgentSettings {
         boolean metrics = TELEMETRY_METRICS_ENABLED_SETTING.get(settings);
 
         this.setAgentSetting("recording", Boolean.toString(tracing || metrics));
-        this.setAgentSetting("instrument", Boolean.toString(tracing));
         // Apply values from the settings in the cluster state
         APM_AGENT_SETTINGS.getAsMap(settings).forEach(this::setAgentSetting);
     }
@@ -120,7 +118,8 @@ public class APMAgentSettings {
 
         // Core:
         // forbid 'enabled', must remain enabled to dynamically enable tracing / metrics
-        // forbid 'recording' / 'instrument', controlled by 'telemetry.metrics.enabled' / 'tracing.apm.enabled'
+        // forbid 'recording', controlled by 'telemetry.metrics.enabled' / 'telemetry.tracing.enabled'
+        // forbid 'instrument', automatic instrumentation can cause issues
         "service_name",
         "service_node_name",
         // forbid 'service_version', forced by APMJvmOptions
@@ -207,8 +206,8 @@ public class APMAgentSettings {
         "profiling_inferred_spans_lib_directory",
 
         // Reporter:
-        // forbid secret_token: use tracing.apm.secret_token instead
-        // forbid api_key: use tracing.apm.api_key instead
+        // forbid secret_token: use telemetry.secret_token instead
+        // forbid api_key: use telemetry.api_key instead
         "server_url",
         "server_urls",
         "disable_send",

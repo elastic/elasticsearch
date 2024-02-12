@@ -307,8 +307,8 @@ public class SearchStats {
     //
     // @see org.elasticsearch.search.query.QueryPhaseCollectorManager#shortcutTotalHitCount(IndexReader, Query)
     //
-    private static int countEntries(IndexReader indexReader, String field) {
-        int count = 0;
+    private static long countEntries(IndexReader indexReader, String field) {
+        long count = 0;
         try {
             for (LeafReaderContext context : indexReader.leaves()) {
                 LeafReader reader = context.reader();

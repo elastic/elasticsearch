@@ -6,15 +6,15 @@
 
 [source,esql]
 ----
-SUM(column)
+SUM(expression)
 ----
 
-`column`::
-Numeric column.
+`expression`::
+Numeric expression.
 
 *Description*
 
-Returns the sum of a numeric column.
+Returns the sum of a numeric expression.
 
 *Example*
 
@@ -25,4 +25,17 @@ include::{esql-specs}/stats.csv-spec[tag=sum]
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
 include::{esql-specs}/stats.csv-spec[tag=sum-result]
+|===
+
+The expression can use inline functions. For example, to calculate
+the sum of each employee's maximum salary changes, apply the
+`MV_MAX` function to each row and then sum the results:
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/stats.csv-spec[tag=docsStatsSumNestedExpression]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/stats.csv-spec[tag=docsStatsSumNestedExpression-result]
 |===

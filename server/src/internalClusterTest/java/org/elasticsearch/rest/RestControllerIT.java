@@ -19,6 +19,7 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -26,6 +27,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 public class RestControllerIT extends ESIntegTestCase {
@@ -61,7 +63,8 @@ public class RestControllerIT extends ESIntegTestCase {
             IndexScopedSettings indexScopedSettings,
             SettingsFilter settingsFilter,
             IndexNameExpressionResolver indexNameExpressionResolver,
-            Supplier<DiscoveryNodes> nodesInCluster
+            Supplier<DiscoveryNodes> nodesInCluster,
+            Predicate<NodeFeature> clusterSupportsFeature
         ) {
             return List.of(new BaseRestHandler() {
                 @Override

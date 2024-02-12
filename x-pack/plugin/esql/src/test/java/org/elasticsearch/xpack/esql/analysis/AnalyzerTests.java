@@ -12,10 +12,12 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
@@ -1389,14 +1391,14 @@ public class AnalyzerTests extends ESTestCase {
         AnalyzerContext context = new AnalyzerContext(configuration("from test"), new EsqlFunctionRegistry(), testIndex, enrichResolution);
         Analyzer analyzer = new Analyzer(context, TEST_VERIFIER);
         {
-            LogicalPlan plan = analyze("from test | EVAL x = to_string(languages) | ENRICH[ccq.mode:coordinator] languages ON x", analyzer);
+            LogicalPlan plan = analyze("from test | EVAL x = to_string(languages) | ENRICH _coordinator:languages ON x", analyzer);
             List<Enrich> resolved = new ArrayList<>();
             plan.forEachDown(Enrich.class, resolved::add);
             assertThat(resolved, hasSize(1));
         }
         var e = expectThrows(
             VerificationException.class,
-            () -> analyze("from test | EVAL x = to_string(languages) | ENRICH[ccq.mode:any] languages ON x", analyzer)
+            () -> analyze("from test | EVAL x = to_string(languages) | ENRICH _any:languages ON x", analyzer)
         );
         assertThat(e.getMessage(), containsString("error-2"));
         e = expectThrows(
@@ -1406,7 +1408,7 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("error-2"));
         e = expectThrows(
             VerificationException.class,
-            () -> analyze("from test | EVAL x = to_string(languages) | ENRICH[ccq.mode:remote] languages ON x", analyzer)
+            () -> analyze("from test | EVAL x = to_string(languages) | ENRICH _remote:languages ON x", analyzer)
         );
         assertThat(e.getMessage(), containsString("error-1"));
 
@@ -1554,6 +1556,154 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("Unknown column [bar]"));
     }
 
+    public void testRegularStats() {
+        var plan = analyze("""
+            from tests
+            | stats by salary
+            """);
+
+        var limit = as(plan, Limit.class);
+    }
+
+    public void testLiteralInAggregateNoGrouping() {
+        var e = expectThrows(VerificationException.class, () -> analyze("""
+             from test
+            |stats 1
+            """));
+
+        assertThat(e.getMessage(), containsString("expected an aggregate function but found [1]"));
+    }
+
+    public void testLiteralBehindEvalInAggregateNoGrouping() {
+        var e = expectThrows(VerificationException.class, () -> analyze("""
+             from test
+            |eval x = 1
+            |stats x
+            """));
+
+        assertThat(e.getMessage(), containsString("column [x] must appear in the STATS BY clause or be used in an aggregate function"));
+    }
+
+    public void testLiteralsInAggregateNoGrouping() {
+        var e = expectThrows(VerificationException.class, () -> analyze("""
+             from test
+            |stats 1 + 2
+            """));
+
+        assertThat(e.getMessage(), containsString("expected an aggregate function but found [1 + 2]"));
+    }
+
+    public void testLiteralsBehindEvalInAggregateNoGrouping() {
+        var e = expectThrows(VerificationException.class, () -> analyze("""
+             from test
+            |eval x = 1 + 2
+            |stats x
+            """));
+
+        assertThat(e.getMessage(), containsString("column [x] must appear in the STATS BY clause or be used in an aggregate function"));
+    }
+
+    public void testFoldableInAggregateWithGrouping() {
+        var e = expectThrows(VerificationException.class, () -> analyze("""
+             from test
+            |stats 1 + 2 by languages
+            """));
+
+        assertThat(e.getMessage(), containsString("expected an aggregate function but found [1 + 2]"));
+    }
+
+    public void testLiteralsInAggregateWithGrouping() {
+        var e = expectThrows(VerificationException.class, () -> analyze("""
+             from test
+            |stats "a" by languages
+            """));
+
+        assertThat(e.getMessage(), containsString("expected an aggregate function but found [\"a\"]"));
+    }
+
+    public void testFoldableBehindEvalInAggregateWithGrouping() {
+        var e = expectThrows(VerificationException.class, () -> analyze("""
+             from test
+            |eval x = 1 + 2
+            |stats x by languages
+            """));
+
+        assertThat(e.getMessage(), containsString("column [x] must appear in the STATS BY clause or be used in an aggregate function"));
+    }
+
+    public void testFoldableInGrouping() {
+        var e = expectThrows(VerificationException.class, () -> analyze("""
+             from test
+            |stats x by 1
+            """));
+
+        assertThat(e.getMessage(), containsString("[x] is not an aggregate function"));
+    }
+
+    public void testScalarFunctionsInStats() {
+        var e = expectThrows(VerificationException.class, () -> analyze("""
+             from test
+            |stats salary % 3 by languages
+            """));
+
+        assertThat(
+            e.getMessage(),
+            containsString("column [salary] must appear in the STATS BY clause or be used in an aggregate function")
+        );
+    }
+
+    public void testDeferredGroupingInStats() {
+        var e = expectThrows(VerificationException.class, () -> analyze("""
+             from test
+             |eval x = first_name
+             |stats x by first_name
+            """));
+
+        assertThat(e.getMessage(), containsString("column [x] must appear in the STATS BY clause or be used in an aggregate function"));
+    }
+
+    public void testUnsupportedTypesInStats() {
+        verifyUnsupported(
+            """
+                  row x = to_unsigned_long(\"10\")
+                  | stats  avg(x), count_distinct(x), max(x), median(x), median_absolute_deviation(x), min(x), percentile(x, 10), sum(x)
+                """,
+            "Found 8 problems\n"
+                + "line 2:12: argument of [avg(x)] must be [numeric except unsigned_long], found value [x] type [unsigned_long]\n"
+                + "line 2:20: argument of [count_distinct(x)] must be [any exact type except unsigned_long], "
+                + "found value [x] type [unsigned_long]\n"
+                + "line 2:39: argument of [max(x)] must be [datetime or numeric except unsigned_long], "
+                + "found value [max(x)] type [unsigned_long]\n"
+                + "line 2:47: argument of [median(x)] must be [numeric except unsigned_long], found value [x] type [unsigned_long]\n"
+                + "line 2:58: argument of [median_absolute_deviation(x)] must be [numeric except unsigned_long], "
+                + "found value [x] type [unsigned_long]\n"
+                + "line 2:88: argument of [min(x)] must be [datetime or numeric except unsigned_long], "
+                + "found value [min(x)] type [unsigned_long]\n"
+                + "line 2:96: first argument of [percentile(x, 10)] must be [numeric except unsigned_long], "
+                + "found value [x] type [unsigned_long]\n"
+                + "line 2:115: argument of [sum(x)] must be [numeric except unsigned_long], found value [x] type [unsigned_long]"
+        );
+
+        verifyUnsupported(
+            """
+                row x = to_version("1.2")
+                | stats  avg(x), max(x), median(x), median_absolute_deviation(x), min(x), percentile(x, 10), sum(x)
+                """,
+            "Found 7 problems\n"
+                + "line 2:10: argument of [avg(x)] must be [numeric except unsigned_long], found value [x] type [version]\n"
+                + "line 2:18: argument of [max(x)] must be [datetime or numeric except unsigned_long], "
+                + "found value [max(x)] type [version]\n"
+                + "line 2:26: argument of [median(x)] must be [numeric except unsigned_long], found value [x] type [version]\n"
+                + "line 2:37: argument of [median_absolute_deviation(x)] must be [numeric except unsigned_long], "
+                + "found value [x] type [version]\n"
+                + "line 2:67: argument of [min(x)] must be [datetime or numeric except unsigned_long], "
+                + "found value [min(x)] type [version]\n"
+                + "line 2:75: first argument of [percentile(x, 10)] must be [numeric except unsigned_long], "
+                + "found value [x] type [version]\n"
+                + "line 2:94: argument of [sum(x)] must be [numeric except unsigned_long], found value [x] type [version]"
+        );
+    }
+
     private void verifyUnsupported(String query, String errorMessage) {
         verifyUnsupported(query, errorMessage, "mapping-multi-field-variation.json");
     }
@@ -1611,5 +1761,10 @@ public class AnalyzerTests extends ESTestCase {
         EsRelation esRelation = (EsRelation) plan;
         assertThat(esRelation.output(), equalTo(NO_FIELDS));
         assertTrue(esRelation.index().mapping().isEmpty());
+    }
+
+    @Override
+    protected IndexAnalyzers createDefaultIndexAnalyzers() {
+        return super.createDefaultIndexAnalyzers();
     }
 }

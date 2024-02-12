@@ -8,7 +8,6 @@
 
 package org.elasticsearch.index.rankeval;
 
-import org.apache.lucene.util.Constants;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
@@ -43,8 +42,6 @@ public final class TransportRankEvalActionTests extends ESTestCase {
      * Test that request parameters like indicesOptions or searchType from ranking evaluation request are transfered to msearch request
      */
     public void testTransferRequestParameters() throws Exception {
-        assumeFalse("https://github.com/elastic/elasticsearch/issues/104570", Constants.WINDOWS);
-
         String indexName = "test_index";
         List<RatedRequest> specifications = new ArrayList<>();
         specifications.add(

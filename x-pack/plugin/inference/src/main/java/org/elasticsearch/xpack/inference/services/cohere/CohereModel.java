@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.cohere;
 
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
@@ -30,5 +31,5 @@ public abstract class CohereModel extends Model {
         super(model, serviceSettings);
     }
 
-    public abstract ExecutableAction accept(CohereActionVisitor creator, Map<String, Object> taskSettings);
+    public abstract ExecutableAction accept(CohereActionVisitor creator, Map<String, Object> taskSettings, InputType inputType);
 }

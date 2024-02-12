@@ -1,0 +1,5 @@
+pr: 105066
+summary: Fix handling of `ml.config_version` node attribute for nodes with machine learning disabled
+area: Machine Learning
+type: bug
+issues: []

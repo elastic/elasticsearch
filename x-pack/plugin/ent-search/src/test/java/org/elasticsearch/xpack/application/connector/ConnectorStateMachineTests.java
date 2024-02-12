@@ -28,7 +28,6 @@ public class ConnectorStateMachineTests extends ESTestCase {
     public void testInvalidTransitionFromNeedsConfiguration() {
         assertFalse(ConnectorStateMachine.isValidTransition(ConnectorStatus.NEEDS_CONFIGURATION, ConnectorStatus.CREATED));
         assertFalse(ConnectorStateMachine.isValidTransition(ConnectorStatus.NEEDS_CONFIGURATION, ConnectorStatus.CONNECTED));
-        assertFalse(ConnectorStateMachine.isValidTransition(ConnectorStatus.NEEDS_CONFIGURATION, ConnectorStatus.ERROR));
     }
 
     public void testValidTransitionFromConfigured() {

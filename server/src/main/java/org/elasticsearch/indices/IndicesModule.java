@@ -52,6 +52,7 @@ import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.NestedPathFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
+import org.elasticsearch.index.mapper.PassThroughObjectMapper;
 import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.RuntimeField;
@@ -193,6 +194,7 @@ public class IndicesModule extends AbstractModule {
         mappers.put(KeywordFieldMapper.CONTENT_TYPE, KeywordFieldMapper.PARSER);
         mappers.put(ObjectMapper.CONTENT_TYPE, new ObjectMapper.TypeParser());
         mappers.put(NestedObjectMapper.CONTENT_TYPE, new NestedObjectMapper.TypeParser());
+        mappers.put(PassThroughObjectMapper.CONTENT_TYPE, new PassThroughObjectMapper.TypeParser());
         mappers.put(TextFieldMapper.CONTENT_TYPE, TextFieldMapper.PARSER);
 
         mappers.put(DenseVectorFieldMapper.CONTENT_TYPE, DenseVectorFieldMapper.PARSER);

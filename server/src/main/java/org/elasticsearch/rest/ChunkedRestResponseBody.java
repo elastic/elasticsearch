@@ -139,6 +139,7 @@ public interface ChunkedRestResponseBody {
             @Override
             public void getContinuation(ActionListener<ChunkedRestResponseBody> listener) {
                 assert false : "no continuations";
+                listener.onFailure(new IllegalStateException("no continuations available"));
             }
 
             @Override
@@ -227,6 +228,7 @@ public interface ChunkedRestResponseBody {
             @Override
             public void getContinuation(ActionListener<ChunkedRestResponseBody> listener) {
                 assert false : "no continuations";
+                listener.onFailure(new IllegalStateException("no continuations available"));
             }
 
             @Override

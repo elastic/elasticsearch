@@ -23,6 +23,7 @@ import org.elasticsearch.action.ingest.GetPipelineAction;
 import org.elasticsearch.action.ingest.SimulatePipelineAction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.action.XPackInfoAction;
@@ -430,6 +431,7 @@ public class ClusterPrivilegeResolver {
 
     }
 
+    @Nullable
     public static NamedClusterPrivilege getNamedOrNull(String name) {
         return VALUES.get(Objects.requireNonNull(name).toLowerCase(Locale.ROOT));
     }

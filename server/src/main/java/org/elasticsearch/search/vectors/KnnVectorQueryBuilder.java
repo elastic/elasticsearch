@@ -15,6 +15,7 @@ import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.ToChildBlockJoinQuery;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -37,9 +38,11 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Objects;
 
+import static org.elasticsearch.common.Strings.format;
 import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -61,23 +64,65 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
     public static final ParseField FILTER_FIELD = new ParseField("filter");
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<KnnVectorQueryBuilder, Void> PARSER = new ConstructingObjectParser<>("knn", args -> {
-        List<Float> vector = (List<Float>) args[1];
-        final float[] vectorArray;
-        if (vector != null) {
-            vectorArray = new float[vector.size()];
-            for (int i = 0; i < vector.size(); i++) {
-                vectorArray[i] = vector.get(i);
-            }
+    public static final ConstructingObjectParser<KnnVectorQueryBuilder, Void> PARSER = new ConstructingObjectParser<>(
+        "knn",
+        args -> new KnnVectorQueryBuilder((String) args[0], (float[]) args[1], (Integer) args[2], (Float) args[3])
+    );
+
+    private static float[] parseQueryVector(XContentParser parser) throws IOException {
+        XContentParser.Token token = parser.currentToken();
+        final float[] vector;
+        if (token == XContentParser.Token.START_ARRAY) {
+            vector = parseQueryVectorArray(parser);
+        } else if (token == XContentParser.Token.VALUE_STRING) {
+            vector = parseHexEncodedVector(parser);
+        } else if (token == XContentParser.Token.VALUE_NUMBER) {
+            vector = parseNumberVector(parser);
         } else {
-            vectorArray = null;
+            throw new ParsingException(parser.getTokenLocation(), format("Unknown type for provided value [%s]", parser.text()));
         }
-        return new KnnVectorQueryBuilder((String) args[0], vectorArray, (Integer) args[2], (Float) args[3]);
-    });
+        return vector;
+    }
+
+    private static float[] parseQueryVectorArray(XContentParser parser) throws IOException {
+        XContentParser.Token token;
+        List<Float> vectorArr = new ArrayList<>();
+        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+            if (token == XContentParser.Token.VALUE_NUMBER || token == XContentParser.Token.VALUE_STRING) {
+                vectorArr.add(parser.floatValue());
+            } else {
+                throw new ParsingException(parser.getTokenLocation(), format("Type [%s] not supported for query vector"));
+            }
+        }
+        float[] floatVector = new float[vectorArr.size()];
+        for (int i = 0; i < vectorArr.size(); i++) {
+            floatVector[i] = vectorArr.get(i);
+        }
+        return floatVector;
+    }
+
+    private static float[] parseNumberVector(XContentParser parser) throws IOException {
+        return new float[] { parser.floatValue() };
+    }
+
+    private static float[] parseHexEncodedVector(XContentParser parser) throws IOException {
+        // TODO optimize this as the array returned will be recomputed later again as a byte array
+        byte[] decodedByteQueryVector = HexFormat.of().parseHex(parser.text());
+        float[] floatVector = new float[decodedByteQueryVector.length];
+        for (int i = 0; i < decodedByteQueryVector.length; i++) {
+            floatVector[i] = decodedByteQueryVector[i];
+        }
+        return floatVector;
+    }
 
     static {
         PARSER.declareString(constructorArg(), FIELD_FIELD);
-        PARSER.declareFloatArray(constructorArg(), QUERY_VECTOR_FIELD);
+        PARSER.declareField(
+            optionalConstructorArg(),
+            (p, c) -> parseQueryVector(p),
+            QUERY_VECTOR_FIELD,
+            ObjectParser.ValueType.OBJECT_ARRAY_STRING_OR_NUMBER
+        );
         PARSER.declareInt(optionalConstructorArg(), NUM_CANDS_FIELD);
         PARSER.declareFloat(optionalConstructorArg(), VECTOR_SIMILARITY_FIELD);
         PARSER.declareFieldArray(

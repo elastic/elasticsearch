@@ -43,12 +43,9 @@ import java.util.function.Function;
  * This operator currently only supports shard level concurrency. A new concurrency mechanism should be introduced at the time serie level
  * in order to read tsdb indices in parallel.
  */
-public record TimeSeriesSortedSourceOperatorFactory(
-    int limit,
-    int maxPageSize,
-    int taskConcurrency,
-    LuceneSliceQueue sliceQueue
-) implements LuceneOperator.Factory {
+public record TimeSeriesSortedSourceOperatorFactory(int limit, int maxPageSize, int taskConcurrency, LuceneSliceQueue sliceQueue)
+    implements
+        LuceneOperator.Factory {
 
     @Override
     public SourceOperator get(DriverContext driverContext) {

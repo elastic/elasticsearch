@@ -133,6 +133,7 @@ public final class QueryPragmas implements Writeable {
     public boolean timeSeriesMode() {
         return TIME_SERIES_MODE.get(settings);
     }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;

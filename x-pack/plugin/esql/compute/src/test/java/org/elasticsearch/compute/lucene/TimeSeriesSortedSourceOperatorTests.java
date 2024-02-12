@@ -47,6 +47,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.function.Function;
 
 import static org.hamcrest.Matchers.either;
@@ -75,7 +76,7 @@ public class TimeSeriesSortedSourceOperatorTests extends AnyOperatorTestCase {
             long timestamp = timestampStart;
             for (int i = 0; i < numSamplesPerTS; i++) {
                 for (int j = 0; j < numTimeSeries; j++) {
-                    String hostname = String.format("host-%02d", j);
+                    String hostname = String.format(Locale.ROOT, "host-%02d", j);
                     writeTS(writer, timestamp, new Object[] { "hostname", hostname }, new Object[] { "voltage", j + 5 });
                 }
                 timestamp += 10_000;
@@ -131,7 +132,7 @@ public class TimeSeriesSortedSourceOperatorTests extends AnyOperatorTestCase {
             int commitEvery = 64;
             long timestamp = timestampStart;
             for (int i = 0; i < numDocs; i++) {
-                String hostname = String.format("host-%02d", i % 20);
+                String hostname = String.format(Locale.ROOT, "host-%02d", i % 20);
                 int voltage = i % 5;
                 writeTS(writer, timestamp, new Object[] { "hostname", hostname }, new Object[] { "voltage", voltage });
                 if (i % commitEvery == 0) {

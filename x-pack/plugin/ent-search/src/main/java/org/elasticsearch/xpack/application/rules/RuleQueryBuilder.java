@@ -191,7 +191,10 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
         } else if (pinnedIdsSupplier != null || pinnedDocsSupplier != null) {
             List<String> identifiedPinnedIds = pinnedIdsSupplier != null ? pinnedIdsSupplier.get() : null;
             List<Item> identifiedPinnedDocs = pinnedDocsSupplier != null ? pinnedDocsSupplier.get() : null;
-            if (identifiedPinnedIds != null && identifiedPinnedIds.isEmpty() == false) {
+            if ((identifiedPinnedIds != null && identifiedPinnedIds.isEmpty())
+                && (identifiedPinnedDocs != null && identifiedPinnedDocs.isEmpty())) {
+                return organicQuery.rewrite(queryRewriteContext);
+            } else if (identifiedPinnedIds != null && identifiedPinnedIds.isEmpty() == false) {
                 return new PinnedQueryBuilder(organicQuery, identifiedPinnedIds.toArray(new String[0]));
             } else if (identifiedPinnedDocs != null) {
                 return new PinnedQueryBuilder(organicQuery, identifiedPinnedDocs.toArray(new Item[0]));
@@ -240,36 +243,15 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
         });
 
         QueryBuilder newOrganicQuery = organicQuery.rewrite(queryRewriteContext);
-        List<String> idsToPin = pinnedIdsSetOnce.get();
-        List<Item> docsToPin = pinnedDocsSetOnce.get();
-        QueryBuilder rewritten;
-
-        if ((idsToPin != null && idsToPin.isEmpty()) && (docsToPin != null && docsToPin.isEmpty())) {
-            // We've identified there are no documents to pin so let's bypass returning a pinned query
-            rewritten = newOrganicQuery;
-        } else if (idsToPin != null && idsToPin.isEmpty() == false) {
-            rewritten = new RuleQueryBuilder(newOrganicQuery, matchCriteria, rulesetId, idsToPin, null, null, null).rewrite(
-                queryRewriteContext
-            );
-        } else if (docsToPin != null && docsToPin.isEmpty() == false) {
-            rewritten = new RuleQueryBuilder(newOrganicQuery, matchCriteria, rulesetId, null, docsToPin, null, null).rewrite(
-                queryRewriteContext
-            );
-        } else {
-            rewritten = new RuleQueryBuilder(
-                newOrganicQuery,
-                matchCriteria,
-                this.rulesetId,
-                null,
-                null,
-                pinnedIdsSetOnce::get,
-                pinnedDocsSetOnce::get
-            );
-        }
-
-        rewritten.boost(this.boost);
-        rewritten.queryName(this.queryName);
-        return rewritten;
+        return new RuleQueryBuilder(
+            newOrganicQuery,
+            matchCriteria,
+            this.rulesetId,
+            null,
+            null,
+            pinnedIdsSetOnce::get,
+            pinnedDocsSetOnce::get
+        ).boost(this.boost).queryName(this.queryName);
     }
 
     @Override

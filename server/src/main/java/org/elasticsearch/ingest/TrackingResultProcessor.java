@@ -87,7 +87,7 @@ public final class TrackingResultProcessor implements Processor {
             }
             ingestDocumentCopy.executePipeline(pipelineToCall, (result, e) -> {
                 // special handling for pipeline cycle errors
-                if (e instanceof ElasticsearchException && e.getCause() instanceof PipelineGraphStructureException) {
+                if (e instanceof ElasticsearchException && e.getCause() instanceof GraphStructureException) {
                     if (ignoreFailure) {
                         processorResultList.add(
                             new SimulateProcessorResult(

@@ -841,7 +841,7 @@ public final class IngestDocument {
                 handler.accept(result, e);
             });
         } else {
-            handler.accept(null, new PipelineGraphStructureException(PIPELINE_CYCLE_ERROR_MESSAGE + pipeline.getId()));
+            handler.accept(null, new GraphStructureException(PIPELINE_CYCLE_ERROR_MESSAGE + pipeline.getId()));
         }
     }
 

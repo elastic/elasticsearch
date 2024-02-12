@@ -52,7 +52,7 @@
       "dynamic_templates": [
         {
           "complex_attributes": {
-            "path_match": "*attributes.*",
+            "path_match": ["resource.attributes.*", "scope.attributes.*", "attributes.*"],
             "match_mapping_type": "object",
             "mapping": {
               "type": "flattened"

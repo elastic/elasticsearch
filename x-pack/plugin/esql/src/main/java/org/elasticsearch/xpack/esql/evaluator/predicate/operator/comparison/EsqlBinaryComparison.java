@@ -116,6 +116,7 @@ public abstract class EsqlBinaryComparison extends BinaryComparison implements E
         }
 
         if ((leftType.isNumeric() && rightType.isNumeric())
+            || (DataTypes.isString(leftType) && DataTypes.isString(rightType))
             || leftType.equals(rightType)
             || DataTypes.isNull(leftType)
             || DataTypes.isNull(rightType)) {

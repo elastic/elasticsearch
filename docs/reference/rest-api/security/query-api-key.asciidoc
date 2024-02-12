@@ -704,7 +704,7 @@ POST /_security/_query/api_key
 <3> Number of valid API keys expiring soon for user "king"
 <4> The names of soon-to-expire API keys for user "king"
 
-Correspondingly, to retrieve the invalidated (but not yet deleted) API keys,
+To retrieve the invalidated (but not yet deleted) API keys,
 grouped by owner username and API key name, issue the following request:
 
 ===== Request

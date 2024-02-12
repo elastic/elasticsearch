@@ -608,7 +608,13 @@ public class DeploymentManager {
         }
 
         private void finishClosingProcess(AtomicInteger startsCount, String reason) {
-            logger.warn("[{}] inference process failed after [{}] starts, not restarting again", task.getDeploymentId(), startsCount.get());
+            String logAndAuditMessage = "["
+                + task.getDeploymentId()
+                + "] inference process failed after ["
+                + startsCount.get()
+                + "] starts, not restarting again.";
+            logger.warn(logAndAuditMessage);
+            threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> systemAuditor.error(logAndAuditMessage));
             priorityProcessWorker.shutdownNowWithError(new IllegalStateException(reason));
             if (nlpTaskProcessor.get() != null) {
                 nlpTaskProcessor.get().close();

@@ -13,8 +13,6 @@ setup:
           is_native: false
           service_type: super-connector
 
----
-"Update Connector Configuration":
   - do:
       connector.update_configuration:
         connector_id: test-connector
@@ -38,9 +36,27 @@ setup:
                 - constraint: 0
                   type: greater_than
               value: 123
+            yet_another_field:
+              default_value: null
+              depends_on:
+                - field: some_field
+                  value: 31
+              display: numeric
+              label: Another important field
+              options: [ ]
+              order: 4
+              required: true
+              sensitive: false
+              tooltip: Wow, this tooltip is useful.
+              type: str
+              ui_restrictions: [ ]
+              validations:
+                - constraint: 0
+                  type: greater_than
+              value: "peace & love"
 
-
-  - match: { result: updated }
+---
+"Update Connector Configuration":
 
   - do:
       connector.get:
@@ -50,6 +66,7 @@ setup:
   - match: { configuration.some_field.sensitive: false }
   - match: { configuration.some_field.display: numeric }
   - match: { status: configured }
+  - match: { configuration.yet_another_field.value: "peace & love" }
 
 
   - do:
@@ -262,3 +279,117 @@ setup:
         connector_id: test-connector
 
   - match: { configuration.nextSyncConfig.value.max_crawl_depth: 3 }
+
+
+---
+"Update Connector Configuration - Clear configuration":
+  - do:
+      connector.update_configuration:
+        connector_id: test-connector
+        body:
+          configuration: {}
+
+  - match: { result: updated }
+
+  - do:
+      connector.get:
+        connector_id: test-connector
+
+  - match: { configuration: {} }
+
+
+---
+"Update Connector Configuration - Values Only":
+  - do:
+      connector.update_configuration:
+        connector_id: test-connector
+        body:
+          values:
+            some_field: 42
+            yet_another_field: 456
+
+  - match: { result: updated }
+
+  - do:
+      connector.get:
+        connector_id: test-connector
+
+  - match: { configuration.some_field.value: 42 }
+  - match: { configuration.some_field.label: Very important field }
+  - match: { configuration.yet_another_field.value: 456 }
+  - match: { configuration.yet_another_field.label: Another important field }
+
+
+---
+"Update Connector Configuration - Partial Values Update":
+  - do:
+      connector.update_configuration:
+        connector_id: test-connector
+        body:
+          values:
+            yet_another_field: 42
+
+  - match: { result: updated }
+
+  - do:
+      connector.get:
+        connector_id: test-connector
+
+  - match: { configuration.some_field.value: 123 }
+  - match: { configuration.yet_another_field.value: 42 }
+
+
+---
+"Update Connector Configuration - Update unknown field value":
+  - do:
+      catch: "bad_request"
+      connector.update_configuration:
+        connector_id: test-connector
+        body:
+          values:
+            field_not_present_in_config: 42
+
+  - match: { error.reason: "Unknown [configuration] fields in the request payload: [field_not_present_in_config]. Remove them from request or register their schema first." }
+
+
+---
+"Update Connector Configuration - 'configuration' and 'values' are both non-null":
+  - do:
+      catch: "bad_request"
+      connector.update_configuration:
+        connector_id: test-connector
+        body:
+          configuration:
+            yet_another_field:
+              default_value: null
+              depends_on:
+                - field: some_field
+                  value: 31
+              display: numeric
+              label: Another important field
+              options: [ ]
+              order: 4
+              required: true
+              sensitive: false
+              tooltip: Wow, this tooltip is useful.
+              type: str
+              ui_restrictions: [ ]
+              validations:
+                - constraint: 0
+                  type: greater_than
+              value: 42
+          values:
+            yet_another_field: 42
+
+  - match: { error.reason: "Validation Failed: 1: [configuration] and [values] cannot both be provided in the same request.;" }
+
+
+---
+"Update Connector Configuration - 'configuration' and 'values' are null":
+  - do:
+      catch: "bad_request"
+      connector.update_configuration:
+        connector_id: test-connector
+        body: {}
+
+  - match: { error.reason: "Validation Failed: 1: [configuration] and [values] cannot both be null.;" }

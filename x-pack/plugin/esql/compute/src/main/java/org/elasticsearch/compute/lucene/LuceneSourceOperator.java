@@ -165,7 +165,7 @@ public class LuceneSourceOperator extends LuceneOperator {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         } finally {
-            processNanos += System.nanoTime() - start;
+            processingNanos += System.nanoTime() - start;
         }
     }
 

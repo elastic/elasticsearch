@@ -148,7 +148,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
                 return collect();
             }
         } finally {
-            processNanos += System.nanoTime() - start;
+            processingNanos += System.nanoTime() - start;
         }
     }
 

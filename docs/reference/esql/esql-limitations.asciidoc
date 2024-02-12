@@ -74,6 +74,16 @@ values, with the exception of nested fields. Nested fields are not returned at
 all.
 
 [discrete]
+[[esql-_source-availability]]
+=== _source availability
+
+{esql} does not support configurations where the
+<<mapping-source-field,_source field>> is <<disable-source-field,disabled>>.
+
+experimental:[] {esql}'s support for <<synthetic-source,synthetic `_source`>>
+is currently experimental.
+
+[discrete]
 [[esql-limitations-full-text-search]]
 === Full-text search is not supported
 

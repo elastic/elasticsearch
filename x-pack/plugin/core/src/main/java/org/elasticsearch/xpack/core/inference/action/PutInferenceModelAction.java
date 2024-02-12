@@ -137,7 +137,7 @@ public class PutInferenceModelAction extends ActionType<PutInferenceModelAction.
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return model.toXContent(builder, params);
+            return model.toFilteredXContent(builder, params);
         }
 
         @Override

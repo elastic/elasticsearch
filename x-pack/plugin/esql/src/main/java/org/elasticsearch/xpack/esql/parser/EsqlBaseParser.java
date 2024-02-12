@@ -11,7 +11,7 @@ import java.util.ArrayList;
 
 @SuppressWarnings({"all", "warnings", "unchecked", "unused", "cast", "CheckReturnValue"})
 public class EsqlBaseParser extends Parser {
-  static { RuntimeMetaData.checkVersion("4.11.1", RuntimeMetaData.VERSION); }
+  static { RuntimeMetaData.checkVersion("4.13.1", RuntimeMetaData.VERSION); }
 
   protected static final DFA[] _decisionToDFA;
   protected static final PredictionContextCache _sharedContextCache =
@@ -146,7 +146,7 @@ public class EsqlBaseParser extends Parser {
   }
 
   @Override
-  public String getGrammarFileName() { return "java-escape"; }
+  public String getGrammarFileName() { return "EsqlBaseParser.g4"; }
 
   @Override
   public String[] getRuleNames() { return ruleNames; }
@@ -1344,7 +1344,7 @@ public class EsqlBaseParser extends Parser {
             setState(209);
             ((ArithmeticBinaryContext)_localctx).operator = _input.LT(1);
             _la = _input.LA(1);
-            if ( !(((_la) & ~0x3f) == 0 && ((1L << _la) & 8070450532247928832L) != 0) ) {
+            if ( !((((_la) & ~0x3f) == 0 && ((1L << _la) & 8070450532247928832L) != 0)) ) {
               ((ArithmeticBinaryContext)_localctx).operator = (Token)_errHandler.recoverInline(this);
             }
             else {
@@ -4166,7 +4166,7 @@ public class EsqlBaseParser extends Parser {
       {
       setState(467);
       _la = _input.LA(1);
-      if ( !(((_la) & ~0x3f) == 0 && ((1L << _la) & 285978576338026496L) != 0) ) {
+      if ( !((((_la) & ~0x3f) == 0 && ((1L << _la) & 285978576338026496L) != 0)) ) {
       _errHandler.recoverInline(this);
       }
       else {

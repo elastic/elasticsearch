@@ -6,7 +6,6 @@
           "name": "metrics"
         },
         "mapping": {
-          "ignore_malformed": true,
           "total_fields": {
             "ignore_dynamic_beyond_limit": true
           }

@@ -361,7 +361,7 @@ public class IndicesOptionsTests extends ESTestCase {
         assertThat(map.get("ignore_unavailable"), equalTo(concreteTargetOptions.allowUnavailableTargets()));
         assertThat(map.get("allow_no_indices"), equalTo(wildcardOptions.allowEmptyExpressions()));
         assertThat(map.get("ignore_throttled"), equalTo(generalOptions.ignoreThrottled()));
-        assertThat(map.get("include_failure_store"), equalTo(failureStoreOptions.displayValue()));
+        assertThat(map.get("failure_store"), equalTo(failureStoreOptions.displayValue()));
     }
 
     public void testFromXContent() throws IOException {

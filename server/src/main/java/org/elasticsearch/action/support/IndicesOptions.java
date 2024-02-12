@@ -389,7 +389,7 @@ public record IndicesOptions(
             Writeable,
             ToXContentFragment {
 
-        public static final String FAILURE_STORE_PARAM = "include_failure_store";
+        public static final String FAILURE_STORE = "failure_store";
         public static final String INCLUDE_ALL = "true";
         public static final String INCLUDE_ONLY_REGULAR_INDICES = "false";
         public static final String INCLUDE_ONLY_FAILURE_INDICES = "only";
@@ -411,13 +411,13 @@ public record IndicesOptions(
                 case INCLUDE_ALL -> builder.includeBackingIndices(true).includeFailureIndices(true).build();
                 case INCLUDE_ONLY_REGULAR_INDICES -> builder.includeBackingIndices(true).includeFailureIndices(false).build();
                 case INCLUDE_ONLY_FAILURE_INDICES -> builder.includeBackingIndices(false).includeFailureIndices(true).build();
-                default -> throw new IllegalArgumentException("No valid " + FAILURE_STORE_PARAM + " value [" + failureStoreValue + "]");
+                default -> throw new IllegalArgumentException("No valid " + FAILURE_STORE + " value [" + failureStoreValue + "]");
             };
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return builder.field(FAILURE_STORE_PARAM, displayValue());
+            return builder.field(FAILURE_STORE, displayValue());
         }
 
         public String displayValue() {
@@ -992,6 +992,9 @@ public record IndicesOptions(
             request.param(ConcreteTargetOptions.IGNORE_UNAVAILABLE),
             request.param(WildcardOptions.ALLOW_NO_INDICES),
             request.param(GeneralOptions.IGNORE_THROTTLED),
+            DataStream.isFailureStoreEnabled()
+                ? request.param(FailureStoreOptions.FAILURE_STORE)
+                : FailureStoreOptions.INCLUDE_ONLY_REGULAR_INDICES,
             defaultSettings
         );
     }
@@ -1005,9 +1008,9 @@ public record IndicesOptions(
                     : map.get("ignoreUnavailable"),
                 map.containsKey(WildcardOptions.ALLOW_NO_INDICES) ? map.get(WildcardOptions.ALLOW_NO_INDICES) : map.get("allowNoIndices"),
                 map.containsKey(GeneralOptions.IGNORE_THROTTLED) ? map.get(GeneralOptions.IGNORE_THROTTLED) : map.get("ignoreThrottled"),
-                map.containsKey(FailureStoreOptions.FAILURE_STORE_PARAM)
-                    ? map.get(FailureStoreOptions.FAILURE_STORE_PARAM)
-                    : map.get("includeFailureStore"),
+                map.containsKey(FailureStoreOptions.FAILURE_STORE)
+                    ? map.get(FailureStoreOptions.FAILURE_STORE)
+                    : map.get("failureStore"),
                 defaultSettings
             );
         }
@@ -1035,7 +1038,7 @@ public record IndicesOptions(
             || "ignoreThrottled".equals(name)
             || WildcardOptions.ALLOW_NO_INDICES.equals(name)
             || "allowNoIndices".equals(name)
-            || (DataStream.isFailureStoreEnabled() && FailureStoreOptions.FAILURE_STORE_PARAM.equals(name))
+            || (DataStream.isFailureStoreEnabled() && FailureStoreOptions.FAILURE_STORE.equals(name))
             || (DataStream.isFailureStoreEnabled() && "includeFailureStore".equals(name));
     }
 
@@ -1095,7 +1098,7 @@ public record IndicesOptions(
     private static final ParseField IGNORE_UNAVAILABLE_FIELD = new ParseField(ConcreteTargetOptions.IGNORE_UNAVAILABLE);
     private static final ParseField IGNORE_THROTTLED_FIELD = new ParseField(GeneralOptions.IGNORE_THROTTLED).withAllDeprecated();
     private static final ParseField ALLOW_NO_INDICES_FIELD = new ParseField(WildcardOptions.ALLOW_NO_INDICES);
-    private static final ParseField FAILURE_STORE_FIELD = new ParseField(FailureStoreOptions.FAILURE_STORE_PARAM);
+    private static final ParseField FAILURE_STORE_FIELD = new ParseField(FailureStoreOptions.FAILURE_STORE);
 
     public static IndicesOptions fromXContent(XContentParser parser) throws IOException {
         return fromXContent(parser, null);

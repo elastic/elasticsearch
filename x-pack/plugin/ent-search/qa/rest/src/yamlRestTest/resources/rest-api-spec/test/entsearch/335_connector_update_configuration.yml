@@ -350,3 +350,46 @@ setup:
             field_not_present_in_config: 42
 
   - match: { error.reason: "Unknown [configuration] fields in the request payload: [field_not_present_in_config]. Remove them from request or register their schema first." }
+
+
+---
+"Update Connector Configuration - 'configuration' and 'values' are both non-null":
+  - do:
+      catch: "bad_request"
+      connector.update_configuration:
+        connector_id: test-connector
+        body:
+          configuration:
+            yet_another_field:
+              default_value: null
+              depends_on:
+                - field: some_field
+                  value: 31
+              display: numeric
+              label: Another important field
+              options: [ ]
+              order: 4
+              required: true
+              sensitive: false
+              tooltip: Wow, this tooltip is useful.
+              type: str
+              ui_restrictions: [ ]
+              validations:
+                - constraint: 0
+                  type: greater_than
+              value: 42
+          values:
+            yet_another_field: 42
+
+  - match: { error.reason: "Validation Failed: 1: [configuration] and [values] cannot both be provided in the same request.;" }
+
+
+---
+"Update Connector Configuration - 'configuration' and 'values' are null":
+  - do:
+      catch: "bad_request"
+      connector.update_configuration:
+        connector_id: test-connector
+        body: {}
+
+  - match: { error.reason: "Validation Failed: 1: [configuration] and [values] cannot both be null.;" }

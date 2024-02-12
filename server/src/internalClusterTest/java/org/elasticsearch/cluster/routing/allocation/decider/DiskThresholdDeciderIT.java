@@ -114,7 +114,11 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
         internalCluster().getCurrentMasterNodeInstance(ClusterService.class).addListener(event -> {
             ClusterInfoServiceUtils.refresh(clusterInfoService);
             if (allowRelocations.get() == false) {
-                assertThat(numberOfShardsWithState(event.state().getRoutingNodes(), ShardRoutingState.RELOCATING), equalTo(0));
+                assertThat(
+                    "Expects no relocating shards but got: " + event.state().getRoutingNodes(),
+                    numberOfShardsWithState(event.state().getRoutingNodes(), ShardRoutingState.RELOCATING),
+                    equalTo(0)
+                );
             }
         });
 
@@ -173,7 +177,11 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
         internalCluster().getCurrentMasterNodeInstance(ClusterService.class).addListener(event -> {
             ClusterInfoServiceUtils.refresh(clusterInfoService);
             if (allowRelocations.get() == false) {
-                assertThat(numberOfShardsWithState(event.state().getRoutingNodes(), ShardRoutingState.RELOCATING), equalTo(0));
+                assertThat(
+                    "Expects no relocating shards but got: " + event.state().getRoutingNodes(),
+                    numberOfShardsWithState(event.state().getRoutingNodes(), ShardRoutingState.RELOCATING),
+                    equalTo(0)
+                );
             }
         });
 

@@ -18,7 +18,6 @@ dependencies {
   compileOnly project(path: xpackModule('core'))
   compileOnly project(":server")
   testImplementation(testArtifact(project(xpackModule('core'))))
-  testImplementation(project(":client:rest-high-level"))
 }
 
 if (BuildParams.isSnapshotBuild() == false) {

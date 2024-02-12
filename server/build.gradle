@@ -155,7 +155,13 @@ tasks.register('testNetworkTraceNotEnabled', Test) {
   testClassesDirs = testing.suites.test.sources.output.classesDirs
   classpath = testing.suites.test.sources.runtimeClasspath
 
-  include '**/LoggersTests.*', '**/ClusterUpdateSettingsRequestTests.*'
+  filter {
+    //include specific method in any of the tests
+    includeTestsMatching "org.elasticsearch.common.logging.LoggersTests.testCheckRestrictedLoggers"
+    includeTestsMatching "org.elasticsearch.common.logging.LoggersTests.testSetLevelWithRestrictions"
+    includeTestsMatching "org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequestTests.testValidateLoggers"
+  }
+
   // do not enable TRACE_ENABLED
   systemProperties.remove('es.insecure_network_trace_enabled')
 }

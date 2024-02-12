@@ -24,6 +24,7 @@ import org.elasticsearch.index.query.WildcardQueryBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
@@ -175,7 +176,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         mapper = new Mapper(functionRegistry);
         // Most tests used data from the test index, so we load it here, and use it in the plan() function.
         mapping = loadMapping("mapping-basic.json");
-        EsIndex test = new EsIndex("test", mapping);
+        EsIndex test = new EsIndex("test", mapping, Set.of("test"));
         IndexResolution getIndexResult = IndexResolution.valid(test);
         var enrichResolution = setupEnrichResolution();
         analyzer = new Analyzer(new AnalyzerContext(config, functionRegistry, getIndexResult, enrichResolution), TEST_VERIFIER);
@@ -193,7 +194,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         // Some tests use data from the airports index, so we load it here, and use it in the plan_airports() function.
         mappingAirports = loadMapping("mapping-airports.json");
-        EsIndex airports = new EsIndex("airports", mappingAirports);
+        EsIndex airports = new EsIndex("airports", mappingAirports, Set.of("airports"));
         IndexResolution getIndexResultAirports = IndexResolution.valid(airports);
         analyzerAirports = new Analyzer(
             new AnalyzerContext(config, functionRegistry, getIndexResultAirports, enrichResolution),
@@ -240,6 +241,17 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             )
         );
         enrichResolution.addResolvedPolicy(
+            "departments",
+            Enrich.Mode.REMOTE,
+            new ResolvedEnrichPolicy(
+                "employee_id",
+                EnrichPolicy.MATCH_TYPE,
+                List.of("department"),
+                Map.of("cluster_1", ".enrich-departments-2"),
+                Map.of("department", new EsField("department", DataTypes.KEYWORD, Map.of(), true))
+            )
+        );
+        enrichResolution.addResolvedPolicy(
             "supervisors",
             Enrich.Mode.ANY,
             new ResolvedEnrichPolicy(
@@ -258,6 +270,17 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 EnrichPolicy.MATCH_TYPE,
                 List.of("supervisor"),
                 Map.of("", ".enrich-supervisors-c"),
+                Map.of("supervisor", new EsField("supervisor", DataTypes.KEYWORD, Map.of(), true))
+            )
+        );
+        enrichResolution.addResolvedPolicy(
+            "supervisors",
+            Enrich.Mode.REMOTE,
+            new ResolvedEnrichPolicy(
+                "department",
+                EnrichPolicy.MATCH_TYPE,
+                List.of("supervisor"),
+                Map.of("cluster_1", ".enrich-supervisors-b"),
                 Map.of("supervisor", new EsField("supervisor", DataTypes.KEYWORD, Map.of(), true))
             )
         );
@@ -1716,7 +1739,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
     public void testPushDownMetadataIndexInWildcard() {
         var plan = physicalPlan("""
-            from test [metadata _index]
+            from test metadata _index
             | where _index like "test*"
             """);
 
@@ -1743,7 +1766,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      */
     public void testPushDownMetadataIndexInEquality() {
         var plan = physicalPlan("""
-            from test [metadata _index]
+            from test metadata _index
             | where _index == "test"
             """);
 
@@ -1770,7 +1793,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      */
     public void testPushDownMetadataIndexInNotEquality() {
         var plan = physicalPlan("""
-            from test [metadata _index]
+            from test metadata _index
             | where _index != "test"
             """);
 
@@ -1807,7 +1830,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             tuple("<=", LessThanOrEqual.class)
             // no NullEquals use
         )) {
-            var plan = physicalPlan("from test [metadata _index] | where _index " + t.v1() + " \"test\"");
+            var plan = physicalPlan("from test metadata _index | where _index " + t.v1() + " \"test\"");
 
             var optimized = optimizedPlan(plan);
             var limit = as(optimized, LimitExec.class);
@@ -1828,7 +1851,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
     public void testDontPushDownMetadataVersionAndId() {
         for (var t : List.of(tuple("_version", "2"), tuple("_id", "\"2\""))) {
-            var plan = physicalPlan("from test [metadata " + t.v1() + "] | where " + t.v1() + " == " + t.v2());
+            var plan = physicalPlan("from test metadata " + t.v1() + " | where " + t.v1() + " == " + t.v2());
 
             var optimized = optimizedPlan(plan);
             var limit = as(optimized, LimitExec.class);
@@ -2725,7 +2748,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             var plan = physicalPlan("""
                 from test
                 | eval employee_id = to_str(emp_no)
-                | ENRICH[ccq.mode:any] departments
+                | ENRICH _any:departments
                 | STATS size=count(*) BY department""");
             var limit = as(plan, LimitExec.class);
             var finalAggs = as(limit.child(), AggregateExec.class);
@@ -2743,7 +2766,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             var plan = physicalPlan("""
                 from test
                 | eval employee_id = to_str(emp_no)
-                | ENRICH[ccq.mode:coordinator] departments
+                | ENRICH _coordinator:departments
                 | STATS size=count(*) BY department""");
             var limit = as(plan, LimitExec.class);
             var finalAggs = as(limit.child(), AggregateExec.class);
@@ -2758,6 +2781,75 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             var eval = as(fragment.fragment(), Eval.class);
             as(eval.child(), EsRelation.class);
         }
+        {
+            var plan = physicalPlan("""
+                from test
+                | eval employee_id = to_str(emp_no)
+                | ENRICH _remote:departments
+                | STATS size=count(*) BY department""");
+            var limit = as(plan, LimitExec.class);
+            var finalAggs = as(limit.child(), AggregateExec.class);
+            assertThat(finalAggs.getMode(), equalTo(FINAL));
+            var exchange = as(finalAggs.child(), ExchangeExec.class);
+            var fragment = as(exchange.child(), FragmentExec.class);
+            var partialAggs = as(fragment.fragment(), Aggregate.class);
+            var enrich = as(partialAggs.child(), Enrich.class);
+            assertThat(enrich.mode(), equalTo(Enrich.Mode.REMOTE));
+            assertThat(enrich.concreteIndices(), equalTo(Map.of("cluster_1", ".enrich-departments-2")));
+            var eval = as(enrich.child(), Eval.class);
+            as(eval.child(), EsRelation.class);
+        }
+    }
+
+    public void testEnrichAfterAggregation() {
+        {
+            var plan = physicalPlan("""
+                from test
+                | STATS size=count(*) BY emp_no
+                | eval employee_id = to_str(emp_no)
+                | ENRICH _any:departments
+                """);
+            var enrich = as(plan, EnrichExec.class);
+            assertThat(enrich.mode(), equalTo(Enrich.Mode.ANY));
+            assertThat(enrich.concreteIndices(), equalTo(Map.of("", ".enrich-departments-1", "cluster_1", ".enrich-departments-2")));
+            var eval = as(enrich.child(), EvalExec.class);
+            var limit = as(eval.child(), LimitExec.class);
+            var finalAggs = as(limit.child(), AggregateExec.class);
+            assertThat(finalAggs.getMode(), equalTo(FINAL));
+            var exchange = as(finalAggs.child(), ExchangeExec.class);
+            var fragment = as(exchange.child(), FragmentExec.class);
+            var partialAggs = as(fragment.fragment(), Aggregate.class);
+            as(partialAggs.child(), EsRelation.class);
+        }
+        {
+            var plan = physicalPlan("""
+                from test
+                | STATS size=count(*) BY emp_no
+                | eval employee_id = to_str(emp_no)
+                | ENRICH _coordinator:departments
+                """);
+            var enrich = as(plan, EnrichExec.class);
+            assertThat(enrich.mode(), equalTo(Enrich.Mode.COORDINATOR));
+            assertThat(enrich.concreteIndices(), equalTo(Map.of("", ".enrich-departments-3")));
+            var eval = as(enrich.child(), EvalExec.class);
+            var limit = as(eval.child(), LimitExec.class);
+            var finalAggs = as(limit.child(), AggregateExec.class);
+            assertThat(finalAggs.getMode(), equalTo(FINAL));
+            var exchange = as(finalAggs.child(), ExchangeExec.class);
+            var fragment = as(exchange.child(), FragmentExec.class);
+            var partialAggs = as(fragment.fragment(), Aggregate.class);
+            as(partialAggs.child(), EsRelation.class);
+        }
+    }
+
+    public void testAggThenEnrichRemote() {
+        var error = expectThrows(VerificationException.class, () -> physicalPlan("""
+            from test
+            | STATS size=count(*) BY emp_no
+            | eval employee_id = to_str(emp_no)
+            | ENRICH _remote:departments
+            """));
+        assertThat(error.getMessage(), containsString("line 4:3: ENRICH with remote policy can't be executed after STATS"));
     }
 
     public void testEnrichBeforeLimit() {
@@ -2765,7 +2857,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             var plan = physicalPlan("""
                 FROM test
                 | EVAL employee_id = to_str(emp_no)
-                | ENRICH[ccq.mode:any] departments
+                | ENRICH _any:departments
                 | LIMIT 10""");
             var enrich = as(plan, EnrichExec.class);
             assertThat(enrich.mode(), equalTo(Enrich.Mode.ANY));
@@ -2781,8 +2873,61 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             var plan = physicalPlan("""
                 FROM test
                 | EVAL employee_id = to_str(emp_no)
-                | ENRICH[ccq.mode:coordinator] departments
+                | ENRICH _coordinator:departments
                 | LIMIT 10""");
+            var enrich = as(plan, EnrichExec.class);
+            assertThat(enrich.mode(), equalTo(Enrich.Mode.COORDINATOR));
+            assertThat(enrich.concreteIndices(), equalTo(Map.of("", ".enrich-departments-3")));
+            var eval = as(enrich.child(), EvalExec.class);
+            var finalLimit = as(eval.child(), LimitExec.class);
+            var exchange = as(finalLimit.child(), ExchangeExec.class);
+            var fragment = as(exchange.child(), FragmentExec.class);
+            var partialLimit = as(fragment.fragment(), Limit.class);
+            as(partialLimit.child(), EsRelation.class);
+        }
+        {
+            var plan = physicalPlan("""
+                FROM test
+                | EVAL employee_id = to_str(emp_no)
+                | ENRICH _remote:departments
+                | LIMIT 10""");
+            var enrich = as(plan, EnrichExec.class);
+            assertThat(enrich.mode(), equalTo(Enrich.Mode.REMOTE));
+            assertThat(enrich.concreteIndices(), equalTo(Map.of("cluster_1", ".enrich-departments-2")));
+            var eval = as(enrich.child(), EvalExec.class);
+            var finalLimit = as(eval.child(), LimitExec.class);
+            var exchange = as(finalLimit.child(), ExchangeExec.class);
+            var fragment = as(exchange.child(), FragmentExec.class);
+            var partialLimit = as(fragment.fragment(), Limit.class);
+            as(partialLimit.child(), EsRelation.class);
+        }
+    }
+
+    public void testLimitThenEnrich() {
+        {
+            var plan = physicalPlan("""
+                FROM test
+                | LIMIT 10
+                | EVAL employee_id = to_str(emp_no)
+                | ENRICH _any:departments
+                """);
+            var enrich = as(plan, EnrichExec.class);
+            assertThat(enrich.mode(), equalTo(Enrich.Mode.ANY));
+            assertThat(enrich.concreteIndices(), equalTo(Map.of("", ".enrich-departments-1", "cluster_1", ".enrich-departments-2")));
+            var eval = as(enrich.child(), EvalExec.class);
+            var finalLimit = as(eval.child(), LimitExec.class);
+            var exchange = as(finalLimit.child(), ExchangeExec.class);
+            var fragment = as(exchange.child(), FragmentExec.class);
+            var partialLimit = as(fragment.fragment(), Limit.class);
+            as(partialLimit.child(), EsRelation.class);
+        }
+        {
+            var plan = physicalPlan("""
+                FROM test
+                | LIMIT 10
+                | EVAL employee_id = to_str(emp_no)
+                | ENRICH _coordinator:departments
+                """);
             var enrich = as(plan, EnrichExec.class);
             assertThat(enrich.mode(), equalTo(Enrich.Mode.COORDINATOR));
             assertThat(enrich.concreteIndices(), equalTo(Map.of("", ".enrich-departments-3")));
@@ -2795,12 +2940,22 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         }
     }
 
+    public void testLimitThenEnrichRemote() {
+        var error = expectThrows(VerificationException.class, () -> physicalPlan("""
+            FROM test
+            | LIMIT 10
+            | EVAL employee_id = to_str(emp_no)
+            | ENRICH _remote:departments
+            """));
+        assertThat(error.getMessage(), containsString("line 4:3: ENRICH with remote policy can't be executed after LIMIT"));
+    }
+
     public void testEnrichBeforeTopN() {
         {
             var plan = physicalPlan("""
                 FROM test
                 | EVAL employee_id = to_str(emp_no)
-                | ENRICH[ccq.mode:any] departments
+                | ENRICH _any:departments
                 | SORT department
                 | LIMIT 10""");
             var topN = as(plan, TopNExec.class);
@@ -2817,7 +2972,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             var plan = physicalPlan("""
                 FROM test
                 | EVAL employee_id = to_str(emp_no)
-                | ENRICH[ccq.mode:coordinator] departments
+                | ENRICH _coordinator:departments
                 | SORT department
                 | LIMIT 10""");
             var topN = as(plan, TopNExec.class);
@@ -2829,6 +2984,23 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             var eval = as(fragment.fragment(), Eval.class);
             as(eval.child(), EsRelation.class);
         }
+        {
+            var plan = physicalPlan("""
+                FROM test
+                | EVAL employee_id = to_str(emp_no)
+                | ENRICH _remote:departments
+                | SORT department
+                | LIMIT 10""");
+            var topN = as(plan, TopNExec.class);
+            var exchange = as(topN.child(), ExchangeExec.class);
+            var fragment = as(exchange.child(), FragmentExec.class);
+            var partialTopN = as(fragment.fragment(), TopN.class);
+            var enrich = as(partialTopN.child(), Enrich.class);
+            assertThat(enrich.mode(), equalTo(Enrich.Mode.REMOTE));
+            assertThat(enrich.concreteIndices(), equalTo(Map.of("cluster_1", ".enrich-departments-2")));
+            var eval = as(enrich.child(), Eval.class);
+            as(eval.child(), EsRelation.class);
+        }
     }
 
     public void testEnrichAfterTopN() {
@@ -2838,7 +3010,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 | SORT emp_no
                 | LIMIT 10
                 | EVAL employee_id = to_str(emp_no)
-                | ENRICH[ccq.mode:any] departments
+                | ENRICH _any:departments
                 """);
             var enrich = as(plan, EnrichExec.class);
             assertThat(enrich.mode(), equalTo(Enrich.Mode.ANY));
@@ -2856,7 +3028,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 | SORT emp_no
                 | LIMIT 10
                 | EVAL employee_id = to_str(emp_no)
-                | ENRICH[ccq.mode:coordinator] departments
+                | ENRICH _coordinator:departments
                 """);
             var enrich = as(plan, EnrichExec.class);
             assertThat(enrich.mode(), equalTo(Enrich.Mode.COORDINATOR));
@@ -2875,10 +3047,10 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             var plan = physicalPlan("""
                 FROM test
                 | EVAL employee_id = to_str(emp_no)
-                | ENRICH[ccq.mode:any] departments
+                | ENRICH _any:departments
                 | SORT emp_no
                 | LIMIT 100
-                | ENRICH[ccq.mode:any] supervisors
+                | ENRICH _any:supervisors
                 | STATS teams=count(*) BY supervisor
                 """);
             var limit = as(plan, LimitExec.class);
@@ -2901,10 +3073,10 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             var plan = physicalPlan("""
                 from test
                 | eval employee_id = to_str(emp_no)
-                | ENRICH[ccq.mode:any] departments
+                | ENRICH _any:departments
                 | SORT emp_no
                 | LIMIT 100
-                | ENRICH[ccq.mode:coordinator] supervisors
+                | ENRICH _coordinator:supervisors
                 | STATS teams=count(*) BY supervisor
                 """);
             var limit = as(plan, LimitExec.class);
@@ -2927,10 +3099,10 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             var plan = physicalPlan("""
                 from test
                 | eval employee_id = to_str(emp_no)
-                | ENRICH[ccq.mode:coordinator] departments
+                | ENRICH _coordinator:departments
                 | SORT emp_no
                 | LIMIT 100
-                | ENRICH[ccq.mode:any] supervisors
+                | ENRICH _any:supervisors
                 | STATS teams=count(*) BY supervisor
                 """);
             var limit = as(plan, LimitExec.class);
@@ -2952,10 +3124,10 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             var plan = physicalPlan("""
                 from test
                 | eval employee_id = to_str(emp_no)
-                | ENRICH[ccq.mode:coordinator] departments
+                | ENRICH _coordinator:departments
                 | SORT emp_no
                 | LIMIT 100
-                | ENRICH[ccq.mode:any] supervisors
+                | ENRICH _any:supervisors
                 | STATS teams=count(*) BY supervisor
                 """);
             var limit = as(plan, LimitExec.class);
@@ -2973,6 +3145,19 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             var eval = as(fragment.fragment(), Eval.class);
             as(eval.child(), EsRelation.class);
         }
+    }
+
+    public void testRejectRemoteEnrichAfterCoordinatorEnrich() {
+        var error = expectThrows(VerificationException.class, () -> physicalPlan("""
+            from test
+            | eval employee_id = to_str(emp_no)
+            | ENRICH _coordinator:departments
+            | ENRICH _remote:supervisors
+            """));
+        assertThat(
+            error.getMessage(),
+            containsString("ENRICH with remote policy can't be executed after another ENRICH with coordinator policy")
+        );
     }
 
     @SuppressWarnings("SameParameterValue")

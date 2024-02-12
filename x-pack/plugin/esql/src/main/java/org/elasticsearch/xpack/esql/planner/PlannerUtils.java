@@ -21,8 +21,6 @@ import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizer;
-import org.elasticsearch.xpack.esql.plan.logical.Enrich;
-import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
@@ -72,19 +70,6 @@ public class PlannerUtils {
             return new ExchangeSourceExec(e.source(), e.output(), e.isInBetweenAggs());
         });
         return new Tuple<>(coordinatorPlan, dataNodePlan.get());
-    }
-
-    public static boolean hasUnsupportedEnrich(PhysicalPlan plan) {
-        boolean[] found = { false };
-        plan.forEachDown(p -> {
-            if (p instanceof EnrichExec enrich && enrich.mode() == Enrich.Mode.REMOTE) {
-                found[0] = true;
-            }
-            if (p instanceof FragmentExec f) {
-                f.fragment().forEachDown(Enrich.class, e -> found[0] |= e.mode() == Enrich.Mode.REMOTE);
-            }
-        });
-        return found[0];
     }
 
     /**

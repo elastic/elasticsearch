@@ -30,11 +30,13 @@ import org.elasticsearch.xpack.core.scheduler.Cron;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
@@ -238,8 +240,16 @@ public final class ConnectorTestUtils {
 
     public static Map<String, ConnectorConfiguration> getRandomConnectorConfiguration() {
         Map<String, ConnectorConfiguration> configMap = new HashMap<>();
-        for (int i = 0; i < 3; i++) {
+        for (int i = 0; i < 5; i++) {
             configMap.put(randomAlphaOfLength(10), getRandomConnectorConfigurationField());
+        }
+        return configMap;
+    }
+
+    public static Map<String, Object> getRandomConnectorConfigurationValues() {
+        Map<String, Object> configMap = new HashMap<>();
+        for (int i = 0; i < 5; i++) {
+            configMap.put(randomAlphaOfLength(10), randomFrom(randomAlphaOfLengthBetween(3, 10), randomInt(), randomBoolean()));
         }
         return configMap;
     }
@@ -262,7 +272,7 @@ public final class ConnectorTestUtils {
             .setName(randomFrom(new String[] { null, randomAlphaOfLength(10) }))
             .setPipeline(randomBoolean() ? getRandomConnectorIngestPipeline() : null)
             .setScheduling(getRandomConnectorScheduling())
-            .setStatus(getRandomConnectorStatus())
+            .setStatus(getRandomConnectorInitialStatus())
             .setSyncCursor(randomBoolean() ? Map.of(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLengthBetween(5, 10)) : null)
             .setSyncNow(randomBoolean())
             .build();
@@ -344,7 +354,23 @@ public final class ConnectorTestUtils {
         return values[randomInt(values.length - 1)];
     }
 
-    private static ConnectorStatus getRandomConnectorStatus() {
+    public static ConnectorStatus getRandomConnectorInitialStatus() {
+        return randomFrom(ConnectorStatus.CREATED, ConnectorStatus.NEEDS_CONFIGURATION);
+    }
+
+    public static ConnectorStatus getRandomConnectorNextStatus(ConnectorStatus connectorStatus) {
+        return randomFrom(ConnectorStateMachine.validNextStates(connectorStatus));
+    }
+
+    public static ConnectorStatus getRandomInvalidConnectorNextStatus(ConnectorStatus connectorStatus) {
+        Set<ConnectorStatus> validNextStatus = ConnectorStateMachine.validNextStates(connectorStatus);
+        List<ConnectorStatus> invalidStatuses = Arrays.stream(ConnectorStatus.values())
+            .filter(status -> validNextStatus.contains(status) == false)
+            .toList();
+        return randomFrom(invalidStatuses);
+    }
+
+    public static ConnectorStatus getRandomConnectorStatus() {
         ConnectorStatus[] values = ConnectorStatus.values();
         return values[randomInt(values.length - 1)];
     }

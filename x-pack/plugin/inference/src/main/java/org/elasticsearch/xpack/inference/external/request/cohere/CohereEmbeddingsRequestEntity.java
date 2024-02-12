@@ -31,6 +31,8 @@ public record CohereEmbeddingsRequestEntity(
 
     private static final String SEARCH_DOCUMENT = "search_document";
     private static final String SEARCH_QUERY = "search_query";
+    private static final String CLUSTERING = "clustering";
+    private static final String CLASSIFICATION = "classification";
 
     private static final String TEXTS_FIELD = "texts";
 
@@ -47,7 +49,7 @@ public record CohereEmbeddingsRequestEntity(
         builder.startObject();
         builder.field(TEXTS_FIELD, input);
         if (model != null) {
-            builder.field(CohereServiceSettings.MODEL, model);
+            builder.field(CohereServiceSettings.OLD_MODEL_ID_FIELD, model);
         }
 
         if (taskSettings.getInputType() != null) {
@@ -71,6 +73,8 @@ public record CohereEmbeddingsRequestEntity(
         return switch (inputType) {
             case INGEST -> SEARCH_DOCUMENT;
             case SEARCH -> SEARCH_QUERY;
+            case CLASSIFICATION -> CLASSIFICATION;
+            case CLUSTERING -> CLUSTERING;
             default -> {
                 assert false : invalidInputTypeMessage(inputType);
                 yield null;

@@ -46,7 +46,7 @@ public final class DfsSearchResult extends SearchPhaseResult {
         } else {
             terms = new Term[termsSize];
             for (int i = 0; i < terms.length; i++) {
-                terms[i] = new Term(in.readString(), in.readBytesRef());
+                terms[i] = new Term(in.readString(), in.readSlicedBytesReference().toBytesRef());
             }
         }
         this.termStatistics = readTermStats(in, terms);

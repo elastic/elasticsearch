@@ -8,17 +8,21 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 
 public class DeleteByQueryRequestBuilder extends AbstractBulkByScrollRequestBuilder<DeleteByQueryRequest, DeleteByQueryRequestBuilder> {
+
+    private Boolean abortOnVersionConflict;
 
     public DeleteByQueryRequestBuilder(ElasticsearchClient client) {
         this(client, new SearchRequestBuilder(client));
     }
 
     private DeleteByQueryRequestBuilder(ElasticsearchClient client, SearchRequestBuilder search) {
-        super(client, DeleteByQueryAction.INSTANCE, search, new DeleteByQueryRequest(search.request()));
+        super(client, DeleteByQueryAction.INSTANCE, search);
+        source().setFetchSource(false);
     }
 
     @Override
@@ -28,7 +32,33 @@ public class DeleteByQueryRequestBuilder extends AbstractBulkByScrollRequestBuil
 
     @Override
     public DeleteByQueryRequestBuilder abortOnVersionConflict(boolean abortOnVersionConflict) {
-        request.setAbortOnVersionConflict(abortOnVersionConflict);
+        this.abortOnVersionConflict = abortOnVersionConflict;
         return this;
+    }
+
+    @Override
+    public DeleteByQueryRequest request() {
+        SearchRequest search = source().request();
+        try {
+            DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest(search, false);
+            try {
+                apply(deleteByQueryRequest);
+                return deleteByQueryRequest;
+            } catch (Exception e) {
+                deleteByQueryRequest.decRef();
+                throw e;
+            }
+        } catch (Exception e) {
+            search.decRef();
+            throw e;
+        }
+    }
+
+    @Override
+    public void apply(DeleteByQueryRequest request) {
+        super.apply(request);
+        if (abortOnVersionConflict != null) {
+            request.setAbortOnVersionConflict(abortOnVersionConflict);
+        }
     }
 }

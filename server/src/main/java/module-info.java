@@ -20,6 +20,7 @@ module org.elasticsearch.server {
 
     requires org.elasticsearch.cli;
     requires org.elasticsearch.base;
+    requires org.elasticsearch.nativeaccess;
     requires org.elasticsearch.geo;
     requires org.elasticsearch.lz4;
     requires org.elasticsearch.pluginclassloader;
@@ -228,6 +229,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.gateway;
     exports org.elasticsearch.health;
     exports org.elasticsearch.health.node;
+    exports org.elasticsearch.health.node.tracker;
     exports org.elasticsearch.health.node.selection;
     exports org.elasticsearch.health.stats;
     exports org.elasticsearch.http;
@@ -325,6 +327,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.search.aggregations;
     exports org.elasticsearch.search.aggregations.bucket;
     exports org.elasticsearch.search.aggregations.bucket.composite;
+    exports org.elasticsearch.search.aggregations.bucket.countedterms;
     exports org.elasticsearch.search.aggregations.bucket.filter;
     exports org.elasticsearch.search.aggregations.bucket.geogrid;
     exports org.elasticsearch.search.aggregations.bucket.global;
@@ -425,10 +428,15 @@ module org.elasticsearch.server {
             org.elasticsearch.index.codec.bloomfilter.ES87BloomFilterPostingsFormat,
             org.elasticsearch.index.codec.postings.ES812PostingsFormat;
     provides org.apache.lucene.codecs.DocValuesFormat with ES87TSDBDocValuesFormat;
+    provides org.apache.lucene.codecs.KnnVectorsFormat
+        with
+            org.elasticsearch.index.codec.vectors.ES813FlatVectorFormat,
+            org.elasticsearch.index.codec.vectors.ES813Int8FlatVectorFormat;
 
     exports org.elasticsearch.cluster.routing.allocation.shards
         to
             org.elasticsearch.shardhealth,
             org.elasticsearch.serverless.shardhealth,
             org.elasticsearch.serverless.apifiltering;
+    exports org.elasticsearch.lucene.spatial;
 }

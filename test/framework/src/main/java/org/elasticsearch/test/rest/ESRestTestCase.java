@@ -1899,20 +1899,36 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     protected static Map<String, Object> getAsMap(final String endpoint) throws IOException {
-        return getAsMap(client(), endpoint);
+        return getAsMap(client(), endpoint, false);
+    }
+
+    protected static Map<String, Object> getAsOrderedMap(final String endpoint) throws IOException {
+        return getAsMap(client(), endpoint, true);
     }
 
     protected static Map<String, Object> getAsMap(RestClient client, final String endpoint) throws IOException {
+        return getAsMap(client, endpoint, false);
+    }
+
+    private static Map<String, Object> getAsMap(RestClient client, final String endpoint, final boolean ordered) throws IOException {
         Response response = client.performRequest(new Request("GET", endpoint));
-        return responseAsMap(response);
+        return responseAsMap(response, ordered);
     }
 
     protected static Map<String, Object> responseAsMap(Response response) throws IOException {
+        return responseAsMap(response, false);
+    }
+
+    protected static Map<String, Object> responseAsOrderedMap(Response response) throws IOException {
+        return responseAsMap(response, true);
+    }
+
+    private static Map<String, Object> responseAsMap(Response response, boolean ordered) throws IOException {
         XContentType entityContentType = XContentType.fromMediaType(response.getEntity().getContentType().getValue());
         Map<String, Object> responseEntity = XContentHelper.convertToMap(
             entityContentType.xContent(),
             response.getEntity().getContent(),
-            false
+            ordered
         );
         assertNotNull(responseEntity);
         return responseEntity;

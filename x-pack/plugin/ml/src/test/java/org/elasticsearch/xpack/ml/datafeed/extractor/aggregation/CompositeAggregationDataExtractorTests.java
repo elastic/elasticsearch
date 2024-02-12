@@ -6,13 +6,16 @@
  */
 package org.elasticsearch.xpack.ml.datafeed.extractor.aggregation;
 
-import org.elasticsearch.action.ActionRequestBuilder;
+import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -26,12 +29,12 @@ import org.elasticsearch.search.aggregations.bucket.composite.InternalComposite;
 import org.elasticsearch.search.aggregations.bucket.composite.TermsValuesSourceBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
-import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter.DatafeedTimingStatsPersister;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 import org.junit.Before;
+import org.mockito.ArgumentCaptor;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -55,13 +58,16 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.stringContainsInOrder;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class CompositeAggregationDataExtractorTests extends ESTestCase {
 
-    private Client testClient;
-    private List<SearchRequest> capturedSearchRequests;
+    private Client client;
     private String jobId;
     private String timeField;
     private Set<String> fields;
@@ -72,37 +78,12 @@ public class CompositeAggregationDataExtractorTests extends ESTestCase {
     private AggregatedSearchRequestBuilder aggregatedSearchRequestBuilder;
     private Map<String, Object> runtimeMappings;
 
-    private class TestDataExtractor extends CompositeAggregationDataExtractor {
-
-        private SearchResponse nextResponse;
-        private SearchPhaseExecutionException ex;
-
-        TestDataExtractor(long start, long end) {
-            super(compositeAggregationBuilder, testClient, createContext(start, end), timingStatsReporter, aggregatedSearchRequestBuilder);
-        }
-
-        @Override
-        protected SearchResponse executeSearchRequest(ActionRequestBuilder<SearchRequest, SearchResponse> searchRequestBuilder) {
-            capturedSearchRequests.add(searchRequestBuilder.request());
-            if (ex != null) {
-                throw ex;
-            }
-            return nextResponse;
-        }
-
-        void setNextResponse(SearchResponse searchResponse) {
-            nextResponse = searchResponse;
-        }
-
-        void setNextResponseToError(SearchPhaseExecutionException ex) {
-            this.ex = ex;
-        }
-    }
-
     @Before
     public void setUpTests() {
-        testClient = mock(Client.class);
-        capturedSearchRequests = new ArrayList<>();
+        client = mock(Client.class);
+        when(client.threadPool()).thenReturn(mock(ThreadPool.class));
+        when(client.threadPool().getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
+
         jobId = "test-job";
         timeField = "time";
         fields = new HashSet<>();
@@ -120,8 +101,8 @@ public class CompositeAggregationDataExtractorTests extends ESTestCase {
             .subAggregation(AggregationBuilders.max("time").field("time"))
             .subAggregation(AggregationBuilders.avg("responsetime").field("responsetime"));
         runtimeMappings = Collections.emptyMap();
-        timingStatsReporter = new DatafeedTimingStatsReporter(new DatafeedTimingStats(jobId), mock(DatafeedTimingStatsPersister.class));
-        aggregatedSearchRequestBuilder = (searchSourceBuilder) -> new SearchRequestBuilder(testClient).setSource(searchSourceBuilder)
+        timingStatsReporter = mock(DatafeedTimingStatsReporter.class);
+        aggregatedSearchRequestBuilder = (searchSourceBuilder) -> new SearchRequestBuilder(client).setSource(searchSourceBuilder)
             .setAllowPartialSearchResults(false)
             .setIndices(indices.toArray(String[]::new));
     }
@@ -159,10 +140,19 @@ public class CompositeAggregationDataExtractorTests extends ESTestCase {
             )
         );
 
-        TestDataExtractor extractor = new TestDataExtractor(1000L, 4000L);
+        CompositeAggregationDataExtractor extractor = new CompositeAggregationDataExtractor(
+            compositeAggregationBuilder,
+            client,
+            createContext(1000L, 4000L),
+            timingStatsReporter,
+            aggregatedSearchRequestBuilder
+        );
 
-        SearchResponse response = createSearchResponse("buckets", compositeBucket, Map.of("time_bucket", 4000L, "airline", "d"));
-        extractor.setNextResponse(response);
+        ArgumentCaptor<SearchRequest> searchRequestCaptor = ArgumentCaptor.forClass(SearchRequest.class);
+        ActionFuture<SearchResponse> searchResponse = toActionFuture(
+            createSearchResponse("buckets", compositeBucket, Map.of("time_bucket", 4000L, "airline", "d"))
+        );
+        when(client.execute(eq(TransportSearchAction.TYPE), searchRequestCaptor.capture())).thenReturn(searchResponse);
 
         assertThat(extractor.hasNext(), is(true));
         DataExtractor.Result result = extractor.next();
@@ -175,9 +165,8 @@ public class CompositeAggregationDataExtractorTests extends ESTestCase {
             {"airline":"c","time":3999,"responsetime":31.0,"doc_count":4} \
             {"airline":"b","time":3999,"responsetime":32.0,"doc_count":3}""";
         assertThat(asString(stream.get()), equalTo(expectedStream));
-        assertThat(capturedSearchRequests.size(), equalTo(1));
 
-        String searchRequest = capturedSearchRequests.get(0).toString().replaceAll("\\s", "");
+        String searchRequest = searchRequestCaptor.getValue().toString().replaceAll("\\s", "");
         assertThat(searchRequest, containsString("\"size\":0"));
         assertThat(
             searchRequest,
@@ -194,35 +183,57 @@ public class CompositeAggregationDataExtractorTests extends ESTestCase {
     }
 
     public void testExtractionGivenResponseHasNullAggs() throws IOException {
-        TestDataExtractor extractor = new TestDataExtractor(1000L, 2000L);
+        CompositeAggregationDataExtractor extractor = new CompositeAggregationDataExtractor(
+            compositeAggregationBuilder,
+            client,
+            createContext(1000L, 2000L),
+            timingStatsReporter,
+            aggregatedSearchRequestBuilder
+        );
 
-        SearchResponse response = createSearchResponse(null);
-        extractor.setNextResponse(response);
+        ActionFuture<SearchResponse> searchResponse = toActionFuture(createSearchResponse(null));
+        when(client.execute(eq(TransportSearchAction.TYPE), any())).thenReturn(searchResponse);
 
         assertThat(extractor.hasNext(), is(true));
         assertThat(extractor.next().data().isPresent(), is(false));
         assertThat(extractor.hasNext(), is(false));
 
-        assertThat(capturedSearchRequests.size(), equalTo(1));
+        verify(client).execute(eq(TransportSearchAction.TYPE), any());
     }
 
     public void testExtractionGivenResponseHasEmptyAggs() throws IOException {
-        TestDataExtractor extractor = new TestDataExtractor(1000L, 2000L);
+        CompositeAggregationDataExtractor extractor = new CompositeAggregationDataExtractor(
+            compositeAggregationBuilder,
+            client,
+            createContext(1000L, 2000L),
+            timingStatsReporter,
+            aggregatedSearchRequestBuilder
+        );
+
         InternalAggregations emptyAggs = AggregationTestUtils.createAggs(Collections.emptyList());
-        SearchResponse response = createSearchResponse(emptyAggs);
-        extractor.setNextResponse(response);
+        ActionFuture<SearchResponse> searchResponse = toActionFuture(createSearchResponse(emptyAggs));
+        when(client.execute(eq(TransportSearchAction.TYPE), any())).thenReturn(searchResponse);
 
         assertThat(extractor.hasNext(), is(true));
         assertThat(extractor.next().data().isPresent(), is(false));
         assertThat(extractor.hasNext(), is(false));
 
-        assertThat(capturedSearchRequests.size(), equalTo(1));
+        verify(client).execute(eq(TransportSearchAction.TYPE), any());
     }
 
     public void testExtractionGivenCancelBeforeNext() {
-        TestDataExtractor extractor = new TestDataExtractor(1000L, 4000L);
-        SearchResponse response = createSearchResponse("time", Collections.emptyList(), Collections.emptyMap());
-        extractor.setNextResponse(response);
+        CompositeAggregationDataExtractor extractor = new CompositeAggregationDataExtractor(
+            compositeAggregationBuilder,
+            client,
+            createContext(1000L, 4000L),
+            timingStatsReporter,
+            aggregatedSearchRequestBuilder
+        );
+
+        ActionFuture<SearchResponse> searchResponse = toActionFuture(
+            createSearchResponse("time", Collections.emptyList(), Collections.emptyMap())
+        );
+        when(client.execute(eq(TransportSearchAction.TYPE), any())).thenReturn(searchResponse);
 
         extractor.cancel();
         // Composite aggs should be true because we need to make sure the first search has occurred or not
@@ -245,10 +256,19 @@ public class CompositeAggregationDataExtractorTests extends ESTestCase {
             );
         }
 
-        TestDataExtractor extractor = new TestDataExtractor(1000L, timestamp + 1000 + 1);
+        CompositeAggregationDataExtractor extractor = new CompositeAggregationDataExtractor(
+            compositeAggregationBuilder,
+            client,
+            createContext(1000L, timestamp + 1000 + 1),
+            timingStatsReporter,
+            aggregatedSearchRequestBuilder
+        );
 
-        SearchResponse response = createSearchResponse("buckets", buckets, Map.of("time_bucket", 1000L, "airline", "d"));
-        extractor.setNextResponse(response);
+        ActionFuture<SearchResponse> searchResponse = toActionFuture(
+            createSearchResponse("buckets", buckets, Map.of("time_bucket", 1000L, "airline", "d"))
+        );
+        when(client.execute(eq(TransportSearchAction.TYPE), any())).thenReturn(searchResponse);
+
         extractor.cancel();
         // We should have next right now as we have not yet determined if we have handled a page or not
         assertThat(extractor.hasNext(), is(true));
@@ -274,10 +294,18 @@ public class CompositeAggregationDataExtractorTests extends ESTestCase {
             );
         }
 
-        TestDataExtractor extractor = new TestDataExtractor(1000L, timestamp + 1000 + 1);
+        CompositeAggregationDataExtractor extractor = new CompositeAggregationDataExtractor(
+            compositeAggregationBuilder,
+            client,
+            createContext(1000L, timestamp + 1000 + 1),
+            timingStatsReporter,
+            aggregatedSearchRequestBuilder
+        );
 
-        SearchResponse response = createSearchResponse("buckets", buckets, Map.of("time_bucket", 1000L, "airline", "d"));
-        extractor.setNextResponse(response);
+        ActionFuture<SearchResponse> searchResponse = toActionFuture(
+            createSearchResponse("buckets", buckets, Map.of("time_bucket", 1000L, "airline", "d"))
+        );
+        when(client.execute(eq(TransportSearchAction.TYPE), any())).thenReturn(searchResponse);
 
         assertThat(extractor.hasNext(), is(true));
         assertThat(countMatches('{', asString(extractor.next().data().get())), equalTo(10L));
@@ -305,8 +333,10 @@ public class CompositeAggregationDataExtractorTests extends ESTestCase {
                 )
             );
         }
-        response = createSearchResponse("buckets", buckets, Map.of("time_bucket", 3000L, "airline", "a"));
-        extractor.setNextResponse(response);
+
+        searchResponse = toActionFuture(createSearchResponse("buckets", buckets, Map.of("time_bucket", 3000L, "airline", "a")));
+        when(client.execute(eq(TransportSearchAction.TYPE), any())).thenReturn(searchResponse);
+
         extractor.cancel();
         assertThat(extractor.hasNext(), is(true));
         assertThat(extractor.isCancelled(), is(true));
@@ -315,12 +345,22 @@ public class CompositeAggregationDataExtractorTests extends ESTestCase {
 
         // Once we have handled the 6 remaining in that time bucket, we shouldn't finish the page and the extractor should end
         assertThat(extractor.hasNext(), is(false));
-        assertThat(capturedSearchRequests.size(), equalTo(2));
+
+        verify(client, times(2)).execute(eq(TransportSearchAction.TYPE), any());
     }
 
     public void testExtractionGivenSearchResponseHasError() {
-        TestDataExtractor extractor = new TestDataExtractor(1000L, 2000L);
-        extractor.setNextResponseToError(new SearchPhaseExecutionException("phase 1", "boom", ShardSearchFailure.EMPTY_ARRAY));
+        CompositeAggregationDataExtractor extractor = new CompositeAggregationDataExtractor(
+            compositeAggregationBuilder,
+            client,
+            createContext(1000L, 2000L),
+            timingStatsReporter,
+            aggregatedSearchRequestBuilder
+        );
+
+        when(client.execute(eq(TransportSearchAction.TYPE), any())).thenThrow(
+            new SearchPhaseExecutionException("phase 1", "boom", ShardSearchFailure.EMPTY_ARRAY)
+        );
 
         assertThat(extractor.hasNext(), is(true));
         expectThrows(SearchPhaseExecutionException.class, extractor::next);
@@ -344,7 +384,13 @@ public class CompositeAggregationDataExtractorTests extends ESTestCase {
         );
     }
 
-    @SuppressWarnings("unchecked")
+    private <T> ActionFuture<T> toActionFuture(T t) {
+        @SuppressWarnings("unchecked")
+        ActionFuture<T> future = (ActionFuture<T>) mock(ActionFuture.class);
+        when(future.actionGet()).thenReturn(t);
+        return future;
+    }
+
     private SearchResponse createSearchResponse(
         String aggName,
         List<InternalComposite.InternalBucket> buckets,

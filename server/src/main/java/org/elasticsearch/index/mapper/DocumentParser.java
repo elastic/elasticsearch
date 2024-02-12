@@ -470,11 +470,12 @@ public final class DocumentParser {
 
     private static void doParseObject(DocumentParserContext context, String currentFieldName, Mapper objectMapper) throws IOException {
         context.path().add(currentFieldName);
+        boolean withinLeafObject = context.path().isWithinLeafObject();
         if (objectMapper instanceof ObjectMapper objMapper && objMapper.subobjects() == false) {
             context.path().setWithinLeafObject(true);
         }
         parseObjectOrField(context, objectMapper);
-        context.path().setWithinLeafObject(false);
+        context.path().setWithinLeafObject(withinLeafObject);
         context.path().remove();
     }
 

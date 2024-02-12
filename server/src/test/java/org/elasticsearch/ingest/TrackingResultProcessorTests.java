@@ -53,7 +53,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
 
     public void testActualProcessor() throws Exception {
         TestProcessor actualProcessor = new TestProcessor(ingestDocument -> {});
-        TrackingResultProcessor trackingProcessor = new TrackingResultProcessor(false, actualProcessor, null, resultList);
+        TrackingResultProcessor trackingProcessor = new TrackingResultProcessor(false, actualProcessor, null, resultList, true);
         trackingProcessor.execute(ingestDocument, (result, e) -> {});
 
         SimulateProcessorResult expectedResult = new SimulateProcessorResult(
@@ -682,7 +682,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
          */
         IngestService ingestService = createIngestService();
         PipelineProcessor.Factory factory = new PipelineProcessor.Factory(ingestService);
-        int pipelineCount = randomIntBetween(2, 20);
+        int pipelineCount = randomIntBetween(2, 150);
         for (int i = 0; i < pipelineCount - 1; i++) {
             String pipelineId = "pipeline" + i;
             String nextPipelineId = "pipeline" + (i + 1);
@@ -718,8 +718,8 @@ public class TrackingResultProcessorTests extends ESTestCase {
         assertNotNull(document);
         // Make sure that the final processor was called exactly once on this document:
         assertThat(document.getFieldValue(countCallsProcessor.getCountFieldName(), Integer.class), equalTo(1));
-        // But it was called exactly one other time during the pipeline cycle check (to be enabled after a fix) :
-        // assertThat(countCallsProcessor.getTotalCount(), equalTo(2));
+        // But it was called exactly one other time during the pipeline cycle check:
+        assertThat(countCallsProcessor.getTotalCount(), equalTo(2));
         assertThat(resultList.size(), equalTo(pipelineCount + 1)); // one result per pipeline, plus the "count_calls" processor
         for (int i = 0; i < resultList.size() - 1; i++) {
             SimulateProcessorResult result = resultList.get(i);

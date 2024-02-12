@@ -110,6 +110,7 @@ import javax.net.ssl.X509KeyManager;
 
 import static org.elasticsearch.common.Strings.collectionToCommaDelimitedString;
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.transport.Transports.assertNotTransportThread;
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.CLOCK_SKEW;
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.DN_ATTRIBUTE;
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.ENCRYPTION_KEY_ALIAS;
@@ -746,6 +747,7 @@ public final class SamlRealm extends Realm implements Releasable {
 
         @Override
         protected byte[] fetchMetadata() throws ResolverException {
+            assert assertNotTransportThread("fetching SAML metadata from a URL");
             try {
                 return AccessController.doPrivileged(
                     (PrivilegedExceptionAction<byte[]>) () -> PrivilegedHTTPMetadataResolver.super.fetchMetadata()
@@ -755,6 +757,20 @@ public final class SamlRealm extends Realm implements Releasable {
             }
         }
 
+    }
+
+    @SuppressForbidden(reason = "uses java.io.File")
+    private static final class SamlFilesystemMetadataResolver extends FilesystemMetadataResolver {
+
+        SamlFilesystemMetadataResolver(final java.io.File metadata) throws ResolverException {
+            super(metadata);
+        }
+
+        @Override
+        protected byte[] fetchMetadata() throws ResolverException {
+            assert assertNotTransportThread("fetching SAML metadata from a file");
+            return super.fetchMetadata();
+        }
     }
 
     @SuppressForbidden(reason = "uses toFile")
@@ -767,7 +783,7 @@ public final class SamlRealm extends Realm implements Releasable {
 
         final String entityId = require(config, IDP_ENTITY_ID);
         final Path path = config.env().configFile().resolve(metadataPath);
-        final FilesystemMetadataResolver resolver = new FilesystemMetadataResolver(path.toFile());
+        final FilesystemMetadataResolver resolver = new SamlFilesystemMetadataResolver(path.toFile());
 
         for (var httpSetting : List.of(IDP_METADATA_HTTP_REFRESH, IDP_METADATA_HTTP_MIN_REFRESH, IDP_METADATA_HTTP_FAIL_ON_ERROR)) {
             if (config.hasSetting(httpSetting)) {

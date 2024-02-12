@@ -117,7 +117,6 @@ public abstract class AggregationBuilder
 
     /**
      * Create a shallow copy of this builder and replacing {@link #factoriesBuilder} and <code>metadata</code>.
-     * Used by {@link #rewrite(QueryRewriteContext)}.
      */
     protected abstract AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata);
 

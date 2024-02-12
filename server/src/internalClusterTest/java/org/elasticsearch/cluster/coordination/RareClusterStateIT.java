@@ -178,6 +178,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
         return future;
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/102947")
     public void testDeleteCreateInOneBulk() throws Exception {
         internalCluster().startMasterOnlyNode();
         String dataNode = internalCluster().startDataOnlyNode();

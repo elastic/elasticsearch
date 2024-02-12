@@ -99,6 +99,10 @@ public abstract class TransportDecompressor implements Releasable {
         return false;
     }
 
+    public int pages() {
+        return pages.size();
+    }
+
     private static IllegalStateException createIllegalState(BytesReference bytes) {
         int maxToRead = Math.min(bytes.length(), 10);
         StringBuilder sb = new StringBuilder("stream marked as compressed, but no compressor found, first [").append(maxToRead)

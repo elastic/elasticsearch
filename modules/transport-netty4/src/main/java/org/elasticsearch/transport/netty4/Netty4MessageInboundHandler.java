@@ -8,9 +8,7 @@
 package org.elasticsearch.transport.netty4;
 
 import io.netty.buffer.ByteBuf;
-import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelHandlerContext;
-import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.handler.codec.ByteToMessageDecoder;
 
 import org.elasticsearch.ElasticsearchException;
@@ -24,6 +22,7 @@ import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -43,7 +42,7 @@ import org.elasticsearch.transport.Transports;
 
 import java.io.IOException;
 import java.io.StreamCorruptedException;
-import java.util.ArrayDeque;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -52,13 +51,11 @@ import java.util.function.Supplier;
  * A handler (must be the last one!) that does size based frame decoding and forwards the actual message
  * to the relevant action.
  */
-public class Netty4MessageInboundHandler extends ChannelInboundHandlerAdapter {
+public class Netty4MessageInboundHandler extends ByteToMessageDecoder {
 
     private static final InboundMessage PING_MESSAGE = new InboundMessage(null, true);
 
-    private final InboundDecoder decoder;
     private Exception uncaughtException;
-    private final ArrayDeque<ByteBuf> pending = new ArrayDeque<>(2);
     private boolean isClosed = false;
 
     private int totalNetworkSize = -1;
@@ -76,10 +73,6 @@ public class Netty4MessageInboundHandler extends ChannelInboundHandlerAdapter {
 
     private final Supplier<CircuitBreaker> circuitBreaker;
     private final Predicate<String> requestCanTripBreaker;
-
-    private ByteBuf cummulation;
-
-    private ByteBuf readBuffer;
 
     private Header currentHeader;
     private Exception aggregationException;
@@ -101,18 +94,6 @@ public class Netty4MessageInboundHandler extends ChannelInboundHandlerAdapter {
                 return reg.canTripCircuitBreaker();
             }
         };
-        this.decoder = new InboundDecoder(transport.recycler());
-    }
-
-    @Override
-    public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
-        assert Transports.assertDefaultThreadContext(transport.getThreadPool().getThreadContext());
-        assert Transports.assertTransportThread();
-        assert msg instanceof ByteBuf : "Expected message type ByteBuf, found: " + msg.getClass();
-
-        final ByteBuf buffer = (ByteBuf) msg;
-        Netty4TcpChannel channel = ctx.channel().attr(Netty4Transport.CHANNEL_KEY).get();
-        handleBytes(channel, buffer);
     }
 
     @Override
@@ -132,8 +113,14 @@ public class Netty4MessageInboundHandler extends ChannelInboundHandlerAdapter {
     @Override
     public void channelInactive(ChannelHandlerContext ctx) throws Exception {
         isClosed = true;
-        Releasables.closeExpectNoException(decoder, this::closeCurrentAggregation, () -> pending.forEach(ByteBuf::release), pending::clear);
+        Releasables.closeExpectNoException(this::closeCurrentAggregation);
         super.channelInactive(ctx);
+    }
+
+    @Override
+    protected void decode(ChannelHandlerContext ctx, ByteBuf in, List<Object> out) throws Exception {
+        Netty4TcpChannel channel = ctx.channel().attr(Netty4Transport.CHANNEL_KEY).get();
+        handleBytes(channel, in);
     }
 
     public void handleBytes(TcpChannel channel, ByteBuf reference) throws IOException {
@@ -150,24 +137,14 @@ public class Netty4MessageInboundHandler extends ChannelInboundHandlerAdapter {
 
     public void doHandleBytes(TcpChannel channel, ByteBuf reference) throws IOException {
         channel.getChannelStats().markAccessed(transport.getThreadPool().relativeTimeInMillis());
-        transport.getStatsTracker().markBytesRead(reference.readableBytes());
-        readBuffer = ByteToMessageDecoder.MERGE_CUMULATOR.cumulate(
-            NettyAllocator.getAllocator(),
-            readBuffer == null ? Unpooled.EMPTY_BUFFER : readBuffer,
-            reference
-        );
-        while (readBuffer.readableBytes() > 0) {
-            final int bytesDecoded = decode(readBuffer, channel);
-            if (bytesDecoded == 0) {
-                break;
-            }
-        }
+        final int bytesDecoded = decode(reference, channel);
+        transport.getStatsTracker().markBytesRead(bytesDecoded);
     }
 
-    private void endContent(TcpChannel channel) throws IOException {
+    private void endContent(TcpChannel channel, ByteBuf cumulation) throws IOException {
         cleanDecodeState();
         assert isAggregating();
-        InboundMessage aggregated = finishAggregation();
+        InboundMessage aggregated = finishAggregation(cumulation);
         try {
             transport.getStatsTracker().markMessageReceived();
             transport.inboundMessage(channel, aggregated);
@@ -176,15 +153,9 @@ public class Netty4MessageInboundHandler extends ChannelInboundHandlerAdapter {
         }
     }
 
-    private void forwardFragment(ByteBuf fragment) {
-        assert isAggregating();
-        aggregate(fragment);
-    }
-
     public void headerReceived(Header header) {
         ensureOpen();
         assert isAggregating() == false;
-        assert cummulation == null;
         currentHeader = header;
         if (currentHeader.isRequest() && currentHeader.needsToReadVariableHeader() == false) {
             initializeRequestState();
@@ -210,24 +181,14 @@ public class Netty4MessageInboundHandler extends ChannelInboundHandlerAdapter {
     public void updateCompressionScheme(Compression.Scheme compressionScheme) {
         ensureOpen();
         assert isAggregating();
-        assert cummulation == null;
         currentHeader.setCompressionScheme(compressionScheme);
     }
 
-    public void aggregate(ByteBuf content) {
-        ensureOpen();
-        cummulation = ByteToMessageDecoder.MERGE_CUMULATOR.cumulate(
-            NettyAllocator.getAllocator(),
-            cummulation == null ? Unpooled.EMPTY_BUFFER : cummulation,
-            content
-        );
-    }
-
-    public InboundMessage finishAggregation() throws IOException {
+    private InboundMessage finishAggregation(ByteBuf cummulation) throws IOException {
         ensureOpen();
         final ReleasableBytesReference releasableContent = cummulation == null || cummulation.readableBytes() == 0
             ? ReleasableBytesReference.empty()
-            : new ReleasableBytesReference(Netty4Utils.toBytesReference(cummulation), new ByteBufRefCounted(cummulation));
+            : new ReleasableBytesReference(Netty4Utils.toBytesReference(cummulation.retain()), new ByteBufRefCounted(cummulation));
 
         final BreakerControl breakerControl = new BreakerControl(circuitBreaker);
         final InboundMessage aggregated = new InboundMessage(currentHeader, releasableContent, breakerControl);
@@ -295,18 +256,10 @@ public class Netty4MessageInboundHandler extends ChannelInboundHandlerAdapter {
     }
 
     private void closeCurrentAggregation() {
-        releaseContent();
         resetCurrentAggregation();
     }
 
-    private void releaseContent() {
-        if (cummulation != null) {
-            cummulation.release();
-        }
-    }
-
     private void resetCurrentAggregation() {
-        cummulation = null;
         currentHeader = null;
         aggregationException = null;
         canTripBreaker = true;
@@ -330,6 +283,7 @@ public class Netty4MessageInboundHandler extends ChannelInboundHandlerAdapter {
             } else if (messageLength == 0) {
                 assert isAggregating() == false;
                 transport.inboundMessage(channel, PING_MESSAGE);
+                byteBuf.skipBytes(6);
                 return 6;
             } else {
                 int headerBytesToRead = headerBytesToRead(Netty4Utils.toBytesReference(byteBuf), maxHeaderSize);
@@ -338,7 +292,11 @@ public class Netty4MessageInboundHandler extends ChannelInboundHandlerAdapter {
                 } else {
                     totalNetworkSize = messageLength + TcpHeader.BYTES_REQUIRED_FOR_MESSAGE_SIZE;
 
-                    Header header = readHeader(messageLength, Netty4Utils.toBytesReference(byteBuf), channelType);
+                    Header header = readHeader(
+                        messageLength,
+                        Netty4Utils.toBytesReference(byteBuf.readSlice(headerBytesToRead)),
+                        channelType
+                    );
                     bytesConsumed += headerBytesToRead;
                     if (header.isCompressed()) {
                         isCompressed = true;
@@ -346,7 +304,7 @@ public class Netty4MessageInboundHandler extends ChannelInboundHandlerAdapter {
                     headerReceived(header);
 
                     if (isDone()) {
-                        endContent(channel);
+                        endContent(channel, null);
                     }
                     return headerBytesToRead;
                 }
@@ -367,33 +325,30 @@ public class Netty4MessageInboundHandler extends ChannelInboundHandlerAdapter {
                 }
             }
             int remainingToConsume = totalNetworkSize - bytesConsumed;
-            int maxBytesToConsume = Math.min(byteBuf.readableBytes(), remainingToConsume);
-            ByteBuf retainedContent;
-            if (maxBytesToConsume == remainingToConsume) {
-                retainedContent = byteBuf.readSlice(maxBytesToConsume);
-            } else {
-                retainedContent = byteBuf;
+            if (byteBuf.readableBytes() < remainingToConsume) {
+                return 0;
             }
-
+            ByteBuf retainedContent = byteBuf.readSlice(remainingToConsume);
             int bytesConsumedThisDecode = 0;
             if (decompressor != null) {
                 bytesConsumedThisDecode += decompressor.decompress(Netty4Utils.toBytesReference(retainedContent));
                 retainedContent.skipBytes(bytesConsumedThisDecode);
                 bytesConsumed += bytesConsumedThisDecode;
                 ReleasableBytesReference decompressed;
-                while ((decompressed = decompressor.pollDecompressedPage(isDone())) != null) {
-                    final ByteBuf dec = byteBuf.alloc().buffer(decompressed.length());
-                    dec.writeBytes(decompressed.streamInput(), decompressed.length());
-                    forwardFragment(dec);
-                    decompressed.decRef();
+                final ByteBuf dec = NettyAllocator.getAllocator().heapBuffer(decompressor.pages() * PageCacheRecycler.BYTE_PAGE_SIZE);
+                try {
+                    while ((decompressed = decompressor.pollDecompressedPage(true)) != null) {
+                        dec.writeBytes(decompressed.array(), decompressed.arrayOffset(), decompressed.length());
+                        decompressed.decRef();
+                    }
+                    endContent(channel, dec);
+                } finally {
+                    dec.release();
                 }
             } else {
-                bytesConsumedThisDecode += maxBytesToConsume;
-                bytesConsumed += maxBytesToConsume;
-                forwardFragment(byteBuf.readSlice(maxBytesToConsume));
-            }
-            if (isDone()) {
-                endContent(channel);
+                bytesConsumedThisDecode += remainingToConsume;
+                bytesConsumed += remainingToConsume;
+                endContent(channel, retainedContent);
             }
 
             return bytesConsumedThisDecode;

@@ -11,13 +11,11 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
-import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.function.OptionalArgument;
-import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
-import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
@@ -33,7 +31,7 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isInteger;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
 
-public class Substring extends ScalarFunction implements OptionalArgument, EvaluatorMapper {
+public class Substring extends EsqlScalarFunction implements OptionalArgument {
 
     private final Expression str, start, length;
 
@@ -80,11 +78,6 @@ public class Substring extends ScalarFunction implements OptionalArgument, Evalu
     @Override
     public boolean foldable() {
         return str.foldable() && start.foldable() && (length == null || length.foldable());
-    }
-
-    @Override
-    public Object fold() {
-        return EvaluatorMapper.super.fold();
     }
 
     @Evaluator(extraName = "NoLength")
@@ -134,11 +127,6 @@ public class Substring extends ScalarFunction implements OptionalArgument, Evalu
     @Override
     protected NodeInfo<? extends Expression> info() {
         return NodeInfo.create(this, Substring::new, str, start, length);
-    }
-
-    @Override
-    public ScriptTemplate asScript() {
-        throw new UnsupportedOperationException("functions do not support scripting");
     }
 
     @Override

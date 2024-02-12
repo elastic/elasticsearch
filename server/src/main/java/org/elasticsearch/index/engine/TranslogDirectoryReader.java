@@ -59,6 +59,7 @@ import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.plugins.internal.DocumentSizeObserver;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -256,7 +257,7 @@ final class TranslogDirectoryReader extends DirectoryReader {
                     XContentHelper.xContentType(operation.source()),
                     operation.routing(),
                     Map.of(),
-                    false
+                    DocumentSizeObserver.EMPTY_INSTANCE
                 ),
                 mappingLookup
             );

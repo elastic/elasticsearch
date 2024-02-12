@@ -10,10 +10,7 @@ package org.elasticsearch.search.fetch.subphase;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.document.DocumentField;
-import org.elasticsearch.index.mapper.IgnoredFieldMapper;
-import org.elasticsearch.index.mapper.LegacyTypeFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.fetch.FetchContext;
@@ -24,6 +21,7 @@ import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -53,18 +51,6 @@ public class StoredFieldsPhase implements FetchSubPhase {
 
     }
 
-    private static final List<StoredField> METADATA_FIELDS = List.of(
-        new StoredField("_routing", RoutingFieldMapper.FIELD_TYPE, true),
-        // NOTE: here we keep the _ignored field even if from version 8.13 is not a stored field anymore.
-        // This allows us to be backward-compatible in case we have old indices having it as a stored field
-        // instead of doc values. Versions on or above 8.13 do not include the _ignore field as a stored field
-        // but as a doc values field which means this `StoredFieldPhase` would skip it just because the field
-        // is not part of the stored meta fields.
-        new StoredField("_ignored", IgnoredFieldMapper.FIELD_TYPE, true),
-        // pre-6.0 indexes can return a _type field, this will be valueless in modern indexes and ignored
-        new StoredField("_type", LegacyTypeFieldMapper.FIELD_TYPE, true)
-    );
-
     @Override
     public FetchSubPhaseProcessor getProcessor(FetchContext fetchContext) {
         StoredFieldsContext storedFieldsContext = fetchContext.storedFieldsContext();
@@ -73,7 +59,7 @@ public class StoredFieldsPhase implements FetchSubPhase {
         }
 
         // build the StoredFieldsSpec and a list of StoredField records to process
-        List<StoredField> storedFields = new ArrayList<>(METADATA_FIELDS);
+        List<StoredField> storedFields = new ArrayList<>();
         Set<String> fieldsToLoad = new HashSet<>();
         if (storedFieldsContext.fieldNames() != null) {
             SearchExecutionContext sec = fetchContext.getSearchExecutionContext();
@@ -103,18 +89,15 @@ public class StoredFieldsPhase implements FetchSubPhase {
             public void process(HitContext hitContext) {
                 Map<String, List<Object>> loadedFields = hitContext.loadedFields();
                 Map<String, DocumentField> docFields = new HashMap<>();
-                Map<String, DocumentField> metaFields = new HashMap<>();
                 for (StoredField storedField : storedFields) {
                     if (storedField.hasValue(loadedFields)) {
                         DocumentField df = new DocumentField(storedField.name, storedField.process(loadedFields));
-                        if (storedField.isMetadataField) {
-                            metaFields.put(storedField.name, df);
-                        } else {
+                        if (storedField.isMetadataField == false) {
                             docFields.put(storedField.name, df);
                         }
                     }
                 }
-                hitContext.hit().addDocumentFields(docFields, metaFields);
+                hitContext.hit().addDocumentFields(docFields, Collections.emptyMap());
             }
 
             @Override

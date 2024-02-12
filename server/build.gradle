@@ -149,8 +149,19 @@ if (BuildParams.isSnapshotBuild() == false) {
     }
 }
 
+tasks.register('testNetworkTraceNotEnabled', Test) {
+  testClassesDirs = testing.suites.test.sources.output.classesDirs
+  classpath = testing.suites.test.sources.runtimeClasspath
+
+  include '**/LoggersTests.*', '**/ClusterUpdateSettingsRequestTests.*'
+  // do not enable TRACE_ENABLED
+  systemProperties.remove('es.insecure_network_trace_enabled')
+}
+
+
 tasks.named("test").configure {
-    systemProperty 'es.insecure_network_trace_enabled', 'true'
+  systemProperty 'es.insecure_network_trace_enabled', 'true'
+  dependsOn testNetworkTraceNotEnabled
 }
 
 tasks.named("thirdPartyAudit").configure {

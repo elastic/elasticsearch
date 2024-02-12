@@ -11,7 +11,9 @@ package org.elasticsearch.common.logging;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.NetworkTraceFlag;
 
 import java.io.IOException;
 import java.net.UnknownHostException;
@@ -19,42 +21,67 @@ import java.util.List;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.core.Strings.format;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
 public class LoggersTests extends ESTestCase {
 
-    public void testSetLevelWithRestrictions() throws Exception {
-        // 'org.apache.http' is an example of a restricted logger
-        Logger apacheHttpClientLogger = LogManager.getLogger("org.apache.http.client.HttpClient");
-        Logger apacheHttpLogger = LogManager.getLogger("org.apache.http");
-        Logger apacheLogger = LogManager.getLogger("org.apache");
+    public void testCheckRestrictedLoggers() {
+        assumeFalse("If TRACE_ENABLED restricted loggers are permitted", NetworkTraceFlag.TRACE_ENABLED);
 
-        List<String> restrictedLoggers = List.of(apacheHttpLogger.getName());
-
-        Loggers.setLevel(apacheHttpLogger, Level.INFO, restrictedLoggers);
-        assertHasINFO(apacheHttpLogger, apacheHttpClientLogger);
-
-        for (Logger log : List.of(apacheHttpClientLogger, apacheHttpLogger)) {
-            // DEBUG is rejected due to restriction
-            Loggers.setLevel(log, Level.DEBUG, restrictedLoggers);
-            assertHasINFO(apacheHttpClientLogger, apacheHttpLogger);
+        for (String restricted : Loggers.RESTRICTED_LOGGERS) {
+            for (String suffix : List.of("", ".xyz")) {
+                String logger = restricted + suffix;
+                for (Level level : List.of(Level.ALL, Level.TRACE, Level.DEBUG)) {
+                    List<String> errors = Loggers.checkRestrictedLoggers(Settings.builder().put("logger." + logger, level).build());
+                    assertThat(errors, contains("Level [" + level + "] is not permitted for logger [" + logger + "]"));
+                }
+                for (Level level : List.of(Level.ERROR, Level.WARN, Level.INFO)) {
+                    List<String> errors = Loggers.checkRestrictedLoggers(Settings.builder().put("logger." + logger, level).build());
+                    assertThat(errors, hasSize(0));
+                }
+            }
         }
+    }
 
-        // OK for parent `org.apache`, but restriction is enforced for restricted descendants
-        Loggers.setLevel(apacheLogger, Level.DEBUG, restrictedLoggers);
-        assertEquals(Level.DEBUG, apacheLogger.getLevel());
-        assertHasINFO(apacheHttpClientLogger, apacheHttpLogger);
+    public void testSetLevelWithRestrictions() throws Exception {
+        assumeFalse("If TRACE_ENABLED restricted loggers are permitted", NetworkTraceFlag.TRACE_ENABLED);
 
-        // Inheriting DEBUG of parent `org.apache` is rejected
-        Loggers.setLevel(apacheHttpLogger, (Level) null, restrictedLoggers);
-        assertHasINFO(apacheHttpClientLogger, apacheHttpLogger);
+        for (String restricted : Loggers.RESTRICTED_LOGGERS) {
 
-        // DEBUG of root logger isn't propagated to restricted loggers
-        Loggers.setLevel(LogManager.getRootLogger(), Level.DEBUG, restrictedLoggers);
-        assertEquals(Level.DEBUG, LogManager.getRootLogger().getLevel());
-        assertHasINFO(apacheHttpClientLogger, apacheHttpLogger);
+            // 'org.apache.http' is an example of a restricted logger,
+            // a restricted component logger would be `org.apache.http.client.HttpClient` for instance,
+            // and the parent logger is `org.apache`.
+            Logger restrictedLogger = LogManager.getLogger(restricted);
+            Logger restrictedComponent = LogManager.getLogger(restricted + ".component");
+            Logger parentLogger = LogManager.getLogger(restricted.substring(0, restricted.lastIndexOf('.')));
+
+            Loggers.setLevel(restrictedLogger, Level.INFO);
+            assertHasINFO(restrictedLogger, restrictedComponent);
+
+            for (Logger log : List.of(restrictedComponent, restrictedLogger)) {
+                // DEBUG is rejected due to restriction
+                Loggers.setLevel(log, Level.DEBUG);
+                assertHasINFO(restrictedComponent, restrictedLogger);
+            }
+
+            // OK for parent `org.apache`, but restriction is enforced for restricted descendants
+            Loggers.setLevel(parentLogger, Level.DEBUG);
+            assertEquals(Level.DEBUG, parentLogger.getLevel());
+            assertHasINFO(restrictedComponent, restrictedLogger);
+
+            // Inheriting DEBUG of parent `org.apache` is rejected
+            Loggers.setLevel(restrictedLogger, (Level) null);
+            assertHasINFO(restrictedComponent, restrictedLogger);
+
+            // DEBUG of root logger isn't propagated to restricted loggers
+            Loggers.setLevel(LogManager.getRootLogger(), Level.DEBUG);
+            assertEquals(Level.DEBUG, LogManager.getRootLogger().getLevel());
+            assertHasINFO(restrictedComponent, restrictedLogger);
+        }
     }
 
     public void testStringSupplierAndFormatting() throws Exception {

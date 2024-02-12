@@ -9,7 +9,6 @@ package org.elasticsearch.common.settings;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
@@ -20,7 +19,6 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.transport.NetworkTraceFlag;
 import org.elasticsearch.transport.TransportSettings;
 
 import java.io.IOException;
@@ -1171,33 +1169,6 @@ public class ScopedSettingsTests extends ESTestCase {
         } finally {
             Loggers.setLevel(LogManager.getRootLogger(), level);
             Loggers.setLevel(LogManager.getLogger("test"), testLevel);
-        }
-    }
-
-    public void testLoggingUpdateForRestrictedLogger() {
-        assumeFalse("Skipped, if TRACE_ENABLED restricted loggers are permitted", NetworkTraceFlag.TRACE_ENABLED);
-
-        // 'org.apache.http' is an example of a restricted logger
-        final Logger logger = LogManager.getLogger("org.apache.http");
-        final Level level = logger.getLevel();
-        try {
-            ClusterSettings settings = new ClusterSettings(Settings.builder().build(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-
-            for (String suffix : List.of("", ".xyz")) {
-                IllegalArgumentException ex = expectThrows(
-                    IllegalArgumentException.class,
-                    () -> settings.validate(Settings.builder().put("logger.org.apache.http" + suffix, "DEBUG").build(), true)
-                );
-                assertEquals("Level [DEBUG] not permitted for logger [org.apache.http" + suffix + "].", ex.getMessage());
-                assertEquals(level, logger.getLevel());
-            }
-
-            for (Level permitted : List.of(Level.ERROR, Level.WARN, Level.INFO)) {
-                settings.applySettings(Settings.builder().put("logger.org.apache.http", permitted.name()).build());
-                assertEquals(permitted, logger.getLevel());
-            }
-        } finally {
-            Loggers.setLevel(logger, level);
         }
     }
 

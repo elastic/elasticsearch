@@ -16,12 +16,16 @@ import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.config.Configuration;
 import org.apache.logging.log4j.core.config.Configurator;
 import org.apache.logging.log4j.core.config.LoggerConfig;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.transport.NetworkTraceFlag;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
@@ -39,8 +43,8 @@ public class Loggers {
      * Restricted loggers can't be set to a level less specific than INFO.
      * For some loggers this might be permitted if {@link NetworkTraceFlag#TRACE_ENABLED} is enabled.
      */
-    private static final List<String> RESTRICTED_LOGGERS = NetworkTraceFlag.TRACE_ENABLED
-        ? List.of()
+    public static final List<String> RESTRICTED_LOGGERS = NetworkTraceFlag.TRACE_ENABLED
+        ? Collections.emptyList()
         : List.of("org.apache.http", "com.amazonaws.request");
 
     public static final Setting<Level> LOG_DEFAULT_LEVEL_SETTING = new Setting<>(
@@ -51,17 +55,31 @@ public class Loggers {
     );
     public static final Setting.AffixSetting<Level> LOG_LEVEL_SETTING = Setting.prefixKeySetting(
         "logger.",
-        (key) -> new Setting<>(key, Level.INFO.name(), value -> {
-            Level level = Level.valueOf(value);
-            if (level.isMoreSpecificThan(Level.INFO) == false) {
-                String logger = key.substring("logger.".length());
-                if (RESTRICTED_LOGGERS.stream().anyMatch(r -> isSameOrDescendantOf(logger, r))) {
-                    throw new IllegalArgumentException("Level [" + value + "] not permitted for logger [" + logger + "].");
+        (key) -> new Setting<>(key, Level.INFO.name(), Level::valueOf, Setting.Property.Dynamic, Setting.Property.NodeScope)
+    );
+
+    private static boolean isLevelPermitted(String logger, Level level) {
+        return level.isMoreSpecificThan(Level.INFO) == false && RESTRICTED_LOGGERS.stream().anyMatch(r -> isSameOrDescendantOf(logger, r));
+    }
+
+    public static List<String> checkRestrictedLoggers(Settings settings) {
+        List<String> errors = null;
+        for (String key : settings.keySet()) {
+            if (LOG_LEVEL_SETTING.match(key)) {
+                Level level = Level.getLevel(settings.get(key));
+                if (level != null) {
+                    String logger = key.substring("logger.".length());
+                    if (isLevelPermitted(logger, level)) {
+                        if (errors == null) {
+                            errors = new ArrayList<>(2);
+                        }
+                        errors.add(Strings.format("Level [%s] is not permitted for logger [%s]", level, logger));
+                    }
                 }
             }
-            return level;
-        }, Setting.Property.Dynamic, Setting.Property.NodeScope)
-    );
+        }
+        return errors == null ? Collections.emptyList() : errors;
+    }
 
     public static Logger getLogger(Class<?> clazz, ShardId shardId, String... prefixes) {
         return getLogger(
@@ -132,8 +150,7 @@ public class Loggers {
         setLevel(logger, level, RESTRICTED_LOGGERS);
     }
 
-    // visible for testing
-    static void setLevel(Logger logger, Level level, List<String> restrictedLoggers) {
+    private static void setLevel(Logger logger, Level level, List<String> restrictedLoggers) {
         // If configuring an ancestor / root, the restriction has to be explicitly set afterward.
         boolean setRestriction = false;
 
@@ -150,7 +167,8 @@ public class Loggers {
             if (actual.isMoreSpecificThan(Level.INFO) == false) {
                 for (String restricted : restrictedLoggers) {
                     if (isSameOrDescendantOf(logger.getName(), restricted)) {
-                        LogManager.getLogger(Loggers.class).warn("Log level of [{}] can't be less specific than INFO", logger.getName());
+                        LogManager.getLogger(Loggers.class)
+                            .warn("Level [{}/{}] not permitted for logger [{}], skipping.", level, actual, logger.getName());
                         return;
                     }
                     if (isDescendantOf(restricted, logger.getName())) {
@@ -173,7 +191,7 @@ public class Loggers {
             // if necessary, after setting the level of an ancestor, enforce restriction again
             for (String restricted : restrictedLoggers) {
                 if (isDescendantOf(restricted, logger.getName())) {
-                    setLevel(LogManager.getLogger(restricted), Level.INFO, List.of());
+                    setLevel(LogManager.getLogger(restricted), Level.INFO, Collections.emptyList());
                 }
             }
         }

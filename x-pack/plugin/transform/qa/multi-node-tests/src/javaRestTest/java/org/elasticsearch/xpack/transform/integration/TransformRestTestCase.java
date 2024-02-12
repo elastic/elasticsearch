@@ -174,6 +174,12 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
         assertAcknowledged(client().performRequest(startTransformRequest));
     }
 
+    protected void resetTransform(String id) throws IOException {
+        var resetTransformRequest = new Request("POST", TRANSFORM_ENDPOINT + id + "/_reset");
+        resetTransformRequest.setOptions(RequestOptions.DEFAULT);
+        assertAcknowledged(client().performRequest(resetTransformRequest));
+    }
+
     // workaround for https://github.com/elastic/elasticsearch/issues/62204
     protected void startTransformWithRetryOnConflict(String id, RequestOptions options) throws Exception {
         final int totalRetries = 10;

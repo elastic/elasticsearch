@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.core.transform.transforms.AuthorizationState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformEffectiveSettings;
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
+import org.elasticsearch.xpack.core.transform.transforms.TransformStoredDoc;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskParams;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
 import org.elasticsearch.xpack.transform.TransformExtensionHolder;
@@ -52,6 +53,8 @@ import org.elasticsearch.xpack.transform.persistence.TransformIndex;
 import org.elasticsearch.xpack.transform.transforms.TransformNodes;
 import org.elasticsearch.xpack.transform.transforms.TransformTask;
 
+import java.util.List;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 
@@ -80,34 +83,8 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
         Client client,
         TransformExtensionHolder transformExtensionHolder
     ) {
-        this(
-            StartTransformAction.NAME,
-            transportService,
-            actionFilters,
-            clusterService,
-            threadPool,
-            indexNameExpressionResolver,
-            transformServices,
-            persistentTasksService,
-            client,
-            transformExtensionHolder
-        );
-    }
-
-    protected TransportStartTransformAction(
-        String name,
-        TransportService transportService,
-        ActionFilters actionFilters,
-        ClusterService clusterService,
-        ThreadPool threadPool,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        TransformServices transformServices,
-        PersistentTasksService persistentTasksService,
-        Client client,
-        TransformExtensionHolder transformExtensionHolder
-    ) {
         super(
-            name,
+            StartTransformAction.NAME,
             transportService,
             clusterService,
             threadPool,
@@ -133,40 +110,73 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
     ) {
         TransformNodes.warnIfNoTransformNodes(state);
 
-        final SetOnce<TransformTaskParams> transformTaskParamsHolder = new SetOnce<>();
-        final SetOnce<TransformConfig> transformConfigHolder = new SetOnce<>();
+        var transformTaskParamsHolder = new SetOnce<TransformTaskParams>();
 
-        // <5> Wait for the allocated task's state to STARTED
-        ActionListener<PersistentTasksCustomMetadata.PersistentTask<TransformTaskParams>> newPersistentTaskActionListener = ActionListener
-            .wrap(task -> {
+        // <7> Wait for the allocated task's state to STARTED
+        ActionListener<PersistentTasksCustomMetadata.PersistentTask<TransformTaskParams>> newPersistentTaskActionListener = listener
+            .delegateFailureAndWrap((l, task) -> {
                 TransformTaskParams transformTask = transformTaskParamsHolder.get();
                 assert transformTask != null;
                 waitForTransformTaskStarted(
                     task.getId(),
                     transformTask,
                     request.timeout(),
-                    ActionListener.wrap(taskStarted -> listener.onResponse(new StartTransformAction.Response(true)), listener::onFailure)
+                    l.safeMap(taskStarted -> new StartTransformAction.Response(true))
                 );
-            }, listener::onFailure);
+            });
 
-        // <4> Create the task in cluster state so that it will start executing on the node
-        ActionListener<Boolean> createOrGetIndexListener = ActionListener.wrap(unused -> {
-            TransformTaskParams transformTask = transformTaskParamsHolder.get();
-            assert transformTask != null;
-            PersistentTasksCustomMetadata.PersistentTask<?> existingTask = TransformTask.getTransformTask(transformTask.getId(), state);
-            if (existingTask == null) {
-                // Create the allocated task and wait for it to be started
-                persistentTasksService.sendStartRequest(
-                    transformTask.getId(),
-                    TransformTaskParams.NAME,
-                    transformTask,
-                    null,
-                    newPersistentTaskActionListener
+        // <6> Create the task in cluster state so that it will start executing on the node
+        ActionListener<Boolean> createOrGetIndexListener = newPersistentTaskActionListener.delegateFailureAndWrap((l, unused) -> {
+            var transformTaskParams = transformTaskParamsHolder.get();
+            assert transformTaskParams != null;
+            // Create the allocated task
+            persistentTasksService.sendStartRequest(
+                transformTaskParams.getId(),
+                TransformTaskParams.NAME,
+                transformTaskParams,
+                null,
+                newPersistentTaskActionListener
+            );
+        });
+
+        var transformConfigHolder = new SetOnce<TransformConfig>();
+        // <5> If the task is a batch transform that has already finished, starting it again will cause it to be stuck.
+        ActionListener<Boolean> verifyBatchTaskHasNotRunListener = createOrGetIndexListener.delegateFailureAndWrap((l, unused) -> {
+            var config = transformConfigHolder.get();
+            assert config != null;
+            if (config.getSyncConfig() == null) {
+                transformConfigManager.getTransformStoredDocs(
+                    Set.of(config.getId()),
+                    request.timeout(),
+                    l.delegateFailureAndWrap((ll, storedTransforms) -> {
+                        if (batchTransformsCannotStart(storedTransforms)) {
+                            ll.onFailure(
+                                new ElasticsearchStatusException(
+                                    "Cannot start a batch (non-continuous) transform [{}] that has already finished. To rerun a finished "
+                                        + "batch transform, use the reset API to clear the previous results and reset the transform.",
+                                    RestStatus.CONFLICT,
+                                    request.getId()
+                                )
+                            );
+                        } else {
+                            ll.onResponse(true);
+                        }
+                    })
                 );
             } else {
+                l.onResponse(true);
+            }
+        });
+
+        // <4> If the task already exists, check to see why and fail the request based on the task's current state
+        ActionListener<Boolean> verifyTaskDoesNotExistListener = verifyBatchTaskHasNotRunListener.delegateFailureAndWrap((l, unused) -> {
+            var transformTaskParams = transformTaskParamsHolder.get();
+            assert transformTaskParams != null;
+            var existingTask = TransformTask.getTransformTask(transformTaskParams.getId(), state);
+            if (existingTask != null) {
                 TransformState transformState = (TransformState) existingTask.getState();
                 if (transformState != null && transformState.getTaskState() == TransformTaskState.FAILED) {
-                    listener.onFailure(
+                    l.onFailure(
                         new ElasticsearchStatusException(
                             TransformMessages.getMessage(CANNOT_START_FAILED_TRANSFORM, request.getId(), transformState.getReason()),
                             RestStatus.CONFLICT
@@ -175,7 +185,7 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
                 } else {
                     // If the task already exists that means that it is either running or failed
                     // Since it is not failed, that means it is running, we return a conflict.
-                    listener.onFailure(
+                    l.onFailure(
                         new ElasticsearchStatusException(
                             "Cannot start transform [{}] as it is already started.",
                             RestStatus.CONFLICT,
@@ -183,8 +193,11 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
                         )
                     );
                 }
+            } else {
+                // Task does not exist, continue on
+                l.onResponse(true);
             }
-        }, listener::onFailure);
+        });
 
         // <3> If the destination index exists, start the task, otherwise deduce our mappings for the destination index and create it
         ActionListener<ValidateTransformAction.Response> validationListener = ActionListener.wrap(validationResponse -> {
@@ -192,7 +205,7 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
                 logger.debug(
                     () -> format("[%s] Skip dest index creation as this is an unattended transform", transformConfigHolder.get().getId())
                 );
-                createOrGetIndexListener.onResponse(true);
+                verifyTaskDoesNotExistListener.onResponse(true);
                 return;
             }
             TransformIndex.createDestinationIndex(
@@ -203,25 +216,25 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
                 transformConfigHolder.get(),
                 destIndexSettings,
                 validationResponse.getDestIndexMappings(),
-                createOrGetIndexListener
+                verifyTaskDoesNotExistListener
             );
         }, e -> {
             if (TransformEffectiveSettings.isUnattended(transformConfigHolder.get().getSettings())) {
                 logger.debug(
                     () -> format("[%s] Skip dest index creation as this is an unattended transform", transformConfigHolder.get().getId())
                 );
-                createOrGetIndexListener.onResponse(true);
+                verifyTaskDoesNotExistListener.onResponse(true);
                 return;
             }
             listener.onFailure(e);
         });
 
         // <2> run transform validations
-        ActionListener<AuthorizationState> fetchAuthStateListener = ActionListener.wrap(authState -> {
+        ActionListener<AuthorizationState> fetchAuthStateListener = validationListener.delegateFailureAndWrap((l, authState) -> {
             if (authState != null && HealthStatus.RED.equals(authState.getStatus())) {
                 // AuthorizationState status is RED which means there was permission check error during PUT or _update.
                 // Since this transform is *not* unattended (otherwise authState would be null), we fail immediately.
-                listener.onFailure(new ElasticsearchSecurityException(authState.getLastAuthError(), RestStatus.FORBIDDEN));
+                l.onFailure(new ElasticsearchSecurityException(authState.getLastAuthError(), RestStatus.FORBIDDEN));
                 return;
             }
 
@@ -235,7 +248,7 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
                 );
             }
             if (validationException != null) {
-                listener.onFailure(
+                l.onFailure(
                     new ElasticsearchStatusException(
                         TransformMessages.getMessage(
                             TransformMessages.TRANSFORM_CONFIGURATION_INVALID,
@@ -261,25 +274,30 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
                 ClientHelper.TRANSFORM_ORIGIN,
                 ValidateTransformAction.INSTANCE,
                 new ValidateTransformAction.Request(config, false, request.timeout()),
-                validationListener
+                l
             );
-        }, listener::onFailure);
+        });
 
         // <1> Check if there is an auth error stored for this transform
-        ActionListener<TransformConfig> getTransformListener = ActionListener.wrap(config -> {
+        ActionListener<TransformConfig> getTransformListener = fetchAuthStateListener.delegateFailureAndWrap((l, config) -> {
             transformConfigHolder.set(config);
 
             if (TransformEffectiveSettings.isUnattended(config.getSettings())) {
                 // We do not fail the _start request of the unattended transform due to permission issues,
                 // we just let it run
-                fetchAuthStateListener.onResponse(null);
+                l.onResponse(null);
             } else {
-                AuthorizationStatePersistenceUtils.fetchAuthState(transformConfigManager, request.getId(), fetchAuthStateListener);
+                AuthorizationStatePersistenceUtils.fetchAuthState(transformConfigManager, request.getId(), l);
             }
-        }, listener::onFailure);
+        });
 
         // <0> Get the config to verify it exists and is valid
         transformConfigManager.getTransformConfiguration(request.getId(), getTransformListener);
+    }
+
+    private boolean batchTransformsCannotStart(List<TransformStoredDoc> storedTransforms) {
+        return storedTransforms != null
+            && storedTransforms.stream().anyMatch(transform -> transform.getTransformState().getCheckpoint() >= 1);
     }
 
     @Override

@@ -553,6 +553,42 @@ public class TransformIT extends TransformRestTestCase {
         }
     }
 
+    public void testStartTransformGivenFinishedBatchTransformReturns409() throws Exception {
+        var transformId = "transform-batch-does-not-start-once-finished";
+        createStoppedTransform("transform-batch-does-not-start-once-finished", transformId);
+        assertFinishedBatchTransformCannotBeStarted(transformId);
+        deleteTransform(transformId);
+    }
+
+    private void assertFinishedBatchTransformCannotBeStarted(String transformId) {
+        var e = assertThrows(
+            "Cannot start a batch (non-continuous) transform ["
+                + transformId
+                + "] that has already finished. To rerun a finished "
+                + "batch transform, use the reset API to clear the previous results and reset the transform.",
+            ResponseException.class,
+            () -> startTransform(transformId, RequestOptions.DEFAULT)
+        );
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(RestStatus.CONFLICT.getStatus()));
+    }
+
+    public void testResetTransformCanBeRestarted() throws Exception {
+        var transformId = "transform-reset-batch-transform-can-be-started";
+        createStoppedTransform("transform-reset-batch-transform-can-be-started", transformId);
+        assertFinishedBatchTransformCannotBeStarted(transformId);
+
+        try {
+            resetTransform(transformId);
+            startTransform(transformId, RequestOptions.DEFAULT); // should not fail
+            waitUntilCheckpoint(transformId, 1L);
+            stopTransform(transformId);
+        } catch (ResponseException e) {
+            fail(e, "Transform should be able to run after a reset.");
+        } finally {
+            deleteTransform(transformId, true);
+        }
+    }
+
     private void indexMoreDocs(long timestamp, long userId, String index) throws Exception {
         StringBuilder bulkBuilder = new StringBuilder();
         for (int i = 0; i < 25; i++) {

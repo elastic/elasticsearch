@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
@@ -67,6 +68,16 @@ public class CIDRMatch extends ScalarFunction implements EvaluatorMapper {
 
     public List<Expression> matches() {
         return matches;
+    }
+
+    @Override
+    public boolean foldable() {
+        return Expressions.foldable(children());
+    }
+
+    @Override
+    public Object fold() {
+        return EvaluatorMapper.super.fold();
     }
 
     @Override

@@ -57,7 +57,9 @@ public class OpenAiEmbeddingsRequest implements Request {
                 new OpenAiEmbeddingsRequestEntity(
                     truncationResult.input(),
                     model.getTaskSettings().modelId(),
-                    model.getTaskSettings().user()
+                    model.getTaskSettings().user(),
+                    model.getServiceSettings().dimensions(),
+                    model.getServiceSettings().dimensionsSetByUser()
                 )
             ).getBytes(StandardCharsets.UTF_8)
         );

@@ -181,6 +181,10 @@ public abstract class SpatialRelatesFunction extends BinaryScalarFunction implem
         return countKeywords > 0 && (countNulls + countKeywords == expressions.length);
     }
 
+    /**
+     * This function is used to convert a spatial constant to a lucene Component2D.
+     * When both left and right sides are constants, we convert the left to a doc-values byte array and the right to a Component2D.
+     */
     protected static Component2D asLuceneComponent2D(SpatialCrsTypes crsType, Expression expression) {
         Object result = expression.fold();
         if (result instanceof String string) {
@@ -196,7 +200,7 @@ public abstract class SpatialRelatesFunction extends BinaryScalarFunction implem
         }
     }
 
-    protected static Component2D asLuceneComponent2D(SpatialCrsTypes crsType, Geometry geometry) {
+    private static Component2D asLuceneComponent2D(SpatialCrsTypes crsType, Geometry geometry) {
         if (crsType == SpatialCrsTypes.GEO) {
             var luceneGeometries = LuceneGeometriesUtils.toLatLonGeometry(geometry, false, t -> {});
             return LatLonGeometry.create(luceneGeometries);
@@ -206,7 +210,11 @@ public abstract class SpatialRelatesFunction extends BinaryScalarFunction implem
         }
     }
 
-    protected static GeometryDocValueReader asGeometryDocValueReader(SpatialCrsTypes crsType, Expression expression) throws IOException {
+    /**
+     * This function is used to convert a spatial constant to a doc-values byte array.
+     * When both left and right sides are constants, we convert the left to a doc-values byte array and the right to a Component2D.
+     */
+    private static GeometryDocValueReader asGeometryDocValueReader(SpatialCrsTypes crsType, Expression expression) throws IOException {
         Object result = expression.fold();
         if (result instanceof String string) {
             return asGeometryDocValueReader(crsType, SpatialCoordinateTypes.UNSPECIFIED.wktToGeometry(string));
@@ -221,7 +229,7 @@ public abstract class SpatialRelatesFunction extends BinaryScalarFunction implem
         }
     }
 
-    protected static GeometryDocValueReader asGeometryDocValueReader(SpatialCrsTypes crsType, Geometry geometry) throws IOException {
+    private static GeometryDocValueReader asGeometryDocValueReader(SpatialCrsTypes crsType, Geometry geometry) throws IOException {
         if (crsType == SpatialCrsTypes.GEO) {
             return asGeometryDocValueReader(
                 CoordinateEncoder.GEO,
@@ -234,11 +242,13 @@ public abstract class SpatialRelatesFunction extends BinaryScalarFunction implem
 
     }
 
-    protected static GeometryDocValueReader asGeometryDocValueReader(
-        CoordinateEncoder encoder,
-        ShapeIndexer shapeIndexer,
-        Geometry geometry
-    ) throws IOException {
+    /**
+     * Converting shapes into doc-values byte arrays is needed under two situations:
+     * - If both left and right are constants, we convert the right to Component2D and the left to doc-values for comparison
+     * - If the right is a constant and no lucene push-down was possible, we get WKB in the left and convert it to doc-values for comparison
+     */
+    private static GeometryDocValueReader asGeometryDocValueReader(CoordinateEncoder encoder, ShapeIndexer shapeIndexer, Geometry geometry)
+        throws IOException {
         GeometryDocValueReader reader = new GeometryDocValueReader();
         CentroidCalculator centroidCalculator = new CentroidCalculator();
         if (geometry instanceof Circle circle) {

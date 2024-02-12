@@ -22,7 +22,7 @@ import org.elasticsearch.xpack.ql.tree.Source;
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link SpatialIntersects}.
  * This class is generated. Do not edit it.
  */
-public final class SpatialIntersectsConstantAndConstantEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class SpatialIntersectsGeoConstantAndConstantEvaluator implements EvalOperator.ExpressionEvaluator {
   private final Warnings warnings;
 
   private final GeometryDocValueReader leftValue;
@@ -31,7 +31,7 @@ public final class SpatialIntersectsConstantAndConstantEvaluator implements Eval
 
   private final DriverContext driverContext;
 
-  public SpatialIntersectsConstantAndConstantEvaluator(Source source,
+  public SpatialIntersectsGeoConstantAndConstantEvaluator(Source source,
       GeometryDocValueReader leftValue, Component2D rightValue, DriverContext driverContext) {
     this.warnings = new Warnings(source);
     this.leftValue = leftValue;
@@ -48,7 +48,7 @@ public final class SpatialIntersectsConstantAndConstantEvaluator implements Eval
     try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         try {
-          result.appendBoolean(SpatialIntersects.processConstantAndConstant(leftValue, rightValue));
+          result.appendBoolean(SpatialIntersects.processGeoConstantAndConstant(leftValue, rightValue));
         } catch (IllegalArgumentException | IOException e) {
           warnings.registerException(e);
           result.appendNull();
@@ -60,7 +60,7 @@ public final class SpatialIntersectsConstantAndConstantEvaluator implements Eval
 
   @Override
   public String toString() {
-    return "SpatialIntersectsConstantAndConstantEvaluator[" + "leftValue=" + leftValue + ", rightValue=" + rightValue + "]";
+    return "SpatialIntersectsGeoConstantAndConstantEvaluator[" + "leftValue=" + leftValue + ", rightValue=" + rightValue + "]";
   }
 
   @Override
@@ -81,13 +81,13 @@ public final class SpatialIntersectsConstantAndConstantEvaluator implements Eval
     }
 
     @Override
-    public SpatialIntersectsConstantAndConstantEvaluator get(DriverContext context) {
-      return new SpatialIntersectsConstantAndConstantEvaluator(source, leftValue, rightValue, context);
+    public SpatialIntersectsGeoConstantAndConstantEvaluator get(DriverContext context) {
+      return new SpatialIntersectsGeoConstantAndConstantEvaluator(source, leftValue, rightValue, context);
     }
 
     @Override
     public String toString() {
-      return "SpatialIntersectsConstantAndConstantEvaluator[" + "leftValue=" + leftValue + ", rightValue=" + rightValue + "]";
+      return "SpatialIntersectsGeoConstantAndConstantEvaluator[" + "leftValue=" + leftValue + ", rightValue=" + rightValue + "]";
     }
   }
 }

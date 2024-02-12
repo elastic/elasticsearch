@@ -25,7 +25,7 @@ import org.elasticsearch.xpack.ql.tree.Source;
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link SpatialIntersects}.
  * This class is generated. Do not edit it.
  */
-public final class SpatialIntersectsStringAndConstantEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class SpatialIntersectsGeoStringAndConstantEvaluator implements EvalOperator.ExpressionEvaluator {
   private final Warnings warnings;
 
   private final EvalOperator.ExpressionEvaluator leftValue;
@@ -34,7 +34,7 @@ public final class SpatialIntersectsStringAndConstantEvaluator implements EvalOp
 
   private final DriverContext driverContext;
 
-  public SpatialIntersectsStringAndConstantEvaluator(Source source,
+  public SpatialIntersectsGeoStringAndConstantEvaluator(Source source,
       EvalOperator.ExpressionEvaluator leftValue, Component2D rightValue,
       DriverContext driverContext) {
     this.warnings = new Warnings(source);
@@ -70,7 +70,7 @@ public final class SpatialIntersectsStringAndConstantEvaluator implements EvalOp
           continue position;
         }
         try {
-          result.appendBoolean(SpatialIntersects.processStringAndConstant(leftValueBlock.getBytesRef(leftValueBlock.getFirstValueIndex(p), leftValueScratch), rightValue));
+          result.appendBoolean(SpatialIntersects.processGeoStringAndConstant(leftValueBlock.getBytesRef(leftValueBlock.getFirstValueIndex(p), leftValueScratch), rightValue));
         } catch (IllegalArgumentException | IOException e) {
           warnings.registerException(e);
           result.appendNull();
@@ -85,7 +85,7 @@ public final class SpatialIntersectsStringAndConstantEvaluator implements EvalOp
       BytesRef leftValueScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         try {
-          result.appendBoolean(SpatialIntersects.processStringAndConstant(leftValueVector.getBytesRef(p, leftValueScratch), rightValue));
+          result.appendBoolean(SpatialIntersects.processGeoStringAndConstant(leftValueVector.getBytesRef(p, leftValueScratch), rightValue));
         } catch (IllegalArgumentException | IOException e) {
           warnings.registerException(e);
           result.appendNull();
@@ -97,7 +97,7 @@ public final class SpatialIntersectsStringAndConstantEvaluator implements EvalOp
 
   @Override
   public String toString() {
-    return "SpatialIntersectsStringAndConstantEvaluator[" + "leftValue=" + leftValue + ", rightValue=" + rightValue + "]";
+    return "SpatialIntersectsGeoStringAndConstantEvaluator[" + "leftValue=" + leftValue + ", rightValue=" + rightValue + "]";
   }
 
   @Override
@@ -120,13 +120,13 @@ public final class SpatialIntersectsStringAndConstantEvaluator implements EvalOp
     }
 
     @Override
-    public SpatialIntersectsStringAndConstantEvaluator get(DriverContext context) {
-      return new SpatialIntersectsStringAndConstantEvaluator(source, leftValue.get(context), rightValue, context);
+    public SpatialIntersectsGeoStringAndConstantEvaluator get(DriverContext context) {
+      return new SpatialIntersectsGeoStringAndConstantEvaluator(source, leftValue.get(context), rightValue, context);
     }
 
     @Override
     public String toString() {
-      return "SpatialIntersectsStringAndConstantEvaluator[" + "leftValue=" + leftValue + ", rightValue=" + rightValue + "]";
+      return "SpatialIntersectsGeoStringAndConstantEvaluator[" + "leftValue=" + leftValue + ", rightValue=" + rightValue + "]";
     }
   }
 }

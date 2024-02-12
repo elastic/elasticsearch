@@ -8,6 +8,7 @@ import java.io.IOException;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
+import org.apache.lucene.geo.Component2D;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
@@ -24,17 +25,17 @@ import org.elasticsearch.xpack.ql.tree.Source;
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link SpatialIntersects}.
  * This class is generated. Do not edit it.
  */
-public final class SpatialIntersectsStringAndStringEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class SpatialIntersectsCartesianStringAndConstantEvaluator implements EvalOperator.ExpressionEvaluator {
   private final Warnings warnings;
 
   private final EvalOperator.ExpressionEvaluator leftValue;
 
-  private final EvalOperator.ExpressionEvaluator rightValue;
+  private final Component2D rightValue;
 
   private final DriverContext driverContext;
 
-  public SpatialIntersectsStringAndStringEvaluator(Source source,
-      EvalOperator.ExpressionEvaluator leftValue, EvalOperator.ExpressionEvaluator rightValue,
+  public SpatialIntersectsCartesianStringAndConstantEvaluator(Source source,
+      EvalOperator.ExpressionEvaluator leftValue, Component2D rightValue,
       DriverContext driverContext) {
     this.warnings = new Warnings(source);
     this.leftValue = leftValue;
@@ -45,25 +46,17 @@ public final class SpatialIntersectsStringAndStringEvaluator implements EvalOper
   @Override
   public Block eval(Page page) {
     try (BytesRefBlock leftValueBlock = (BytesRefBlock) leftValue.eval(page)) {
-      try (BytesRefBlock rightValueBlock = (BytesRefBlock) rightValue.eval(page)) {
-        BytesRefVector leftValueVector = leftValueBlock.asVector();
-        if (leftValueVector == null) {
-          return eval(page.getPositionCount(), leftValueBlock, rightValueBlock);
-        }
-        BytesRefVector rightValueVector = rightValueBlock.asVector();
-        if (rightValueVector == null) {
-          return eval(page.getPositionCount(), leftValueBlock, rightValueBlock);
-        }
-        return eval(page.getPositionCount(), leftValueVector, rightValueVector);
+      BytesRefVector leftValueVector = leftValueBlock.asVector();
+      if (leftValueVector == null) {
+        return eval(page.getPositionCount(), leftValueBlock);
       }
+      return eval(page.getPositionCount(), leftValueVector);
     }
   }
 
-  public BooleanBlock eval(int positionCount, BytesRefBlock leftValueBlock,
-      BytesRefBlock rightValueBlock) {
+  public BooleanBlock eval(int positionCount, BytesRefBlock leftValueBlock) {
     try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
       BytesRef leftValueScratch = new BytesRef();
-      BytesRef rightValueScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         if (leftValueBlock.isNull(p)) {
           result.appendNull();
@@ -76,19 +69,8 @@ public final class SpatialIntersectsStringAndStringEvaluator implements EvalOper
           result.appendNull();
           continue position;
         }
-        if (rightValueBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
-        }
-        if (rightValueBlock.getValueCount(p) != 1) {
-          if (rightValueBlock.getValueCount(p) > 1) {
-            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
-        }
         try {
-          result.appendBoolean(SpatialIntersects.processStringAndString(leftValueBlock.getBytesRef(leftValueBlock.getFirstValueIndex(p), leftValueScratch), rightValueBlock.getBytesRef(rightValueBlock.getFirstValueIndex(p), rightValueScratch)));
+          result.appendBoolean(SpatialIntersects.processCartesianStringAndConstant(leftValueBlock.getBytesRef(leftValueBlock.getFirstValueIndex(p), leftValueScratch), rightValue));
         } catch (IllegalArgumentException | IOException e) {
           warnings.registerException(e);
           result.appendNull();
@@ -98,14 +80,12 @@ public final class SpatialIntersectsStringAndStringEvaluator implements EvalOper
     }
   }
 
-  public BooleanBlock eval(int positionCount, BytesRefVector leftValueVector,
-      BytesRefVector rightValueVector) {
+  public BooleanBlock eval(int positionCount, BytesRefVector leftValueVector) {
     try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
       BytesRef leftValueScratch = new BytesRef();
-      BytesRef rightValueScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         try {
-          result.appendBoolean(SpatialIntersects.processStringAndString(leftValueVector.getBytesRef(p, leftValueScratch), rightValueVector.getBytesRef(p, rightValueScratch)));
+          result.appendBoolean(SpatialIntersects.processCartesianStringAndConstant(leftValueVector.getBytesRef(p, leftValueScratch), rightValue));
         } catch (IllegalArgumentException | IOException e) {
           warnings.registerException(e);
           result.appendNull();
@@ -117,12 +97,12 @@ public final class SpatialIntersectsStringAndStringEvaluator implements EvalOper
 
   @Override
   public String toString() {
-    return "SpatialIntersectsStringAndStringEvaluator[" + "leftValue=" + leftValue + ", rightValue=" + rightValue + "]";
+    return "SpatialIntersectsCartesianStringAndConstantEvaluator[" + "leftValue=" + leftValue + ", rightValue=" + rightValue + "]";
   }
 
   @Override
   public void close() {
-    Releasables.closeExpectNoException(leftValue, rightValue);
+    Releasables.closeExpectNoException(leftValue);
   }
 
   static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
@@ -130,23 +110,23 @@ public final class SpatialIntersectsStringAndStringEvaluator implements EvalOper
 
     private final EvalOperator.ExpressionEvaluator.Factory leftValue;
 
-    private final EvalOperator.ExpressionEvaluator.Factory rightValue;
+    private final Component2D rightValue;
 
     public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory leftValue,
-        EvalOperator.ExpressionEvaluator.Factory rightValue) {
+        Component2D rightValue) {
       this.source = source;
       this.leftValue = leftValue;
       this.rightValue = rightValue;
     }
 
     @Override
-    public SpatialIntersectsStringAndStringEvaluator get(DriverContext context) {
-      return new SpatialIntersectsStringAndStringEvaluator(source, leftValue.get(context), rightValue.get(context), context);
+    public SpatialIntersectsCartesianStringAndConstantEvaluator get(DriverContext context) {
+      return new SpatialIntersectsCartesianStringAndConstantEvaluator(source, leftValue.get(context), rightValue, context);
     }
 
     @Override
     public String toString() {
-      return "SpatialIntersectsStringAndStringEvaluator[" + "leftValue=" + leftValue + ", rightValue=" + rightValue + "]";
+      return "SpatialIntersectsCartesianStringAndConstantEvaluator[" + "leftValue=" + leftValue + ", rightValue=" + rightValue + "]";
     }
   }
 }

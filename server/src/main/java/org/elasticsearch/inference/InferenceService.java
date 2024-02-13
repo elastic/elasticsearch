@@ -103,7 +103,7 @@ public interface InferenceService extends Closeable {
      * @param taskSettings Settings in the request to override the model's defaults
      * @param inputType For search, ingest etc
      * @param chunkingOptions The window and span options to apply
-     * @param listener Inference result listener
+     * @param listener Chunked Inference result listener
      */
     void chunkedInfer(
         Model model,
@@ -111,7 +111,7 @@ public interface InferenceService extends Closeable {
         Map<String, Object> taskSettings,
         InputType inputType,
         ChunkingOptions chunkingOptions,
-        ActionListener<ChunkedInferenceServiceResults> listener
+        ActionListener<List<ChunkedInferenceServiceResults>> listener
     );
 
     /**

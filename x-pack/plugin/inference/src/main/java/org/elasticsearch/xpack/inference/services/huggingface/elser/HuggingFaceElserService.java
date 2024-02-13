@@ -24,10 +24,7 @@ import java.util.Map;
 public class HuggingFaceElserService extends HuggingFaceBaseService {
     public static final String NAME = "hugging_face_elser";
 
-    public HuggingFaceElserService(
-        SetOnce<HttpRequestSender.HttpRequestSenderFactory> factory,
-        SetOnce<ServiceComponents> serviceComponents
-    ) {
+    public HuggingFaceElserService(SetOnce<HttpRequestSender.Factory> factory, SetOnce<ServiceComponents> serviceComponents) {
         super(factory, serviceComponents);
     }
 

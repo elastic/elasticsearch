@@ -19,6 +19,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
 
@@ -63,8 +64,6 @@ class RequestTask2 implements RejectableTask {
             timeout,
             threadPool.executor(UTILITY_THREAD_POOL_NAME),
             notificationListener,
-            // TODO if this times out technically the retrying sender could still be retrying. We should devise a way
-            // to cancel the retryer task
             (ignored) -> notificationListener.onFailure(
                 new ElasticsearchTimeoutException(Strings.format("Request timed out waiting to be sent after [%s]", timeout))
             )
@@ -74,6 +73,11 @@ class RequestTask2 implements RejectableTask {
     @Override
     public boolean hasFinished() {
         return finished.get();
+    }
+
+    @Override
+    public Supplier<Boolean> getRequestTimedOutFunction() {
+        return this::hasFinished;
     }
 
     @Override

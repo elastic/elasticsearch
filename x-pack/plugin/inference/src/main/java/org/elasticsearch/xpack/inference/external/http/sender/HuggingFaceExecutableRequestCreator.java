@@ -35,7 +35,7 @@ public class HuggingFaceExecutableRequestCreator implements ExecutableRequestCre
 
     public HuggingFaceExecutableRequestCreator(HuggingFaceModel model, ResponseHandler responseHandler, Truncator truncator) {
         this.model = Objects.requireNonNull(model);
-        this.account = new HuggingFaceAccount(model.getUri(), model.getApiKey());
+        account = new HuggingFaceAccount(model.getUri(), model.getApiKey());
         this.responseHandler = Objects.requireNonNull(responseHandler);
         this.truncator = Objects.requireNonNull(truncator);
     }

@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.InferenceServiceResults;
 
 import java.util.List;
+import java.util.function.Supplier;
 
 // TODO maybe use a different name?
 public interface InferenceRequest {
@@ -22,4 +23,6 @@ public interface InferenceRequest {
     ActionListener<InferenceServiceResults> listener();
 
     boolean hasFinished();
+
+    Supplier<Boolean> getRequestTimedOutFunction();
 }

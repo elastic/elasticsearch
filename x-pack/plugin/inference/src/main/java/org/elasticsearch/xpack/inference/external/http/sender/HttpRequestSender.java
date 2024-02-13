@@ -43,17 +43,13 @@ public class HttpRequestSender implements Sender {
     /**
      * A helper class for constructing a {@link HttpRequestSender}.
      */
-    public static class HttpRequestSenderFactory {
+    public static class Factory {
         private final ServiceComponents serviceComponents;
         private final HttpClientManager httpClientManager;
         private final ClusterService clusterService;
         private final RequestSender requestSender;
 
-        public HttpRequestSenderFactory(
-            ServiceComponents serviceComponents,
-            HttpClientManager httpClientManager,
-            ClusterService clusterService
-        ) {
+        public Factory(ServiceComponents serviceComponents, HttpClientManager httpClientManager, ClusterService clusterService) {
             this.serviceComponents = Objects.requireNonNull(serviceComponents);
             this.httpClientManager = Objects.requireNonNull(httpClientManager);
             this.clusterService = Objects.requireNonNull(clusterService);
@@ -111,7 +107,6 @@ public class HttpRequestSender implements Sender {
         this.manager = Objects.requireNonNull(httpClientManager);
         service = new RequestExecutorService(
             serviceName,
-            manager.getHttpClient(),
             threadPool,
             startCompleted,
             new RequestExecutorServiceSettings(settings, clusterService),

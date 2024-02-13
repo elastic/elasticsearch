@@ -79,7 +79,7 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
     public static final String NAME = "inference";
     public static final String UTILITY_THREAD_POOL_NAME = "inference_utility";
     private final Settings settings;
-    private final SetOnce<HttpRequestSender.HttpRequestSenderFactory> httpFactory = new SetOnce<>();
+    private final SetOnce<HttpRequestSender.Factory> httpFactory = new SetOnce<>();
     private final SetOnce<ServiceComponents> serviceComponents = new SetOnce<>();
 
     private final SetOnce<InferenceServiceRegistry> inferenceServiceRegistry = new SetOnce<>();
@@ -128,11 +128,10 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
         var truncator = new Truncator(settings, services.clusterService());
         serviceComponents.set(new ServiceComponents(services.threadPool(), throttlerManager, settings, truncator));
 
-        var httpRequestSenderFactory = new HttpRequestSender.HttpRequestSenderFactory(
-            services.threadPool(),
+        var httpRequestSenderFactory = new HttpRequestSender.Factory(
+            serviceComponents.get(),
             HttpClientManager.create(settings, services.threadPool(), services.clusterService(), throttlerManager),
-            services.clusterService(),
-            settings
+            services.clusterService()
         );
         httpFactory.set(httpRequestSenderFactory);
 

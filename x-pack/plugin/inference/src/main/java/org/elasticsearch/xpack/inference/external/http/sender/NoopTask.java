@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.InferenceServiceResults;
 
 import java.util.List;
+import java.util.function.Supplier;
 
 class NoopTask implements RejectableTask {
 
@@ -32,6 +33,11 @@ class NoopTask implements RejectableTask {
     @Override
     public boolean hasFinished() {
         return true;
+    }
+
+    @Override
+    public Supplier<Boolean> getRequestTimedOutFunction() {
+        return () -> true;
     }
 
     @Override

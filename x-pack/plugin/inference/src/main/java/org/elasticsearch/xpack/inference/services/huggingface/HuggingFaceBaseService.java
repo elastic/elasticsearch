@@ -33,10 +33,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNot
 
 public abstract class HuggingFaceBaseService extends SenderService {
 
-    public HuggingFaceBaseService(
-        SetOnce<HttpRequestSender.HttpRequestSenderFactory> factory,
-        SetOnce<ServiceComponents> serviceComponents
-    ) {
+    public HuggingFaceBaseService(SetOnce<HttpRequestSender.Factory> factory, SetOnce<ServiceComponents> serviceComponents) {
         super(factory, serviceComponents);
     }
 

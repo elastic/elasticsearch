@@ -42,7 +42,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNot
 public class OpenAiService extends SenderService {
     public static final String NAME = "openai";
 
-    public OpenAiService(SetOnce<HttpRequestSender.HttpRequestSenderFactory> factory, SetOnce<ServiceComponents> serviceComponents) {
+    public OpenAiService(SetOnce<HttpRequestSender.Factory> factory, SetOnce<ServiceComponents> serviceComponents) {
         super(factory, serviceComponents);
     }
 

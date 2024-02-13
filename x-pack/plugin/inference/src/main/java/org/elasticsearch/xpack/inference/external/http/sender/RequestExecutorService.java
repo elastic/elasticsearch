@@ -18,7 +18,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.common.AdjustableCapacityBlockingQueue;
-import org.elasticsearch.xpack.inference.external.http.HttpClient;
 import org.elasticsearch.xpack.inference.external.http.RequestExecutor;
 
 import java.util.ArrayList;
@@ -80,13 +79,12 @@ class RequestExecutorService implements RequestExecutor {
 
     RequestExecutorService(
         String serviceName,
-        HttpClient httpClient,
         ThreadPool threadPool,
         @Nullable CountDownLatch startupLatch,
         RequestExecutorServiceSettings settings,
         RequestManager requestManager
     ) {
-        this(serviceName, httpClient, threadPool, QUEUE_CREATOR, startupLatch, settings, requestManager);
+        this(serviceName, threadPool, QUEUE_CREATOR, startupLatch, settings, requestManager);
     }
 
     /**
@@ -94,7 +92,6 @@ class RequestExecutorService implements RequestExecutor {
      */
     RequestExecutorService(
         String serviceName,
-        HttpClient httpClient,
         ThreadPool threadPool,
         AdjustableCapacityBlockingQueue.QueueCreator<RejectableTask> createQueue,
         @Nullable CountDownLatch startupLatch,
@@ -258,51 +255,12 @@ class RequestExecutorService implements RequestExecutor {
         return terminationLatch.await(timeout, unit);
     }
 
-    // /**
-    // * Send the request at some point in the future.
-    // *
-    // * @param request the http request to send
-    // * @param timeout the maximum time to wait for this request to complete (failing or succeeding). Once the time elapses, the
-    // * listener::onFailure is called with a {@link org.elasticsearch.ElasticsearchTimeoutException}.
-    // * If null, then the request will wait forever
-    // * @param listener an {@link ActionListener<HttpResult>} for the response or failure
-    // */
-    // public void execute(HttpRequest request, @Nullable TimeValue timeout, ActionListener<HttpResult> listener) {
-    // RequestTask task = new RequestTask(request, httpClient, httpContext, timeout, threadPool, listener);
-    //
-    // if (isShutdown()) {
-    // EsRejectedExecutionException rejected = new EsRejectedExecutionException(
-    // format("Failed to enqueue task because the http executor service [%s] has already shutdown", serviceName),
-    // true
-    // );
-    //
-    // task.onRejection(rejected);
-    // return;
-    // }
-    //
-    // boolean added = queue.offer(task);
-    // if (added == false) {
-    // EsRejectedExecutionException rejected = new EsRejectedExecutionException(
-    // format("Failed to execute task because the http executor service [%s] queue is full", serviceName),
-    // false
-    // );
-    //
-    // task.onRejection(rejected);
-    // } else if (isShutdown()) {
-    // // It is possible that a shutdown and notification request occurred after we initially checked for shutdown above
-    // // If the task was added after the queue was already drained it could sit there indefinitely. So let's check again if
-    // // we shut down and if so we'll redo the notification
-    // notifyRequestsOfShutdown();
-    // }
-    // }
-
     public void execute(
         ExecutableRequestCreator requestCreator,
         List<String> input,
         @Nullable TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
-        // RequestTask task = new RequestTask(request, httpClient, httpContext, timeout, threadPool, listener);
         var task = new RequestTask2(requestCreator, input, timeout, threadPool, listener);
 
         if (isShutdown()) {

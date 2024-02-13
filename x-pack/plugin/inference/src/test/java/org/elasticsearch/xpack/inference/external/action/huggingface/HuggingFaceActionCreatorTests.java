@@ -20,7 +20,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.common.TruncatorTests;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
-import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
+import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
+import org.elasticsearch.xpack.inference.external.http.sender.SingleRequestManager;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.results.SparseEmbeddingResultsTests;
 import org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests;
@@ -31,7 +32,6 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.net.URISyntaxException;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -72,14 +72,9 @@ public class HuggingFaceActionCreatorTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testExecute_ReturnsSuccessfulResponse_ForElserAction() throws IOException {
-        var senderFactory = new HttpRequestSender.HttpRequestSenderFactory(
-            threadPool,
-            clientManager,
-            mockClusterServiceEmpty(),
-            Settings.EMPTY
-        );
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var sender = senderFactory.createSender("test_service")) {
+        try (var sender = senderFactory.createSender("test_service", new SingleRequestManager.Factory())) {
             sender.start();
 
             String responseJson = """
@@ -126,15 +121,15 @@ public class HuggingFaceActionCreatorTests extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public void testSend_FailsFromInvalidResponseFormat_ForElserAction() throws IOException, URISyntaxException {
-        var senderFactory = new HttpRequestSender.HttpRequestSenderFactory(
-            threadPool,
-            clientManager,
-            mockClusterServiceEmpty(),
-            Settings.EMPTY
+    public void testSend_FailsFromInvalidResponseFormat_ForElserAction() throws IOException {
+        var settings = buildSettingsWithRetryFields(
+            TimeValue.timeValueMillis(1),
+            TimeValue.timeValueMinutes(1),
+            TimeValue.timeValueSeconds(0)
         );
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager, settings);
 
-        try (var sender = senderFactory.createSender("test_service")) {
+        try (var sender = senderFactory.createSender("test_service", new SingleRequestManager.Factory())) {
             sender.start();
 
             String responseJson = """
@@ -161,11 +156,7 @@ public class HuggingFaceActionCreatorTests extends ESTestCase {
                     threadPool,
                     mockThrottlerManager(),
                     // timeout as zero for no retries
-                    buildSettingsWithRetryFields(
-                        TimeValue.timeValueMillis(1),
-                        TimeValue.timeValueMinutes(1),
-                        TimeValue.timeValueSeconds(0)
-                    ),
+                    settings,
                     TruncatorTests.createTruncator()
                 )
             );
@@ -198,14 +189,9 @@ public class HuggingFaceActionCreatorTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testExecute_ReturnsSuccessfulResponse_ForEmbeddingsAction() throws IOException {
-        var senderFactory = new HttpRequestSender.HttpRequestSenderFactory(
-            threadPool,
-            clientManager,
-            mockClusterServiceEmpty(),
-            Settings.EMPTY
-        );
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var sender = senderFactory.createSender("test_service")) {
+        try (var sender = senderFactory.createSender("test_service", new SingleRequestManager.Factory())) {
             sender.start();
 
             String responseJson = """
@@ -248,15 +234,15 @@ public class HuggingFaceActionCreatorTests extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public void testSend_FailsFromInvalidResponseFormat_ForEmbeddingsAction() throws IOException, URISyntaxException {
-        var senderFactory = new HttpRequestSender.HttpRequestSenderFactory(
-            threadPool,
-            clientManager,
-            mockClusterServiceEmpty(),
-            Settings.EMPTY
+    public void testSend_FailsFromInvalidResponseFormat_ForEmbeddingsAction() throws IOException {
+        var settings = buildSettingsWithRetryFields(
+            TimeValue.timeValueMillis(1),
+            TimeValue.timeValueMinutes(1),
+            TimeValue.timeValueSeconds(0)
         );
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager, settings);
 
-        try (var sender = senderFactory.createSender("test_service")) {
+        try (var sender = senderFactory.createSender("test_service", new SingleRequestManager.Factory())) {
             sender.start();
 
             // this will fail because the only valid formats are {"embeddings": [[...]]} or [[...]]
@@ -281,11 +267,7 @@ public class HuggingFaceActionCreatorTests extends ESTestCase {
                     threadPool,
                     mockThrottlerManager(),
                     // timeout as zero for no retries
-                    buildSettingsWithRetryFields(
-                        TimeValue.timeValueMillis(1),
-                        TimeValue.timeValueMinutes(1),
-                        TimeValue.timeValueSeconds(0)
-                    ),
+                    settings,
                     TruncatorTests.createTruncator()
                 )
             );
@@ -317,14 +299,9 @@ public class HuggingFaceActionCreatorTests extends ESTestCase {
     }
 
     public void testExecute_ReturnsSuccessfulResponse_AfterTruncating() throws IOException {
-        var senderFactory = new HttpRequestSender.HttpRequestSenderFactory(
-            threadPool,
-            clientManager,
-            mockClusterServiceEmpty(),
-            Settings.EMPTY
-        );
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var sender = senderFactory.createSender("test_service")) {
+        try (var sender = senderFactory.createSender("test_service", new SingleRequestManager.Factory())) {
             sender.start();
 
             String responseJsonContentTooLarge = """
@@ -387,14 +364,9 @@ public class HuggingFaceActionCreatorTests extends ESTestCase {
     }
 
     public void testExecute_TruncatesInputBeforeSending() throws IOException {
-        var senderFactory = new HttpRequestSender.HttpRequestSenderFactory(
-            threadPool,
-            clientManager,
-            mockClusterServiceEmpty(),
-            Settings.EMPTY
-        );
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var sender = senderFactory.createSender("test_service")) {
+        try (var sender = senderFactory.createSender("test_service", new SingleRequestManager.Factory())) {
             sender.start();
 
             String responseJson = """

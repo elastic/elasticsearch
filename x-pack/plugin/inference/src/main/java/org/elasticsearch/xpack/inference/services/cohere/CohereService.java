@@ -43,7 +43,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNot
 public class CohereService extends SenderService {
     public static final String NAME = "cohere";
 
-    public CohereService(SetOnce<HttpRequestSender.HttpRequestSenderFactory> factory, SetOnce<ServiceComponents> serviceComponents) {
+    public CohereService(SetOnce<HttpRequestSender.Factory> factory, SetOnce<ServiceComponents> serviceComponents) {
         super(factory, serviceComponents);
     }
 

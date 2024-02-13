@@ -152,7 +152,7 @@ public class TestInferenceServiceExtension implements InferenceServiceExtension 
             Map<String, Object> taskSettings,
             InputType inputType,
             ChunkingOptions chunkingOptions,
-            ActionListener<ChunkedInferenceServiceResults> listener
+            ActionListener<List<ChunkedInferenceServiceResults>> listener
         ) {
             switch (model.getConfigurations().getTaskType()) {
                 case ANY, SPARSE_EMBEDDING -> listener.onResponse(makeChunkedResults(input));
@@ -177,7 +177,7 @@ public class TestInferenceServiceExtension implements InferenceServiceExtension 
             return new SparseEmbeddingResults(embeddings);
         }
 
-        private ChunkedSparseEmbeddingResults makeChunkedResults(List<String> input) {
+        private List<ChunkedInferenceServiceResults> makeChunkedResults(List<String> input) {
             var chunks = new ArrayList<ChunkedTextExpansionResults.ChunkedResult>();
             for (int i = 0; i < input.size(); i++) {
                 var tokens = new ArrayList<TextExpansionResults.WeightedToken>();
@@ -186,7 +186,7 @@ public class TestInferenceServiceExtension implements InferenceServiceExtension 
                 }
                 chunks.add(new ChunkedTextExpansionResults.ChunkedResult(input.get(i), tokens));
             }
-            return new ChunkedSparseEmbeddingResults(chunks);
+            return List.of(new ChunkedSparseEmbeddingResults(chunks));
         }
 
         @Override

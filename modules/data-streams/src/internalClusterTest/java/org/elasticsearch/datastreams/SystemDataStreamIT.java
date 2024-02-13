@@ -14,7 +14,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateResponse.ResetFeatureStateStatus;
 import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.IndicesOptions.Option;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
@@ -45,7 +44,6 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -351,10 +349,11 @@ public class SystemDataStreamIT extends ESIntegTestCase {
                     .collect(Collectors.toList())
                     .toArray(Strings.EMPTY_ARRAY)
             );
-            EnumSet<Option> options = request.indicesOptions().options();
-            options.add(Option.IGNORE_UNAVAILABLE);
-            options.add(Option.ALLOW_NO_INDICES);
-            request.indicesOptions(new IndicesOptions(options, request.indicesOptions().expandWildcards()));
+            request.indicesOptions(
+                IndicesOptions.builder(request.indicesOptions())
+                    .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
+                    .build()
+            );
             try {
                 client.execute(
                     DeleteDataStreamAction.INSTANCE,

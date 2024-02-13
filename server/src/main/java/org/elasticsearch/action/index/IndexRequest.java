@@ -13,7 +13,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.DocWriteRequest;
@@ -24,6 +23,7 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.IndexRouting;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -39,7 +39,7 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.ingest.IngestService;
-import org.elasticsearch.plugins.internal.DocumentParsingObserver;
+import org.elasticsearch.plugins.internal.DocumentSizeObserver;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -52,6 +52,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.TransportVersions.INDEX_REQUEST_NORMALIZED_BYTES_PARSED;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
@@ -146,7 +147,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      * rawTimestamp field is used on the coordinate node, it doesn't need to be serialised.
      */
     private Object rawTimestamp;
-    private boolean pipelinesHaveRun = false;
+    private long normalisedBytesParsed = -1;
 
     public IndexRequest(StreamInput in) throws IOException {
         this(null, in);
@@ -187,10 +188,11 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_13_0)) {
             dynamicTemplates = in.readMap(StreamInput::readString);
         }
-        if (in.getTransportVersion().onOrAfter(PIPELINES_HAVE_RUN_FIELD_ADDED)) {
-            pipelinesHaveRun = in.readBoolean();
+        if (in.getTransportVersion().onOrAfter(PIPELINES_HAVE_RUN_FIELD_ADDED)
+            && in.getTransportVersion().before(INDEX_REQUEST_NORMALIZED_BYTES_PARSED)) {
+            in.readBoolean();
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.PIPELINES_IN_BULK_RESPONSE_ADDED)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             this.listExecutedPipelines = in.readBoolean();
             if (listExecutedPipelines) {
                 List<String> possiblyImmutableExecutedPipelines = in.readOptionalCollectionAsList(StreamInput::readString);
@@ -203,6 +205,9 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             requireDataStream = in.readBoolean();
         } else {
             requireDataStream = false;
+        }
+        if (in.getTransportVersion().onOrAfter(INDEX_REQUEST_NORMALIZED_BYTES_PARSED)) {
+            normalisedBytesParsed = in.readZLong();
         }
     }
 
@@ -407,8 +412,8 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         return XContentHelper.convertToMap(source, false, contentType).v2();
     }
 
-    public Map<String, Object> sourceAsMap(DocumentParsingObserver documentParsingObserver) {
-        return XContentHelper.convertToMap(source, false, contentType, documentParsingObserver).v2();
+    public Map<String, Object> sourceAsMap(DocumentSizeObserver documentSizeObserver) {
+        return XContentHelper.convertToMap(source, false, contentType, documentSizeObserver).v2();
     }
 
     /**
@@ -758,20 +763,30 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             out.writeMap(dynamicTemplates, StreamOutput::writeString);
         } else {
             if (dynamicTemplates.isEmpty() == false) {
-                throw new IllegalArgumentException("[dynamic_templates] parameter requires all nodes on " + Version.V_7_13_0 + " or later");
+                throw new IllegalArgumentException(
+                    Strings.format(
+                        "[dynamic_templates] parameter requires all nodes on %s or later",
+                        TransportVersions.V_7_13_0.toReleaseVersion()
+                    )
+                );
             }
         }
-        if (out.getTransportVersion().onOrAfter(PIPELINES_HAVE_RUN_FIELD_ADDED)) {
-            out.writeBoolean(pipelinesHaveRun);
+        if (out.getTransportVersion().onOrAfter(PIPELINES_HAVE_RUN_FIELD_ADDED)
+            && out.getTransportVersion().before(INDEX_REQUEST_NORMALIZED_BYTES_PARSED)) {
+            out.writeBoolean(normalisedBytesParsed != -1L);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.PIPELINES_IN_BULK_RESPONSE_ADDED)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             out.writeBoolean(listExecutedPipelines);
             if (listExecutedPipelines) {
                 out.writeOptionalCollection(executedPipelines, StreamOutput::writeString);
             }
         }
+
         if (out.getTransportVersion().onOrAfter(TransportVersions.REQUIRE_DATA_STREAM_ADDED)) {
             out.writeBoolean(requireDataStream);
+        }
+        if (out.getTransportVersion().onOrAfter(INDEX_REQUEST_NORMALIZED_BYTES_PARSED)) {
+            out.writeZLong(normalisedBytesParsed);
         }
     }
 
@@ -918,12 +933,12 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         this.rawTimestamp = rawTimestamp;
     }
 
-    public void setPipelinesHaveRun() {
-        pipelinesHaveRun = true;
+    public long getNormalisedBytesParsed() {
+        return normalisedBytesParsed;
     }
 
-    public boolean pipelinesHaveRun() {
-        return pipelinesHaveRun;
+    public void setNormalisedBytesParsed(long normalisedBytesParsed) {
+        this.normalisedBytesParsed = normalisedBytesParsed;
     }
 
     /**

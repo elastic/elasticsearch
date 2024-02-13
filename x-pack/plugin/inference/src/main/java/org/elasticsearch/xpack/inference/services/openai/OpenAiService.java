@@ -12,6 +12,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.ChunkingOptions;
@@ -29,6 +30,7 @@ import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsServiceSettings;
 
 import java.util.List;
 import java.util.Map;
@@ -70,7 +72,7 @@ public class OpenAiService extends SenderService {
                 taskSettingsMap,
                 serviceSettingsMap,
                 TaskType.unsupportedTaskTypeErrorMsg(taskType, NAME),
-                true
+                OpenAiParseContext.REQUEST
             );
 
             throwIfNotEmptyMap(config, NAME);
@@ -91,7 +93,15 @@ public class OpenAiService extends SenderService {
         @Nullable Map<String, Object> secretSettings,
         String failureMessage
     ) {
-        return createModel(inferenceEntityId, taskType, serviceSettings, taskSettings, secretSettings, failureMessage, false);
+        return createModel(
+            inferenceEntityId,
+            taskType,
+            serviceSettings,
+            taskSettings,
+            secretSettings,
+            failureMessage,
+            OpenAiParseContext.PERSISTENT
+        );
     }
 
     private static OpenAiModel createModel(
@@ -101,7 +111,7 @@ public class OpenAiService extends SenderService {
         Map<String, Object> taskSettings,
         @Nullable Map<String, Object> secretSettings,
         String failureMessage,
-        boolean logDeprecations
+        OpenAiParseContext context
     ) {
         return switch (taskType) {
             case TEXT_EMBEDDING -> new OpenAiEmbeddingsModel(
@@ -111,7 +121,7 @@ public class OpenAiService extends SenderService {
                 serviceSettings,
                 taskSettings,
                 secretSettings,
-                logDeprecations
+                context
             );
             default -> throw new ElasticsearchStatusException(failureMessage, RestStatus.BAD_REQUEST);
         };
@@ -206,12 +216,28 @@ public class OpenAiService extends SenderService {
     }
 
     private OpenAiEmbeddingsModel updateModelWithEmbeddingDetails(OpenAiEmbeddingsModel model, int embeddingSize) {
-        OpenAiServiceSettings serviceSettings = new OpenAiServiceSettings(
+        if (model.getServiceSettings().dimensionsSetByUser()
+            && model.getServiceSettings().dimensions() != null
+            && model.getServiceSettings().dimensions() != embeddingSize) {
+            throw new ElasticsearchStatusException(
+                Strings.format(
+                    "The retrieved embeddings size [%s] does not match the size specified in the settings [%s]. "
+                        + "Please recreate the [%s] configuration with the correct dimensions",
+                    embeddingSize,
+                    model.getServiceSettings().dimensions(),
+                    model.getConfigurations().getInferenceEntityId()
+                ),
+                RestStatus.BAD_REQUEST
+            );
+        }
+
+        OpenAiEmbeddingsServiceSettings serviceSettings = new OpenAiEmbeddingsServiceSettings(
             model.getServiceSettings().uri(),
             model.getServiceSettings().organizationId(),
             SimilarityMeasure.DOT_PRODUCT,
             embeddingSize,
-            model.getServiceSettings().maxInputTokens()
+            model.getServiceSettings().maxInputTokens(),
+            model.getServiceSettings().dimensionsSetByUser()
         );
 
         return new OpenAiEmbeddingsModel(model, serviceSettings);
@@ -219,6 +245,6 @@ public class OpenAiService extends SenderService {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_OPENAI_ADDED;
+        return TransportVersions.V_8_12_0;
     }
 }

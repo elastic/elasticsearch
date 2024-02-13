@@ -184,11 +184,7 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
             throw new IllegalArgumentException("applied rules contain both pinned ids and pinned docs, only one of ids or docs is allowed");
         }
 
-        if (pinnedIds != null) {
-            return new PinnedQueryBuilder(organicQuery, pinnedIds.toArray(new String[0]));
-        } else if (pinnedDocs != null) {
-            return new PinnedQueryBuilder(organicQuery, pinnedDocs.toArray(new Item[0]));
-        } else if (pinnedIdsSupplier != null || pinnedDocsSupplier != null) {
+        if (pinnedIdsSupplier != null || pinnedDocsSupplier != null) {
             List<String> identifiedPinnedIds = pinnedIdsSupplier != null ? pinnedIdsSupplier.get() : null;
             List<Item> identifiedPinnedDocs = pinnedDocsSupplier != null ? pinnedDocsSupplier.get() : null;
             if ((identifiedPinnedIds != null && identifiedPinnedIds.isEmpty())

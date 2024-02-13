@@ -50,8 +50,8 @@ The following is a high-level overview of the steps required to configure a FIPS
 Detailed instructions for installation and configuration of a FIPS certified Java security provider is beyond the scope of this document.
 Specifically, a FIPS certified
 https://docs.oracle.com/en/java/javase/17/security/java-cryptography-architecture-jca-reference-guide.html[JCA] and
-https://docs.oracle.com/en/java/javase/17/security/java-secure-socket-extension-jsse-reference-guide.html[JSSE] implementation are strongly
-recommended to ensure only the FIPS approved / NIST recommended cryptographic algorithms are in use.
+https://docs.oracle.com/en/java/javase/17/security/java-secure-socket-extension-jsse-reference-guide.html[JSSE] implementation is required
+so that the JVM uses FIPS validated implementations of NIST recommended cryptographic algorithms.
 
 Elasticsearch has been tested with Bouncy Castle's https://repo1.maven.org/maven2/org/bouncycastle/bc-fips/1.0.2.4/bc-fips-1.0.2.4.jar[bc-fips 1.0.2.4]
 and https://repo1.maven.org/maven2/org/bouncycastle/bctls-fips/1.0.17/bctls-fips-1.0.17.jar[bctls-fips 1.0.17] but other

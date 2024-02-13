@@ -1152,7 +1152,7 @@ public record IndicesOptions(
             || WildcardOptions.ALLOW_NO_INDICES.equals(name)
             || "allowNoIndices".equals(name)
             || (DataStream.isFailureStoreEnabled() && FailureStoreOptions.FAILURE_STORE.equals(name))
-            || (DataStream.isFailureStoreEnabled() && "includeFailureStore".equals(name));
+            || (DataStream.isFailureStoreEnabled() && "failureStore".equals(name));
     }
 
     public static IndicesOptions fromParameters(

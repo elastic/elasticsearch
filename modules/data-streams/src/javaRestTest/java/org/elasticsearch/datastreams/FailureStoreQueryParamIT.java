@@ -91,25 +91,25 @@ public class FailureStoreQueryParamIT extends DisabledSecurityDataStreamTestCase
     @SuppressWarnings("unchecked")
     public void testGetIndexStatsApi() throws IOException {
         {
-            final Response indicesResponse = client().performRequest(new Request("GET", "/" + DATA_STREAM_NAME + "/_stats"));
-            Map<String, Object> indices = (Map<String, Object>) entityAsMap(indicesResponse).get("indices");
+            final Response statsResponse = client().performRequest(new Request("GET", "/" + DATA_STREAM_NAME + "/_stats"));
+            Map<String, Object> indices = (Map<String, Object>) entityAsMap(statsResponse).get("indices");
             assertThat(indices.size(), is(1));
             assertThat(indices.containsKey(backingIndex), is(true));
         }
         {
-            final Response indicesResponse = client().performRequest(
+            final Response statsResponse = client().performRequest(
                 new Request("GET", "/" + DATA_STREAM_NAME + "/_stats?failure_store=true")
             );
-            Map<String, Object> indices = (Map<String, Object>) entityAsMap(indicesResponse).get("indices");
+            Map<String, Object> indices = (Map<String, Object>) entityAsMap(statsResponse).get("indices");
             assertThat(indices.size(), is(2));
             assertThat(indices.containsKey(backingIndex), is(true));
             assertThat(indices.containsKey(failureStoreIndex), is(true));
         }
         {
-            final Response indicesResponse = client().performRequest(
+            final Response statsResponse = client().performRequest(
                 new Request("GET", "/" + DATA_STREAM_NAME + "/_stats?failure_store=only")
             );
-            Map<String, Object> indices = (Map<String, Object>) entityAsMap(indicesResponse).get("indices");
+            Map<String, Object> indices = (Map<String, Object>) entityAsMap(statsResponse).get("indices");
             assertThat(indices.size(), is(1));
             assertThat(indices.containsKey(failureStoreIndex), is(true));
         }

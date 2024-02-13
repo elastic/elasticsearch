@@ -10,35 +10,28 @@ package org.elasticsearch.plugins.internal;
 
 import org.elasticsearch.xcontent.XContentParser;
 
-import java.io.Closeable;
-
 /**
  * An interface to allow wrapping an XContentParser and observe the events emitted while parsing
- * A default implementation returns a noop DocumentParsingObserver - does not wrap a XContentParser and
- * does not do anything upon finishing parsing.
+ * A default implementation returns a noop DocumentSizeObserver
  */
-public interface DocumentParsingObserver extends Closeable {
+public interface DocumentSizeObserver {
     /**
      * a default noop implementation
      */
-    DocumentParsingObserver EMPTY_INSTANCE = new DocumentParsingObserver() {
+    DocumentSizeObserver EMPTY_INSTANCE = new DocumentSizeObserver() {
         @Override
         public XContentParser wrapParser(XContentParser xContentParser) {
             return xContentParser;
         }
 
         @Override
-        public void setIndexName(String indexName) {}
-
-        @Override
-        public void close() {}
+        public long normalisedBytesParsed() {
+            return 0;
+        }
     };
 
     /**
      * Decorates a provided xContentParser with additional logic (gather some state).
-     * The Decorator parser should use a state from DocumentParsingObserver
-     * in order to perform an action upon finished parsing which will be aware of the state
-     * gathered during parsing
      *
      * @param xContentParser to be decorated
      * @return a decorator xContentParser
@@ -46,13 +39,8 @@ public interface DocumentParsingObserver extends Closeable {
     XContentParser wrapParser(XContentParser xContentParser);
 
     /**
-     * Sets an indexName associated with parsed document.
-     * @param indexName an index name that is associated with the parsed document
+     * Returns the state gathered during parsing
+     * @return a number representing a state parsed
      */
-    void setIndexName(String indexName);
-
-    /**
-     * An action to be performed upon finished parsing.
-     */
-    void close();
+    long normalisedBytesParsed();
 }

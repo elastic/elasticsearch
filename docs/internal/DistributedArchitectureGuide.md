@@ -33,8 +33,8 @@ Callback-based asynchronous code can easily call regular synchronous code, but s
 without blocking the calling thread until the continuation is executed. This blocking is at best undesirable (threads are too expensive to
 waste with unnecessary blocking) and at worst outright broken (the blocking can lead to deadlock). Unfortunately this means that most of our
 code ends up having to be written with callbacks, simply because it's ultimately calling into some other code that takes a callback. The
-entry points for all Elasticsearch APIs are callback-based, and ultimately work in terms of an event loop which processes network events via
-callbacks.
+entry points for all Elasticsearch APIs are callback-based, and the whole system works in terms of an event loop which processes network
+events via callbacks.
 
 `ActionListener` is not an _ad-hoc_ invention. Formally speaking, it is our implementation of the general concept of a continuation in the
 sense of [_continuation-passing style_](https://en.wikipedia.org/wiki/Continuation-passing_style) (CPS): an extra argument to a function

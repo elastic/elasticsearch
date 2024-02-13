@@ -12,6 +12,8 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.core.security.authc.support.CachingRealm;
 import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 
+import java.util.Collection;
+import java.util.Objects;
 import java.util.Set;
 
 public class ExcludingRoleMapper implements UserRoleMapper {
@@ -19,14 +21,14 @@ public class ExcludingRoleMapper implements UserRoleMapper {
     private final UserRoleMapper delegate;
     private final Set<String> rolesToExclude;
 
-    public ExcludingRoleMapper(UserRoleMapper delegate, Set<String> rolesToExclude) {
-        this.delegate = delegate;
-        this.rolesToExclude = rolesToExclude;
+    public ExcludingRoleMapper(UserRoleMapper delegate, Collection<String> rolesToExclude) {
+        this.delegate = Objects.requireNonNull(delegate);
+        this.rolesToExclude = Set.copyOf(rolesToExclude);
     }
 
     @Override
     public void resolveRoles(UserData user, ActionListener<Set<String>> listener) {
-        delegate.resolveRoles(user, ActionListener.wrap(roles -> listener.onResponse(excludeRoles(roles)), listener::onFailure));
+        delegate.resolveRoles(user, listener.delegateFailureAndWrap((l, r) -> l.onResponse(excludeRoles(r))));
     }
 
     private Set<String> excludeRoles(Set<String> resolvedRoles) {

@@ -778,6 +778,36 @@ public class SamlRealmTests extends SamlTestCase {
         assertThat(settingsException.getMessage(), containsString(REALM_SETTINGS_PREFIX + ".attributes.name"));
     }
 
+    public void testSettingExcludeRolesAndAuthorizationRealmsThrowsException() throws Exception {
+        final Settings realmSettings = Settings.builder()
+            .putList(getFullSettingKey(REALM_NAME, SamlRealmSettings.EXCLUDE_ROLES), "superuser", "kibana_admin")
+            .putList(
+                getFullSettingKey(new RealmConfig.RealmIdentifier("saml", REALM_NAME), DelegatedAuthorizationSettings.AUTHZ_REALMS),
+                "ldap"
+            )
+            .build();
+        final RealmConfig config = buildConfig(realmSettings);
+
+        final UserRoleMapper roleMapper = mock(UserRoleMapper.class);
+        final SamlAuthenticator authenticator = mock(SamlAuthenticator.class);
+        final SamlLogoutRequestHandler logoutHandler = mock(SamlLogoutRequestHandler.class);
+        final EntityDescriptor idp = mockIdp();
+        final SpConfiguration sp = new SpConfiguration("<sp>", "https://saml/", null, null, null, Collections.emptyList());
+
+        var e = expectThrows(IllegalArgumentException.class, () -> buildRealm(config, roleMapper, authenticator, logoutHandler, idp, sp));
+
+        assertThat(
+            e.getCause().getMessage(),
+            containsString(
+                "Setting ["
+                    + REALM_SETTINGS_PREFIX
+                    + ".exclude_roles] is not permitted when setting ["
+                    + REALM_SETTINGS_PREFIX
+                    + ".authorization_realms] is configured."
+            )
+        );
+    }
+
     public void testMissingPrincipalSettingThrowsSettingsException() throws Exception {
         final Settings realmSettings = Settings.EMPTY;
         final RealmConfig config = buildConfig(realmSettings);

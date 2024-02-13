@@ -262,7 +262,11 @@ public final class SamlRealm extends Realm implements Releasable {
     ) throws Exception {
         super(config);
 
-        this.roleMapper = new ExcludingRoleMapper(roleMapper, Set.copyOf(config.getSetting(SamlRealmSettings.EXCLUDE_ROLES)));
+        if (config.hasSetting(SamlRealmSettings.EXCLUDE_ROLES)) {
+            this.roleMapper = new ExcludingRoleMapper(roleMapper, config.getSetting(SamlRealmSettings.EXCLUDE_ROLES));
+        } else {
+            this.roleMapper = roleMapper;
+        }
         this.authenticator = authenticator;
         this.logoutHandler = logoutHandler;
         this.logoutResponseHandler = logoutResponseHandler;

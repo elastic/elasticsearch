@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.core.security.authc.saml;
 
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
@@ -18,7 +19,9 @@ import org.elasticsearch.xpack.core.ssl.X509KeyPairSettings;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 public class SamlRealmSettings {
@@ -143,8 +146,57 @@ public class SamlRealmSettings {
     public static final Setting.AffixSetting<List<String>> EXCLUDE_ROLES = Setting.affixKeySetting(
         RealmSettings.realmSettingPrefix(TYPE),
         "exclude_roles",
-        key -> Setting.stringListSetting(key, Setting.Property.NodeScope)
+        key -> Setting.stringListSetting(key, new Setting.Validator<>() {
+
+            @Override
+            public void validate(List<String> excludedRoles) {
+                excludedRoles.forEach(excludedRole -> verifyNonNullNotEmpty(key, excludedRole, null));
+            }
+
+            @Override
+            public void validate(List<String> excludedRoles, Map<Setting<?>, Object> settings) {
+                if (false == excludedRoles.isEmpty()) {
+                    final String namespace = EXCLUDE_ROLES.getNamespace(EXCLUDE_ROLES.getConcreteSetting(key));
+                    final Setting<List<String>> authorizationRealmsSetting = DelegatedAuthorizationSettings.AUTHZ_REALMS.apply(TYPE)
+                        .getConcreteSettingForNamespace(namespace);
+                    @SuppressWarnings("unchecked")
+                    final List<String> authorizationRealms = (List<String>) settings.get(authorizationRealmsSetting);
+                    if (authorizationRealms != null && false == authorizationRealms.isEmpty()) {
+                        throw new SettingsException(
+                            "Setting ["
+                                + EXCLUDE_ROLES.getConcreteSettingForNamespace(namespace).getKey()
+                                + "] is not permitted when setting ["
+                                + authorizationRealmsSetting.getKey()
+                                + "] is configured."
+                        );
+                    }
+                }
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                final String namespace = EXCLUDE_ROLES.getNamespace(EXCLUDE_ROLES.getConcreteSetting(key));
+                final List<Setting<?>> settings = List.of(
+                    DelegatedAuthorizationSettings.AUTHZ_REALMS.apply(TYPE).getConcreteSettingForNamespace(namespace)
+                );
+                return settings.iterator();
+            }
+        }, Setting.Property.NodeScope)
     );
+
+    private static void verifyNonNullNotEmpty(final String key, final String value, final List<String> allowedValues) {
+        assert value != null : "Invalid null value for [" + key + "].";
+        if (value.isEmpty()) {
+            throw new IllegalArgumentException("Invalid empty value for [" + key + "].");
+        }
+        if (allowedValues != null) {
+            if (allowedValues.contains(value) == false) {
+                throw new IllegalArgumentException(
+                    "Invalid value [" + value + "] for [" + key + "]. Allowed values are " + allowedValues + "."
+                );
+            }
+        }
+    }
 
     public static final String SSL_PREFIX = "ssl.";
 
@@ -173,8 +225,7 @@ public class SamlRealmSettings {
             ENCRYPTION_KEY_ALIAS,
             SIGNING_KEY_ALIAS,
             SIGNING_MESSAGE_TYPES,
-            REQUESTED_AUTHN_CONTEXT_CLASS_REF,
-            EXCLUDE_ROLES
+            REQUESTED_AUTHN_CONTEXT_CLASS_REF
         );
         set.addAll(X509KeyPairSettings.affix(RealmSettings.realmSettingPrefix(TYPE), ENCRYPTION_SETTING_KEY, false));
         set.addAll(X509KeyPairSettings.affix(RealmSettings.realmSettingPrefix(TYPE), SIGNING_SETTING_KEY, false));

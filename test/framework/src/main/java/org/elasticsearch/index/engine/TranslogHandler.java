@@ -22,7 +22,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesModule;
-import org.elasticsearch.plugins.internal.DocumentParsingObserver;
+import org.elasticsearch.plugins.internal.DocumentSizeObserver;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
@@ -55,8 +55,7 @@ public class TranslogHandler implements Engine.TranslogRecoveryRunner {
             mapperRegistry,
             () -> null,
             indexSettings.getMode().idFieldMapperWithoutFieldData(),
-            null,
-            () -> DocumentParsingObserver.EMPTY_INSTANCE
+            null
         );
     }
 
@@ -96,7 +95,7 @@ public class TranslogHandler implements Engine.TranslogRecoveryRunner {
                         XContentHelper.xContentType(index.source()),
                         index.routing(),
                         Map.of(),
-                        false
+                        DocumentSizeObserver.EMPTY_INSTANCE
                     ),
                     index.seqNo(),
                     index.primaryTerm(),

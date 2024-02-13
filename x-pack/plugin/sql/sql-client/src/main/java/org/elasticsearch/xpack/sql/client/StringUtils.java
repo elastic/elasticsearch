@@ -121,7 +121,7 @@ public abstract class StringUtils {
         }
         String pathToUse = path.replace("\\", SLASH);
 
-        int prefixIndex = pathToUse.indexOf(":");
+        int prefixIndex = pathToUse.indexOf(':');
         String prefix = "";
         if (prefixIndex != -1) {
             prefix = pathToUse.substring(0, prefixIndex + 1);

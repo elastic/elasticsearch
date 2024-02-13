@@ -314,7 +314,7 @@ public class RestSearchAction extends BaseRestHandler {
         if (sSorts != null) {
             String[] sorts = Strings.splitStringByCommaToArray(sSorts);
             for (String sort : sorts) {
-                int delimiter = sort.lastIndexOf(":");
+                int delimiter = sort.lastIndexOf(':');
                 if (delimiter != -1) {
                     String sortField = sort.substring(0, delimiter);
                     String reverse = sort.substring(delimiter + 1);

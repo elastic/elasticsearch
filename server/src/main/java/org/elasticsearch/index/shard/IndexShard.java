@@ -144,6 +144,7 @@ import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
 import org.elasticsearch.plugins.IndexStorePlugin;
+import org.elasticsearch.plugins.internal.DocumentSizeObserver;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.rest.RestStatus;
@@ -1958,7 +1959,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         XContentHelper.xContentType(index.source()),
                         index.routing(),
                         Map.of(),
-                        false
+                        DocumentSizeObserver.EMPTY_INSTANCE
                     )
                 );
             }
@@ -4015,6 +4016,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             if (enableFieldHasValue) {
                 try (Engine.Searcher hasValueSearcher = getEngine().acquireSearcher("field_has_value")) {
                     setFieldInfos(FieldInfos.getMergedFieldInfos(hasValueSearcher.getIndexReader()));
+                } catch (AlreadyClosedException ignore) {
+                    // engine is closed - no updated FieldInfos is fine
                 }
             }
         }

@@ -52,7 +52,7 @@ public final class IngestDocument {
     private static final String PIPELINE_CYCLE_ERROR_MESSAGE = "Cycle detected for pipeline: ";
     static final String TIMESTAMP = "timestamp";
     // This is the maximum number of nested pipelines that can be within a pipeline. If there are more, we bail out with an error
-    private static final int MAX_PIPELINES = Integer.parseInt(System.getProperty("ingest.max_pipelines", "100"));
+    private static final int MAX_PIPELINES = Integer.parseInt(System.getProperty("es.ingest.max_pipelines", "100"));
 
     private final IngestCtxMap ctxMap;
     private final Map<String, Object> ingestMetadata;

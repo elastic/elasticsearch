@@ -20,7 +20,7 @@ modifying its behaviour slightly by wrapping it in another callback.
 Elasticsearch codebase that `ActionListener` is used pretty much everywhere that needs to perform some asynchronous and nonblocking
 computation: the uniformity makes it easier to compose parts of the system together without needing to build adapters to convert back and
 forth between different kinds of callback. It also makes it easier to develop the skills needed to read and understand all the asynchronous
-code, although it definitely takes practice and is certainly not easy in an absolute sense. Finally, it has allowed us to build a rich
+code, although this definitely takes practice and is certainly not easy in an absolute sense. Finally, it has allowed us to build a rich
 library for working with `ActionListener` instances themselves, creating new instances out of existing ones and completing them in
 interesting ways. See for instance:
 

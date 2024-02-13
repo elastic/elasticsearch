@@ -62,8 +62,8 @@ public final class IngestDocument {
      */
     private final DelegatingMapView templateModel;
 
-    // Contains all pipelines that have been executed for this document, non-private for unit testing
-    final Set<String> executedPipelines = new LinkedHashSet<>();
+    // Contains all pipelines that have been executed for this document
+    private final Set<String> executedPipelines = new LinkedHashSet<>();
 
     /**
      * An ordered set of the values of the _index that have been used for this document.

@@ -24,6 +24,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.RemoteClusterActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -91,6 +92,7 @@ import org.elasticsearch.script.StringFieldScript;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -102,6 +104,7 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -121,7 +124,7 @@ public class PainlessExecuteAction {
 
     private PainlessExecuteAction() {/* no instances */}
 
-    public static class Request extends SingleShardRequest<Request> implements ToXContentObject {
+    public static class Request extends SingleShardRequest<Request> implements ToXContentObject, IndicesRequest.Replaceable {
 
         private static final ParseField SCRIPT_FIELD = new ParseField("script");
         private static final ParseField CONTEXT_FIELD = new ParseField("context");
@@ -156,6 +159,18 @@ public class PainlessExecuteAction {
                 throw new UnsupportedOperationException("unsupported script context name [" + name + "]");
             }
             return scriptContext;
+        }
+
+        @Override
+        public IndicesRequest indices(String... indices) {
+            System.err.println("\n\n +++ XXX indices OVERRIDE in PainExecAction: " + Arrays.toString(indices) + "\n\n");
+            // ignore
+            return this;
+        }
+
+        @Override
+        public boolean allowsRemoteIndices() {
+            return true;
         }
 
         static class ContextSetup implements Writeable, ToXContentObject {
@@ -229,7 +244,8 @@ public class PainlessExecuteAction {
                     return new Tuple<>(null, null);
                 }
                 String trimmed = indexExpression.trim();
-                if (trimmed.startsWith(":") || trimmed.endsWith(":")) {
+                String sep = String.valueOf(RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR);
+                if (trimmed.startsWith(sep) || trimmed.endsWith(sep)) {
                     throw new IllegalArgumentException(
                         "Unable to parse one single valid index name from the provided index: [" + indexExpression + "]"
                     );
@@ -241,10 +257,10 @@ public class PainlessExecuteAction {
                 // Instead, it will fail with the inaccurate and confusing error message:
                 // "Cross-cluster calls are not supported in this context but remote indices were requested: [blogs,remote1:blogs]"
                 // which comes later out of the IndexNameExpressionResolver pathway this code uses.
-                String[] parts = indexExpression.split(":", 2);
+                String[] parts = indexExpression.split(sep, 2);
                 if (parts.length == 1) {
                     return new Tuple<>(null, parts[0]);
-                } else if (parts.length == 2 && parts[1].contains(":") == false) {
+                } else if (parts.length == 2 && parts[1].contains(sep) == false) {
                     return new Tuple<>(parts[0], parts[1]);
                 } else {
                     throw new IllegalArgumentException(
@@ -358,7 +374,11 @@ public class PainlessExecuteAction {
             this.context = scriptContextName != null ? fromScriptContextName(scriptContextName) : PainlessTestScript.CONTEXT;
             if (setup != null) {
                 this.contextSetup = setup;
-                index(contextSetup.index);
+                if (contextSetup.getClusterAlias() == null) {
+                    index(contextSetup.getIndex());
+                } else {
+                    index(contextSetup.getClusterAlias() + RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR + contextSetup.getIndex());
+                }
             } else {
                 contextSetup = null;
             }
@@ -525,6 +545,25 @@ public class PainlessExecuteAction {
         @Override
         protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
             if (request.getContextSetup() == null || request.getContextSetup().getClusterAlias() == null) {
+                if (request.index() != null) {
+                    // ensure that `index` is a remote name and not a date math expression which includes ':' symbol
+                    // since date math expression after evaluation should not contain ':' symbol
+                    String indexExpression = IndexNameExpressionResolver.resolveDateMathExpression(request.index());
+                    String[] split = indexExpression.split(String.valueOf(RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR));
+                    if (split.length > 1) {
+                        /*
+                         * if the cluster alias is null and the index field has a clusterAlias (clusterAlias:index notation)
+                         * that means this is executing on a remote cluster (it was forwarded by the querying cluster).
+                         * The clusterAlias is not Writeable, so it will be null in the ContextSetup on the remote cluster.
+                         * We need to strip off the clusterAlias from the index before executing the script locally,
+                         * so it will resolve to a local index
+                         */
+                        assert split.length == 2
+                            : "If the index contains the REMOTE_CLUSTER_INDEX_SEPARATOR it should have only two parts but it has "
+                                + Arrays.toString(split);
+                        request.index(split[1]);
+                    }
+                }
                 super.doExecute(task, request, listener);
             } else {
                 // forward to remote cluster

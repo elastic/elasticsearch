@@ -288,6 +288,8 @@ public class JwtRealmSingleNodeTests extends SecuritySingleNodeTestCase {
             ActivateProfileRequest activateProfileRequest = getActivateProfileForJWT(getSignedJWT(jwtClaims.build()), sharedSecret);
             ActivateProfileResponse activateProfileResponse = client().execute(ActivateProfileAction.INSTANCE, activateProfileRequest)
                 .actionGet();
+            assertThat(activateProfileResponse.getProfile(), notNullValue());
+            assertThat(activateProfileResponse.getProfile().uid(), notNullValue());
             assertThat(activateProfileResponse.getProfile().user().username(), is(subject));
             assertThat(activateProfileResponse.getProfile().user().realmName(), is(realmName));
         }

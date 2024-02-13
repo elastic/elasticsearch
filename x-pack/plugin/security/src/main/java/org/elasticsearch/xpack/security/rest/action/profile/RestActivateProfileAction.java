@@ -71,10 +71,15 @@ public class RestActivateProfileAction extends SecurityBaseRestHandler implement
         return "xpack_security_activate_profile";
     }
 
+    // package-private for tests
+    static ActivateProfileRequest fromXContent(XContentParser parser) throws IOException {
+        return PARSER.parse(parser, null);
+    }
+
     @Override
     protected RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
         try (XContentParser parser = request.contentParser()) {
-            final ActivateProfileRequest activateProfileRequest = PARSER.parse(parser, null);
+            final ActivateProfileRequest activateProfileRequest = fromXContent(parser);
             return channel -> client.execute(ActivateProfileAction.INSTANCE, activateProfileRequest, new RestToXContentListener<>(channel));
         }
     }

@@ -7,8 +7,10 @@
 package org.elasticsearch.xpack.ql.expression.predicate.operator.comparison;
 
 import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.TypedAttribute;
 import org.elasticsearch.xpack.ql.expression.predicate.Negatable;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparisonProcessor.BinaryComparisonOperation;
+import org.elasticsearch.xpack.ql.planner.ExpressionTranslator;
 import org.elasticsearch.xpack.ql.querydsl.query.Query;
 import org.elasticsearch.xpack.ql.querydsl.query.RangeQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.TermQuery;
@@ -59,6 +61,9 @@ public class Equals extends BinaryComparison implements Negatable<BinaryComparis
 
     @Override
     public Query getQuery(String name, Object value, String format, boolean isDateLiteralComparison, ZoneId zoneId) {
+        if (left() instanceof TypedAttribute typedLeft) {
+            name = ExpressionTranslator.pushableAttributeName(typedLeft);
+        }
         if (isDateLiteralComparison) {
             // dates equality uses a range query because it's the one that has a "format" parameter
             return new RangeQuery(source(), name, value, true, value, true, format, zoneId);

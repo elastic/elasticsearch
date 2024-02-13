@@ -30,8 +30,6 @@ import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.In;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NotEquals;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NullEquals;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.Like;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.RLike;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.RegexMatch;
@@ -280,7 +278,6 @@ public final class ExpressionTranslators {
 
         static Query translate(BinaryComparison bc, TranslatorHandler handler) {
             TypedAttribute attribute = checkIsPushableAttribute(bc.left());
-            Source source = bc.source();
             String name = handler.nameOf(attribute);
             Object value = valueOf(bc.right());
             String format = null;
@@ -320,14 +317,8 @@ public final class ExpressionTranslators {
             if (DataTypes.isDateTime(attribute.dataType())) {
                 zoneId = bc.zoneId();
             }
-            if (bc instanceof Equals || bc instanceof NullEquals || bc instanceof NotEquals) {
-                name = pushableAttributeName(attribute);
-            }
 
             return bc.getQuery(name, value, format, isDateLiteralComparison, zoneId);
-
-            // throw new QlIllegalArgumentException("Don't know how to translate binary comparison [{}] in [{}]", bc.right().nodeString(),
-            // bc);
         }
     }
 

@@ -215,6 +215,12 @@ This setting is used to ensure that the correct security provider is installed a
 If the security provider is not installed correctly, {es} will fail to start. `["BCFIPS", "BCJSSE"]` are the values to
 use for Bouncy Castle's FIPS JCE and JSSE certified provider.
 
+[source,yaml]
+--------------------------------------------------
+xpack.security.fips_mode.enabled: true
+xpack.security.autoconfiguration.enabled: false
+xpack.security.fips_mode.required_providers: ["BCFIPS", "BCJSSE"]
+--------------------------------------------------
 
 [discrete]
 [[fips-upgrade-considerations]]

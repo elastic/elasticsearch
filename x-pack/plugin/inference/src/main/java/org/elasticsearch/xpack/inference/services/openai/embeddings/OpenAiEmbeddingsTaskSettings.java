@@ -33,8 +33,6 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOpt
 public class OpenAiEmbeddingsTaskSettings implements TaskSettings {
 
     public static final String NAME = "openai_embeddings_task_settings";
-    public static final String OLD_MODEL_ID_FIELD = "model";
-
     public static final String USER = "user";
 
     public static OpenAiEmbeddingsTaskSettings fromMap(Map<String, Object> map, OpenAiParseContext context) {

@@ -24,7 +24,7 @@ public class OpenAiEmbeddingsModelTests extends ESTestCase {
 
     public void testOverrideWith_OverridesUser() {
         var model = createModel("url", "org", "api_key", "model_name", null);
-        var requestTaskSettingsMap = getRequestTaskSettingsMap(null, "user_override");
+        var requestTaskSettingsMap = getRequestTaskSettingsMap("user_override");
 
         var overriddenModel = OpenAiEmbeddingsModel.of(model, requestTaskSettingsMap);
 

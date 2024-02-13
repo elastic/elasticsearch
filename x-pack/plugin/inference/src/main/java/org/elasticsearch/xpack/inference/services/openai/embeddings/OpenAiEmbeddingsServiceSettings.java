@@ -117,7 +117,7 @@ public class OpenAiEmbeddingsServiceSettings implements ServiceSettings {
     private final Boolean dimensionsSetByUser;
 
     public OpenAiEmbeddingsServiceSettings(
-        @Nullable String modelId,
+        String modelId,
         @Nullable URI uri,
         @Nullable String organizationId,
         @Nullable SimilarityMeasure similarity,
@@ -165,9 +165,9 @@ public class OpenAiEmbeddingsServiceSettings implements ServiceSettings {
             dimensionsSetByUser = false;
         }
         if (in.getTransportVersion().onOrAfter(TransportVersions.ML_MODEL_IN_SERVICE_SETTINGS)) {
-            modelId = in.readOptionalString();
+            modelId = in.readString();
         } else {
-            modelId = null;
+            modelId = "unset";
         }
     }
 
@@ -231,9 +231,7 @@ public class OpenAiEmbeddingsServiceSettings implements ServiceSettings {
     }
 
     private void toXContentFragmentOfExposedFields(XContentBuilder builder, Params params) throws IOException {
-        if (modelId != null) {
-            builder.field(MODEL_ID, modelId);
-        }
+        builder.field(MODEL_ID, modelId);
         if (uri != null) {
             builder.field(URL, uri.toString());
         }
@@ -283,7 +281,7 @@ public class OpenAiEmbeddingsServiceSettings implements ServiceSettings {
             out.writeBoolean(dimensionsSetByUser);
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.ML_MODEL_IN_SERVICE_SETTINGS)) {
-            out.writeOptionalString(modelId);
+            out.writeString(modelId);
         }
     }
 

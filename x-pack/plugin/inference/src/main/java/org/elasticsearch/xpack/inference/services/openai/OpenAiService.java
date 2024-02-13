@@ -31,7 +31,6 @@ import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsServiceSettings;
-import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsTaskSettings;
 
 import java.util.List;
 import java.util.Map;
@@ -90,7 +89,7 @@ public class OpenAiService extends SenderService {
         }
     }
 
-    private static OpenAiModel createModelWithoutLoggingDeprecations(
+    private static OpenAiModel createModelFromPersistent(
         String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> serviceSettings,
@@ -145,7 +144,7 @@ public class OpenAiService extends SenderService {
 
         moveModelFromTaskToServiceSettings(taskSettingsMap, serviceSettingsMap);
 
-        return createModelWithoutLoggingDeprecations(
+        return createModelFromPersistent(
             inferenceEntityId,
             taskType,
             serviceSettingsMap,
@@ -162,7 +161,7 @@ public class OpenAiService extends SenderService {
 
         moveModelFromTaskToServiceSettings(taskSettingsMap, serviceSettingsMap);
 
-        return createModelWithoutLoggingDeprecations(
+        return createModelFromPersistent(
             inferenceEntityId,
             taskType,
             serviceSettingsMap,
@@ -272,7 +271,9 @@ public class OpenAiService extends SenderService {
         if (serviceSettings.containsKey(MODEL_ID)) {
             return;
         }
-        var oldModelId = taskSettings.remove(OpenAiEmbeddingsTaskSettings.OLD_MODEL_ID_FIELD);
+
+        final String OLD_MODEL_ID_FIELD = "model";
+        var oldModelId = taskSettings.remove(OLD_MODEL_ID_FIELD);
         if (oldModelId != null) {
             serviceSettings.put(MODEL_ID, oldModelId);
         } else {

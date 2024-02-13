@@ -12,6 +12,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -252,7 +253,7 @@ public class DriverStatus implements Task.Status {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(operator);
-            out.writeOptionalNamedWriteable(status);
+            out.writeOptionalNamedWriteable(VersionedNamedWriteable.shouldSerialize(out, status) ? status : null);
         }
 
         public String operator() {

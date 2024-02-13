@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
@@ -161,7 +162,8 @@ public final class EsqlResponseListener extends RestRefCountedChunkedToXContentL
             onResponse(r);
             // At this point, the StopWatch should already have been stopped, so we log a consistent time.
             LOGGER.info(
-                "Finished execution of ESQL query.\nQuery string: [{}]\nExecution time: [{}]ms",
+                "Finished execution of ESQL query.{}\nQuery string: [{}]\nExecution time: [{}]ms",
+                Version.CURRENT,
                 esqlQuery,
                 stopWatch.stop().getMillis()
             );

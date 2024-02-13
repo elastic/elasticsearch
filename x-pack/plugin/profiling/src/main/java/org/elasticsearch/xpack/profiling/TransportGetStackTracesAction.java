@@ -242,7 +242,11 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
                     request.getIndices(),
                     responseBuilder.getSamplingRate()
                 );
-                searchGenericEventGroupedByStackTrace(submitTask, client, request, submitListener, responseBuilder);
+                if (sampleCount > 0) {
+                    searchGenericEventGroupedByStackTrace(submitTask, client, request, submitListener, responseBuilder);
+                } else {
+                    submitListener.onResponse(responseBuilder.build());
+                }
             }, submitListener::onFailure));
     }
 

@@ -36,6 +36,7 @@ import org.elasticsearch.transport.TcpHeader;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportDecompressor;
 import org.elasticsearch.transport.TransportHandshaker;
+import org.elasticsearch.transport.TransportKeepAlive;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.Transports;
 
@@ -121,26 +122,22 @@ public class Netty4MessageInboundHandler extends ByteToMessageDecoder {
             throw new IllegalStateException("Pipeline state corrupted by uncaught exception", uncaughtException);
         }
         try {
-            doHandleBytes(channel, in);
+            channel.getChannelStats().markAccessed(transport.getThreadPool().relativeTimeInMillis());
+            int bytesDecoded = 0;
+            try {
+                int decoded;
+                while ((decoded = internalDecode(in, channel)) != 0) {
+                    bytesDecoded += decoded;
+                }
+            } catch (Exception e) {
+                cleanDecodeState();
+                throw e;
+            }
+            transport.getStatsTracker().markBytesRead(bytesDecoded);
         } catch (Exception e) {
             uncaughtException = e;
             throw e;
         }
-    }
-
-    public void doHandleBytes(TcpChannel channel, ByteBuf reference) throws IOException {
-        channel.getChannelStats().markAccessed(transport.getThreadPool().relativeTimeInMillis());
-        int bytesDecoded = 0;
-        try {
-            int decoded;
-            while ((decoded = internalDecode(reference, channel)) != 0) {
-                bytesDecoded += decoded;
-            }
-        } catch (Exception e) {
-            cleanDecodeState();
-            throw e;
-        }
-        transport.getStatsTracker().markBytesRead(bytesDecoded);
     }
 
     private void endContent(TcpChannel channel, ByteBuf cumulation) throws IOException {
@@ -266,7 +263,7 @@ public class Netty4MessageInboundHandler extends ByteToMessageDecoder {
 
     public int internalDecode(ByteBuf byteBuf, TcpChannel channel) throws IOException {
         if (isOnHeader()) {
-            int messageLength = TcpTransport.readMessageLength(Netty4Utils.toBytesReference(byteBuf));
+            int messageLength = readMessageLength(byteBuf);
             if (messageLength == -1) {
                 return 0;
             } else if (messageLength == 0) {
@@ -301,6 +298,43 @@ public class Netty4MessageInboundHandler extends ByteToMessageDecoder {
         }
     }
 
+    public static int readMessageLength(ByteBuf networkBytes) throws IOException {
+        if (networkBytes.readableBytes() < TcpTransport.BYTES_NEEDED_FOR_MESSAGE_SIZE) {
+            return -1;
+        } else {
+            return readHeaderBuffer(networkBytes);
+        }
+    }
+
+    private static int readHeaderBuffer(ByteBuf headerBuffer) throws IOException {
+        int readerIndex = headerBuffer.readerIndex();
+        if (headerBuffer.getByte(readerIndex) != 'E' || headerBuffer.getByte(readerIndex + 1) != 'S') {
+            TcpTransport.failIncorrectHeader(Netty4Utils.toBytesReference(headerBuffer));
+        }
+        final int messageLength = headerBuffer.getInt(readerIndex + TcpHeader.MARKER_BYTES_SIZE);
+
+        if (messageLength == TransportKeepAlive.PING_DATA_SIZE) {
+            // This is a ping
+            return 0;
+        }
+
+        if (messageLength <= 0) {
+            throw new StreamCorruptedException("invalid data length: " + messageLength);
+        }
+
+        if (messageLength > TcpTransport.THIRTY_PER_HEAP_SIZE) {
+            throw new IllegalArgumentException(
+                "illegal transport message of size ["
+                    + ByteSizeValue.ofBytes(messageLength)
+                    + "] which exceeds 30% of this node's heap size ["
+                    + ByteSizeValue.ofBytes(TcpTransport.THIRTY_PER_HEAP_SIZE)
+                    + "], closing connection"
+            );
+        }
+
+        return messageLength;
+    }
+
     private int readBody(ByteBuf byteBuf, TcpChannel channel) throws IOException {
         if (isCompressed && decompressor == null) {
             // Attempt to initialize decompressor
@@ -322,44 +356,50 @@ public class Netty4MessageInboundHandler extends ByteToMessageDecoder {
         }
         final int bytesConsumedThisDecode;
         if (decompressor != null) {
-            ByteBuf retainedContent = byteBuf.readSlice(remainingToConsume);
-            bytesConsumedThisDecode = decompressor.decompress(Netty4Utils.toBytesReference(retainedContent));
-            bytesConsumed += bytesConsumedThisDecode;
-            ReleasableBytesReference decompressed;
-            int pagesDecompressed = decompressor.pages();
-            if (pagesDecompressed == 0) {
-                endContent(channel, null);
-            } else {
-                // TODO: proper Netty decompressor, the copying here is stupid
-                final ByteBuf dec;
-                if ((long) pagesDecompressed * PageCacheRecycler.BYTE_PAGE_SIZE <= NettyAllocator.suggestedMaxAllocationSize()) {
-                    ByteBuf singleBuffer = NettyAllocator.getAllocator().heapBuffer(pagesDecompressed * PageCacheRecycler.BYTE_PAGE_SIZE);
-                    while ((decompressed = decompressor.pollDecompressedPage(true)) != null) {
-                        singleBuffer.writeBytes(decompressed.array(), decompressed.arrayOffset(), decompressed.length());
-                        decompressed.decRef();
-                    }
-                    dec = singleBuffer;
-                } else {
-                    CompositeByteBuf compositeByteBuf = NettyAllocator.getAllocator().compositeBuffer(Integer.MAX_VALUE);
-                    while ((decompressed = decompressor.pollDecompressedPage(true)) != null) {
-                        if (compositeByteBuf.writableBytes() < decompressed.length()) {
-                            compositeByteBuf.capacity(
-                                Math.toIntExact(compositeByteBuf.capacity() + NettyAllocator.suggestedMaxAllocationSize())
-                            );
-                        }
-                        compositeByteBuf.writeBytes(decompressed.array(), decompressed.arrayOffset(), decompressed.length());
-                        decompressed.decRef();
-                    }
-                    dec = compositeByteBuf;
-                }
-                endContent(channel, dec);
-            }
+            bytesConsumedThisDecode = decompressBody(byteBuf, channel, remainingToConsume);
         } else {
             bytesConsumedThisDecode = remainingToConsume;
             bytesConsumed += remainingToConsume;
             endContent(channel, byteBuf.readRetainedSlice(bytesConsumedThisDecode));
         }
 
+        return bytesConsumedThisDecode;
+    }
+
+    private int decompressBody(ByteBuf byteBuf, TcpChannel channel, int remainingToConsume) throws IOException {
+        final int bytesConsumedThisDecode;
+        ByteBuf retainedContent = byteBuf.readSlice(remainingToConsume);
+        bytesConsumedThisDecode = decompressor.decompress(Netty4Utils.toBytesReference(retainedContent));
+        bytesConsumed += bytesConsumedThisDecode;
+        ReleasableBytesReference decompressed;
+        int pagesDecompressed = decompressor.pages();
+        if (pagesDecompressed == 0) {
+            endContent(channel, null);
+        } else {
+            // TODO: proper Netty decompressor, the copying here is stupid
+            final ByteBuf dec;
+            if ((long) pagesDecompressed * PageCacheRecycler.BYTE_PAGE_SIZE <= NettyAllocator.suggestedMaxAllocationSize()) {
+                ByteBuf singleBuffer = NettyAllocator.getAllocator().heapBuffer(pagesDecompressed * PageCacheRecycler.BYTE_PAGE_SIZE);
+                while ((decompressed = decompressor.pollDecompressedPage(true)) != null) {
+                    singleBuffer.writeBytes(decompressed.array(), decompressed.arrayOffset(), decompressed.length());
+                    decompressed.decRef();
+                }
+                dec = singleBuffer;
+            } else {
+                CompositeByteBuf compositeByteBuf = NettyAllocator.getAllocator().compositeBuffer(Integer.MAX_VALUE);
+                while ((decompressed = decompressor.pollDecompressedPage(true)) != null) {
+                    if (compositeByteBuf.writableBytes() < decompressed.length()) {
+                        compositeByteBuf.capacity(
+                            Math.toIntExact(compositeByteBuf.capacity() + NettyAllocator.suggestedMaxAllocationSize())
+                        );
+                    }
+                    compositeByteBuf.writeBytes(decompressed.array(), decompressed.arrayOffset(), decompressed.length());
+                    decompressed.decRef();
+                }
+                dec = compositeByteBuf;
+            }
+            endContent(channel, dec);
+        }
         return bytesConsumedThisDecode;
     }
 

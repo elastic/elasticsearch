@@ -1341,7 +1341,7 @@ public class MachineLearning extends Plugin
                 getLicenseState(),
                 machineLearningExtension.get().includeNodeInfo()
             ),
-            new TransportStartDatafeedAction.StartDatafeedPersistentTasksExecutor(datafeedRunner.get(), expressionResolver),
+            new TransportStartDatafeedAction.StartDatafeedPersistentTasksExecutor(datafeedRunner.get(), expressionResolver, threadPool),
             new TransportStartDataFrameAnalyticsAction.TaskExecutor(
                 settings,
                 client,

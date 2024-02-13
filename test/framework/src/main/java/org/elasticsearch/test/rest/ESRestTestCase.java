@@ -813,6 +813,8 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     private void wipeCluster() throws Exception {
+        logger.info("Waiting for all cluster updates up to this moment to be processed");
+        assertOK(adminClient().performRequest(new Request("GET", "_cluster/health?wait_for_events=languid")));
 
         // Cleanup rollup before deleting indices. A rollup job might have bulks in-flight,
         // so we need to fully shut them down first otherwise a job might stall waiting
@@ -1899,20 +1901,36 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     protected static Map<String, Object> getAsMap(final String endpoint) throws IOException {
-        return getAsMap(client(), endpoint);
+        return getAsMap(client(), endpoint, false);
+    }
+
+    protected static Map<String, Object> getAsOrderedMap(final String endpoint) throws IOException {
+        return getAsMap(client(), endpoint, true);
     }
 
     protected static Map<String, Object> getAsMap(RestClient client, final String endpoint) throws IOException {
+        return getAsMap(client, endpoint, false);
+    }
+
+    private static Map<String, Object> getAsMap(RestClient client, final String endpoint, final boolean ordered) throws IOException {
         Response response = client.performRequest(new Request("GET", endpoint));
-        return responseAsMap(response);
+        return responseAsMap(response, ordered);
     }
 
     protected static Map<String, Object> responseAsMap(Response response) throws IOException {
+        return responseAsMap(response, false);
+    }
+
+    protected static Map<String, Object> responseAsOrderedMap(Response response) throws IOException {
+        return responseAsMap(response, true);
+    }
+
+    private static Map<String, Object> responseAsMap(Response response, boolean ordered) throws IOException {
         XContentType entityContentType = XContentType.fromMediaType(response.getEntity().getContentType().getValue());
         Map<String, Object> responseEntity = XContentHelper.convertToMap(
             entityContentType.xContent(),
             response.getEntity().getContent(),
-            false
+            ordered
         );
         assertNotNull(responseEntity);
         return responseEntity;

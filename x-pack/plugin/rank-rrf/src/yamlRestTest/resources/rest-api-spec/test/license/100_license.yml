@@ -49,7 +49,7 @@ setup:
       indices.refresh: {}
 
 ---
-"RRF Invalid License":
+"rrf invalid license":
 
   - do:
       catch: forbidden

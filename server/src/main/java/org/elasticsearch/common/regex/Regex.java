@@ -44,7 +44,7 @@ public class Regex {
     }
 
     public static boolean isSuffixMatchPattern(String str) {
-        return str.length() > 1 && str.indexOf("*") == str.length() - 1;
+        return str.length() > 1 && str.indexOf('*') == str.length() - 1;
     }
 
     /** Return an {@link Automaton} that matches the given pattern. */

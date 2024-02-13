@@ -132,7 +132,7 @@ public class RatedRequest implements Writeable, ToXContentObject {
         Set<DocumentKey> docKeys = new HashSet<>();
         for (RatedDocument doc : ratedDocs) {
             if (docKeys.add(doc.getKey()) == false) {
-                String docKeyToString = doc.getKey().toString().replaceAll("\n", "").replaceAll("  ", " ");
+                String docKeyToString = doc.getKey().toString().replace("\n", "").replace("  ", " ");
                 throw new IllegalArgumentException(
                     "Found duplicate rated document key [" + docKeyToString + "] in evaluation request [" + id + "]"
                 );

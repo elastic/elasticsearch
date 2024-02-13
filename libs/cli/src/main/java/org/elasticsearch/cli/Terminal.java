@@ -185,15 +185,15 @@ public abstract class Terminal {
     }
 
     /** Prints a stacktrace to the terminal's standard error at {@code verbosity} level. */
-    public void errorPrintln(Verbosity verbosity, Exception exception) {
+    public void errorPrintln(Verbosity verbosity, Throwable throwable) {
         if (isPrintable(verbosity)) {
-            exception.printStackTrace(errWriter);
+            throwable.printStackTrace(errWriter);
         }
     }
 
     /** Prints a stacktrace to the terminal's standard error at {@link Verbosity#SILENT} verbosity level. */
-    public void errorPrintln(Exception exception) {
-        errorPrintln(Verbosity.SILENT, exception);
+    public void errorPrintln(Throwable throwable) {
+        errorPrintln(Verbosity.SILENT, throwable);
     }
 
     /** Checks if is enough {@code verbosity} level to be printed */
@@ -386,14 +386,14 @@ public abstract class Terminal {
         }
 
         @Override
-        public void errorPrintln(Verbosity verbosity, Exception exception) {
+        public void errorPrintln(Verbosity verbosity, Throwable throwable) {
             if (isPrintable(verbosity) == false) {
                 return;
             }
             if (useJsonOutput) {
-                ((JsonPrintWriter) getErrorWriter()).println(exception);
+                ((JsonPrintWriter) getErrorWriter()).println(throwable);
             } else {
-                exception.printStackTrace(getErrorWriter());
+                throwable.printStackTrace(getErrorWriter());
             }
         }
     }

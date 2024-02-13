@@ -121,16 +121,16 @@ public class JsonPrintWriter extends PrintWriter {
         }
     }
 
-    /** Print an exception (with stacktrace) into a single JSON object. */
-    public void println(Exception exception) {
+    /** Print a throwable (with stacktrace) into a single JSON object. */
+    public void println(Throwable throwable) {
         synchronized (lock) {
             synchronized (buffer) {
                 singleLineMode = true;
                 try {
-                    write(exception.getMessage());
-                    buffer.append("\",\"error.type\":\"").append(exception.getClass().getName());
+                    write(throwable.getMessage());
+                    buffer.append("\",\"error.type\":\"").append(throwable.getClass().getName());
                     buffer.append("\",\"error.stack_trace\":\"");
-                    exception.printStackTrace(this);
+                    throwable.printStackTrace(this);
                 } finally {
                     singleLineMode = false;
                 }

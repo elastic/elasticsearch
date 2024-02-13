@@ -233,11 +233,8 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         // check special wildcard case
         if (patterns.size() == 1) {
             var idCtx = patterns.get(0);
-            if (idCtx.idPattern().size() == 1) {
-                var idPattern = idCtx.idPattern(0);
-                if (idPattern.UNQUOTED_ID_PATTERN() != null && idPattern.UNQUOTED_ID_PATTERN().getText().equals(WILDCARD)) {
-                    return new UnresolvedStar(src, null);
-                }
+            if (idCtx.ID_PATTERN().getText().equals(WILDCARD)) {
+                return new UnresolvedStar(src, null);
             }
         }
 
@@ -245,25 +242,29 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         // Builds a list of either strings (which map verbatim) or Automatons which match any string
         List<Object> objects = new ArrayList<>(patterns.size());
         for (int i = 0, s = patterns.size(); i < s; i++) {
-            var patternContext = patterns.get(i);
-            String name;
             if (i > 0) {
                 patternString.append(".");
                 nameString.append(".");
                 objects.add(".");
             }
-            for (var idContext : patternContext.idPattern()) {
-                // a patternCtx can be a series of quoted and unquoted sections
+
+            String patternContext = patterns.get(i).ID_PATTERN().getText();
+            // as this is one big string of fragments mashed together, break it manually into quoted vs unquoted
+            // for readability reasons, do a first pass to break the string into fragments and then process each of them
+            // to avoid doing a string allocation
+            List<String> fragments = breakIntoFragments(patternContext);
+
+            for (var fragment : fragments) {
+                // unquoted fragment
                 // a wildcard that matches can only appear in an unquoted section
-                if (idContext.UNQUOTED_ID_PATTERN() != null) {
-                    name = idContext.UNQUOTED_ID_PATTERN().getText();
-                    patternString.append(name);
-                    nameString.append(name);
+                if (fragment.charAt(0) == '`' == false) {
+                    patternString.append(fragment);
+                    nameString.append(fragment);
                     // loop the string itself to extract any * and make them an automaton directly
                     // the code is somewhat messy but doesn't invoke the full blown Regex engine either
-                    if (Regex.isSimpleMatchPattern(name)) {
+                    if (Regex.isSimpleMatchPattern(fragment)) {
                         hasPattern = true;
-                        String str = name;
+                        String str = fragment;
                         boolean keepGoing = false;
                         do {
                             int localIndex = str.indexOf('*');
@@ -292,14 +293,13 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                             }
                         } while (keepGoing);
                     } else {
-                        objects.add(name);
+                        objects.add(fragment);
                     }
                 }
                 // quoted - definitely no pattern
                 else {
-                    var quoted = idContext.QUOTED_IDENTIFIER();
-                    patternString.append(quoted.getText());
-                    var unquotedString = unquoteIdentifier(quoted, null);
+                    patternString.append(fragment);
+                    var unquotedString = unquoteIdString(fragment);
                     objects.add(unquotedString);
                     nameString.append(unquotedString);
                 }
@@ -325,6 +325,60 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             result = new UnresolvedAttribute(src, Strings.collectionToDelimitedString(objects, ""));
         }
         return result;
+    }
+
+    static List<String> breakIntoFragments(String idPattern) {
+        List<String> fragments = new ArrayList<>();
+        char backtick = '`';
+        boolean inQuotes = false;
+        boolean keepGoing = true;
+        int from = 0, offset = -1;
+
+        do {
+            offset = idPattern.indexOf(backtick, offset);
+            String fragment = null;
+            // unquoted fragment
+            if (offset < 0) {
+                keepGoing = false;
+                // pick trailing string
+                fragment = idPattern.substring(from);
+            }
+            // quoted fragment
+            else {
+                // if not in quotes
+                // copy the string over
+                // otherwise keep on going
+                if (inQuotes == false) {
+                    inQuotes = true;
+                    if (offset != 0) {
+                        fragment = idPattern.substring(from, offset);
+                        from = offset;
+                    }
+                } // in quotes
+                else {
+                    // if double backtick keep on going
+                    var ahead = offset + 1;
+                    if (ahead < idPattern.length() && idPattern.charAt(ahead) == backtick) {
+                        // move offset
+                        offset = ahead;
+                    }
+                    // otherwise end the quote
+                    else {
+                        inQuotes = false;
+                        // include the quote
+                        offset++;
+                        fragment = idPattern.substring(from, offset);
+                        from = offset;
+                    }
+                }
+                // keep moving the offset
+                offset++;
+            }
+            if (fragment != null) {
+                fragments.add(fragment);
+            }
+        } while (keepGoing && offset <= idPattern.length());
+        return fragments;
     }
 
     @Override

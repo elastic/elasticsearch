@@ -58,6 +58,7 @@ import java.util.Map;
 import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
+import static org.elasticsearch.xpack.esql.parser.ExpressionBuilder.breakIntoFragments;
 import static org.elasticsearch.xpack.ql.expression.Literal.FALSE;
 import static org.elasticsearch.xpack.ql.expression.Literal.TRUE;
 import static org.elasticsearch.xpack.ql.expression.function.FunctionResolutionStrategy.DEFAULT;
@@ -872,6 +873,44 @@ public class StatementParserTests extends ESTestCase {
         assertThat(from, instanceOf(EsqlUnresolvedRelation.class));
         EsqlUnresolvedRelation table = (EsqlUnresolvedRelation) from;
         assertThat(table.table().index(), is(identifier));
+    }
+
+    public void testIdPatternUnquoted() throws Exception {
+        var string = "regularString";
+        assertThat(breakIntoFragments(string), contains(string));
+    }
+
+    public void testIdPatternQuoted() throws Exception {
+        var string = "`escaped string`";
+        assertThat(breakIntoFragments(string), contains(string));
+    }
+
+    public void testIdPatternQuotedWithDoubleBackticks() throws Exception {
+        var string = "`escaped``string`";
+        assertThat(breakIntoFragments(string), contains(string));
+    }
+
+    public void testIdPatternUnquotedAndQuoted() throws Exception {
+        var string = "this`is`a`mix`of`ids`";
+        assertThat(breakIntoFragments(string), contains("this", "`is`", "a", "`mix`", "of", "`ids`"));
+    }
+
+    public void testIdPatternQuotedTraling() throws Exception {
+        var string = "`foo`*";
+        assertThat(breakIntoFragments(string), contains("`foo`", "*"));
+    }
+
+    public void testIdPatternWithDoubleQuotedStrings() throws Exception {
+        var string = "`this``is`a`quoted `` string``with`backticks";
+        assertThat(breakIntoFragments(string), contains("`this``is`", "a", "`quoted `` string``with`", "backticks"));
+    }
+
+    public void testSpaceNotAllowedInIdPattern() throws Exception {
+        expectError("ROW a = 1| RENAME a AS this is `not okay`", "mismatched input 'is' expecting {'.', 'as'}");
+    }
+
+    public void testSpaceNotAllowedInIdPatternKeep() throws Exception {
+        expectError("ROW a = 1, b = 1| KEEP a b", "extraneous input 'b'");
     }
 
     private LogicalPlan statement(String e) {

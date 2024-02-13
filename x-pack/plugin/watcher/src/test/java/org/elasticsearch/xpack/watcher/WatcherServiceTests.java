@@ -356,7 +356,7 @@ public class WatcherServiceTests extends ESTestCase {
         verify(triggerService).pauseExecution();
     }
 
-    //  the trigger service should not start unless watches are loaded successfully
+    // the trigger service should not start unless watches are loaded successfully
     public void testReloadingWatcherDoesNotStartTriggerServiceIfFailingToLoadWatches() {
         ExecutionService executionService = mock(ExecutionService.class);
         TriggerService triggerService = mock(TriggerService.class);

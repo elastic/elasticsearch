@@ -268,8 +268,7 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
         assertThat(events[1].previousState(), equalTo(events[0].state()));
         assertFalse(events[1].routingTableChanged());
 
-        for (ClusterChangedEvent event : events)
-        {
+        for (ClusterChangedEvent event : events) {
             when(watcherService.validate(event.state())).thenReturn(true);
             lifeCycleService.clusterChanged(event);
         }
@@ -297,9 +296,7 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
             return null;
         }).when(watcherService).reload(eq(events[0].state()), anyString(), any());
 
-
-        for (ClusterChangedEvent event : events)
-        {
+        for (ClusterChangedEvent event : events) {
             when(watcherService.validate(event.state())).thenReturn(true);
             lifeCycleService.clusterChanged(event);
         }
@@ -310,11 +307,7 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
     }
 
     private ClusterChangedEvent[] masterChangeScenario() {
-        DiscoveryNodes nodes = new DiscoveryNodes.Builder()
-            .localNodeId("node_1")
-            .add(newNode("node_1"))
-            .add(newNode("node_2"))
-            .build();
+        DiscoveryNodes nodes = new DiscoveryNodes.Builder().localNodeId("node_1").add(newNode("node_1")).add(newNode("node_2")).build();
 
         Index index = new Index(Watch.INDEX, "uuid");
         IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(index);
@@ -333,10 +326,7 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
             .put(indexMetadataBuilder)
             .build();
 
-        ClusterState emptyState = ClusterState.builder(new ClusterName("my-cluster"))
-            .nodes(nodes)
-            .metadata(metadata)
-            .build();
+        ClusterState emptyState = ClusterState.builder(new ClusterName("my-cluster")).nodes(nodes).metadata(metadata).build();
         ClusterState stateWithMasterNode1 = ClusterState.builder(new ClusterName("my-cluster"))
             .nodes(nodes.withMasterNodeId("node_1"))
             .metadata(metadata)
@@ -348,10 +338,9 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
             .routingTable(routingTable)
             .build();
 
-        return new ClusterChangedEvent[]{
+        return new ClusterChangedEvent[] {
             new ClusterChangedEvent("any", stateWithMasterNode1, emptyState),
-            new ClusterChangedEvent("any", stateWithMasterNode2, stateWithMasterNode1)
-        };
+            new ClusterChangedEvent("any", stateWithMasterNode2, stateWithMasterNode1) };
     }
 
     public void testNoLocalShards() {

@@ -23,7 +23,10 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.ccr.Ccr.TRANSPORT_VERSION_ACTION_WITH_SHARD_ID;
 
-public class GetCcrRestoreFileChunkRequest extends ActionRequest implements RemoteClusterAwareRequest, IndicesRequest.RemoteClusterShardRequest {
+public class GetCcrRestoreFileChunkRequest extends ActionRequest
+    implements
+        RemoteClusterAwareRequest,
+        IndicesRequest.RemoteClusterShardRequest {
 
     private final DiscoveryNode node;
     private final String sessionUUID;

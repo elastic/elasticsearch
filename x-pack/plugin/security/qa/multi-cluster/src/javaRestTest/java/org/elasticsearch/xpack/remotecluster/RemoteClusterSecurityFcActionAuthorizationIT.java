@@ -18,9 +18,9 @@ import org.elasticsearch.action.admin.cluster.remote.RemoteClusterNodesAction;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
-import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.get.TransportGetAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.single.shard.SingleShardRequestHelper;
 import org.elasticsearch.client.Request;
@@ -496,7 +496,7 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
                 "node",
                 threadPool,
                 (String) crossClusterApiKeyMap.get("encoded"),
-                Map.of(GetAction.NAME + "[s]", buildCrossClusterAccessSubjectInfo("idx-a"))
+                Map.of(TransportGetAction.TYPE.name() + "[s]", buildCrossClusterAccessSubjectInfo("idx-a"))
             )
         ) {
             final RemoteClusterService remoteClusterService = service.getRemoteClusterService();
@@ -507,7 +507,7 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
             final PlainActionFuture<GetResponse> future = new PlainActionFuture<>();
             service.sendRequest(
                 remoteClusterService.getConnection("my_remote_cluster"),
-                GetAction.NAME + "[s]",
+                TransportGetAction.TYPE.name() + "[s]",
                 getRequest,
                 TransportRequestOptions.EMPTY,
                 new ActionListenerResponseHandler<>(future, (in) -> {

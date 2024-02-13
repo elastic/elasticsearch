@@ -24,7 +24,7 @@ import java.util.List;
 
 public abstract class SingleShardRequest<Request extends SingleShardRequest<Request>> extends ActionRequest
     implements
-    IndicesRequest.RemoteClusterShardRequest {
+        IndicesRequest.RemoteClusterShardRequest {
 
     public static final IndicesOptions INDICES_OPTIONS = IndicesOptions.strictSingleIndexNoExpandForbidClosed();
 

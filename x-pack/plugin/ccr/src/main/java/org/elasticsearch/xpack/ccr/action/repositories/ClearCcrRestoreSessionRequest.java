@@ -23,7 +23,10 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.ccr.Ccr.TRANSPORT_VERSION_ACTION_WITH_SHARD_ID;
 
-public class ClearCcrRestoreSessionRequest extends ActionRequest implements RemoteClusterAwareRequest, IndicesRequest.RemoteClusterShardRequest {
+public class ClearCcrRestoreSessionRequest extends ActionRequest
+    implements
+        RemoteClusterAwareRequest,
+        IndicesRequest.RemoteClusterShardRequest {
 
     private DiscoveryNode node;
     private final String sessionUUID;

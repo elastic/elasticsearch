@@ -17,7 +17,7 @@ import java.io.IOException;
  * from {@link org.elasticsearch.xcontent.XContent}.
  */
 @FunctionalInterface
-public interface RetrieverParser<RB extends RetrieverBuilder<RB>> {
+public interface RetrieverParser<RB extends RetrieverBuilder> {
 
     /**
      * Creates a new {@link RetrieverBuilder} from the retriever held by the

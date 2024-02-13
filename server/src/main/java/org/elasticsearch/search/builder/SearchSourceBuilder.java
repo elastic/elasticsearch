@@ -1281,7 +1281,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         }
         List<KnnSearchBuilder.Builder> knnBuilders = new ArrayList<>();
 
-        RetrieverBuilder<?> retrieverBuilder = null;
+        RetrieverBuilder retrieverBuilder = null;
         SearchUsage searchUsage = new SearchUsage();
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {

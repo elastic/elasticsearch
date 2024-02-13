@@ -39,7 +39,7 @@ import java.util.Objects;
  * serialization and is expected to be fully extracted to a {@link SearchSourceBuilder}
  * prior to any transport calls.
  */
-public abstract class RetrieverBuilder<RB extends RetrieverBuilder<RB>> {
+public abstract class RetrieverBuilder {
 
     public static final NodeFeature NODE_FEATURE = new NodeFeature("retrievers");
 
@@ -47,7 +47,7 @@ public abstract class RetrieverBuilder<RB extends RetrieverBuilder<RB>> {
 
     protected static void declareBaseParserFields(
         String name,
-        AbstractObjectParser<? extends RetrieverBuilder<?>, RetrieverParserContext> parser
+        AbstractObjectParser<? extends RetrieverBuilder, RetrieverParserContext> parser
     ) {
         parser.declareObjectArray((r, v) -> r.preFilterQueryBuilders = v, (p, c) -> {
             QueryBuilder preFilterQueryBuilder = AbstractQueryBuilder.parseTopLevelQuery(p, c::trackQueryUsage);
@@ -61,8 +61,7 @@ public abstract class RetrieverBuilder<RB extends RetrieverBuilder<RB>> {
      * maximum depth allowed is limited to 2 as a compound retriever cannot currently contain another
      * compound retriever.
      */
-    public static RetrieverBuilder<?> parseTopLevelRetrieverBuilder(XContentParser parser, RetrieverParserContext context)
-        throws IOException {
+    public static RetrieverBuilder parseTopLevelRetrieverBuilder(XContentParser parser, RetrieverParserContext context) throws IOException {
         parser = new FilterXContentParserWrapper(parser) {
 
             int nestedDepth = 0;
@@ -92,8 +91,7 @@ public abstract class RetrieverBuilder<RB extends RetrieverBuilder<RB>> {
         return parseInnerRetrieverBuilder(parser, context);
     }
 
-    protected static RetrieverBuilder<?> parseInnerRetrieverBuilder(XContentParser parser, RetrieverParserContext context)
-        throws IOException {
+    protected static RetrieverBuilder parseInnerRetrieverBuilder(XContentParser parser, RetrieverParserContext context) throws IOException {
         Objects.requireNonNull(context);
 
         if (parser.currentToken() != XContentParser.Token.START_OBJECT && parser.nextToken() != XContentParser.Token.START_OBJECT) {
@@ -123,7 +121,7 @@ public abstract class RetrieverBuilder<RB extends RetrieverBuilder<RB>> {
             );
         }
 
-        RetrieverBuilder<?> retrieverBuilder;
+        RetrieverBuilder retrieverBuilder;
 
         try {
             retrieverBuilder = parser.namedObject(RetrieverBuilder.class, retrieverName, context);

@@ -30,7 +30,7 @@ import java.util.List;
  * A standard retriever is used to represent anything that is a query along
  * with some elements to specify parameters for that query.
  */
-public final class StandardRetrieverBuilder extends RetrieverBuilder<StandardRetrieverBuilder> {
+public final class StandardRetrieverBuilder extends RetrieverBuilder {
 
     public static final String NAME = "standard";
     public static final NodeFeature NODE_FEATURE = new NodeFeature(NAME + "_retriever");

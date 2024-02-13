@@ -28,7 +28,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  * A knn retriever is used to represent a knn search
  * with some elements to specify parameters for that knn search.
  */
-public final class KnnRetrieverBuilder extends RetrieverBuilder<KnnRetrieverBuilder> {
+public final class KnnRetrieverBuilder extends RetrieverBuilder {
 
     public static final String NAME = "knn";
     public static final NodeFeature NODE_FEATURE = new NodeFeature(NAME + "_retriever");

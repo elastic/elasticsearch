@@ -268,7 +268,7 @@ public interface SearchPlugin {
     /**
      * Specification of custom {@link RetrieverBuilder}.
      */
-    class RetrieverSpec<RB extends RetrieverBuilder<RB>> {
+    class RetrieverSpec<RB extends RetrieverBuilder> {
 
         private final ParseField name;
         private final RetrieverParser<RB> parser;

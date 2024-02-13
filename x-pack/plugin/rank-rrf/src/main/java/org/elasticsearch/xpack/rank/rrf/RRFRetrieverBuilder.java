@@ -29,7 +29,7 @@ import java.util.List;
  * top docs that will then be combined and ranked according to the rrf
  * formula.
  */
-public final class RRFRetrieverBuilder extends RetrieverBuilder<RRFRetrieverBuilder> {
+public final class RRFRetrieverBuilder extends RetrieverBuilder {
 
     public static final NodeFeature NODE_FEATURE = new NodeFeature(RRFRankPlugin.NAME + "_retriever");
 
@@ -46,7 +46,7 @@ public final class RRFRetrieverBuilder extends RetrieverBuilder<RRFRetrieverBuil
         PARSER.declareObjectArray((r, v) -> r.retrieverBuilders = v, (p, c) -> {
             p.nextToken();
             String name = p.currentName();
-            RetrieverBuilder<?> retrieverBuilder = (RetrieverBuilder<?>) p.namedObject(RetrieverBuilder.class, name, c);
+            RetrieverBuilder retrieverBuilder = p.namedObject(RetrieverBuilder.class, name, c);
             p.nextToken();
             return retrieverBuilder;
         }, RETRIEVERS_FIELD);
@@ -66,13 +66,13 @@ public final class RRFRetrieverBuilder extends RetrieverBuilder<RRFRetrieverBuil
         return PARSER.apply(parser, context);
     }
 
-    private List<? extends RetrieverBuilder<?>> retrieverBuilders = Collections.emptyList();
+    private List<RetrieverBuilder> retrieverBuilders = Collections.emptyList();
     private int windowSize = RRFRankBuilder.DEFAULT_WINDOW_SIZE;
     private int rankConstant = RRFRankBuilder.DEFAULT_RANK_CONSTANT;
 
     @Override
     public void extractToSearchSourceBuilder(SearchSourceBuilder searchSourceBuilder) {
-        for (RetrieverBuilder<?> retrieverBuilder : retrieverBuilders) {
+        for (RetrieverBuilder retrieverBuilder : retrieverBuilders) {
             if (preFilterQueryBuilders.isEmpty() == false) {
                 retrieverBuilder.getPreFilterQueryBuilders().addAll(preFilterQueryBuilders);
             }

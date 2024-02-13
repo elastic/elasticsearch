@@ -11,7 +11,6 @@ package org.elasticsearch.datastreams;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
-import org.hamcrest.MatcherAssert;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -56,13 +55,13 @@ public class FailureStoreQueryParamIT extends DisabledSecurityDataStreamTestCase
 
         final Response dataStreamResponse = client().performRequest(new Request("GET", "/_data_stream/" + DATA_STREAM_NAME));
         List<Object> dataStreams = (List<Object>) entityAsMap(dataStreamResponse).get("data_streams");
-        MatcherAssert.assertThat(dataStreams.size(), is(1));
+        assertThat(dataStreams.size(), is(1));
         Map<String, Object> dataStream = (Map<String, Object>) dataStreams.get(0);
-        MatcherAssert.assertThat(dataStream.get("name"), equalTo(DATA_STREAM_NAME));
+        assertThat(dataStream.get("name"), equalTo(DATA_STREAM_NAME));
         List<String> backingIndices = getBackingIndices(dataStream);
-        MatcherAssert.assertThat(backingIndices.size(), is(1));
+        assertThat(backingIndices.size(), is(1));
         List<String> failureStore = getFailureStore(dataStream);
-        MatcherAssert.assertThat(failureStore.size(), is(1));
+        assertThat(failureStore.size(), is(1));
         backingIndex = backingIndices.get(0);
         failureStoreIndex = failureStore.get(0);
     }
@@ -71,21 +70,21 @@ public class FailureStoreQueryParamIT extends DisabledSecurityDataStreamTestCase
         {
             final Response indicesResponse = client().performRequest(new Request("GET", "/" + DATA_STREAM_NAME));
             Map<String, Object> indices = entityAsMap(indicesResponse);
-            MatcherAssert.assertThat(indices.size(), is(2));
-            MatcherAssert.assertThat(indices.containsKey(backingIndex), is(true));
-            MatcherAssert.assertThat(indices.containsKey(failureStoreIndex), is(true));
+            assertThat(indices.size(), is(2));
+            assertThat(indices.containsKey(backingIndex), is(true));
+            assertThat(indices.containsKey(failureStoreIndex), is(true));
         }
         {
             final Response indicesResponse = client().performRequest(new Request("GET", "/" + DATA_STREAM_NAME + "?failure_store=false"));
             Map<String, Object> indices = entityAsMap(indicesResponse);
-            MatcherAssert.assertThat(indices.size(), is(1));
-            MatcherAssert.assertThat(indices.containsKey(backingIndex), is(true));
+            assertThat(indices.size(), is(1));
+            assertThat(indices.containsKey(backingIndex), is(true));
         }
         {
             final Response indicesResponse = client().performRequest(new Request("GET", "/" + DATA_STREAM_NAME + "?failure_store=only"));
             Map<String, Object> indices = entityAsMap(indicesResponse);
-            MatcherAssert.assertThat(indices.size(), is(1));
-            MatcherAssert.assertThat(indices.containsKey(failureStoreIndex), is(true));
+            assertThat(indices.size(), is(1));
+            assertThat(indices.containsKey(failureStoreIndex), is(true));
         }
     }
 
@@ -94,25 +93,25 @@ public class FailureStoreQueryParamIT extends DisabledSecurityDataStreamTestCase
         {
             final Response indicesResponse = client().performRequest(new Request("GET", "/" + DATA_STREAM_NAME + "/_stats"));
             Map<String, Object> indices = (Map<String, Object>) entityAsMap(indicesResponse).get("indices");
-            MatcherAssert.assertThat(indices.size(), is(1));
-            MatcherAssert.assertThat(indices.containsKey(backingIndex), is(true));
+            assertThat(indices.size(), is(1));
+            assertThat(indices.containsKey(backingIndex), is(true));
         }
         {
             final Response indicesResponse = client().performRequest(
                 new Request("GET", "/" + DATA_STREAM_NAME + "/_stats?failure_store=true")
             );
             Map<String, Object> indices = (Map<String, Object>) entityAsMap(indicesResponse).get("indices");
-            MatcherAssert.assertThat(indices.size(), is(2));
-            MatcherAssert.assertThat(indices.containsKey(backingIndex), is(true));
-            MatcherAssert.assertThat(indices.containsKey(failureStoreIndex), is(true));
+            assertThat(indices.size(), is(2));
+            assertThat(indices.containsKey(backingIndex), is(true));
+            assertThat(indices.containsKey(failureStoreIndex), is(true));
         }
         {
             final Response indicesResponse = client().performRequest(
                 new Request("GET", "/" + DATA_STREAM_NAME + "/_stats?failure_store=only")
             );
             Map<String, Object> indices = (Map<String, Object>) entityAsMap(indicesResponse).get("indices");
-            MatcherAssert.assertThat(indices.size(), is(1));
-            MatcherAssert.assertThat(indices.containsKey(failureStoreIndex), is(true));
+            assertThat(indices.size(), is(1));
+            assertThat(indices.containsKey(failureStoreIndex), is(true));
         }
     }
 
@@ -120,25 +119,25 @@ public class FailureStoreQueryParamIT extends DisabledSecurityDataStreamTestCase
         {
             final Response indicesResponse = client().performRequest(new Request("GET", "/" + DATA_STREAM_NAME + "/_settings"));
             Map<String, Object> indices = entityAsMap(indicesResponse);
-            MatcherAssert.assertThat(indices.size(), is(1));
-            MatcherAssert.assertThat(indices.containsKey(backingIndex), is(true));
+            assertThat(indices.size(), is(1));
+            assertThat(indices.containsKey(backingIndex), is(true));
         }
         {
             final Response indicesResponse = client().performRequest(
                 new Request("GET", "/" + DATA_STREAM_NAME + "/_settings?failure_store=true")
             );
             Map<String, Object> indices = entityAsMap(indicesResponse);
-            MatcherAssert.assertThat(indices.size(), is(2));
-            MatcherAssert.assertThat(indices.containsKey(backingIndex), is(true));
-            MatcherAssert.assertThat(indices.containsKey(failureStoreIndex), is(true));
+            assertThat(indices.size(), is(2));
+            assertThat(indices.containsKey(backingIndex), is(true));
+            assertThat(indices.containsKey(failureStoreIndex), is(true));
         }
         {
             final Response indicesResponse = client().performRequest(
                 new Request("GET", "/" + DATA_STREAM_NAME + "/_settings?failure_store=only")
             );
             Map<String, Object> indices = entityAsMap(indicesResponse);
-            MatcherAssert.assertThat(indices.size(), is(1));
-            MatcherAssert.assertThat(indices.containsKey(failureStoreIndex), is(true));
+            assertThat(indices.size(), is(1));
+            assertThat(indices.containsKey(failureStoreIndex), is(true));
         }
     }
 
@@ -146,25 +145,25 @@ public class FailureStoreQueryParamIT extends DisabledSecurityDataStreamTestCase
         {
             final Response indicesResponse = client().performRequest(new Request("GET", "/" + DATA_STREAM_NAME + "/_mapping"));
             Map<String, Object> indices = entityAsMap(indicesResponse);
-            MatcherAssert.assertThat(indices.size(), is(1));
-            MatcherAssert.assertThat(indices.containsKey(backingIndex), is(true));
+            assertThat(indices.size(), is(1));
+            assertThat(indices.containsKey(backingIndex), is(true));
         }
         {
             final Response indicesResponse = client().performRequest(
                 new Request("GET", "/" + DATA_STREAM_NAME + "/_mapping?failure_store=true")
             );
             Map<String, Object> indices = entityAsMap(indicesResponse);
-            MatcherAssert.assertThat(indices.size(), is(2));
-            MatcherAssert.assertThat(indices.containsKey(backingIndex), is(true));
-            MatcherAssert.assertThat(indices.containsKey(failureStoreIndex), is(true));
+            assertThat(indices.size(), is(2));
+            assertThat(indices.containsKey(backingIndex), is(true));
+            assertThat(indices.containsKey(failureStoreIndex), is(true));
         }
         {
             final Response indicesResponse = client().performRequest(
                 new Request("GET", "/" + DATA_STREAM_NAME + "/_mapping?failure_store=only")
             );
             Map<String, Object> indices = entityAsMap(indicesResponse);
-            MatcherAssert.assertThat(indices.size(), is(1));
-            MatcherAssert.assertThat(indices.containsKey(failureStoreIndex), is(true));
+            assertThat(indices.size(), is(1));
+            assertThat(indices.containsKey(failureStoreIndex), is(true));
         }
     }
 

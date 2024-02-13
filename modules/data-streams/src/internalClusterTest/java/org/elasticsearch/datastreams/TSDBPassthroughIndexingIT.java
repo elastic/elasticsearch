@@ -187,10 +187,7 @@ public class TSDBPassthroughIndexingIT extends ESSingleNodeTestCase {
             ObjectPath.eval("properties.metricset", mapping),
             matchesMap().entry("type", "alias").entry("path", "attributes.metricset")
         );
-        assertMap(
-            ObjectPath.eval("properties.number", mapping),
-            matchesMap().entry("type", "alias").entry("path", "attributes.number")
-        );
+        assertMap(ObjectPath.eval("properties.number", mapping), matchesMap().entry("type", "alias").entry("path", "attributes.number"));
         assertMap(
             ObjectPath.eval("properties.pod.properties", mapping),
             matchesMap().extraOk().entry("name", matchesMap().entry("type", "alias").entry("path", "attributes.pod.name"))

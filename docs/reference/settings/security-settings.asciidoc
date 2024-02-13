@@ -224,9 +224,13 @@ Defaults to `ssha256`.
 (<<dynamic-cluster-setting,Dynamic>>)
 Invalidated or expired API keys older than the retention period are eligible for deletion.
 Defaults to `7d`.
-Note that large real-time clock inaccuracies across the cluster nodes can cause problems
+
+--
+NOTE:  The large real-time clock inaccuracies across the cluster nodes can cause problems
 with evaluating the API key retention period (in the likely case that the node performing
 the invalidation is different from the one performing the deletion).
+
+--
 
 `xpack.security.authc.api_key.delete.interval`::
 (<<dynamic-cluster-setting,Dynamic>>, Expert)

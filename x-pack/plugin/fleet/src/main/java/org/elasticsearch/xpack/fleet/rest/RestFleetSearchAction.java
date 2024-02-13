@@ -14,6 +14,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
@@ -29,6 +30,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.function.IntConsumer;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -38,10 +40,16 @@ public class RestFleetSearchAction extends BaseRestHandler {
 
     private final SearchUsageHolder searchUsageHolder;
     private final NamedWriteableRegistry namedWriteableRegistry;
+    private final Predicate<NodeFeature> clusterSupportsFeature;
 
-    public RestFleetSearchAction(SearchUsageHolder searchUsageHolder, NamedWriteableRegistry namedWriteableRegistry) {
+    public RestFleetSearchAction(
+        SearchUsageHolder searchUsageHolder,
+        NamedWriteableRegistry namedWriteableRegistry,
+        Predicate<NodeFeature> clusterSupportsFeature
+    ) {
         this.searchUsageHolder = searchUsageHolder;
         this.namedWriteableRegistry = namedWriteableRegistry;
+        this.clusterSupportsFeature = clusterSupportsFeature;
     }
 
     @Override
@@ -71,7 +79,15 @@ public class RestFleetSearchAction extends BaseRestHandler {
 
         IntConsumer setSize = size -> searchRequest.source().size(size);
         request.withContentOrSourceParamParserOrNull(parser -> {
-            RestSearchAction.parseSearchRequest(searchRequest, request, parser, namedWriteableRegistry, setSize, searchUsageHolder);
+            RestSearchAction.parseSearchRequest(
+                searchRequest,
+                request,
+                parser,
+                namedWriteableRegistry,
+                clusterSupportsFeature,
+                setSize,
+                searchUsageHolder
+            );
             String[] stringWaitForCheckpoints = request.paramAsStringArray("wait_for_checkpoints", Strings.EMPTY_ARRAY);
             final long[] waitForCheckpoints = new long[stringWaitForCheckpoints.length];
             for (int i = 0; i < stringWaitForCheckpoints.length; ++i) {

@@ -865,7 +865,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
 
     static final String toPackageName(String className) {
         assert className.endsWith(".") == false;
-        int index = className.lastIndexOf(".");
+        int index = className.lastIndexOf('.');
         if (index == -1) {
             throw new IllegalStateException("invalid class name:" + className);
         }

@@ -38,7 +38,9 @@ public class MetadataFetcher {
         final List<MetadataField> metadataFields = new ArrayList<>(3);
         for (FieldAndFormat fieldAndFormat : fieldAndFormats) {
             for (final String field : context.getMatchingFieldNames(fieldAndFormat.field)) {
-                metadataFields.add(new MetadataFetcher.MetadataField(field, context.getFieldType(field), fieldAndFormat.format));
+                if (context.getFieldType(field) != null) {
+                    metadataFields.add(new MetadataFetcher.MetadataField(field, context.getFieldType(field), fieldAndFormat.format));
+                }
             }
         }
         return new MetadataFetcher(buildFieldContexts(context, metadataFields));

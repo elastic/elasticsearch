@@ -71,6 +71,10 @@ public class PrevalidateShardPathIT extends ESIntegTestCase {
         ensureGreen(indexName);
         assertBusy(() -> {
             try {
+                assertNotNull(
+                    "No index metadata for index: " + indexName + " on node: " + node2,
+                    internalCluster().clusterService(node2).state().metadata().index(indexName)
+                );
                 // The excluded node should eventually delete the shards
                 PrevalidateShardPathRequest req2 = new PrevalidateShardPathRequest(shardIdsToCheck, node2Id);
                 PrevalidateShardPathResponse resp2 = client().execute(TransportPrevalidateShardPathAction.TYPE, req2).get();

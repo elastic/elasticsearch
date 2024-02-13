@@ -367,7 +367,7 @@ public class ElserInternalService implements InferenceService {
                     "Expected a chunked inference [{}] received [{}]",
                     RestStatus.INTERNAL_SERVER_ERROR,
                     ChunkedTextExpansionResults.NAME,
-                    inferenceResults.get(0).getWriteableName()
+                    inferenceResult.getWriteableName()
                 );
             }
         }

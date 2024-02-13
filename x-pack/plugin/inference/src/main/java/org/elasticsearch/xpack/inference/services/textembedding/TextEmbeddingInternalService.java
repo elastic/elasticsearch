@@ -36,7 +36,6 @@ import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.action.StopTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
-import org.elasticsearch.xpack.core.ml.inference.results.ChunkedTextExpansionResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TokenizationConfigUpdate;
@@ -356,8 +355,8 @@ public class TextEmbeddingInternalService implements InferenceService {
                 throw new ElasticsearchStatusException(
                     "Expected a chunked inference [{}] received [{}]",
                     RestStatus.INTERNAL_SERVER_ERROR,
-                    ChunkedTextExpansionResults.NAME,
-                    inferenceResults.get(0).getWriteableName()
+                    ChunkedTextEmbeddingResults.NAME,
+                    inferenceResult.getWriteableName()
                 );
             }
         }

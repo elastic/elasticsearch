@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.inference.results.ChunkedSparseEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.action.CreateTrainedModelAssignmentAction;
+import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.action.InferTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelAction;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
@@ -343,6 +344,31 @@ public class ElserInternalService implements InferenceService {
                 listener.delegateFailure((l, r) -> {
                     l.onResponse(Boolean.TRUE);
                 })
+            );
+        }
+    }
+
+    @Override
+    public void isModelDownloaded(Model model, ActionListener<Boolean> listener) {
+        ActionListener<GetTrainedModelsAction.Response> getModelsResponseListener = listener.delegateFailure((delegate, response) -> {
+            if (response.getResources().count() < 1) {
+                delegate.onResponse(Boolean.FALSE);
+            } else {
+                delegate.onResponse(Boolean.TRUE);
+            }
+        });
+
+        if (model instanceof ElserInternalModel elserModel) {
+            String modelId = elserModel.getServiceSettings().getModelId();
+            GetTrainedModelsAction.Request getRequest = new GetTrainedModelsAction.Request(modelId);
+            executeAsyncWithOrigin(client, INFERENCE_ORIGIN, GetTrainedModelsAction.INSTANCE, getRequest, getModelsResponseListener);
+        } else {
+            listener.onFailure(
+                new IllegalArgumentException(
+                    "Can not download model automatically for ["
+                        + model.getConfigurations().getInferenceEntityId()
+                        + "] you may need to download it through the trained models API or with eland."
+                )
             );
         }
     }

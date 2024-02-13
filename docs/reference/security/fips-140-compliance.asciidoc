@@ -59,7 +59,7 @@ Please refer to the [Support Matrix] for details on which combinations of JVM an
 to install and configure the security provider to ensure compliance with FIPS 140-2. Using a FIPS certified provider will ensure that only
 approved cryptographic algorithms are used.
 
-To configure {es} to use additional security provider(s) configure {es}'s JVM property `java.security.properties` to point to a file
+To configure {es} to use additional security provider(s) configure {es}'s <<set-jvm-options, JVM property>> `java.security.properties` to point to a file
 (https://raw.githubusercontent.com/elastic/elasticsearch/main/build-tools-internal/src/main/resources/fips_java.security[example]) in {es}'s
 `config` directory. Ensure the FIPS certified security provider is configured with the lowest order. This file should contain the necessary
 configuration to instruct Java to use the FIPS certified security provider.

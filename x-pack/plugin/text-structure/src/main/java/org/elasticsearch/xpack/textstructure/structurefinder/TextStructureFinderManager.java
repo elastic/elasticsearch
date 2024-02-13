@@ -13,7 +13,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.xpack.core.textstructure.action.FindStructureAction;
+import org.elasticsearch.xpack.core.textstructure.action.AbstractFindStructureRequest;
 import org.elasticsearch.xpack.core.textstructure.structurefinder.TextStructure;
 
 import java.io.BufferedInputStream;
@@ -310,7 +310,7 @@ public final class TextStructureFinderManager {
      * Given a stream of text data, determine its structure.
      * @param idealSampleLineCount Ideally, how many lines from the stream will be read to determine the structure?
      *                             If the stream has fewer lines then an attempt will still be made, providing at
-     *                             least {@link FindStructureAction#MIN_SAMPLE_LINE_COUNT} lines can be read.  If
+     *                             least {@link AbstractFindStructureRequest#MIN_SAMPLE_LINE_COUNT} lines can be read.  If
      *                             <code>null</code> the value of {@link #DEFAULT_IDEAL_SAMPLE_LINE_COUNT} will be used.
      * @param lineMergeSizeLimit Maximum number of characters permitted when lines are merged to create messages.
      *                           If <code>null</code> the value of {@link #DEFAULT_LINE_MERGE_SIZE_LIMIT} will be used.
@@ -383,11 +383,11 @@ public final class TextStructureFinderManager {
                 sampleReader = charsetMatch.getReader();
             }
 
-            assert idealSampleLineCount >= FindStructureAction.MIN_SAMPLE_LINE_COUNT;
+            assert idealSampleLineCount >= AbstractFindStructureRequest.MIN_SAMPLE_LINE_COUNT;
             Tuple<String, Boolean> sampleInfo = sampleText(
                 sampleReader,
                 charsetName,
-                FindStructureAction.MIN_SAMPLE_LINE_COUNT,
+                AbstractFindStructureRequest.MIN_SAMPLE_LINE_COUNT,
                 idealSampleLineCount,
                 timeoutChecker
             );

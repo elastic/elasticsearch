@@ -41,7 +41,7 @@ import static org.hamcrest.Matchers.instanceOf;
  */
 public class ManyNestedPipelinesIT extends ESIntegTestCase {
     private final int manyPipelinesCount = randomIntBetween(2, 50);
-    private final int tooManyPipelinesCount = 102;
+    private final int tooManyPipelinesCount = IngestDocument.MAX_PIPELINES + 1;
     private static final String MANY_PIPELINES_PREFIX = "many_";
     private static final String TOO_MANY_PIPELINES_PREFIX = "too_many_";
 

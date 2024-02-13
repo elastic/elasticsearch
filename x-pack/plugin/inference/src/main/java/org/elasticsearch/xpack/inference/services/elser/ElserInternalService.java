@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -285,7 +286,7 @@ public class ElserInternalService implements InferenceService {
         Map<String, Object> taskSettings,
         InputType inputType,
         ChunkingOptions chunkingOptions,
-        ActionListener<ChunkedInferenceServiceResults> listener
+        ActionListener<List<ChunkedInferenceServiceResults>> listener
     ) {
         try {
             checkCompatibleTaskType(model.getConfigurations().getTaskType());
@@ -355,25 +356,22 @@ public class ElserInternalService implements InferenceService {
         return ElserMlNodeTaskSettings.DEFAULT;
     }
 
-    private ChunkedSparseEmbeddingResults translateChunkedResults(List<InferenceResults> inferenceResults) {
-        if (inferenceResults.size() != 1) {
-            throw new ElasticsearchStatusException(
-                "Expected exactly one chunked sparse embedding result",
-                RestStatus.INTERNAL_SERVER_ERROR
-            );
-        }
+    private List<ChunkedInferenceServiceResults> translateChunkedResults(List<InferenceResults> inferenceResults) {
+        var translated = new ArrayList<ChunkedInferenceServiceResults>();
 
-        if (inferenceResults.get(0) instanceof ChunkedTextExpansionResults mlChunkedResult) {
-            return ChunkedSparseEmbeddingResults.ofMlResult(mlChunkedResult);
-        } else {
-            throw new ElasticsearchStatusException(
-                "Expected a chunked inference [{}] received [{}]",
-                RestStatus.INTERNAL_SERVER_ERROR,
-                ChunkedTextExpansionResults.NAME,
-                inferenceResults.get(0).getWriteableName()
-            );
+        for (var inferenceResult : inferenceResults) {
+            if (inferenceResult instanceof ChunkedTextExpansionResults mlChunkedResult) {
+                translated.add(ChunkedSparseEmbeddingResults.ofMlResult(mlChunkedResult));
+            } else {
+                throw new ElasticsearchStatusException(
+                    "Expected a chunked inference [{}] received [{}]",
+                    RestStatus.INTERNAL_SERVER_ERROR,
+                    ChunkedTextExpansionResults.NAME,
+                    inferenceResults.get(0).getWriteableName()
+                );
+            }
         }
-
+        return translated;
     }
 
     @Override

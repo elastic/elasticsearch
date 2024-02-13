@@ -1,0 +1,5 @@
+pr: 105458
+summary: Move the model parameter from task settings to service settings
+area: Machine Learning
+type: bug
+issues: []

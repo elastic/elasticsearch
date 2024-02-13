@@ -331,7 +331,7 @@ public class S3HttpHandler implements HttpHandler {
             final ArrayList<String> queryParameters = new ArrayList<>();
             Arrays.stream(Strings.tokenizeToStringArray(queryString, "&")).forEach(param -> {
                 if (param.startsWith("x-")) {
-                    final int equalPos = param.indexOf("=");
+                    final int equalPos = param.indexOf('=');
                     customQueryParameters.computeIfAbsent(param.substring(0, equalPos), k -> new ArrayList<>())
                         .add(param.substring(equalPos + 1));
                 } else {

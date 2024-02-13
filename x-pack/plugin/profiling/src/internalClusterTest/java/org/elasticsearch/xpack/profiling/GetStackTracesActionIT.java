@@ -178,6 +178,27 @@ public class GetStackTracesActionIT extends ProfilingTestCase {
         assertEquals(0, response.getTotalFrames());
     }
 
+    public void testGetStackTracesFromAPMIndexNotAvailable() throws Exception {
+        TermQueryBuilder query = QueryBuilders.termQuery("transaction.name", "nonExistingTransaction");
+
+        GetStackTracesRequest request = new GetStackTracesRequest(
+            null,
+            1.0d,
+            1.0d,
+            1.0d,
+            query,
+            new String[] { "non-existing-apm-index-*" },
+            "transaction.profiler_stack_trace_ids",
+            null,
+            null,
+            null,
+            null,
+            null
+        );
+        GetStackTracesResponse response = client().execute(GetStackTracesAction.INSTANCE, request).get();
+        assertEquals(0, response.getTotalFrames());
+    }
+
     public void testGetStackTracesFromAPMStackTraceFieldNotAvailable() throws Exception {
         TermQueryBuilder query = QueryBuilders.termQuery("transaction.name", "encodeSha1");
 

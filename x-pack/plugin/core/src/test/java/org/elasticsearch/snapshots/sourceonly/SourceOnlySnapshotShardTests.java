@@ -63,6 +63,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.plugins.internal.DocumentSizeObserver;
 import org.elasticsearch.repositories.FinalizeSnapshotContext;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.Repository;
@@ -487,7 +488,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                                 XContentHelper.xContentType(source),
                                 rootFieldsVisitor.routing(),
                                 Map.of(),
-                                false
+                                DocumentSizeObserver.EMPTY_INSTANCE
                             ),
                             SequenceNumbers.UNASSIGNED_SEQ_NO,
                             0,

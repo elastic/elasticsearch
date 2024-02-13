@@ -19,14 +19,13 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.xcontent.XContentFactory.cborBuilder;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
-public class DocumentParsingObserverIT extends ESIntegTestCase {
+public class DocumentSizeObserverIT extends ESIntegTestCase {
 
     private static String TEST_INDEX_NAME = "test-index-name";
 
@@ -40,7 +39,7 @@ public class DocumentParsingObserverIT extends ESIntegTestCase {
             new IndexRequest(TEST_INDEX_NAME).id("1").source(jsonBuilder().startObject().field("test", "I am sam i am").endObject())
         ).actionGet();
         assertTrue(hasWrappedParser);
-        // there are more assertions in a TestDocumentParsingObserver
+        // there are more assertions in a TestDocumentParsingSupplierPlugin
 
         hasWrappedParser = false;
         // the format of the request does not matter
@@ -48,7 +47,7 @@ public class DocumentParsingObserverIT extends ESIntegTestCase {
             new IndexRequest(TEST_INDEX_NAME).id("2").source(cborBuilder().startObject().field("test", "I am sam i am").endObject())
         ).actionGet();
         assertTrue(hasWrappedParser);
-        // there are more assertions in a TestDocumentParsingObserver
+        // there are more assertions in a TestDocumentParsingSupplierPlugin
 
         hasWrappedParser = false;
         // white spaces does not matter
@@ -60,27 +59,51 @@ public class DocumentParsingObserverIT extends ESIntegTestCase {
             }
             """, XContentType.JSON)).actionGet();
         assertTrue(hasWrappedParser);
-        // there are more assertions in a TestDocumentParsingObserver
+        // there are more assertions in a TestDocumentParsingSupplierPlugin
     }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(TestDocumentParsingObserverPlugin.class);
+        return List.of(TestDocumentParsingProviderPlugin.class);
     }
 
-    public static class TestDocumentParsingObserverPlugin extends Plugin implements DocumentParsingObserverPlugin, IngestPlugin {
+    public static class TestDocumentParsingProviderPlugin extends Plugin implements DocumentParsingProviderPlugin, IngestPlugin {
 
-        public TestDocumentParsingObserverPlugin() {}
+        public TestDocumentParsingProviderPlugin() {}
 
         @Override
-        public Supplier<DocumentParsingObserver> getDocumentParsingObserverSupplier() {
-            return () -> new TestDocumentParsingObserver();
+        public DocumentParsingProvider getDocumentParsingSupplier() {
+            return new DocumentParsingProvider() {
+
+                @Override
+                public DocumentSizeObserver newFixedSizeDocumentObserver(long normalisedBytesParsed) {
+                    return new TestDocumentSizeObserver();
+                }
+
+                @Override
+                public DocumentSizeObserver newDocumentSizeObserver() {
+                    return new TestDocumentSizeObserver();
+                }
+
+                @Override
+                public DocumentSizeReporter getDocumentParsingReporter() {
+                    return new TestDocumentSizeReporter();
+                }
+            };
         }
     }
 
-    public static class TestDocumentParsingObserver implements DocumentParsingObserver {
+    public static class TestDocumentSizeReporter implements DocumentSizeReporter {
+
+        @Override
+        public void onCompleted(String indexName, long normalizedBytesParsed) {
+            assertThat(indexName, equalTo(TEST_INDEX_NAME));
+            assertThat(normalizedBytesParsed, equalTo(5L));
+        }
+    }
+
+    public static class TestDocumentSizeObserver implements DocumentSizeObserver {
         long counter = 0;
-        String indexName;
 
         @Override
         public XContentParser wrapParser(XContentParser xContentParser) {
@@ -95,14 +118,8 @@ public class DocumentParsingObserverIT extends ESIntegTestCase {
         }
 
         @Override
-        public void setIndexName(String indexName) {
-            this.indexName = indexName;
-        }
-
-        @Override
-        public void close() {
-            assertThat(indexName, equalTo(TEST_INDEX_NAME));
-            assertThat(counter, equalTo(5L));
+        public long normalisedBytesParsed() {
+            return counter;
         }
     }
 }

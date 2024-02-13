@@ -46,9 +46,6 @@ ifeval::["{release-state}"!="unreleased"]
 :version_qualified: {bare_version}
 endif::[]
 
-:javadoc-license: {rest-high-level-client-javadoc}/org/elasticsearch/protocol/xpack/license
-:javadoc-watcher: {rest-high-level-client-javadoc}/org/elasticsearch/protocol/xpack/watcher
-
 ///////
 Shared attribute values are pulled from elastic/docs
 ///////

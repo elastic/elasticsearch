@@ -1069,6 +1069,14 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             """, Set.of("*name.*", "*name", "first_name", "first_name.*"));
     }
 
+    public void testProjectWithMixedQuoting() {
+        assertFieldNames("""
+            from test
+            | drop first_name
+            | keep *`name`
+            """, Set.of("*name.*", "*name", "first_name", "first_name.*"));
+    }
+
     public void testProjectKeepAndDropName() {
         assertFieldNames("""
             from test
@@ -1099,10 +1107,27 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             """, ALL_FIELDS);
     }
 
+    public void testProjectQuotedPatterWithRest() {
+        assertFieldNames("""
+            from test
+            | eval `*alpha`= first_name
+            | drop `*alpha`
+            | keep *name, *, emp_no
+            """, ALL_FIELDS);
+    }
+
     public void testProjectDropPatternAndKeepOthers() {
         assertFieldNames("""
             from test
             | drop l*
+            | keep first_name, salary
+            """, Set.of("l*", "first_name", "first_name.*", "salary", "salary.*"));
+    }
+
+    public void testProjectDropWithQuotedAndUnquotedPatternAndKeepOthers() {
+        assertFieldNames("""
+            from test
+            | drop `l`*
             | keep first_name, salary
             """, Set.of("l*", "first_name", "first_name.*", "salary", "salary.*"));
     }
@@ -1137,6 +1162,24 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
         assertFieldNames("""
             from test
             | stats c = count(*), min = min(emp_no) by languages
+            | sort languages
+            """, Set.of("emp_no", "emp_no.*", "languages", "languages.*"));
+    }
+
+    public void testCountAllWithImplicitNameOtherStatGrouped() {
+        assertFieldNames("""
+            from test
+            | stats count(*), min = min(emp_no) by languages
+            | drop `count(*)`
+            | sort languages
+            """, Set.of("emp_no", "emp_no.*", "languages", "languages.*"));
+    }
+
+    public void testDropWithQuotedAndUnquotedName() {
+        assertFieldNames("""
+            from test
+            | stats count(*), min = min(emp_no) by languages
+            | drop count`(*)`
             | sort languages
             """, Set.of("emp_no", "emp_no.*", "languages", "languages.*"));
     }

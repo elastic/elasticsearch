@@ -408,12 +408,7 @@ public class RBACEngine implements AuthorizationEngine {
     }
 
     private static boolean allowsRemoteIndices(TransportRequest transportRequest) {
-        /// MP TODO: best way to handle this?
-        if (transportRequest instanceof IndicesRequest.SingleIndexNoWildcards single) {
-            return single.allowsRemoteIndices();
-        } else {
-            return transportRequest instanceof IndicesRequest.Replaceable replaceable && replaceable.allowsRemoteIndices();
-        }
+        return transportRequest instanceof IndicesRequest indicesRequest && indicesRequest.allowsRemoteIndices();
     }
 
     private static boolean isChildActionAuthorizedByParentOnLocalNode(RequestInfo requestInfo, AuthorizationInfo authorizationInfo) {

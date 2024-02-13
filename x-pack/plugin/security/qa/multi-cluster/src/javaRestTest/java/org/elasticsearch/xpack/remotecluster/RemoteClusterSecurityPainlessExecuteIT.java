@@ -33,7 +33,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.notNullValue;
 
 public class RemoteClusterSecurityPainlessExecuteIT extends AbstractRemoteClusterSecurityTestCase {
 
@@ -178,11 +177,11 @@ public class RemoteClusterSecurityPainlessExecuteIT extends AbstractRemoteCluste
             assertThat(responseBody, equalTo("{\"result\":[\"test\"]}"));
         }
         {
-//            // TEST CASE 2: Query remote cluster for index1 - should fail since no permissions granted for remote clusters yet
-//            Request painlessExecuteRemote = createPainlessExecuteRequest("my_remote_cluster:index1");
-//            Exception exc = expectThrows(Exception.class, () -> performRequestWithRemoteSearchUser(painlessExecuteRemote));
-//            assertThat(exc, notNullValue());
-//            assertThat(exc.getMessage(), containsString("Connection is closed"));  // TODO: is this the expected exception?
+            // // TEST CASE 2: Query remote cluster for index1 - should fail since no permissions granted for remote clusters yet
+            // Request painlessExecuteRemote = createPainlessExecuteRequest("my_remote_cluster:index1");
+            // Exception exc = expectThrows(Exception.class, () -> performRequestWithRemoteSearchUser(painlessExecuteRemote));
+            // assertThat(exc, notNullValue());
+            // assertThat(exc.getMessage(), containsString("Connection is closed")); // TODO: is this the expected exception?
 
             // assertThat(exc.getResponse().getStatusLine().getStatusCode(), is(403));
             // String errorResponseBody = EntityUtils.toString(exc.getResponse().getEntity());

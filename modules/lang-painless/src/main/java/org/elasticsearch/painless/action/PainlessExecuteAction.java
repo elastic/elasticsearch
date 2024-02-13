@@ -24,7 +24,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.RemoteClusterActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -124,7 +123,7 @@ public class PainlessExecuteAction {
 
     private PainlessExecuteAction() {/* no instances */}
 
-    public static class Request extends SingleShardRequest<Request> implements ToXContentObject, IndicesRequest.SingleIndexNoWildcards {
+    public static class Request extends SingleShardRequest<Request> implements ToXContentObject {
 
         private static final ParseField SCRIPT_FIELD = new ParseField("script");
         private static final ParseField CONTEXT_FIELD = new ParseField("context");
@@ -159,6 +158,11 @@ public class PainlessExecuteAction {
                 throw new UnsupportedOperationException("unsupported script context name [" + name + "]");
             }
             return scriptContext;
+        }
+
+        @Override
+        public boolean allowsRemoteIndices() {
+            return true;
         }
 
         static class ContextSetup implements Writeable, ToXContentObject {

@@ -176,16 +176,20 @@ class IndicesAndAliasesResolver {
             }
             localIndices.add(IndexNameExpressionResolver.resolveDateMathExpression(name));
         }
-        /// MP TODO: best way to handle this?
-        if (indicesRequest instanceof IndicesRequest.SingleIndexNoWildcards single && single.allowsRemoteIndices()) {
-            assert indices.length == 1;
-
-            // ensure that `index` has a remote name and not a date math expression which includes ':' symbol
-            // since date math expression after evaluation should not contain ':' symbol
-            String indexExpression = IndexNameExpressionResolver.resolveDateMathExpression(indices[0]);
-            if (indexExpression.indexOf(RemoteClusterService.REMOTE_CLUSTER_INDEX_SEPARATOR) >= 0) {
-                return new ResolvedIndices(List.of(), List.of(indices[0]));
+        if (indicesRequest.allowsRemoteIndices()) {
+            List<String> local = new ArrayList<>();
+            List<String> remote = new ArrayList<>();
+            for (String name : indices) {
+                // ensure that `index` has a remote name and not a date math expression which includes ':' symbol
+                // since date math expression after evaluation should not contain ':' symbol
+                String indexExpression = IndexNameExpressionResolver.resolveDateMathExpression(indices[0]);
+                if (indexExpression.indexOf(RemoteClusterService.REMOTE_CLUSTER_INDEX_SEPARATOR) >= 0) {
+                    remote.add(name);
+                } else {
+                    local.add(name);
+                }
             }
+            return new ResolvedIndices(local, remote);
         }
 
         return new ResolvedIndices(localIndices, List.of());

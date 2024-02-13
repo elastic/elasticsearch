@@ -231,7 +231,7 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
         if (TrainedModelAssignmentMetadata.fromState(state).hasDeployment(trainedModelConfig.getModelId())) {
             finalResponseListener.onFailure(
                 ExceptionsHelper.badRequestException(
-                    "Cannot create model [{}]" + MODEL_ALREADY_EXISTS_ERROR_MESSAGE_FRAGMENT,
+                    "Cannot create model [{}] " + MODEL_ALREADY_EXISTS_ERROR_MESSAGE_FRAGMENT,
                     config.getModelId()
                 )
             );

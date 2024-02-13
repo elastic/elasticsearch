@@ -449,14 +449,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
             public void parseKnnVectorAndIndex(DocumentParserContext context, DenseVectorFieldMapper fieldMapper) throws IOException {
                 final byte[] vector = new byte[fieldMapper.fieldType().vectorDimensions()];
                 XContentParser.Token token = context.parser().currentToken();
-                if (token == XContentParser.Token.START_ARRAY) {
-                    parseVectorArray(context, fieldMapper, (val, idx) -> vector[idx] = val);
-                } else if (token == XContentParser.Token.VALUE_STRING) {
-                    parseHexEncodedVector(context, fieldMapper, (val, idx) -> vector[idx] = val);
-                } else if (token == XContentParser.Token.VALUE_NUMBER) {
-                    parseNumberVector(context, fieldMapper, (val, idx) -> vector[idx] = val);
-                } else {
-                    throw new ParsingException(
+                switch (token) {
+                    case START_ARRAY -> parseVectorArray(context, fieldMapper, (val, idx) -> vector[idx] = val);
+                    case VALUE_STRING -> parseHexEncodedVector(context, fieldMapper, (val, idx) -> vector[idx] = val);
+                    case VALUE_NUMBER -> parseNumberVector(context, fieldMapper, (val, idx) -> vector[idx] = val);
+                    default -> throw new ParsingException(
                         context.parser().getTokenLocation(),
                         format("Unknown type for provided value [%s]", context.parser().text())
                     );
@@ -473,18 +470,15 @@ public class DenseVectorFieldMapper extends FieldMapper {
             double parseKnnVectorToByteBuffer(DocumentParserContext context, DenseVectorFieldMapper fieldMapper, ByteBuffer byteBuffer)
                 throws IOException {
                 XContentParser.Token token = context.parser().currentToken();
-                if (token == XContentParser.Token.START_ARRAY) {
-                    return parseVectorArray(context, fieldMapper, (val, idx) -> byteBuffer.put(val));
-                } else if (token == XContentParser.Token.VALUE_STRING) {
-                    return parseHexEncodedVector(context, fieldMapper, (val, idx) -> byteBuffer.put(val));
-                } else if (token == XContentParser.Token.VALUE_NUMBER) {
-                    return parseNumberVector(context, fieldMapper, (val, idx) -> byteBuffer.put(val));
-                } else {
-                    throw new ParsingException(
+                return switch (token) {
+                    case START_ARRAY -> parseVectorArray(context, fieldMapper, (val, idx) -> byteBuffer.put(val));
+                    case VALUE_STRING -> parseHexEncodedVector(context, fieldMapper, (val, idx) -> byteBuffer.put(val));
+                    case VALUE_NUMBER -> parseNumberVector(context, fieldMapper, (val, idx) -> byteBuffer.put(val));
+                    default -> throw new ParsingException(
                         context.parser().getTokenLocation(),
                         format("Unknown type for provided value [%s]", context.parser().text())
                     );
-                }
+                };
             }
 
             @Override

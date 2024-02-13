@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.ml.inference.pytorch.PriorityProcessWorkerExecuto
 import org.elasticsearch.xpack.ml.inference.pytorch.process.PyTorchProcessFactory;
 import org.elasticsearch.xpack.ml.inference.pytorch.process.PyTorchResultProcessor;
 import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
-import org.elasticsearch.xpack.ml.notifications.SystemAuditor;
 import org.junit.After;
 import org.junit.Before;
 

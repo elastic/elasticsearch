@@ -41,8 +41,10 @@ public final class FetchFieldsPhase implements FetchSubPhase {
     @Override
     public FetchSubPhaseProcessor getProcessor(FetchContext fetchContext) {
         FetchFieldsContext fetchFieldsContext = fetchContext.fetchFieldsContext();
-        List<FieldAndFormat> fields = fetchFieldsContext == null ? null : fetchFieldsContext.fields();
-        FieldFetcher fieldFetcher = FieldFetcher.create(fetchContext.getSearchExecutionContext(), fields);
+        if (fetchFieldsContext == null) {
+            return null;
+        }
+        FieldFetcher fieldFetcher = FieldFetcher.create(fetchContext.getSearchExecutionContext(), fetchFieldsContext.fields());
         MetadataFetcher metadataFetcher = MetadataFetcher.create(fetchContext.getSearchExecutionContext(), METADATA_FIELDS);
 
         return new FetchSubPhaseProcessor() {

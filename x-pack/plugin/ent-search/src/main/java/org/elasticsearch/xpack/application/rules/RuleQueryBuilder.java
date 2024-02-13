@@ -189,10 +189,10 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
             List<Item> identifiedPinnedDocs = pinnedDocsSupplier != null ? pinnedDocsSupplier.get() : null;
             if ((identifiedPinnedIds != null && identifiedPinnedIds.isEmpty())
                 && (identifiedPinnedDocs != null && identifiedPinnedDocs.isEmpty())) {
-                return organicQuery.boost(this.boost).queryName(this.queryName);
+                return organicQuery;
             } else if (identifiedPinnedIds != null && identifiedPinnedIds.isEmpty() == false) {
                 return new PinnedQueryBuilder(organicQuery, identifiedPinnedIds.toArray(new String[0]));
-            } else if (identifiedPinnedDocs != null) {
+            } else if (identifiedPinnedDocs != null && identifiedPinnedDocs.isEmpty() == false) {
                 return new PinnedQueryBuilder(organicQuery, identifiedPinnedDocs.toArray(new Item[0]));
             } else {
                 return this;

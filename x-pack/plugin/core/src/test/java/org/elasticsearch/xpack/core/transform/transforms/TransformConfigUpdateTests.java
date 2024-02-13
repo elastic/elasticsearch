@@ -159,6 +159,7 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
             .setDeduceMappings(true)
             .setNumFailureRetries(10)
             .setUnattended(true)
+            .setSkipDestIndexCreation(true)
             .build();
         Map<String, Object> newMetadata = randomMetadata();
         RetentionPolicyConfig retentionPolicyConfig = new TimeRetentionPolicyConfig("time_field", new TimeValue(60_000));

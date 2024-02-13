@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.action.StartTransformAction;
 import org.elasticsearch.xpack.core.transform.action.ValidateTransformAction;
 import org.elasticsearch.xpack.core.transform.transforms.AuthorizationState;
+import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskParams;
@@ -186,10 +187,8 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
 
         // <3> If the destination index exists, start the task, otherwise deduce our mappings for the destination index and create it
         ActionListener<ValidateTransformAction.Response> validationListener = ActionListener.wrap(validationResponse -> {
-            if (Boolean.TRUE.equals(transformConfigHolder.get().getSettings().getUnattended())) {
-                logger.debug(
-                    () -> format("[%s] Skip dest index creation as this is an unattended transform", transformConfigHolder.get().getId())
-                );
+            if (shouldSkipDestIndexCreation(transformConfigHolder.get().getSettings())) {
+                logger.debug(() -> format("[%s] Skip dest index creation for this transform", transformConfigHolder.get().getId()));
                 createOrGetIndexListener.onResponse(true);
                 return;
             }
@@ -204,10 +203,8 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
                 createOrGetIndexListener
             );
         }, e -> {
-            if (Boolean.TRUE.equals(transformConfigHolder.get().getSettings().getUnattended())) {
-                logger.debug(
-                    () -> format("[%s] Skip dest index creation as this is an unattended transform", transformConfigHolder.get().getId())
-                );
+            if (shouldSkipDestIndexCreation(transformConfigHolder.get().getSettings())) {
+                logger.debug(() -> format("[%s] Skip dest index creation for this transform", transformConfigHolder.get().getId()));
                 createOrGetIndexListener.onResponse(true);
                 return;
             }
@@ -388,5 +385,15 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
             TransformState state = (TransformState) task.getState();
             return state != null && state.getTaskState().equals(TransformTaskState.STOPPED) == false;
         }
+    }
+
+    // Visible for testing
+    static boolean shouldSkipDestIndexCreation(SettingsConfig settingsConfig) {
+        // "skip_dest_index_creation" setting takes precedence if explicitly set
+        if (settingsConfig.getSkipDestIndexCreation() != null) {
+            return settingsConfig.getSkipDestIndexCreation();
+        }
+        // in other case, we fall back to the "unattended" setting
+        return settingsConfig.getUnattended() != null && settingsConfig.getUnattended();
     }
 }

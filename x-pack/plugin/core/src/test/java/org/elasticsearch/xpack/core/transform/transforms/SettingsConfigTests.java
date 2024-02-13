@@ -33,33 +33,35 @@ public class SettingsConfigTests extends AbstractSerializingTransformTestCase<Se
     private boolean lenient;
 
     public static SettingsConfig randomSettingsConfig() {
-        Integer unattended = randomBoolean() ? null : randomIntBetween(0, 1);
+        Boolean unattended = randomBoolean() ? null : randomBoolean();
 
         return new SettingsConfig(
             randomBoolean() ? null : randomIntBetween(10, 10_000),
             randomBoolean() ? null : randomFloat(),
-            randomBoolean() ? null : randomIntBetween(0, 1),
-            randomBoolean() ? null : randomIntBetween(0, 1),
-            randomBoolean() ? null : randomIntBetween(0, 1),
-            randomBoolean() ? null : randomIntBetween(0, 1),
+            randomBoolean() ? null : randomBoolean(),
+            randomBoolean() ? null : randomBoolean(),
+            randomBoolean() ? null : randomBoolean(),
+            randomBoolean() ? null : randomBoolean(),
             // don't set retries if unattended is set to true
-            randomBoolean() ? null : Integer.valueOf(1).equals(unattended) ? null : randomIntBetween(-1, 100),
-            unattended
+            randomBoolean() ? null : Boolean.TRUE.equals(unattended) ? null : randomIntBetween(-1, 100),
+            unattended,
+            randomBoolean() ? null : Boolean.TRUE.equals(unattended) ? null : randomBoolean()
         );
     }
 
     public static SettingsConfig randomNonEmptySettingsConfig() {
-        Integer unattended = randomIntBetween(0, 1);
+        Boolean unattended = randomBoolean() ? null : randomBoolean();
 
         return new SettingsConfig(
             randomIntBetween(10, 10_000),
             randomFloat(),
-            randomIntBetween(0, 1),
-            randomIntBetween(0, 1),
-            randomIntBetween(0, 1),
-            randomIntBetween(0, 1),
-            Integer.valueOf(1).equals(unattended) ? -1 : randomIntBetween(-1, 100),
-            unattended
+            randomBoolean(),
+            randomBoolean(),
+            randomBoolean(),
+            randomBoolean(),
+            Boolean.TRUE.equals(unattended) ? -1 : randomIntBetween(-1, 100),
+            unattended,
+            Boolean.TRUE.equals(unattended) ? true : randomBoolean()
         );
     }
 
@@ -119,6 +121,16 @@ public class SettingsConfigTests extends AbstractSerializingTransformTestCase<Se
         assertThat(fromString("{\"num_failure_retries\" : null}").getNumFailureRetriesForUpdate(), equalTo(-2));
         assertNull(fromString("{}").getNumFailureRetries());
         assertNull(fromString("{}").getNumFailureRetriesForUpdate());
+
+        assertNull(fromString("{\"unattended\" : null}").getUnattended());
+        assertThat(fromString("{\"unattended\" : null}").getUnattendedForUpdate(), equalTo(-1));
+        assertNull(fromString("{}").getUnattended());
+        assertNull(fromString("{}").getUnattendedForUpdate());
+
+        assertNull(fromString("{\"skip_dest_index_creation\" : null}").getSkipDestIndexCreation());
+        assertThat(fromString("{\"skip_dest_index_creation\" : null}").getSkipDestIndexCreationForUpdate(), equalTo(-1));
+        assertNull(fromString("{}").getSkipDestIndexCreation());
+        assertNull(fromString("{}").getSkipDestIndexCreationForUpdate());
     }
 
     public void testUpdateMaxPageSearchSizeUsingBuilder() throws IOException {
@@ -130,26 +142,29 @@ public class SettingsConfigTests extends AbstractSerializingTransformTestCase<Se
                 + "\"use_point_in_time\": false,"
                 + "\"deduce_mappings\": false,"
                 + "\"num_failure_retries\": 5,"
-                + "\"unattended\": false}"
+                + "\"unattended\": false,"
+                + "\"skip_dest_index_creation\": false}"
         );
         SettingsConfig.Builder builder = new SettingsConfig.Builder(config);
-        assertThat(builder.build(), is(equalTo(new SettingsConfig(10000, 42F, true, false, false, false, 5, false))));
+        assertThat(builder.build(), is(equalTo(new SettingsConfig(10000, 42F, true, false, false, false, 5, false, false))));
 
         builder.update(fromString("{\"max_page_search_size\": 100}"));
-        assertThat(builder.build(), is(equalTo(new SettingsConfig(100, 42F, true, false, false, false, 5, false))));
+        assertThat(builder.build(), is(equalTo(new SettingsConfig(100, 42F, true, false, false, false, 5, false, false))));
         assertThat(builder.build().getDatesAsEpochMillisForUpdate(), equalTo(1));
         assertThat(builder.build().getAlignCheckpointsForUpdate(), equalTo(0));
         assertThat(builder.build().getUsePitForUpdate(), equalTo(0));
         assertThat(builder.build().getDeduceMappingsForUpdate(), equalTo(0));
         assertThat(builder.build().getUnattendedForUpdate(), equalTo(0));
+        assertThat(builder.build().getSkipDestIndexCreationForUpdate(), equalTo(0));
 
         builder.update(fromString("{\"max_page_search_size\": null}"));
-        assertThat(builder.build(), is(equalTo(new SettingsConfig(null, 42F, true, false, false, false, 5, false))));
+        assertThat(builder.build(), is(equalTo(new SettingsConfig(null, 42F, true, false, false, false, 5, false, false))));
         assertThat(builder.build().getDatesAsEpochMillisForUpdate(), equalTo(1));
         assertThat(builder.build().getAlignCheckpointsForUpdate(), equalTo(0));
         assertThat(builder.build().getUsePitForUpdate(), equalTo(0));
         assertThat(builder.build().getDeduceMappingsForUpdate(), equalTo(0));
         assertThat(builder.build().getUnattendedForUpdate(), equalTo(0));
+        assertThat(builder.build().getSkipDestIndexCreationForUpdate(), equalTo(0));
 
         builder.update(
             fromString(
@@ -160,16 +175,18 @@ public class SettingsConfigTests extends AbstractSerializingTransformTestCase<Se
                     + "\"use_point_in_time\": null,"
                     + "\"deduce_mappings\": null,"
                     + "\"num_failure_retries\": null,"
-                    + "\"unattended\": null}"
+                    + "\"unattended\": null,"
+                    + "\"skip_dest_index_creation\": null}"
             )
         );
-        assertThat(builder.build(), is(equalTo(new SettingsConfig(77, null, (Boolean) null, null, null, null, null, null))));
+        assertThat(builder.build(), is(equalTo(new SettingsConfig(77, null, (Boolean) null, null, null, null, null, null, null))));
         assertNull(builder.build().getDatesAsEpochMillisForUpdate());
         assertNull(builder.build().getAlignCheckpointsForUpdate());
         assertNull(builder.build().getUsePitForUpdate());
         assertNull(builder.build().getDeduceMappingsForUpdate());
         assertNull(builder.build().getNumFailureRetriesForUpdate());
         assertNull(builder.build().getUnattendedForUpdate());
+        assertNull(builder.build().getSkipDestIndexCreationForUpdate());
     }
 
     public void testUpdateNumFailureRetriesUsingBuilder() throws IOException {
@@ -183,19 +200,19 @@ public class SettingsConfigTests extends AbstractSerializingTransformTestCase<Se
                 + "\"num_failure_retries\": 5}"
         );
         SettingsConfig.Builder builder = new SettingsConfig.Builder(config);
-        assertThat(builder.build(), is(equalTo(new SettingsConfig(10000, 42F, true, false, false, false, 5, null))));
+        assertThat(builder.build(), is(equalTo(new SettingsConfig(10000, 42F, true, false, false, false, 5, null, null))));
 
         builder.update(fromString("{\"num_failure_retries\": 6}"));
-        assertThat(builder.build(), is(equalTo(new SettingsConfig(10000, 42F, true, false, false, false, 6, null))));
+        assertThat(builder.build(), is(equalTo(new SettingsConfig(10000, 42F, true, false, false, false, 6, null, null))));
 
         builder.update(fromString("{\"num_failure_retries\": -1}"));
-        assertThat(builder.build(), is(equalTo(new SettingsConfig(10000, 42F, true, false, false, false, -1, null))));
+        assertThat(builder.build(), is(equalTo(new SettingsConfig(10000, 42F, true, false, false, false, -1, null, null))));
 
         builder.update(fromString("{\"num_failure_retries\": null}"));
-        assertThat(builder.build(), is(equalTo(new SettingsConfig(10000, 42F, true, false, false, false, null, null))));
+        assertThat(builder.build(), is(equalTo(new SettingsConfig(10000, 42F, true, false, false, false, null, null, null))));
 
         builder.update(fromString("{\"num_failure_retries\": 55}"));
-        assertThat(builder.build(), is(equalTo(new SettingsConfig(10000, 42F, true, false, false, false, 55, null))));
+        assertThat(builder.build(), is(equalTo(new SettingsConfig(10000, 42F, true, false, false, false, 55, null, null))));
     }
 
     public void testOmmitDefaultsOnWriteParser() throws IOException {
@@ -254,6 +271,12 @@ public class SettingsConfigTests extends AbstractSerializingTransformTestCase<Se
 
         settingsAsMap = xContentToMap(config);
         assertTrue(settingsAsMap.isEmpty());
+
+        config = fromString("{\"skip_dest_index_creation\" : null}");
+        assertThat(config.getSkipDestIndexCreationForUpdate(), equalTo(-1));
+
+        settingsAsMap = xContentToMap(config);
+        assertTrue(settingsAsMap.isEmpty());
     }
 
     public void testOmmitDefaultsOnWriteBuilder() throws IOException {
@@ -309,6 +332,12 @@ public class SettingsConfigTests extends AbstractSerializingTransformTestCase<Se
 
         config = new SettingsConfig.Builder().setUnattended(null).build();
         assertThat(config.getUnattendedForUpdate(), equalTo(-1));
+
+        settingsAsMap = xContentToMap(config);
+        assertTrue(settingsAsMap.isEmpty());
+
+        config = new SettingsConfig.Builder().setSkipDestIndexCreation(null).build();
+        assertThat(config.getSkipDestIndexCreationForUpdate(), equalTo(-1));
 
         settingsAsMap = xContentToMap(config);
         assertTrue(settingsAsMap.isEmpty());
@@ -391,7 +420,10 @@ public class SettingsConfigTests extends AbstractSerializingTransformTestCase<Se
     }
 
     public void testValidateUnattended() {
-        SettingsConfig config = new SettingsConfig.Builder().setUnattended(true).setNumFailureRetries(20).build();
+        SettingsConfig config = new SettingsConfig.Builder().setUnattended(true).build();
+        assertThat(config.validate(null), is(nullValue()));
+
+        config = new SettingsConfig.Builder().setUnattended(true).setNumFailureRetries(20).build();
         assertThat(
             config.validate(null).validationErrors(),
             contains("settings.num_failure_retries [20] can not be set in unattended mode, unattended retries indefinitely")
@@ -404,6 +436,15 @@ public class SettingsConfigTests extends AbstractSerializingTransformTestCase<Se
         assertThat(config.validate(null), is(nullValue()));
 
         config = new SettingsConfig.Builder().setUnattended(false).setNumFailureRetries(10).build();
+        assertThat(config.validate(null), is(nullValue()));
+
+        config = new SettingsConfig.Builder().setUnattended(false).setSkipDestIndexCreation(true).build();
+        assertThat(config.validate(null), is(nullValue()));
+
+        config = new SettingsConfig.Builder().setUnattended(true).setSkipDestIndexCreation(true).build();
+        assertThat(config.validate(null), is(nullValue()));
+
+        config = new SettingsConfig.Builder().setUnattended(true).setSkipDestIndexCreation(false).build();
         assertThat(config.validate(null), is(nullValue()));
     }
 

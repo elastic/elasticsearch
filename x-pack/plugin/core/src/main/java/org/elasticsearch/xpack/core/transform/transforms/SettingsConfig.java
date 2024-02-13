@@ -31,6 +31,19 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class SettingsConfig implements Writeable, ToXContentObject {
+
+    public static final SettingsConfig EMPTY = new SettingsConfig(
+        null,
+        null,
+        (Integer) null,
+        (Integer) null,
+        (Integer) null,
+        (Integer) null,
+        (Integer) null,
+        (Integer) null,
+        (Integer) null
+    );
+
     public static final ConstructingObjectParser<SettingsConfig, Void> STRICT_PARSER = createParser(false);
     public static final ConstructingObjectParser<SettingsConfig, Void> LENIENT_PARSER = createParser(true);
 
@@ -44,6 +57,7 @@ public class SettingsConfig implements Writeable, ToXContentObject {
     private static final int DEFAULT_DEDUCE_MAPPINGS = -1;
     private static final int DEFAULT_NUM_FAILURE_RETRIES = -2;
     private static final int DEFAULT_UNATTENDED = -1;
+    private static final int DEFAULT_SKIP_DEST_INDEX_CREATION = -1;
 
     private static ConstructingObjectParser<SettingsConfig, Void> createParser(boolean lenient) {
         ConstructingObjectParser<SettingsConfig, Void> parser = new ConstructingObjectParser<>(
@@ -57,7 +71,8 @@ public class SettingsConfig implements Writeable, ToXContentObject {
                 (Integer) args[4],
                 (Integer) args[5],
                 (Integer) args[6],
-                (Integer) args[7]
+                (Integer) args[7],
+                (Integer) args[8]
             )
         );
         parser.declareIntOrNull(optionalConstructorArg(), DEFAULT_MAX_PAGE_SEARCH_SIZE, TransformField.MAX_PAGE_SEARCH_SIZE);
@@ -98,6 +113,13 @@ public class SettingsConfig implements Writeable, ToXContentObject {
             TransformField.UNATTENDED,
             ValueType.BOOLEAN_OR_NULL
         );
+        // this boolean requires 4 possible values: true, false, not_specified, default, therefore using a custom parser
+        parser.declareField(
+            optionalConstructorArg(),
+            p -> p.currentToken() == XContentParser.Token.VALUE_NULL ? DEFAULT_SKIP_DEST_INDEX_CREATION : p.booleanValue() ? 1 : 0,
+            TransformField.SKIP_DEST_INDEX_CREATION,
+            ValueType.BOOLEAN_OR_NULL
+        );
         return parser;
     }
 
@@ -109,10 +131,7 @@ public class SettingsConfig implements Writeable, ToXContentObject {
     private final Integer deduceMappings;
     private final Integer numFailureRetries;
     private final Integer unattended;
-
-    public SettingsConfig() {
-        this(null, null, (Integer) null, (Integer) null, (Integer) null, (Integer) null, (Integer) null, (Integer) null);
-    }
+    private final Integer skipDestIndexCreation;
 
     public SettingsConfig(
         Integer maxPageSearchSize,
@@ -122,7 +141,8 @@ public class SettingsConfig implements Writeable, ToXContentObject {
         Boolean usePit,
         Boolean deduceMappings,
         Integer numFailureRetries,
-        Boolean unattended
+        Boolean unattended,
+        Boolean skipDestIndexCreation
     ) {
         this(
             maxPageSearchSize,
@@ -132,11 +152,12 @@ public class SettingsConfig implements Writeable, ToXContentObject {
             usePit == null ? null : usePit ? 1 : 0,
             deduceMappings == null ? null : deduceMappings ? 1 : 0,
             numFailureRetries,
-            unattended == null ? null : unattended ? 1 : 0
+            unattended == null ? null : unattended ? 1 : 0,
+            skipDestIndexCreation == null ? null : skipDestIndexCreation ? 1 : 0
         );
     }
 
-    SettingsConfig(
+    private SettingsConfig(
         Integer maxPageSearchSize,
         Float docsPerSecond,
         Integer datesAsEpochMillis,
@@ -144,7 +165,8 @@ public class SettingsConfig implements Writeable, ToXContentObject {
         Integer usePit,
         Integer deduceMappings,
         Integer numFailureRetries,
-        Integer unattended
+        Integer unattended,
+        Integer skipDestIndexCreation
     ) {
         this.maxPageSearchSize = maxPageSearchSize;
         this.docsPerSecond = docsPerSecond;
@@ -154,6 +176,7 @@ public class SettingsConfig implements Writeable, ToXContentObject {
         this.deduceMappings = deduceMappings;
         this.numFailureRetries = numFailureRetries;
         this.unattended = unattended;
+        this.skipDestIndexCreation = skipDestIndexCreation;
     }
 
     public SettingsConfig(final StreamInput in) throws IOException {
@@ -178,6 +201,11 @@ public class SettingsConfig implements Writeable, ToXContentObject {
         } else {
             unattended = DEFAULT_UNATTENDED;
         }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {  // TODO
+            skipDestIndexCreation = in.readOptionalInt();
+        } else {
+            skipDestIndexCreation = DEFAULT_SKIP_DEST_INDEX_CREATION;
+        }
     }
 
     public Integer getMaxPageSearchSize() {
@@ -192,7 +220,7 @@ public class SettingsConfig implements Writeable, ToXContentObject {
         return datesAsEpochMillis != null ? datesAsEpochMillis > 0 : null;
     }
 
-    public Integer getDatesAsEpochMillisForUpdate() {
+    Integer getDatesAsEpochMillisForUpdate() {
         return datesAsEpochMillis;
     }
 
@@ -200,7 +228,7 @@ public class SettingsConfig implements Writeable, ToXContentObject {
         return alignCheckpoints != null ? (alignCheckpoints > 0) || (alignCheckpoints == DEFAULT_ALIGN_CHECKPOINTS) : null;
     }
 
-    public Integer getAlignCheckpointsForUpdate() {
+    Integer getAlignCheckpointsForUpdate() {
         return alignCheckpoints;
     }
 
@@ -208,7 +236,7 @@ public class SettingsConfig implements Writeable, ToXContentObject {
         return usePit != null ? (usePit > 0) || (usePit == DEFAULT_USE_PIT) : null;
     }
 
-    public Integer getUsePitForUpdate() {
+    Integer getUsePitForUpdate() {
         return usePit;
     }
 
@@ -216,7 +244,7 @@ public class SettingsConfig implements Writeable, ToXContentObject {
         return deduceMappings != null ? (deduceMappings > 0) || (deduceMappings == DEFAULT_DEDUCE_MAPPINGS) : null;
     }
 
-    public Integer getDeduceMappingsForUpdate() {
+    Integer getDeduceMappingsForUpdate() {
         return deduceMappings;
     }
 
@@ -224,7 +252,7 @@ public class SettingsConfig implements Writeable, ToXContentObject {
         return numFailureRetries != null ? (numFailureRetries == DEFAULT_NUM_FAILURE_RETRIES ? null : numFailureRetries) : null;
     }
 
-    public Integer getNumFailureRetriesForUpdate() {
+    Integer getNumFailureRetriesForUpdate() {
         return numFailureRetries;
     }
 
@@ -232,8 +260,18 @@ public class SettingsConfig implements Writeable, ToXContentObject {
         return unattended != null ? (unattended == DEFAULT_UNATTENDED) ? null : (unattended > 0) : null;
     }
 
-    public Integer getUnattendedForUpdate() {
+    Integer getUnattendedForUpdate() {
         return unattended;
+    }
+
+    public Boolean getSkipDestIndexCreation() {
+        return skipDestIndexCreation != null
+            ? (skipDestIndexCreation == DEFAULT_SKIP_DEST_INDEX_CREATION) ? null : (skipDestIndexCreation > 0)
+            : null;
+    }
+
+    Integer getSkipDestIndexCreationForUpdate() {
+        return skipDestIndexCreation;
     }
 
     public ActionRequestValidationException validate(ActionRequestValidationException validationException) {
@@ -288,6 +326,9 @@ public class SettingsConfig implements Writeable, ToXContentObject {
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_5_0)) {
             out.writeOptionalInt(unattended);
         }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
+            out.writeOptionalInt(skipDestIndexCreation);
+        }
     }
 
     @Override
@@ -318,6 +359,9 @@ public class SettingsConfig implements Writeable, ToXContentObject {
         if (unattended != null && (unattended.equals(DEFAULT_UNATTENDED) == false)) {
             builder.field(TransformField.UNATTENDED.getPreferredName(), unattended > 0 ? true : false);
         }
+        if (skipDestIndexCreation != null && (skipDestIndexCreation.equals(DEFAULT_SKIP_DEST_INDEX_CREATION) == false)) {
+            builder.field(TransformField.SKIP_DEST_INDEX_CREATION.getPreferredName(), skipDestIndexCreation > 0 ? true : false);
+        }
         builder.endObject();
         return builder;
     }
@@ -339,7 +383,8 @@ public class SettingsConfig implements Writeable, ToXContentObject {
             && Objects.equals(usePit, that.usePit)
             && Objects.equals(deduceMappings, that.deduceMappings)
             && Objects.equals(numFailureRetries, that.numFailureRetries)
-            && Objects.equals(unattended, that.unattended);
+            && Objects.equals(unattended, that.unattended)
+            && Objects.equals(skipDestIndexCreation, that.skipDestIndexCreation);
     }
 
     @Override
@@ -352,7 +397,8 @@ public class SettingsConfig implements Writeable, ToXContentObject {
             usePit,
             deduceMappings,
             numFailureRetries,
-            unattended
+            unattended,
+            skipDestIndexCreation
         );
     }
 
@@ -374,6 +420,7 @@ public class SettingsConfig implements Writeable, ToXContentObject {
         private Integer deduceMappings;
         private Integer numFailureRetries;
         private Integer unattended;
+        private Integer skipDestIndexCreation;
 
         /**
          * Default builder
@@ -394,6 +441,7 @@ public class SettingsConfig implements Writeable, ToXContentObject {
             this.deduceMappings = base.deduceMappings;
             this.numFailureRetries = base.numFailureRetries;
             this.unattended = base.unattended;
+            this.skipDestIndexCreation = base.skipDestIndexCreation;
         }
 
         /**
@@ -495,10 +543,23 @@ public class SettingsConfig implements Writeable, ToXContentObject {
          * An explicit `null` resets to default.
          *
          * @param unattended true if this is a unattended transform.
-         * @return the {@link Builder} with usePit set.
+         * @return the {@link Builder} with unattended set.
          */
         public Builder setUnattended(Boolean unattended) {
             this.unattended = unattended == null ? DEFAULT_UNATTENDED : unattended ? 1 : 0;
+            return this;
+        }
+
+        /**
+         * Whether to skip destination index creation for the transform.
+         *
+         * An explicit `null` resets to default.
+         *
+         * @param skipDestIndexCreation true if destination index creation should be skipped.
+         * @return the {@link Builder} with skipDestIndexCreation set.
+         */
+        public Builder setSkipDestIndexCreation(Boolean skipDestIndexCreation) {
+            this.skipDestIndexCreation = skipDestIndexCreation == null ? DEFAULT_SKIP_DEST_INDEX_CREATION : skipDestIndexCreation ? 1 : 0;
             return this;
         }
 
@@ -545,6 +606,11 @@ public class SettingsConfig implements Writeable, ToXContentObject {
             if (update.getUnattendedForUpdate() != null) {
                 this.unattended = update.getUnattendedForUpdate().equals(DEFAULT_UNATTENDED) ? null : update.getUnattendedForUpdate();
             }
+            if (update.getSkipDestIndexCreationForUpdate() != null) {
+                this.skipDestIndexCreation = update.getSkipDestIndexCreationForUpdate().equals(DEFAULT_SKIP_DEST_INDEX_CREATION)
+                    ? null
+                    : update.getSkipDestIndexCreationForUpdate();
+            }
 
             return this;
         }
@@ -558,7 +624,8 @@ public class SettingsConfig implements Writeable, ToXContentObject {
                 usePit,
                 deduceMappings,
                 numFailureRetries,
-                unattended
+                unattended,
+                skipDestIndexCreation
             );
         }
     }

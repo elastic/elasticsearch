@@ -186,6 +186,7 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
                 randomBoolean(),
                 randomBoolean(),
                 2,
+                false,
                 false
             )
         );
@@ -403,6 +404,7 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
                 randomBoolean(),
                 randomBoolean(),
                 2,
+                false,
                 false
             )
         );

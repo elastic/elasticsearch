@@ -114,32 +114,103 @@ public class TransformDestIndexIT extends TransformRestTestCase {
         assertAliases(destIndex2, destAliasAll, destAliasLatest);
     }
 
-    public void testTransformDestIndexCreatedDuringUpdate_NoDeferValidation() throws Exception {
-        testTransformDestIndexCreatedDuringUpdate(false);
+    public void testTransformDestIndexCreatedDuringUpdate_SkipDestIndexCreation_NoDeferValidation() throws Exception {
+        testTransformDestIndexCreatedDuringUpdate(
+            "test_dest_index_on_update-skip",
+            new SettingsConfig.Builder().setSkipDestIndexCreation(true).build(),
+            false
+        );
     }
 
-    public void testTransformDestIndexCreatedDuringUpdate_DeferValidation() throws Exception {
-        testTransformDestIndexCreatedDuringUpdate(true);
+    public void testTransformDestIndexCreatedDuringUpdate_SkipDestIndexCreation_DeferValidation() throws Exception {
+        testTransformDestIndexCreatedDuringUpdate(
+            "test_dest_index_on_update-skip-defer",
+            new SettingsConfig.Builder().setSkipDestIndexCreation(true).build(),
+            true
+        );
     }
 
-    private void testTransformDestIndexCreatedDuringUpdate(boolean deferValidation) throws Exception {
-        String transformId = "test_dest_index_on_update" + (deferValidation ? "-defer" : "");
+    public void testTransformDestIndexCreatedDuringUpdate_Unattended_NoDeferValidation() throws Exception {
+        testTransformDestIndexCreatedDuringUpdate(
+            "test_dest_index_on_update-unattended",
+            new SettingsConfig.Builder().setUnattended(true).build(),
+            false
+        );
+    }
+
+    public void testTransformDestIndexCreatedDuringUpdate_Unattended_DeferValidation() throws Exception {
+        testTransformDestIndexCreatedDuringUpdate(
+            "test_dest_index_on_update-unattended-defer",
+            new SettingsConfig.Builder().setUnattended(true).build(),
+            true
+        );
+    }
+
+    private void testTransformDestIndexCreatedDuringUpdate(String transformId, SettingsConfig settingsConfig, boolean deferValidation)
+        throws Exception {
+        String sourceIndexIndex = transformId + "-src";
         String destIndex = transformId + "-dest";
 
+        // We want to use an empty source index to make sure transform will not write to the destination index
+        putReviewsIndex(sourceIndexIndex, "date", false);
         assertFalse(indexExists(destIndex));
 
-        // Create and start the unattended transform
-        createPivotReviewsTransform(
-            transformId,
-            destIndex,
-            null,
-            null,
-            null,
-            new SettingsConfig.Builder().setUnattended(true).build(),
-            null,
-            null,
-            REVIEWS_INDEX_NAME
+        // Create and start the transform that skips destination index creation
+        createPivotReviewsTransform(transformId, destIndex, null, null, null, settingsConfig, null, null, sourceIndexIndex);
+        startTransform(transformId);
+
+        // Verify that the destination index creation got skipped
+        assertFalse(indexExists(destIndex));
+
+        // Update the unattended transform. This will trigger destination index creation.
+        // The update has to change something in the config (here, max_page_search_size). Otherwise it would have been optimized away.
+        updateTransform(transformId, """
+            { "settings": { "max_page_search_size": 123 } }""", deferValidation);
+
+        // Verify that the destination index now exists
+        assertTrue(indexExists(destIndex));
+    }
+
+    public void testTransformDestIndexCreated2DuringUpdate_SkipDestIndexCreation_NoDeferValidation() throws Exception {
+        testTransformDestIndexCreated2DuringUpdate(
+            "test_dest_index_on_update2-skip",
+            new SettingsConfig.Builder().setSkipDestIndexCreation(true).build(),
+            false
         );
+    }
+
+    public void testTransformDestIndexCreated2DuringUpdate_SkipDestIndexCreation_DeferValidation() throws Exception {
+        testTransformDestIndexCreated2DuringUpdate(
+            "test_dest_index_on_update2-skip-defer",
+            new SettingsConfig.Builder().setSkipDestIndexCreation(true).build(),
+            true
+        );
+    }
+
+    public void testTransformDestIndexCreated2DuringUpdate_Unattended_NoDeferValidation() throws Exception {
+        testTransformDestIndexCreated2DuringUpdate(
+            "test_dest_index_on_update2-unattended",
+            new SettingsConfig.Builder().setUnattended(true).build(),
+            false
+        );
+    }
+
+    public void testTransformDestIndexCreated2DuringUpdate_Unattended_DeferValidation() throws Exception {
+        testTransformDestIndexCreated2DuringUpdate(
+            "test_dest_index_on_update2-unattended-defer",
+            new SettingsConfig.Builder().setUnattended(true).build(),
+            true
+        );
+    }
+
+    private void testTransformDestIndexCreated2DuringUpdate(String transformId, SettingsConfig settingsConfig, boolean deferValidation)
+        throws Exception {
+        String destIndex = transformId + "-dest";
+
+        // Create and start the transform that skips destination index creation
+        createPivotReviewsTransform(transformId, destIndex, null, null, null, settingsConfig, null, null, REVIEWS_INDEX_NAME);
+        assertFalse(indexExists(destIndex));
+
         startTransform(transformId);
 
         // Update the unattended transform. This will trigger destination index creation.

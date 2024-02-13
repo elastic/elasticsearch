@@ -242,6 +242,13 @@
           "type": "boolean",
           "description": "run this transform in unattended mode",
           "default": false
+        },
+        "skip_dest_index_creation": {
+          "$id": "#root/settings/skip_dest_index_creation",
+          "title": "skip dest index creation",
+          "type": "boolean",
+          "description": "skip destination index creation for this transform",
+          "default": false
         }
       }
     },

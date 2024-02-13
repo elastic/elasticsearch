@@ -253,7 +253,7 @@ public class DriverStatus implements Task.Status {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(operator);
-            out.writeOptionalNamedWriteable(VersionedNamedWriteable.shouldSerialize(out, status) ? status : null);
+            out.writeOptionalNamedWriteable(status != null && VersionedNamedWriteable.shouldSerialize(out, status) ? status : null);
         }
 
         public String operator() {

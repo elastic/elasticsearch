@@ -55,7 +55,6 @@ import java.util.function.Consumer;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.transform.TransformMessages.CANNOT_START_FAILED_TRANSFORM;
 
 public class TransportStartTransformAction extends TransportMasterNodeAction<StartTransformAction.Request, StartTransformAction.Response> {
@@ -186,13 +185,6 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
 
         // <3> If the destination index exists, start the task, otherwise deduce our mappings for the destination index and create it
         ActionListener<ValidateTransformAction.Response> validationListener = ActionListener.wrap(validationResponse -> {
-            if (Boolean.TRUE.equals(transformConfigHolder.get().getSettings().getUnattended())) {
-                logger.debug(
-                    () -> format("[%s] Skip dest index creation as this is an unattended transform", transformConfigHolder.get().getId())
-                );
-                createOrGetIndexListener.onResponse(true);
-                return;
-            }
             TransformIndex.createDestinationIndex(
                 client,
                 auditor,
@@ -203,16 +195,7 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
                 validationResponse.getDestIndexMappings(),
                 createOrGetIndexListener
             );
-        }, e -> {
-            if (Boolean.TRUE.equals(transformConfigHolder.get().getSettings().getUnattended())) {
-                logger.debug(
-                    () -> format("[%s] Skip dest index creation as this is an unattended transform", transformConfigHolder.get().getId())
-                );
-                createOrGetIndexListener.onResponse(true);
-                return;
-            }
-            listener.onFailure(e);
-        });
+        }, e -> { listener.onFailure(e); });
 
         // <2> run transform validations
         ActionListener<AuthorizationState> fetchAuthStateListener = ActionListener.wrap(authState -> {

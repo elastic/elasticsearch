@@ -70,7 +70,7 @@ configuration to instruct Java to use the FIPS certified security provider.
 
 All code running in {es} is subject to the security restrictions enforced by the Java security manager.
 The Java security manager requires explicit grants permissions to perform low level Java operations. The Java security provider is not exempt from the
-restrictions enforced by the security manager and as such it may require explicit grants to perform it's low level Java operations.
+restrictions enforced by the security manager and as such it may require explicit grants to perform its low level Java operations.
 
 To configure {es}'s security manager configure the JVM property `java.security.policy` to point a file
 (https://raw.githubusercontent.com/elastic/elasticsearch/main/build-tools-internal/src/main/resources/fips_java.policy[example])in {es}'s

@@ -13,21 +13,20 @@ import java.util.List;
 import static org.elasticsearch.xpack.searchbusinessrules.PinnedQueryBuilder.Item;
 
 public class AppliedQueryRules {
-
-    private final List<String> pinnedIds;
     private final List<Item> pinnedDocs;
 
     public AppliedQueryRules() {
-        this(new ArrayList<>(0), new ArrayList<>(0));
+        this(new ArrayList<>(0));
     }
 
-    public AppliedQueryRules(List<String> pinnedIds, List<Item> pinnedDocs) {
-        this.pinnedIds = pinnedIds;
+    public AppliedQueryRules(List<Item> pinnedDocs) {
         this.pinnedDocs = pinnedDocs;
     }
 
-    public List<String> pinnedIds() {
-        return pinnedIds;
+    public AppliedQueryRules(List<String> pinnedIds, List<Item> pinnedDocs) {
+        this.pinnedDocs = pinnedDocs;
+        List<Item> pinnedIdsAsDocs = pinnedIds.stream().map(pinnedId -> new Item(null, pinnedId)).toList();
+        pinnedDocs.addAll(pinnedIdsAsDocs);
     }
 
     public List<Item> pinnedDocs() {

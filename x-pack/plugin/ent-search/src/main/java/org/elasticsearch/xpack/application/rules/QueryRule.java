@@ -282,7 +282,6 @@ public class QueryRule implements Writeable, ToXContentObject {
             throw new UnsupportedOperationException("Only pinned query rules are supported");
         }
 
-        List<String> matchingPinnedIds = new ArrayList<>();
         List<PinnedQueryBuilder.Item> matchingPinnedDocs = new ArrayList<>();
         Boolean isRuleMatch = null;
 
@@ -302,7 +301,8 @@ public class QueryRule implements Writeable, ToXContentObject {
 
         if (isRuleMatch != null && isRuleMatch) {
             if (actions.containsKey(IDS_FIELD.getPreferredName())) {
-                matchingPinnedIds.addAll((List<String>) actions.get(IDS_FIELD.getPreferredName()));
+                List<String> matchingPinnedIds = (List<String>) actions.get(IDS_FIELD.getPreferredName());
+                matchingPinnedDocs.addAll(matchingPinnedIds.stream().map(id -> new PinnedQueryBuilder.Item(null, id)).toList());
             } else if (actions.containsKey(DOCS_FIELD.getPreferredName())) {
                 List<Map<String, String>> docsToPin = (List<Map<String, String>>) actions.get(DOCS_FIELD.getPreferredName());
                 List<PinnedQueryBuilder.Item> items = docsToPin.stream()
@@ -317,10 +317,8 @@ public class QueryRule implements Writeable, ToXContentObject {
             }
         }
 
-        List<String> pinnedIds = appliedRules.pinnedIds();
         List<PinnedQueryBuilder.Item> pinnedDocs = appliedRules.pinnedDocs();
-        pinnedIds.addAll(matchingPinnedIds);
         pinnedDocs.addAll(matchingPinnedDocs);
-        return new AppliedQueryRules(pinnedIds, pinnedDocs);
+        return new AppliedQueryRules(pinnedDocs);
     }
 }

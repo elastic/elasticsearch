@@ -7,9 +7,18 @@
 
 package org.elasticsearch.xpack.core.security.support;
 
+import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsAction;
+import org.elasticsearch.action.admin.indices.mapping.get.TransportGetFieldMappingsIndexAction;
+import org.elasticsearch.action.explain.TransportExplainAction;
+import org.elasticsearch.action.get.TransportGetAction;
+import org.elasticsearch.action.get.TransportShardMultiGetAction;
+import org.elasticsearch.action.search.TransportSearchShardsAction;
 import org.elasticsearch.action.support.TransportAction;
+import org.elasticsearch.action.termvectors.TermVectorsAction;
+import org.elasticsearch.action.termvectors.TransportShardMultiTermsVectorAction;
 import org.elasticsearch.common.inject.Binding;
 import org.elasticsearch.common.inject.TypeLiteral;
+import org.elasticsearch.index.seqno.RetentionLeaseActions;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -28,7 +37,22 @@ import static org.elasticsearch.xpack.core.security.action.apikey.CrossClusterAp
 
 public class CrossClusterShardTests extends ESSingleNodeTestCase {
 
-    Set<TransportAction<?, ?>> MANUALLY_CHECKED_SHARD_ACTIONS = Set.of();
+    Set<String> MANUALLY_CHECKED_SHARD_ACTIONS = Set.of(
+        // The request types for these actions are all subtypes of SingleShardRequest
+        TransportShardMultiTermsVectorAction.TYPE.name(),
+        TransportExplainAction.TYPE.name(),
+        RetentionLeaseActions.ADD.name(),
+        RetentionLeaseActions.REMOVE.name(),
+        RetentionLeaseActions.RENEW.name(),
+        TermVectorsAction.NAME,
+        TransportGetAction.TYPE.name(),
+        TransportShardMultiGetAction.TYPE.name(),
+        TransportGetFieldMappingsIndexAction.TYPE.name(),
+
+        // These actions do not have any references to shard IDs in their requests
+        ClusterSearchShardsAction.NAME,
+        TransportSearchShardsAction.NAME
+    );
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
@@ -36,32 +60,42 @@ public class CrossClusterShardTests extends ESSingleNodeTestCase {
     }
 
     @SuppressWarnings("rawtypes")
-    public void testMe() throws Exception {
+    public void testCheckForNewShardLevelTransportActions() throws Exception {
         Node node = node();
         List<Binding<TransportAction>> transportActionBindings = node.injector().findBindingsByType(TypeLiteral.get(TransportAction.class));
         Set<String> crossClusterPrivilegeNames = new HashSet<>();
         crossClusterPrivilegeNames.addAll(List.of(CCS_INDICES_PRIVILEGE_NAMES));
         crossClusterPrivilegeNames.addAll(List.of(CCR_INDICES_PRIVILEGE_NAMES));
 
-        List<TransportAction> shardActions = transportActionBindings.stream()
+        List<String> shardActions = transportActionBindings.stream()
             .map(binding -> binding.getProvider().get())
             .filter(action -> IndexPrivilege.get(crossClusterPrivilegeNames).predicate().test(action.actionName))
             .filter(this::actionIsLikelyShardAction)
+            .map(action -> action.actionName)
+            .toList();
+
+        List<String> actionsNotOnAllowlist = shardActions.stream()
             .filter(Predicate.not(MANUALLY_CHECKED_SHARD_ACTIONS::contains))
             .toList();
-        shardActions.forEach(action -> {
-            logger.info("********************");
-            logger.info(action.getClass().getName());
-            logger.info(action.actionName);
-            assertNotNull(action.actionName);
-            assertTrue("""
+        if (actionsNotOnAllowlist.isEmpty() == false) {
+            fail("""
                 If this test fails, you likely just added a transport action, probably with `shard` in the name. Transport actions which
                 operate on shards directly and can be used across clusters must meet some additional requirements in order to be
                 handled correctly by all Elasticsearch infrastructure, so please make sure you have read the javadoc on the
-                IndicesRequest.RemoteClusterShardRequest interface and implemented it if appropriate, then add your new transport
-                action (not the request, the transport action) to MANUALLY_CHECKED_SHARD_ACTIONS above.
-                """, MANUALLY_CHECKED_SHARD_ACTIONS.contains(action));
-        });
+                IndicesRequest.RemoteClusterShardRequest interface and implemented it if appropriate and not already appropriately
+                implemented by a supertype, then add the name (as in "indices:data/read/get") of your new transport action to
+                MANUALLY_CHECKED_SHARD_ACTIONS above. Found actions not in allowlist:
+                """ + shardActions);
+        }
+
+        // Also make sure the allowlist stays up to date and doesn't have any unnecessary entries.
+        List<String> actionsOnAllowlistNotFound = MANUALLY_CHECKED_SHARD_ACTIONS.stream()
+            .filter(Predicate.not(shardActions::contains))
+            .toList();
+        if (actionsOnAllowlistNotFound.isEmpty() == false) {
+            fail("Some actions were on the allowlist but not found in the list of cross-cluster capable transport actions, please remove " +
+                "these from MANUALLY_CHECKED_SHARD_ACTIONS if they have been removed from Elasticsearch: " + actionsOnAllowlistNotFound);
+        }
     }
 
     /**

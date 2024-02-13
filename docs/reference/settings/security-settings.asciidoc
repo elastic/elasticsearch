@@ -404,7 +404,7 @@ Defaults to Empty. Due to its potential security impact, `bind_password` is not
 exposed via the <<cluster-nodes-info,nodes info API>>.
 
 `secure_bind_password`::
-(<<secure-settings,Secure>>)
+(<<secure-settings,Secure>>, <<reloadable-secure-settings,Reloadable>>)
 The password for the user that is used to bind to the LDAP directory.
 Defaults to Empty.
 
@@ -749,7 +749,7 @@ potential security impact, `bind_password` is not exposed via the
 <<cluster-nodes-info,nodes info API>>.
 
 `secure_bind_password`::
-(<<secure-settings,Secure>>)
+(<<secure-settings,Secure>>, <<reloadable-secure-settings,Reloadable>>)
 The password for the user that is used to bind to Active Directory.
 Defaults to Empty.
 

@@ -202,10 +202,8 @@ public class InternalMatrixStats extends InternalAggregation {
                 return emptyMap();
             }
             final String field = path.get(0)
-                .replaceAll("^\"", "") // remove leading "
-                .replaceAll("^'", "") // remove leading '
-                .replaceAll("\"$", "") // remove trailing "
-                .replaceAll("'$", ""); // remove trailing '
+                .replaceAll("^[\"']+", "") // remove leading " and '
+                .replaceAll("[\"']+$", ""); // remove trailing " and '
             final String element = path.get(1);
             return switch (element) {
                 case "counts" -> results.getFieldCount(field);

@@ -112,15 +112,7 @@ public class RootObjectMapper extends ObjectMapper {
         @Override
         public RootObjectMapper build(MapperBuilderContext context) {
             Map<String, Mapper> mappers = buildMappers(context);
-
-            Map<String, Mapper> aliasMappers = new HashMap<>();
-            Map<String, ObjectMapper.Builder> objectIntermediates = new HashMap<>(1);
-            getAliasMappers(mappers, aliasMappers, objectIntermediates, context, 0);
-            for (var entry : objectIntermediates.entrySet()) {
-                aliasMappers.put(entry.getKey(), entry.getValue().build(context));
-            }
-            mappers.putAll(aliasMappers);
-
+            mappers.putAll(getAliasMappers(mappers, context));
             return new RootObjectMapper(
                 name,
                 enabled,
@@ -133,6 +125,16 @@ public class RootObjectMapper extends ObjectMapper {
                 dateDetection,
                 numericDetection
             );
+        }
+
+        Map<String, Mapper> getAliasMappers(Map<String, Mapper> mappers, MapperBuilderContext context) {
+            Map<String, Mapper> aliasMappers = new HashMap<>();
+            Map<String, ObjectMapper.Builder> objectIntermediates = new HashMap<>(1);
+            getAliasMappers(mappers, aliasMappers, objectIntermediates, context, 0);
+            for (var entry : objectIntermediates.entrySet()) {
+                aliasMappers.put(entry.getKey(), entry.getValue().build(context));
+            }
+            return aliasMappers;
         }
 
         void getAliasMappers(

@@ -12,6 +12,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.plugins.internal.DocumentSizeObserver;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -54,7 +55,7 @@ public class RoutingFieldMapperTests extends MetadataMapperTestCase {
                 XContentType.JSON,
                 "routing_value",
                 Map.of(),
-                false
+                DocumentSizeObserver.EMPTY_INSTANCE
             )
         );
 

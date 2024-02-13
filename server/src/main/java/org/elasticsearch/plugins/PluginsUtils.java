@@ -196,7 +196,7 @@ public class PluginsUtils {
             if (iterator.hasNext()) {
                 final Path removing = iterator.next();
                 final String fileName = removing.getFileName().toString();
-                final String name = fileName.substring(1 + fileName.indexOf("-"));
+                final String name = fileName.substring(1 + fileName.indexOf('-'));
                 final String message = String.format(
                     Locale.ROOT,
                     "found file [%s] from a failed attempt to remove the plugin [%s]; execute [elasticsearch-plugin remove %2$s]",

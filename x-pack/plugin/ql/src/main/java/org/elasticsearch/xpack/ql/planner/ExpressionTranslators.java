@@ -29,11 +29,7 @@ import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThan;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.In;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThan;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NullEquals;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.Like;
@@ -324,35 +320,14 @@ public final class ExpressionTranslators {
             if (DataTypes.isDateTime(attribute.dataType())) {
                 zoneId = bc.zoneId();
             }
-            if (bc instanceof GreaterThan) {
-                return new RangeQuery(source, name, value, false, null, false, format, zoneId);
-            }
-            if (bc instanceof GreaterThanOrEqual) {
-                return new RangeQuery(source, name, value, true, null, false, format, zoneId);
-            }
-            if (bc instanceof LessThan) {
-                return new RangeQuery(source, name, null, false, value, false, format, zoneId);
-            }
-            if (bc instanceof LessThanOrEqual) {
-                return new RangeQuery(source, name, null, false, value, true, format, zoneId);
-            }
             if (bc instanceof Equals || bc instanceof NullEquals || bc instanceof NotEquals) {
                 name = pushableAttributeName(attribute);
-
-                Query query;
-                if (isDateLiteralComparison) {
-                    // dates equality uses a range query because it's the one that has a "format" parameter
-                    query = new RangeQuery(source, name, value, true, value, true, format, zoneId);
-                } else {
-                    query = new TermQuery(source, name, value);
-                }
-                if (bc instanceof NotEquals) {
-                    query = new NotQuery(source, query);
-                }
-                return query;
             }
 
-            throw new QlIllegalArgumentException("Don't know how to translate binary comparison [{}] in [{}]", bc.right().nodeString(), bc);
+            return bc.getQuery(name, value, format, isDateLiteralComparison, zoneId);
+
+            // throw new QlIllegalArgumentException("Don't know how to translate binary comparison [{}] in [{}]", bc.right().nodeString(),
+            // bc);
         }
     }
 

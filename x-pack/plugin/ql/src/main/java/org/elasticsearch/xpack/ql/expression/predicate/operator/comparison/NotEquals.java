@@ -9,6 +9,10 @@ package org.elasticsearch.xpack.ql.expression.predicate.operator.comparison;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.predicate.Negatable;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparisonProcessor.BinaryComparisonOperation;
+import org.elasticsearch.xpack.ql.querydsl.query.NotQuery;
+import org.elasticsearch.xpack.ql.querydsl.query.Query;
+import org.elasticsearch.xpack.ql.querydsl.query.RangeQuery;
+import org.elasticsearch.xpack.ql.querydsl.query.TermQuery;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 
@@ -48,5 +52,16 @@ public class NotEquals extends BinaryComparison implements Negatable<BinaryCompa
     @Override
     protected boolean isCommutative() {
         return true;
+    }
+
+    @Override
+    public Query getQuery(String name, Object value, String format, boolean isDateLiteralComparison, ZoneId zoneId) {
+        Query query;
+        if (isDateLiteralComparison) {
+            // dates equality uses a range query because it's the one that has a "format" parameter
+            return new NotQuery(source(), new RangeQuery(source(), name, value, true, value, true, format, zoneId));
+        } else {
+            return new NotQuery(source(), new TermQuery(source(), name, value));
+        }
     }
 }

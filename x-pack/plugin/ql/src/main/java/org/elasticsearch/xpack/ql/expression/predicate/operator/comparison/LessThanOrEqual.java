@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.ql.expression.predicate.operator.comparison;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.predicate.Negatable;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparisonProcessor.BinaryComparisonOperation;
+import org.elasticsearch.xpack.ql.querydsl.query.Query;
+import org.elasticsearch.xpack.ql.querydsl.query.RangeQuery;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 
@@ -43,5 +45,10 @@ public class LessThanOrEqual extends BinaryComparison implements Negatable<Binar
     @Override
     public BinaryComparison reverse() {
         return new GreaterThanOrEqual(source(), left(), right(), zoneId());
+    }
+
+    @Override
+    public Query getQuery(String name, Object value, String format, boolean isDateLiteralComparison, ZoneId zoneId) {
+        return new RangeQuery(source(), name, null, false, value, true, format, zoneId);
     }
 }

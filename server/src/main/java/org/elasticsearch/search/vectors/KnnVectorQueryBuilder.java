@@ -69,19 +69,22 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         args -> new KnnVectorQueryBuilder((String) args[0], (float[]) args[1], (Integer) args[2], (Float) args[3])
     );
 
-    private static float[] parseQueryVector(XContentParser parser) throws IOException {
+    /**
+     * Utility method to parse the provided {query_vector} parameter. Supports the following formats:
+     * - array of floats, as an n-dimensional vector
+     * - single number, as a 1-dimensional vector
+     * - string, as a hex-encoded byte vector
+     *
+     * @return an array of floats representing the provided query vector
+     */
+    public static float[] parseQueryVector(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.currentToken();
-        final float[] vector;
-        if (token == XContentParser.Token.START_ARRAY) {
-            vector = parseQueryVectorArray(parser);
-        } else if (token == XContentParser.Token.VALUE_STRING) {
-            vector = parseHexEncodedVector(parser);
-        } else if (token == XContentParser.Token.VALUE_NUMBER) {
-            vector = parseNumberVector(parser);
-        } else {
-            throw new ParsingException(parser.getTokenLocation(), format("Unknown type for provided value [%s]", parser.text()));
-        }
-        return vector;
+        return switch (token) {
+            case START_ARRAY -> parseQueryVectorArray(parser);
+            case VALUE_STRING -> parseHexEncodedVector(parser);
+            case VALUE_NUMBER -> parseNumberVector(parser);
+            default -> throw new ParsingException(parser.getTokenLocation(), format("Unknown type for provided value [%s]", parser.text()));
+        };
     }
 
     private static float[] parseQueryVectorArray(XContentParser parser) throws IOException {

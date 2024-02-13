@@ -13,6 +13,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
@@ -26,6 +27,7 @@ import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
+import org.elasticsearch.xpack.ql.common.Failure;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.AttributeMap;
@@ -68,6 +70,7 @@ import org.elasticsearch.xpack.ql.util.StringUtils;
 
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -86,12 +89,20 @@ import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.TransformDirec
 
 public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan, LogicalOptimizerContext> {
 
+    private final LogicalVerifier verifier = LogicalVerifier.INSTANCE;
+
     public LogicalPlanOptimizer(LogicalOptimizerContext optimizerContext) {
         super(optimizerContext);
     }
 
     public LogicalPlan optimize(LogicalPlan verified) {
-        return verified.optimized() ? verified : execute(verified);
+        var optimized = execute(verified);
+
+        Collection<Failure> failures = verifier.verify(optimized);
+        if (failures.isEmpty() == false) {
+            throw new VerificationException(failures);
+        }
+        return optimized;
     }
 
     @Override
@@ -1119,7 +1130,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         @Override
         protected LogicalPlan rule(LogicalPlan plan, LogicalOptimizerContext context) {
             if (plan instanceof UnaryPlan unary && unary.child() instanceof OrderBy order && order.child() instanceof EsRelation relation) {
-                var limit = new Literal(Source.EMPTY, context.configuration().resultTruncationMaxSize(), DataTypes.INTEGER);
+                var limit = new Literal(plan.source(), context.configuration().resultTruncationMaxSize(), DataTypes.INTEGER);
                 return unary.replaceChild(new TopN(plan.source(), relation, order.order(), limit));
             }
             return plan;

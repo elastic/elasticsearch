@@ -10,6 +10,7 @@ package org.elasticsearch.aggregations.metric;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
+import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -201,10 +202,8 @@ public class InternalMatrixStats extends InternalAggregation {
                 return emptyMap();
             }
             final String field = path.get(0)
-                .replaceAll("^\"", "") // remove leading "
-                .replaceAll("^'", "") // remove leading '
-                .replaceAll("\"$", "") // remove trailing "
-                .replaceAll("'$", ""); // remove trailing '
+                .replaceAll("^[\"']+", "") // remove leading " and '
+                .replaceAll("[\"']+$", ""); // remove trailing " and '
             final String element = path.get(1);
             return switch (element) {
                 case "counts" -> results.getFieldCount(field);
@@ -237,36 +236,47 @@ public class InternalMatrixStats extends InternalAggregation {
     }
 
     @Override
-    public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
-        // merge stats across all shards
-        List<InternalAggregation> aggs = new ArrayList<>(aggregations);
-        aggs.removeIf(p -> ((InternalMatrixStats) p).stats == null);
-
-        // return empty result iff all stats are null
-        if (aggs.isEmpty()) {
-            return new InternalMatrixStats(name, 0, null, new MatrixStatsResults(), getMetadata());
-        }
-
-        RunningStats runningStats = new RunningStats();
-        for (InternalAggregation agg : aggs) {
-            final Set<String> missingFields = runningStats.missingFieldNames(((InternalMatrixStats) agg).stats);
-            if (missingFields.isEmpty() == false) {
-                throw new IllegalArgumentException(
-                    "Aggregation ["
-                        + agg.getName()
-                        + "] all fields must exist in all indices, but some indices are missing these fields ["
-                        + String.join(", ", new TreeSet<>(missingFields))
-                        + "]"
-                );
+    protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
+        final List<InternalMatrixStats> aggregations = new ArrayList<>(size);
+        return new AggregatorReducer() {
+            @Override
+            public void accept(InternalAggregation aggregation) {
+                // TODO: probably can be done in without collecting the aggregators
+                final InternalMatrixStats internalMatrixStats = (InternalMatrixStats) aggregation;
+                if (internalMatrixStats.stats != null) {
+                    aggregations.add(internalMatrixStats);
+                }
             }
-            runningStats.merge(((InternalMatrixStats) agg).stats);
-        }
 
-        if (reduceContext.isFinalReduce()) {
-            MatrixStatsResults matrixStatsResults = new MatrixStatsResults(runningStats);
-            return new InternalMatrixStats(name, matrixStatsResults.getDocCount(), runningStats, matrixStatsResults, getMetadata());
-        }
-        return new InternalMatrixStats(name, runningStats.docCount, runningStats, null, getMetadata());
+            @Override
+            public InternalAggregation get() {
+                // return empty result iff all stats are null
+                if (aggregations.isEmpty()) {
+                    return new InternalMatrixStats(name, 0, null, new MatrixStatsResults(), getMetadata());
+                }
+
+                RunningStats runningStats = new RunningStats();
+                for (InternalMatrixStats agg : aggregations) {
+                    final Set<String> missingFields = runningStats.missingFieldNames(agg.stats);
+                    if (missingFields.isEmpty() == false) {
+                        throw new IllegalArgumentException(
+                            "Aggregation ["
+                                + agg.getName()
+                                + "] all fields must exist in all indices, but some indices are missing these fields ["
+                                + String.join(", ", new TreeSet<>(missingFields))
+                                + "]"
+                        );
+                    }
+                    runningStats.merge(agg.stats);
+                }
+
+                if (reduceContext.isFinalReduce()) {
+                    MatrixStatsResults matrixStatsResults = new MatrixStatsResults(runningStats);
+                    return new InternalMatrixStats(name, matrixStatsResults.getDocCount(), runningStats, matrixStatsResults, getMetadata());
+                }
+                return new InternalMatrixStats(name, runningStats.docCount, runningStats, null, getMetadata());
+            }
+        };
     }
 
     @Override

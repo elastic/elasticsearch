@@ -121,7 +121,7 @@ public class SenderServiceTests extends ESTestCase {
             Map<String, Object> taskSettings,
             InputType inputType,
             ChunkingOptions chunkingOptions,
-            ActionListener<ChunkedInferenceServiceResults> listener
+            ActionListener<List<ChunkedInferenceServiceResults>> listener
         ) {
 
         }
@@ -132,13 +132,14 @@ public class SenderServiceTests extends ESTestCase {
         }
 
         @Override
-        public Model parseRequestConfig(
+        public void parseRequestConfig(
             String inferenceEntityId,
             TaskType taskType,
             Map<String, Object> config,
-            Set<String> platfromArchitectures
+            Set<String> platfromArchitectures,
+            ActionListener<Model> parsedModelListener
         ) {
-            return null;
+            parsedModelListener.onResponse(null);
         }
 
         @Override

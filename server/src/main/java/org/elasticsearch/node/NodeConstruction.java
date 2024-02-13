@@ -98,6 +98,9 @@ import org.elasticsearch.health.node.HealthInfoCache;
 import org.elasticsearch.health.node.LocalHealthMonitor;
 import org.elasticsearch.health.node.ShardsCapacityHealthIndicatorService;
 import org.elasticsearch.health.node.selection.HealthNodeTaskExecutor;
+import org.elasticsearch.health.node.tracker.DiskHealthTracker;
+import org.elasticsearch.health.node.tracker.HealthTracker;
+import org.elasticsearch.health.node.tracker.RepositoriesHealthTracker;
 import org.elasticsearch.health.stats.HealthApiStats;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.IndexSettingProvider;
@@ -159,8 +162,8 @@ import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.plugins.ShutdownAwarePlugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.plugins.TelemetryPlugin;
-import org.elasticsearch.plugins.internal.DocumentParsingObserver;
-import org.elasticsearch.plugins.internal.DocumentParsingObserverPlugin;
+import org.elasticsearch.plugins.internal.DocumentParsingProvider;
+import org.elasticsearch.plugins.internal.DocumentParsingProviderPlugin;
 import org.elasticsearch.plugins.internal.ReloadAwarePlugin;
 import org.elasticsearch.plugins.internal.RestExtension;
 import org.elasticsearch.plugins.internal.SettingsExtension;
@@ -614,7 +617,8 @@ class NodeConstruction {
         ClusterService clusterService = createClusterService(settingsModule, threadPool, taskManager);
         clusterService.addStateApplier(scriptService);
 
-        Supplier<DocumentParsingObserver> documentParsingObserverSupplier = getDocumentParsingObserverSupplier();
+        DocumentParsingProvider documentParsingProvider = getDocumentParsingSupplier();
+        modules.bindToInstance(DocumentParsingProvider.class, documentParsingProvider);
 
         final IngestService ingestService = new IngestService(
             clusterService,
@@ -625,7 +629,7 @@ class NodeConstruction {
             pluginsService.filterPlugins(IngestPlugin.class).toList(),
             client,
             IngestService.createGrokThreadWatchdog(environment, threadPool),
-            documentParsingObserverSupplier
+            documentParsingProvider
         );
 
         SystemIndices systemIndices = createSystemIndices(settings);
@@ -720,7 +724,6 @@ class NodeConstruction {
             .metaStateService(metaStateService)
             .valuesSourceRegistry(searchModule.getValuesSourceRegistry())
             .requestCacheKeyDifferentiator(searchModule.getRequestCacheKeyDifferentiator())
-            .documentParsingObserverSupplier(documentParsingObserverSupplier)
             .build();
 
         final var parameters = new IndexSettingProvider.Parameters(indicesService::createIndexMapperServiceForValidation);
@@ -1018,7 +1021,8 @@ class NodeConstruction {
                 transportService,
                 featureService,
                 threadPool,
-                telemetryProvider
+                telemetryProvider,
+                repositoryService
             )
         );
 
@@ -1171,7 +1175,8 @@ class NodeConstruction {
         TransportService transportService,
         FeatureService featureService,
         ThreadPool threadPool,
-        TelemetryProvider telemetryProvider
+        TelemetryProvider telemetryProvider,
+        RepositoriesService repositoriesService
     ) {
 
         MasterHistoryService masterHistoryService = new MasterHistoryService(transportService, threadPool, clusterService);
@@ -1203,13 +1208,18 @@ class NodeConstruction {
             telemetryProvider
         );
         HealthMetadataService healthMetadataService = HealthMetadataService.create(clusterService, featureService, settings);
+
+        List<HealthTracker<?>> healthTrackers = List.of(
+            new DiskHealthTracker(nodeService, clusterService),
+            new RepositoriesHealthTracker(repositoriesService)
+        );
         LocalHealthMonitor localHealthMonitor = LocalHealthMonitor.create(
             settings,
             clusterService,
-            nodeService,
             threadPool,
             client,
-            featureService
+            featureService,
+            healthTrackers
         );
         HealthInfoCache nodeHealthOverview = HealthInfoCache.create(clusterService);
 
@@ -1288,9 +1298,9 @@ class NodeConstruction {
         logger.info("initialized");
     }
 
-    private Supplier<DocumentParsingObserver> getDocumentParsingObserverSupplier() {
-        return getSinglePlugin(DocumentParsingObserverPlugin.class).map(DocumentParsingObserverPlugin::getDocumentParsingObserverSupplier)
-            .orElse(() -> DocumentParsingObserver.EMPTY_INSTANCE);
+    private DocumentParsingProvider getDocumentParsingSupplier() {
+        return getSinglePlugin(DocumentParsingProviderPlugin.class).map(DocumentParsingProviderPlugin::getDocumentParsingSupplier)
+            .orElse(DocumentParsingProvider.EMPTY_INSTANCE);
     }
 
     /**

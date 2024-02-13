@@ -1,0 +1,5 @@
+pr: 105258
+summary: Close `currentChunkedWrite` on client cancel
+area: Network
+type: bug
+issues: []

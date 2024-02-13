@@ -14,6 +14,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
@@ -50,22 +51,72 @@ public class InferenceBaseRestTest extends ESRestTestCase {
     }
 
     static String mockServiceModelConfig() {
-        return """
+        return mockServiceModelConfig(null);
+    }
+
+    static String mockServiceModelConfig(@Nullable TaskType taskTypeInBody) {
+        var taskType = taskTypeInBody == null ? "" : "\"task_type\": \"" + taskTypeInBody + "\",";
+        return Strings.format("""
             {
+              %s
               "service": "test_service",
               "service_settings": {
                 "model": "my_model",
+                "hidden_field": "my_hidden_value",
                 "api_key": "abc64"
               },
               "task_settings": {
                 "temperature": 3
               }
             }
-            """;
+            """, taskType);
+    }
+
+    static String mockServiceModelConfig(@Nullable TaskType taskTypeInBody, boolean shouldReturnHiddenField) {
+        var taskType = taskTypeInBody == null ? "" : "\"task_type\": \"" + taskTypeInBody + "\",";
+        return Strings.format("""
+            {
+              %s
+              "service": "test_service",
+              "service_settings": {
+                "model": "my_model",
+                "hidden_field": "my_hidden_value",
+                "should_return_hidden_field": %s,
+                "api_key": "abc64"
+              },
+              "task_settings": {
+                "temperature": 3
+              }
+            }
+            """, taskType, shouldReturnHiddenField);
+    }
+
+    protected void deleteModel(String modelId) throws IOException {
+        var request = new Request("DELETE", "_inference/" + modelId);
+        var response = client().performRequest(request);
+        assertOkOrCreated(response);
+    }
+
+    protected void deleteModel(String modelId, TaskType taskType) throws IOException {
+        var request = new Request("DELETE", Strings.format("_inference/%s/%s", taskType, modelId));
+        var response = client().performRequest(request);
+        assertOkOrCreated(response);
     }
 
     protected Map<String, Object> putModel(String modelId, String modelConfig, TaskType taskType) throws IOException {
         String endpoint = Strings.format("_inference/%s/%s", taskType, modelId);
+        return putModelInternal(endpoint, modelConfig);
+    }
+
+    /**
+     * Task type should be in modelConfig
+     */
+    protected Map<String, Object> putModel(String modelId, String modelConfig) throws IOException {
+        String endpoint = Strings.format("_inference/%s", modelId);
+        return putModelInternal(endpoint, modelConfig);
+    }
+
+    private Map<String, Object> putModelInternal(String endpoint, String modelConfig) throws IOException {
         var request = new Request("PUT", endpoint);
         request.setJsonEntity(modelConfig);
         var response = client().performRequest(request);
@@ -73,24 +124,64 @@ public class InferenceBaseRestTest extends ESRestTestCase {
         return entityAsMap(response);
     }
 
-    protected Map<String, Object> getModels(String modelId, TaskType taskType) throws IOException {
-        var endpoint = Strings.format("_inference/%s/%s", taskType, modelId);
-        var request = new Request("GET", endpoint);
+    protected Map<String, Object> putE5TrainedModels() throws IOException {
+        var request = new Request("PUT", "_ml/trained_models/.multilingual-e5-small?wait_for_completion=true");
+
+        String body = """
+                {
+                    "input": {
+                    "field_names": ["text_field"]
+                    }
+                }
+            """;
+
+        request.setJsonEntity(body);
         var response = client().performRequest(request);
         assertOkOrCreated(response);
         return entityAsMap(response);
+    }
+
+    protected Map<String, Object> deployE5TrainedModels() throws IOException {
+        var request = new Request("POST", "_ml/trained_models/.multilingual-e5-small/deployment/_start?wait_for=fully_allocated");
+
+        var response = client().performRequest(request);
+        assertOkOrCreated(response);
+        return entityAsMap(response);
+    }
+
+    protected Map<String, Object> getModel(String modelId) throws IOException {
+        var endpoint = Strings.format("_inference/%s", modelId);
+        return getAllModelInternal(endpoint);
+    }
+
+    protected Map<String, Object> getModels(String modelId, TaskType taskType) throws IOException {
+        var endpoint = Strings.format("_inference/%s/%s", taskType, modelId);
+        return getAllModelInternal(endpoint);
     }
 
     protected Map<String, Object> getAllModels() throws IOException {
         var endpoint = Strings.format("_inference/_all");
+        return getAllModelInternal("_inference/_all");
+    }
+
+    private Map<String, Object> getAllModelInternal(String endpoint) throws IOException {
         var request = new Request("GET", endpoint);
         var response = client().performRequest(request);
         assertOkOrCreated(response);
         return entityAsMap(response);
     }
 
+    protected Map<String, Object> inferOnMockService(String modelId, List<String> input) throws IOException {
+        var endpoint = Strings.format("_inference/%s", modelId);
+        return inferOnMockServiceInternal(endpoint, input);
+    }
+
     protected Map<String, Object> inferOnMockService(String modelId, TaskType taskType, List<String> input) throws IOException {
         var endpoint = Strings.format("_inference/%s/%s", taskType, modelId);
+        return inferOnMockServiceInternal(endpoint, input);
+    }
+
+    private Map<String, Object> inferOnMockServiceInternal(String endpoint, List<String> input) throws IOException {
         var request = new Request("POST", endpoint);
 
         var bodyBuilder = new StringBuilder("{\"input\": [");
@@ -127,5 +218,13 @@ public class InferenceBaseRestTest extends ESRestTestCase {
 
         String responseStr = EntityUtils.toString(response.getEntity());
         assertThat(responseStr, response.getStatusLine().getStatusCode(), anyOf(equalTo(200), equalTo(201)));
+    }
+
+    protected Map<String, Object> getTrainedModel(String inferenceEntityId) throws IOException {
+        var endpoint = Strings.format("_ml/trained_models/%s/_stats", inferenceEntityId);
+        var request = new Request("GET", endpoint);
+        var response = client().performRequest(request);
+        assertOkOrCreated(response);
+        return entityAsMap(response);
     }
 }

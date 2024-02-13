@@ -65,6 +65,7 @@ import org.elasticsearch.indices.InvalidIndexTemplateException;
 import org.elasticsearch.indices.recovery.PeerRecoveryNotFound;
 import org.elasticsearch.indices.recovery.RecoverFilesRecoveryException;
 import org.elasticsearch.indices.recovery.RecoveryCommitTooNewException;
+import org.elasticsearch.ingest.GraphStructureException;
 import org.elasticsearch.ingest.IngestProcessorException;
 import org.elasticsearch.repositories.RepositoryConflictException;
 import org.elasticsearch.repositories.RepositoryException;
@@ -282,11 +283,7 @@ public class ExceptionSerializationTests extends ESTestCase {
 
     public void testSearchException() throws IOException {
         SearchShardTarget target = new SearchShardTarget("foo", new ShardId("bar", "_na_", 1), null);
-        SearchException ex = serialize(new SearchException(target, "hello world"));
-        assertEquals(target, ex.shard());
-        assertEquals(ex.getMessage(), "hello world");
-
-        ex = serialize(new SearchException(null, "hello world", new NullPointerException()));
+        SearchException ex = serialize(new SearchException(null, "hello world", new NullPointerException()));
         assertNull(ex.shard());
         assertEquals(ex.getMessage(), "hello world");
         assertTrue(ex.getCause() instanceof NullPointerException);
@@ -829,6 +826,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(174, AggregationExecutionException.InvalidPath.class);
         ids.put(175, AutoscalingMissedIndicesUpdateException.class);
         ids.put(176, SearchTimeoutException.class);
+        ids.put(177, GraphStructureException.class);
 
         Map<Class<? extends ElasticsearchException>, Integer> reverse = new HashMap<>();
         for (Map.Entry<Integer, Class<? extends ElasticsearchException>> entry : ids.entrySet()) {

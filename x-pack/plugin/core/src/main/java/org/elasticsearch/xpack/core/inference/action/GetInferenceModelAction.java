@@ -26,7 +26,7 @@ import java.util.Objects;
 public class GetInferenceModelAction extends ActionType<GetInferenceModelAction.Response> {
 
     public static final GetInferenceModelAction INSTANCE = new GetInferenceModelAction();
-    public static final String NAME = "cluster:admin/xpack/inference/get";
+    public static final String NAME = "cluster:monitor/xpack/inference/get";
 
     public GetInferenceModelAction() {
         super(NAME);
@@ -87,7 +87,7 @@ public class GetInferenceModelAction extends ActionType<GetInferenceModelAction.
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_GET_MULTIPLE_MODELS)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
                 models = in.readCollectionAsList(ModelConfigurations::new);
             } else {
                 models = new ArrayList<>();
@@ -101,7 +101,7 @@ public class GetInferenceModelAction extends ActionType<GetInferenceModelAction.
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_GET_MULTIPLE_MODELS)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
                 out.writeCollection(models);
             } else {
                 models.get(0).writeTo(out);
@@ -114,7 +114,7 @@ public class GetInferenceModelAction extends ActionType<GetInferenceModelAction.
             builder.startArray("models");
             for (var model : models) {
                 if (model != null) {
-                    model.toXContent(builder, params);
+                    model.toFilteredXContent(builder, params);
                 }
             }
             builder.endArray();

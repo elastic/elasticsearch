@@ -21,14 +21,9 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.codec.bloomfilter.ES87BloomFilterPostingsFormat;
 import org.elasticsearch.index.codec.postings.ES812PostingsFormat;
 import org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat;
-import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
-import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.MappingLookup;
-import org.elasticsearch.index.mapper.NumberFieldMapper;
-import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 
 /**
@@ -111,22 +106,17 @@ public final class PerFieldMapperCodec extends Lucene99Codec {
     }
 
     boolean useTSDBDocValuesFormat(final String field) {
-        if (mapperService != null && mapperService.getIndexSettings().isES87TSDBCodecEnabled() && isTimeSeriesModeIndex()) {
-            final MappingLookup mappingLookup = mapperService.mappingLookup();
-            if (mappingLookup.getMapper(field) instanceof NumberFieldMapper) {
-                return true;
-            }
-            if (mappingLookup.getMapper(field) instanceof DateFieldMapper) {
-                return true;
-            }
-            if (mappingLookup.getMapper(field) instanceof KeywordFieldMapper) {
-                return true;
-            }
-            if (mappingLookup.getMapper(field) instanceof TimeSeriesIdFieldMapper) {
-                return true;
-            }
+        if (excludeFields(field)) {
+            return false;
         }
-        return false;
+
+        return mapperService != null && isTimeSeriesModeIndex() && mapperService.getIndexSettings().isES87TSDBCodecEnabled();
+    }
+
+    private boolean excludeFields(String fieldName) {
+        // Avoid using tsdb codec for fields like _seq_no, _primary_term.
+        // But _tsid should always use the tesbd codec.
+        return fieldName.startsWith("_") && fieldName.equals("_tsid") == false;
     }
 
     private boolean isTimeSeriesModeIndex() {

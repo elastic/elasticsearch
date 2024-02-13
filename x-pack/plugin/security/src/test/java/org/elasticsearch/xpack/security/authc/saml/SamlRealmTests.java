@@ -337,6 +337,7 @@ public class SamlRealmTests extends SamlTestCase {
     }
 
     public void testAuthenticateWithRoleMapping() throws Exception {
+        final boolean excludeRoles = randomBoolean();
         final UserRoleMapper roleMapper = mock(UserRoleMapper.class);
         AtomicReference<UserRoleMapper.UserData> userData = new AtomicReference<>();
         Mockito.doAnswer(invocation -> {
@@ -344,7 +345,7 @@ public class SamlRealmTests extends SamlTestCase {
             userData.set((UserRoleMapper.UserData) invocation.getArguments()[0]);
             @SuppressWarnings("unchecked")
             ActionListener<Set<String>> listener = (ActionListener<Set<String>>) invocation.getArguments()[1];
-            listener.onResponse(Collections.singleton("superuser"));
+            listener.onResponse(Set.of("superuser", "kibana_admin"));
             return null;
         }).when(roleMapper).resolveRoles(any(UserRoleMapper.UserData.class), anyActionListener());
 
@@ -364,7 +365,8 @@ public class SamlRealmTests extends SamlTestCase {
                 false,
                 authenticatingRealm,
                 List.of("STRIKE Team: Delta$shield"),
-                "$"
+                "$",
+                excludeRoles ? List.of("superuser") : null
             );
         } else {
             result = performAuthentication(
@@ -373,14 +375,21 @@ public class SamlRealmTests extends SamlTestCase {
                 principalIsEmailAddress,
                 populateUserMetadata,
                 false,
-                authenticatingRealm
+                authenticatingRealm,
+                Arrays.asList("avengers", "shield"),
+                null,
+                excludeRoles ? List.of("superuser") : null
             );
         }
         assertThat(result, notNullValue());
         assertThat(result.getStatus(), equalTo(AuthenticationResult.Status.SUCCESS));
         assertThat(result.getValue().principal(), equalTo(useNameId ? "clint.barton" : "cbarton"));
         assertThat(result.getValue().email(), equalTo("cbarton@shield.gov"));
-        assertThat(result.getValue().roles(), arrayContainingInAnyOrder("superuser"));
+        if (excludeRoles) {
+            assertThat(result.getValue().roles(), arrayContainingInAnyOrder("kibana_admin"));
+        } else {
+            assertThat(result.getValue().roles(), arrayContainingInAnyOrder("kibana_admin", "superuser"));
+        }
         if (populateUserMetadata == Boolean.FALSE) {
             // TODO : "saml_nameid" should be null too, but the logout code requires it for now.
             assertThat(result.getValue().metadata().get("saml_uid"), nullValue());
@@ -474,6 +483,30 @@ public class SamlRealmTests extends SamlTestCase {
         List<String> groups,
         String groupsDelimiter
     ) throws Exception {
+        return performAuthentication(
+            roleMapper,
+            useNameId,
+            principalIsEmailAddress,
+            populateUserMetadata,
+            useAuthorizingRealm,
+            authenticatingRealm,
+            groups,
+            groupsDelimiter,
+            null
+        );
+    }
+
+    private AuthenticationResult<User> performAuthentication(
+        UserRoleMapper roleMapper,
+        boolean useNameId,
+        boolean principalIsEmailAddress,
+        Boolean populateUserMetadata,
+        boolean useAuthorizingRealm,
+        String authenticatingRealm,
+        List<String> groups,
+        String groupsDelimiter,
+        List<String> rolesToExclude
+    ) throws Exception {
         final EntityDescriptor idp = mockIdp();
         final SpConfiguration sp = new SpConfiguration("<sp>", "https://saml/", null, null, null, Collections.emptyList());
         final SamlAuthenticator authenticator = mock(SamlAuthenticator.class);
@@ -513,6 +546,9 @@ public class SamlRealmTests extends SamlTestCase {
                 getFullSettingKey(REALM_NAME, SamlRealmSettings.POPULATE_USER_METADATA),
                 populateUserMetadata.booleanValue()
             );
+        }
+        if (rolesToExclude != null) {
+            settingsBuilder.put(getFullSettingKey(REALM_NAME, SamlRealmSettings.EXCLUDE_ROLES), String.join(",", rolesToExclude));
         }
         if (useAuthorizingRealm) {
             settingsBuilder.putList(

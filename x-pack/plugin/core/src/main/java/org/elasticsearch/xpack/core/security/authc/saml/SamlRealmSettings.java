@@ -140,6 +140,12 @@ public class SamlRealmSettings {
         key -> Setting.positiveTimeSetting(key, TimeValue.timeValueMinutes(3), Setting.Property.NodeScope)
     );
 
+    public static final Setting.AffixSetting<List<String>> EXCLUDE_ROLES = Setting.affixKeySetting(
+        RealmSettings.realmSettingPrefix(TYPE),
+        "exclude_roles",
+        key -> Setting.stringListSetting(key, Setting.Property.NodeScope)
+    );
+
     public static final String SSL_PREFIX = "ssl.";
 
     private SamlRealmSettings() {}
@@ -167,7 +173,8 @@ public class SamlRealmSettings {
             ENCRYPTION_KEY_ALIAS,
             SIGNING_KEY_ALIAS,
             SIGNING_MESSAGE_TYPES,
-            REQUESTED_AUTHN_CONTEXT_CLASS_REF
+            REQUESTED_AUTHN_CONTEXT_CLASS_REF,
+            EXCLUDE_ROLES
         );
         set.addAll(X509KeyPairSettings.affix(RealmSettings.realmSettingPrefix(TYPE), ENCRYPTION_SETTING_KEY, false));
         set.addAll(X509KeyPairSettings.affix(RealmSettings.realmSettingPrefix(TYPE), SIGNING_SETTING_KEY, false));

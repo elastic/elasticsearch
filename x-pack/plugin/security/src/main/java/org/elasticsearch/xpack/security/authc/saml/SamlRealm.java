@@ -52,6 +52,7 @@ import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.TokenService;
 import org.elasticsearch.xpack.security.authc.support.DelegatedAuthorizationSupport;
+import org.elasticsearch.xpack.security.authc.support.mapper.ExcludingRoleMapper;
 import org.opensaml.core.criterion.EntityIdCriterion;
 import org.opensaml.saml.common.xml.SAMLConstants;
 import org.opensaml.saml.criterion.EntityRoleCriterion;
@@ -261,7 +262,7 @@ public final class SamlRealm extends Realm implements Releasable {
     ) throws Exception {
         super(config);
 
-        this.roleMapper = roleMapper;
+        this.roleMapper = new ExcludingRoleMapper(roleMapper, Set.copyOf(config.getSetting(SamlRealmSettings.EXCLUDE_ROLES)));
         this.authenticator = authenticator;
         this.logoutHandler = logoutHandler;
         this.logoutResponseHandler = logoutResponseHandler;

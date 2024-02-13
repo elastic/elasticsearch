@@ -50,6 +50,12 @@ proceeding. Some languages have first-class support for continuations (e.g. the 
 programmer to write code in direct style away from those exotic control structures, but Java does not. That's why we have to manipulate all
 the callbacks ourselves.
 
+Strictly speaking, CPS requires that a computation _only_ continues by calling the continuation. In Elasticsearch, this means that
+asynchronous methods must have `void` return type and may not throw any exceptions. This is mostly the case in our code as written today,
+and is a good guiding principle, but we don't enforce it and there are some deviations from this rule. In particular, it's not uncommon to
+permit some methods to throw an exception, using things like `ActionListener#run` (or an equivalent `try ... catch ...` block) further up
+the stack to handle it.
+
 This pattern is often used in the transport action layer with the use of the
 [ChannelActionListener](https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/action/support/ChannelActionListener.java)
 class, which wraps a `TransportChannel` produced by the transport layer. `TransportChannel` implementations can hold a reference to a Netty

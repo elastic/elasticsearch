@@ -124,7 +124,7 @@ public class IndexResolver {
                 .allowEmptyExpressions(true)
                 .resolveAliases(false)
         )
-        .generalOptions(
+        .gatekeeperOptions(
             IndicesOptions.GatekeeperOptions.builder().ignoreThrottled(true).allowClosedIndices(true).allowAliasToMultipleIndices(true)
         )
         .build();
@@ -138,7 +138,7 @@ public class IndexResolver {
                 .allowEmptyExpressions(true)
                 .resolveAliases(false)
         )
-        .generalOptions(
+        .gatekeeperOptions(
             IndicesOptions.GatekeeperOptions.builder().ignoreThrottled(false).allowClosedIndices(true).allowAliasToMultipleIndices(true)
         )
         .build();
@@ -153,7 +153,7 @@ public class IndexResolver {
                 .allowEmptyExpressions(true)
                 .resolveAliases(true)
         )
-        .generalOptions(
+        .gatekeeperOptions(
             IndicesOptions.GatekeeperOptions.builder().ignoreThrottled(true).allowClosedIndices(true).allowAliasToMultipleIndices(true)
         )
         .build();
@@ -167,7 +167,7 @@ public class IndexResolver {
                 .allowEmptyExpressions(true)
                 .resolveAliases(true)
         )
-        .generalOptions(
+        .gatekeeperOptions(
             IndicesOptions.GatekeeperOptions.builder().ignoreThrottled(false).allowClosedIndices(true).allowAliasToMultipleIndices(true)
         )
         .build();

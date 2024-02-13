@@ -50,7 +50,7 @@ public class IndicesOptionsTests extends ESTestCase {
                         .allowEmptyExpressions(randomBoolean())
                         .resolveAliases(randomBoolean())
                 )
-                .generalOptions(
+                .gatekeeperOptions(
                     GatekeeperOptions.builder()
                         .ignoreThrottled(randomBoolean())
                         .allowAliasToMultipleIndices(randomBoolean())

@@ -557,7 +557,7 @@ public record IndicesOptions(
                 .allowEmptyExpressions(true)
                 .resolveAliases(true)
         )
-        .generalOptions(
+        .gatekeeperOptions(
             GatekeeperOptions.builder()
                 .allowAliasToMultipleIndices(true)
                 .allowClosedIndices(true)
@@ -576,7 +576,7 @@ public record IndicesOptions(
                 .allowEmptyExpressions(true)
                 .resolveAliases(true)
         )
-        .generalOptions(
+        .gatekeeperOptions(
             GatekeeperOptions.builder()
                 .allowAliasToMultipleIndices(true)
                 .allowClosedIndices(true)
@@ -595,7 +595,7 @@ public record IndicesOptions(
                 .allowEmptyExpressions(true)
                 .resolveAliases(true)
         )
-        .generalOptions(
+        .gatekeeperOptions(
             GatekeeperOptions.builder()
                 .allowAliasToMultipleIndices(true)
                 .allowClosedIndices(true)
@@ -614,7 +614,7 @@ public record IndicesOptions(
                 .allowEmptyExpressions(true)
                 .resolveAliases(true)
         )
-        .generalOptions(
+        .gatekeeperOptions(
             GatekeeperOptions.builder()
                 .allowAliasToMultipleIndices(true)
                 .allowClosedIndices(true)
@@ -628,7 +628,7 @@ public record IndicesOptions(
         .wildcardOptions(
             WildcardOptions.builder().matchOpen(true).matchClosed(true).includeHidden(true).allowEmptyExpressions(true).resolveAliases(true)
         )
-        .generalOptions(
+        .gatekeeperOptions(
             GatekeeperOptions.builder()
                 .allowAliasToMultipleIndices(true)
                 .allowClosedIndices(true)
@@ -647,7 +647,7 @@ public record IndicesOptions(
                 .allowEmptyExpressions(true)
                 .resolveAliases(true)
         )
-        .generalOptions(
+        .gatekeeperOptions(
             GatekeeperOptions.builder()
                 .allowAliasToMultipleIndices(true)
                 .allowClosedIndices(true)
@@ -661,7 +661,7 @@ public record IndicesOptions(
         .wildcardOptions(
             WildcardOptions.builder().matchOpen(true).matchClosed(true).includeHidden(true).allowEmptyExpressions(true).resolveAliases(true)
         )
-        .generalOptions(
+        .gatekeeperOptions(
             GatekeeperOptions.builder()
                 .allowAliasToMultipleIndices(true)
                 .allowClosedIndices(true)
@@ -680,7 +680,7 @@ public record IndicesOptions(
                 .allowEmptyExpressions(true)
                 .resolveAliases(true)
         )
-        .generalOptions(
+        .gatekeeperOptions(
             GatekeeperOptions.builder()
                 .allowClosedIndices(false)
                 .allowAliasToMultipleIndices(true)
@@ -699,7 +699,7 @@ public record IndicesOptions(
                 .allowEmptyExpressions(true)
                 .resolveAliases(true)
         )
-        .generalOptions(
+        .gatekeeperOptions(
             GatekeeperOptions.builder()
                 .allowClosedIndices(false)
                 .allowAliasToMultipleIndices(true)
@@ -718,7 +718,7 @@ public record IndicesOptions(
                 .allowEmptyExpressions(true)
                 .resolveAliases(true)
         )
-        .generalOptions(
+        .gatekeeperOptions(
             GatekeeperOptions.builder()
                 .ignoreThrottled(true)
                 .allowClosedIndices(false)
@@ -737,7 +737,7 @@ public record IndicesOptions(
                 .allowEmptyExpressions(true)
                 .resolveAliases(true)
         )
-        .generalOptions(
+        .gatekeeperOptions(
             GatekeeperOptions.builder()
                 .allowAliasToMultipleIndices(false)
                 .allowClosedIndices(false)
@@ -756,7 +756,7 @@ public record IndicesOptions(
                 .allowEmptyExpressions(true)
                 .resolveAliases(true)
         )
-        .generalOptions(
+        .gatekeeperOptions(
             GatekeeperOptions.builder()
                 .allowClosedIndices(false)
                 .allowAliasToMultipleIndices(true)
@@ -967,12 +967,12 @@ public record IndicesOptions(
             return this;
         }
 
-        public Builder generalOptions(GatekeeperOptions gatekeeperOptions) {
+        public Builder gatekeeperOptions(GatekeeperOptions gatekeeperOptions) {
             this.gatekeeperOptions = gatekeeperOptions;
             return this;
         }
 
-        public Builder generalOptions(GatekeeperOptions.Builder generalOptions) {
+        public Builder gatekeeperOptions(GatekeeperOptions.Builder generalOptions) {
             this.gatekeeperOptions = generalOptions.build();
             return this;
         }
@@ -1191,7 +1191,7 @@ public record IndicesOptions(
         return IndicesOptions.builder()
             .concreteTargetOptions(ConcreteTargetOptions.fromParameter(ignoreUnavailableString, defaultSettings.concreteTargetOptions))
             .wildcardOptions(wildcards)
-            .generalOptions(gatekeeperOptions)
+            .gatekeeperOptions(gatekeeperOptions)
             .failureStoreOptions(failureStoreOptions)
             .build();
     }
@@ -1304,7 +1304,7 @@ public record IndicesOptions(
         return IndicesOptions.builder()
             .concreteTargetOptions(new ConcreteTargetOptions(ignoreUnavailable))
             .wildcardOptions(wildcards)
-            .generalOptions(generalOptions)
+            .gatekeeperOptions(generalOptions)
             .failureStoreOptions(failureStoreOptions)
             .build();
     }

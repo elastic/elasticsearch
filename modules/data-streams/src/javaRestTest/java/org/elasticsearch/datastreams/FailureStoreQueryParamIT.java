@@ -10,6 +10,7 @@ package org.elasticsearch.datastreams;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.hamcrest.MatcherAssert;
 import org.junit.Before;
 
@@ -164,6 +165,38 @@ public class FailureStoreQueryParamIT extends DisabledSecurityDataStreamTestCase
             Map<String, Object> indices = entityAsMap(indicesResponse);
             MatcherAssert.assertThat(indices.size(), is(1));
             MatcherAssert.assertThat(indices.containsKey(failureStoreIndex), is(true));
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testPutIndexMappingApi() throws IOException {
+        {
+            final Request mappingRequest = new Request("PUT", "/" + DATA_STREAM_NAME + "/_mapping");
+            mappingRequest.setJsonEntity("""
+                {
+                  "properties": {
+                    "email": {
+                      "type": "keyword"
+                    }
+                  }
+                }
+                """);
+            assertAcknowledged(client().performRequest(mappingRequest));
+        }
+        {
+            final Request mappingRequest = new Request("PUT", "/" + DATA_STREAM_NAME + "/_mapping?failure_store=true");
+            mappingRequest.setJsonEntity("""
+                {
+                  "properties": {
+                    "email": {
+                      "type": "keyword"
+                    }
+                  }
+                }
+                """);
+            ResponseException responseException = expectThrows(ResponseException.class, () -> client().performRequest(mappingRequest));
+            Map<String, Object> response = entityAsMap(responseException.getResponse());
+            assertThat(((Map<String, Object>) response.get("error")).get("reason"), is("failure_index"));
         }
     }
 

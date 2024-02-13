@@ -2749,7 +2749,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         {
             IndicesOptions indicesOptions = IndicesOptions.builder(IndicesOptions.STRICT_EXPAND_OPEN)
                 .failureStoreOptions(IndicesOptions.FailureStoreOptions.builder().includeBackingIndices(true).includeFailureIndices(true))
-                .generalOptions(IndicesOptions.GatekeeperOptions.builder().allowFailureIndices(false).build())
+                .gatekeeperOptions(IndicesOptions.GatekeeperOptions.builder().allowFailureIndices(false).build())
                 .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
                 .build();
             Index[] result = indexNameExpressionResolver.concreteIndices(state, indicesOptions, true, "my-data-stream");
@@ -2763,7 +2763,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         {
             IndicesOptions indicesOptions = IndicesOptions.builder(IndicesOptions.STRICT_EXPAND_OPEN)
                 .failureStoreOptions(IndicesOptions.FailureStoreOptions.builder().includeBackingIndices(true).includeFailureIndices(true))
-                .generalOptions(IndicesOptions.GatekeeperOptions.builder().allowFailureIndices(false).build())
+                .gatekeeperOptions(IndicesOptions.GatekeeperOptions.builder().allowFailureIndices(false).build())
                 .build();
             FailureIndexException failureIndexException = expectThrows(
                 FailureIndexException.class,

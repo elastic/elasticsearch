@@ -58,7 +58,8 @@ class VersionRange {
             return minimumNodeVersion.onOrAfter(lower) && minimumNodeVersion.onOrBefore(upper);
         }
 
-        @Override public String toString() {
+        @Override
+        public String toString() {
             return "MinimumContainedInVersionRange{lower=" + lower + ", upper=" + upper + '}';
         }
     }

@@ -85,6 +85,7 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.SlowLogMessageFactory;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.bulk.stats.BulkStats;
 import org.elasticsearch.index.cache.request.ShardRequestCache;
@@ -736,7 +737,8 @@ public class IndicesService extends AbstractLifecycleComponent
             directoryFactories,
             () -> allowExpensiveQueries,
             indexNameExpressionResolver,
-            recoveryStateFactories
+            recoveryStateFactories,
+            loadSlowLogMessageFactory()
         );
         for (IndexingOperationListener operationListener : indexingOperationListeners) {
             indexModule.addIndexOperationListener(operationListener);
@@ -812,7 +814,8 @@ public class IndicesService extends AbstractLifecycleComponent
             directoryFactories,
             () -> allowExpensiveQueries,
             indexNameExpressionResolver,
-            recoveryStateFactories
+            recoveryStateFactories,
+            loadSlowLogMessageFactory()
         );
         pluginsService.forEach(p -> p.onIndexModule(indexModule));
         return indexModule.newIndexMapperService(clusterService, parserConfig, mapperRegistry, scriptService);
@@ -1388,6 +1391,12 @@ public class IndicesService extends AbstractLifecycleComponent
             }
             return deleteList.size();
         }
+    }
+
+    private SlowLogMessageFactory loadSlowLogMessageFactory() {
+        List<? extends SlowLogMessageFactory> slowLogMessageFactories = pluginsService.loadServiceProviders(SlowLogMessageFactory.class);
+        assert slowLogMessageFactories.size() == 1;
+        return slowLogMessageFactories.get(0);
     }
 
     /**

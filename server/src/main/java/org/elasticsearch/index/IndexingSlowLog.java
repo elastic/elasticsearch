@@ -11,26 +11,15 @@ package org.elasticsearch.index;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.util.StringBuilders;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.shard.IndexingOperationListener;
 import org.elasticsearch.index.shard.ShardId;
-
-import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.util.HashMap;
-import java.util.Locale;
-import java.util.Map;
-import java.util.concurrent.TimeUnit;
 
 public final class IndexingSlowLog implements IndexingOperationListener {
     public static final String INDEX_INDEXING_SLOWLOG_PREFIX = "index.indexing.slowlog";
@@ -84,6 +73,8 @@ public final class IndexingSlowLog implements IndexingOperationListener {
     );
 
     private final Logger indexLogger;
+
+    private final SlowLogMessageFactory slowLogMessageFactory;
     private final Index index;
 
     private boolean reformat;
@@ -117,8 +108,9 @@ public final class IndexingSlowLog implements IndexingOperationListener {
         Property.IndexScope
     );
 
-    IndexingSlowLog(IndexSettings indexSettings) {
+    IndexingSlowLog(IndexSettings indexSettings, SlowLogMessageFactory slowLogMessageFactory) {
         this.indexLogger = LogManager.getLogger(INDEX_INDEXING_SLOWLOG_PREFIX + ".index");
+        this.slowLogMessageFactory = slowLogMessageFactory;
         Loggers.setLevel(this.indexLogger, Level.TRACE);
         this.index = indexSettings.getIndex();
 
@@ -171,62 +163,14 @@ public final class IndexingSlowLog implements IndexingOperationListener {
             final ParsedDocument doc = indexOperation.parsedDoc();
             final long tookInNanos = result.getTook();
             if (indexWarnThreshold >= 0 && tookInNanos > indexWarnThreshold) {
-                indexLogger.warn(IndexingSlowLogMessage.of(index, doc, tookInNanos, reformat, maxSourceCharsToLog));
+                indexLogger.warn(slowLogMessageFactory.indexSlowLogMessage(index, doc, tookInNanos, reformat, maxSourceCharsToLog));
             } else if (indexInfoThreshold >= 0 && tookInNanos > indexInfoThreshold) {
-                indexLogger.info(IndexingSlowLogMessage.of(index, doc, tookInNanos, reformat, maxSourceCharsToLog));
+                indexLogger.info(slowLogMessageFactory.indexSlowLogMessage(index, doc, tookInNanos, reformat, maxSourceCharsToLog));
             } else if (indexDebugThreshold >= 0 && tookInNanos > indexDebugThreshold) {
-                indexLogger.debug(IndexingSlowLogMessage.of(index, doc, tookInNanos, reformat, maxSourceCharsToLog));
+                indexLogger.debug(slowLogMessageFactory.indexSlowLogMessage(index, doc, tookInNanos, reformat, maxSourceCharsToLog));
             } else if (indexTraceThreshold >= 0 && tookInNanos > indexTraceThreshold) {
-                indexLogger.trace(IndexingSlowLogMessage.of(index, doc, tookInNanos, reformat, maxSourceCharsToLog));
+                indexLogger.trace(slowLogMessageFactory.indexSlowLogMessage(index, doc, tookInNanos, reformat, maxSourceCharsToLog));
             }
-        }
-    }
-
-    static final class IndexingSlowLogMessage {
-
-        public static ESLogMessage of(Index index, ParsedDocument doc, long tookInNanos, boolean reformat, int maxSourceCharsToLog) {
-
-            Map<String, Object> jsonFields = prepareMap(index, doc, tookInNanos, reformat, maxSourceCharsToLog);
-            return new ESLogMessage().withFields(jsonFields);
-        }
-
-        private static Map<String, Object> prepareMap(
-            Index index,
-            ParsedDocument doc,
-            long tookInNanos,
-            boolean reformat,
-            int maxSourceCharsToLog
-        ) {
-            Map<String, Object> map = new HashMap<>();
-            map.put("elasticsearch.slowlog.message", index);
-            map.put("elasticsearch.slowlog.took", TimeValue.timeValueNanos(tookInNanos).toString());
-            map.put("elasticsearch.slowlog.took_millis", String.valueOf(TimeUnit.NANOSECONDS.toMillis(tookInNanos)));
-            map.put("elasticsearch.slowlog.id", doc.id());
-            if (doc.routing() != null) {
-                map.put("elasticsearch.slowlog.routing", doc.routing());
-            }
-
-            if (maxSourceCharsToLog == 0 || doc.source() == null || doc.source().length() == 0) {
-                return map;
-            }
-            try {
-                String source = XContentHelper.convertToJson(doc.source(), reformat, doc.getXContentType());
-                String trim = Strings.cleanTruncate(source, maxSourceCharsToLog).trim();
-                StringBuilder sb = new StringBuilder(trim);
-                StringBuilders.escapeJson(sb, 0);
-                map.put("elasticsearch.slowlog.source", sb.toString());
-            } catch (IOException e) {
-                StringBuilder sb = new StringBuilder("_failed_to_convert_[" + e.getMessage() + "]");
-                StringBuilders.escapeJson(sb, 0);
-                map.put("elasticsearch.slowlog.source", sb.toString());
-                /*
-                 * We choose to fail to write to the slow log and instead let this percolate up to the post index listener loop where this
-                 * will be logged at the warn level.
-                 */
-                final String message = String.format(Locale.ROOT, "failed to convert source for slow log entry [%s]", map.toString());
-                throw new UncheckedIOException(message, e);
-            }
-            return map;
         }
     }
 

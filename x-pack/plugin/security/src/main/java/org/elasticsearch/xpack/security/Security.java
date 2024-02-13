@@ -1995,6 +1995,14 @@ public class Security extends Plugin
         future.actionGet();
     }
 
+    public Map<String, String> getAuthContextForLogging() {
+        if (this.securityContext.get() == null || this.securityContext.get().getAuthentication() == null) {
+            return Map.of();
+        }
+        String principal = this.securityContext.get().getAuthentication().getEffectiveSubject().getUser().principal();
+        return Map.of("effective_user", principal);
+    }
+
     static final class ValidateLicenseForFIPS implements BiConsumer<DiscoveryNode, ClusterState> {
         private final boolean inFipsMode;
         private final LicenseService licenseService;

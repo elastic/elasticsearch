@@ -67,6 +67,7 @@ module org.elasticsearch.security {
     exports org.elasticsearch.xpack.security.operator to org.elasticsearch.internal.operator, org.elasticsearch.internal.security;
 
     exports org.elasticsearch.xpack.security.authc to org.elasticsearch.xcontent;
+    exports org.elasticsearch.xpack.security.slowlog to org.elasticsearch.server;
 
     provides org.elasticsearch.cli.CliToolProvider
         with

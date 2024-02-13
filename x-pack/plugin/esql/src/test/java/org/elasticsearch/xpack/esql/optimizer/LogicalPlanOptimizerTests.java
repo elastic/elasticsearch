@@ -3235,6 +3235,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(Expressions.names(local.output()), contains(NO_FIELDS.get(0).name(), "x", "language_code", "language_name"));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105436")
     public void testPlanSanityCheck() throws Exception {
         var plan = optimizedPlan("""
             from test

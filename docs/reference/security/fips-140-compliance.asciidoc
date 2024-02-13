@@ -69,7 +69,7 @@ configuration to instruct Java to use the FIPS certified security provider.
 ==== Java security manager
 
 All code running in {es} is subject to the security restrictions enforced by the Java security manager.
-The security provider you have installed and configured may require additional permissions in order to function correctly. You can grant these permissions by providing your own 
+The security provider you have installed and configured may require additional permissions in order to function correctly. You can grant these permissions by providing your own
 https://docs.oracle.com/javase/8/docs/technotes/guides/security/PolicyFiles.html#FileSyntax[Java security policy]
 
 To configure {es}'s security manager configure the JVM property `java.security.policy` to point a file
@@ -198,8 +198,20 @@ configuration to be FIPS 140-2 compliant and provides some additional verificati
 * Set `xpack.security.autoconfiguration.enabled` to `false`. This will disable the automatic configuration of the security settings.
 Users must ensure that the security settings are configured correctly for FIPS-140-2 compliance. This is only applicable for new installations.
 
+* Set `xpack.security.authc.password_hashing.algorithm` appropriately see xref:fips-stored-password-hashing[above].
+
+* Other relevant security settings. For example, TLS for the transport and HTTP interfaces. (not explicitly covered here or in the example below)
+
 * Optional: Set `xpack.security.fips_mode.required_providers` in `elasticsearch.yml` to ensure the required security providers (8.13+).
 see xref:verify-security-provider[below].
+
+[source,yaml]
+--------------------------------------------------
+xpack.security.fips_mode.enabled: true
+xpack.security.autoconfiguration.enabled: false
+xpack.security.fips_mode.required_providers: ["BCFIPS", "BCJSSE"]
+xpack.security.authc.password_hashing.algorithm: "pbkdf2_stretch"
+--------------------------------------------------
 
 [discrete]
 [[verify-security-provider]]
@@ -214,13 +226,6 @@ For example, `security.provider.1` is a lower order than `security.provider.2`
 This setting is used to ensure that the correct security provider is installed and configured. (8.13+)
 If the security provider is not installed correctly, {es} will fail to start. `["BCFIPS", "BCJSSE"]` are the values to
 use for Bouncy Castle's FIPS JCE and JSSE certified provider.
-
-[source,yaml]
---------------------------------------------------
-xpack.security.fips_mode.enabled: true
-xpack.security.autoconfiguration.enabled: false
-xpack.security.fips_mode.required_providers: ["BCFIPS", "BCJSSE"]
---------------------------------------------------
 
 [discrete]
 [[fips-upgrade-considerations]]

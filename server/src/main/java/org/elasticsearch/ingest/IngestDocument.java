@@ -82,6 +82,10 @@ public final class IngestDocument {
         this.ingestMetadata.put(TIMESTAMP, ZonedDateTime.now(ZoneOffset.UTC));
     }
 
+    // note: these rest of these constructors deal with the data-centric view of the IngestDocument, not the execution-centric view.
+    // For example, the copy constructor doesn't populate the `indexHistory` (as well as some other fields),
+    // because those fields are execution-centric.
+
     /**
      * Copy constructor that creates a new {@link IngestDocument} which has exactly the same properties as the one provided.
      *
@@ -89,6 +93,13 @@ public final class IngestDocument {
      */
     public IngestDocument(IngestDocument other) {
         this(deepCopyMap(ensureNoSelfReferences(other.sourceAndMetadata)), deepCopyMap(other.ingestMetadata));
+        /*
+         * The executedPipelines field is clearly execution-centric rather than data centric. Despite what the comment above says, we're
+         * copying it here anyway. THe reason is that this constructor is only called from two non-test locations, and both of those
+         * involve the simulate pipeline logic. The simulate pipeline logic needs this information. Rather than making the code more
+         * complicated, we're just copying this over here since it does no harm.
+         */
+        this.executedPipelines.addAll(other.executedPipelines);
     }
 
     /**

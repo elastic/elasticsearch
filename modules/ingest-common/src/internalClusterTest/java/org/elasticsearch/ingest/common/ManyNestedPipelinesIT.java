@@ -114,31 +114,31 @@ public class ManyNestedPipelinesIT extends ESIntegTestCase {
     private void createChainedPipeline(int number) {
         String pipelineId = "pipeline_" + number;
         String nextPipelineId = "pipeline_" + (number + 1);
-        String pipelineTemplate = "{\n" +
-            "                \"processors\": [\n" +
-            "                    {\n" +
-            "                        \"pipeline\": {\n" +
-            "                            \"name\": \"%s\"\n" +
-            "                        }\n" +
-            "                    }\n" +
-            "                ]\n" +
-            "            }";
+        String pipelineTemplate = "{\n"
+            + "                \"processors\": [\n"
+            + "                    {\n"
+            + "                        \"pipeline\": {\n"
+            + "                            \"name\": \"%s\"\n"
+            + "                        }\n"
+            + "                    }\n"
+            + "                ]\n"
+            + "            }";
         String pipeline = Strings.format(pipelineTemplate, nextPipelineId);
         clusterAdmin().preparePutPipeline(pipelineId, new BytesArray(pipeline), XContentType.JSON).get();
     }
 
     private void createLastPipeline(int number) {
         String pipelineId = "pipeline_" + number;
-        String pipeline = "            {\n" +
-            "                \"processors\": [\n" +
-            "                    {\n" +
-            "                       \"set\": {\n" +
-            "                          \"field\": \"foo\",\n" +
-            "                          \"value\": \"baz\"\n" +
-            "                       }\n" +
-            "                    }\n" +
-            "                ]\n" +
-            "            }";
+        String pipeline = "            {\n"
+            + "                \"processors\": [\n"
+            + "                    {\n"
+            + "                       \"set\": {\n"
+            + "                          \"field\": \"foo\",\n"
+            + "                          \"value\": \"baz\"\n"
+            + "                       }\n"
+            + "                    }\n"
+            + "                ]\n"
+            + "            }";
         clusterAdmin().preparePutPipeline(pipelineId, new BytesArray(pipeline), XContentType.JSON).get();
     }
 }

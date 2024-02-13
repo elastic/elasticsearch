@@ -314,8 +314,13 @@ public class TextEmbeddingInternalService implements InferenceService {
                 INFERENCE_ORIGIN,
                 PutTrainedModelAction.INSTANCE,
                 putRequest,
-                listener.delegateFailure((l, r) -> {
-                    l.onResponse(Boolean.TRUE);
+                ActionListener.wrap(response -> listener.onResponse(Boolean.TRUE), e -> {
+                    if (e instanceof ElasticsearchStatusException esException
+                        && esException.getMessage().contains(PutTrainedModelAction.MODEL_ALREADY_EXISTS_ERROR_MESSAGE_FRAGMENT)) {
+                        listener.onResponse(Boolean.TRUE);
+                    } else {
+                        listener.onFailure(e);
+                    }
                 })
             );
         } else if (model instanceof CustomElandModel elandModel) {
@@ -330,6 +335,33 @@ public class TextEmbeddingInternalService implements InferenceService {
                 )
             );
             return;
+        }
+    }
+
+    @Override
+    public void isModelDownloaded(Model model, ActionListener<Boolean> listener) {
+        ActionListener<GetTrainedModelsAction.Response> getModelsResponseListener = listener.delegateFailure((delegate, response) -> {
+            if (response.getResources().count() < 1) {
+                delegate.onResponse(Boolean.FALSE);
+            } else {
+                delegate.onResponse(Boolean.TRUE);
+            }
+        });
+
+        if (model instanceof TextEmbeddingModel == false) {
+            listener.onFailure(notTextEmbeddingModelException(model));
+        } else if (model.getServiceSettings() instanceof InternalServiceSettings internalServiceSettings) {
+            String modelId = internalServiceSettings.getModelId();
+            GetTrainedModelsAction.Request getRequest = new GetTrainedModelsAction.Request(modelId);
+            executeAsyncWithOrigin(client, INFERENCE_ORIGIN, GetTrainedModelsAction.INSTANCE, getRequest, getModelsResponseListener);
+        } else {
+            listener.onFailure(
+                new IllegalArgumentException(
+                    "Unable to determine supported model for ["
+                        + model.getConfigurations().getInferenceEntityId()
+                        + "] please verify the request and submit a bug report if necessary."
+                )
+            );
         }
     }
 

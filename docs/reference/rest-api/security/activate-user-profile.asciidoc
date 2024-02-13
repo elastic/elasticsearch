@@ -49,6 +49,8 @@ is intended for.
 The user's access token. If you specify the `access_token` grant type, this
 parameter is required. It is not valid with other grant types.
 
+include::client-authentication.asciidoc[]
+
 `grant_type`::
 (Required, string)
 The type of grant.

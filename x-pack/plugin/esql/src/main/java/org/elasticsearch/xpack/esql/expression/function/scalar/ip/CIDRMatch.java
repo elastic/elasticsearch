@@ -12,12 +12,11 @@ import org.elasticsearch.common.network.CIDRUtils;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
-import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
-import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
+import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
@@ -45,7 +44,7 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isStringAndE
  * <p>
  * Example: `| eval cidr="10.0.0.0/8" | where cidr_match(ip_field, "127.0.0.1/30", cidr)`
  */
-public class CIDRMatch extends ScalarFunction implements EvaluatorMapper {
+public class CIDRMatch extends EsqlScalarFunction {
 
     private final Expression ipField;
     private final List<Expression> matches;
@@ -67,6 +66,11 @@ public class CIDRMatch extends ScalarFunction implements EvaluatorMapper {
 
     public List<Expression> matches() {
         return matches;
+    }
+
+    @Override
+    public boolean foldable() {
+        return Expressions.foldable(children());
     }
 
     @Override
@@ -116,11 +120,6 @@ public class CIDRMatch extends ScalarFunction implements EvaluatorMapper {
         }
 
         return resolution;
-    }
-
-    @Override
-    public ScriptTemplate asScript() {
-        throw new UnsupportedOperationException("functions do not support scripting");
     }
 
     @Override

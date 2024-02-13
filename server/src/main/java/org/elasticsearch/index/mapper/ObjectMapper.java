@@ -127,7 +127,7 @@ public class ObjectMapper extends Mapper {
             // of the mapper name. So for a mapper 'foo.bar.baz', we locate 'foo' and then
             // call addDynamic on it with the name 'bar.baz', and next call addDynamic on 'bar' with the name 'baz'.
             else {
-                int firstDotIndex = name.indexOf(".");
+                int firstDotIndex = name.indexOf('.');
                 String immediateChild = name.substring(0, firstDotIndex);
                 String immediateChildFullName = prefix == null ? immediateChild : prefix + "." + immediateChild;
                 ObjectMapper.Builder parentBuilder = findObjectBuilder(immediateChildFullName, context);

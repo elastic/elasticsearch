@@ -107,3 +107,18 @@ bar:long
 57
 ;
 
+dropColumnWithQuotedWildcard#[skip:-8.12.99]
+FROM employees | STATS ROUND(AVG(height * 1.5)), COUNT(*), MIN(salary  * 10) | DROP `MIN(salary  * 10)`
+;
+
+ROUND(AVG(height * 1.5)):d | COUNT(*):l
+3.0                        | 100
+;
+
+dropColumnWithQuotedWildcardBasic#[skip:-8.12.99]
+FROM employees | STATS COUNT(*), MIN(salary  * 10), MAX(languages)| DROP `COUNT(*)`
+;
+
+MIN(salary  * 10):i | MAX(languages):i
+253240              | 5
+;

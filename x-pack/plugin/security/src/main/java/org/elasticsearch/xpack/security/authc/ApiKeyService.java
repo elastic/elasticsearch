@@ -1962,7 +1962,7 @@ public class ApiKeyService {
                         final List<QueryApiKeyResponse.Item> apiKeyItem = Arrays.stream(searchResponse.getHits().getHits())
                             .map(hit -> convertSearchHitToQueryItem(hit, withLimitedBy))
                             .toList();
-                        listener.onResponse(new QueryApiKeyResponse(total, apiKeyItem));
+                        listener.onResponse(new QueryApiKeyResponse(total, apiKeyItem, searchResponse.getAggregations()));
                     }, listener::onFailure)
                 )
             );

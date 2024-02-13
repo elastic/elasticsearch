@@ -53,7 +53,7 @@ import org.elasticsearch.xpack.ml.inference.pytorch.process.PyTorchProcessFactor
 import org.elasticsearch.xpack.ml.inference.pytorch.process.PyTorchResultProcessor;
 import org.elasticsearch.xpack.ml.inference.pytorch.process.PyTorchStateStreamer;
 import org.elasticsearch.xpack.ml.inference.pytorch.results.ThreadSettings;
-import org.elasticsearch.xpack.ml.notifications.SystemAuditor;
+import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
 
 import java.io.IOException;
 import java.time.Duration;
@@ -86,7 +86,7 @@ public class DeploymentManager {
     private final ExecutorService executorServiceForDeployment;
     private final ExecutorService executorServiceForProcess;
     private final ThreadPool threadPool;
-    private final SystemAuditor systemAuditor;
+    private final InferenceAuditor inferenceAuditor;
     private final ConcurrentMap<Long, ProcessContext> processContextByAllocation = new ConcurrentHashMap<>();
     private final int maxProcesses;
 
@@ -96,13 +96,13 @@ public class DeploymentManager {
         ThreadPool threadPool,
         PyTorchProcessFactory pyTorchProcessFactory,
         int maxProcesses,
-        SystemAuditor systemAuditor
+        InferenceAuditor inferenceAuditor
     ) {
         this.client = Objects.requireNonNull(client);
         this.xContentRegistry = Objects.requireNonNull(xContentRegistry);
         this.pyTorchProcessFactory = Objects.requireNonNull(pyTorchProcessFactory);
         this.threadPool = Objects.requireNonNull(threadPool);
-        this.systemAuditor = Objects.requireNonNull(systemAuditor);
+        this.inferenceAuditor = Objects.requireNonNull(inferenceAuditor);
         this.executorServiceForDeployment = threadPool.executor(UTILITY_THREAD_POOL_NAME);
         this.executorServiceForProcess = threadPool.executor(MachineLearning.NATIVE_INFERENCE_COMMS_THREAD_POOL_NAME);
         this.maxProcesses = maxProcesses;
@@ -527,7 +527,7 @@ public class DeploymentManager {
                     task,
                     executorServiceForProcess,
                     () -> resultProcessor.awaitCompletion(COMPLETION_TIMEOUT.getMinutes(), TimeUnit.MINUTES),
-                    onProcessCrashHandleRestarts(startsCount)
+                    onProcessCrashHandleRestarts(startsCount, task.getDeploymentId())
                 )
             );
             startTime = Instant.now();
@@ -550,20 +550,18 @@ public class DeploymentManager {
             }
         }
 
-        private Consumer<String> onProcessCrashHandleRestarts(AtomicInteger startsCount) {
+        private Consumer<String> onProcessCrashHandleRestarts(AtomicInteger startsCount, String deploymentId) {
             return (reason) -> {
                 if (isThisProcessOlderThan1Day()) {
                     startsCount.set(1);
                     {
-                        String logAndAuditMessage = "["
+                        String logMessage = "["
                             + task.getDeploymentId()
                             + "] inference process crashed due to reason ["
                             + reason
                             + "]. This process was started more than 24 hours ago; "
                             + "the starts count is reset to 1.";
-                        logger.error(logAndAuditMessage);
-                        threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
-                            .execute(() -> systemAuditor.error(logAndAuditMessage));
+                        logger.error(logMessage);
                     }
                 } else {
                     logger.error("[{}] inference process crashed due to reason [{}]", task.getDeploymentId(), reason);
@@ -580,11 +578,12 @@ public class DeploymentManager {
                             + task.getDeploymentId()
                             + "] failed due to ["
                             + reason
-                            + "] restarting inference process after ["
+                            + "]. This is the ["
                             + startsCount.get()
-                            + "] starts";
+                            + "] failure in 24 hours, and the process will be restarted.";
                         logger.info(logAndAuditMessage);
-                        threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> systemAuditor.info(logAndAuditMessage));
+                        threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
+                            .execute(() -> inferenceAuditor.warning(deploymentId, logAndAuditMessage));
                     }
                     priorityProcessWorker.shutdownNow(); // TODO what to do with these tasks?
                     ActionListener<TrainedModelDeploymentTask> errorListener = ActionListener.wrap((trainedModelDeploymentTask -> {
@@ -592,13 +591,14 @@ public class DeploymentManager {
                     }),
                         (e) -> finishClosingProcess(
                             startsCount,
-                            "Failed to restart inference process because of error [" + e.getMessage() + "]"
+                            "Failed to restart inference process because of error [" + e.getMessage() + "]",
+                            deploymentId
                         )
                     );
 
                     startDeployment(task, startsCount.incrementAndGet(), errorListener);
                 } else {
-                    finishClosingProcess(startsCount, reason);
+                    finishClosingProcess(startsCount, reason, deploymentId);
                 }
             };
         }
@@ -607,14 +607,15 @@ public class DeploymentManager {
             return startTime.isBefore(Instant.now().minus(Duration.ofDays(1)));
         }
 
-        private void finishClosingProcess(AtomicInteger startsCount, String reason) {
+        private void finishClosingProcess(AtomicInteger startsCount, String reason, String deploymentId) {
             String logAndAuditMessage = "["
                 + task.getDeploymentId()
                 + "] inference process failed after ["
                 + startsCount.get()
-                + "] starts, not restarting again.";
+                + "] starts in 24 hours, not restarting again.";
             logger.warn(logAndAuditMessage);
-            threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> systemAuditor.error(logAndAuditMessage));
+            threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
+                .execute(() -> inferenceAuditor.error(deploymentId, logAndAuditMessage));
             priorityProcessWorker.shutdownNowWithError(new IllegalStateException(reason));
             if (nlpTaskProcessor.get() != null) {
                 nlpTaskProcessor.get().close();

@@ -1157,7 +1157,7 @@ public class MachineLearning extends Plugin
                 threadPool,
                 pyTorchProcessFactory,
                 getMaxModelDeploymentsPerNode(),
-                systemAuditor
+                inferenceAuditor
             )
         );
 

@@ -772,10 +772,9 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      * access method.
      */
     private boolean isIndexManagedByDataStreamLifecycle(IndexMetadata indexMetadata) {
-        boolean preferIlm = PREFER_ILM_SETTING.get(indexMetadata.getSettings());
         if (indexMetadata.getLifecyclePolicyName() != null && lifecycle != null && lifecycle.isEnabled()) {
             // when both ILM and data stream lifecycle are configured, choose depending on the configured preference for this backing index
-            return preferIlm == false;
+            return PREFER_ILM_SETTING.get(indexMetadata.getSettings()) == false;
         }
         return lifecycle != null && lifecycle.isEnabled();
     }

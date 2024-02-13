@@ -262,7 +262,7 @@ public class TSDBPassthroughIndexingIT extends ESSingleNodeTestCase {
             .indices()
             .prepareResizeIndex(sourceIndex, shrunkenTarget)
             .setResizeType(ResizeType.SHRINK)
-            .setSettings(indexSettings(1, 0).build())
+            .setSettings(indexSettings(2, 0).build())
             .get();
         assertThat(shrinkIndexResponse.isAcknowledged(), is(true));
         assertThat(shrinkIndexResponse.index(), equalTo(shrunkenTarget));

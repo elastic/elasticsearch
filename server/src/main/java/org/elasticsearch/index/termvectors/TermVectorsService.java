@@ -314,7 +314,7 @@ public class TermVectorsService {
         );
         DocumentParser documentParser = indexShard.mapperService().documentParser();
         MappingLookup mappingLookup = indexShard.mapperService().mappingLookup();
-        ParsedDocument parsedDocument = documentParser.parseDocument(source, mappingLookup);
+        ParsedDocument parsedDocument = documentParser.parseDocument(source, mappingLookup, indexShard.shardId().id());
         // select the right fields and generate term vectors
         LuceneDocument doc = parsedDocument.rootDoc();
         Set<String> seenFields = new HashSet<>();

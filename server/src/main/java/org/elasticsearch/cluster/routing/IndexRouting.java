@@ -59,7 +59,7 @@ public abstract class IndexRouting {
     }
 
     protected final String indexName;
-    private final int routingNumShards;
+    protected final int routingNumShards;
     private final int routingFactor;
 
     private IndexRouting(IndexMetadata metadata) {
@@ -248,10 +248,6 @@ public abstract class IndexRouting {
             this.parserConfig = XContentParserConfiguration.EMPTY.withFiltering(Set.copyOf(routingPaths), null, true);
         }
 
-        public boolean matchesField(String fieldName) {
-            return isRoutingPath.test(fieldName);
-        }
-
         @Override
         public void process(IndexRequest indexRequest) {}
 
@@ -408,7 +404,8 @@ public abstract class IndexRouting {
             if (idBytes.length < 4) {
                 throw new ResourceNotFoundException("invalid id [{}] for index [{}] in time series mode", id, indexName);
             }
-            return hashToShardId(ByteUtils.readIntLE(idBytes, 0));
+            int shardId = ByteUtils.readIntLE(idBytes, 0);
+            return Math.floorMod(shardId, routingNumShards);
         }
 
         @Override

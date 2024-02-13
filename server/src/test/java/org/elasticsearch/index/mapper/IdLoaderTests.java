@@ -47,9 +47,7 @@ import static org.hamcrest.Matchers.hasSize;
 public class IdLoaderTests extends ESTestCase {
 
     public void testSynthesizeIdSimple() throws Exception {
-        var routingPaths = List.of("dim1");
-        var routing = createRouting(routingPaths);
-        var idLoader = IdLoader.createTsIdLoader(routing, routingPaths);
+        var idLoader = IdLoader.createTsIdLoader(7);
 
         long startTime = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2023-01-01T00:00:00Z");
         List<Doc> docs = List.of(
@@ -63,17 +61,17 @@ public class IdLoaderTests extends ESTestCase {
             assertThat(leafReader.numDocs(), equalTo(3));
             var leaf = idLoader.leaf(null, leafReader, new int[] { 0, 1, 2 });
             // NOTE: time series data is ordered by (tsid, timestamp)
-            assertThat(leaf.getId(0), equalTo(expectedId(routing, docs.get(2))));
-            assertThat(leaf.getId(1), equalTo(expectedId(routing, docs.get(0))));
-            assertThat(leaf.getId(2), equalTo(expectedId(routing, docs.get(1))));
+            assertThat(leaf.getId(0), equalTo(expectedId(docs.get(2))));
+            assertThat(leaf.getId(1), equalTo(expectedId(docs.get(0))));
+            assertThat(leaf.getId(2), equalTo(expectedId(docs.get(1))));
         };
-        prepareIndexReader(indexAndForceMerge(routing, docs), verify, false);
+        prepareIndexReader(indexAndForceMerge(docs), verify, false);
     }
 
     public void testSynthesizeIdMultipleSegments() throws Exception {
         var routingPaths = List.of("dim1");
         var routing = createRouting(routingPaths);
-        var idLoader = IdLoader.createTsIdLoader(routing, routingPaths);
+        var idLoader = IdLoader.createTsIdLoader(7);
 
         long startTime = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2023-01-01T00:00:00Z");
         List<Doc> docs1 = List.of(
@@ -96,15 +94,15 @@ public class IdLoaderTests extends ESTestCase {
         );
         CheckedConsumer<IndexWriter, IOException> buildIndex = writer -> {
             for (Doc doc : docs1) {
-                indexDoc(routing, writer, doc);
+                indexDoc(writer, doc);
             }
             writer.flush();
             for (Doc doc : docs2) {
-                indexDoc(routing, writer, doc);
+                indexDoc(writer, doc);
             }
             writer.flush();
             for (Doc doc : docs3) {
-                indexDoc(routing, writer, doc);
+                indexDoc(writer, doc);
             }
             writer.flush();
         };
@@ -115,22 +113,22 @@ public class IdLoaderTests extends ESTestCase {
                 assertThat(leafReader.numDocs(), equalTo(docs1.size()));
                 var leaf = idLoader.leaf(null, leafReader, IntStream.range(0, docs1.size()).toArray());
                 for (int i = 0; i < docs1.size(); i++) {
-                    assertThat(leaf.getId(i), equalTo(expectedId(routing, docs1.get(i))));
+                    assertThat(leaf.getId(i), equalTo(expectedId(docs1.get(i))));
                 }
             }
             {
                 LeafReader leafReader = indexReader.leaves().get(1).reader();
                 assertThat(leafReader.numDocs(), equalTo(docs2.size()));
                 var leaf = idLoader.leaf(null, leafReader, new int[] { 0, 3 });
-                assertThat(leaf.getId(0), equalTo(expectedId(routing, docs2.get(0))));
-                assertThat(leaf.getId(3), equalTo(expectedId(routing, docs2.get(3))));
+                assertThat(leaf.getId(0), equalTo(expectedId(docs2.get(0))));
+                assertThat(leaf.getId(3), equalTo(expectedId(docs2.get(3))));
             }
             {
                 LeafReader leafReader = indexReader.leaves().get(2).reader();
                 assertThat(leafReader.numDocs(), equalTo(docs3.size()));
                 var leaf = idLoader.leaf(null, leafReader, new int[] { 1, 2 });
-                assertThat(leaf.getId(1), equalTo(expectedId(routing, docs3.get(1))));
-                assertThat(leaf.getId(2), equalTo(expectedId(routing, docs3.get(2))));
+                assertThat(leaf.getId(1), equalTo(expectedId(docs3.get(1))));
+                assertThat(leaf.getId(2), equalTo(expectedId(docs3.get(2))));
             }
             {
                 LeafReader leafReader = indexReader.leaves().get(2).reader();
@@ -145,13 +143,14 @@ public class IdLoaderTests extends ESTestCase {
     public void testSynthesizeIdRandom() throws Exception {
         var routingPaths = List.of("dim1");
         var routing = createRouting(routingPaths);
-        var idLoader = IdLoader.createTsIdLoader(routing, routingPaths);
+        var idLoader = IdLoader.createTsIdLoader(7);
 
         long startTime = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2023-01-01T00:00:00Z");
         Set<String> expectedIDs = new HashSet<>();
         List<Doc> randomDocs = new ArrayList<>();
         int numberOfTimeSeries = randomIntBetween(8, 64);
         for (int i = 0; i < numberOfTimeSeries; i++) {
+            long routingId = 0;
             int numberOfDimensions = randomIntBetween(1, 6);
             List<Dimension> dimensions = new ArrayList<>(numberOfDimensions);
             for (int j = 1; j <= numberOfDimensions; j++) {
@@ -163,12 +162,13 @@ public class IdLoaderTests extends ESTestCase {
                     value = randomAlphaOfLength(4);
                 }
                 dimensions.add(new Dimension(fieldName, value));
+                routingId = value.hashCode();
             }
             int numberOfSamples = randomIntBetween(1, 16);
             for (int j = 0; j < numberOfSamples; j++) {
                 Doc doc = new Doc(startTime++, dimensions);
                 randomDocs.add(doc);
-                expectedIDs.add(expectedId(routing, doc));
+                expectedIDs.add(expectedId(doc));
             }
         }
         CheckedConsumer<IndexReader, IOException> verify = indexReader -> {
@@ -181,14 +181,14 @@ public class IdLoaderTests extends ESTestCase {
                 assertTrue("docId=" + i + " id=" + actualId, expectedIDs.remove(actualId));
             }
         };
-        prepareIndexReader(indexAndForceMerge(routing, randomDocs), verify, false);
+        prepareIndexReader(indexAndForceMerge(randomDocs), verify, false);
         assertThat(expectedIDs, empty());
     }
 
-    private static CheckedConsumer<IndexWriter, IOException> indexAndForceMerge(IndexRouting.ExtractFromSource routing, List<Doc> docs) {
+    private static CheckedConsumer<IndexWriter, IOException> indexAndForceMerge(List<Doc> docs) {
         return writer -> {
             for (Doc doc : docs) {
-                indexDoc(routing, writer, doc);
+                indexDoc(writer, doc);
             }
             writer.forceMerge(1);
         };
@@ -220,8 +220,8 @@ public class IdLoaderTests extends ESTestCase {
         }
     }
 
-    private static void indexDoc(IndexRouting.ExtractFromSource routing, IndexWriter iw, Doc doc) throws IOException {
-        final TimeSeriesIdFieldMapper.TimeSeriesIdBuilder builder = new TimeSeriesIdFieldMapper.TimeSeriesIdBuilder(routing.builder());
+    private static void indexDoc(IndexWriter iw, Doc doc) throws IOException {
+        final TimeSeriesIdFieldMapper.TimeSeriesIdBuilder builder = new TimeSeriesIdFieldMapper.TimeSeriesIdBuilder();
 
         final List<IndexableField> fields = new ArrayList<>();
         fields.add(new SortedNumericDocValuesField(DataStreamTimestampFieldMapper.DEFAULT_PATH, doc.timestamp));
@@ -240,9 +240,8 @@ public class IdLoaderTests extends ESTestCase {
         iw.addDocument(fields);
     }
 
-    private static String expectedId(IndexRouting.ExtractFromSource routing, Doc doc) throws IOException {
-        var routingBuilder = routing.builder();
-        var timeSeriesIdBuilder = new TimeSeriesIdFieldMapper.TimeSeriesIdBuilder(routingBuilder);
+    private static String expectedId(Doc doc) throws IOException {
+        var timeSeriesIdBuilder = new TimeSeriesIdFieldMapper.TimeSeriesIdBuilder();
         for (Dimension dimension : doc.dimensions) {
             if (dimension.value instanceof Number n) {
                 timeSeriesIdBuilder.addLong(dimension.field, n.longValue());
@@ -250,13 +249,7 @@ public class IdLoaderTests extends ESTestCase {
                 timeSeriesIdBuilder.addString(dimension.field, dimension.value.toString());
             }
         }
-        return TsidExtractingIdFieldMapper.createId(
-            false,
-            routingBuilder,
-            timeSeriesIdBuilder.buildTsidHash().toBytesRef(),
-            doc.timestamp,
-            new byte[16]
-        );
+        return TsidExtractingIdFieldMapper.createId(7, timeSeriesIdBuilder.buildTsidHash().toBytesRef(), doc.timestamp);
     }
 
     private static IndexRouting.ExtractFromSource createRouting(List<String> routingPaths) {

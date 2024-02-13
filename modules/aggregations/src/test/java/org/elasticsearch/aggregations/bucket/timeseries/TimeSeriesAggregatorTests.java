@@ -92,7 +92,7 @@ public class TimeSeriesAggregatorTests extends AggregationTestCase {
         final List<IndexableField> fields = new ArrayList<>();
         fields.add(new SortedNumericDocValuesField(DataStreamTimestampFieldMapper.DEFAULT_PATH, timestamp));
         fields.add(new LongPoint(DataStreamTimestampFieldMapper.DEFAULT_PATH, timestamp));
-        final TimeSeriesIdBuilder builder = new TimeSeriesIdBuilder(null);
+        final TimeSeriesIdBuilder builder = new TimeSeriesIdBuilder();
         for (int i = 0; i < dimensions.length; i += 2) {
             if (dimensions[i + 1] instanceof Number n) {
                 builder.addLong(dimensions[i].toString(), n.longValue());

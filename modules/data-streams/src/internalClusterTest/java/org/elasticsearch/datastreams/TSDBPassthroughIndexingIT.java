@@ -46,6 +46,17 @@ public class TSDBPassthroughIndexingIT extends ESSingleNodeTestCase {
     public static final String MAPPING_TEMPLATE = """
         {
           "_doc":{
+            "dynamic_templates": [
+                {
+                  "strings_as_ip": {
+                    "match_mapping_type": "string",
+                    "match": "*ip",
+                    "mapping": {
+                      "type": "ip"
+                    }
+                  }
+                }
+            ],
             "properties": {
               "@timestamp" : {
                 "type": "date"
@@ -80,6 +91,7 @@ public class TSDBPassthroughIndexingIT extends ESSingleNodeTestCase {
             "@timestamp": "$time",
             "attributes": {
                 "metricset": "pod",
+                "number": $number,
                 "pod": {
                     "name": "$name",
                     "uid": "$uid",
@@ -134,6 +146,7 @@ public class TSDBPassthroughIndexingIT extends ESSingleNodeTestCase {
                 DOC.replace("$time", formatInstant(time))
                     .replace("$uid", randomUUID())
                     .replace("$name", randomAlphaOfLength(4))
+                    .replace("$number", Long.toString(randomLong()))
                     .replace("$ip", InetAddresses.toAddrString(randomIp(randomBoolean()))),
                 XContentType.JSON
             );
@@ -165,13 +178,18 @@ public class TSDBPassthroughIndexingIT extends ESSingleNodeTestCase {
         );
         @SuppressWarnings("unchecked")
         var attributes = (Map<String, Map<?, ?>>) ObjectPath.eval("properties.attributes.properties", mapping);
-        assertMap(attributes.get("pod.ip"), matchesMap().entry("type", "keyword").entry("time_series_dimension", true));
+        assertMap(attributes.get("number"), matchesMap().entry("type", "long").entry("time_series_dimension", true));
+        assertMap(attributes.get("pod.ip"), matchesMap().entry("type", "ip").entry("time_series_dimension", true));
         assertMap(attributes.get("pod.uid"), matchesMap().entry("type", "keyword").entry("time_series_dimension", true));
         assertMap(attributes.get("pod.name"), matchesMap().entry("type", "keyword").entry("time_series_dimension", true));
         // alias field mappers:
         assertMap(
             ObjectPath.eval("properties.metricset", mapping),
             matchesMap().entry("type", "alias").entry("path", "attributes.metricset")
+        );
+        assertMap(
+            ObjectPath.eval("properties.number", mapping),
+            matchesMap().entry("type", "alias").entry("path", "attributes.number")
         );
         assertMap(
             ObjectPath.eval("properties.pod.properties", mapping),

@@ -157,7 +157,7 @@ public class TimeSeriesAggregator extends BucketsAggregator {
                     return;
                 }
 
-                TimeSeriesIdFieldMapper.TimeSeriesIdBuilder tsidBuilder = new TimeSeriesIdFieldMapper.TimeSeriesIdBuilder(null);
+                TimeSeriesIdFieldMapper.TimeSeriesIdBuilder tsidBuilder = new TimeSeriesIdFieldMapper.TimeSeriesIdBuilder();
                 for (TsidConsumer consumer : dimensionConsumers.values()) {
                     consumer.accept(doc, tsidBuilder);
                 }

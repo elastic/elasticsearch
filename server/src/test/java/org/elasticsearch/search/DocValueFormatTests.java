@@ -374,7 +374,7 @@ public class DocValueFormatTests extends ESTestCase {
     }
 
     public void testParseTsid() throws IOException {
-        TimeSeriesIdBuilder timeSeriesIdBuilder = new TimeSeriesIdBuilder(null);
+        TimeSeriesIdBuilder timeSeriesIdBuilder = new TimeSeriesIdBuilder();
         timeSeriesIdBuilder.addString("string", randomAlphaOfLength(10));
         timeSeriesIdBuilder.addLong("long", randomLong());
         timeSeriesIdBuilder.addUnsignedLong("ulong", randomLong());

@@ -352,7 +352,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 ParsedDocument doc = mapperService.documentParser()
                     .parseDocument(
                         new SourceToParse("id" + d, BytesReference.bytes(source), XContentType.JSON),
-                        mapperService.mappingLookup()
+                        mapperService.mappingLookup(),
+                        0
                     );
                 writer.addDocuments(doc.docs());
 

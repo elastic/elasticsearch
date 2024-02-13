@@ -74,7 +74,7 @@ public final class DocumentParser {
      * @return the parsed document
      * @throws DocumentParsingException whenever there's a problem parsing the document
      */
-    public ParsedDocument parseDocument(SourceToParse source, MappingLookup mappingLookup) throws DocumentParsingException {
+    public ParsedDocument parseDocument(SourceToParse source, MappingLookup mappingLookup, int shardId) throws DocumentParsingException {
         if (source.source() != null && source.source().length() == 0) {
             throw new DocumentParsingException(new XContentLocation(0, 0), "failed to parse, document is empty");
         }
@@ -90,7 +90,7 @@ public final class DocumentParser {
                 XContentHelper.createParser(parserConfiguration, source.source(), xContentType)
             )
         ) {
-            context = new RootDocumentParserContext(mappingLookup, mappingParserContext, source, parser);
+            context = new RootDocumentParserContext(mappingLookup, mappingParserContext, source, parser, shardId);
             validateStart(context.parser());
             MetadataFieldMapper[] metadataFieldsMappers = mappingLookup.getMapping().getSortedMetadataMappers();
             internalParseDocument(metadataFieldsMappers, context);
@@ -853,14 +853,16 @@ public final class DocumentParser {
             MappingLookup mappingLookup,
             MappingParserContext mappingParserContext,
             SourceToParse source,
-            XContentParser parser
+            XContentParser parser,
+            int shardId
         ) throws IOException {
             super(
                 mappingLookup,
                 mappingParserContext,
                 source,
                 mappingLookup.getMapping().getRoot(),
-                ObjectMapper.Dynamic.getRootDynamic(mappingLookup)
+                ObjectMapper.Dynamic.getRootDynamic(mappingLookup),
+                shardId
             );
             if (mappingLookup.getMapping().getRoot().subobjects()) {
                 this.parser = DotExpandingXContentParser.expandDots(parser, this.path);

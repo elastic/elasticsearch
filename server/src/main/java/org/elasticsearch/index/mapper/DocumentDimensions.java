@@ -42,8 +42,6 @@ public interface DocumentDimensions {
 
     DocumentDimensions addLong(String fieldName, long value);
 
-    DocumentDimensions addDouble(String fieldName, double value);
-
     DocumentDimensions addUnsignedLong(String fieldName, long value);
 
     DocumentDimensions validate(IndexSettings settings);
@@ -75,12 +73,6 @@ public interface DocumentDimensions {
 
         @Override
         public DocumentDimensions addLong(String fieldName, long value) {
-            add(fieldName);
-            return this;
-        }
-
-        @Override
-        public DocumentDimensions addDouble(String fieldName, double value) {
             add(fieldName);
             return this;
         }

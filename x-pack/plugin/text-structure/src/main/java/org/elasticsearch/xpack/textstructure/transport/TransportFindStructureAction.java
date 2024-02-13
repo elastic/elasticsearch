@@ -15,6 +15,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.textstructure.action.FindStructureAction;
+import org.elasticsearch.xpack.core.textstructure.action.FindStructureResponse;
 import org.elasticsearch.xpack.textstructure.structurefinder.TextStructureFinder;
 import org.elasticsearch.xpack.textstructure.structurefinder.TextStructureFinderManager;
 import org.elasticsearch.xpack.textstructure.structurefinder.TextStructureOverrides;
@@ -23,7 +24,7 @@ import java.io.InputStream;
 
 import static org.elasticsearch.threadpool.ThreadPool.Names.GENERIC;
 
-public class TransportFindStructureAction extends HandledTransportAction<FindStructureAction.Request, FindStructureAction.Response> {
+public class TransportFindStructureAction extends HandledTransportAction<FindStructureAction.Request, FindStructureResponse> {
 
     private final ThreadPool threadPool;
 
@@ -40,7 +41,7 @@ public class TransportFindStructureAction extends HandledTransportAction<FindStr
     }
 
     @Override
-    protected void doExecute(Task task, FindStructureAction.Request request, ActionListener<FindStructureAction.Response> listener) {
+    protected void doExecute(Task task, FindStructureAction.Request request, ActionListener<FindStructureResponse> listener) {
 
         // As determining the text structure might take a while, we run
         // in a different thread to avoid blocking the network thread.
@@ -53,7 +54,7 @@ public class TransportFindStructureAction extends HandledTransportAction<FindStr
         });
     }
 
-    private FindStructureAction.Response buildTextStructureResponse(FindStructureAction.Request request) throws Exception {
+    private FindStructureResponse buildTextStructureResponse(FindStructureAction.Request request) throws Exception {
 
         TextStructureFinderManager structureFinderManager = new TextStructureFinderManager(threadPool.scheduler());
 
@@ -66,7 +67,7 @@ public class TransportFindStructureAction extends HandledTransportAction<FindStr
                 request.getTimeout()
             );
 
-            return new FindStructureAction.Response(textStructureFinder.getStructure());
+            return new FindStructureResponse(textStructureFinder.getStructure());
         }
     }
 }

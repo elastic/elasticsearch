@@ -16,13 +16,13 @@ Callbacks can be passed into methods for the method to perhaps complete straight
 complete at some later time, or (most commonly) pass along down into some other method which takes a callback argument, possibly after
 modifying its behaviour slightly by wrapping it in another callback.
 
-`ActionListener` is a general-purpose callback that is used extensively across the Elasticsearch codebase. It's an important feature of the
-Elasticsearch codebase that `ActionListener` is used pretty much everywhere that needs to perform some asynchronous and nonblocking
-computation: the uniformity makes it easier to compose parts of the system together without needing to build adapters to convert back and
-forth between different kinds of callback. It also makes it easier to develop the skills needed to read and understand all the asynchronous
-code, although this definitely takes practice and is certainly not easy in an absolute sense. Finally, it has allowed us to build a rich
-library for working with `ActionListener` instances themselves, creating new instances out of existing ones and completing them in
-interesting ways. See for instance:
+`ActionListener` is a general-purpose callback interface that is used extensively across the Elasticsearch codebase. It's an important
+feature of the Elasticsearch codebase that `ActionListener` is used pretty much everywhere that needs to perform some asynchronous and
+nonblocking computation. The uniformity makes it easier to compose parts of the system together without needing to build adapters to convert
+back and forth between different kinds of callback. It also makes it easier to develop the skills needed to read and understand all the
+asynchronous code, although this definitely takes practice and is certainly not easy in an absolute sense. Finally, it has allowed us to
+build a rich library for working with `ActionListener` instances themselves, creating new instances out of existing ones and completing them
+in interesting ways. See for instance:
 
 - all the static methods on [ActionListener](https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/action/ActionListener.java) itself
 - [`ThreadedActionListener`](https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/action/support/ThreadedActionListener.java) for forking work elsewhere

@@ -190,7 +190,7 @@ ones will be created using the algorithm you have selected.
 
 [discrete]
 [[configuring-es-yml]]
-==== Verify the security provider is installed
+==== Configure {es} elasticsearch.yml
 
 * Set `xpack.security.fips_mode.enabled` to `true` in `elasticsearch.yml`. This setting is used to ensure to configure some internal
 configuration to be FIPS 140-2 compliant and provides some additional verification.

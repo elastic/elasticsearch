@@ -471,12 +471,16 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
                 }
                 if (exec instanceof FieldExtractExec fieldExtractExec) {
                     // Tell the field extractor that it should extract the field from doc-values instead of source values
+                    var attributesToExtract = fieldExtractExec.attributesToExtract();
+                    Set<Attribute> docValuesAttributes = new HashSet<>();
                     for (Attribute found : foundAttributes) {
-                        if (fieldExtractExec.attributesToExtract().contains(found)) {
-                            fieldExtractExec = fieldExtractExec.preferDocValues(found);
+                        if (attributesToExtract.contains(found)) {
+                            docValuesAttributes.add(found);
                         }
                     }
-                    exec = fieldExtractExec;
+                    if (docValuesAttributes.size() > 0) {
+                        exec = new FieldExtractExec(exec.source(), exec.child(), attributesToExtract, docValuesAttributes);
+                    }
                 }
                 return exec;
             });

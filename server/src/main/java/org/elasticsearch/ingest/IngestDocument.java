@@ -93,7 +93,7 @@ public final class IngestDocument {
     }
 
     // note: these rest of these constructors deal with the data-centric view of the IngestDocument, not the execution-centric view.
-    // For example, the copy constructor doesn't populate the `executedPipelines` or `indexHistory` (as well as some other fields),
+    // For example, the copy constructor doesn't populate the `indexHistory` (as well as some other fields),
     // because those fields are execution-centric.
 
     /**
@@ -106,6 +106,13 @@ public final class IngestDocument {
             new IngestCtxMap(deepCopyMap(ensureNoSelfReferences(other.ctxMap.getSource())), other.ctxMap.getMetadata().clone()),
             deepCopyMap(other.ingestMetadata)
         );
+        /*
+         * The executedPipelines field is clearly execution-centric rather than data centric. Despite what the comment above says, we're
+         * copying it here anyway. THe reason is that this constructor is only called from two non-test locations, and both of those
+         * involve the simulate pipeline logic. The simulate pipeline logic needs this information. Rather than making the code more
+         * complicated, we're just copying this over here since it does no harm.
+         */
+        this.executedPipelines.addAll(other.executedPipelines);
     }
 
     /**

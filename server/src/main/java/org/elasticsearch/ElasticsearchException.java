@@ -29,6 +29,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.AutoscalingMissedIndicesUpdateException;
+import org.elasticsearch.indices.FailureIndexException;
 import org.elasticsearch.indices.recovery.RecoveryCommitTooNewException;
 import org.elasticsearch.rest.ApiNotAvailableException;
 import org.elasticsearch.rest.RestStatus;
@@ -1903,6 +1904,12 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             SearchTimeoutException::new,
             176,
             TransportVersions.SEARCH_TIMEOUT_EXCEPTION_ADDED
+        ),
+        FAILURE_INDEX_EXCEPTION(
+            FailureIndexException.class,
+            FailureIndexException::new,
+            177,
+            TransportVersions.ADD_FAILURE_STORE_INDICES_OPTIONS
         );
 
         final Class<? extends ElasticsearchException> exceptionClass;

@@ -88,7 +88,7 @@ public record TimeSeriesSortedSourceOperatorFactory(int limit, int maxPageSize, 
         private IntVector.Builder segmentsBuilder;
         private LongVector.Builder timestampIntervalBuilder;
         // TODO: handle when a time series spans across backing indices
-        // In that case we need to bytes representation of the
+        // In that case we need to bytes representation of the tsid
         private IntVector.Builder tsOrdBuilder;
         private TimeSeriesIterator iterator;
 
@@ -145,12 +145,14 @@ public record TimeSeriesSortedSourceOperatorFactory(int limit, int maxPageSize, 
                 }
                 iterator.consume();
                 shard = blockFactory.newConstantIntBlockWith(iterator.slice.shardContext().index(), currentPagePos);
-                boolean singleSegmentNonDecreasing = false;
+                boolean singleSegmentNonDecreasing;
                 if (iterator.slice.numLeaves() == 1) {
                     singleSegmentNonDecreasing = true;
                     int segmentOrd = iterator.slice.getLeaf(0).leafReaderContext().ord;
                     leaf = blockFactory.newConstantIntBlockWith(segmentOrd, currentPagePos).asVector();
                 } else {
+                    // Due to the multi segment nature of time series source operator singleSegmentNonDecreasing must be false
+                    singleSegmentNonDecreasing = false;
                     leaf = segmentsBuilder.build();
                     segmentsBuilder = blockFactory.newIntVectorBuilder(Math.min(remainingDocs, maxPageSize));
                 }
@@ -162,7 +164,6 @@ public record TimeSeriesSortedSourceOperatorFactory(int limit, int maxPageSize, 
                 tsids = tsOrdBuilder.build();
                 tsOrdBuilder = blockFactory.newIntVectorBuilder(Math.min(remainingDocs, maxPageSize));
 
-                // Due to the multi segment nature of time series source operator singleSegmentNonDecreasing must be false
                 page = new Page(
                     currentPagePos,
                     new DocVector(shard.asVector(), leaf, docs, singleSegmentNonDecreasing).asBlock(),

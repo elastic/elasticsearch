@@ -1,5 +1,5 @@
 pr: 105391
-summary: Move `MlConfigVersion.getMinMlConfigVersion` call under try-catch block
+summary: Catch all the potential exceptions in the ingest processor code
 area: Machine Learning
 type: bug
 issues: []

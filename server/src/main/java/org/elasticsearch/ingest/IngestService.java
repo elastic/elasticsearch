@@ -60,7 +60,8 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.node.ReportingService;
 import org.elasticsearch.plugins.IngestPlugin;
-import org.elasticsearch.plugins.internal.DocumentParsingObserver;
+import org.elasticsearch.plugins.internal.DocumentParsingProvider;
+import org.elasticsearch.plugins.internal.DocumentSizeObserver;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -87,7 +88,6 @@ import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.IntConsumer;
 import java.util.function.Predicate;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
@@ -106,7 +106,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     private final MasterServiceTaskQueue<PipelineClusterStateUpdateTask> taskQueue;
     private final ClusterService clusterService;
     private final ScriptService scriptService;
-    private final Supplier<DocumentParsingObserver> documentParsingObserverSupplier;
+    private final DocumentParsingProvider documentParsingProvider;
     private final Map<String, Processor.Factory> processorFactories;
     // Ideally this should be in IngestMetadata class, but we don't have the processor factories around there.
     // We know of all the processor factories when a node with all its plugin have been initialized. Also some
@@ -183,11 +183,11 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         List<IngestPlugin> ingestPlugins,
         Client client,
         MatcherWatchdog matcherWatchdog,
-        Supplier<DocumentParsingObserver> documentParsingObserverSupplier
+        DocumentParsingProvider documentParsingProvider
     ) {
         this.clusterService = clusterService;
         this.scriptService = scriptService;
-        this.documentParsingObserverSupplier = documentParsingObserverSupplier;
+        this.documentParsingProvider = documentParsingProvider;
         this.processorFactories = processorFactories(
             ingestPlugins,
             new Processor.Parameters(
@@ -215,7 +215,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     IngestService(IngestService ingestService) {
         this.clusterService = ingestService.clusterService;
         this.scriptService = ingestService.scriptService;
-        this.documentParsingObserverSupplier = ingestService.documentParsingObserverSupplier;
+        this.documentParsingProvider = ingestService.documentParsingProvider;
         this.processorFactories = ingestService.processorFactories;
         this.threadPool = ingestService.threadPool;
         this.taskQueue = ingestService.taskQueue;
@@ -740,8 +740,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                         totalMetrics.preIngest();
                         final int slot = i;
                         final Releasable ref = refs.acquire();
-                        DocumentParsingObserver documentParsingObserver = documentParsingObserverSupplier.get();
-                        final IngestDocument ingestDocument = newIngestDocument(indexRequest, documentParsingObserver);
+                        final DocumentSizeObserver documentSizeObserver = documentParsingProvider.newDocumentSizeObserver();
+                        final IngestDocument ingestDocument = newIngestDocument(indexRequest, documentSizeObserver);
                         final org.elasticsearch.script.Metadata originalDocumentMetadata = ingestDocument.getMetadata().clone();
                         // the document listener gives us three-way logic: a document can fail processing (1), or it can
                         // be successfully processed. a successfully processed document can be kept (2) or dropped (3).
@@ -779,11 +779,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                         );
 
                         executePipelines(pipelines, indexRequest, ingestDocument, shouldStoreFailure, documentListener);
-                        indexRequest.setPipelinesHaveRun();
-
+                        indexRequest.setNormalisedBytesParsed(documentSizeObserver.normalisedBytesParsed());
                         assert actionRequest.index() != null;
-                        documentParsingObserver.setIndexName(actionRequest.index());
-                        documentParsingObserver.close();
 
                         i++;
                     }
@@ -1080,14 +1077,14 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     /**
      * Builds a new ingest document from the passed-in index request.
      */
-    private static IngestDocument newIngestDocument(final IndexRequest request, DocumentParsingObserver documentParsingObserver) {
+    private static IngestDocument newIngestDocument(final IndexRequest request, DocumentSizeObserver documentSizeObserver) {
         return new IngestDocument(
             request.index(),
             request.id(),
             request.version(),
             request.routing(),
             request.versionType(),
-            request.sourceAsMap(documentParsingObserver)
+            request.sourceAsMap(documentSizeObserver)
         );
     }
 

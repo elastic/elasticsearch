@@ -330,7 +330,7 @@ public class ChangelogEntry {
         final List<String> excludes = List.of("the", "is", "a", "and", "now", "that");
 
         final String[] words = input.toLowerCase(Locale.ROOT)
-            .replaceAll("'", "")
+            .replace("'", "")
             .replaceAll("[^\\w]+", "_")
             .replaceFirst("^_+", "")
             .replaceFirst("_+$", "")

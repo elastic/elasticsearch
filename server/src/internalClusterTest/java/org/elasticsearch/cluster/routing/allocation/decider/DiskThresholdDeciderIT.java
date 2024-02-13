@@ -160,6 +160,7 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
         assertBusyWithDiskUsageRefresh(dataNode0Id, indexName, new ContainsExactlyOneOf<>(shardSizes.getSmallestShardIds()));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105331")
     public void testRestoreSnapshotAllocationDoesNotExceedWatermarkWithMultipleShards() throws Exception {
         internalCluster().startMasterOnlyNode();
         internalCluster().startDataOnlyNode();

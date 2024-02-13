@@ -24,13 +24,12 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
-public class DocumentParsingObserverWithPipelinesIT extends ESIntegTestCase {
+public class DocumentSizeObserverWithPipelinesIT extends ESIntegTestCase {
 
     private static String TEST_INDEX_NAME = "test-index-name";
     // the assertions are done in plugin which is static and will be created by ES server.
@@ -66,32 +65,55 @@ public class DocumentParsingObserverWithPipelinesIT extends ESIntegTestCase {
                 .source(jsonBuilder().startObject().field("test", "I am sam i am").endObject())
         ).actionGet();
         assertTrue(hasWrappedParser);
-        // there are more assertions in a TestDocumentParsingObserver
+        // there are more assertions in a TestDocumentSizeObserver
     }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(TestDocumentParsingObserverPlugin.class, IngestCommonPlugin.class);
+        return List.of(TestDocumentParsingProviderPlugin.class, IngestCommonPlugin.class);
     }
 
-    public static class TestDocumentParsingObserverPlugin extends Plugin implements DocumentParsingObserverPlugin, IngestPlugin {
+    public static class TestDocumentParsingProviderPlugin extends Plugin implements DocumentParsingProviderPlugin, IngestPlugin {
 
-        private static final TestDocumentParsingObserver DOCUMENT_PARSING_OBSERVER = new TestDocumentParsingObserver();
-
-        public TestDocumentParsingObserverPlugin() {}
+        public TestDocumentParsingProviderPlugin() {}
 
         @Override
-        public Supplier<DocumentParsingObserver> getDocumentParsingObserverSupplier() {
+        public DocumentParsingProvider getDocumentParsingSupplier() {
             // returns a static instance, because we want to assert that the wrapping is called only once
-            return () -> DOCUMENT_PARSING_OBSERVER;
-        }
+            return new DocumentParsingProvider() {
+                @Override
+                public DocumentSizeObserver newFixedSizeDocumentObserver(long normalisedBytesParsed) {
+                    return new TestDocumentSizeObserver(normalisedBytesParsed);
+                }
 
+                @Override
+                public DocumentSizeObserver newDocumentSizeObserver() {
+                    return new TestDocumentSizeObserver(0L);
+                }
+
+                @Override
+                public DocumentSizeReporter getDocumentParsingReporter() {
+                    return new TestDocumentSizeReporter();
+                }
+            };
+        }
     }
 
-    public static class TestDocumentParsingObserver implements DocumentParsingObserver {
+    public static class TestDocumentSizeReporter implements DocumentSizeReporter {
+        @Override
+        public void onCompleted(String indexName, long normalizedBytesParsed) {
+            assertThat(indexName, equalTo(TEST_INDEX_NAME));
+            assertThat(normalizedBytesParsed, equalTo(1L));
+        }
+    }
+
+    public static class TestDocumentSizeObserver implements DocumentSizeObserver {
         long mapCounter = 0;
         long wrapperCounter = 0;
-        String indexName;
+
+        public TestDocumentSizeObserver(long mapCounter) {
+            this.mapCounter = mapCounter;
+        }
 
         @Override
         public XContentParser wrapParser(XContentParser xContentParser) {
@@ -108,22 +130,9 @@ public class DocumentParsingObserverWithPipelinesIT extends ESIntegTestCase {
         }
 
         @Override
-        public void setIndexName(String indexName) {
-            this.indexName = indexName;
+        public long normalisedBytesParsed() {
+            return mapCounter;
         }
-
-        @Override
-        public void close() {
-            assertThat(indexName, equalTo(TEST_INDEX_NAME));
-            assertThat(mapCounter, equalTo(1L));
-
-            assertThat(
-                "we only want to use a wrapped counter once, once document is reported it no longer needs to wrap",
-                wrapperCounter,
-                equalTo(1L)
-            );
-        }
-
     }
 
 }

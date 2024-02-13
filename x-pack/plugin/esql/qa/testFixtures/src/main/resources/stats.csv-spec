@@ -1187,3 +1187,11 @@ e:i | l:i
 3   | 2
 4   | 3
 ;
+
+defaultNameWithSpace
+ROW a = 1 | STATS couNt(*) | SORT `couNt(*)`
+;
+
+couNt(*):l
+1
+;

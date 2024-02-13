@@ -167,8 +167,7 @@
             "path_match": [
               "location",
               "*.location"
-            ],
-            "match_mapping_type": ["object", "string"]
+            ]
           }
         },
         {

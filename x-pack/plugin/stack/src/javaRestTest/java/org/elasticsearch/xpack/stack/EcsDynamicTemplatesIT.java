@@ -226,7 +226,6 @@ public class EcsDynamicTemplatesIT extends ESRestTestCase {
         fieldsMap.put("foo.user_agent.original.bar", 123);
         fieldsMap.put("foo.created.bar", 123);
         fieldsMap.put("foo._score.bar", 123);
-        fieldsMap.put("foo.location", 123);
         fieldsMap.put("foo.structured_data", 123);
         indexDocument(indexName, fieldsMap);
 
@@ -240,7 +239,6 @@ public class EcsDynamicTemplatesIT extends ESRestTestCase {
         assertEquals("long", flatFieldMappings.get("foo.user_agent.original.bar"));
         assertEquals("long", flatFieldMappings.get("foo.created.bar"));
         assertEquals("float", flatFieldMappings.get("foo._score.bar"));
-        assertEquals("long", flatFieldMappings.get("foo.location"));
         assertEquals("long", flatFieldMappings.get("foo.structured_data"));
     }
 

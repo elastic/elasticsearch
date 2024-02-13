@@ -346,21 +346,20 @@ public class IndexNameExpressionResolver {
             final IndexAbstraction indexAbstraction = indicesLookup.get(expression);
             assert indexAbstraction != null;
             if (indexAbstraction.getType() == Type.ALIAS && context.isResolveToWriteIndex()) {
+                Index writeIndex = indexAbstraction.getWriteIndex();
+                if (writeIndex == null) {
+                    throw new IllegalArgumentException(
+                        "no write index is defined for alias ["
+                            + indexAbstraction.getName()
+                            + "]."
+                            + " The write index may be explicitly disabled using is_write_index=false or the alias points to multiple"
+                            + " indices without one being designated as a write index"
+                    );
+                }
                 if (indexAbstraction.isDataStreamRelated()) {
-                    // Since this alias is pointing to a data stream it will have a write index
                     DataStream dataStream = indicesLookup.get(indexAbstraction.getWriteIndex().getName()).getParentDataStream();
                     resolveWriteIndexForDataStreams(context, dataStream, concreteIndicesResult);
                 } else {
-                    Index writeIndex = indexAbstraction.getWriteIndex();
-                    if (writeIndex == null) {
-                        throw new IllegalArgumentException(
-                            "no write index is defined for alias ["
-                                + indexAbstraction.getName()
-                                + "]."
-                                + " The write index may be explicitly disabled using is_write_index=false or the alias points to multiple"
-                                + " indices without one being designated as a write index"
-                        );
-                    }
                     if (addIndex(writeIndex, null, context)) {
                         concreteIndicesResult.add(writeIndex);
                     }
@@ -387,18 +386,25 @@ public class IndexNameExpressionResolver {
 
                 if (indexAbstraction.getType() == Type.DATA_STREAM) {
                     resolveIndicesForDataStream(context, (DataStream) indexAbstraction, indicesLookup, concreteIndicesResult);
-                }
-                if (indexAbstraction.getType() == Type.ALIAS && indexAbstraction.isDataStreamRelated()) {
-                    // Since this alias is pointing to a data stream it will have a write index
-                    DataStream dataStream = indicesLookup.get(indexAbstraction.getWriteIndex().getName()).getParentDataStream();
-                    resolveIndicesForDataStream(context, dataStream, indicesLookup, concreteIndicesResult);
-                } else {
-                    for (Index index : indexAbstraction.getIndices()) {
-                        if (shouldTrackConcreteIndex(context, context.getOptions(), indicesLookup.get(index.getName()))) {
-                            concreteIndicesResult.add(index);
+                } else if (indexAbstraction.getType() == Type.ALIAS
+                    && indexAbstraction.isDataStreamRelated()
+                    && DataStream.isFailureStoreEnabled()
+                    && context.getOptions().includeFailureIndices()) {
+                        // Collect the data streams involved
+                        Set<DataStream> aliasDataStreams = new HashSet<>();
+                        for (Index index : indexAbstraction.getIndices()) {
+                            aliasDataStreams.add(indicesLookup.get(index.getName()).getParentDataStream());
+                        }
+                        for (DataStream dataStream : aliasDataStreams) {
+                            resolveIndicesForDataStream(context, dataStream, indicesLookup, concreteIndicesResult);
+                        }
+                    } else {
+                        for (Index index : indexAbstraction.getIndices()) {
+                            if (shouldTrackConcreteIndex(context, context.getOptions(), indicesLookup.get(index.getName()))) {
+                                concreteIndicesResult.add(index);
+                            }
                         }
                     }
-                }
             }
         }
 
@@ -423,9 +429,12 @@ public class IndexNameExpressionResolver {
             }
         }
         if (shouldIncludeFailureIndices(context.getOptions(), dataStream)) {
-            for (Index index : dataStream.getFailureIndices()) {
-                if (shouldTrackConcreteIndex(context, context.getOptions(), indicesLookup.get(index.getName()))) {
-                    concreteIndicesResult.add(index);
+            // We short-circuit here, if failure indices are not allowed and they can be skipped
+            if (context.getOptions().allowFailureIndices() || context.getOptions().ignoreUnavailable() == false) {
+                for (Index index : dataStream.getFailureIndices()) {
+                    if (shouldTrackConcreteIndex(context, context.getOptions(), indicesLookup.get(index.getName()))) {
+                        concreteIndicesResult.add(index);
+                    }
                 }
             }
         }
@@ -565,17 +574,16 @@ public class IndexNameExpressionResolver {
         }
         Index index = indexAbstraction.getIndices().get(0);
         if (DataStream.isFailureStoreEnabled() && context.options.allowFailureIndices() == false) {
-            if (options.ignoreUnavailable()) {
-                return false;
-            } else {
-                DataStream parentDataStream = indexAbstraction.getParentDataStream();
-                if (parentDataStream != null && parentDataStream.isFailureStore()) {
-                    for (Index failureIndex : parentDataStream.getFailureIndices()) {
-                        if (failureIndex.getName().equals(index.getName())) {
+            DataStream parentDataStream = indexAbstraction.getParentDataStream();
+            if (parentDataStream != null && parentDataStream.isFailureStore()) {
+                for (Index failureIndex : parentDataStream.getFailureIndices()) {
+                    if (failureIndex.getName().equals(index.getName())) {
+                        if (options.ignoreUnavailable()) {
+                            return false;
+                        } else {
                             throw new FailureIndexException(index);
                         }
                     }
-                    throw new FailureIndexException(index);
                 }
             }
         }

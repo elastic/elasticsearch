@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.ml.inference.pytorch.PriorityProcessWorkerExecutorService;
 import org.elasticsearch.xpack.ml.inference.pytorch.process.PyTorchProcessFactory;
 import org.elasticsearch.xpack.ml.inference.pytorch.process.PyTorchResultProcessor;
+import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
 import org.elasticsearch.xpack.ml.notifications.SystemAuditor;
 import org.junit.After;
 import org.junit.Before;
@@ -37,7 +38,7 @@ import static org.mockito.Mockito.when;
 public class DeploymentManagerTests extends ESTestCase {
 
     private ThreadPool tp;
-    private SystemAuditor systemAuditor;
+    private InferenceAuditor inferenceAuditor;
 
     @Before
     public void managerSetup() {
@@ -60,7 +61,7 @@ public class DeploymentManagerTests extends ESTestCase {
                 "xpack.ml.native_inference_comms_thread_pool"
             )
         );
-        systemAuditor = mock(SystemAuditor.class);
+        inferenceAuditor = mock(InferenceAuditor.class);
     }
 
     @After
@@ -82,7 +83,7 @@ public class DeploymentManagerTests extends ESTestCase {
             tp,
             mock(PyTorchProcessFactory.class),
             10,
-            systemAuditor
+            inferenceAuditor
         );
 
         PriorityProcessWorkerExecutorService priorityExecutorService = new PriorityProcessWorkerExecutorService(

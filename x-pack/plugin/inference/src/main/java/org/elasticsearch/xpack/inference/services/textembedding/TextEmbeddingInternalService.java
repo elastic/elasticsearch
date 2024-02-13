@@ -352,7 +352,6 @@ public class TextEmbeddingInternalService implements InferenceService {
             listener.onFailure(notTextEmbeddingModelException(model));
         } else if (model.getServiceSettings() instanceof InternalServiceSettings internalServiceSettings) {
             String modelId = internalServiceSettings.getModelId();
-            System.out.println("9909 modelId: " + modelId);
             GetTrainedModelsAction.Request getRequest = new GetTrainedModelsAction.Request(modelId);
             executeAsyncWithOrigin(client, INFERENCE_ORIGIN, GetTrainedModelsAction.INSTANCE, getRequest, getModelsResponseListener);
         } else {

@@ -96,10 +96,11 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             .toList();
         List<ValuesSourceReaderOperator.FieldInfo> fields = new ArrayList<>();
         int docChannel = source.layout.get(sourceAttr.id()).channel();
+        var docValuesAttrs = fieldExtractExec.docValuesAttributes();
         for (Attribute attr : fieldExtractExec.attributesToExtract()) {
             layout.append(attr);
             DataType dataType = attr.dataType();
-            MappedFieldType.FieldExtractPreference fieldExtractPreference = fieldExtractExec.extractPreference(attr);
+            MappedFieldType.FieldExtractPreference fieldExtractPreference = PlannerUtils.extractPreference(docValuesAttrs.contains(attr));
             ElementType elementType = PlannerUtils.toElementType(dataType, fieldExtractPreference);
             String fieldName = attr.name();
             boolean isSupported = EsqlDataTypes.isUnsupported(dataType);

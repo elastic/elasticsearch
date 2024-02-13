@@ -625,6 +625,12 @@ public class RestRequest implements ToXContent.Params, Traceable {
         consumedParams.add(PATH_RESTRICTED);
     }
 
+    @Deprecated()
+    // TODO remove once Serverless is updated
+    public void markResponseRestricted(String restriction) {
+        markPathRestricted(restriction);
+    }
+
     @Override
     public String getSpanId() {
         return "rest-" + getRequestId();

@@ -17,7 +17,6 @@ import org.elasticsearch.action.ingest.SimulatePipelineResponse;
 import org.elasticsearch.action.ingest.SimulateProcessorResult;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.core.Strings;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -27,8 +26,9 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
-import java.util.Map;
+import java.util.Locale;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
@@ -55,9 +55,12 @@ public class ManyNestedPipelinesIT extends ESIntegTestCase {
 
     public void testIngestManyPipelines() {
         String index = "index";
-        DocWriteResponse response = prepareIndex(index).setSource(Map.of("foo", "bar")).setPipeline("pipeline_0").get();
+        DocWriteResponse response = client().prepareIndex(index, "_doc")
+            .setSource(Collections.singletonMap("foo", "bar"))
+            .setPipeline("pipeline_0")
+            .get();
         assertThat(response.getResult(), equalTo(DocWriteResponse.Result.CREATED));
-        GetResponse getREsponse = client().prepareGet(index, response.getId()).get();
+        GetResponse getREsponse = client().prepareGet(index, "_doc", response.getId()).get();
         assertThat(getREsponse.getSource().get("foo"), equalTo("baz"));
     }
 
@@ -123,7 +126,7 @@ public class ManyNestedPipelinesIT extends ESIntegTestCase {
             + "                    }\n"
             + "                ]\n"
             + "            }";
-        String pipeline = Strings.format(pipelineTemplate, nextPipelineId);
+        String pipeline = String.format(Locale.ROOT, pipelineTemplate, nextPipelineId);
         clusterAdmin().preparePutPipeline(pipelineId, new BytesArray(pipeline), XContentType.JSON).get();
     }
 

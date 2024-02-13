@@ -1,0 +1,5 @@
+pr: 105283
+summary: "Replace NodesInfoMetrics.Metric.allMetrics() with immutable ALL_METRICS"
+area: Data streams
+type: enhancement
+issues: [ ]

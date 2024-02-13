@@ -51,7 +51,8 @@ public class RestRequest implements ToXContent.Params, Traceable {
     @Deprecated()
     // TODO remove once Serverless is updated
     public static final String RESPONSE_RESTRICTED = "responseRestricted";
-    public static final String PATH_RESTRICTED = "pathRestricted";
+    // TODO rename to `pathRestricted` once Serverless is updated
+    public static final String PATH_RESTRICTED = "responseRestricted";
     // tchar pattern as defined by RFC7230 section 3.2.6
     private static final Pattern TCHAR_PATTERN = Pattern.compile("[a-zA-Z0-9!#$%&'*+\\-.\\^_`|~]+");
 

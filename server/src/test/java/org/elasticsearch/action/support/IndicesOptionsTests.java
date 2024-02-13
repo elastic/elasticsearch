@@ -10,7 +10,7 @@ package org.elasticsearch.action.support;
 
 import org.elasticsearch.action.support.IndicesOptions.ConcreteTargetOptions;
 import org.elasticsearch.action.support.IndicesOptions.FailureStoreOptions;
-import org.elasticsearch.action.support.IndicesOptions.GeneralOptions;
+import org.elasticsearch.action.support.IndicesOptions.GatekeeperOptions;
 import org.elasticsearch.action.support.IndicesOptions.WildcardOptions;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -51,7 +51,7 @@ public class IndicesOptionsTests extends ESTestCase {
                         .resolveAliases(randomBoolean())
                 )
                 .generalOptions(
-                    GeneralOptions.builder()
+                    GatekeeperOptions.builder()
                         .ignoreThrottled(randomBoolean())
                         .allowAliasToMultipleIndices(randomBoolean())
                         .allowClosedIndices(randomBoolean())
@@ -343,10 +343,10 @@ public class IndicesOptionsTests extends ESTestCase {
             randomBoolean(),
             randomBoolean()
         );
-        GeneralOptions generalOptions = new GeneralOptions(randomBoolean(), randomBoolean(), randomBoolean());
+        GatekeeperOptions gatekeeperOptions = new GatekeeperOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
         FailureStoreOptions failureStoreOptions = new IndicesOptions.FailureStoreOptions(randomBoolean(), randomBoolean());
 
-        IndicesOptions indicesOptions = new IndicesOptions(concreteTargetOptions, wildcardOptions, generalOptions, failureStoreOptions);
+        IndicesOptions indicesOptions = new IndicesOptions(concreteTargetOptions, wildcardOptions, gatekeeperOptions, failureStoreOptions);
 
         XContentType type = randomFrom(XContentType.values());
         BytesReference xContentBytes = toXContentBytes(indicesOptions, type);
@@ -360,7 +360,7 @@ public class IndicesOptionsTests extends ESTestCase {
         assertThat(((List<?>) map.get("expand_wildcards")).contains("hidden"), equalTo(wildcardOptions.includeHidden()));
         assertThat(map.get("ignore_unavailable"), equalTo(concreteTargetOptions.allowUnavailableTargets()));
         assertThat(map.get("allow_no_indices"), equalTo(wildcardOptions.allowEmptyExpressions()));
-        assertThat(map.get("ignore_throttled"), equalTo(generalOptions.ignoreThrottled()));
+        assertThat(map.get("ignore_throttled"), equalTo(gatekeeperOptions.ignoreThrottled()));
         assertThat(map.get("failure_store"), equalTo(failureStoreOptions.displayValue()));
     }
 

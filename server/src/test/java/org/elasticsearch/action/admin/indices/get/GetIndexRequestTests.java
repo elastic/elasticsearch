@@ -80,7 +80,7 @@ public class GetIndexRequestTests extends ESTestCase {
             equalTo(IndicesOptions.strictExpandOpen().concreteTargetOptions())
         );
         assertThat(getIndexRequest.indicesOptions().wildcardOptions(), equalTo(IndicesOptions.strictExpandOpen().wildcardOptions()));
-        assertThat(getIndexRequest.indicesOptions().generalOptions(), equalTo(IndicesOptions.strictExpandOpen().generalOptions()));
+        assertThat(getIndexRequest.indicesOptions().gatekeeperOptions(), equalTo(IndicesOptions.strictExpandOpen().gatekeeperOptions()));
         assertThat(
             getIndexRequest.indicesOptions().failureStoreOptions(),
             equalTo(IndicesOptions.FailureStoreOptions.builder().includeBackingIndices(true).includeFailureIndices(true).build())

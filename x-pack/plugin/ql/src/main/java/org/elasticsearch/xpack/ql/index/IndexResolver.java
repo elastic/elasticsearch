@@ -125,7 +125,7 @@ public class IndexResolver {
                 .resolveAliases(false)
         )
         .generalOptions(
-            IndicesOptions.GeneralOptions.builder().ignoreThrottled(true).allowClosedIndices(true).allowAliasToMultipleIndices(true)
+            IndicesOptions.GatekeeperOptions.builder().ignoreThrottled(true).allowClosedIndices(true).allowAliasToMultipleIndices(true)
         )
         .build();
     private static final IndicesOptions FROZEN_INDICES_OPTIONS = IndicesOptions.builder()
@@ -139,7 +139,7 @@ public class IndexResolver {
                 .resolveAliases(false)
         )
         .generalOptions(
-            IndicesOptions.GeneralOptions.builder().ignoreThrottled(false).allowClosedIndices(true).allowAliasToMultipleIndices(true)
+            IndicesOptions.GatekeeperOptions.builder().ignoreThrottled(false).allowClosedIndices(true).allowAliasToMultipleIndices(true)
         )
         .build();
 
@@ -154,7 +154,7 @@ public class IndexResolver {
                 .resolveAliases(true)
         )
         .generalOptions(
-            IndicesOptions.GeneralOptions.builder().ignoreThrottled(true).allowClosedIndices(true).allowAliasToMultipleIndices(true)
+            IndicesOptions.GatekeeperOptions.builder().ignoreThrottled(true).allowClosedIndices(true).allowAliasToMultipleIndices(true)
         )
         .build();
     public static final IndicesOptions FIELD_CAPS_FROZEN_INDICES_OPTIONS = IndicesOptions.builder()
@@ -168,7 +168,7 @@ public class IndexResolver {
                 .resolveAliases(true)
         )
         .generalOptions(
-            IndicesOptions.GeneralOptions.builder().ignoreThrottled(false).allowClosedIndices(true).allowAliasToMultipleIndices(true)
+            IndicesOptions.GatekeeperOptions.builder().ignoreThrottled(false).allowClosedIndices(true).allowAliasToMultipleIndices(true)
         )
         .build();
 

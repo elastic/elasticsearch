@@ -76,7 +76,7 @@ generates a consistent id:
         body:
           - '{"index": {}}'
           - '{"@timestamp": "2021-04-28T18:52:04.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2001818691, "rx": 802133794}}}}'
-  - match: {items.0.index._id: cZZNs7B9sSWsyrL5AAABeRnS7fM}
+  - match: {items.0.index._id: AQAAALB9sSWsyrL5AAABeRnS7fM}
 
   - do:
       bulk:
@@ -85,7 +85,7 @@ generates a consistent id:
         body:
           - '{"index": {}}'
           - '{"@timestamp": "2021-04-28T18:52:04.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2001818691, "rx": 802133794}}}}'
-  - match: {items.0.index._id: cZZNs7B9sSWsyrL5AAABeRnS7fM}
+  - match: {items.0.index._id: AQAAALB9sSWsyrL5AAABeRnS7fM}
 
   - do:
       search:
@@ -97,39 +97,39 @@ generates a consistent id:
 
   - match: {hits.total.value: 9}
 
-  - match: { hits.hits.0._id: cn4excfoxSs_KdA5AAABeRnRFAY }
+  - match: { hits.hits.0._id: AQAAAMfoxSs_KdA5AAABeRnRFAY }
   - match: { hits.hits.0._source.@timestamp: 2021-04-28T18:50:03.142Z }
   - match: { hits.hits.0._source.k8s.pod.uid: df3145b3-0563-4d3b-a0f7-897eb2876ea9 }
 
-  - match: { hits.hits.1._id: cZZNs7B9sSWsyrL5AAABeRnRGTM }
+  - match: { hits.hits.1._id: AQAAALB9sSWsyrL5AAABeRnRGTM }
   - match: { hits.hits.1._source.@timestamp: 2021-04-28T18:50:04.467Z }
   - match: { hits.hits.1._source.k8s.pod.uid: 947e4ced-1786-4e53-9e0c-5c447e959507 }
 
-  - match: { hits.hits.2._id: cn4excfoxSs_KdA5AAABeRnRYiY }
+  - match: { hits.hits.2._id: AQAAAMfoxSs_KdA5AAABeRnRYiY }
   - match: { hits.hits.2._source.@timestamp: 2021-04-28T18:50:23.142Z }
   - match: { hits.hits.2._source.k8s.pod.uid: df3145b3-0563-4d3b-a0f7-897eb2876ea9 }
 
-  - match: { hits.hits.3._id: cZZNs7B9sSWsyrL5AAABeRnRZ1M }
+  - match: { hits.hits.3._id: AQAAALB9sSWsyrL5AAABeRnRZ1M }
   - match: { hits.hits.3._source.@timestamp: 2021-04-28T18:50:24.467Z }
   - match: { hits.hits.3._source.k8s.pod.uid: 947e4ced-1786-4e53-9e0c-5c447e959507 }
 
-  - match: { hits.hits.4._id: cZZNs7B9sSWsyrL5AAABeRnRtXM }
+  - match: { hits.hits.4._id: AQAAALB9sSWsyrL5AAABeRnRtXM }
   - match: { hits.hits.4._source.@timestamp: 2021-04-28T18:50:44.467Z }
   - match: { hits.hits.4._source.k8s.pod.uid: 947e4ced-1786-4e53-9e0c-5c447e959507 }
 
-  - match: { hits.hits.5._id: cn4excfoxSs_KdA5AAABeRnR11Y }
+  - match: { hits.hits.5._id: AQAAAMfoxSs_KdA5AAABeRnR11Y }
   - match: { hits.hits.5._source.@timestamp: 2021-04-28T18:50:53.142Z }
   - match: { hits.hits.5._source.k8s.pod.uid: df3145b3-0563-4d3b-a0f7-897eb2876ea9 }
 
-  - match: { hits.hits.6._id: cn4excfoxSs_KdA5AAABeRnR_mY }
+  - match: { hits.hits.6._id: AQAAAMfoxSs_KdA5AAABeRnR_mY }
   - match: { hits.hits.6._source.@timestamp: 2021-04-28T18:51:03.142Z }
   - match: { hits.hits.6._source.k8s.pod.uid: df3145b3-0563-4d3b-a0f7-897eb2876ea9 }
 
-  - match: { hits.hits.7._id: cZZNs7B9sSWsyrL5AAABeRnSA5M }
+  - match: { hits.hits.7._id: AQAAALB9sSWsyrL5AAABeRnSA5M }
   - match: { hits.hits.7._source.@timestamp: 2021-04-28T18:51:04.467Z }
   - match: { hits.hits.7._source.k8s.pod.uid: 947e4ced-1786-4e53-9e0c-5c447e959507 }
 
-  - match: { hits.hits.8._id: cZZNs7B9sSWsyrL5AAABeRnS7fM }
+  - match: { hits.hits.8._id: AQAAALB9sSWsyrL5AAABeRnS7fM }
   - match: { hits.hits.8._source.@timestamp: 2021-04-28T18:52:04.467Z }
   - match: { hits.hits.8._source.k8s.pod.uid: 947e4ced-1786-4e53-9e0c-5c447e959507 }
 
@@ -170,7 +170,7 @@ index a new document on top of an old one:
               network:
                 tx: 111434595272
                 rx: 430605511
-  - match: {_id: cn4excfoxSs_KdA5AAABeRnR_mY}
+  - match: {_id: AQAAAMfoxSs_KdA5AAABeRnR_mY}
 
   - do:
       search:
@@ -215,7 +215,7 @@ index a new document on top of an old one over bulk:
         body:
           - '{"index": {}}'
           - '{"@timestamp": "2021-04-28T18:51:03.142Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 111434595272, "rx": 430605511}}}}'
-  - match: {items.0.index._id: cn4excfoxSs_KdA5AAABeRnR_mY}
+  - match: {items.0.index._id: AQAAAMfoxSs_KdA5AAABeRnR_mY}
 
   - do:
       search:
@@ -239,7 +239,7 @@ create operation on top of old document fails:
       reason: id generation changed in 8.2
 
   - do:
-      catch: "/\\[cn4excfoxSs_KdA5AAABeRnR_mY\\]\\[.*@2021-04-28T18:51:03.142Z\\]: version conflict, document already exists \\(current version \\[1\\]\\)/"
+      catch: "/\\[AQAAAMfoxSs_KdA5AAABeRnR_mY\\]\\[.*@2021-04-28T18:51:03.142Z\\]: version conflict, document already exists \\(current version \\[1\\]\\)/"
       index:
         refresh: true
         index: test
@@ -268,7 +268,7 @@ create operation on top of old document fails over bulk:
         body:
           - '{"create": {}}'
           - '{"@timestamp": "2021-04-28T18:51:03.142Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 111434595272, "rx": 430605511}}}}'
-  - match: { items.0.create.error.reason: "[cn4excfoxSs_KdA5AAABeRnR_mY][KCjEJ9R_BgO8TRX2QOd6dpQ5ihHD--qoyLTiOy0pmP6_RAIE-e0-dKQ@2021-04-28T18:51:03.142Z]: version conflict, document already exists (current version [1])" }
+  - match: { items.0.create.error.reason: "[AQAAAMfoxSs_KdA5AAABeRnR_mY][KCjEJ9R_BgO8TRX2QOd6dpQ5ihHD--qoyLTiOy0pmP6_RAIE-e0-dKQ@2021-04-28T18:51:03.142Z]: version conflict, document already exists (current version [1])" }
 
 ---
 ids query:
@@ -284,12 +284,12 @@ ids query:
             - field: k8s.pod.network.tx
           query:
             ids:
-              values: ["cn4excfoxSs_KdA5AAABeRnR11Y", "cn4excfoxSs_KdA5AAABeRnR_mY"]
+              values: ["AQAAAMfoxSs_KdA5AAABeRnR11Y", "AQAAAMfoxSs_KdA5AAABeRnR_mY"]
           sort: ["@timestamp"]
   - match: {hits.total.value: 2}
-  - match: {hits.hits.0._id: "cn4excfoxSs_KdA5AAABeRnR11Y"}
+  - match: {hits.hits.0._id: "AQAAAMfoxSs_KdA5AAABeRnR11Y"}
   - match: {hits.hits.0.fields.k8s\.pod\.network\.tx: [1434587694]}
-  - match: {hits.hits.1._id: "cn4excfoxSs_KdA5AAABeRnR_mY" }
+  - match: {hits.hits.1._id: "AQAAAMfoxSs_KdA5AAABeRnR_mY" }
   - match: {hits.hits.1.fields.k8s\.pod\.network\.tx: [1434595272]}
 
 ---
@@ -301,9 +301,9 @@ get:
   - do:
       get:
         index:   test
-        id:      cZZNs7B9sSWsyrL5AAABeRnSA5M
+        id:      AQAAALB9sSWsyrL5AAABeRnSA5M
   - match: {_index: test}
-  - match: {_id: cZZNs7B9sSWsyrL5AAABeRnSA5M}
+  - match: {_id: AQAAALB9sSWsyrL5AAABeRnSA5M}
   - match:
       _source:
         "@timestamp": "2021-04-28T18:51:04.467Z"
@@ -351,7 +351,7 @@ delete:
   - do:
       delete:
         index:   test
-        id:      cn4excfoxSs_KdA5AAABeRnR_mY
+        id:      AQAAAMfoxSs_KdA5AAABeRnR_mY
   - match: {result: deleted}
 
 ---
@@ -391,20 +391,20 @@ delete over _bulk:
       mget:
         index: test
         body:
-          ids: [ cn4excfoxSs_KdA5AAABeRnR_mY, cn4excfoxSs_KdA5AAABeRnR11Y ]
+          ids: [ AQAAAMfoxSs_KdA5AAABeRnR_mY, AQAAAMfoxSs_KdA5AAABeRnR11Y ]
   - match: { docs.0._index: "test" }
-  - match: { docs.0._id: "cn4excfoxSs_KdA5AAABeRnR_mY" }
+  - match: { docs.0._id: "AQAAAMfoxSs_KdA5AAABeRnR_mY" }
   - match: { docs.0.found: true }
   - match: { docs.1._index: "test" }
-  - match: { docs.1._id: "cn4excfoxSs_KdA5AAABeRnR11Y" }
+  - match: { docs.1._id: "AQAAAMfoxSs_KdA5AAABeRnR11Y" }
   - match: { docs.1.found: true }
 
   - do:
       bulk:
         index:   test
         body:
-          - '{"delete": {"_id": "cn4excfoxSs_KdA5AAABeRnR_mY"}}'
-          - '{"delete": {"_id": "cn4excfoxSs_KdA5AAABeRnR11Y"}}'
+          - '{"delete": {"_id": "AQAAAMfoxSs_KdA5AAABeRnR_mY"}}'
+          - '{"delete": {"_id": "AQAAAMfoxSs_KdA5AAABeRnR11Y"}}'
           - '{"delete": {"_id": "not found ++ not found"}}'
   - match: {items.0.delete.result: deleted}
   - match: {items.1.delete.result: deleted}
@@ -454,7 +454,7 @@ routing_path matches deep object:
           - '{"index": {}}'
           - '{"@timestamp": "2021-04-28T18:50:04.467Z", "dim": {"foo": {"bar": {"baz": {"uid": "uid1"}}}}}'
   - match: {items.0.index.result: created}
-  - match: {items.0.index._id: OcEOGchJrjH1fFX8AAABeRnRGTM}
+  - match: {items.0.index._id: AAAAAMhJrjH1fFX8AAABeRnRGTM}
 
 ---
 routing_path matches object:
@@ -495,4 +495,4 @@ routing_path matches object:
           - '{"index": {}}'
           - '{"@timestamp": "2021-04-28T18:50:04.467Z", "dim": {"foo": {"uid": "uid1"}}}'
   - match: {items.0.index.result: created}
-  - match: {items.0.index._id: 8bgiqW9JKwAyp1bZAAABeRnRGTM}
+  - match: {items.0.index._id: AAAAAG9JKwAyp1bZAAABeRnRGTM}

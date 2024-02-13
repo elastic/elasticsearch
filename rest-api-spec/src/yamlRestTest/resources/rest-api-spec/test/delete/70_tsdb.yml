@@ -43,15 +43,15 @@
           location: swamp
           temperature: 32.4
           humidity: 88.9
-  - match:   { _id: crxuhAep5Npwt_etAAABiHD35_g }
+  - match:   { _id: AAAAAAep5Npwt_etAAABiHD35_g }
   - match:   { result: created }
   - match:   { _version: 1 }
 
   - do:
       delete:
         index: weather_sensors
-        id: crxuhAep5Npwt_etAAABiHD35_g
-  - match:   { _id: crxuhAep5Npwt_etAAABiHD35_g }
+        id: AAAAAAep5Npwt_etAAABiHD35_g
+  - match:   { _id: AAAAAAep5Npwt_etAAABiHD35_g }
   - match:   { result: deleted }
   - match:   { _version: 2 }
 
@@ -68,6 +68,6 @@
           location: swamp
           temperature: 32.4
           humidity: 88.9
-  - match:   { _id: crxuhAep5Npwt_etAAABiHD35_g }
+  - match:   { _id: AAAAAAep5Npwt_etAAABiHD35_g }
   - match:   { result: created }
   - match:   { _version: 3 }

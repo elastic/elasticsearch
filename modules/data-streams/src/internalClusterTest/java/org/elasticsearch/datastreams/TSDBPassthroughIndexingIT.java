@@ -91,7 +91,8 @@ public class TSDBPassthroughIndexingIT extends ESSingleNodeTestCase {
             "@timestamp": "$time",
             "attributes": {
                 "metricset": "pod",
-                "number": $number,
+                "number.long": $number1,
+                "number.double": $number2,
                 "pod": {
                     "name": "$name",
                     "uid": "$uid",
@@ -146,7 +147,8 @@ public class TSDBPassthroughIndexingIT extends ESSingleNodeTestCase {
                 DOC.replace("$time", formatInstant(time))
                     .replace("$uid", randomUUID())
                     .replace("$name", randomAlphaOfLength(4))
-                    .replace("$number", Long.toString(randomLong()))
+                    .replace("$number1", Long.toString(randomLong()))
+                    .replace("$number2", Double.toString(randomDouble()))
                     .replace("$ip", InetAddresses.toAddrString(randomIp(randomBoolean()))),
                 XContentType.JSON
             );
@@ -178,7 +180,8 @@ public class TSDBPassthroughIndexingIT extends ESSingleNodeTestCase {
         );
         @SuppressWarnings("unchecked")
         var attributes = (Map<String, Map<?, ?>>) ObjectPath.eval("properties.attributes.properties", mapping);
-        assertMap(attributes.get("number"), matchesMap().entry("type", "long").entry("time_series_dimension", true));
+        assertMap(attributes.get("number.long"), matchesMap().entry("type", "long").entry("time_series_dimension", true));
+        assertMap(attributes.get("number.double"), matchesMap().entry("type", "float").entry("time_series_dimension", true));
         assertMap(attributes.get("pod.ip"), matchesMap().entry("type", "ip").entry("time_series_dimension", true));
         assertMap(attributes.get("pod.uid"), matchesMap().entry("type", "keyword").entry("time_series_dimension", true));
         assertMap(attributes.get("pod.name"), matchesMap().entry("type", "keyword").entry("time_series_dimension", true));
@@ -187,7 +190,14 @@ public class TSDBPassthroughIndexingIT extends ESSingleNodeTestCase {
             ObjectPath.eval("properties.metricset", mapping),
             matchesMap().entry("type", "alias").entry("path", "attributes.metricset")
         );
-        assertMap(ObjectPath.eval("properties.number", mapping), matchesMap().entry("type", "alias").entry("path", "attributes.number"));
+        assertMap(
+            ObjectPath.eval("properties.number.properties.long", mapping),
+            matchesMap().entry("type", "alias").entry("path", "attributes.number.long")
+        );
+        assertMap(
+            ObjectPath.eval("properties.number.properties.double", mapping),
+            matchesMap().entry("type", "alias").entry("path", "attributes.number.double")
+        );
         assertMap(
             ObjectPath.eval("properties.pod.properties", mapping),
             matchesMap().extraOk().entry("name", matchesMap().entry("type", "alias").entry("path", "attributes.pod.name"))

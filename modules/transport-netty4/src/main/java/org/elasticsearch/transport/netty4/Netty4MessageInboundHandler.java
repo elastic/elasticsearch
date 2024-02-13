@@ -144,12 +144,8 @@ public class Netty4MessageInboundHandler extends ByteToMessageDecoder {
         cleanDecodeState();
         assert isAggregating();
         InboundMessage aggregated = finishAggregation(cumulation);
-        try {
-            transport.getStatsTracker().markMessageReceived();
-            transport.inboundMessage(channel, aggregated);
-        } finally {
-            aggregated.decRef();
-        }
+        transport.getStatsTracker().markMessageReceived();
+        transport.inboundMessage(channel, aggregated);
     }
 
     public void headerReceived(Header header) {
@@ -184,7 +180,7 @@ public class Netty4MessageInboundHandler extends ByteToMessageDecoder {
     private InboundMessage finishAggregation(ByteBuf cummulation) throws IOException {
         final ReleasableBytesReference releasableContent = cummulation == null
             ? ReleasableBytesReference.empty()
-            : new ReleasableBytesReference(Netty4Utils.toBytesReference(cummulation), new ByteBufRefCounted(cummulation));
+            : new ReleasableBytesReference(Netty4Utils.toBytesReference(cummulation), cummulation::release);
 
         final BreakerControl breakerControl = new BreakerControl(circuitBreaker);
         final InboundMessage aggregated = new InboundMessage(currentHeader, releasableContent, breakerControl);
@@ -200,7 +196,7 @@ public class Netty4MessageInboundHandler extends ByteToMessageDecoder {
                 checkBreaker(aggregated.getHeader(), aggregated.getContentLength(), breakerControl);
             }
             if (isShortCircuited()) {
-                aggregated.decRef();
+                aggregated.close();
                 success = true;
                 return new InboundMessage(aggregated.getHeader(), aggregationException);
             } else {
@@ -211,7 +207,7 @@ public class Netty4MessageInboundHandler extends ByteToMessageDecoder {
         } finally {
             resetCurrentAggregation();
             if (success == false) {
-                aggregated.decRef();
+                aggregated.close();
             }
         }
     }

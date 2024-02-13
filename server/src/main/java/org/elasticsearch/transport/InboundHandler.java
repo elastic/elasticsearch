@@ -120,6 +120,8 @@ public class InboundHandler {
                 // ignore if its null, the service logs it
                 if (responseHandler != null) {
                     executeResponseHandler(message, responseHandler, remoteAddress);
+                } else {
+                    message.close();
                 }
             }
         } finally {
@@ -243,13 +245,23 @@ public class InboundHandler {
         );
 
         try {
-            messageListener.onRequestReceived(requestId, action);
+            boolean success = false;
+            try {
+                messageListener.onRequestReceived(requestId, action);
+                success = true;
+            } finally {
+                if (success == false) {
+                    message.close();
+                }
+            }
             if (reg != null) {
                 reg.addRequestStats(header.getNetworkMessageSize() + TcpHeader.BYTES_REQUIRED_FOR_MESSAGE_SIZE);
             }
 
             if (message.isShortCircuit()) {
-                sendErrorResponse(action, transportChannel, message.getException());
+                Exception e = message.getException();
+                message.close();
+                sendErrorResponse(action, transportChannel, e);
                 return;
             }
 
@@ -257,7 +269,7 @@ public class InboundHandler {
             final StreamInput stream = namedWriteableStream(message.openOrGetStreamInput());
             assert assertRemoteVersion(stream, header.getVersion());
             final T request;
-            try {
+            try (message) {
                 request = reg.newRequest(stream);
             } catch (Exception e) {
                 assert ignoreDeserializationErrors : e;
@@ -334,23 +346,23 @@ public class InboundHandler {
         var header = message.getHeader();
         assert header.actionName.equals(TransportHandshaker.HANDSHAKE_ACTION_NAME);
         final long requestId = header.getRequestId();
-        messageListener.onRequestReceived(requestId, TransportHandshaker.HANDSHAKE_ACTION_NAME);
-        // Cannot short circuit handshakes
-        assert message.isShortCircuit() == false;
-        final StreamInput stream = namedWriteableStream(message.openOrGetStreamInput());
-        assert assertRemoteVersion(stream, header.getVersion());
-        final TransportChannel transportChannel = new TcpTransportChannel(
-            outboundHandler,
-            channel,
-            TransportHandshaker.HANDSHAKE_ACTION_NAME,
-            requestId,
-            header.getVersion(),
-            header.getCompressionScheme(),
-            ResponseStatsConsumer.NONE,
-            true,
-            Releasables.assertOnce(message.takeBreakerReleaseControl())
-        );
-        try {
+        try (message) {
+            messageListener.onRequestReceived(requestId, TransportHandshaker.HANDSHAKE_ACTION_NAME);
+            // Cannot short circuit handshakes
+            assert message.isShortCircuit() == false;
+            final StreamInput stream = namedWriteableStream(message.openOrGetStreamInput());
+            assert assertRemoteVersion(stream, header.getVersion());
+            final TransportChannel transportChannel = new TcpTransportChannel(
+                outboundHandler,
+                channel,
+                TransportHandshaker.HANDSHAKE_ACTION_NAME,
+                requestId,
+                header.getVersion(),
+                header.getCompressionScheme(),
+                ResponseStatsConsumer.NONE,
+                true,
+                Releasables.assertOnce(message.takeBreakerReleaseControl())
+            );
             handshaker.handleHandshake(transportChannel, requestId, stream);
         } catch (Exception e) {
             logger.warn(
@@ -377,13 +389,11 @@ public class InboundHandler {
         final InboundMessage inboundMessage
     ) {
         final var executor = handler.executor();
+        // release buffer once we deserialize the message, but have a fail-safe in #onAfter below in case that didn't work out
         if (executor == EsExecutors.DIRECT_EXECUTOR_SERVICE) {
-            // no need to provide a buffer release here, we never escape the buffer when handling directly
-            doHandleResponse(handler, remoteAddress, stream, inboundMessage.getHeader(), () -> {});
+            doHandleResponse(handler, remoteAddress, stream, inboundMessage.getHeader(), inboundMessage);
         } else {
-            inboundMessage.mustIncRef();
-            // release buffer once we deserialize the message, but have a fail-safe in #onAfter below in case that didn't work out
-            final Releasable releaseBuffer = Releasables.releaseOnce(inboundMessage::decRef);
+            final Releasable releaseBuffer = Releasables.releaseOnce(inboundMessage);
             executor.execute(new ForkingResponseHandlerRunnable(handler, null) {
                 @Override
                 protected void doRun() {
@@ -440,7 +450,7 @@ public class InboundHandler {
 
     private void handlerResponseError(StreamInput stream, InboundMessage message, final TransportResponseHandler<?> handler) {
         Exception error;
-        try {
+        try (message) {
             error = stream.readException();
             verifyResponseReadFully(message.getHeader(), handler, stream);
         } catch (Exception e) {

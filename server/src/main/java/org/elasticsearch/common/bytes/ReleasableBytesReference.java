@@ -15,6 +15,7 @@ import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.transport.LeakTracker;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -36,7 +37,7 @@ public final class ReleasableBytesReference implements RefCounted, Releasable, B
     }
 
     public ReleasableBytesReference(BytesReference delegate, Releasable releasable) {
-        this(delegate, new RefCountedReleasable(releasable));
+        this(delegate, LeakTracker.wrap(new RefCountedReleasable(releasable)));
     }
 
     public ReleasableBytesReference(BytesReference delegate, RefCounted refCounted) {

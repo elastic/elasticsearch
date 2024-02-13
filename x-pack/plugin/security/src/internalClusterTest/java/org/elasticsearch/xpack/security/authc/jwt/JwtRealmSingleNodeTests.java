@@ -44,6 +44,9 @@ import org.elasticsearch.xpack.core.security.action.apikey.GrantApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.profile.ActivateProfileAction;
 import org.elasticsearch.xpack.core.security.action.profile.ActivateProfileRequest;
 import org.elasticsearch.xpack.core.security.action.profile.ActivateProfileResponse;
+import org.elasticsearch.xpack.core.security.action.profile.GetProfilesAction;
+import org.elasticsearch.xpack.core.security.action.profile.GetProfilesRequest;
+import org.elasticsearch.xpack.core.security.action.profile.GetProfilesResponse;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateAction;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateRequest;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateResponse;
@@ -292,6 +295,14 @@ public class JwtRealmSingleNodeTests extends SecuritySingleNodeTestCase {
             assertThat(activateProfileResponse.getProfile().uid(), notNullValue());
             assertThat(activateProfileResponse.getProfile().user().username(), is(subject));
             assertThat(activateProfileResponse.getProfile().user().realmName(), is(realmName));
+            // test to get the profile by uid
+            GetProfilesRequest getProfilesRequest = new GetProfilesRequest(List.of(activateProfileResponse.getProfile().uid()), Set.of());
+            GetProfilesResponse getProfilesResponse = client().execute(GetProfilesAction.INSTANCE, getProfilesRequest).actionGet();
+            assertThat(getProfilesResponse.getProfiles().size(), is(1));
+            assertThat(getProfilesResponse.getProfiles().get(0).uid(), is(activateProfileResponse.getProfile().uid()));
+            assertThat(getProfilesResponse.getProfiles().get(0).enabled(), is(true));
+            assertThat(getProfilesResponse.getProfiles().get(0).user().username(), is(subject));
+            assertThat(getProfilesResponse.getProfiles().get(0).user().realmName(), is(realmName));
         }
         {
             // client authentication is valid but the JWT is not

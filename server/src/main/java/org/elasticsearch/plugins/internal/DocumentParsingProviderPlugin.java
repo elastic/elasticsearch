@@ -8,15 +8,13 @@
 
 package org.elasticsearch.plugins.internal;
 
-import java.util.function.Supplier;
-
 /**
- * An internal plugin that will return a supplier of DocumentParsingObserver.
+ * An internal plugin that will return a supplier of DocumentParsingSupplier.
  */
-public interface DocumentParsingObserverPlugin {
+public interface DocumentParsingProviderPlugin {
 
     /**
-     * @return a supplier of DocumentParsingObserver to allow observing parsing events
+     * @return a DocumentParsingSupplier to create instances of observer and reporter of parsing events
      */
-    Supplier<DocumentParsingObserver> getDocumentParsingObserverSupplier();
+    DocumentParsingProvider getDocumentParsingSupplier();
 }

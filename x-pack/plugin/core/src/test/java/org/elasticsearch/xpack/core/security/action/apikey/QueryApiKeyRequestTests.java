@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.security.action.apikey;
 
+import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.containsString;
@@ -17,6 +18,7 @@ public class QueryApiKeyRequestTests extends ESTestCase {
     public void testValidate() {
         final QueryApiKeyRequest request1 = new QueryApiKeyRequest(
             null,
+            randomFrom(new AggregatorFactories.Builder(), null),
             randomIntBetween(0, Integer.MAX_VALUE),
             randomIntBetween(0, Integer.MAX_VALUE),
             null,
@@ -27,6 +29,7 @@ public class QueryApiKeyRequestTests extends ESTestCase {
 
         final QueryApiKeyRequest request2 = new QueryApiKeyRequest(
             null,
+            randomFrom(new AggregatorFactories.Builder(), null),
             randomIntBetween(Integer.MIN_VALUE, -1),
             randomIntBetween(0, Integer.MAX_VALUE),
             null,
@@ -37,6 +40,7 @@ public class QueryApiKeyRequestTests extends ESTestCase {
 
         final QueryApiKeyRequest request3 = new QueryApiKeyRequest(
             null,
+            randomFrom(new AggregatorFactories.Builder(), null),
             randomIntBetween(0, Integer.MAX_VALUE),
             randomIntBetween(Integer.MIN_VALUE, -1),
             null,

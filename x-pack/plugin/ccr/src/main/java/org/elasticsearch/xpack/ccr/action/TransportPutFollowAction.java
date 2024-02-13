@@ -292,6 +292,7 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
         ResumeFollowAction.Request resumeFollowRequest = new ResumeFollowAction.Request();
         resumeFollowRequest.setFollowerIndex(request.getFollowerIndex());
         resumeFollowRequest.setParameters(new FollowParameters(parameters));
+        resumeFollowRequest.masterNodeTimeout(request.masterNodeTimeout());
         clientWithHeaders.execute(
             ResumeFollowAction.INSTANCE,
             resumeFollowRequest,

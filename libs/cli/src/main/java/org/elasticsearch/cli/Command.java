@@ -62,8 +62,10 @@ public abstract class Command implements Closeable {
         } catch (IOException ioe) {
             terminal.errorPrintln(ioe);
             return ExitCodes.IO_ERROR;
-        } catch (Exception re) {
-            terminal.errorPrintln(re);
+        } catch (Throwable t) {
+            // It's acceptable to catch Throwable at this point:
+            // We're about to exit and only want to print the stacktrace with appropriate formatting (e.g. JSON).
+            terminal.errorPrintln(t);
             return ExitCodes.CODE_ERROR;
         }
         return ExitCodes.OK;

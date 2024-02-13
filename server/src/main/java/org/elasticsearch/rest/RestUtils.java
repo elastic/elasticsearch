@@ -38,7 +38,7 @@ public class RestUtils {
             return;
         }
 
-        int queryStringLength = s.contains("#") ? s.indexOf("#") : s.length();
+        int queryStringLength = s.contains("#") ? s.indexOf('#') : s.length();
 
         String name = null;
         int pos = fromIndex; // Beginning of the unprocessed region

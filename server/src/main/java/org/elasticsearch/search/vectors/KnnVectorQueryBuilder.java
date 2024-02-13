@@ -69,15 +69,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         args -> new KnnVectorQueryBuilder((String) args[0], (float[]) args[1], (Integer) args[2], (Float) args[3])
     );
 
-    /**
-     * Utility method to parse the provided {query_vector} parameter. Supports the following formats:
-     * - array of floats, as an n-dimensional vector
-     * - single number, as a 1-dimensional vector
-     * - string, as a hex-encoded byte vector
-     *
-     * @return an array of floats representing the provided query vector
-     */
-    public static float[] parseQueryVector(XContentParser parser) throws IOException {
+    static float[] parseQueryVector(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.currentToken();
         return switch (token) {
             case START_ARRAY -> parseQueryVectorArray(parser);

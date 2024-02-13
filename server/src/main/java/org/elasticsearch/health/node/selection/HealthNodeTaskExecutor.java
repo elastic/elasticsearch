@@ -159,9 +159,6 @@ public final class HealthNodeTaskExecutor extends PersistentTasksExecutor<Health
         if (event.state().clusterRecovered() && featureService.clusterHasFeature(event.state(), HealthFeatures.SUPPORTS_HEALTH)) {
             boolean healthNodeTaskExists = HealthNode.findTask(event.state()) != null;
             boolean isElectedMaster = event.localNodeMaster();
-            if (isElectedMaster || healthNodeTaskExists) {
-                clusterService.removeListener(taskStarter);
-            }
             if (isElectedMaster && healthNodeTaskExists == false) {
                 persistentTasksService.sendStartRequest(
                     TASK_NAME,

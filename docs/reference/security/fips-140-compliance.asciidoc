@@ -28,7 +28,7 @@ Detailed instructions for the configuration required for FIPS 140-2 compliance i
 of the user to ensure compliance with FIPS 140-2. {es} has been tested with a specific configuration described below. However, there are
 other configurations possible to achieve compliance.
 
-The following is a high-level overview of the steps required to configure a FIPS certified security provider:
+The following is a high-level overview of the required configuration:
 
 * Use an externally installed Java installation. The JVM bundled with {es} is not configured for FIPS 140-2.
 * Install a FIPS certified security provider .jar file(s) in {es}'s `lib` directory.

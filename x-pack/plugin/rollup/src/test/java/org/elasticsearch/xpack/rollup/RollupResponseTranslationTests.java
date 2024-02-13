@@ -46,7 +46,6 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
-import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
@@ -187,7 +186,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         when(filter.getName()).thenReturn("filter_foo");
         aggTree.add(filter);
 
-        Aggregations mockAggsWithout = InternalAggregations.from(aggTree);
+        InternalAggregations mockAggsWithout = InternalAggregations.from(aggTree);
         when(responseWithout.getAggregations()).thenReturn(mockAggsWithout);
 
         MultiSearchResponse msearch = new MultiSearchResponse(
@@ -230,7 +229,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
             );
             try {
                 assertNotNull(response);
-                Aggregations responseAggs = response.getAggregations();
+                InternalAggregations responseAggs = response.getAggregations();
                 assertThat(responseAggs.asList().size(), equalTo(0));
             } finally {
                 // this SearchResponse is not a mock, so must be decRef'd
@@ -311,7 +310,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         when(filter.getName()).thenReturn("filter_foo");
         aggTree.add(filter);
 
-        Aggregations mockAggs = InternalAggregations.from(aggTree);
+        InternalAggregations mockAggs = InternalAggregations.from(aggTree);
         when(response.getAggregations()).thenReturn(mockAggs);
         MultiSearchResponse multiSearchResponse = new MultiSearchResponse(
             new MultiSearchResponse.Item[] { new MultiSearchResponse.Item(response, null) },
@@ -321,11 +320,13 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
             // this is not a mock, so needs to be decRef'd
             SearchResponse finalResponse = RollupResponseTranslator.translateResponse(
                 multiSearchResponse,
-                InternalAggregationTestCase.emptyReduceContextBuilder()
+                InternalAggregationTestCase.emptyReduceContextBuilder(
+                    new AggregatorFactories.Builder().addAggregator(new SumAggregationBuilder("foo"))
+                )
             );
             try {
                 assertNotNull(finalResponse);
-                Aggregations responseAggs = finalResponse.getAggregations();
+                InternalAggregations responseAggs = finalResponse.getAggregations();
                 assertNotNull(finalResponse);
                 Avg avg = responseAggs.get("foo");
                 assertThat(avg.getValue(), equalTo(5.0));
@@ -365,7 +366,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         Max protoMax = mock(Max.class);
         when(protoMax.getName()).thenReturn("foo");
         protoAggTree.add(protoMax);
-        Aggregations protoMockAggs = InternalAggregations.from(protoAggTree);
+        InternalAggregations protoMockAggs = InternalAggregations.from(protoAggTree);
         when(protoResponse.getAggregations()).thenReturn(protoMockAggs);
         MultiSearchResponse.Item unrolledResponse = new MultiSearchResponse.Item(protoResponse, null);
 
@@ -374,7 +375,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         Max max = mock(Max.class);
         when(max.getName()).thenReturn("bizzbuzz");
         aggTreeWithoutFilter.add(max);
-        Aggregations mockAggsWithout = InternalAggregations.from(aggTreeWithoutFilter);
+        InternalAggregations mockAggsWithout = InternalAggregations.from(aggTreeWithoutFilter);
         when(responseWithout.getAggregations()).thenReturn(mockAggsWithout);
         MultiSearchResponse.Item rolledResponse = new MultiSearchResponse.Item(responseWithout, null);
 
@@ -396,7 +397,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         Max protoMax = mock(Max.class);
         when(protoMax.getName()).thenReturn("foo");
         protoAggTree.add(protoMax);
-        Aggregations protoMockAggs = InternalAggregations.from(protoAggTree);
+        InternalAggregations protoMockAggs = InternalAggregations.from(protoAggTree);
         when(protoResponse.getAggregations()).thenReturn(protoMockAggs);
         MultiSearchResponse.Item unrolledResponse = new MultiSearchResponse.Item(protoResponse, null);
 
@@ -404,7 +405,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         List<InternalAggregation> aggTreeWithoutFilter = new ArrayList<>(1);
         Max max = new Max("filter_foo", 0, DocValueFormat.RAW, null);
         aggTreeWithoutFilter.add(max);
-        Aggregations mockAggsWithout = InternalAggregations.from(aggTreeWithoutFilter);
+        InternalAggregations mockAggsWithout = InternalAggregations.from(aggTreeWithoutFilter);
         when(responseWithout.getAggregations()).thenReturn(mockAggsWithout);
         MultiSearchResponse.Item rolledResponse = new MultiSearchResponse.Item(responseWithout, null);
 
@@ -426,7 +427,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         List<InternalAggregation> protoAggTree = new ArrayList<>(1);
         InternalAvg internalAvg = new InternalAvg("foo", 10, 2, DocValueFormat.RAW, null);
         protoAggTree.add(internalAvg);
-        Aggregations protoMockAggs = InternalAggregations.from(protoAggTree);
+        InternalAggregations protoMockAggs = InternalAggregations.from(protoAggTree);
         when(protoResponse.getAggregations()).thenReturn(protoMockAggs);
         MultiSearchResponse.Item unrolledResponse = new MultiSearchResponse.Item(protoResponse, null);
 
@@ -458,7 +459,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         when(filter.getName()).thenReturn("filter_foo");
         aggTree.add(filter);
 
-        Aggregations mockAggsWithout = InternalAggregations.from(aggTree);
+        InternalAggregations mockAggsWithout = InternalAggregations.from(aggTree);
         when(responseWithout.getAggregations()).thenReturn(mockAggsWithout);
         MultiSearchResponse.Item rolledResponse = new MultiSearchResponse.Item(responseWithout, null);
 
@@ -474,7 +475,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
             );
             try {
                 assertNotNull(response);
-                Aggregations responseAggs = response.getAggregations();
+                InternalAggregations responseAggs = response.getAggregations();
                 assertNotNull(responseAggs);
                 Avg avg = responseAggs.get("foo");
                 assertThat(avg.getValue(), equalTo(5.0));
@@ -694,7 +695,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
             PipelineTree.EMPTY
         );
 
-        InternalAggregation reduced = ((InternalDateHistogram) unrolled).reduce(Collections.singletonList(unrolled), context);
+        InternalAggregation reduced = InternalAggregationTestCase.reduce(Collections.singletonList(unrolled), context);
         assertThat(reduced.toString(), equalTo(XContentHelper.stripWhitespace("""
             {
               "histo": {

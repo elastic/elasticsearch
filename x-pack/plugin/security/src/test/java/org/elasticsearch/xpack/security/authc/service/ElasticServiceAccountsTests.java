@@ -344,6 +344,12 @@ public class ElasticServiceAccountsTests extends ESTestCase {
         assertThat(role.cluster().check(GetLifecycleAction.NAME, request, authentication), is(true));
         assertThat(role.cluster().check(ILMActions.PUT.name(), request, authentication), is(true));
 
+        // Connector secrets. Enterprise Search has read and write access.
+        assertThat(role.cluster().check("cluster:admin/xpack/connector/secret/delete", request, authentication), is(true));
+        assertThat(role.cluster().check("cluster:admin/xpack/connector/secret/get", request, authentication), is(true));
+        assertThat(role.cluster().check("cluster:admin/xpack/connector/secret/post", request, authentication), is(true));
+        assertThat(role.cluster().check("cluster:admin/xpack/connector/secret/put", request, authentication), is(true));
+
         List.of(
             "search-" + randomAlphaOfLengthBetween(1, 20),
             ".search-acl-filter-" + randomAlphaOfLengthBetween(1, 20),

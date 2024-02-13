@@ -1,0 +1,5 @@
+pr: 104553
+summary: "ESQL: Fix a bug loading unindexed text fields"
+area: ES|QL
+type: bug
+issues: []

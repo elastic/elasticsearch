@@ -56,6 +56,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeMetadata;
 import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.http.HttpPreRequest;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.netty4.Netty4HttpServerTransport;
@@ -85,6 +86,7 @@ import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestHeaderDefinition;
+import org.elasticsearch.rest.RestInterceptor;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.ScriptService;
@@ -177,7 +179,6 @@ import org.elasticsearch.xpack.core.security.authc.InternalRealmsSettings;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
-import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
@@ -370,6 +371,7 @@ import org.elasticsearch.xpack.security.rest.action.user.RestQueryUserAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestSetEnabledAction;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.ExtensionComponents;
+import org.elasticsearch.xpack.security.support.ReloadableSecurityComponent;
 import org.elasticsearch.xpack.security.support.SecuritySystemIndices;
 import org.elasticsearch.xpack.security.transport.SecurityHttpSettings;
 import org.elasticsearch.xpack.security.transport.SecurityServerTransportInterceptor;
@@ -408,7 +410,6 @@ import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.XPackSettings.API_KEY_SERVICE_ENABLED_SETTING;
 import static org.elasticsearch.xpack.core.XPackSettings.HTTP_SSL_ENABLED;
 import static org.elasticsearch.xpack.core.security.SecurityField.FIELD_LEVEL_SECURITY_FEATURE;
-import static org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings.CLIENT_AUTHENTICATION_SHARED_SECRET;
 import static org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore.INCLUDED_RESERVED_ROLES_SETTING;
 import static org.elasticsearch.xpack.security.operator.OperatorPrivileges.OPERATOR_PRIVILEGES_ENABLED;
 import static org.elasticsearch.xpack.security.transport.SSLEngineUtils.extractClientCertificates;
@@ -562,6 +563,7 @@ public class Security extends Plugin
     private final SetOnce<WorkflowService> workflowService = new SetOnce<>();
     private final SetOnce<Realms> realms = new SetOnce<>();
     private final SetOnce<Client> client = new SetOnce<>();
+    private final SetOnce<List<ReloadableSecurityComponent>> reloadableComponents = new SetOnce<>();
 
     public Security(Settings settings) {
         this(settings, Collections.emptyList());
@@ -633,8 +635,8 @@ public class Security extends Plugin
         return client.get();
     }
 
-    protected Realms getRealms() {
-        return realms.get();
+    protected List<ReloadableSecurityComponent> getReloadableSecurityComponents() {
+        return this.reloadableComponents.get();
     }
 
     @Override
@@ -1044,6 +1046,13 @@ public class Security extends Plugin
 
         cacheInvalidatorRegistry.validate();
 
+        this.reloadableComponents.set(
+            components.stream()
+                .filter(ReloadableSecurityComponent.class::isInstance)
+                .map(ReloadableSecurityComponent.class::cast)
+                .collect(Collectors.toUnmodifiableList())
+        );
+
         return components;
     }
 
@@ -1396,7 +1405,8 @@ public class Security extends Plugin
         IndexScopedSettings indexScopedSettings,
         SettingsFilter settingsFilter,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<DiscoveryNodes> nodesInCluster
+        Supplier<DiscoveryNodes> nodesInCluster,
+        Predicate<NodeFeature> clusterSupportsFeature
     ) {
         if (enabled == false) {
             return emptyList();
@@ -1851,13 +1861,12 @@ public class Security extends Plugin
     }
 
     @Override
-    public UnaryOperator<RestHandler> getRestHandlerInterceptor(ThreadContext threadContext) {
-        return handler -> new SecurityRestFilter(
+    public RestInterceptor getRestHandlerInterceptor(ThreadContext threadContext) {
+        return new SecurityRestFilter(
             enabled,
             threadContext,
             secondayAuthc.get(),
             auditTrailService.get(),
-            handler,
             operatorPrivilegesService.get()
         );
     }
@@ -1946,11 +1955,13 @@ public class Security extends Plugin
                 reloadExceptions.add(ex);
             }
 
-            try {
-                reloadSharedSecretsForJwtRealms(settings);
-            } catch (Exception ex) {
-                reloadExceptions.add(ex);
-            }
+            this.getReloadableSecurityComponents().forEach(component -> {
+                try {
+                    component.reload(settings);
+                } catch (Exception ex) {
+                    reloadExceptions.add(ex);
+                }
+            });
 
             if (false == reloadExceptions.isEmpty()) {
                 final var combinedException = new ElasticsearchException(
@@ -1962,16 +1973,6 @@ public class Security extends Plugin
         } else {
             ensureNoRemoteClusterCredentialsOnDisabledSecurity(settings);
         }
-    }
-
-    private void reloadSharedSecretsForJwtRealms(Settings settingsWithKeystore) {
-        getRealms().stream().filter(r -> JwtRealmSettings.TYPE.equals(r.realmRef().getType())).forEach(realm -> {
-            if (realm instanceof JwtRealm jwtRealm) {
-                jwtRealm.rotateClientSecret(
-                    CLIENT_AUTHENTICATION_SHARED_SECRET.getConcreteSettingForNamespace(realm.realmRef().getName()).get(settingsWithKeystore)
-                );
-            }
-        });
     }
 
     /**

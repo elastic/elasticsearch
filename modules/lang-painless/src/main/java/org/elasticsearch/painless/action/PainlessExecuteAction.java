@@ -24,11 +24,11 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.RemoteClusterActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -116,7 +116,8 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class PainlessExecuteAction {
 
-    public static final ActionType<Response> INSTANCE = new ActionType<>("cluster:admin/scripts/painless/execute", Response::new);
+    public static final ActionType<Response> INSTANCE = new ActionType<>("cluster:admin/scripts/painless/execute");
+    public static final RemoteClusterActionType<Response> REMOTE_TYPE = new RemoteClusterActionType<>(INSTANCE.name(), Response::new);
 
     private PainlessExecuteAction() {/* no instances */}
 
@@ -528,9 +529,9 @@ public class PainlessExecuteAction {
             } else {
                 // forward to remote cluster
                 String clusterAlias = request.getContextSetup().getClusterAlias();
-                Client remoteClusterClient = transportService.getRemoteClusterService()
-                    .getRemoteClusterClient(threadPool, clusterAlias, EsExecutors.DIRECT_EXECUTOR_SERVICE);
-                remoteClusterClient.admin().cluster().execute(PainlessExecuteAction.INSTANCE, request, listener);
+                transportService.getRemoteClusterService()
+                    .getRemoteClusterClient(clusterAlias, EsExecutors.DIRECT_EXECUTOR_SERVICE)
+                    .execute(PainlessExecuteAction.REMOTE_TYPE, request, listener);
             }
         }
 

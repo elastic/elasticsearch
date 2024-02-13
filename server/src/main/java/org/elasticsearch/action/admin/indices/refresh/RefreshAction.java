@@ -17,6 +17,6 @@ public class RefreshAction extends ActionType<BroadcastResponse> {
     public static final String NAME = "indices:admin/refresh";
 
     private RefreshAction() {
-        super(NAME, BroadcastResponse::new);
+        super(NAME);
     }
 }

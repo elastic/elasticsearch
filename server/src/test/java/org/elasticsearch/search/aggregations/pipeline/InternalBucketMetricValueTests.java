@@ -10,7 +10,6 @@ package org.elasticsearch.search.aggregations.pipeline;
 
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.test.InternalAggregationTestCase;
 
 import java.util.Arrays;
@@ -34,26 +33,12 @@ public class InternalBucketMetricValueTests extends InternalAggregationTestCase<
 
     @Override
     public void testReduceRandom() {
-        expectThrows(UnsupportedOperationException.class, () -> createTestInstance("name", null).reduce(null, null));
+        expectThrows(UnsupportedOperationException.class, () -> createTestInstance("name", null).getReducer(null, 0));
     }
 
     @Override
     protected void assertReduced(InternalBucketMetricValue reduced, List<InternalBucketMetricValue> inputs) {
         // no test since reduce operation is unsupported
-    }
-
-    @Override
-    protected void assertFromXContent(InternalBucketMetricValue bucketMetricValue, ParsedAggregation parsedAggregation) {
-        BucketMetricValue parsed = ((BucketMetricValue) parsedAggregation);
-        assertArrayEquals(bucketMetricValue.keys(), parsed.keys());
-        if (Double.isInfinite(bucketMetricValue.value()) == false) {
-            assertEquals(bucketMetricValue.value(), parsed.value(), 0);
-            assertEquals(bucketMetricValue.getValueAsString(), parsed.getValueAsString());
-        } else {
-            // we write Double.NEGATIVE_INFINITY and Double.POSITIVE_INFINITY to xContent as 'null', so we
-            // cannot differentiate between them. Also we cannot recreate the exact String representation
-            assertEquals(parsed.value(), Double.NEGATIVE_INFINITY, 0);
-        }
     }
 
     @Override

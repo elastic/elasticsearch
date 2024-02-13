@@ -16,7 +16,7 @@ public class TermVectorsAction extends ActionType<TermVectorsResponse> {
     public static final String NAME = "indices:data/read/tv";
 
     private TermVectorsAction() {
-        super(NAME, TermVectorsResponse::new);
+        super(NAME);
     }
 
 }

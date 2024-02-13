@@ -994,10 +994,11 @@ public final class TextFieldMapper extends FieldMapper {
          * using whatever
          */
         private BlockSourceReader.LeafIteratorLookup blockReaderDisiLookup(BlockLoaderContext blContext) {
-            if (getTextSearchInfo().hasNorms()) {
-                return BlockSourceReader.lookupFromNorms(name());
-            }
-            if (isIndexed() == false && isStored() == false) {
+            if (isIndexed()) {
+                if (getTextSearchInfo().hasNorms()) {
+                    return BlockSourceReader.lookupFromNorms(name());
+                }
+            } else if (isStored() == false) {
                 return BlockSourceReader.lookupMatchingAll();
             }
             return BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name());

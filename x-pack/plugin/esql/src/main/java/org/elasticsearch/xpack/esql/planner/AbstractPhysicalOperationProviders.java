@@ -125,8 +125,8 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
 
             if (mode == AggregateExec.Mode.FINAL) {
                 for (var agg : aggregates) {
-                    if (agg instanceof Alias alias && alias.child() instanceof AggregateFunction) {
-                        layout.append(alias);
+                    if (Alias.unwrap(agg) instanceof AggregateFunction) {
+                        layout.append(agg);
                     }
                 }
             } else {

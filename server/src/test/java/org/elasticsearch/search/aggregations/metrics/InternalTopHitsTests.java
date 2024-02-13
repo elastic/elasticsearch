@@ -29,7 +29,6 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.test.ESTestCase;
@@ -42,7 +41,6 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -186,35 +184,6 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
         for (int i = 0; i < searchHits.length; i++) {
             searchHits[i] = hitScores.get(i).v1();
             scoreDocs[i] = hitScores.get(i).v2();
-        }
-    }
-
-    @Override
-    protected void assertFromXContent(InternalTopHits aggregation, ParsedAggregation parsedAggregation) throws IOException {
-        final SearchHits expectedSearchHits = aggregation.getHits();
-
-        assertTrue(parsedAggregation instanceof ParsedTopHits);
-        ParsedTopHits parsed = (ParsedTopHits) parsedAggregation;
-        final SearchHits actualSearchHits = parsed.getHits();
-
-        assertEquals(expectedSearchHits.getTotalHits().value, actualSearchHits.getTotalHits().value);
-        assertEquals(expectedSearchHits.getTotalHits().relation, actualSearchHits.getTotalHits().relation);
-        assertEquals(expectedSearchHits.getMaxScore(), actualSearchHits.getMaxScore(), 0.0f);
-
-        List<SearchHit> expectedHits = Arrays.asList(expectedSearchHits.getHits());
-        List<SearchHit> actualHits = Arrays.asList(actualSearchHits.getHits());
-
-        assertEquals(expectedHits.size(), actualHits.size());
-        for (int i = 0; i < expectedHits.size(); i++) {
-            SearchHit expected = expectedHits.get(i);
-            SearchHit actual = actualHits.get(i);
-
-            assertEquals(expected.getIndex(), actual.getIndex());
-            assertEquals(expected.getId(), actual.getId());
-            assertEquals(expected.getVersion(), actual.getVersion());
-            assertEquals(expected.getScore(), actual.getScore(), 0.0f);
-            assertEquals(expected.getFields(), actual.getFields());
-            assertEquals(expected.getSourceAsMap(), actual.getSourceAsMap());
         }
     }
 

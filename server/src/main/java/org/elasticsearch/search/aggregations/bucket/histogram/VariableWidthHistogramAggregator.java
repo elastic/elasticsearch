@@ -555,11 +555,11 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
             bucketOrdsToCollect[i] = i;
         }
 
-        InternalAggregations[] subAggregationResults = buildSubAggsForBuckets(bucketOrdsToCollect);
+        var subAggregationResults = buildSubAggsForBuckets(bucketOrdsToCollect);
 
         List<InternalVariableWidthHistogram.Bucket> buckets = new ArrayList<>(numClusters);
         for (int bucketOrd = 0; bucketOrd < numClusters; bucketOrd++) {
-            buckets.add(collector.buildBucket(bucketOrd, subAggregationResults[bucketOrd]));
+            buckets.add(collector.buildBucket(bucketOrd, subAggregationResults.apply(bucketOrd)));
         }
 
         Function<List<InternalVariableWidthHistogram.Bucket>, InternalAggregation> resultBuilder = bucketsToFormat -> {

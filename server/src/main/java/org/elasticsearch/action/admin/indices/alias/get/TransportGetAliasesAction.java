@@ -22,7 +22,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.indices.SystemIndices;
@@ -147,21 +146,9 @@ public class TransportGetAliasesAction extends TransportLocalClusterStateAction<
         ClusterState state
     ) {
         Map<String, List<DataStreamAlias>> result = new HashMap<>();
-        boolean noAliasesSpecified = request.getOriginalAliases() == null || request.getOriginalAliases().length == 0;
         List<String> requestedDataStreams = resolver.dataStreamNames(state, request.indicesOptions(), request.indices());
-        for (String requestedDataStream : requestedDataStreams) {
-            List<DataStreamAlias> aliases = state.metadata()
-                .dataStreamAliases()
-                .values()
-                .stream()
-                .filter(alias -> alias.getDataStreams().contains(requestedDataStream))
-                .filter(alias -> noAliasesSpecified || Regex.simpleMatch(request.aliases(), alias.getName()))
-                .toList();
-            if (aliases.isEmpty() == false) {
-                result.put(requestedDataStream, aliases);
-            }
-        }
-        return result;
+
+        return state.metadata().findDataStreamAliases(request.aliases(), requestedDataStreams.toArray(new String[0]));
     }
 
     private static void checkSystemIndexAccess(

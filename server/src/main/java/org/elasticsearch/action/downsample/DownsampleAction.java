@@ -35,7 +35,7 @@ public class DownsampleAction extends ActionType<AcknowledgedResponse> {
     public static final TimeValue DEFAULT_WAIT_TIMEOUT = new TimeValue(1, TimeUnit.DAYS);
 
     private DownsampleAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME);
     }
 
     public static class Request extends MasterNodeRequest<Request> implements IndicesRequest, ToXContentObject {

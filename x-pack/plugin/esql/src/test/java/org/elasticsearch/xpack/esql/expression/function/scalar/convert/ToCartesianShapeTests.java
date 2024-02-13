@@ -38,8 +38,9 @@ public class ToCartesianShapeTests extends AbstractFunctionTestCase {
         final Function<String, String> evaluatorName = s -> "ToCartesianShape" + s + "Evaluator[field=" + attribute + "]";
         final List<TestCaseSupplier> suppliers = new ArrayList<>();
 
+        TestCaseSupplier.forUnaryCartesianPoint(suppliers, attribute, EsqlDataTypes.CARTESIAN_SHAPE, v -> v, List.of());
         TestCaseSupplier.forUnaryCartesianShape(suppliers, attribute, EsqlDataTypes.CARTESIAN_SHAPE, v -> v, List.of());
-        // random strings that don't look like a geo point
+        // random strings that don't look like a cartesian shape
         TestCaseSupplier.forUnaryStrings(
             suppliers,
             evaluatorName.apply("FromString"),

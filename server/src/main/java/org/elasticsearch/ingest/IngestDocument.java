@@ -49,7 +49,7 @@ public final class IngestDocument {
     private static final String INGEST_KEY_PREFIX = INGEST_KEY + ".";
     private static final String SOURCE_PREFIX = SOURCE_KEY + ".";
 
-    public static final String PIPELINE_CYCLE_ERROR_MESSAGE = "Cycle detected for pipeline: ";
+    private static final String PIPELINE_CYCLE_ERROR_MESSAGE = "Cycle detected for pipeline: ";
     static final String TIMESTAMP = "timestamp";
 
     private final IngestCtxMap ctxMap;
@@ -91,7 +91,7 @@ public final class IngestDocument {
     }
 
     // note: these rest of these constructors deal with the data-centric view of the IngestDocument, not the execution-centric view.
-    // For example, the copy constructor doesn't populate the `executedPipelines` or `indexHistory` (as well as some other fields),
+    // For example, the copy constructor doesn't populate the `indexHistory` (as well as some other fields),
     // because those fields are execution-centric.
 
     /**
@@ -104,6 +104,13 @@ public final class IngestDocument {
             new IngestCtxMap(deepCopyMap(ensureNoSelfReferences(other.ctxMap.getSource())), other.ctxMap.getMetadata().clone()),
             deepCopyMap(other.ingestMetadata)
         );
+        /*
+         * The executedPipelines field is clearly execution-centric rather than data centric. Despite what the comment above says, we're
+         * copying it here anyway. THe reason is that this constructor is only called from two non-test locations, and both of those
+         * involve the simulate pipeline logic. The simulate pipeline logic needs this information. Rather than making the code more
+         * complicated, we're just copying this over here since it does no harm.
+         */
+        this.executedPipelines.addAll(other.executedPipelines);
     }
 
     /**
@@ -841,7 +848,7 @@ public final class IngestDocument {
                 handler.accept(result, e);
             });
         } else {
-            handler.accept(null, new IllegalStateException(PIPELINE_CYCLE_ERROR_MESSAGE + pipeline.getId()));
+            handler.accept(null, new GraphStructureException(PIPELINE_CYCLE_ERROR_MESSAGE + pipeline.getId()));
         }
     }
 

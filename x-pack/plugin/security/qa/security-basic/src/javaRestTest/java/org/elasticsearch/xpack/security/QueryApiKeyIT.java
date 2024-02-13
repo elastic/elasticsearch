@@ -32,6 +32,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
@@ -42,12 +43,6 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.oneOf;
 
 public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
-
-    private static final String API_KEY_ADMIN_AUTH_HEADER = "Basic YXBpX2tleV9hZG1pbjpzZWN1cml0eS10ZXN0LXBhc3N3b3Jk";
-    private static final String API_KEY_USER_AUTH_HEADER = "Basic YXBpX2tleV91c2VyOnNlY3VyaXR5LXRlc3QtcGFzc3dvcmQ=";
-    private static final String TEST_USER_AUTH_HEADER = "Basic c2VjdXJpdHlfdGVzdF91c2VyOnNlY3VyaXR5LXRlc3QtcGFzc3dvcmQ=";
-    private static final String SYSTEM_WRITE_ROLE_NAME = "system_write";
-    private static final String SUPERUSER_WITH_SYSTEM_WRITE = "superuser_with_system_write";
 
     public void testQuery() throws IOException {
         createApiKeys();
@@ -62,9 +57,20 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
             apiKeys.forEach(k -> assertThat(k, not(hasKey("_sort"))));
         });
 
+        assertQuery(API_KEY_ADMIN_AUTH_HEADER, """
+            { "query": { "match": {"name": {"query": "my-ingest-key-1 my-org/alert-key-1", "analyzer": "whitespace"} } } }""", apiKeys -> {
+            assertThat(apiKeys.size(), equalTo(2));
+            assertThat(apiKeys.get(0).get("name"), oneOf("my-ingest-key-1", "my-org/alert-key-1"));
+            assertThat(apiKeys.get(1).get("name"), oneOf("my-ingest-key-1", "my-org/alert-key-1"));
+            apiKeys.forEach(k -> assertThat(k, not(hasKey("_sort"))));
+        });
+
         // An empty request body means search for all keys
         assertQuery(API_KEY_ADMIN_AUTH_HEADER, randomBoolean() ? "" : """
             {"query":{"match_all":{}}}""", apiKeys -> assertThat(apiKeys.size(), equalTo(6)));
+
+        assertQuery(API_KEY_ADMIN_AUTH_HEADER, randomBoolean() ? "" : """
+            { "query": { "match": {"type": "rest"} } }""", apiKeys -> assertThat(apiKeys.size(), equalTo(6)));
 
         assertQuery(
             API_KEY_ADMIN_AUTH_HEADER,
@@ -130,8 +136,9 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
         });
 
         // Search for fields outside of the allowlist fails
-        assertQueryError(API_KEY_ADMIN_AUTH_HEADER, 400, """
+        ResponseException responseException = assertQueryError(API_KEY_ADMIN_AUTH_HEADER, 400, """
             { "query": { "prefix": {"api_key_hash": "{PBKDF2}10000$"} } }""");
+        assertThat(responseException.getMessage(), containsString("Field [api_key_hash] is not allowed for API Key query"));
 
         // Search for fields that are not allowed in Query DSL but used internally by the service itself
         final String fieldName = randomFrom("doc_type", "api_key_invalidated", "invalidation_time");
@@ -329,8 +336,8 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
             });
         }
 
-        createSystemWriteRole(SYSTEM_WRITE_ROLE_NAME);
-        String systemWriteCreds = createUser(SUPERUSER_WITH_SYSTEM_WRITE, new String[] { "superuser", SYSTEM_WRITE_ROLE_NAME });
+        createSystemWriteRole("system_write");
+        String systemWriteCreds = createUser("superuser_with_system_write", new String[] { "superuser", "system_write" });
 
         // test keys with no "type" field are still considered of type "rest"
         // this is so in order to accommodate pre-8.9 API keys which where all of type "rest" implicitly
@@ -427,6 +434,130 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
 
         final String invalidFieldName = randomFrom("doc_type", "api_key_invalidated", "metadata_flattened.letter");
         assertQueryError(authHeader, 400, "{\"sort\":[\"" + invalidFieldName + "\"]}");
+    }
+
+    public void testSimpleQueryStringQuery() throws IOException {
+        String batmanUserCredentials = createUser("batman", new String[] { "api_key_user_role" });
+        final List<String> apiKeyIds = new ArrayList<>();
+        apiKeyIds.add(createApiKey("key1-user", null, null, Map.of("label", "prod"), API_KEY_USER_AUTH_HEADER).v1());
+        apiKeyIds.add(createApiKey("key1-admin", null, null, Map.of("label", "prod"), API_KEY_ADMIN_AUTH_HEADER).v1());
+        apiKeyIds.add(createApiKey("key2-user", null, null, Map.of("value", 42, "label", "prod"), API_KEY_USER_AUTH_HEADER).v1());
+        apiKeyIds.add(createApiKey("key2-admin", null, null, Map.of("value", 42, "label", "prod"), API_KEY_ADMIN_AUTH_HEADER).v1());
+        apiKeyIds.add(createApiKey("key3-user", null, null, Map.of("value", 42, "hero", true), API_KEY_USER_AUTH_HEADER).v1());
+        apiKeyIds.add(createApiKey("key3-admin", null, null, Map.of("value", 42, "hero", true), API_KEY_ADMIN_AUTH_HEADER).v1());
+        apiKeyIds.add(createApiKey("key4-batman", null, null, Map.of("hero", true), batmanUserCredentials).v1());
+        apiKeyIds.add(createApiKey("key5-batman", null, null, Map.of("hero", true), batmanUserCredentials).v1());
+
+        assertQuery(
+            API_KEY_ADMIN_AUTH_HEADER,
+            """
+                {"query": {"simple_query_string": {"query": "key*", "fields": ["no_such_field_pattern*"]}}}""",
+            apiKeys -> assertThat(apiKeys, is(empty()))
+        );
+        assertQuery(
+            API_KEY_ADMIN_AUTH_HEADER,
+            """
+                {"query": {"simple_query_string": {"query": "prod 42 true", "fields": ["metadata.*"]}}}""",
+            apiKeys -> assertThat(apiKeys, is(empty()))
+        );
+        // disallowed fields are silently ignored for the simple query string query type
+        assertQuery(
+            API_KEY_ADMIN_AUTH_HEADER,
+            """
+                {"query": {"simple_query_string": {"query": "ke*", "fields": ["x*", "api_key_hash"]}}}""",
+            apiKeys -> assertThat(apiKeys, is(empty()))
+        );
+        assertQuery(
+            API_KEY_ADMIN_AUTH_HEADER,
+            """
+                {"query": {"simple_query_string": {"query": "prod 42 true", "fields": ["wild*", "metadata"]}}}""",
+            apiKeys -> assertThat(apiKeys.stream().map(k -> (String) k.get("id")).toList(), containsInAnyOrder(apiKeyIds.toArray()))
+        );
+        assertQuery(
+            API_KEY_ADMIN_AUTH_HEADER,
+            """
+                {"query": {"simple_query_string": {"query": "key* +rest" }}}""",
+            apiKeys -> assertThat(apiKeys.stream().map(k -> (String) k.get("id")).toList(), containsInAnyOrder(apiKeyIds.toArray()))
+        );
+        assertQuery(
+            API_KEY_ADMIN_AUTH_HEADER,
+            """
+                {"query": {"simple_query_string": {"query": "-prod", "fields": ["metadata"]}}}""",
+            apiKeys -> assertThat(
+                apiKeys.stream().map(k -> (String) k.get("id")).toList(),
+                containsInAnyOrder(apiKeyIds.get(4), apiKeyIds.get(5), apiKeyIds.get(6), apiKeyIds.get(7))
+            )
+        );
+        assertQuery(
+            API_KEY_ADMIN_AUTH_HEADER,
+            """
+                {"query": {"simple_query_string": {"query": "-42", "fields": ["meta*", "whatever*"]}}}""",
+            apiKeys -> assertThat(
+                apiKeys.stream().map(k -> (String) k.get("id")).toList(),
+                containsInAnyOrder(apiKeyIds.get(0), apiKeyIds.get(1), apiKeyIds.get(6), apiKeyIds.get(7))
+            )
+        );
+        assertQuery(
+            API_KEY_ADMIN_AUTH_HEADER,
+            """
+                {"query": {"simple_query_string": {"query": "-rest term_which_does_not_exist"}}}""",
+            apiKeys -> assertThat(apiKeys, is(empty()))
+        );
+        assertQuery(
+            API_KEY_ADMIN_AUTH_HEADER,
+            """
+                {"query": {"simple_query_string": {"query": "+default_file +api_key_user", "fields": ["us*", "rea*"]}}}""",
+            apiKeys -> assertThat(
+                apiKeys.stream().map(k -> (String) k.get("id")).toList(),
+                containsInAnyOrder(apiKeyIds.get(0), apiKeyIds.get(2), apiKeyIds.get(4))
+            )
+        );
+        assertQuery(
+            API_KEY_ADMIN_AUTH_HEADER,
+            """
+                {"query": {"simple_query_string": {"query": "default_fie~4", "fields": ["*"]}}}""",
+            apiKeys -> assertThat(
+                apiKeys.stream().map(k -> (String) k.get("id")).toList(),
+                containsInAnyOrder(
+                    apiKeyIds.get(0),
+                    apiKeyIds.get(1),
+                    apiKeyIds.get(2),
+                    apiKeyIds.get(3),
+                    apiKeyIds.get(4),
+                    apiKeyIds.get(5)
+                )
+            )
+        );
+        assertQuery(
+            API_KEY_ADMIN_AUTH_HEADER,
+            """
+                {"query": {"simple_query_string": {"query": "+prod +42",
+                "fields": ["metadata.label", "metadata.value", "metadata.hero"]}}}""",
+            apiKeys -> assertThat(
+                apiKeys.stream().map(k -> (String) k.get("id")).toList(),
+                containsInAnyOrder(apiKeyIds.get(2), apiKeyIds.get(3))
+            )
+        );
+        assertQuery(batmanUserCredentials, """
+            {"query": {"simple_query_string": {"query": "+prod key*", "fields": ["name", "username", "metadata"],
+            "default_operator": "AND"}}}""", apiKeys -> assertThat(apiKeys, is(empty())));
+        assertQuery(
+            batmanUserCredentials,
+            """
+                {"query": {"simple_query_string": {"query": "+true +key*", "fields": ["name", "username", "metadata"],
+                "default_operator": "AND"}}}""",
+            apiKeys -> assertThat(
+                apiKeys.stream().map(k -> (String) k.get("id")).toList(),
+                containsInAnyOrder(apiKeyIds.get(6), apiKeyIds.get(7))
+            )
+        );
+        assertQuery(
+            batmanUserCredentials,
+            """
+                {"query": {"bool": {"must": [{"term": {"name": {"value":"key5-batman"}}},
+                {"simple_query_string": {"query": "default_native"}}]}}}""",
+            apiKeys -> assertThat(apiKeys.stream().map(k -> (String) k.get("id")).toList(), containsInAnyOrder(apiKeyIds.get(7)))
+        );
     }
 
     public void testExistsQuery() throws IOException, InterruptedException {
@@ -530,15 +661,16 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
         return actualSize;
     }
 
-    private void assertQueryError(String authHeader, int statusCode, String body) throws IOException {
+    private ResponseException assertQueryError(String authHeader, int statusCode, String body) throws IOException {
         final Request request = new Request("GET", "/_security/_query/api_key");
         request.setJsonEntity(body);
         request.setOptions(request.getOptions().toBuilder().addHeader(HttpHeaders.AUTHORIZATION, authHeader));
         final ResponseException responseException = expectThrows(ResponseException.class, () -> client().performRequest(request));
         assertThat(responseException.getResponse().getStatusLine().getStatusCode(), equalTo(statusCode));
+        return responseException;
     }
 
-    private void assertQuery(String authHeader, String body, Consumer<List<Map<String, Object>>> apiKeysVerifier) throws IOException {
+    void assertQuery(String authHeader, String body, Consumer<List<Map<String, Object>>> apiKeysVerifier) throws IOException {
         final Request request = new Request("GET", "/_security/_query/api_key");
         request.setJsonEntity(body);
         request.setOptions(request.getOptions().toBuilder().addHeader(HttpHeaders.AUTHORIZATION, authHeader));
@@ -616,11 +748,11 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
         );
     }
 
-    private Tuple<String, String> createApiKey(String name, Map<String, Object> metadata, String authHeader) throws IOException {
+    static Tuple<String, String> createApiKey(String name, Map<String, Object> metadata, String authHeader) throws IOException {
         return createApiKey(name, null, metadata, authHeader);
     }
 
-    private Tuple<String, String> createApiKey(
+    static Tuple<String, String> createApiKey(
         String name,
         Map<String, Object> roleDescriptors,
         Map<String, Object> metadata,
@@ -629,7 +761,7 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
         return createApiKey(name, randomFrom("10d", null), roleDescriptors, metadata, authHeader);
     }
 
-    private Tuple<String, String> createApiKey(
+    static Tuple<String, String> createApiKey(
         String name,
         String expiration,
         Map<String, Object> roleDescriptors,
@@ -658,21 +790,74 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
         return new Tuple<>((String) m.get("id"), (String) m.get("api_key"));
     }
 
-    private String createAndInvalidateApiKey(String name, String authHeader) throws IOException {
-        final Tuple<String, String> tuple = createApiKey(name, null, authHeader);
-        final Request request = new Request("DELETE", "/_security/api_key");
-        request.setOptions(request.getOptions().toBuilder().addHeader(HttpHeaders.AUTHORIZATION, authHeader));
+    static Tuple<String, String> grantApiKey(
+        String name,
+        String expiration,
+        Map<String, Object> metadata,
+        String authHeader,
+        String username
+    ) throws IOException {
+        return grantApiKey(name, expiration, null, metadata, authHeader, username);
+    }
+
+    static Tuple<String, String> grantApiKey(
+        String name,
+        String expiration,
+        Map<String, Object> roleDescriptors,
+        Map<String, Object> metadata,
+        String authHeader,
+        String username
+    ) throws IOException {
+        final Request request = new Request("POST", "/_security/api_key/grant");
+        final String roleDescriptorsString = XContentTestUtils.convertToXContent(
+            roleDescriptors == null ? Map.of() : roleDescriptors,
+            XContentType.JSON
+        ).utf8ToString();
+        final String metadataString = XContentTestUtils.convertToXContent(metadata == null ? Map.of() : metadata, XContentType.JSON)
+            .utf8ToString();
+        final String apiKeyString;
+        if (expiration == null) {
+            apiKeyString = Strings.format("""
+                {"name":"%s", "role_descriptors":%s, "metadata":%s}""", name, roleDescriptorsString, metadataString);
+        } else {
+            apiKeyString = Strings.format("""
+                {"name":"%s", "expiration": "%s", "role_descriptors":%s,\
+                "metadata":%s}""", name, expiration, roleDescriptorsString, metadataString);
+        }
         request.setJsonEntity(Strings.format("""
-            {"ids": ["%s"],"owner":true}""", tuple.v1()));
-        assertOK(client().performRequest(request));
+            {
+              "grant_type": "password",
+              "username": "%s",
+              "password": "super-strong-password",
+              "api_key": %s
+            }
+            """, username, apiKeyString));
+        request.setOptions(request.getOptions().toBuilder().addHeader(HttpHeaders.AUTHORIZATION, authHeader));
+        final Response response = client().performRequest(request);
+        assertOK(response);
+        final Map<String, Object> m = responseAsMap(response);
+        return new Tuple<>((String) m.get("id"), (String) m.get("api_key"));
+    }
+
+    static String createAndInvalidateApiKey(String name, String authHeader) throws IOException {
+        final Tuple<String, String> tuple = createApiKey(name, null, authHeader);
+        invalidateApiKey(tuple.v1(), true, authHeader);
         return tuple.v1();
     }
 
-    private String createUser(String username) throws IOException {
+    static void invalidateApiKey(String id, boolean owner, String authHeader) throws IOException {
+        final Request request = new Request("DELETE", "/_security/api_key");
+        request.setOptions(request.getOptions().toBuilder().addHeader(HttpHeaders.AUTHORIZATION, authHeader));
+        request.setJsonEntity(Strings.format("""
+            {"ids": ["%s"],"owner":%s}""", id, owner));
+        assertOK(client().performRequest(request));
+    }
+
+    static String createUser(String username) throws IOException {
         return createUser(username, new String[0]);
     }
 
-    private String createUser(String username, String[] roles) throws IOException {
+    static String createUser(String username, String[] roles) throws IOException {
         final Request request = new Request("POST", "/_security/user/" + username);
         Map<String, Object> body = Map.ofEntries(Map.entry("roles", roles), Map.entry("password", "super-strong-password".toString()));
         request.setJsonEntity(XContentTestUtils.convertToXContent(body, XContentType.JSON).utf8ToString());
@@ -681,7 +866,7 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
         return basicAuthHeaderValue(username, new SecureString("super-strong-password".toCharArray()));
     }
 
-    private void createSystemWriteRole(String roleName) throws IOException {
+    static void createSystemWriteRole(String roleName) throws IOException {
         final Request addRole = new Request("POST", "/_security/role/" + roleName);
         addRole.setJsonEntity("""
             {
@@ -697,7 +882,7 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
         assertOK(response);
     }
 
-    private void expectWarnings(Request request, String... expectedWarnings) {
+    static void expectWarnings(Request request, String... expectedWarnings) {
         final Set<String> expected = Set.of(expectedWarnings);
         RequestOptions options = request.getOptions().toBuilder().setWarningsHandler(warnings -> {
             final Set<String> actual = Set.copyOf(warnings);
@@ -707,7 +892,7 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
         request.setOptions(options);
     }
 
-    private void updateApiKeys(String creds, String script, Collection<String> ids) throws IOException {
+    static void updateApiKeys(String creds, String script, Collection<String> ids) throws IOException {
         if (ids.isEmpty()) {
             return;
         }

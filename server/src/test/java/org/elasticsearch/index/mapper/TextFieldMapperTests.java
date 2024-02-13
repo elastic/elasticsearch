@@ -1120,12 +1120,12 @@ public class TextFieldMapperTests extends MapperTestCase {
         assumeFalse("ignore_malformed not supported", ignoreMalformed);
         boolean storeTextField = randomBoolean();
         boolean storedKeywordField = storeTextField || randomBoolean();
-        String nullValue = storeTextField || usually() ? null : randomAlphaOfLength(2);
+        boolean indexText = randomBoolean();
         Integer ignoreAbove = randomBoolean() ? null : between(10, 100);
         KeywordFieldMapperTests.KeywordSyntheticSourceSupport keywordSupport = new KeywordFieldMapperTests.KeywordSyntheticSourceSupport(
             ignoreAbove,
             storedKeywordField,
-            nullValue,
+            null,
             false == storeTextField
         );
         return new SyntheticSourceSupport() {
@@ -1137,7 +1137,12 @@ public class TextFieldMapperTests extends MapperTestCase {
                         delegate.inputValue(),
                         delegate.expectedForSyntheticSource(),
                         delegate.expectedForBlockLoader(),
-                        b -> b.field("type", "text").field("store", true)
+                        b -> {
+                            b.field("type", "text").field("store", true);
+                            if (indexText == false) {
+                                b.field("index", false);
+                            }
+                        }
                     );
                 }
                 // We'll load from _source if ignore_above is defined, otherwise we load from the keyword field.
@@ -1149,6 +1154,9 @@ public class TextFieldMapperTests extends MapperTestCase {
                     delegate.expectedForBlockLoader(),
                     b -> {
                         b.field("type", "text");
+                        if (indexText == false) {
+                            b.field("index", false);
+                        }
                         b.startObject("fields");
                         {
                             b.startObject(randomAlphaOfLength(4));
@@ -1195,8 +1203,8 @@ public class TextFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected Function<Object, Object> loadBlockExpected(MapperService mapper, String fieldName) {
-        if (nullLoaderExpected(mapper, fieldName)) {
+    protected Function<Object, Object> loadBlockExpected(BlockReaderSupport blockReaderSupport, boolean columnReader) {
+        if (nullLoaderExpected(blockReaderSupport.mapper(), blockReaderSupport.loaderFieldName())) {
             return null;
         }
         return v -> ((BytesRef) v).utf8ToString();
@@ -1352,26 +1360,29 @@ public class TextFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected boolean supportsColumnAtATimeReader(MapperService mapper, MappedFieldType ft) {
+    protected BlockReaderSupport getSupportedReaders(MapperService mapper, String loaderFieldName) {
+        MappedFieldType ft = mapper.fieldType(loaderFieldName);
         String parentName = mapper.mappingLookup().parentField(ft.name());
         if (parentName == null) {
             TextFieldMapper.TextFieldType text = (TextFieldType) ft;
-            return text.syntheticSourceDelegate() != null
+            boolean supportsColumnAtATimeReader = text.syntheticSourceDelegate() != null
                 && text.syntheticSourceDelegate().hasDocValues()
                 && text.canUseSyntheticSourceDelegateForQuerying();
+            return new BlockReaderSupport(supportsColumnAtATimeReader, mapper, loaderFieldName);
         }
         MappedFieldType parent = mapper.fieldType(parentName);
         if (false == parent.typeName().equals(KeywordFieldMapper.CONTENT_TYPE)) {
             throw new UnsupportedOperationException();
         }
         KeywordFieldMapper.KeywordFieldType kwd = (KeywordFieldMapper.KeywordFieldType) parent;
-        return kwd.hasDocValues();
+        return new BlockReaderSupport(kwd.hasDocValues(), mapper, loaderFieldName);
     }
 
     public void testBlockLoaderFromParentColumnReader() throws IOException {
         testBlockLoaderFromParent(true, randomBoolean());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/104158")
     public void testBlockLoaderParentFromRowStrideReader() throws IOException {
         testBlockLoaderFromParent(false, randomBoolean());
     }
@@ -1398,6 +1409,7 @@ public class TextFieldMapperTests extends MapperTestCase {
             b.endObject();
         };
         MapperService mapper = createMapperService(syntheticSource ? syntheticSourceMapping(buildFields) : mapping(buildFields));
-        testBlockLoader(columnReader, example, mapper, "field.sub");
+        BlockReaderSupport blockReaderSupport = getSupportedReaders(mapper, "field.sub");
+        testBlockLoader(columnReader, example, blockReaderSupport);
     }
 }

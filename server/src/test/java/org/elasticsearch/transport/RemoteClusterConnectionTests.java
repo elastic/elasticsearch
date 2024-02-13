@@ -38,6 +38,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.ReleasableRef;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -155,23 +156,28 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                     } else {
                         searchHits = SearchHits.empty(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN);
                     }
-                    SearchResponse searchResponse = new SearchResponse(
-                        searchHits,
-                        InternalAggregations.EMPTY,
-                        null,
-                        false,
-                        null,
-                        null,
-                        1,
-                        null,
-                        1,
-                        1,
-                        0,
-                        100,
-                        ShardSearchFailure.EMPTY_ARRAY,
-                        SearchResponse.Clusters.EMPTY
-                    );
-                    channel.sendResponse(searchResponse);
+                    try (
+                        var searchResponseRef = ReleasableRef.of(
+                            new SearchResponse(
+                                searchHits,
+                                InternalAggregations.EMPTY,
+                                null,
+                                false,
+                                null,
+                                null,
+                                1,
+                                null,
+                                1,
+                                1,
+                                0,
+                                100,
+                                ShardSearchFailure.EMPTY_ARRAY,
+                                SearchResponse.Clusters.EMPTY
+                            )
+                        )
+                    ) {
+                        channel.sendResponse(searchResponseRef.get());
+                    }
                 }
             );
             newService.registerRequestHandler(

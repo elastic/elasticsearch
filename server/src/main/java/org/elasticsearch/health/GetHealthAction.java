@@ -22,7 +22,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.health.stats.HealthApiStats;
@@ -47,7 +46,7 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
     public static final String NAME = "cluster:monitor/health_api";
 
     private GetHealthAction() {
-        super(NAME, Writeable.Reader.localOnly());
+        super(NAME);
     }
 
     public static class Response extends ActionResponse implements ChunkedToXContent {

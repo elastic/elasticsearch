@@ -37,7 +37,7 @@ import java.util.Set;
  */
 public class TransportDeleteIndexAction extends AcknowledgedTransportMasterNodeAction<DeleteIndexRequest> {
 
-    public static final ActionType<AcknowledgedResponse> TYPE = ActionType.localOnly("indices:admin/delete");
+    public static final ActionType<AcknowledgedResponse> TYPE = new ActionType<>("indices:admin/delete");
     private static final Logger logger = LogManager.getLogger(TransportDeleteIndexAction.class);
 
     private final MetadataDeleteIndexService deleteIndexService;

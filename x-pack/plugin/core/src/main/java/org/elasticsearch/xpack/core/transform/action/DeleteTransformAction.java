@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.core.transform.action;
 
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -26,7 +25,7 @@ public class DeleteTransformAction extends ActionType<AcknowledgedResponse> {
     public static final String NAME = "cluster:admin/transform/delete";
 
     private DeleteTransformAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<Request> {
@@ -72,11 +71,6 @@ public class DeleteTransformAction extends ActionType<AcknowledgedResponse> {
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
                 out.writeBoolean(deleteDestIndex);
             }
-        }
-
-        @Override
-        public ActionRequestValidationException validate() {
-            return null;
         }
 
         @Override

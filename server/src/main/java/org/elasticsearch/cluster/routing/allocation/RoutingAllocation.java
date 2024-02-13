@@ -160,7 +160,7 @@ public class RoutingAllocation {
         if (clusterInfo != null) {
             for (RoutingNode node : clusterState.getRoutingNodes()) {
                 DiskUsage usage = clusterInfo.getNodeMostAvailableDiskUsages().get(node.nodeId());
-                ClusterInfo.ReservedSpace reservedSpace = clusterInfo.getReservedSpace(node.nodeId(), usage != null ? usage.getPath() : "");
+                ClusterInfo.ReservedSpace reservedSpace = clusterInfo.getReservedSpace(node.nodeId(), usage != null ? usage.path() : "");
                 long totalSize = 0;
                 for (ShardRouting shard : node.started()) {
                     if (shard.getExpectedShardSize() > 0

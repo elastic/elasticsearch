@@ -39,7 +39,7 @@ public class TransportNodesHotThreadsAction extends TransportNodesAction<
     TransportNodesHotThreadsAction.NodeRequest,
     NodeHotThreads> {
 
-    public static final ActionType<NodesHotThreadsResponse> TYPE = ActionType.localOnly("cluster:monitor/nodes/hot_threads");
+    public static final ActionType<NodesHotThreadsResponse> TYPE = new ActionType<>("cluster:monitor/nodes/hot_threads");
 
     @Inject
     public TransportNodesHotThreadsAction(

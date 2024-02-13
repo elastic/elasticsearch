@@ -61,10 +61,7 @@ public class InternalOrPrivateSettingsPlugin extends Plugin implements ActionPlu
 
     public static class UpdateInternalOrPrivateAction {
 
-        public static final ActionType<Response> INSTANCE = new ActionType<>(
-            "indices:admin/settings/update-internal-or-private-index",
-            UpdateInternalOrPrivateAction.Response::new
-        );
+        public static final ActionType<Response> INSTANCE = new ActionType<>("indices:admin/settings/update-internal-or-private-index");
 
         public static class Request extends MasterNodeRequest<Request> {
 

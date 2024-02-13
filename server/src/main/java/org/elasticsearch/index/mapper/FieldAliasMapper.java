@@ -55,7 +55,7 @@ public final class FieldAliasMapper extends Mapper {
     }
 
     @Override
-    public Mapper merge(Mapper mergeWith, MapperBuilderContext mapperBuilderContext) {
+    public Mapper merge(Mapper mergeWith, MapperMergeContext mapperMergeContext) {
         if ((mergeWith instanceof FieldAliasMapper) == false) {
             throw new IllegalArgumentException(
                 "Cannot merge a field alias mapping [" + name() + "] with a mapping that is not for a field alias."
@@ -111,6 +111,11 @@ public final class FieldAliasMapper extends Mapper {
             message.append(pathScope == null ? "the target is not nested." : "the target's nested scope is [" + pathScope + "].");
             throw new IllegalArgumentException(message.toString());
         }
+    }
+
+    @Override
+    public int getTotalFieldsCount() {
+        return 1;
     }
 
     public static class TypeParser implements Mapper.TypeParser {

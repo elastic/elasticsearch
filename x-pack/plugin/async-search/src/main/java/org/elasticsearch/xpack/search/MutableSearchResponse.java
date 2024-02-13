@@ -306,10 +306,12 @@ class MutableSearchResponse implements Releasable {
      *         (for local-only/CCS minimize_roundtrips=false)
      */
     private SearchResponseMerger createSearchResponseMerger(AsyncSearchTask task) {
-        if (task.getSearchResponseMergerSupplier() == null) {
-            return null; // local search and CCS minimize_roundtrips=false
-        }
-        return task.getSearchResponseMergerSupplier().get();
+        return null;
+        // TODO uncomment this code once Kibana moves to polling the _async_search/status endpoint to determine if a search is done
+        // if (task.getSearchResponseMergerSupplier() == null) {
+        // return null; // local search and CCS minimize_roundtrips=false
+        // }
+        // return task.getSearchResponseMergerSupplier().get();
     }
 
     private SearchResponse getMergedResponse(SearchResponseMerger merger) {
@@ -398,15 +400,20 @@ class MutableSearchResponse implements Releasable {
         if (this.failure != null) {
             reduceException.addSuppressed(this.failure);
         }
-        return new AsyncSearchResponse(
-            task.getExecutionId().getEncoded(),
-            buildResponse(task.getStartTimeNanos(), null),
-            reduceException,
-            isPartial,
-            frozen == false,
-            task.getStartTime(),
-            expirationTime
-        );
+        var response = buildResponse(task.getStartTimeNanos(), null);
+        try {
+            return new AsyncSearchResponse(
+                task.getExecutionId().getEncoded(),
+                response,
+                reduceException,
+                isPartial,
+                frozen == false,
+                task.getStartTime(),
+                expirationTime
+            );
+        } finally {
+            response.decRef();
+        }
     }
 
     private void failIfFrozen() {

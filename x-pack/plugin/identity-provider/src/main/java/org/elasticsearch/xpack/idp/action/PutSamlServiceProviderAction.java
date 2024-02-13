@@ -15,6 +15,6 @@ public class PutSamlServiceProviderAction extends ActionType<PutSamlServiceProvi
     public static final PutSamlServiceProviderAction INSTANCE = new PutSamlServiceProviderAction(NAME);
 
     public PutSamlServiceProviderAction(String name) {
-        super(name, PutSamlServiceProviderResponse::new);
+        super(name);
     }
 }

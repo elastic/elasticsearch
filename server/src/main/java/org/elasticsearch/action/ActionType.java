@@ -11,8 +11,6 @@ package org.elasticsearch.action;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.transport.TransportService;
 
@@ -25,13 +23,11 @@ import org.elasticsearch.transport.TransportService;
  * TYPE}. Some legacy implementations create custom subclasses of {@link ActionType} but this is unnecessary and somewhat wasteful. Prefer
  * to create instances of this class directly whenever possible.
  */
+@SuppressWarnings("unused") // Response type arg is used to enable better type inference when calling Client#execute
 public class ActionType<Response extends ActionResponse> {
 
-    private final String name;
-    private final Writeable.Reader<Response> responseReader;
-
     /**
-     * Construct an {@link ActionType} which callers can execute on the local node (using {@link NodeClient}).
+     * Construct an {@link ActionType} with the given name.
      * <p>
      * There is no facility for directly executing an action on a different node in the local cluster. To achieve this, implement an action
      * which runs on the local node and knows how to use the {@link TransportService} to forward the request to a different node. There are
@@ -39,32 +35,26 @@ public class ActionType<Response extends ActionResponse> {
      *
      * @param name The name of the action, which must be unique across actions.
      * @return an {@link ActionType} which callers can execute on the local node.
+     * @deprecated Just create the {@link ActionType} directly.
      */
+    @Deprecated(forRemoval = true)
     public static <T extends ActionResponse> ActionType<T> localOnly(String name) {
-        return new ActionType<>(name, Writeable.Reader.localOnly());
+        return new ActionType<>(name);
     }
 
-    public static ActionType<ActionResponse.Empty> emptyResponse(String name) {
-        return new ActionType<>(name, in -> ActionResponse.Empty.INSTANCE);
-    }
+    private final String name;
 
     /**
-     * Construct an {@link ActionType} which callers can execute both on the local node (using {@link NodeClient}) and on a remote cluster
-     * (using a client obtained from {@link Client#getRemoteClusterClient}). If the action is only to be executed on the local cluster then
-     * declare it using {@link #localOnly} instead.
+     * Construct an {@link ActionType} with the given name.
      * <p>
      * There is no facility for directly executing an action on a different node in the local cluster. To achieve this, implement an action
      * which runs on the local node and knows how to use the {@link TransportService} to forward the request to a different node. There are
      * several utilities that help implement such an action, including {@link TransportNodesAction} or {@link TransportMasterNodeAction}.
      *
-     * @param name           The name of the action, which must be unique across actions. When executed on a remote cluster, this is the
-     *                       ID of the transport action which is sent to the handling node in the remote cluster.
-     * @param responseReader Defines how to deserialize responses received from executions of this action on remote clusters. Executions of
-     *                       this action on the local node receive the response object directly, without needing any deserialization.
+     * @param name The name of the action, which must be unique across actions.
      */
-    public ActionType(String name, Writeable.Reader<Response> responseReader) {
+    public ActionType(String name) {
         this.name = name;
-        this.responseReader = responseReader;
     }
 
     /**
@@ -72,13 +62,6 @@ public class ActionType<Response extends ActionResponse> {
      */
     public String name() {
         return this.name;
-    }
-
-    /**
-     * Get a reader that can read a response from a {@link org.elasticsearch.common.io.stream.StreamInput}.
-     */
-    public Writeable.Reader<Response> getResponseReader() {
-        return responseReader;
     }
 
     @Override

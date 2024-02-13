@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.ccr;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.RemoteClusterClient;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
@@ -75,7 +75,7 @@ public class CcrRetentionLeases {
         final ShardId leaderShardId,
         final String retentionLeaseId,
         final long retainingSequenceNumber,
-        final Client remoteClient,
+        final RemoteClusterClient remoteClient,
         final TimeValue timeout
     ) {
         try {
@@ -103,7 +103,7 @@ public class CcrRetentionLeases {
         final ShardId leaderShardId,
         final String retentionLeaseId,
         final long retainingSequenceNumber,
-        final Client remoteClient,
+        final RemoteClusterClient remoteClient,
         final ActionListener<ActionResponse.Empty> listener
     ) {
         final RetentionLeaseActions.AddRequest request = new RetentionLeaseActions.AddRequest(
@@ -112,7 +112,7 @@ public class CcrRetentionLeases {
             retainingSequenceNumber,
             "ccr"
         );
-        remoteClient.execute(RetentionLeaseActions.ADD, request, listener);
+        remoteClient.execute(RetentionLeaseActions.REMOTE_ADD, request, listener);
     }
 
     /**
@@ -130,7 +130,7 @@ public class CcrRetentionLeases {
         final ShardId leaderShardId,
         final String retentionLeaseId,
         final long retainingSequenceNumber,
-        final Client remoteClient,
+        final RemoteClusterClient remoteClient,
         final TimeValue timeout
     ) {
         try {
@@ -158,7 +158,7 @@ public class CcrRetentionLeases {
         final ShardId leaderShardId,
         final String retentionLeaseId,
         final long retainingSequenceNumber,
-        final Client remoteClient,
+        final RemoteClusterClient remoteClient,
         final ActionListener<ActionResponse.Empty> listener
     ) {
         final RetentionLeaseActions.RenewRequest request = new RetentionLeaseActions.RenewRequest(
@@ -167,7 +167,7 @@ public class CcrRetentionLeases {
             retainingSequenceNumber,
             "ccr"
         );
-        remoteClient.execute(RetentionLeaseActions.RENEW, request, listener);
+        remoteClient.execute(RetentionLeaseActions.REMOTE_RENEW, request, listener);
     }
 
     /**
@@ -183,11 +183,11 @@ public class CcrRetentionLeases {
     public static void asyncRemoveRetentionLease(
         final ShardId leaderShardId,
         final String retentionLeaseId,
-        final Client remoteClient,
+        final RemoteClusterClient remoteClient,
         final ActionListener<ActionResponse.Empty> listener
     ) {
         final RetentionLeaseActions.RemoveRequest request = new RetentionLeaseActions.RemoveRequest(leaderShardId, retentionLeaseId);
-        remoteClient.execute(RetentionLeaseActions.REMOVE, request, listener);
+        remoteClient.execute(RetentionLeaseActions.REMOTE_REMOVE, request, listener);
     }
 
 }

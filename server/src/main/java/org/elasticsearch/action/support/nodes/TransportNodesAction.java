@@ -86,9 +86,12 @@ public abstract class TransportNodesAction<
 
     @Override
     protected void doExecute(Task task, NodesRequest request, ActionListener<NodesResponse> listener) {
+        logger.info("~~~TransportNodesAction::doExecute HI");
         // coordination can run on SAME because it's only O(#nodes) work
+        logger.info("~~~TransportNodesAction::doExecute: " + Arrays.toString(request.concreteNodes()));
         if (request.concreteNodes() == null) {
             resolveRequest(request, clusterService.state());
+            logger.info("~~~TransportNodesAction::doExecute: " + Arrays.toString(Arrays.stream(request.concreteNodes()).toArray()));
             assert request.concreteNodes() != null;
         }
 
@@ -236,7 +239,10 @@ public abstract class TransportNodesAction<
      **/
     protected void resolveRequest(NodesRequest request, ClusterState clusterState) {
         assert request.concreteNodes() == null : "request concreteNodes shouldn't be set";
+        logger.info("~~~TransportNodesAction::resolveRequest request.nodesIds(): " + Arrays.toString(request.nodesIds()));
+        //// SNEAKY BEHAVIOR: if nodesIds is empty, resolveNodes will fetch ALL the nodes in the cluster??...
         String[] nodesIds = clusterState.nodes().resolveNodes(request.nodesIds());
+        logger.info("~~~TransportNodesAction::resolveRequest nodesIds: " + Arrays.toString(nodesIds));
         request.setConcreteNodes(Arrays.stream(nodesIds).map(clusterState.nodes()::get).toArray(DiscoveryNode[]::new));
     }
 

@@ -41,7 +41,7 @@ public final class SecuritySettingsUtil {
         if (allowedValues != null) {
             if (allowedValues.contains(settingValue) == false) {
                 throw new IllegalArgumentException(
-                    "Invalid settingValue [" + settingValue + "] for [" + settingKey + "]. Allowed values are " + allowedValues + "."
+                    "Invalid value [" + settingValue + "] for [" + settingKey + "]. Allowed values are " + allowedValues + "."
                 );
             }
         }

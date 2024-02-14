@@ -57,7 +57,7 @@ public final class AsyncSearch extends Plugin implements ActionPlugin {
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
         return Arrays.asList(
-            new RestSubmitAsyncSearchAction(restController.getSearchUsageHolder(), namedWriteableRegistry),
+            new RestSubmitAsyncSearchAction(restController.getSearchUsageHolder(), namedWriteableRegistry, clusterSupportsFeature),
             new RestGetAsyncSearchAction(),
             new RestGetAsyncStatusAction(),
             new RestDeleteAsyncSearchAction()

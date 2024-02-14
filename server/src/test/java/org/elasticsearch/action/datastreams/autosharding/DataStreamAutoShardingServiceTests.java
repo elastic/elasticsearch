@@ -341,7 +341,7 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
             AutoShardingResult autoShardingResult = service.calculate(state, dataStream, 1.0);
             // the cooldown period for the decrease shards event hasn't lapsed since the data stream was created
             assertThat(autoShardingResult.type(), is(NO_CHANGE_REQUIRED));
-            assertThat(autoShardingResult.coolDownRemaining(), is(TimeValue.MAX_VALUE));
+            assertThat(autoShardingResult.coolDownRemaining(), is(TimeValue.ZERO));
             // no change required so the recommendation is to keep 3 shards (the current count for the write index)
             assertThat(autoShardingResult.targetNumberOfShards(), is(3));
         }
@@ -470,7 +470,7 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
             AutoShardingResult autoShardingResult = service.calculate(state, dataStream, 4.0);
             assertThat(autoShardingResult.type(), is(NO_CHANGE_REQUIRED));
             assertThat(autoShardingResult.targetNumberOfShards(), is(3));
-            assertThat(autoShardingResult.coolDownRemaining(), is(TimeValue.MAX_VALUE));
+            assertThat(autoShardingResult.coolDownRemaining(), is(TimeValue.ZERO));
         }
     }
 

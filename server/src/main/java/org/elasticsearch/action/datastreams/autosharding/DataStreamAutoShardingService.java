@@ -236,9 +236,11 @@ public class DataStreamAutoShardingService {
      * - decrease the number of shards if the optimal number of shards it deems necessary for the provided data stream is LT the current
      * number of shards
      *
-     * All results except INCREASE/DECREASE NUMBER OF SHARDS will report a cooldown period of TimeValue.MAX_VALUE. The INCREASE/DECREASE
-     * auto sharding results will either report a cool down perdiod that's GT TimeValue.ZERO or TimeValue.ZERO if the auto sharding can
-     * be applied now.
+     * The NOT_APPLICABLE type result will report a cooldown period of TimeValue.MAX_VALUE.
+     * The INCREASE/DECREASE auto sharding results will either report a cool down period that's GT TimeValue.ZERO or TimeValue.ZERO if
+     * the auto sharding can be applied now.
+     *
+     * The NO_CHANGE_REQUIRED type will always report a cool down period of TimeValue.ZERO (as there'll be no new auto sharding event)
      */
     public AutoShardingResult calculate(ClusterState state, DataStream dataStream, @Nullable Double writeIndexLoad) {
         Metadata metadata = state.metadata();
@@ -340,7 +342,7 @@ public class DataStreamAutoShardingService {
                 AutoShardingType.NO_CHANGE_REQUIRED,
                 writeIndex.getNumberOfShards(),
                 writeIndex.getNumberOfShards(),
-                TimeValue.MAX_VALUE,
+                TimeValue.ZERO,
                 writeIndexLoad
             );
         }
@@ -389,7 +391,7 @@ public class DataStreamAutoShardingService {
             AutoShardingType.NO_CHANGE_REQUIRED,
             writeIndex.getNumberOfShards(),
             writeIndex.getNumberOfShards(),
-            TimeValue.MAX_VALUE,
+            TimeValue.ZERO,
             writeIndexLoad
         );
     }

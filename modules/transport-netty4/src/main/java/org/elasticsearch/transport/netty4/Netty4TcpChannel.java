@@ -12,7 +12,6 @@ import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelOption;
 
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
@@ -22,6 +21,7 @@ import org.elasticsearch.transport.TcpChannel;
 
 import java.net.InetSocketAddress;
 
+import static org.elasticsearch.transport.netty4.Netty4Utils.addListener;
 import static org.elasticsearch.transport.netty4.Netty4Utils.addPromise;
 import static org.elasticsearch.transport.netty4.Netty4Utils.safeWriteAndFlush;
 
@@ -43,27 +43,6 @@ public class Netty4TcpChannel implements TcpChannel {
         this.rstOnClose = rstOnClose;
         addListener(this.channel.closeFuture(), closeContext);
         addListener(connectFuture, connectContext);
-    }
-
-    /**
-     * Adds a listener that completes the given {@link ListenableFuture} to the given {@link ChannelFuture}.
-     * @param channelFuture Channel future
-     * @param listener Listener to complete
-     */
-    public static void addListener(ChannelFuture channelFuture, ListenableFuture<Void> listener) {
-        channelFuture.addListener(f -> {
-            if (f.isSuccess()) {
-                listener.onResponse(null);
-            } else {
-                Throwable cause = f.cause();
-                if (cause instanceof Error) {
-                    ExceptionsHelper.maybeDieOnAnotherThread(cause);
-                    listener.onFailure(new Exception(cause));
-                } else {
-                    listener.onFailure((Exception) cause);
-                }
-            }
-        });
     }
 
     @Override

@@ -14,11 +14,11 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpResponse;
-import org.elasticsearch.transport.netty4.Netty4TcpChannel;
 
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 
+import static org.elasticsearch.transport.netty4.Netty4Utils.addListener;
 import static org.elasticsearch.transport.netty4.Netty4Utils.addPromise;
 import static org.elasticsearch.transport.netty4.Netty4Utils.safeWriteAndFlush;
 
@@ -29,7 +29,7 @@ public class Netty4HttpChannel implements HttpChannel {
 
     Netty4HttpChannel(Channel channel) {
         this.channel = channel;
-        Netty4TcpChannel.addListener(this.channel.closeFuture(), closeContext);
+        addListener(this.channel.closeFuture(), closeContext);
     }
 
     @Override

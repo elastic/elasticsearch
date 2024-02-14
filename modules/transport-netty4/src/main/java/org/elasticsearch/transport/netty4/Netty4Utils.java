@@ -14,6 +14,7 @@ import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelPromise;
 import io.netty.util.NettyRuntime;
+import io.netty.util.concurrent.Future;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
@@ -146,27 +147,31 @@ public class Netty4Utils {
     }
 
     /**
-     * Creates a {@link ChannelPromise} for the given {@link Channel} and adds a listener that invokes the given {@link ActionListener}
-     * on its completion.
-     * @param listener lister to invoke
-     * @param channel channel
-     * @return write promise
+     * Creates a {@link ChannelPromise} for the given {@link Channel}, subscribes the given {@link ActionListener} to it, and returns the
+     * promise that was created.
      */
     public static ChannelPromise addPromise(ActionListener<Void> listener, Channel channel) {
-        ChannelPromise writePromise = channel.newPromise();
-        writePromise.addListener(f -> {
+        final var promise = channel.newPromise();
+        addListener(promise, listener);
+        return promise;
+    }
+
+    /**
+     * Subscribes the given {@link ActionListener} to the given {@link Future}.
+     */
+    public static void addListener(Future<Void> future, ActionListener<Void> listener) {
+        future.addListener(f -> {
             if (f.isSuccess()) {
                 listener.onResponse(null);
             } else {
                 final Throwable cause = f.cause();
                 ExceptionsHelper.maybeDieOnAnotherThread(cause);
-                if (cause instanceof Error) {
-                    listener.onFailure(new Exception(cause));
+                if (cause instanceof Exception exception) {
+                    listener.onFailure(exception);
                 } else {
-                    listener.onFailure((Exception) cause);
+                    listener.onFailure(new Exception(cause));
                 }
             }
         });
-        return writePromise;
     }
 }

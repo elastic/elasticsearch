@@ -7,13 +7,8 @@
 
 package org.elasticsearch.xpack.application.rules;
 
-import org.apache.lucene.document.Document;
-import org.apache.lucene.document.StringField;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.store.Directory;
-import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetRequest;
@@ -36,6 +31,7 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.application.LocalStateEnterpriseSearch;
+import org.elasticsearch.xpack.searchbusinessrules.SearchBusinessRules;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -67,7 +63,7 @@ public class RuleQueryBuilderTests extends AbstractQueryTestCase<RuleQueryBuilde
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Collections.singletonList(LocalStateEnterpriseSearch.class);
+        return List.of(LocalStateEnterpriseSearch.class, SearchBusinessRules.class);
     }
 
     public void testIllegalArguments() {
@@ -185,36 +181,5 @@ public class RuleQueryBuilderTests extends AbstractQueryTestCase<RuleQueryBuilde
         final Map<String, String> objects = new HashMap<>();
         objects.put(RuleQueryBuilder.MATCH_CRITERIA_FIELD.getPreferredName(), null);
         return objects;
-    }
-
-    @Override
-    public void testToQuery() throws IOException {
-        try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            Document document = new Document();
-            document.add(new StringField("foo", "bar", org.apache.lucene.document.Field.Store.NO));
-            iw.addDocument(document);
-            try (IndexReader reader = iw.getReader()) {
-                SearchExecutionContext context = createSearchExecutionContext(newSearcher(reader));
-                RuleQueryBuilder queryBuilder = createTestQueryBuilder();
-                IllegalStateException e = expectThrows(IllegalStateException.class, () -> queryBuilder.toQuery(context));
-                assertEquals("rule_query should have been rewritten to another query type", e.getMessage());
-            }
-        }
-    }
-
-    @Override
-    public void testMustRewrite() {
-        SearchExecutionContext context = createSearchExecutionContext();
-        RuleQueryBuilder builder = createTestQueryBuilder();
-        IllegalStateException e = expectThrows(IllegalStateException.class, () -> builder.toQuery(context));
-        assertEquals("rule_query should have been rewritten to another query type", e.getMessage());
-    }
-
-    @Override
-    public void testCacheability() throws IOException {
-        RuleQueryBuilder queryBuilder = createTestQueryBuilder();
-        SearchExecutionContext context = createSearchExecutionContext();
-        queryBuilder.rewrite(new SearchExecutionContext(context));
-        assertTrue("query should be cacheable: " + queryBuilder, context.isCacheable());
     }
 }

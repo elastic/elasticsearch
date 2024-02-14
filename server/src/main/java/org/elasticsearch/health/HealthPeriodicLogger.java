@@ -284,7 +284,7 @@ public class HealthPeriodicLogger extends AbstractLifecycleComponent implements 
         try {
             // The health API is expected to be a quick call, so we do not need a very long timeout
             if (currentlyRunning.tryAcquire(2, TimeUnit.SECONDS)) {
-                currentlyRunning.release();
+                logger.debug("Periodic health logger's last run has successfully finished.");
             }
         } catch (InterruptedException e) {
             logger.warn("Error while waiting for the last run of the periodic health logger to finish.", e);
@@ -313,10 +313,10 @@ public class HealthPeriodicLogger extends AbstractLifecycleComponent implements 
                     ActionListener<List<HealthIndicatorResult>> listenerWithRelease = ActionListener.runAfter(resultsListener, release);
                     this.healthService.getHealth(this.client, null, false, 0, listenerWithRelease);
                 } catch (Exception e) {
-                    logger.warn(() -> "The health periodic logger encountered an error.", e);
                     // In case of an exception before the listener was wired, we can release the flag here, and we feel safe
                     // that it will not release it again because this can only be run once.
                     release.run();
+                    logger.warn(() -> "The health periodic logger encountered an error.", e);
                 }
                 return true;
             } else {

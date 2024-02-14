@@ -249,10 +249,8 @@ public class InternalIpPrefix extends InternalMultiBucketAggregation<InternalIpP
                         );
                     }
                 }
-                if (reduceContext.isFinalReduce()) {
-                    reducedBuckets.sort(Comparator.comparing(a -> a.key));
-                }
                 reduceContext.consumeBucketsAndMaybeBreak(reducedBuckets.size());
+                reducedBuckets.sort(Comparator.comparing(a -> a.key));
                 return new InternalIpPrefix(getName(), format, keyed, minDocCount, reducedBuckets, metadata);
             }
 

@@ -31,7 +31,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXC
 import static org.elasticsearch.xpack.application.rules.QueryRuleCriteriaType.EXACT;
 import static org.elasticsearch.xpack.application.rules.QueryRuleCriteriaType.PREFIX;
 import static org.elasticsearch.xpack.application.rules.QueryRuleCriteriaType.SUFFIX;
-import static org.elasticsearch.xpack.searchbusinessrules.PinnedQueryBuilder.Item;
 import static org.hamcrest.CoreMatchers.equalTo;
 
 public class QueryRuleTests extends ESTestCase {
@@ -175,11 +174,11 @@ public class QueryRuleTests extends ESTestCase {
         );
         AppliedQueryRules appliedQueryRules = new AppliedQueryRules();
         rule.applyRule(appliedQueryRules, Map.of("query", "elastic"));
-        assertEquals(List.of(new Item(null, "id1"), new Item(null, "id2")), appliedQueryRules.pinnedDocs());
+        assertEquals(List.of("id1", "id2"), appliedQueryRules.pinnedIds());
 
         appliedQueryRules = new AppliedQueryRules();
         rule.applyRule(appliedQueryRules, Map.of("query", "elastic1"));
-        assertEquals(Collections.emptyList(), appliedQueryRules.pinnedDocs());
+        assertEquals(Collections.emptyList(), appliedQueryRules.pinnedIds());
     }
 
     public void testApplyRuleWithMultipleCriteria() {
@@ -191,11 +190,11 @@ public class QueryRuleTests extends ESTestCase {
         );
         AppliedQueryRules appliedQueryRules = new AppliedQueryRules();
         rule.applyRule(appliedQueryRules, Map.of("query", "elastic - you know, for search"));
-        assertEquals(List.of(new Item(null, "id1"), new Item(null, "id2")), appliedQueryRules.pinnedDocs());
+        assertEquals(List.of("id1", "id2"), appliedQueryRules.pinnedIds());
 
         appliedQueryRules = new AppliedQueryRules();
         rule.applyRule(appliedQueryRules, Map.of("query", "elastic"));
-        assertEquals(Collections.emptyList(), appliedQueryRules.pinnedDocs());
+        assertEquals(Collections.emptyList(), appliedQueryRules.pinnedIds());
     }
 
     private void assertXContent(QueryRule queryRule, boolean humanReadable) throws IOException {

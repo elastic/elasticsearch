@@ -40,7 +40,7 @@ The following services are available through the {infer} API:
 * ELSER
 * Hugging Face
 * OpenAI
-* text embedding (for E5 and models uploaded through Eland)
+* text embedding (for built-in models and models uploaded through Eland)
 
 
 [discrete]

@@ -400,7 +400,7 @@ public class IndexNameExpressionResolver {
                         }
                     } else {
                         for (Index index : indexAbstraction.getIndices()) {
-                            if (shouldTrackConcreteIndex(context, context.getOptions(), indicesLookup.get(index.getName()))) {
+                            if (shouldTrackConcreteIndex(context, context.getOptions(), index)) {
                                 concreteIndicesResult.add(index);
                             }
                         }
@@ -423,7 +423,7 @@ public class IndexNameExpressionResolver {
     ) {
         if (shouldIncludeRegularIndices(context.getOptions())) {
             for (Index index : dataStream.getIndices()) {
-                if (shouldTrackConcreteIndex(context, context.getOptions(), indicesLookup.get(index.getName()))) {
+                if (shouldTrackConcreteIndex(context, context.getOptions(), index)) {
                     concreteIndicesResult.add(index);
                 }
             }
@@ -432,7 +432,7 @@ public class IndexNameExpressionResolver {
             // We short-circuit here, if failure indices are not allowed and they can be skipped
             if (context.getOptions().allowFailureIndices() || context.getOptions().ignoreUnavailable() == false) {
                 for (Index index : dataStream.getFailureIndices()) {
-                    if (shouldTrackConcreteIndex(context, context.getOptions(), indicesLookup.get(index.getName()))) {
+                    if (shouldTrackConcreteIndex(context, context.getOptions(), index)) {
                         concreteIndicesResult.add(index);
                     }
                 }
@@ -566,28 +566,30 @@ public class IndexNameExpressionResolver {
         return infe;
     }
 
-    private static boolean shouldTrackConcreteIndex(Context context, IndicesOptions options, IndexAbstraction indexAbstraction) {
+    private static boolean shouldTrackConcreteIndex(Context context, IndicesOptions options, Index index) {
         if (context.systemIndexAccessLevel == SystemIndexAccessLevel.BACKWARDS_COMPATIBLE_ONLY
-            && context.netNewSystemIndexPredicate.test(indexAbstraction.getName())) {
+            && context.netNewSystemIndexPredicate.test(index.getName())) {
             // Exclude this one as it's a net-new system index, and we explicitly don't want those.
             return false;
         }
-        Index index = indexAbstraction.getIndices().get(0);
-        if (DataStream.isFailureStoreEnabled() && context.options.allowFailureIndices() == false) {
-            DataStream parentDataStream = indexAbstraction.getParentDataStream();
-            if (parentDataStream != null && parentDataStream.isFailureStore()) {
-                for (Index failureIndex : parentDataStream.getFailureIndices()) {
-                    if (failureIndex.getName().equals(index.getName())) {
-                        if (options.ignoreUnavailable()) {
-                            return false;
-                        } else {
-                            throw new FailureIndexException(index);
+        if (DataStream.isFailureStoreEnabled()) {
+            IndexAbstraction indexAbstraction = context.getState().metadata().getIndicesLookup().get(index.getName());
+            if (context.options.allowFailureIndices() == false) {
+                DataStream parentDataStream = indexAbstraction.getParentDataStream();
+                if (parentDataStream != null && parentDataStream.isFailureStore()) {
+                    for (Index failureIndex : parentDataStream.getFailureIndices()) {
+                        if (failureIndex.getName().equals(index.getName())) {
+                            if (options.ignoreUnavailable()) {
+                                return false;
+                            } else {
+                                throw new FailureIndexException(index);
+                            }
                         }
                     }
                 }
             }
         }
-        final IndexMetadata imd = context.state.metadata().index(indexAbstraction.getName());
+        final IndexMetadata imd = context.state.metadata().index(index);
         if (imd.getState() == IndexMetadata.State.CLOSE) {
             if (options.forbidClosedIndices() && options.ignoreUnavailable() == false) {
                 throw new IndexClosedException(index);

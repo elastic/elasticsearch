@@ -73,7 +73,7 @@ public class ObjectStoreGCTaskExecutor extends PersistentTasksExecutor<ObjectSto
         Supplier<ObjectStoreService> objectStoreService,
         Settings settings
     ) {
-        super(ObjectStoreGCTask.TASK_NAME, ThreadPool.Names.GENERIC);
+        super(ObjectStoreGCTask.TASK_NAME, threadPool.generic());
         this.clusterService = clusterService;
         this.threadPool = threadPool;
         this.staleIndicesGCService = new StaleIndicesGCService(objectStoreService, clusterService, threadPool, client);

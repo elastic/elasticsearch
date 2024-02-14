@@ -45,45 +45,56 @@ public class TransportGetRolesAction extends TransportAction<GetRolesRequest, Ge
     @Override
     protected void doExecute(Task task, final GetRolesRequest request, final ActionListener<GetRolesResponse> listener) {
         final String[] requestedRoles = request.names();
-        final boolean includeReservedRoles = false == request.nativeOnly();
         final boolean specificRolesRequested = requestedRoles != null && requestedRoles.length > 0;
         final Set<String> rolesToSearchFor = new HashSet<>();
-        final List<RoleDescriptor> roles = new ArrayList<>();
+        final List<RoleDescriptor> reservedRoles = new ArrayList<>();
 
-        if (specificRolesRequested) {
-            if (includeReservedRoles) {
-                for (String role : requestedRoles) {
-                    if (ReservedRolesStore.isReserved(role)) {
-                        RoleDescriptor rd = ReservedRolesStore.roleDescriptor(role);
-                        if (rd != null) {
-                            roles.add(rd);
-                        } else {
-                            listener.onFailure(new IllegalStateException("unable to obtain reserved role [" + role + "]"));
-                            return;
-                        }
-                    } else {
-                        rolesToSearchFor.add(role);
-                    }
-                }
-            } else {
+        if (request.nativeOnly()) {
+            if (specificRolesRequested) {
                 rolesToSearchFor.addAll(Arrays.stream(requestedRoles).toList());
             }
-        } else if (includeReservedRoles) {
-            roles.addAll(ReservedRolesStore.roleDescriptors());
+            getNativeRoles(rolesToSearchFor, reservedRoles, listener);
+            return;
+        }
+
+        if (specificRolesRequested) {
+            for (String role : requestedRoles) {
+                if (ReservedRolesStore.isReserved(role)) {
+                    RoleDescriptor rd = ReservedRolesStore.roleDescriptor(role);
+                    if (rd != null) {
+                        reservedRoles.add(rd);
+                    } else {
+                        listener.onFailure(new IllegalStateException("unable to obtain reserved role [" + role + "]"));
+                        return;
+                    }
+                } else {
+                    rolesToSearchFor.add(role);
+                }
+            }
+        } else {
+            reservedRoles.addAll(ReservedRolesStore.roleDescriptors());
         }
 
         if (specificRolesRequested && rolesToSearchFor.isEmpty()) {
-            // specific roles were requested but they were built in only, no need to hit the store
-            listener.onResponse(new GetRolesResponse(roles.toArray(new RoleDescriptor[0])));
+            // specific reservedRoles were requested but they were built in only, no need to hit the store
+            listener.onResponse(new GetRolesResponse(reservedRoles.toArray(new RoleDescriptor[0])));
         } else {
-            nativeRolesStore.getRoleDescriptors(rolesToSearchFor, ActionListener.wrap((retrievalResult) -> {
-                if (retrievalResult.isSuccess()) {
-                    roles.addAll(retrievalResult.getDescriptors());
-                    listener.onResponse(new GetRolesResponse(roles.toArray(new RoleDescriptor[0])));
-                } else {
-                    listener.onFailure(retrievalResult.getFailure());
-                }
-            }, listener::onFailure));
+            getNativeRoles(rolesToSearchFor, reservedRoles, listener);
         }
+    }
+
+    private void getNativeRoles(
+        Set<String> rolesToSearchFor,
+        List<RoleDescriptor> reservedRoles,
+        ActionListener<GetRolesResponse> listener
+    ) {
+        nativeRolesStore.getRoleDescriptors(rolesToSearchFor, ActionListener.wrap((retrievalResult) -> {
+            if (retrievalResult.isSuccess()) {
+                reservedRoles.addAll(retrievalResult.getDescriptors());
+                listener.onResponse(new GetRolesResponse(reservedRoles.toArray(new RoleDescriptor[0])));
+            } else {
+                listener.onFailure(retrievalResult.getFailure());
+            }
+        }, listener::onFailure));
     }
 }

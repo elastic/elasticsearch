@@ -392,11 +392,11 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
 
     /**
      * <pre>
-     * "int_field": {
-     *   "type": "int",
+     * "integer_field": {
+     *   "type": "integer",
      *   "ignore_malformed": true/false,
      *   "fields": {
-     *     "text": {
+     *     "str": {
      *       "type": "text/keyword"
      *     }
      *   }
@@ -419,11 +419,11 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
 
     /**
      * <pre>
-     * "int_field": {
-     *   "type": "int",
+     * "integer_field": {
+     *   "type": "integer",
      *   "ignore_malformed": true,
      *   "fields": {
-     *     "text": {
+     *     "str": {
      *       "type": "text/keyword"
      *     }
      *   }
@@ -450,7 +450,7 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
      *   "type": "ip",
      *   "ignore_malformed": true/false,
      *   "fields": {
-     *     "text": {
+     *     "str": {
      *       "type": "text/keyword"
      *     }
      *   }
@@ -475,7 +475,7 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
      *   "type": "ip",
      *   "ignore_malformed": true,
      *   "fields": {
-     *     "text": {
+     *     "str": {
      *       "type": "text/keyword"
      *     }
      *   }
@@ -496,7 +496,7 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
 
     /**
      * <pre>
-     * "int_field": {
+     * "integer_field": {
      *   "type": "ip",
      *   "ignore_malformed": true/false,
      *   "fields": {
@@ -521,7 +521,7 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
 
     /**
      * <pre>
-     * "int_field": {
+     * "integer_field": {
      *   "type": "integer",
      *   "ignore_malformed": true/false,
      *   "fields": {

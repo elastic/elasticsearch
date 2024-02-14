@@ -176,16 +176,16 @@ Defaults to `https://api.openai.com/v1/embeddings`.
 (Required, string)
 The name of the text embedding model to use for the {infer} task. It can be the 
 ID of either a built-in model (for example, `.multilingual-e5-small` for E5) or 
-a text embedding model 
+a text embedding model already
 {ml-docs}/ml-nlp-import-model.html#ml-nlp-import-script[uploaded through Eland].
 
 `num_allocations`:::
 (Required, integer)
-The number of model allocations to create. 
+The number of model allocations to create. `num_allocations` must not exceed the number of available processors per node divided by the `num_threads`.
 
 `num_threads`:::
 (Required, integer)
-The number of threads to use by each model allocation.
+The number of threads to use by each model allocation. `num_threads` must not exceed the number of available processors per node divided by the number of allocations. Must be a power of 2. Max allowed value is 32.
 =====
 
 
@@ -373,7 +373,7 @@ PUT _inference/text_embedding/my-msmarco-minilm-model
 }
 ------------------------------------------------------------
 // TEST[skip:TBD]
-<1> The `model_id` must be the ID of a text embedding model 
+<1> The `model_id` must be the ID of a text embedding model which has already been 
 {ml-docs}/ml-nlp-import-model.html#ml-nlp-import-script[uploaded through Eland].
 
 

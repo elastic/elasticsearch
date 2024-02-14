@@ -69,6 +69,7 @@ import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
@@ -911,6 +912,15 @@ public class StatementParserTests extends ESTestCase {
 
     public void testSpaceNotAllowedInIdPatternKeep() throws Exception {
         expectError("ROW a = 1, b = 1| KEEP a b", "extraneous input 'b'");
+    }
+
+    public void testEnrichOnMatchField() {
+        var plan = statement("ROW a = \"1\" | ENRICH languages_policy ON a WITH ```name``* = language_name`");
+        var enrich = as(plan, Enrich.class);
+        var lists = enrich.enrichFields();
+        assertThat(lists, hasSize(1));
+        var ua = as(lists.get(0), UnresolvedAttribute.class);
+        assertThat(ua.name(), is("`name`* = language_name"));
     }
 
     private LogicalPlan statement(String e) {

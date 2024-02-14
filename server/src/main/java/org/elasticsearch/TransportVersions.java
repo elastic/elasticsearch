@@ -17,7 +17,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.NavigableMap;
-import java.util.NavigableSet;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
@@ -203,7 +202,8 @@ public class TransportVersions {
      * Reference to the earliest compatible transport version to this version of the codebase.
      * This should be the transport version used by the highest minor version of the previous major.
      */
-    public static final TransportVersion MINIMUM_COMPATIBLE;
+    @UpdateForV9
+    public static final TransportVersion MINIMUM_COMPATIBLE = V_7_17_0;
 
     /**
      * Reference to the minimum transport version that can be used with CCS.
@@ -214,22 +214,6 @@ public class TransportVersions {
     static final VersionLookup VERSION_LOOKUP = ReleaseVersions.generateVersionsLookup(TransportVersions.class);
 
     static {
-        NavigableSet<Version> allVersions = Version.getDeclaredVersions(Version.class);
-
-        Version minCompatVersion = allVersions.headSet(Version.fromString(Version.CURRENT.major + ".0.0"), false)
-            .descendingSet()
-            .stream()
-            .filter(v -> v.revision == 0)
-            .findFirst()
-            .orElseThrow(() -> new IllegalStateException("Could not find min compatible version from " + Version.CURRENT));
-
-        int tvId = VERSION_LOOKUP.findId(minCompatVersion)
-            .orElseThrow(() -> new IllegalStateException("Could not find transport version id for version " + minCompatVersion));
-        MINIMUM_COMPATIBLE = VERSION_IDS.get(tvId);
-        if (MINIMUM_COMPATIBLE == null) {
-            throw new IllegalStateException("Could not find transport version constant for id " + tvId);
-        }
-
         if (Version.CURRENT.minor == 0) {
             // first release of a new major - it's the same as the min compat version
             MINIMUM_CCS_VERSION = MINIMUM_COMPATIBLE;

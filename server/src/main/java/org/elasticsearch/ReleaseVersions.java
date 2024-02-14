@@ -63,9 +63,9 @@ public class ReleaseVersions {
                         Integer id = Integer.valueOf(matcher.group(2));
                         Version version = Version.fromString(matcher.group(1));
                         var existing = versions.putIfAbsent(version, id);
-                        if (existing != null) throw new IOException(
-                            Strings.format("Duplicated version [%s] in [%s]", version, versionsFileName)
-                        );
+                        if (existing != null) {
+                            throw new IOException(Strings.format("Duplicated version [%s] in [%s]", version, versionsFileName));
+                        }
                     } catch (IllegalArgumentException e) {
                         // cannot happen??? regex is wrong...
                         assert false : "Regex allowed non-integer id or incorrect version through: " + e;

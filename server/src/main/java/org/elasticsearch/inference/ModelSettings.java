@@ -8,7 +8,6 @@
 
 package org.elasticsearch.inference;
 
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
@@ -18,13 +17,17 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
-public record ModelSettings(TaskType taskType, String inferenceId, @Nullable Integer dimensions, @Nullable SimilarityMeasure similarity) {
+public class ModelSettings {
 
     public static final String NAME = "model_settings";
     public static final ParseField TASK_TYPE_FIELD = new ParseField("task_type");
     public static final ParseField INFERENCE_ID_FIELD = new ParseField("inference_id");
     public static final ParseField DIMENSIONS_FIELD = new ParseField("dimensions");
     public static final ParseField SIMILARITY_FIELD = new ParseField("similarity");
+    private final TaskType taskType;
+    private final String inferenceId;
+    private final Integer dimensions;
+    private final SimilarityMeasure similarity;
 
     public ModelSettings(TaskType taskType, String inferenceId, Integer dimensions, SimilarityMeasure similarity) {
         Objects.requireNonNull(taskType, "task type must not be null");
@@ -73,5 +76,21 @@ public record ModelSettings(TaskType taskType, String inferenceId, @Nullable Int
             attrsMap.put(SIMILARITY_FIELD.getPreferredName(), similarity);
         }
         return Map.of(NAME, attrsMap);
+    }
+
+    public TaskType taskType() {
+        return taskType;
+    }
+
+    public String inferenceId() {
+        return inferenceId;
+    }
+
+    public Integer dimensions() {
+        return dimensions;
+    }
+
+    public SimilarityMeasure similarity() {
+        return similarity;
     }
 }

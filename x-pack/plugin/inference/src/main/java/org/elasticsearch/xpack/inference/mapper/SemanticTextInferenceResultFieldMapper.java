@@ -242,7 +242,7 @@ public class SemanticTextInferenceResultFieldMapper extends MetadataFieldMapper 
             }
         }
 
-        if (REQUIRED_SUBFIELDS.containsAll(visitedSubfields) == false) {
+        if (visitedSubfields.containsAll(REQUIRED_SUBFIELDS) == false) {
             Set<String> missingSubfields = REQUIRED_SUBFIELDS.stream()
                 .filter(s -> visitedSubfields.contains(s) == false)
                 .collect(Collectors.toSet());

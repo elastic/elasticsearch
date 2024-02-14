@@ -172,7 +172,7 @@ Defaults to `https://api.openai.com/v1/embeddings`.
 .`service_settings` for `text_embedding`
 [%collapsible%closed]
 =====
-`model_id`::
+`model_id`:::
 (Required, string)
 The name of the text embedding model to use for the {infer} task. It can be the 
 ID of either a built-in model (for example, `.multilingual-e5-small` for E5) or 

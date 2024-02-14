@@ -59,8 +59,8 @@ public class OpenAiEmbeddingsModelTests extends ESTestCase {
             inferenceEntityId,
             TaskType.TEXT_EMBEDDING,
             "service",
-            new OpenAiServiceSettings(url, org, SimilarityMeasure.DOT_PRODUCT, 1536, null),
-            new OpenAiEmbeddingsTaskSettings(modelName, user),
+            new OpenAiEmbeddingsServiceSettings(modelName, url, org, SimilarityMeasure.DOT_PRODUCT, 1536, null, false),
+            new OpenAiEmbeddingsTaskSettings(user),
             new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
         );
     }

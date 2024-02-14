@@ -105,6 +105,14 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
             throw new IllegalArgumentException("rulesetId must not be null or empty");
         }
 
+        // PinnedQueryBuilder will return an error if we attempt to return more than the maximum number of
+        // pinned hits. Here, we truncate matching rules rather than return an error.
+        List<Item> pinnedDocs = pinnedDocsSupplier != null ? pinnedDocsSupplier.get() : null;
+        if (pinnedDocs != null && pinnedDocs.size() > MAX_NUM_PINNED_HITS) {
+            HeaderWarning.addWarning("Truncating query rule pinned hits to " + MAX_NUM_PINNED_HITS + " documents");
+            pinnedDocs = pinnedDocs.subList(0, MAX_NUM_PINNED_HITS);
+        }
+
         this.organicQuery = organicQuery;
         this.matchCriteria = matchCriteria;
         this.rulesetId = rulesetId;
@@ -150,23 +158,12 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
         builder.endObject();
     }
 
-    private Item[] createPinnedDocsArray() {
-        // PinnedQueryBuilder will return an error if we attempt to return more than the maximum number of
-        // pinned hits. Here, we truncate matching rules rather than return an error.
-        List<Item> pinnedDocs = pinnedDocsSupplier != null ? pinnedDocsSupplier.get() : null;
-        if (pinnedDocs != null && pinnedDocs.size() > MAX_NUM_PINNED_HITS) {
-            HeaderWarning.addWarning("Truncating query rule pinned hits to " + MAX_NUM_PINNED_HITS + " documents");
-            pinnedDocs = pinnedDocs.subList(0, MAX_NUM_PINNED_HITS);
-        }
-        return (pinnedDocs != null ? pinnedDocs.toArray(new Item[0]) : new Item[0]);
-    }
-
     @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
         if (TransportVersion.current().before(TransportVersions.RULE_QUERY_ALWAYS_REWRITE_TO_ANOTHER_TYPE)) {
             List<Item> pinnedDocs = pinnedDocsSupplier != null ? pinnedDocsSupplier.get() : null;
             if (pinnedDocs != null && pinnedDocs.isEmpty() == false) {
-                PinnedQueryBuilder pinnedQueryBuilder = new PinnedQueryBuilder(organicQuery, createPinnedDocsArray());
+                PinnedQueryBuilder pinnedQueryBuilder = new PinnedQueryBuilder(organicQuery, pinnedDocs.toArray(new Item[0]));
                 return pinnedQueryBuilder.toQuery(context);
             } else {
                 return organicQuery.toQuery(context);
@@ -183,7 +180,7 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
             if (identifiedPinnedDocs != null && identifiedPinnedDocs.isEmpty()) {
                 return organicQuery;
             } else if (identifiedPinnedDocs != null) { // empty == false is implicit
-                return new PinnedQueryBuilder(organicQuery, createPinnedDocsArray());
+                return new PinnedQueryBuilder(organicQuery, identifiedPinnedDocs.toArray(new Item[0]));
             } else {
                 return this;
             }

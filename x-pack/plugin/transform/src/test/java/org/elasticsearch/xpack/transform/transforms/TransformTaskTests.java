@@ -14,6 +14,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -43,6 +44,7 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskParams;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
+import org.elasticsearch.xpack.transform.DefaultTransformExtension;
 import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.checkpoint.TransformCheckpointService;
 import org.elasticsearch.xpack.transform.notifications.MockTransformAuditor;
@@ -196,6 +198,9 @@ public class TransformTaskTests extends ESTestCase {
 
     private ClientTransformIndexerBuilder indexerBuilder(TransformConfig transformConfig, TransformServices transformServices) {
         return new ClientTransformIndexerBuilder().setClient(new ParentTaskAssigningClient(client, TaskId.EMPTY_TASK_ID))
+            .setClusterService(mock(ClusterService.class))
+            .setIndexNameExpressionResolver(mock(IndexNameExpressionResolver.class))
+            .setTransformExtension(new DefaultTransformExtension())
             .setTransformConfig(transformConfig)
             .setTransformServices(transformServices);
     }

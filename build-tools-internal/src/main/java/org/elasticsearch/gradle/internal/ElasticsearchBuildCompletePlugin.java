@@ -34,6 +34,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
 
 import javax.inject.Inject;
 
@@ -163,15 +164,16 @@ public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project
                         processOutput = "";
                     }
 
-                    List<String> artifacts = Arrays.stream(processOutput.trim().split("\n")).map(String::trim).sorted((a, b) -> {
+                    // Sort them by timestamp, and grab the most recent one
+                    Optional<String> artifact = Arrays.stream(processOutput.trim().split("\n")).map(String::trim).min((a, b) -> {
                         String[] partsA = a.split(" ");
                         String[] partsB = b.split(" ");
                         // ISO-8601 timestamps can be sorted lexicographically
-                        return partsA[1].compareTo(partsB[1]);
-                    }).toList();
+                        return partsB[1].compareTo(partsA[1]);
+                    });
 
-                    // Grab just the UUID from the last (most recently uploaded) artifact
-                    String artifactUuid = artifacts.isEmpty() ? "" : artifacts.get(artifacts.size() - 1).split(" ")[0];
+                    // Grab just the UUID from the artifact
+                    String artifactUuid = artifact.orElse("").split(" ")[0];
 
                     System.out.println("Artifact UUID: " + artifactUuid);
                     if (artifactUuid.isEmpty() == false) {

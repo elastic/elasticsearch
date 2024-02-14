@@ -22,7 +22,6 @@ import org.elasticsearch.transport.TcpChannel;
 import java.net.InetSocketAddress;
 
 import static org.elasticsearch.transport.netty4.Netty4Utils.addListener;
-import static org.elasticsearch.transport.netty4.Netty4Utils.addPromise;
 import static org.elasticsearch.transport.netty4.Netty4Utils.safeWriteAndFlush;
 
 public class Netty4TcpChannel implements TcpChannel {
@@ -117,7 +116,7 @@ public class Netty4TcpChannel implements TcpChannel {
 
     @Override
     public void sendMessage(BytesReference reference, ActionListener<Void> listener) {
-        safeWriteAndFlush(channel, reference, addPromise(listener, channel));
+        safeWriteAndFlush(channel, reference, listener);
     }
 
     public Channel getNettyChannel() {

@@ -19,7 +19,6 @@ import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 
 import static org.elasticsearch.transport.netty4.Netty4Utils.addListener;
-import static org.elasticsearch.transport.netty4.Netty4Utils.addPromise;
 import static org.elasticsearch.transport.netty4.Netty4Utils.safeWriteAndFlush;
 
 public class Netty4HttpChannel implements HttpChannel {
@@ -34,7 +33,7 @@ public class Netty4HttpChannel implements HttpChannel {
 
     @Override
     public void sendResponse(HttpResponse response, ActionListener<Void> listener) {
-        safeWriteAndFlush(channel, response, addPromise(listener, channel));
+        safeWriteAndFlush(channel, response, listener);
     }
 
     @Override

@@ -43,7 +43,7 @@ public class DriverStatus implements Task.Status {
     private final String sessionId;
 
     /**
-     * When this driver started.
+     * Milliseconds since epoch when this driver started.
      */
     private final long started;
 

@@ -551,7 +551,7 @@ public final class TextStructureFinderManager {
         );
     }
 
-    TextStructureFinder makeBestStructureFinder(
+    public TextStructureFinder makeBestStructureFinder(
         List<String> explanation,
         String sample,
         String charsetName,

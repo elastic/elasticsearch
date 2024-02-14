@@ -23,6 +23,8 @@ abstract class AbstractEsqlClientYamlIT extends ESClientYamlSuiteTestCase {
         .distribution(DistributionType.DEFAULT)
         .setting("xpack.security.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
+        .plugin("mapper-size")
+        .plugin("mapper-murmur3")
         .build();
 
     @Override

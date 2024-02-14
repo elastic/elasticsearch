@@ -355,7 +355,7 @@ public class SamlRealmTests extends SamlTestCase {
         final String authenticatingRealm = randomBoolean() ? REALM_NAME : null;
         final boolean testWithDelimiter = randomBoolean();
         final AuthenticationResult<User> result;
-
+        final List<String> rolesToExclude = excludeRoles ? List.of("superuser") : randomFrom(List.of(), null);
         if (testWithDelimiter) {
             result = performAuthentication(
                 roleMapper,
@@ -366,7 +366,7 @@ public class SamlRealmTests extends SamlTestCase {
                 authenticatingRealm,
                 List.of("STRIKE Team: Delta$shield"),
                 "$",
-                excludeRoles ? List.of("superuser") : null
+                rolesToExclude
             );
         } else {
             result = performAuthentication(
@@ -378,7 +378,7 @@ public class SamlRealmTests extends SamlTestCase {
                 authenticatingRealm,
                 Arrays.asList("avengers", "shield"),
                 null,
-                excludeRoles ? List.of("superuser") : null
+                rolesToExclude
             );
         }
         assertThat(result, notNullValue());

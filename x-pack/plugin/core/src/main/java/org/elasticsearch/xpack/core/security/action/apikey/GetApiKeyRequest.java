@@ -11,8 +11,8 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 
@@ -35,29 +35,6 @@ public final class GetApiKeyRequest extends ActionRequest {
     private final boolean ownedByAuthenticatedUser;
     private final boolean withLimitedBy;
     private final boolean activeOnly;
-
-    public GetApiKeyRequest(StreamInput in) throws IOException {
-        super(in);
-        realmName = textOrNull(in.readOptionalString());
-        userName = textOrNull(in.readOptionalString());
-        apiKeyId = textOrNull(in.readOptionalString());
-        apiKeyName = textOrNull(in.readOptionalString());
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_4_0)) {
-            ownedByAuthenticatedUser = in.readOptionalBoolean();
-        } else {
-            ownedByAuthenticatedUser = false;
-        }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_5_0)) {
-            withLimitedBy = in.readBoolean();
-        } else {
-            withLimitedBy = false;
-        }
-        if (in.getTransportVersion().onOrAfter(API_KEY_ACTIVE_ONLY_PARAM_TRANSPORT_VERSION)) {
-            activeOnly = in.readBoolean();
-        } else {
-            activeOnly = false;
-        }
-    }
 
     private GetApiKeyRequest(
         @Nullable String realmName,
@@ -136,20 +113,7 @@ public final class GetApiKeyRequest extends ActionRequest {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeOptionalString(realmName);
-        out.writeOptionalString(userName);
-        out.writeOptionalString(apiKeyId);
-        out.writeOptionalString(apiKeyName);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_4_0)) {
-            out.writeOptionalBoolean(ownedByAuthenticatedUser);
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_5_0)) {
-            out.writeBoolean(withLimitedBy);
-        }
-        if (out.getTransportVersion().onOrAfter(API_KEY_ACTIVE_ONLY_PARAM_TRANSPORT_VERSION)) {
-            out.writeBoolean(activeOnly);
-        }
+        TransportAction.localOnly();
     }
 
     @Override

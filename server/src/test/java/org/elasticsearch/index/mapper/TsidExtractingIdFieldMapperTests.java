@@ -19,6 +19,7 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
@@ -729,7 +730,7 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
     }
 
     public void testRoutingPathCompliant() throws IOException {
-        IndexVersion version = IndexVersionUtils.randomCompatibleVersion(random());
+        IndexVersion version = IndexVersions.TIME_SERIES_SHARD_ID_IN_ID;
         IndexRouting indexRouting = createIndexSettings(version, indexSettings(version)).getIndexRouting();
         assertThat(indexRouting.getShard(testCase.expectedId, null), equalTo(SHARD_ID));
         assertThat(indexRouting.deleteShard(testCase.expectedId, null), equalTo(SHARD_ID));

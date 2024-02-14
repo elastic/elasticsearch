@@ -17,9 +17,6 @@ import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSum;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -159,7 +156,6 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         var substitutions = new Batch<>(
             "Substitutions",
             Limiter.ONCE,
-            new ReplaceConstantAggs(),
             // first extract nested aggs top-level - this simplifies the rest of the rules
             new ReplaceStatsAggExpressionWithEval(),
             // second extract nested aggs inside of them
@@ -198,8 +194,10 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
 
             // first pass to check existing aggregates (to avoid duplication and alias waste)
             for (NamedExpression agg : aggs) {
-                if (Alias.unwrap(agg) instanceof AggregateFunction af && af instanceof SurrogateExpression == false) {
-                    aggFuncToAttr.put(af, agg.toAttribute());
+                if (Alias.unwrap(agg) instanceof AggregateFunction af) {
+                    if (af instanceof SurrogateExpression == false || (((SurrogateExpression) af).surrogate() == null)) {
+                        aggFuncToAttr.put(af, agg.toAttribute());
+                    }
                 }
             }
 
@@ -207,7 +205,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             // 0. check list of surrogate expressions
             for (NamedExpression agg : aggs) {
                 Expression e = Alias.unwrap(agg);
-                if (e instanceof SurrogateExpression sf) {
+                if (e instanceof SurrogateExpression sf && sf.surrogate() != null) {
                     changed = true;
                     Expression s = sf.surrogate();
 
@@ -1145,39 +1143,6 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
 
         protected Expression regexToEquals(RegexMatch<?> regexMatch, Literal literal) {
             return new Equals(regexMatch.source(), regexMatch.field(), literal);
-        }
-    }
-
-    /**
-     * Replace aggregations of constants by equivalent expressions, e.g.
-     * stats sum([1,2])
-     * becomes
-     * stats mv_sum([1,2])*count(*)
-     */
-    // TODO: other aggs than sum
-    static class ReplaceConstantAggs extends OptimizerRules.OptimizerRule<Aggregate> {
-        @Override
-        protected LogicalPlan rule(Aggregate plan) {
-            // TODO: add unit tests that make sure this still works when the agg with the constant is
-            // contained in another expression.
-
-            List<NamedExpression> newAggregates = new ArrayList<>();
-
-            for (NamedExpression agg : plan.aggregates()) {
-                newAggregates.add((NamedExpression) agg.transformUp(AggregateFunction.class, af -> {
-                    if (af instanceof Sum sum && sum.field().foldable()) {
-                        return new Mul(
-                            sum.source(),
-                            new MvSum(Source.EMPTY, sum.field()),
-                            new Count(Source.EMPTY, new Literal(Source.EMPTY, StringUtils.WILDCARD, DataTypes.KEYWORD))
-                        );
-                    }
-
-                    return af;
-                }));
-            }
-
-            return new Aggregate(plan.source(), plan.child(), plan.groupings(), newAggregates);
         }
     }
 

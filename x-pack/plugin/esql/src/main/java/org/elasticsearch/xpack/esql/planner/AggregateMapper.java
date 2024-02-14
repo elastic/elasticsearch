@@ -11,11 +11,9 @@ import org.elasticsearch.compute.aggregation.IntermediateStateDesc;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
-import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountDistinct;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.Median;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.MedianAbsoluteDeviation;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.NumericAggregate;
@@ -42,7 +40,6 @@ import java.lang.invoke.MethodType;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -54,12 +51,11 @@ public class AggregateMapper {
     static final List<String> NUMERIC = List.of("Int", "Long", "Double");
     static final List<String> SPATIAL = List.of("GeoPoint", "CartesianPoint");
 
-    /** List of all ESQL agg functions. */
+    /** List of all mappable ESQL agg functions (excludes surrogates like AVG = SUM/COUNT). */
     static final List<? extends Class<? extends Function>> AGG_FUNCTIONS = List.of(
         Count.class,
         CountDistinct.class,
         Max.class,
-        Median.class,
         MedianAbsoluteDeviation.class,
         Min.class,
         Percentile.class,
@@ -77,7 +73,7 @@ public class AggregateMapper {
     private final HashMap<Expression, List<? extends NamedExpression>> cache = new HashMap<>();
 
     AggregateMapper() {
-        this(AGG_FUNCTIONS.stream().filter(Predicate.not(SurrogateExpression.class::isAssignableFrom)).toList());
+        this(AGG_FUNCTIONS);
     }
 
     AggregateMapper(List<? extends Class<? extends Function>> aggregateFunctionClasses) {

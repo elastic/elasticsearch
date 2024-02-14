@@ -13,16 +13,13 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.logging.Level;
 import org.elasticsearch.reservedstate.action.ReservedClusterSettingsAction;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.NetworkTraceFlag;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParseException;
@@ -31,11 +28,9 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.mockito.Mockito.mock;
 
@@ -47,19 +42,6 @@ public class ClusterUpdateSettingsRequestTests extends ESTestCase {
 
     public void testFromXContentWithRandomFields() throws IOException {
         doFromXContentTestWithRandomFields(true);
-    }
-
-    public void testValidateLoggers() {
-        assumeFalse("If TRACE_ENABLED restricted loggers are permitted", NetworkTraceFlag.TRACE_ENABLED);
-
-        ClusterUpdateSettingsRequest request = new ClusterUpdateSettingsRequest();
-        for (String logger : Loggers.RESTRICTED_LOGGERS) {
-            var validation = request.persistentSettings(Map.of("logger." + logger, Level.DEBUG)).validate();
-            assertNotNull(validation);
-            assertThat(validation.validationErrors(), contains("Level [DEBUG] is not permitted for logger [" + logger + "]"));
-            // INFO is permitted
-            assertNull(request.persistentSettings(Map.of("logger." + logger, Level.INFO)).validate());
-        }
     }
 
     private void doFromXContentTestWithRandomFields(boolean addRandomFields) throws IOException {

@@ -151,25 +151,6 @@ if (BuildParams.isSnapshotBuild() == false) {
     }
 }
 
-tasks.register('testNetworkTraceNotEnabled', Test) {
-  testClassesDirs = testing.suites.test.sources.output.classesDirs
-  classpath = testing.suites.test.sources.runtimeClasspath
-
-  filter {
-    // following test require es.insecure_network_trace_enabled to NOT be enabled
-    includeTestsMatching "org.elasticsearch.common.logging.LoggersTests.testCheckRestrictedLoggers"
-    includeTestsMatching "org.elasticsearch.common.logging.LoggersTests.testSetLevelWithRestrictions"
-    includeTestsMatching "org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequestTests.testValidateLoggers"
-  }
-
-  // do not enable TRACE_ENABLED
-  systemProperties.remove('es.insecure_network_trace_enabled')
-}
-
-tasks.named("check").configure {
-  dependsOn testNetworkTraceNotEnabled
-}
-
 tasks.named("test").configure {
   systemProperty 'es.insecure_network_trace_enabled', 'true'
 }

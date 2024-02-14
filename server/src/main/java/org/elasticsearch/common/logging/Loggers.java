@@ -58,18 +58,19 @@ public class Loggers {
         (key) -> new Setting<>(key, Level.INFO.name(), Level::valueOf, Setting.Property.Dynamic, Setting.Property.NodeScope)
     );
 
-    private static boolean isLevelPermitted(String logger, Level level) {
-        return level.isMoreSpecificThan(Level.INFO) == false && RESTRICTED_LOGGERS.stream().anyMatch(r -> isSameOrDescendantOf(logger, r));
+    public static List<String> checkRestrictedLoggers(Settings settings) {
+        return checkRestrictedLoggers(settings, RESTRICTED_LOGGERS);
     }
 
-    public static List<String> checkRestrictedLoggers(Settings settings) {
+    // visible for testing only
+    static List<String> checkRestrictedLoggers(Settings settings, List<String> restrictions) {
         List<String> errors = null;
         for (String key : settings.keySet()) {
             if (LOG_LEVEL_SETTING.match(key)) {
                 Level level = Level.toLevel(settings.get(key), null);
                 if (level != null) {
                     String logger = key.substring("logger.".length());
-                    if (isLevelPermitted(logger, level)) {
+                    if (level.intLevel() > Level.INFO.intLevel() && restrictions.stream().anyMatch(r -> isSameOrDescendantOf(logger, r))) {
                         if (errors == null) {
                             errors = new ArrayList<>(2);
                         }
@@ -150,7 +151,8 @@ public class Loggers {
         setLevel(logger, level, RESTRICTED_LOGGERS);
     }
 
-    private static void setLevel(Logger logger, Level level, List<String> restrictedLoggers) {
+    // visible for testing only
+    static void setLevel(Logger logger, Level level, List<String> restrictions) {
         // If configuring an ancestor / root, the restriction has to be explicitly set afterward.
         boolean setRestriction = false;
 
@@ -161,11 +163,11 @@ public class Loggers {
             final LoggerConfig loggerConfig = config.getLoggerConfig(logger.getName());
             loggerConfig.setLevel(level);
             ctx.updateLoggers();
-            setRestriction = level.isMoreSpecificThan(Level.INFO) == false;
+            setRestriction = level.intLevel() > Level.INFO.intLevel();
         } else {
             Level actual = level != null ? level : parentLoggerLevel(logger);
-            if (actual.isMoreSpecificThan(Level.INFO) == false) {
-                for (String restricted : restrictedLoggers) {
+            if (actual.intLevel() > Level.INFO.intLevel()) {
+                for (String restricted : restrictions) {
                     if (isSameOrDescendantOf(logger.getName(), restricted)) {
                         LogManager.getLogger(Loggers.class)
                             .warn("Level [{}/{}] not permitted for logger [{}], skipping.", level, actual, logger.getName());
@@ -189,7 +191,7 @@ public class Loggers {
 
         if (setRestriction) {
             // if necessary, after setting the level of an ancestor, enforce restriction again
-            for (String restricted : restrictedLoggers) {
+            for (String restricted : restrictions) {
                 if (isDescendantOf(restricted, logger.getName())) {
                     setLevel(LogManager.getLogger(restricted), Level.INFO, Collections.emptyList());
                 }

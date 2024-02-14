@@ -545,7 +545,7 @@ public class JwtRealmSettings {
     }
 
     private static void verifyFallbackClaimName(String key, String fallbackClaimName) {
-        final String claimName = key.substring(key.lastIndexOf(".") + 1);
+        final String claimName = key.substring(key.lastIndexOf('.') + 1);
         verifyNonNullNotEmpty(key, fallbackClaimName, null);
         if (claimName.equals(fallbackClaimName)) {
             return;

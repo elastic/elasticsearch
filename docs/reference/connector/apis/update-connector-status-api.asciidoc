@@ -18,7 +18,7 @@ Updates the `status` of a connector.
 
 * To sync data using connectors, it's essential to have the Elastic connectors service running.
 * The `connector_id` parameter should reference an existing connector.
-* The change of `status` must be a valid status transition according to Connector Protocol.
+* The change of `status` must be a valid status transition according to the https://github.com/elastic/connectors/blob/main/docs/CONNECTOR_PROTOCOL.md[Connector Protocol].
 
 [[update-connector-status-api-path-params]]
 ==== {api-path-parms-title}

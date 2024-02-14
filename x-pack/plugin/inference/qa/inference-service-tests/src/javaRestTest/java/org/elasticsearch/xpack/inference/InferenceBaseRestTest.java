@@ -124,6 +124,31 @@ public class InferenceBaseRestTest extends ESRestTestCase {
         return entityAsMap(response);
     }
 
+    protected Map<String, Object> putE5TrainedModels() throws IOException {
+        var request = new Request("PUT", "_ml/trained_models/.multilingual-e5-small?wait_for_completion=true");
+
+        String body = """
+                {
+                    "input": {
+                    "field_names": ["text_field"]
+                    }
+                }
+            """;
+
+        request.setJsonEntity(body);
+        var response = client().performRequest(request);
+        assertOkOrCreated(response);
+        return entityAsMap(response);
+    }
+
+    protected Map<String, Object> deployE5TrainedModels() throws IOException {
+        var request = new Request("POST", "_ml/trained_models/.multilingual-e5-small/deployment/_start?wait_for=fully_allocated");
+
+        var response = client().performRequest(request);
+        assertOkOrCreated(response);
+        return entityAsMap(response);
+    }
+
     protected Map<String, Object> getModel(String modelId) throws IOException {
         var endpoint = Strings.format("_inference/%s", modelId);
         return getAllModelInternal(endpoint);

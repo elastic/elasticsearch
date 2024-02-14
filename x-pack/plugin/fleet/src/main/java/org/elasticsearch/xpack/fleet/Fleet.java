@@ -367,8 +367,8 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
     ) {
         return List.of(
             new RestGetGlobalCheckpointsAction(),
-            new RestFleetSearchAction(restController.getSearchUsageHolder(), namedWriteableRegistry),
-            new RestFleetMultiSearchAction(settings, restController.getSearchUsageHolder(), namedWriteableRegistry),
+            new RestFleetSearchAction(restController.getSearchUsageHolder(), namedWriteableRegistry, clusterSupportsFeature),
+            new RestFleetMultiSearchAction(settings, restController.getSearchUsageHolder(), namedWriteableRegistry, clusterSupportsFeature),
             new RestGetSecretsAction(),
             new RestPostSecretsAction(),
             new RestDeleteSecretsAction()

@@ -13,12 +13,14 @@ import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.capabilities.Validatable;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
+import org.elasticsearch.xpack.ql.common.Failures;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Foldables;
 import org.elasticsearch.xpack.ql.expression.Literal;
@@ -32,11 +34,11 @@ import java.util.List;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
+import static org.elasticsearch.xpack.esql.expression.Validations.isLiteral;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FOURTH;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.THIRD;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isFoldable;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isInteger;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
@@ -52,7 +54,7 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
  *     in the above case we'll pick month long buckets, yielding 12 buckets.
  * </p>
  */
-public class AutoBucket extends EsqlScalarFunction {
+public class AutoBucket extends EsqlScalarFunction implements Validatable {
     // TODO maybe we should just cover the whole of representable dates here - like ten years, 100 years, 1000 years, all the way up.
     // That way you never end up with more than the target number of buckets.
     private static final Rounding LARGEST_HUMAN_DATE_ROUNDING = Rounding.builder(Rounding.DateTimeUnit.YEAR_OF_CENTURY).build();
@@ -188,10 +190,6 @@ public class AutoBucket extends EsqlScalarFunction {
         if (resolution.unresolved()) {
             return resolution;
         }
-        resolution = isFoldable(buckets, sourceText(), SECOND);
-        if (resolution.unresolved()) {
-            return resolution;
-        }
         return checkThirdAndForth.apply(from, THIRD).and(checkThirdAndForth.apply(to, FOURTH));
     }
 
@@ -204,6 +202,13 @@ public class AutoBucket extends EsqlScalarFunction {
             "datetime",
             "string"
         );
+    }
+
+    @Override
+    public void validate(Failures failures) {
+        String operation = sourceText();
+
+        failures.add(isLiteral(buckets, operation, SECOND)).add(isLiteral(from, operation, THIRD)).add(isLiteral(to, operation, FOURTH));
     }
 
     private long foldToLong(Expression e) {

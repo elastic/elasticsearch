@@ -6,10 +6,11 @@ experimental[]
 
 Creates a model to perform an {infer} task.
 
-IMPORTANT: The {infer} APIs enable you to use certain services, such as ELSER, 
-OpenAI, or Hugging Face, in your cluster. This is not the same feature that you 
-can use on an ML node with custom {ml} models. If you want to train and use your 
-own model, use the <<ml-df-trained-models-apis>>.
+IMPORTANT: The {infer} APIs enable you to use certain services, such as built-in 
+{ml} models (ELSER, E5), models uploaded through Eland, Cohere, OpenAI, or 
+Hugging Face, in your cluster. This is not the same feature that you can use on 
+an ML node with custom {ml} models. If you want to train and use your own model, 
+use the <<ml-df-trained-models-apis>>.
 
 
 [discrete]
@@ -39,6 +40,7 @@ The following services are available through the {infer} API:
 * ELSER
 * Hugging Face
 * OpenAI
+* text embedding (for E5 and models uploaded through Eland)
 
 
 [discrete]
@@ -70,6 +72,8 @@ Available services:
 * `hugging_face`: specify the `text_embedding` task type to use the Hugging Face 
 service.
 * `openai`: specify the `text_embedding` task type to use the OpenAI service.
+* `text_embedding`: specify the `text_embedding` task type to use the E5 
+built-in model or text embedding models uploaded by Eland.
 
 `service_settings`::
 (Required, object)
@@ -164,6 +168,26 @@ https://platform.openai.com/account/organization[**Settings** > **Organizations*
 The URL endpoint to use for the requests. Can be changed for testing purposes.
 Defaults to `https://api.openai.com/v1/embeddings`.
 =====
++
+.`service_settings` for `text_embedding`
+[%collapsible%closed]
+=====
+`model_id`::
+(Required, string)
+The name of the text embedding model to use for the {infer} task. It can be the 
+ID of either a built-in model (for example, `.multilingual-e5-small` for E5) or 
+a text embedding model 
+{ml-docs}/ml-nlp-import-model.html#ml-nlp-import-script[uploaded through Eland].
+
+`num_allocations`:::
+(Required, integer)
+The number of model allocations to create. 
+
+`num_threads`:::
+(Required, integer)
+The number of threads to use by each model allocation.
+=====
+
 
 `task_settings`::
 (Optional, object)
@@ -235,6 +259,31 @@ PUT _inference/text_embedding/cohere-embeddings
 
 
 [discrete]
+[[inference-example-e5]]
+===== E5 via the text embedding service
+
+The following example shows how to create an {infer} model called
+`my-e5-model` to perform a `text_embedding` task type.
+
+[source,console]
+------------------------------------------------------------
+PUT _inference/text_embedding/my-e5-model
+{
+  "service": "text_embedding",
+  "service_settings": {
+    "num_allocations": 1,
+    "num_threads": 1,
+    "model_id": ".multilingual-e5-small" <1>
+  }
+}
+------------------------------------------------------------
+// TEST[skip:TBD]
+<1> The `model_id` must be the ID of one of the built-in E5 models. Valid values 
+are `.multilingual-e5-small` and `.multilingual-e5-small_linux-x86_64`. For 
+further details, refer to the {ml-docs}/ml-nlp-e5.html[E5 model documentation].
+
+
+[discrete]
 [[inference-example-elser]]
 ===== ELSER service
 
@@ -303,6 +352,29 @@ endpoint URL. Select the model you want to use on the new endpoint creation page
 - for example `intfloat/e5-small-v2` - then select the `Sentence Embeddings` 
 task under the Advanced configuration section. Create the endpoint. Copy the URL 
 after the endpoint initialization has been finished.
+
+[discrete]
+[[inference-example-eland]]
+===== Models uploaded by Eland via the text embedding service
+
+The following example shows how to create an {infer} model called
+`my-text-embedding-model` to perform a `text_embedding` task type.
+
+[source,console]
+------------------------------------------------------------
+PUT _inference/text_embedding/my-msmarco-minilm-model
+{
+  "service": "text_embedding",
+  "service_settings": {
+    "num_allocations": 1,
+    "num_threads": 1,
+    "model_id": "msmarco-MiniLM-L12-cos-v5" <1>
+  }
+}
+------------------------------------------------------------
+// TEST[skip:TBD]
+<1> The `model_id` must be the ID of a text embedding model 
+{ml-docs}/ml-nlp-import-model.html#ml-nlp-import-script[uploaded through Eland].
 
 
 [discrete]

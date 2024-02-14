@@ -36,7 +36,7 @@ public class CoordinatedInferenceIngestIT extends ESRestTestCase {
         .distribution(DistributionType.DEFAULT)
         .setting("xpack.license.self_generated.type", "trial")
         .setting("xpack.security.enabled", "true")
-        .plugin("org.elasticsearch.xpack.inference.mock.TestInferenceServicePlugin")
+        .plugin("inference-service-test")
         .user("x_pack_rest_user", "x-pack-test-password")
         .build();
 

@@ -70,7 +70,6 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
     private final Supplier<List<String>> pinnedIdsSupplier;
     private final List<Item> pinnedDocs;
     private final Supplier<List<Item>> pinnedDocsSupplier;
-    private PinnedQueryBuilder pinnedQueryBuilder;
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
@@ -78,7 +77,7 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
     }
 
     public RuleQueryBuilder(QueryBuilder organicQuery, Map<String, Object> matchCriteria, String rulesetId) {
-        this(organicQuery, matchCriteria, rulesetId, null, null, null, null, null);
+        this(organicQuery, matchCriteria, rulesetId, null, null, null, null);
     }
 
     public RuleQueryBuilder(StreamInput in) throws IOException {
@@ -90,7 +89,6 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
         pinnedIdsSupplier = null;
         pinnedDocs = in.readOptionalCollectionAsList(Item::new);
         pinnedDocsSupplier = null;
-        pinnedQueryBuilder = null;
     }
 
     private RuleQueryBuilder(
@@ -100,8 +98,7 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
         List<String> pinnedIds,
         List<Item> pinnedDocs,
         Supplier<List<String>> pinnedIdsSupplier,
-        Supplier<List<Item>> pinnedDocsSupplier,
-        PinnedQueryBuilder pinnedQueryBuilder
+        Supplier<List<Item>> pinnedDocsSupplier
 
     ) {
         if (organicQuery == null) {
@@ -137,7 +134,6 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
         this.pinnedIdsSupplier = pinnedIdsSupplier;
         this.pinnedDocs = pinnedDocs;
         this.pinnedDocsSupplier = pinnedDocsSupplier;
-        this.pinnedQueryBuilder = pinnedQueryBuilder;
     }
 
     @Override
@@ -182,10 +178,22 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
 
     @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
-        if (pinnedQueryBuilder != null) {
-            return pinnedQueryBuilder.toQuery(context);
+        // NOTE: this is old query logic, as in 8.12.2+ and 8.13.0+ we will always rewrite this query
+        // into a pinned query or the organic query. This logic remains here for backwards compatibility
+        // with coordinator nodes running versions 8.10.0 - 8.12.1.
+        if ((pinnedIds != null && pinnedIds.isEmpty() == false) && (pinnedDocs != null && pinnedDocs.isEmpty() == false)) {
+            throw new IllegalArgumentException("applied rules contain both pinned ids and pinned docs, only one of ids or docs is allowed");
         }
-        return organicQuery.toQuery(context);
+
+        if (pinnedIds != null && pinnedIds.isEmpty() == false) {
+            PinnedQueryBuilder pinnedQueryBuilder = new PinnedQueryBuilder(organicQuery, pinnedIds.toArray(new String[0]));
+            return pinnedQueryBuilder.toQuery(context);
+        } else if (pinnedDocs != null && pinnedDocs.isEmpty() == false) {
+            PinnedQueryBuilder pinnedQueryBuilder = new PinnedQueryBuilder(organicQuery, pinnedDocs.toArray(new Item[0]));
+            return pinnedQueryBuilder.toQuery(context);
+        } else {
+            return organicQuery.toQuery(context);
+        }
     }
 
     @Override
@@ -197,11 +205,11 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
                 && (identifiedPinnedDocs != null && identifiedPinnedDocs.isEmpty())) {
                 return organicQuery;
             } else if (identifiedPinnedIds != null && identifiedPinnedIds.isEmpty() == false) {
-                pinnedQueryBuilder = new PinnedQueryBuilder(organicQuery, identifiedPinnedIds.toArray(new String[0]));
-                return pinnedQueryBuilder;
+                return new PinnedQueryBuilder(organicQuery, identifiedPinnedIds.toArray(new String[0])).queryName(this.queryName)
+                    .boost(this.boost);
             } else if (identifiedPinnedDocs != null && identifiedPinnedDocs.isEmpty() == false) {
-                pinnedQueryBuilder = new PinnedQueryBuilder(organicQuery, identifiedPinnedDocs.toArray(new Item[0]));
-                return pinnedQueryBuilder;
+                return new PinnedQueryBuilder(organicQuery, identifiedPinnedDocs.toArray(new Item[0])).queryName(this.queryName)
+                    .boost(this.boost);
             } else {
                 return this;
             }
@@ -246,16 +254,9 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
             });
         });
 
-        return new RuleQueryBuilder(
-            organicQuery,
-            matchCriteria,
-            this.rulesetId,
-            null,
-            null,
-            pinnedIdsSetOnce::get,
-            pinnedDocsSetOnce::get,
-            null
-        ).boost(this.boost).queryName(this.queryName);
+        return new RuleQueryBuilder(organicQuery, matchCriteria, this.rulesetId, null, null, pinnedIdsSetOnce::get, pinnedDocsSetOnce::get)
+            .boost(this.boost)
+            .queryName(this.queryName);
     }
 
     @Override

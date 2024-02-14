@@ -32,6 +32,8 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.asGeometryDocValueReader;
+import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.asLuceneComponent2D;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.CARTESIAN_POINT;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.CARTESIAN_SHAPE;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_POINT;
@@ -93,6 +95,19 @@ public class SpatialIntersects extends SpatialRelatesFunction {
     }
 
     @Override
+    public Object fold() {
+        try {
+            GeometryDocValueReader docValueReader = asGeometryDocValueReader(crsType, left());
+            Component2D component2D = asLuceneComponent2D(crsType, right());
+            return (crsType == SpatialCrsType.GEO)
+                ? GEO.geometryRelatesGeometry(docValueReader, component2D)
+                : CARTESIAN.geometryRelatesGeometry(docValueReader, component2D);
+        } catch (IOException e) {
+            throw new IllegalArgumentException("Failed to fold constant fields: " + e.getMessage(), e);
+        }
+    }
+
+    @Override
     protected Map<SpatialEvaluatorFactory.SpatialEvaluatorKey, SpatialEvaluatorFactory<?, ?>> evaluatorRules() {
         return evaluatorMap;
     }
@@ -116,12 +131,6 @@ public class SpatialIntersects extends SpatialRelatesFunction {
                     SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSourceAndConstant(spatialType, otherType),
                     new SpatialEvaluatorFactory.SpatialEvaluatorWithConstantFactory(
                         SpatialIntersectsGeoSourceAndConstantEvaluator.Factory::new
-                    )
-                );
-                evaluatorMap.put(
-                    SpatialEvaluatorFactory.SpatialEvaluatorKey.fromConstants(spatialType, otherType),
-                    new SpatialEvaluatorFactory.SpatialEvaluatorWithConstantsFactory(
-                        SpatialIntersectsGeoConstantAndConstantEvaluator.Factory::new
                     )
                 );
                 if (EsqlDataTypes.isSpatialPoint(spatialType)) {
@@ -162,12 +171,6 @@ public class SpatialIntersects extends SpatialRelatesFunction {
                         SpatialIntersectsCartesianSourceAndConstantEvaluator.Factory::new
                     )
                 );
-                evaluatorMap.put(
-                    SpatialEvaluatorFactory.SpatialEvaluatorKey.fromConstants(spatialType, otherType),
-                    new SpatialEvaluatorFactory.SpatialEvaluatorWithConstantsFactory(
-                        SpatialIntersectsCartesianConstantAndConstantEvaluator.Factory::new
-                    )
-                );
                 if (EsqlDataTypes.isSpatialPoint(spatialType)) {
                     evaluatorMap.put(
                         SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSources(spatialType, otherType).withDocValues(),
@@ -206,12 +209,6 @@ public class SpatialIntersects extends SpatialRelatesFunction {
                 SpatialIntersectsCartesianStringAndConstantEvaluator.Factory::new
             )
         );
-        evaluatorMap.put(
-            key.withConstants(true, true),
-            new SpatialEvaluatorFactory.SpatialEvaluatorWithConstantsFactory(
-                SpatialIntersectsCartesianConstantAndConstantEvaluator.Factory::new
-            )
-        );
     }
 
     @Evaluator(extraName = "GeoSourceAndConstant", warnExceptions = { IllegalArgumentException.class, IOException.class })
@@ -245,12 +242,6 @@ public class SpatialIntersects extends SpatialRelatesFunction {
     static boolean processGeoPointDocValuesAndSource(long leftValue, BytesRef rightValue) {
         Geometry geometry = SpatialCoordinateTypes.UNSPECIFIED.wkbToGeometry(rightValue);
         return GEO.pointRelatesGeometry(leftValue, geometry);
-    }
-
-    @Evaluator(extraName = "GeoConstantAndConstant", warnExceptions = { IllegalArgumentException.class, IOException.class })
-    static boolean processGeoConstantAndConstant(@Fixed GeometryDocValueReader leftValue, @Fixed Component2D rightValue)
-        throws IOException {
-        return GEO.geometryRelatesGeometry(leftValue, rightValue);
     }
 
     @Evaluator(extraName = "GeoStringAndConstant", warnExceptions = { IllegalArgumentException.class, IOException.class })
@@ -290,12 +281,6 @@ public class SpatialIntersects extends SpatialRelatesFunction {
     static boolean processCartesianPointDocValuesAndSource(long leftValue, BytesRef rightValue) {
         Geometry geometry = SpatialCoordinateTypes.UNSPECIFIED.wkbToGeometry(rightValue);
         return CARTESIAN.pointRelatesGeometry(leftValue, geometry);
-    }
-
-    @Evaluator(extraName = "CartesianConstantAndConstant", warnExceptions = { IllegalArgumentException.class, IOException.class })
-    static boolean processCartesianConstantAndConstant(@Fixed GeometryDocValueReader leftValue, @Fixed Component2D rightValue)
-        throws IOException {
-        return CARTESIAN.geometryRelatesGeometry(leftValue, rightValue);
     }
 
     @Evaluator(extraName = "CartesianStringAndConstant", warnExceptions = { IllegalArgumentException.class, IOException.class })

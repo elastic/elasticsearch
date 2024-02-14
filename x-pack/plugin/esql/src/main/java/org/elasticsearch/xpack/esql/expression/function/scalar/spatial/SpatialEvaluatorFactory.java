@@ -10,16 +10,13 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 import org.apache.lucene.geo.Component2D;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.lucene.spatial.GeometryDocValueReader;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 
-import java.io.IOException;
 import java.util.Map;
 import java.util.function.Function;
 
-import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.asGeometryDocValueReader;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.asLuceneComponent2D;
 
 /**
@@ -155,31 +152,6 @@ abstract class SpatialEvaluatorFactory<V, T> {
             Function<Expression, EvalOperator.ExpressionEvaluator.Factory> toEvaluator
         ) {
             return factoryCreator.apply(s.source(), toEvaluator.apply(s.left()), asLuceneComponent2D(s.crsType(), s.right()));
-        }
-    }
-
-    protected static class SpatialEvaluatorWithConstantsFactory extends SpatialEvaluatorFactory<GeometryDocValueReader, Component2D> {
-
-        SpatialEvaluatorWithConstantsFactory(
-            TriFunction<Source, GeometryDocValueReader, Component2D, EvalOperator.ExpressionEvaluator.Factory> factoryCreator
-        ) {
-            super(factoryCreator);
-        }
-
-        @Override
-        public EvalOperator.ExpressionEvaluator.Factory get(
-            SpatialSourceSupplier s,
-            Function<Expression, EvalOperator.ExpressionEvaluator.Factory> toEvaluator
-        ) {
-            try {
-                return factoryCreator.apply(
-                    s.source(),
-                    asGeometryDocValueReader(s.crsType(), s.left()),
-                    asLuceneComponent2D(s.crsType(), s.right())
-                );
-            } catch (IOException e) {
-                throw new IllegalArgumentException("Failed to process spatial constant", e);
-            }
         }
     }
 

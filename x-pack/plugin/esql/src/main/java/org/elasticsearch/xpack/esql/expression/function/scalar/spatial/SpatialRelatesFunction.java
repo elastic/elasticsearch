@@ -183,11 +183,6 @@ public abstract class SpatialRelatesFunction extends BinaryScalarFunction
         return left().foldable() && right().foldable();
     }
 
-    @Override
-    public Object fold() {
-        return EvaluatorMapper.super.fold();
-    }
-
     public abstract SpatialRelatesFunction withDocValues();
 
     /**

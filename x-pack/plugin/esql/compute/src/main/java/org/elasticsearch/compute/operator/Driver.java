@@ -87,12 +87,6 @@ public class Driver implements Releasable, Describable {
     private final AtomicReference<DriverStatus> status;
 
     /**
-     * The time this driver has been running on a CPU. Doesn't include async or
-     * waiting time.
-     */
-    private long cpuNanos;
-
-    /**
      * The time this driver finished. Only set once the driver is finished, defaults to 0
      * which is *possibly* a valid value, so always use the driver status to check
      * if the driver is actually finished.
@@ -137,7 +131,7 @@ public class Driver implements Releasable, Describable {
                 sessionId,
                 startTime,
                 System.currentTimeMillis(),
-                cpuNanos,
+                0,
                 0,
                 DriverStatus.Status.QUEUED,
                 List.of(),
@@ -465,13 +459,12 @@ public class Driver implements Releasable, Describable {
      * @param status the status of the overall driver request
      */
     private void updateStatus(long extraCpuNanos, int extraIterations, DriverStatus.Status status) {
-        this.cpuNanos += extraCpuNanos;
         this.status.getAndUpdate(prev -> {
             return new DriverStatus(
                 sessionId,
                 startTime,
                 System.currentTimeMillis(),
-                cpuNanos,
+                prev.cpuNanos() + extraCpuNanos,
                 prev.iterations() + extraIterations,
                 status,
                 statusOfCompletedOperators,

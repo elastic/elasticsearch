@@ -328,16 +328,12 @@ public class DataStreamAutoShardingService {
         // one before the index that triggered the increase number of shards event)
         if (remainingReduceShardsCooldown.equals(TimeValue.ZERO) == false) {
             logger.debug(
-                "data stream autosharding service recommends no change in the number of shards for data stream [{}] as the cool down "
-                    + "period has not lapsed yet since "
-                    + dataStream.getAutoShardingEvent() != null
-                        ? "auto sharding event [" + dataStream.getAutoShardingEvent() + "]"
-                        : "the oldest generation index ["
-                            + oldestBackingIndex.getName()
-                            + "] created on ["
-                            + oldestIndexMeta.getCreationDate()
-                            + "]",
-                dataStream.getName()
+                "data stream autosharding service recommends no change in the number of shards for data stream [{}]  "
+                    + "with previous autosharding event [{}] and oldest generation index [{}] being created on [{}] ",
+                dataStream.getName(),
+                dataStream.getAutoShardingEvent(),
+                oldestBackingIndex.getName(),
+                oldestIndexMeta.getCreationDate()
             );
 
             return new AutoShardingResult(

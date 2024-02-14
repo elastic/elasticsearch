@@ -162,7 +162,7 @@ public class HashAggregationOperator implements Operator {
             }
 
             blockHash.add(wrapPage(page), add);
-            hashNanos += add.hashStart - System.nanoTime();
+            hashNanos += System.nanoTime() - add.hashStart;
         } finally {
             page.releaseBlocks();
             pagesProcessed++;

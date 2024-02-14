@@ -21,7 +21,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -129,10 +128,7 @@ public record TextEmbeddingResults(List<Embedding> embeddings) implements Infere
     }
 
     public Map<String, Object> asMap() {
-        Map<String, Object> map = new LinkedHashMap<>();
-        map.put(TEXT_EMBEDDING, embeddings.stream().map(Embedding::asMap).collect(Collectors.toList()));
-
-        return map;
+        return Map.of(TEXT_EMBEDDING, embeddings.stream().flatMap(v -> v.values.stream()).collect(Collectors.toList()));
     }
 
     public record Embedding(List<Float> values) implements Writeable, ToXContentObject, EmbeddingInt {

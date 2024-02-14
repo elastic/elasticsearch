@@ -6,7 +6,7 @@
 
 preview::[]
 
-Updates the `configuration` of a connector.
+Updates a connector's `configuration`, allowing for complete schema modifications or individual value updates within a registered configuration schema.
 
 
 [[update-connector-configuration-api-request]]
@@ -31,8 +31,11 @@ Updates the `configuration` of a connector.
 [[update-connector-configuration-api-request-body]]
 ==== {api-request-body-title}
 
+`values`::
+(Optional, object) Configuration values for the connector, represented as a mapping of configuration fields to their respective values within a registered schema.
+
 `configuration`::
-(Required, object) The configuration for the connector. The configuration field is a map where each key represents a specific configuration field name, and the value is a `ConnectorConfiguration` object.
+(Optional, object) The configuration for the connector. The configuration field is a map where each key represents a specific configuration field name, and the value is a `ConnectorConfiguration` object.
 
 Each `ConnectorConfiguration` object contains the following attributes:
 
@@ -105,42 +108,135 @@ The following example updates the `configuration` for the connector with ID `my-
 ////
 [source, console]
 --------------------------------------------------
-PUT _connector/my-connector
+PUT _connector/my-spo-connector
 {
-  "index_name": "search-google-drive",
-  "name": "My Connector",
-  "service_type": "google_drive"
+  "index_name": "search-sharepoint-online",
+  "name": "Sharepoint Online Connector",
+  "service_type": "sharepoint_online"
+}
+
+PUT _connector/my-spo-connector/_configuration
+{
+    "configuration": {
+        "client_id": {
+            "default_value": null,
+            "depends_on": [],
+            "display": "text",
+            "label": "Client ID",
+            "options": [],
+            "order": 3,
+            "required": true,
+            "sensitive": false,
+            "tooltip": null,
+            "type": "str",
+            "ui_restrictions": [],
+            "validations": [],
+            "value": null
+        },
+        "secret_value": {
+            "default_value": null,
+            "depends_on": [],
+            "display": "text",
+            "label": "Secret value",
+            "options": [],
+            "order": 4,
+            "required": true,
+            "sensitive": true,
+            "tooltip": null,
+            "type": "str",
+            "ui_restrictions": [],
+            "validations": [],
+            "value": null
+        }
+    }
 }
 --------------------------------------------------
 // TESTSETUP
 
 [source,console]
 --------------------------------------------------
-DELETE _connector/my-connector
+DELETE _connector/my-spo-connector
 --------------------------------------------------
 // TEARDOWN
 ////
 
+This example demonstrates how to register a `sharepoint_online` connector configuration schema. Note: The example does not cover all the necessary configuration fields for operating the Sharepoint Online connector.
+
 [source,console]
 ----
-PUT _connector/my-connector/_configuration
+PUT _connector/my-spo-connector/_configuration
 {
     "configuration": {
-        "service_account_credentials": {
+        "client_id": {
             "default_value": null,
             "depends_on": [],
-            "display": "textarea",
-            "label": "Google Drive service account JSON",
+            "display": "text",
+            "label": "Client ID",
             "options": [],
-            "order": 1,
+            "order": 3,
             "required": true,
-            "sensitive": true,
-            "tooltip": "This connectors authenticates as a service account to synchronize content from Google Drive.",
+            "sensitive": false,
+            "tooltip": null,
             "type": "str",
             "ui_restrictions": [],
             "validations": [],
-            "value": "...service account JSON..."
+            "value": null
+        },
+        "secret_value": {
+            "default_value": null,
+            "depends_on": [],
+            "display": "text",
+            "label": "Secret value",
+            "options": [],
+            "order": 4,
+            "required": true,
+            "sensitive": true,
+            "tooltip": null,
+            "type": "str",
+            "ui_restrictions": [],
+            "validations": [],
+            "value": null
         }
+    }
+}
+----
+
+[source,console-result]
+----
+{
+    "result": "updated"
+}
+----
+
+An example to update configuration values for the `sharepoint_online` connector:
+
+[source,console]
+----
+PUT _connector/my-spo-connector/_configuration
+{
+    "values": {
+        "client_id": "my-client-id",
+        "secret_value": "super-secret-value"
+    }
+}
+----
+
+[source,console-result]
+----
+{
+    "result": "updated"
+}
+----
+
+
+An example to update single configuration field of the `sharepoint_online` connector. In this case other configuration values won't change:
+
+[source,console]
+----
+PUT _connector/my-spo-connector/_configuration
+{
+    "values": {
+        "secret_value": "new-super-secret-value"
     }
 }
 ----

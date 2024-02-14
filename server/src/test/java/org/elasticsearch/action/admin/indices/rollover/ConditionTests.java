@@ -8,12 +8,18 @@
 
 package org.elasticsearch.action.admin.indices.rollover;
 
+import org.elasticsearch.action.datastreams.autosharding.AutoShardingType;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
+import org.elasticsearch.xcontent.json.JsonXContent;
+
+import java.io.IOException;
+import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class ConditionTests extends ESTestCase {
 
@@ -347,6 +353,53 @@ public class ConditionTests extends ESTestCase {
             condition -> new MinPrimaryShardDocsCondition(condition.value),
             condition -> new MinPrimaryShardDocsCondition(randomNonNegativeLong())
         );
+    }
+
+    public void testAutoShardCondtionXContent() throws IOException {
+        AutoShardCondition autoShardCondition = new AutoShardCondition(
+            new IncreaseShardsDetails(AutoShardingType.INCREASE_SHARDS, 1, 3, TimeValue.ZERO, 2.0)
+        );
+        {
+
+            AutoShardCondition parsedCondition = AutoShardCondition.fromXContent(createParser(JsonXContent.jsonXContent, """
+                {
+                        "type": "INCREASE_SHARDS",
+                        "cool_down_remaining": "0s",
+                        "current_number_of_shards": 1,
+                        "target_number_of_shards": 3,
+                         "write_load": 2.0
+                    }
+                """));
+            assertThat(parsedCondition.value, is(autoShardCondition.value));
+        }
+
+        {
+            // let's test the met_conditions parsing that is part of the rollover_info
+            long time = System.currentTimeMillis();
+            RolloverInfo info = new RolloverInfo("logs-nginx", List.of(autoShardCondition), time);
+
+            RolloverInfo parsedInfo = RolloverInfo.parse(
+                createParser(
+                    JsonXContent.jsonXContent,
+                    "{\n"
+                        + " \"met_conditions\": {\n"
+                        + "    \"auto_sharding\": {\n"
+                        + "        \"type\": \"INCREASE_SHARDS\",\n"
+                        + "        \"cool_down_remaining\": \"0s\",\n"
+                        + "        \"current_number_of_shards\": 1,\n"
+                        + "        \"target_number_of_shards\": 3,\n"
+                        + "         \"write_load\": 2.0\n"
+                        + "    }\n"
+                        + " },\n"
+                        + " \"time\": "
+                        + time
+                        + "\n"
+                        + "        }"
+                ),
+                "logs-nginx"
+            );
+            assertThat(parsedInfo, is(info));
+        }
     }
 
     private static ByteSizeValue randomByteSize() {

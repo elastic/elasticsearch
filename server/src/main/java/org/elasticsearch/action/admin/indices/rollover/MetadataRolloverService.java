@@ -8,14 +8,18 @@
 
 package org.elasticsearch.action.admin.indices.rollover;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
+import org.elasticsearch.action.datastreams.autosharding.AutoShardingResult;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasAction;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamAutoShardingEvent;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadataStats;
@@ -48,6 +52,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Pattern;
 
 import static org.elasticsearch.cluster.metadata.IndexAbstraction.Type.ALIAS;
@@ -61,6 +66,7 @@ import static org.elasticsearch.cluster.routing.allocation.allocator.AllocationA
  * Service responsible for handling rollover requests for write aliases and data streams
  */
 public class MetadataRolloverService {
+    private static final Logger logger = LogManager.getLogger(MetadataRolloverService.class);
     private static final Pattern INDEX_NAME_PATTERN = Pattern.compile("^.*-\\d+$");
     private static final List<IndexAbstraction.Type> VALID_ROLLOVER_TARGETS = List.of(ALIAS, DATA_STREAM);
 
@@ -110,7 +116,8 @@ public class MetadataRolloverService {
         Instant now,
         boolean silent,
         boolean onlyValidate,
-        @Nullable IndexMetadataStats sourceIndexStats
+        @Nullable IndexMetadataStats sourceIndexStats,
+        @Nullable AutoShardingResult autoShardingResult
     ) throws Exception {
         validate(currentState.metadata(), rolloverTarget, newIndexName, createIndexRequest);
         final IndexAbstraction indexAbstraction = currentState.metadata().getIndicesLookup().get(rolloverTarget);
@@ -134,7 +141,8 @@ public class MetadataRolloverService {
                 now,
                 silent,
                 onlyValidate,
-                sourceIndexStats
+                sourceIndexStats,
+                autoShardingResult
             );
             default ->
                 // the validate method above prevents this case
@@ -244,7 +252,8 @@ public class MetadataRolloverService {
         Instant now,
         boolean silent,
         boolean onlyValidate,
-        @Nullable IndexMetadataStats sourceIndexStats
+        @Nullable IndexMetadataStats sourceIndexStats,
+        @Nullable AutoShardingResult autoShardingResult
     ) throws Exception {
 
         if (SnapshotsService.snapshottingDataStreams(currentState, Collections.singleton(dataStream.getName())).isEmpty() == false) {
@@ -281,6 +290,63 @@ public class MetadataRolloverService {
             return new RolloverResult(newWriteIndexName, originalWriteIndex.getName(), currentState);
         }
 
+        AtomicReference<DataStreamAutoShardingEvent> newAutoShardingEvent = new AtomicReference<>(dataStream.getAutoShardingEvent());
+        if (autoShardingResult != null) {
+            switch (autoShardingResult.type()) {
+                case NO_CHANGE_REQUIRED -> {
+                    logger.info(
+                        "Rolling over data stream [{}] using existing auto-sharding recommendation [{}]",
+                        dataStreamName,
+                        autoShardingResult
+                    );
+                    // the auto sharding recommendation hasn't changed on this rollover
+                    Settings settingsWithAutoSharding = Settings.builder()
+                        .put(createIndexRequest.settings())
+                        .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), autoShardingResult.targetNumberOfShards())
+                        .build();
+                    createIndexRequest.settings(settingsWithAutoSharding);
+                }
+                case INCREASE_SHARDS, DECREASE_SHARDS -> {
+                    logger.info("Auto sharding data stream [{}] to [{}]", dataStreamName, autoShardingResult);
+                    Settings settingsWithAutoSharding = Settings.builder()
+                        .put(createIndexRequest.settings())
+                        .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), autoShardingResult.targetNumberOfShards())
+                        .build();
+                    createIndexRequest.settings(settingsWithAutoSharding);
+                    newAutoShardingEvent.set(
+                        new DataStreamAutoShardingEvent(
+                            dataStream.getWriteIndex().getName(),
+                            autoShardingResult.targetNumberOfShards(),
+                            now.toEpochMilli()
+                        )
+                    );
+                }
+                case COOLDOWN_PREVENTED_INCREASE, COOLDOWN_PREVENTED_DECREASE -> {
+                    // we're in the cooldown period for this particular recommendation so perhaps use a previous autosharding
+                    // recommendation (or the value configured in the backing index template otherwise)
+                    if (dataStream.getAutoShardingEvent() != null) {
+                        logger.info(
+                            "Rolling over data stream [{}] using existing auto-sharding recommendation [{}]",
+                            dataStreamName,
+                            dataStream.getAutoShardingEvent()
+                        );
+                        // the auto sharding recommendation hasn't changed on this rollover
+                        Settings settingsWithAutoSharding = Settings.builder()
+                            .put(createIndexRequest.settings())
+                            .put(
+                                IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(),
+                                dataStream.getAutoShardingEvent().targetNumberOfShards()
+                            )
+                            .build();
+                        createIndexRequest.settings(settingsWithAutoSharding);
+                    }
+                }
+                // data sharding might not be available due to the feature not being available/enabled or due to cluster level excludes
+                // being configured. the index template will dictate the number of shards as usual
+                case NOT_APPLICABLE -> logger.debug("auto sharding is not applicable for data stream [{}]", dataStreamName);
+            }
+        }
+
         var createIndexClusterStateRequest = prepareDataStreamCreateIndexRequest(
             dataStreamName,
             newWriteIndexName,
@@ -298,7 +364,14 @@ public class MetadataRolloverService {
             silent,
             (builder, indexMetadata) -> {
                 downgradeBrokenTsdbBackingIndices(dataStream, builder);
-                builder.put(dataStream.rollover(indexMetadata.getIndex(), newGeneration, metadata.isTimeSeriesTemplate(templateV2)));
+                builder.put(
+                    dataStream.rollover(
+                        indexMetadata.getIndex(),
+                        newGeneration,
+                        metadata.isTimeSeriesTemplate(templateV2),
+                        newAutoShardingEvent.get()
+                    )
+                );
             },
             rerouteCompletionIsNotRequired()
         );

@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.action.admin.indices.rollover;
 
+import org.elasticsearch.action.datastreams.autosharding.AutoShardingResult;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -26,6 +27,9 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+
+import static org.elasticsearch.action.datastreams.autosharding.AutoShardingType.COOLDOWN_PREVENTED_INCREASE;
+import static org.elasticsearch.action.datastreams.autosharding.AutoShardingType.INCREASE_SHARDS;
 
 /**
  * Contains the conditions that determine if an index can be rolled over or not. It is used by the {@link RolloverRequest},
@@ -243,7 +247,12 @@ public class RolloverConditions implements Writeable, ToXContentObject {
             .filter(c -> Condition.Type.MAX == c.type())
             .anyMatch(c -> conditionResults.getOrDefault(c.toString(), false));
 
-        return conditionResults.size() == 0 || (allMinConditionsMet && anyMaxConditionsMet);
+        boolean anyAutomaticConditionsMet = conditions.values()
+            .stream()
+            .filter(c -> Condition.Type.AUTOMATIC == c.type())
+            .anyMatch(c -> conditionResults.getOrDefault(c.toString(), false));
+
+        return conditionResults.size() == 0 || (allMinConditionsMet && anyMaxConditionsMet) || anyAutomaticConditionsMet;
     }
 
     public static RolloverConditions fromXContent(XContentParser parser) throws IOException {
@@ -404,6 +413,25 @@ public class RolloverConditions implements Writeable, ToXContentObject {
             if (numDocs != null) {
                 MinPrimaryShardDocsCondition minPrimaryShardDocsCondition = new MinPrimaryShardDocsCondition(numDocs);
                 this.conditions.put(minPrimaryShardDocsCondition.name, minPrimaryShardDocsCondition);
+            }
+            return this;
+        }
+
+        /**
+         * Adds an auto sharding increase shards condition, ignores it otherwise.
+         */
+        public Builder addAutoShardingCondition(AutoShardingResult autoShardingResult) {
+            if (autoShardingResult.type().equals(INCREASE_SHARDS) || autoShardingResult.type().equals(COOLDOWN_PREVENTED_INCREASE)) {
+                AutoShardCondition autoShardCondition = new AutoShardCondition(
+                    new IncreaseShardsDetails(
+                        autoShardingResult.type(),
+                        autoShardingResult.currentNumberOfShards(),
+                        autoShardingResult.targetNumberOfShards(),
+                        autoShardingResult.coolDownRemaining(),
+                        autoShardingResult.writeLoad()
+                    )
+                );
+                this.conditions.put(autoShardCondition.name, autoShardCondition);
             }
             return this;
         }

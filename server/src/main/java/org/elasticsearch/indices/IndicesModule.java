@@ -8,6 +8,7 @@
 
 package org.elasticsearch.indices;
 
+import org.elasticsearch.action.admin.indices.rollover.AutoShardCondition;
 import org.elasticsearch.action.admin.indices.rollover.Condition;
 import org.elasticsearch.action.admin.indices.rollover.MaxAgeCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxDocsCondition;
@@ -109,7 +110,8 @@ public class IndicesModule extends AbstractModule {
             new NamedWriteableRegistry.Entry(Condition.class, MaxDocsCondition.NAME, MaxDocsCondition::new),
             new NamedWriteableRegistry.Entry(Condition.class, MaxSizeCondition.NAME, MaxSizeCondition::new),
             new NamedWriteableRegistry.Entry(Condition.class, MaxPrimaryShardSizeCondition.NAME, MaxPrimaryShardSizeCondition::new),
-            new NamedWriteableRegistry.Entry(Condition.class, MaxPrimaryShardDocsCondition.NAME, MaxPrimaryShardDocsCondition::new)
+            new NamedWriteableRegistry.Entry(Condition.class, MaxPrimaryShardDocsCondition.NAME, MaxPrimaryShardDocsCondition::new),
+            new NamedWriteableRegistry.Entry(Condition.class, AutoShardCondition.NAME, AutoShardCondition::new)
         );
     }
 
@@ -164,6 +166,11 @@ public class IndicesModule extends AbstractModule {
                 Condition.class,
                 new ParseField(MaxPrimaryShardDocsCondition.NAME),
                 (p, c) -> MaxPrimaryShardDocsCondition.fromXContent(p)
+            ),
+            new NamedXContentRegistry.Entry(
+                Condition.class,
+                new ParseField(AutoShardCondition.NAME),
+                (p, c) -> AutoShardCondition.fromXContent(p)
             )
         );
     }

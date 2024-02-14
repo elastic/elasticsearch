@@ -233,8 +233,8 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
 
     private final List<String> indices;
     private final QueryProvider queryProvider;
-    private final AggProvider aggProvider;
     private final String esqlQuery;
+    private final AggProvider aggProvider;
     private final List<SearchSourceBuilder.ScriptField> scriptFields;
     private final Integer scrollSize;
     private final ChunkingConfig chunkingConfig;
@@ -251,8 +251,8 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         TimeValue frequency,
         List<String> indices,
         QueryProvider queryProvider,
-        AggProvider aggProvider,
         String esqlQuery,
+        AggProvider aggProvider,
         List<SearchSourceBuilder.ScriptField> scriptFields,
         Integer scrollSize,
         ChunkingConfig chunkingConfig,
@@ -268,8 +268,8 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         this.frequency = frequency;
         this.indices = indices == null ? null : Collections.unmodifiableList(indices);
         this.queryProvider = queryProvider == null ? null : new QueryProvider(queryProvider);
-        this.aggProvider = aggProvider == null ? null : new AggProvider(aggProvider);
         this.esqlQuery = esqlQuery;
+        this.aggProvider = aggProvider == null ? null : new AggProvider(aggProvider);
         this.scriptFields = scriptFields == null ? null : Collections.unmodifiableList(scriptFields);
         this.scrollSize = scrollSize;
         this.chunkingConfig = chunkingConfig;
@@ -286,17 +286,15 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         this.queryDelay = in.readOptionalTimeValue();
         this.frequency = in.readOptionalTimeValue();
         this.indices = in.readOptionalStringCollectionAsList();
-        // each of these writables are version aware
-        this.queryProvider = in.readOptionalWriteable(QueryProvider::fromStream);
-        // This reads a boolean from the stream, if true, it sends the stream to the `fromStream` method
-        this.aggProvider = in.readOptionalWriteable(AggProvider::fromStream);
-        this.esqlQuery = in.readOptionalString();
-
-        if (in.readBoolean()) {
-            this.scriptFields = in.readCollectionAsImmutableList(SearchSourceBuilder.ScriptField::new);
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_IN_DATAFEEDS)) {
+            this.queryProvider = in.readOptionalWriteable(QueryProvider::fromStream);
+            this.esqlQuery = in.readOptionalString();
         } else {
-            this.scriptFields = null;
+            this.queryProvider = QueryProvider.fromStream(in);
+            this.esqlQuery = null;
         }
+        this.aggProvider = in.readOptionalWriteable(AggProvider::fromStream);
+        this.scriptFields = in.readOptionalCollectionAsList(SearchSourceBuilder.ScriptField::new);
         this.scrollSize = in.readOptionalVInt();
         this.chunkingConfig = in.readOptionalWriteable(ChunkingConfig::new);
         this.headers = in.readImmutableMap(StreamInput::readString);
@@ -524,9 +522,13 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         out.writeOptionalTimeValue(queryDelay);
         out.writeOptionalTimeValue(frequency);
         out.writeOptionalStringCollection(indices);
-        out.writeOptionalWriteable(queryProvider);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_IN_DATAFEEDS)) {
+            out.writeOptionalWriteable(queryProvider);
+            out.writeOptionalString(esqlQuery);
+        } else {
+            queryProvider.writeTo(out);
+        }
         out.writeOptionalWriteable(aggProvider);
-        out.writeOptionalString(esqlQuery);
         out.writeOptionalCollection(scriptFields);
         out.writeOptionalVInt(scrollSize);
         out.writeOptionalWriteable(chunkingConfig);
@@ -778,8 +780,8 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             this.frequency = config.frequency;
             this.indices = new ArrayList<>(config.indices);
             this.queryProvider = config.queryProvider == null ? null : new QueryProvider(config.queryProvider);
-            this.aggProvider = config.aggProvider == null ? null : new AggProvider(config.aggProvider);
             this.esqlQuery = config.esqlQuery;
+            this.aggProvider = config.aggProvider == null ? null : new AggProvider(config.aggProvider);
             this.scriptFields = config.scriptFields == null ? null : new ArrayList<>(config.scriptFields);
             this.scrollSize = config.scrollSize;
             this.chunkingConfig = config.chunkingConfig;
@@ -795,22 +797,17 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             this.jobId = in.readOptionalString();
             this.queryDelay = in.readOptionalTimeValue();
             this.frequency = in.readOptionalTimeValue();
-            if (in.readBoolean()) {
-                this.indices = in.readCollectionAsImmutableList(StreamInput::readString);
+            this.indices = in.readOptionalStringCollectionAsList();
+            if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_IN_DATAFEEDS)) {
+                this.queryProvider = in.readOptionalWriteable(QueryProvider::fromStream);
+                this.esqlQuery = in.readOptionalString();
             } else {
-                this.indices = null;
+                this.queryProvider = QueryProvider.fromStream(in);
+                this.esqlQuery = null;
             }
-            // each of these writables are version aware
-            this.queryProvider = in.readOptionalWriteable(QueryProvider::fromStream);
             // This reads a boolean from the stream, if true, it sends the stream to the `fromStream` method
             this.aggProvider = in.readOptionalWriteable(AggProvider::fromStream);
-            this.esqlQuery = in.readOptionalString();
-
-            if (in.readBoolean()) {
-                this.scriptFields = in.readCollectionAsImmutableList(SearchSourceBuilder.ScriptField::new);
-            } else {
-                this.scriptFields = null;
-            }
+            this.scriptFields = in.readOptionalCollectionAsList(SearchSourceBuilder.ScriptField::new);
             this.scrollSize = in.readOptionalVInt();
             this.chunkingConfig = in.readOptionalWriteable(ChunkingConfig::new);
             this.headers = in.readImmutableMap(StreamInput::readString);
@@ -828,25 +825,15 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             out.writeOptionalString(jobId);
             out.writeOptionalTimeValue(queryDelay);
             out.writeOptionalTimeValue(frequency);
-            if (indices != null) {
-                out.writeBoolean(true);
-                out.writeStringCollection(indices);
+            out.writeOptionalStringCollection(indices);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_IN_DATAFEEDS)) {
+                out.writeOptionalWriteable(queryProvider);
+                out.writeOptionalString(esqlQuery);
             } else {
-                out.writeBoolean(false);
+                queryProvider.writeTo(out);
             }
-
-            // Each of these writables are version aware
-            out.writeOptionalWriteable(queryProvider);
-            // This writes a boolean to the stream, if true, it sends the stream to the `writeTo` method
             out.writeOptionalWriteable(aggProvider);
-            out.writeOptionalString(esqlQuery);
-
-            if (scriptFields != null) {
-                out.writeBoolean(true);
-                out.writeCollection(scriptFields);
-            } else {
-                out.writeBoolean(false);
-            }
+            out.writeOptionalCollection(scriptFields);
             out.writeOptionalVInt(scrollSize);
             out.writeOptionalWriteable(chunkingConfig);
             out.writeMap(headers, StreamOutput::writeString);
@@ -1082,8 +1069,8 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
                 frequency,
                 indices,
                 queryProvider,
-                aggProvider,
                 esqlQuery,
+                aggProvider,
                 scriptFields,
                 scrollSize,
                 chunkingConfig,

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ml.datafeed;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -61,6 +62,7 @@ import java.util.stream.Collectors;
 import static java.util.function.Predicate.not;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
+import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_CONFIG_ESQL_UNAVAILABLE;
 import static org.elasticsearch.xpack.ml.utils.SecondaryAuthorizationUtils.useSecondaryAuthIfAvailable;
 
 /**
@@ -311,6 +313,11 @@ public final class DatafeedManager {
         ClusterState clusterState,
         ActionListener<PutDatafeedAction.Response> listener
     ) {
+        if (clusterState.getMinTransportVersion().before(TransportVersions.ESQL_IN_DATAFEEDS)
+            && request.getDatafeed().getEsqlQuery() != null) {
+            listener.onFailure(ExceptionsHelper.badRequestException(DATAFEED_CONFIG_ESQL_UNAVAILABLE));
+        }
+
         DatafeedConfig.validateAggregations(request.getDatafeed().getParsedAggregations(xContentRegistry));
 
         CheckedConsumer<Boolean, Exception> mappingsUpdated = ok -> datafeedConfigProvider.putDatafeedConfig(
@@ -319,22 +326,15 @@ public final class DatafeedManager {
             ActionListener.wrap(response -> listener.onResponse(new PutDatafeedAction.Response(response.v1())), listener::onFailure)
         );
 
-        CheckedConsumer<Boolean, Exception> validationOk = ok -> {
-            if (clusterState == null) {
-                logger.warn("Cannot update doc mapping because clusterState == null");
-                mappingsUpdated.accept(false);
-                return;
-            }
-            ElasticsearchMappings.addDocMappingIfMissing(
-                MlConfigIndex.indexName(),
-                MlConfigIndex::mapping,
-                client,
-                clusterState,
-                request.masterNodeTimeout(),
-                ActionListener.wrap(mappingsUpdated, listener::onFailure),
-                MlConfigIndex.CONFIG_INDEX_MAPPINGS_VERSION
-            );
-        };
+        CheckedConsumer<Boolean, Exception> validationOk = ok -> ElasticsearchMappings.addDocMappingIfMissing(
+            MlConfigIndex.indexName(),
+            MlConfigIndex::mapping,
+            client,
+            clusterState,
+            request.masterNodeTimeout(),
+            ActionListener.wrap(mappingsUpdated, listener::onFailure),
+            MlConfigIndex.CONFIG_INDEX_MAPPINGS_VERSION
+        );
 
         CheckedConsumer<Boolean, Exception> jobOk = ok -> jobConfigProvider.validateDatafeedJob(
             request.getDatafeed(),

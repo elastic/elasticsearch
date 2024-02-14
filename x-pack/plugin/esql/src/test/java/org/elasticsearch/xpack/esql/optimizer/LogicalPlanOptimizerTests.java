@@ -3208,6 +3208,36 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(Expressions.attribute(fields.get(1)), is(Expressions.attribute(sum_argument)));
     }
 
+    /**
+     * Expects
+     * TODO
+     */
+    public void testSumOfConstant() throws Exception {
+        var plan = optimizedPlan("""
+            from test
+            | stats s = sum([1,2]),
+                    s_expr = sum(314.0/100),
+                    s_null = sum(null)
+                    by w = emp_no % 2
+            | keep s, s_expr, s_null, w
+            """);
+
+        var project = as(plan, Project.class);
+        var limit = as(project.child(), Limit.class);
+        var aggregate = as(limit.child(), Aggregate.class);
+        var aggregates = aggregate.aggregates();
+        assertThat(Expressions.names(aggregates), contains("s", "s_expr", "s_null", "w"));
+        var unwrapped = Alias.unwrap(aggregates.get(0));
+        var sum = as(unwrapped, Sum.class);
+        var sum_argument = sum.field();
+        var grouping = aggregates.get(1);
+
+        var eval = as(aggregate.child(), Eval.class);
+        var fields = eval.fields();
+        assertThat(Expressions.attribute(fields.get(0)), is(Expressions.attribute(grouping)));
+        assertThat(Expressions.attribute(fields.get(1)), is(Expressions.attribute(sum_argument)));
+    }
+
     public void testEmptyMappingIndex() {
         EsIndex empty = new EsIndex("empty_test", emptyMap(), emptySet());
         IndexResolution getIndexResultAirports = IndexResolution.valid(empty);

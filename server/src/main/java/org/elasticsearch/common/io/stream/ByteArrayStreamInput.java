@@ -13,9 +13,6 @@ import org.apache.lucene.util.BytesRef;
 import java.io.EOFException;
 import java.io.IOException;
 
-import static java.nio.charset.StandardCharsets.ISO_8859_1;
-import static java.nio.charset.StandardCharsets.UTF_8;
-
 /**
  * Resettable {@link StreamInput} that wraps a byte array. It is heavily inspired in Lucene's
  * {@link org.apache.lucene.store.ByteArrayDataInput}.
@@ -37,11 +34,9 @@ public final class ByteArrayStreamInput extends StreamInput {
     @Override
     public String readString() throws IOException {
         final int chars = readArraySize();
-        int length = calculateByteLengthOfChars(bytes, chars, pos, limit);
-        if (length >= 0) {
-            String str = new String(bytes, pos, length, chars == length ? ISO_8859_1 : UTF_8);
-            pos += length;
-            return str;
+        String string = tryReadStringFromBytes(bytes, pos, limit, chars);
+        if (string != null) {
+            return string;
         }
         return doReadString(chars);
     }
@@ -78,6 +73,20 @@ public final class ByteArrayStreamInput extends StreamInput {
 
     public void skipBytes(long count) {
         pos += (int) count;
+    }
+
+    @Override
+    public long skip(long n) throws IOException {
+        if (n <= 0L) {
+            return 0L;
+        }
+        int available = available();
+        if (n < available) {
+            pos += (int) n;
+            return n;
+        }
+        pos = limit;
+        return available;
     }
 
     @Override

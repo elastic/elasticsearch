@@ -58,6 +58,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.IntFunction;
 
+import static java.nio.charset.StandardCharsets.ISO_8859_1;
+import static java.nio.charset.StandardCharsets.UTF_8;
+
 /**
  * A stream from this node to another node. Technically, it can also be streamed to a byte array but that is mostly for testing.
  *
@@ -523,30 +526,44 @@ public abstract class StreamInput extends InputStream {
         return new String(charBuffer, 0, charCount);
     }
 
-    protected static int calculateByteLengthOfChars(final byte[] bytes, final int chars, final int start, final int limit)
-        throws IOException {
-        if (limit - start < chars) {
-            return -1; // not enough bytes to read chars
+    protected String tryReadStringFromBytes(final byte[] bytes, final int start, final int limit, final int chars) throws IOException {
+        final int end = start + chars;
+        if (limit < end) {
+            return null; // not enough bytes to read chars
         }
-        // calculate number of bytes matching the requested chars
-        int pos = start;
-        int remaining = chars;
-        while (pos < limit && remaining-- > 0) {
+        for (int pos = start; pos < end; pos++) {
+            if ((bytes[pos] & 0xf0) > 0x70) {
+                // not an ISO_8859_1 char, fall back to reading a UTF-8 string
+                return tryReadUtf8StringFromBytes(bytes, start, limit, pos, end - pos);
+            }
+        }
+        skip(chars); // skip the number of chars (equals bytes) on the stream input
+        return new String(bytes, start, chars, ISO_8859_1);
+    }
+
+    private String tryReadUtf8StringFromBytes(final byte[] bytes, final int start, final int limit, int pos, int chars) throws IOException {
+        while (pos < limit && chars-- > 0) {
             int c = bytes[pos] & 0xff;
             switch (c >> 4) {
                 case 0, 1, 2, 3, 4, 5, 6, 7 -> pos++;
                 case 12, 13 -> pos += 2;
                 case 14 -> {
                     // surrogate pairs are incorrectly encoded, these can't be directly read from bytes
-                    if (maybeHighSurrogate(bytes, pos, limit)) return -1;
+                    if (maybeHighSurrogate(bytes, pos, limit)) return null;
                     pos += 3;
                 }
                 default -> throwOnBrokenChar(c);
             }
         }
+
+        if (chars == 0 && pos <= limit) {
+            pos = pos - start;
+            skip(pos); // skip the number of bytes relative to start on the stream input
+            return new String(bytes, start, pos, UTF_8);
+        }
+
         // not enough bytes to read all chars from array
-        if (remaining > 0 || pos > limit) return -1;
-        return pos - start;
+        return null;
     }
 
     private static boolean maybeHighSurrogate(final byte[] bytes, final int pos, final int limit) {

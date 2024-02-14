@@ -18,9 +18,6 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Objects;
 
-import static java.nio.charset.StandardCharsets.ISO_8859_1;
-import static java.nio.charset.StandardCharsets.UTF_8;
-
 /**
  * A StreamInput that reads off a {@link BytesRefIterator}. This is used to provide
  * generic stream access to {@link BytesReference} instances without materializing the
@@ -92,13 +89,14 @@ class BytesReferenceStreamInput extends StreamInput {
         final int chars = readArraySize();
         if (slice.hasArray()) {
             // attempt reading bytes directly into a string to minimize copying
-            final byte[] bytes = slice.array();
-            final int start = slice.position() + slice.arrayOffset();
-            final int limit = slice.limit() + slice.arrayOffset();
-            final int length = calculateByteLengthOfChars(bytes, chars, start, limit);
-            if (length >= 0) {
-                slice.position(length + start - slice.arrayOffset());
-                return new String(bytes, start, length, chars == length ? ISO_8859_1 : UTF_8);
+            final String string = tryReadStringFromBytes(
+                slice.array(),
+                slice.position() + slice.arrayOffset(),
+                slice.limit() + slice.arrayOffset(),
+                chars
+            );
+            if (string != null) {
+                return string;
             }
         }
         return doReadString(chars);

@@ -122,7 +122,7 @@ public class SenderServiceTests extends ESTestCase {
             Map<String, Object> taskSettings,
             InputType inputType,
             ChunkingOptions chunkingOptions,
-            ActionListener<ChunkedInferenceServiceResults> listener
+            ActionListener<List<ChunkedInferenceServiceResults>> listener
         ) {
 
         }

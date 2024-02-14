@@ -98,7 +98,7 @@ public class MultiSearchTemplateResponseTests extends AbstractXContentTestCase<M
     @Override
     protected MultiSearchTemplateResponse doParseInstance(XContentParser parser) {
         // The MultiSearchTemplateResponse is identical to the multi search response so we reuse the parsing logic in multi search response
-        MultiSearchResponse mSearchResponse = MultiSearchResponse.fromXContext(parser);
+        MultiSearchResponse mSearchResponse = SearchResponseUtils.parseMultiSearchResponse(parser);
         try {
             org.elasticsearch.action.search.MultiSearchResponse.Item[] responses = mSearchResponse.getResponses();
             MultiSearchTemplateResponse.Item[] templateResponses = new MultiSearchTemplateResponse.Item[responses.length];

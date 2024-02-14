@@ -24,11 +24,6 @@ abstract class IdentifierBuilder extends AbstractBuilder {
     }
 
     @Override
-    public String visitIdentifierPattern(EsqlBaseParser.IdentifierPatternContext ctx) {
-        return unquoteIdentifier(ctx.QUOTED_IDENTIFIER(), ctx.UNQUOTED_ID_PATTERN());
-    }
-
-    @Override
     public String visitFromIdentifier(FromIdentifierContext ctx) {
         return ctx == null ? null : unquoteIdentifier(ctx.QUOTED_IDENTIFIER(), ctx.FROM_UNQUOTED_IDENTIFIER());
     }

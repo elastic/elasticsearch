@@ -126,7 +126,7 @@ public abstract class HuggingFaceBaseService extends SenderService {
         Map<String, Object> taskSettings,
         InputType inputType,
         ChunkingOptions chunkingOptions,
-        ActionListener<ChunkedInferenceServiceResults> listener
+        ActionListener<List<ChunkedInferenceServiceResults>> listener
     ) {
         listener.onFailure(new UnsupportedOperationException("Chunked inference not implemented for Hugging Face"));
     }

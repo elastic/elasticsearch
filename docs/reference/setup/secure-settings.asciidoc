@@ -61,3 +61,6 @@ There are reloadable secure settings for:
 * <<repository-s3,The S3 repository plugin>>
 * <<monitoring-settings>>
 * <<notification-settings>>
+* <<ref-jwt-settings, JWT realm>>
+* <<ref-ad-settings, Active Directory realm>>
+* <<ref-ldap-settings, LDAP realm>>

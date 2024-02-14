@@ -87,7 +87,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         Settings transformInternalIndexAdditionalSettings,
         IndexNameExpressionResolver resolver
     ) {
-        super(TransformField.TASK_NAME, ThreadPool.Names.GENERIC);
+        super(TransformField.TASK_NAME, threadPool.generic());
         this.client = client;
         this.transformServices = transformServices;
         this.threadPool = threadPool;

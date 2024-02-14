@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.inference.external.http.retry;
 import org.apache.http.ConnectionClosedException;
 import org.apache.http.HttpResponse;
 import org.apache.http.StatusLine;
-import org.apache.http.client.methods.HttpRequestBase;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
@@ -22,6 +21,7 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
+import org.elasticsearch.xpack.inference.external.request.HttpRequestTests;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.junit.Before;
@@ -542,7 +542,7 @@ public class RetryingHttpSenderTests extends ESTestCase {
     private static Request mockRequest() {
         var request = mock(Request.class);
         when(request.truncate()).thenReturn(request);
-        when(request.createRequest()).thenReturn(mock(HttpRequestBase.class));
+        when(request.createHttpRequest()).thenReturn(HttpRequestTests.createMock("inferenceEntityId"));
 
         return request;
     }

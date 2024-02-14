@@ -58,7 +58,7 @@ public class IcuTokenizerFactory extends AbstractTokenizerFactory {
             List<String> ruleFiles = settings.getAsList(RULE_FILES);
 
             for (String scriptAndResourcePath : ruleFiles) {
-                int colonPos = scriptAndResourcePath.indexOf(":");
+                int colonPos = scriptAndResourcePath.indexOf(':');
                 if (colonPos == -1 || colonPos == scriptAndResourcePath.length() - 1) {
                     throw new IllegalArgumentException(RULE_FILES + " should contain comma-separated \"code:rulefile\" pairs");
                 }

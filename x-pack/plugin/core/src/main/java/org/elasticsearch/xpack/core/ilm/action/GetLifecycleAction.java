@@ -35,7 +35,7 @@ public class GetLifecycleAction extends ActionType<GetLifecycleAction.Response> 
     public static final String NAME = "cluster:admin/ilm/get";
 
     protected GetLifecycleAction() {
-        super(NAME, GetLifecycleAction.Response::new);
+        super(NAME);
     }
 
     public static class Response extends ActionResponse implements ChunkedToXContentObject {

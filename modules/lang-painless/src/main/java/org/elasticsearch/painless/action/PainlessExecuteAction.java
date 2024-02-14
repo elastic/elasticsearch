@@ -24,6 +24,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.RemoteClusterActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
@@ -115,7 +116,8 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class PainlessExecuteAction {
 
-    public static final ActionType<Response> INSTANCE = new ActionType<>("cluster:admin/scripts/painless/execute", Response::new);
+    public static final ActionType<Response> INSTANCE = new ActionType<>("cluster:admin/scripts/painless/execute");
+    public static final RemoteClusterActionType<Response> REMOTE_TYPE = new RemoteClusterActionType<>(INSTANCE.name(), Response::new);
 
     private PainlessExecuteAction() {/* no instances */}
 
@@ -529,7 +531,7 @@ public class PainlessExecuteAction {
                 String clusterAlias = request.getContextSetup().getClusterAlias();
                 transportService.getRemoteClusterService()
                     .getRemoteClusterClient(clusterAlias, EsExecutors.DIRECT_EXECUTOR_SERVICE)
-                    .execute(PainlessExecuteAction.INSTANCE, request, listener);
+                    .execute(PainlessExecuteAction.REMOTE_TYPE, request, listener);
             }
         }
 

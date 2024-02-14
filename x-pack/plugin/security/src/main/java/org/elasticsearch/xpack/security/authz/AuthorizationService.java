@@ -778,7 +778,7 @@ public class AuthorizationService {
                     }
                     return resolved;
                 });
-                actionToIndicesMap.compute(itemAction, (ignore, resolvedIndicesSet) -> addToOrCreateSet(resolvedIndicesSet, resolvedIndex));
+                actionToIndicesMap.computeIfAbsent(itemAction, k -> new HashSet<>()).add(resolvedIndex);
             }
 
             final ActionListener<Collection<Tuple<String, IndexAuthorizationResult>>> bulkAuthzListener = ActionListener.wrap(
@@ -800,15 +800,9 @@ public class AuthorizationService {
                         final String resolvedIndex = resolvedIndexNames.get(item.index());
                         final String itemAction = getAction(item);
                         if (actionToIndicesAccessControl.get(itemAction).hasIndexPermissions(resolvedIndex)) {
-                            actionToGrantedIndicesMap.compute(
-                                itemAction,
-                                (ignore, resolvedIndicesSet) -> addToOrCreateSet(resolvedIndicesSet, resolvedIndex)
-                            );
+                            actionToGrantedIndicesMap.computeIfAbsent(itemAction, ignore -> new HashSet<>()).add(resolvedIndex);
                         } else {
-                            actionToDeniedIndicesMap.compute(
-                                itemAction,
-                                (ignore, resolvedIndicesSet) -> addToOrCreateSet(resolvedIndicesSet, resolvedIndex)
-                            );
+                            actionToDeniedIndicesMap.computeIfAbsent(itemAction, ignore -> new HashSet<>()).add(resolvedIndex);
                             item.abort(
                                 resolvedIndex,
                                 actionDenied(
@@ -874,12 +868,6 @@ public class AuthorizationService {
                 );
             });
         }, listener::onFailure));
-    }
-
-    private static Set<String> addToOrCreateSet(Set<String> set, String item) {
-        final Set<String> localSet = set != null ? set : new HashSet<>(4);
-        localSet.add(item);
-        return localSet;
     }
 
     private static String resolveIndexNameDateMath(BulkItemRequest bulkItemRequest) {

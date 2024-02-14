@@ -238,21 +238,31 @@ expense of slower indexing speed.
 ====
 `type`:::
 (Required, string)
-The type of kNN algorithm to use. Can be either `hnsw` or `int8_hnsw`.
-
+The type of kNN algorithm to use. Can be either any of:
++
+--
+* `hnsw` - The default storage type. This utilizes the https://arxiv.org/abs/1603.09320[HNSW algorithm] for scalable
+    approximate kNN search. This supports all `element_type` values.
+* `int8_hnsw` - This utilizes the https://arxiv.org/abs/1603.09320[HNSW algorithm] in addition to automatically scalar
+quantization for scalable approximate kNN search with `element_type` of `float`. This can reduce the memory footprint
+by 4x at the cost of some accuracy. See <<dense-vector-quantization, Automatically quantize vectors for kNN search>>.
+* `flat` - This utilizes a brute-force search algorithm for exact kNN search. This supports all `element_type` values.
+* `int8_flat` - This utilizes a brute-force search algorithm in addition to automatically scalar quantization. Only supports
+`element_type` of `float`.
+--
 `m`:::
 (Optional, integer)
 The number of neighbors each node will be connected to in the HNSW graph.
-Defaults to `16`.
+Defaults to `16`. Only applicable to `hnsw` and `int8_hnsw` index types.
 
 `ef_construction`:::
 (Optional, integer)
 The number of candidates to track while assembling the list of nearest
-neighbors for each new node. Defaults to `100`.
+neighbors for each new node. Defaults to `100`. Only applicable to `hnsw` and `int8_hnsw` index types.
 
 `confidence_interval`:::
 (Optional, float)
-Only applicable to `int8_hnsw` index types. The confidence interval to use when quantizing the vectors,
+Only applicable to `int8_hnsw` and `int8_flat` index types. The confidence interval to use when quantizing the vectors,
 can be any value between and including `0.90` and `1.0`. This value restricts the values used when calculating
 the quantization thresholds. For example, a value of `0.95` will only use the middle 95% of the values when
 calculating the quantization thresholds (e.g. the highest and lowest 2.5% of values will be ignored).

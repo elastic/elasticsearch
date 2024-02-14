@@ -627,11 +627,6 @@ public abstract class Engine implements Closeable {
             this.found = found;
         }
 
-        public DeleteResult(Mapping requiredMappingUpdate, String id) {
-            super(Operation.TYPE.DELETE, requiredMappingUpdate, id);
-            this.found = false;
-        }
-
         public boolean isFound() {
             return found;
         }

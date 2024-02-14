@@ -25,7 +25,7 @@ public class DeleteTransformAction extends ActionType<AcknowledgedResponse> {
     public static final String NAME = "cluster:admin/transform/delete";
 
     private DeleteTransformAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<Request> {

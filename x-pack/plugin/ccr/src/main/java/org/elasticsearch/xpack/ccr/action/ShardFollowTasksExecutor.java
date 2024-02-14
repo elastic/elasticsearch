@@ -248,7 +248,7 @@ public final class ShardFollowTasksExecutor extends PersistentTasksExecutor<Shar
                 };
                 try {
                     remoteClient(params).execute(
-                        ClusterStateAction.INSTANCE,
+                        ClusterStateAction.REMOTE_TYPE,
                         CcrRequests.metadataRequest(leaderIndex.getName()),
                         ActionListener.wrap(onResponse, errorHandler)
                     );
@@ -377,7 +377,7 @@ public final class ShardFollowTasksExecutor extends PersistentTasksExecutor<Shar
 
                 try {
                     remoteClient(params).execute(
-                        ClusterStateAction.INSTANCE,
+                        ClusterStateAction.REMOTE_TYPE,
                         CcrRequests.metadataRequest(leaderIndex.getName()),
                         ActionListener.wrap(onResponse, errorHandler)
                     );
@@ -453,7 +453,11 @@ public final class ShardFollowTasksExecutor extends PersistentTasksExecutor<Shar
                 request.setMaxBatchSize(params.getMaxReadRequestSize());
                 request.setPollTimeout(params.getReadPollTimeout());
                 try {
-                    remoteClient(params).execute(ShardChangesAction.INSTANCE, request, ActionListener.wrap(handler::accept, errorHandler));
+                    remoteClient(params).execute(
+                        ShardChangesAction.REMOTE_TYPE,
+                        request,
+                        ActionListener.wrap(handler::accept, errorHandler)
+                    );
                 } catch (NoSuchRemoteClusterException e) {
                     errorHandler.accept(e);
                 }

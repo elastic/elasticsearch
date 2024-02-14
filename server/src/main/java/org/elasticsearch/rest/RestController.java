@@ -26,9 +26,10 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.path.PathTrie;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.Streams;
 import org.elasticsearch.core.TimeValue;
@@ -39,6 +40,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.rest.RestHandler.Route;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.telemetry.tracing.Tracer;
+import org.elasticsearch.transport.Transports;
 import org.elasticsearch.usage.SearchUsageHolder;
 import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -49,7 +51,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.Collections;
-import java.util.HashSet;
+import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -58,6 +60,7 @@ import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.indices.SystemIndices.EXTERNAL_SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY;
@@ -731,7 +734,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
      * Get the valid set of HTTP methods for a REST request.
      */
     private Set<RestRequest.Method> getValidHandlerMethodSet(String rawPath) {
-        Set<RestRequest.Method> validMethods = new HashSet<>();
+        Set<RestRequest.Method> validMethods = EnumSet.noneOf(RestRequest.Method.class);
         Iterator<MethodHandlers> allHandlers = getAllHandlers(null, rawPath);
         while (allHandlers.hasNext()) {
             final MethodHandlers methodHandlers = allHandlers.next();
@@ -824,10 +827,18 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 if (response.isChunked() == false) {
                     methodHandlers.addResponseStats(response.content().length());
                 } else {
+                    final var responseLengthRecorder = new ResponseLengthRecorder(methodHandlers);
+                    final var headers = response.getHeaders();
                     response = RestResponse.chunked(
                         response.status(),
-                        new EncodedLengthTrackingChunkedRestResponseBody(response.chunkedContent(), methodHandlers)
+                        new EncodedLengthTrackingChunkedRestResponseBody(response.chunkedContent(), responseLengthRecorder),
+                        Releasables.wrap(responseLengthRecorder, response)
                     );
+                    for (final var header : headers.entrySet()) {
+                        for (final var value : header.getValue()) {
+                            response.addHeader(header.getKey(), value);
+                        }
+                    }
                 }
                 delegate.sendResponse(response);
                 success = true;
@@ -851,15 +862,44 @@ public class RestController implements HttpServerTransport.Dispatcher {
         }
     }
 
+    private static class ResponseLengthRecorder extends AtomicReference<MethodHandlers> implements Releasable {
+        private long responseLength;
+
+        private ResponseLengthRecorder(MethodHandlers methodHandlers) {
+            super(methodHandlers);
+        }
+
+        @Override
+        public void close() {
+            // closed just before sending the last chunk, and also when the whole RestResponse is closed since the client might abort the
+            // connection before we send the last chunk, in which case we won't have recorded the response in the
+            // stats yet; thus we need run-once semantics here:
+            final var methodHandlers = getAndSet(null);
+            if (methodHandlers != null) {
+                // if we started sending chunks then we're closed on the transport worker, no need for sync
+                assert responseLength == 0L || Transports.assertTransportThread();
+                methodHandlers.addResponseStats(responseLength);
+            }
+        }
+
+        void addChunkLength(long chunkLength) {
+            assert chunkLength >= 0L : chunkLength;
+            assert Transports.assertTransportThread(); // always called on the transport worker, no need for sync
+            responseLength += chunkLength;
+        }
+    }
+
     private static class EncodedLengthTrackingChunkedRestResponseBody implements ChunkedRestResponseBody {
 
         private final ChunkedRestResponseBody delegate;
-        private final RunOnce onCompletion;
-        private long encodedLength = 0;
+        private final ResponseLengthRecorder responseLengthRecorder;
 
-        private EncodedLengthTrackingChunkedRestResponseBody(ChunkedRestResponseBody delegate, MethodHandlers methodHandlers) {
+        private EncodedLengthTrackingChunkedRestResponseBody(
+            ChunkedRestResponseBody delegate,
+            ResponseLengthRecorder responseLengthRecorder
+        ) {
             this.delegate = delegate;
-            this.onCompletion = new RunOnce(() -> methodHandlers.addResponseStats(encodedLength));
+            this.responseLengthRecorder = responseLengthRecorder;
         }
 
         @Override
@@ -870,9 +910,9 @@ public class RestController implements HttpServerTransport.Dispatcher {
         @Override
         public ReleasableBytesReference encodeChunk(int sizeHint, Recycler<BytesRef> recycler) throws IOException {
             final ReleasableBytesReference bytesReference = delegate.encodeChunk(sizeHint, recycler);
-            encodedLength += bytesReference.length();
+            responseLengthRecorder.addChunkLength(bytesReference.length());
             if (isDone()) {
-                onCompletion.run();
+                responseLengthRecorder.close();
             }
             return bytesReference;
         }
@@ -880,14 +920,6 @@ public class RestController implements HttpServerTransport.Dispatcher {
         @Override
         public String getResponseContentTypeString() {
             return delegate.getResponseContentTypeString();
-        }
-
-        @Override
-        public void close() {
-            delegate.close();
-            // the client might close the connection before we send the last chunk, in which case we won't have recorded the response in the
-            // stats yet, so we do it now:
-            onCompletion.run();
         }
     }
 

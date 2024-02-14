@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.RemoteClusterActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -64,7 +65,11 @@ import static org.elasticsearch.action.search.TransportSearchHelper.checkCCSVers
 
 public class TransportFieldCapabilitiesAction extends HandledTransportAction<FieldCapabilitiesRequest, FieldCapabilitiesResponse> {
     public static final String NAME = "indices:data/read/field_caps";
-    public static final ActionType<FieldCapabilitiesResponse> TYPE = new ActionType<>(NAME, FieldCapabilitiesResponse::new);
+    public static final ActionType<FieldCapabilitiesResponse> TYPE = new ActionType<>(NAME);
+    public static final RemoteClusterActionType<FieldCapabilitiesResponse> REMOTE_TYPE = new RemoteClusterActionType<>(
+        NAME,
+        FieldCapabilitiesResponse::new
+    );
     public static final String ACTION_NODE_NAME = NAME + "[n]";
     public static final Logger LOGGER = LogManager.getLogger(TransportFieldCapabilitiesAction.class);
 
@@ -162,7 +167,18 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                     resp = new FieldCapabilitiesIndexResponse(resp.getIndexName(), curr.getIndexMappingHash(), curr.get(), true);
                 }
             }
-            indexResponses.putIfAbsent(resp.getIndexName(), resp);
+            if (request.includeEmptyFields()) {
+                indexResponses.putIfAbsent(resp.getIndexName(), resp);
+            } else {
+                indexResponses.merge(resp.getIndexName(), resp, (a, b) -> {
+                    if (a.get().equals(b.get())) {
+                        return a;
+                    }
+                    Map<String, IndexFieldCapabilities> mergedCaps = new HashMap<>(a.get());
+                    mergedCaps.putAll(b.get());
+                    return new FieldCapabilitiesIndexResponse(a.getIndexName(), a.getIndexMappingHash(), mergedCaps, true);
+                });
+            }
             if (fieldCapTask.isCancelled()) {
                 releaseResourcesOnCancel.run();
             }
@@ -234,7 +250,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                     }
                 });
                 remoteClusterClient.execute(
-                    TransportFieldCapabilitiesAction.TYPE,
+                    TransportFieldCapabilitiesAction.REMOTE_TYPE,
                     remoteRequest,
                     ActionListener.releaseAfter(remoteListener, refs.acquire())
                 );
@@ -289,6 +305,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         remoteRequest.runtimeFields(request.runtimeFields());
         remoteRequest.indexFilter(request.indexFilter());
         remoteRequest.nowInMillis(nowInMillis);
+        remoteRequest.includeEmptyFields(request.includeEmptyFields());
         return remoteRequest;
     }
 
@@ -514,7 +531,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 final Map<String, List<ShardId>> groupedShardIds = request.shardIds()
                     .stream()
                     .collect(Collectors.groupingBy(ShardId::getIndexName));
-                final FieldCapabilitiesFetcher fetcher = new FieldCapabilitiesFetcher(indicesService);
+                final FieldCapabilitiesFetcher fetcher = new FieldCapabilitiesFetcher(indicesService, request.includeEmptyFields());
                 final Predicate<String> fieldNameFilter = Regex.simpleMatcher(request.fields());
                 for (List<ShardId> shardIds : groupedShardIds.values()) {
                     final Map<ShardId, Exception> failures = new HashMap<>();
@@ -532,10 +549,12 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                                 request.runtimeFields()
                             );
                             if (response.canMatch()) {
-                                unmatched.clear();
-                                failures.clear();
                                 allResponses.add(response);
-                                break;
+                                if (request.includeEmptyFields()) {
+                                    unmatched.clear();
+                                    failures.clear();
+                                    break;
+                                }
                             } else {
                                 unmatched.add(shardId);
                             }

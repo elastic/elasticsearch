@@ -1,0 +1,32 @@
+{
+  "text_structure.test_grok_pattern": {
+    "documentation": {
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/test-grok-pattern.html",
+      "description": "Tests a Grok pattern on some text."
+    },
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": ["application/json"],
+      "content_type": ["application/json"]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_text_structure/test_grok_pattern",
+          "methods": ["GET", "POST"]
+        }
+      ]
+    },
+    "params": {
+      "ecs_compatibility": {
+        "type": "string",
+        "description": "Optional parameter to specify the compatibility mode with ECS Grok patterns - may be either 'v1' or 'disabled'"
+      }
+    },
+    "body": {
+      "description": "The Grok pattern and text.",
+      "required": true
+    }
+  }
+}

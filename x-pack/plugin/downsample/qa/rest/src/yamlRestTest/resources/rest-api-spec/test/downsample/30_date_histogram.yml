@@ -74,37 +74,37 @@ setup:
   - match: { hits.hits.0._index: "test-downsample" }
   - match: { hits.hits.0._source._doc_count: 1 }
   - match: { hits.hits.0._source.@timestamp: "2021-04-28T18:00:00.000Z" }
-  - match: { hits.hits.0._source.uid: "001" }
-  - close_to: { hits.hits.0._source.total_memory_used.min: { value: 106780.0, error: 0.00001 } }
-  - close_to: { hits.hits.0._source.total_memory_used.max: { value: 106780.0, error: 0.00001 } }
-  - close_to: { hits.hits.0._source.total_memory_used.sum: { value: 106780.0, error: 0.00001 } }
+  - match: { hits.hits.0._source.uid: "003" }
+  - close_to: { hits.hits.0._source.total_memory_used.min: { value: 109009.0, error: 0.00001 } }
+  - close_to: { hits.hits.0._source.total_memory_used.max: { value: 109009.0, error: 0.00001 } }
+  - close_to: { hits.hits.0._source.total_memory_used.sum: { value: 109009.0, error: 0.00001 } }
   - match: { hits.hits.0._source.total_memory_used.value_count: 1 }
 
   - match: { hits.hits.1._index: "test-downsample" }
   - match: { hits.hits.1._source._doc_count: 1 }
   - match: { hits.hits.1._source.@timestamp: "2021-04-28T18:00:00.000Z" }
-  - match: { hits.hits.1._source.uid: "002" }
-  - close_to: { hits.hits.1._source.total_memory_used.min: { value: 110450.0, error: 0.00001 } }
-  - close_to: { hits.hits.1._source.total_memory_used.max: { value: 110450.0, error: 0.00001 } }
-  - close_to: { hits.hits.1._source.total_memory_used.sum: { value: 110450.0, error: 0.00001 } }
+  - match: { hits.hits.1._source.uid: "004" }
+  - close_to: { hits.hits.1._source.total_memory_used.min: { value: 120770.0, error: 0.00001 } }
+  - close_to: { hits.hits.1._source.total_memory_used.max: { value: 120770.0, error: 0.00001 } }
+  - close_to: { hits.hits.1._source.total_memory_used.sum: { value: 120770.0, error: 0.00001 } }
   - match: { hits.hits.1._source.total_memory_used.value_count: 1 }
 
   - match: { hits.hits.2._index: "test-downsample" }
   - match: { hits.hits.2._source._doc_count: 1 }
   - match: { hits.hits.2._source.@timestamp: "2021-04-28T18:00:00.000Z" }
-  - match: { hits.hits.2._source.uid: "003" }
-  - close_to: { hits.hits.2._source.total_memory_used.min: { value: 109009.0, error: 0.00001 } }
-  - close_to: { hits.hits.2._source.total_memory_used.max: { value: 109009.0, error: 0.00001 } }
-  - close_to: { hits.hits.2._source.total_memory_used.sum: { value: 109009.0, error: 0.00001 } }
+  - match: { hits.hits.2._source.uid: "002" }
+  - close_to: { hits.hits.2._source.total_memory_used.min: { value: 110450.0, error: 0.00001 } }
+  - close_to: { hits.hits.2._source.total_memory_used.max: { value: 110450.0, error: 0.00001 } }
+  - close_to: { hits.hits.2._source.total_memory_used.sum: { value: 110450.0, error: 0.00001 } }
   - match: { hits.hits.2._source.total_memory_used.value_count: 1 }
 
   - match: { hits.hits.3._index: "test-downsample" }
   - match: { hits.hits.3._source._doc_count: 1 }
   - match: { hits.hits.3._source.@timestamp: "2021-04-28T18:00:00.000Z" }
-  - match: { hits.hits.3._source.uid: "004" }
-  - close_to: { hits.hits.3._source.total_memory_used.min: { value: 120770.0, error: 0.00001 } }
-  - close_to: { hits.hits.3._source.total_memory_used.max: { value: 120770.0, error: 0.00001 } }
-  - close_to: { hits.hits.3._source.total_memory_used.sum: { value: 120770.0, error: 0.00001 } }
+  - match: { hits.hits.3._source.uid: "001" }
+  - close_to: { hits.hits.3._source.total_memory_used.min: { value: 106780.0, error: 0.00001 } }
+  - close_to: { hits.hits.3._source.total_memory_used.max: { value: 106780.0, error: 0.00001 } }
+  - close_to: { hits.hits.3._source.total_memory_used.sum: { value: 106780.0, error: 0.00001 } }
   - match: { hits.hits.3._source.total_memory_used.value_count: 1 }
 
   # date histogram aggregation with calendar interval on rollup index not supported

@@ -31,11 +31,24 @@ public class PutTransformAction extends ActionType<AcknowledgedResponse> {
     public static final PutTransformAction INSTANCE = new PutTransformAction();
     public static final String NAME = "cluster:admin/transform/put";
 
+    /**
+     * Minimum transform frequency used for validation.
+     *
+     * Note: Depending on the environment (on-prem or serverless) the minimum frequency used by scheduler can be higher than this constant.
+     * The actual value used by scheduler is specified by the {@code TransformExtension.getMinFrequency} method.
+     *
+     * Example:
+     * If the user configures transform with frequency=3s but the TransformExtension.getMinFrequency method returns 5s, the validation will
+     * pass but the scheduler will silently use 5s instead of 3s.
+     */
     private static final TimeValue MIN_FREQUENCY = TimeValue.timeValueSeconds(1);
+    /**
+     * Maximum transform frequency used for validation.
+     */
     private static final TimeValue MAX_FREQUENCY = TimeValue.timeValueHours(1);
 
     private PutTransformAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<Request> {

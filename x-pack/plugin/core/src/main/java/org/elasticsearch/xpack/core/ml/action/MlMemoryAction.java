@@ -60,7 +60,7 @@ public class MlMemoryAction extends ActionType<MlMemoryAction.Response> {
     static final String JAVA_INFERENCE_IN_BYTES = "java_inference_in_bytes";
 
     private MlMemoryAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<Request> {

@@ -5,6 +5,11 @@
         "lifecycle": {
           "name": "metrics"
         },
+        "mapping": {
+          "total_fields": {
+            "ignore_dynamic_beyond_limit": true
+          }
+        },
         "query": {
           "default_field": ["message"]
         }

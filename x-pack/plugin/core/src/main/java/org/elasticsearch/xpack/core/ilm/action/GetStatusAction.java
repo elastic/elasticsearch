@@ -24,7 +24,7 @@ public class GetStatusAction extends ActionType<GetStatusAction.Response> {
     public static final String NAME = "cluster:admin/ilm/operation_mode/get";
 
     protected GetStatusAction() {
-        super(NAME, GetStatusAction.Response::new);
+        super(NAME);
     }
 
     public static class Response extends ActionResponse implements ToXContentObject {

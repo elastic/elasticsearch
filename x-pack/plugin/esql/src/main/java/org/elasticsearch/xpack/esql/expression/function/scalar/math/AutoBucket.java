@@ -7,23 +7,22 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Rounding;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
-import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.Foldables;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.TypeResolutions;
-import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
-import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
@@ -40,7 +39,6 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isFoldable;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isInteger;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
 
 /**
@@ -54,7 +52,7 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
  *     in the above case we'll pick month long buckets, yielding 12 buckets.
  * </p>
  */
-public class AutoBucket extends ScalarFunction implements EvaluatorMapper {
+public class AutoBucket extends EsqlScalarFunction {
     // TODO maybe we should just cover the whole of representable dates here - like ten years, 100 years, 1000 years, all the way up.
     // That way you never end up with more than the target number of buckets.
     private static final Rounding LARGEST_HUMAN_DATE_ROUNDING = Rounding.builder(Rounding.DateTimeUnit.YEAR_OF_CENTURY).build();
@@ -90,8 +88,8 @@ public class AutoBucket extends ScalarFunction implements EvaluatorMapper {
         Source source,
         @Param(name = "field", type = { "integer", "long", "double", "date" }) Expression field,
         @Param(name = "buckets", type = { "integer" }) Expression buckets,
-        @Param(name = "from", type = { "integer", "long", "double", "date" }) Expression from,
-        @Param(name = "to", type = { "integer", "long", "double", "date" }) Expression to
+        @Param(name = "from", type = { "integer", "long", "double", "date", "string" }) Expression from,
+        @Param(name = "to", type = { "integer", "long", "double", "date", "string" }) Expression to
     ) {
         super(source, List.of(field, buckets, from, to));
         this.field = field;
@@ -106,17 +104,12 @@ public class AutoBucket extends ScalarFunction implements EvaluatorMapper {
     }
 
     @Override
-    public Object fold() {
-        return EvaluatorMapper.super.fold();
-    }
-
-    @Override
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
         int b = ((Number) buckets.fold()).intValue();
 
         if (field.dataType() == DataTypes.DATETIME) {
-            long f = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis(((BytesRef) from.fold()).utf8ToString());
-            long t = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis(((BytesRef) to.fold()).utf8ToString());
+            long f = foldToLong(from);
+            long t = foldToLong(to);
             return DateTrunc.evaluator(
                 source(),
                 toEvaluator.apply(field),
@@ -182,7 +175,7 @@ public class AutoBucket extends ScalarFunction implements EvaluatorMapper {
         }
 
         if (field.dataType() == DataTypes.DATETIME) {
-            return resolveType((e, o) -> isString(e, sourceText(), o));
+            return resolveType((e, o) -> isStringOrDate(e, sourceText(), o));
         }
         if (field.dataType().isNumeric()) {
             return resolveType((e, o) -> isNumeric(e, sourceText(), o));
@@ -199,21 +192,25 @@ public class AutoBucket extends ScalarFunction implements EvaluatorMapper {
         if (resolution.unresolved()) {
             return resolution;
         }
+        return checkThirdAndForth.apply(from, THIRD).and(checkThirdAndForth.apply(to, FOURTH));
+    }
 
-        resolution = checkThirdAndForth.apply(from, THIRD);
-        if (resolution.unresolved()) {
-            return resolution;
-        }
-        resolution = isFoldable(from, sourceText(), THIRD);
-        if (resolution.unresolved()) {
-            return resolution;
-        }
+    public static TypeResolution isStringOrDate(Expression e, String operationName, TypeResolutions.ParamOrdinal paramOrd) {
+        return TypeResolutions.isType(
+            e,
+            exp -> DataTypes.isString(exp) || DataTypes.isDateTime(exp),
+            operationName,
+            paramOrd,
+            "datetime",
+            "string"
+        );
+    }
 
-        resolution = checkThirdAndForth.apply(to, FOURTH);
-        if (resolution.unresolved()) {
-            return resolution;
-        }
-        return isFoldable(to, sourceText(), FOURTH);
+    private long foldToLong(Expression e) {
+        Object value = Foldables.valueOf(e);
+        return DataTypes.isDateTime(e.dataType())
+            ? ((Number) value).longValue()
+            : DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis(BytesRefs.toString(value));
     }
 
     @Override
@@ -222,11 +219,6 @@ public class AutoBucket extends ScalarFunction implements EvaluatorMapper {
             return DataTypes.DOUBLE;
         }
         return field.dataType();
-    }
-
-    @Override
-    public ScriptTemplate asScript() {
-        throw new UnsupportedOperationException("functions do not support scripting");
     }
 
     @Override

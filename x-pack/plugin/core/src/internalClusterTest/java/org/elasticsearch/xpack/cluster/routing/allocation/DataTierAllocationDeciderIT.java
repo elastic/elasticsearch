@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.cluster.routing.allocation;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.desirednodes.UpdateDesiredNodesAction;
 import org.elasticsearch.action.admin.cluster.desirednodes.UpdateDesiredNodesRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
@@ -506,7 +505,7 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
             .put(NODE_EXTERNAL_ID_SETTING.getKey(), externalId)
             .put(NODE_NAME_SETTING.getKey(), externalId)
             .build();
-        return new DesiredNode(settings, 1, ByteSizeValue.ONE, ByteSizeValue.ONE, Version.CURRENT);
+        return new DesiredNode(settings, 1, ByteSizeValue.ONE, ByteSizeValue.ONE);
     }
 
     private void updateDesiredNodes(DesiredNode... desiredNodes) {

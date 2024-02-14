@@ -39,7 +39,7 @@ public class HuggingFaceAction implements ExecutableAction {
     private final RetryingHttpSender sender;
     private final ResponseHandler responseHandler;
     private final Truncator truncator;
-    private final Integer tokenLimit;
+    private final HuggingFaceModel model;
 
     public HuggingFaceAction(
         Sender sender,
@@ -49,11 +49,10 @@ public class HuggingFaceAction implements ExecutableAction {
         String requestType
     ) {
         Objects.requireNonNull(serviceComponents);
-        Objects.requireNonNull(model);
         Objects.requireNonNull(requestType);
 
+        this.model = Objects.requireNonNull(model);
         this.responseHandler = Objects.requireNonNull(responseHandler);
-
         this.sender = new RetryingHttpSender(
             Objects.requireNonNull(sender),
             serviceComponents.throttlerManager(),
@@ -62,17 +61,20 @@ public class HuggingFaceAction implements ExecutableAction {
             serviceComponents.threadPool()
         );
         this.account = new HuggingFaceAccount(model.getUri(), model.getApiKey());
-        this.errorMessage = format("Failed to send Hugging Face %s request to [%s]", requestType, model.getUri().toString());
+        this.errorMessage = format(
+            "Failed to send Hugging Face %s request from inference entity id [%s]",
+            requestType,
+            model.getInferenceEntityId()
+        );
         this.truncator = Objects.requireNonNull(serviceComponents.truncator());
-        this.tokenLimit = model.getTokenLimit();
     }
 
     @Override
     public void execute(List<String> input, ActionListener<InferenceServiceResults> listener) {
         try {
-            var truncatedInput = truncate(input, tokenLimit);
+            var truncatedInput = truncate(input, model.getTokenLimit());
 
-            HuggingFaceInferenceRequest request = new HuggingFaceInferenceRequest(truncator, account, truncatedInput);
+            HuggingFaceInferenceRequest request = new HuggingFaceInferenceRequest(truncator, account, truncatedInput, model);
             ActionListener<InferenceServiceResults> wrappedListener = wrapFailuresInElasticsearchException(errorMessage, listener);
 
             sender.send(request, responseHandler, wrappedListener);

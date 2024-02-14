@@ -25,7 +25,7 @@ public class ForgetFollowerAction extends ActionType<BroadcastResponse> {
     public static final ForgetFollowerAction INSTANCE = new ForgetFollowerAction();
 
     private ForgetFollowerAction() {
-        super(NAME, BroadcastResponse::new);
+        super(NAME);
     }
 
     /**

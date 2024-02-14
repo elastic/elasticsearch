@@ -58,7 +58,7 @@ public class TransportSLMGetExpiredSnapshotsAction extends TransportAction<
     TransportSLMGetExpiredSnapshotsAction.Request,
     TransportSLMGetExpiredSnapshotsAction.Response> {
 
-    public static final ActionType<Response> INSTANCE = ActionType.localOnly("cluster:admin/slm/execute/get_expired_snapshots");
+    public static final ActionType<Response> INSTANCE = new ActionType<>("cluster:admin/slm/execute/get_expired_snapshots");
 
     private static final Logger logger = LogManager.getLogger(TransportSLMGetExpiredSnapshotsAction.class);
 

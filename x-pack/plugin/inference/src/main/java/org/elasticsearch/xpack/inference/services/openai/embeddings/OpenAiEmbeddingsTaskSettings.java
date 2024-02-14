@@ -16,38 +16,34 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.inference.services.openai.OpenAiParseContext;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 
 /**
  * Defines the task settings for the openai service.
  *
- * @param model the id of the model to use in the requests to openai
- * @param user an optional unique identifier representing the end-user, which can help OpenAI to monitor and detect abuse
- *             <a href="https://platform.openai.com/docs/api-reference/embeddings/create">see the openai docs for more details</a>
+ * User is an optional unique identifier representing the end-user, which can help OpenAI to monitor and detect abuse
+ *  <a href="https://platform.openai.com/docs/api-reference/embeddings/create">see the openai docs for more details</a>
  */
-public record OpenAiEmbeddingsTaskSettings(String model, @Nullable String user) implements TaskSettings {
+public class OpenAiEmbeddingsTaskSettings implements TaskSettings {
 
     public static final String NAME = "openai_embeddings_task_settings";
-    public static final String MODEL = "model";
     public static final String USER = "user";
 
-    public static OpenAiEmbeddingsTaskSettings fromMap(Map<String, Object> map) {
+    public static OpenAiEmbeddingsTaskSettings fromMap(Map<String, Object> map, OpenAiParseContext context) {
         ValidationException validationException = new ValidationException();
 
-        String model = extractRequiredString(map, MODEL, ModelConfigurations.TASK_SETTINGS, validationException);
         String user = extractOptionalString(map, USER, ModelConfigurations.TASK_SETTINGS, validationException);
-
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
         }
 
-        return new OpenAiEmbeddingsTaskSettings(model, user);
+        return new OpenAiEmbeddingsTaskSettings(user);
     }
 
     /**
@@ -61,29 +57,37 @@ public record OpenAiEmbeddingsTaskSettings(String model, @Nullable String user) 
         OpenAiEmbeddingsTaskSettings originalSettings,
         OpenAiEmbeddingsRequestTaskSettings requestSettings
     ) {
-        var modelToUse = requestSettings.model() == null ? originalSettings.model : requestSettings.model();
         var userToUse = requestSettings.user() == null ? originalSettings.user : requestSettings.user();
-
-        return new OpenAiEmbeddingsTaskSettings(modelToUse, userToUse);
+        return new OpenAiEmbeddingsTaskSettings(userToUse);
     }
 
-    public OpenAiEmbeddingsTaskSettings {
-        Objects.requireNonNull(model);
+    private final String user;
+
+    public OpenAiEmbeddingsTaskSettings(@Nullable String user) {
+        this.user = user;
     }
 
     public OpenAiEmbeddingsTaskSettings(StreamInput in) throws IOException {
-        this(in.readString(), in.readOptionalString());
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ML_MODEL_IN_SERVICE_SETTINGS)) {
+            this.user = in.readOptionalString();
+        } else {
+            var discard = in.readString();
+            this.user = in.readOptionalString();
+        }
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(MODEL, model);
         if (user != null) {
             builder.field(USER, user);
         }
         builder.endObject();
         return builder;
+    }
+
+    public String user() {
+        return user;
     }
 
     @Override
@@ -93,12 +97,29 @@ public record OpenAiEmbeddingsTaskSettings(String model, @Nullable String user) 
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_OPENAI_ADDED;
+        return TransportVersions.V_8_12_0;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(model);
-        out.writeOptionalString(user);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ML_MODEL_IN_SERVICE_SETTINGS)) {
+            out.writeOptionalString(user);
+        } else {
+            out.writeString("m"); // write any string
+            out.writeOptionalString(user);
+        }
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        OpenAiEmbeddingsTaskSettings that = (OpenAiEmbeddingsTaskSettings) o;
+        return Objects.equals(user, that.user);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(user);
     }
 }

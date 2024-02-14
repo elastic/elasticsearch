@@ -9,13 +9,11 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
-import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.function.OptionalArgument;
-import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
-import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
@@ -31,7 +29,7 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
 
-public class Pow extends ScalarFunction implements OptionalArgument, EvaluatorMapper {
+public class Pow extends EsqlScalarFunction implements OptionalArgument {
 
     private final Expression base, exponent;
     private final DataType dataType;
@@ -67,11 +65,6 @@ public class Pow extends ScalarFunction implements OptionalArgument, EvaluatorMa
         return base.foldable() && exponent.foldable();
     }
 
-    @Override
-    public Object fold() {
-        return EvaluatorMapper.super.fold();
-    }
-
     @Evaluator(warnExceptions = { ArithmeticException.class })
     static double process(double base, double exponent) {
         return NumericUtils.asFiniteNumber(Math.pow(base, exponent));
@@ -98,11 +91,6 @@ public class Pow extends ScalarFunction implements OptionalArgument, EvaluatorMa
     @Override
     public DataType dataType() {
         return dataType;
-    }
-
-    @Override
-    public ScriptTemplate asScript() {
-        throw new UnsupportedOperationException("functions do not support scripting");
     }
 
     @Override

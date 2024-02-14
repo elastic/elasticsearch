@@ -64,36 +64,36 @@ public class DocumentSizeObserverIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(TestDocumentParsingSupplierPlugin.class);
+        return List.of(TestDocumentParsingProviderPlugin.class);
     }
 
-    public static class TestDocumentParsingSupplierPlugin extends Plugin implements DocumentParsingSupplierPlugin, IngestPlugin {
+    public static class TestDocumentParsingProviderPlugin extends Plugin implements DocumentParsingProviderPlugin, IngestPlugin {
 
-        public TestDocumentParsingSupplierPlugin() {}
+        public TestDocumentParsingProviderPlugin() {}
 
         @Override
-        public DocumentParsingSupplier getDocumentParsingSupplier() {
-            return new DocumentParsingSupplier() {
+        public DocumentParsingProvider getDocumentParsingSupplier() {
+            return new DocumentParsingProvider() {
 
                 @Override
-                public DocumentSizeObserver getDocumentSizeObserver(long normalisedBytesParsed) {
+                public DocumentSizeObserver newFixedSizeDocumentObserver(long normalisedBytesParsed) {
                     return new TestDocumentSizeObserver();
                 }
 
                 @Override
-                public DocumentSizeObserver getDocumentSizeObserver() {
+                public DocumentSizeObserver newDocumentSizeObserver() {
                     return new TestDocumentSizeObserver();
                 }
 
                 @Override
-                public DocumentParsingReporter getDocumentParsingReporter() {
-                    return new TestDocumentParsingReporter();
+                public DocumentSizeReporter getDocumentParsingReporter() {
+                    return new TestDocumentSizeReporter();
                 }
             };
         }
     }
 
-    public static class TestDocumentParsingReporter implements DocumentParsingReporter {
+    public static class TestDocumentSizeReporter implements DocumentSizeReporter {
 
         @Override
         public void onCompleted(String indexName, long normalizedBytesParsed) {

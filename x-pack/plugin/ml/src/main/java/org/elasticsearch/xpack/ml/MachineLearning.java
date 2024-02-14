@@ -46,6 +46,7 @@ import org.elasticsearch.common.unit.Processors;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.index.mapper.Mapper;
@@ -466,6 +467,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
@@ -827,13 +829,19 @@ public class MachineLearning extends Plugin
         String allocatedProcessorsAttrName = "node.attr." + ALLOCATED_PROCESSORS_NODE_ATTR;
         String mlConfigVersionAttrName = "node.attr." + ML_CONFIG_VERSION_NODE_ATTR;
 
-        if (enabled == false) {
-            disallowMlNodeAttributes(maxOpenJobsPerNodeNodeAttrName, machineMemoryAttrName, jvmSizeAttrName, mlConfigVersionAttrName);
-            return Settings.EMPTY;
-        }
-
         Settings.Builder additionalSettings = Settings.builder();
-        if (DiscoveryNode.hasRole(settings, DiscoveryNodeRole.ML_ROLE)) {
+
+        // The ML config version is needed for two related reasons even if ML is currently disabled on the node:
+        // 1. If ML is in use then decisions about minimum node versions need to include this node, and not
+        // having it available can cause exceptions during cluster state processing
+        // 2. It could be argued that reason 1 could be fixed by completely ignoring the node, however,
+        // then there would be a risk that ML is later enabled on an old node that was ignored, and
+        // some new ML feature that's been used is then incompatible with it
+        // The only safe approach is to consider which ML code _all_ nodes in the cluster are running, regardless
+        // of whether they currently have ML enabled.
+        addMlNodeAttribute(additionalSettings, mlConfigVersionAttrName, MlConfigVersion.CURRENT.toString());
+
+        if (enabled && DiscoveryNode.hasRole(settings, DiscoveryNodeRole.ML_ROLE)) {
             addMlNodeAttribute(
                 additionalSettings,
                 machineMemoryAttrName,
@@ -857,7 +865,6 @@ public class MachineLearning extends Plugin
                 allocatedProcessorsAttrName
             );
         }
-        addMlNodeAttribute(additionalSettings, mlConfigVersionAttrName, MlConfigVersion.CURRENT.toString());
         return additionalSettings.build();
     }
 
@@ -1144,7 +1151,14 @@ public class MachineLearning extends Plugin
         );
 
         this.deploymentManager.set(
-            new DeploymentManager(client, xContentRegistry, threadPool, pyTorchProcessFactory, getMaxModelDeploymentsPerNode())
+            new DeploymentManager(
+                client,
+                xContentRegistry,
+                threadPool,
+                pyTorchProcessFactory,
+                getMaxModelDeploymentsPerNode(),
+                inferenceAuditor
+            )
         );
 
         // Data frame analytics components
@@ -1367,7 +1381,8 @@ public class MachineLearning extends Plugin
         IndexScopedSettings indexScopedSettings,
         SettingsFilter settingsFilter,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<DiscoveryNodes> nodesInCluster
+        Supplier<DiscoveryNodes> nodesInCluster,
+        Predicate<NodeFeature> clusterSupportsFeature
     ) {
         if (false == enabled) {
             return List.of();

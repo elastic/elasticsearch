@@ -222,7 +222,7 @@ public abstract class AbstractHttpFixture extends ExternalResource {
             final Map<String, String> params = new HashMap<>();
             if (uri.getQuery() != null && uri.getQuery().length() > 0) {
                 for (String param : uri.getQuery().split("&")) {
-                    int i = param.indexOf("=");
+                    int i = param.indexOf('=');
                     if (i > 0) {
                         params.put(param.substring(0, i), param.substring(i + 1));
                     } else {

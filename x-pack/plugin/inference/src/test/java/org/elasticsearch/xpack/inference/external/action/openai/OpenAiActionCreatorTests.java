@@ -92,7 +92,7 @@ public class OpenAiActionCreatorTests extends ESTestCase {
 
             var model = createModel(getUrl(webServer), "org", "secret", "model", "user");
             var actionCreator = new OpenAiActionCreator(sender, createWithEmptySettings(threadPool));
-            var overriddenTaskSettings = getRequestTaskSettingsMap(null, "overridden_user");
+            var overriddenTaskSettings = getRequestTaskSettingsMap("overridden_user");
             var action = actionCreator.create(model, overriddenTaskSettings);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
@@ -161,7 +161,7 @@ public class OpenAiActionCreatorTests extends ESTestCase {
 
             var model = createModel(getUrl(webServer), "org", "secret", "model", "user");
             var actionCreator = new OpenAiActionCreator(sender, createWithEmptySettings(threadPool));
-            var overriddenTaskSettings = getRequestTaskSettingsMap(null, "overridden_user");
+            var overriddenTaskSettings = getRequestTaskSettingsMap("overridden_user");
             var action = actionCreator.create(model, overriddenTaskSettings);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
@@ -244,7 +244,7 @@ public class OpenAiActionCreatorTests extends ESTestCase {
 
             var model = createModel(getUrl(webServer), "org", "secret", "model", "user");
             var actionCreator = new OpenAiActionCreator(sender, createWithEmptySettings(threadPool));
-            var overriddenTaskSettings = getRequestTaskSettingsMap(null, "overridden_user");
+            var overriddenTaskSettings = getRequestTaskSettingsMap("overridden_user");
             var action = actionCreator.create(model, overriddenTaskSettings);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
@@ -312,7 +312,7 @@ public class OpenAiActionCreatorTests extends ESTestCase {
             // truncated to 1 token = 3 characters
             var model = createModel(getUrl(webServer), "org", "secret", "model", "user", 1);
             var actionCreator = new OpenAiActionCreator(sender, createWithEmptySettings(threadPool));
-            var overriddenTaskSettings = getRequestTaskSettingsMap(null, "overridden_user");
+            var overriddenTaskSettings = getRequestTaskSettingsMap("overridden_user");
             var action = actionCreator.create(model, overriddenTaskSettings);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();

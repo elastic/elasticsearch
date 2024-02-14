@@ -189,7 +189,7 @@ public class TransformChainIT extends TransformRestTestCase {
         assertBusy(() -> {
             // Verify that each transform processed an expected number of documents.
             for (String transformId : transformIds) {
-                Map<?, ?> stats = getTransformStats(transformId);
+                Map<?, ?> stats = getBasicTransformStats(transformId);
                 assertThat(
                     "Stats were: " + stats,
                     XContentMapValues.extractValue(stats, "stats", "documents_processed"),

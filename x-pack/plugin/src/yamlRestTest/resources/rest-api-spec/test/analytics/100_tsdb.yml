@@ -63,8 +63,9 @@ setup:
 ---
 aggregate multi_terms:
   - skip:
-      version: " - 8.0.99"
-      reason: introduced in 8.1.0
+      version: " - 8.12.99"
+      reason: _tsid hashing introduced in 8.13
+
   - do:
       search:
         size: 0
@@ -78,11 +79,11 @@ aggregate multi_terms:
                   - field: k8s.pod.ip
 
   - length: { aggregations.m_terms.buckets: 3 }
-  - match: { aggregations.m_terms.buckets.0.key_as_string: "{k8s.pod.uid=df3145b3-0563-4d3b-a0f7-897eb2876ea9, metricset=pod}|10.10.55.3" }
+  - match: { aggregations.m_terms.buckets.0.key_as_string: "KCjEJ9R_BgO8TRX2QOd6dpQ5ihHD--qoyLTiOy0pmP6_RAIE-e0-dKQ|10.10.55.3" }
   - match: { aggregations.m_terms.buckets.0.doc_count: 4 }
-  - match: { aggregations.m_terms.buckets.1.key_as_string: "{k8s.pod.uid=947e4ced-1786-4e53-9e0c-5c447e959507, metricset=pod}|10.10.55.1" }
+  - match: { aggregations.m_terms.buckets.1.key_as_string: "KCjEJ9R_BgO8TRX2QOd6dpR12oDh--qoyNZRQPy43y34Qdy2dpsyG0o|10.10.55.1" }
   - match: { aggregations.m_terms.buckets.1.doc_count: 3 }
-  - match: { aggregations.m_terms.buckets.2.key_as_string: "{k8s.pod.uid=947e4ced-1786-4e53-9e0c-5c447e959507, metricset=pod}|10.10.55.2" }
+  - match: { aggregations.m_terms.buckets.2.key_as_string: "KCjEJ9R_BgO8TRX2QOd6dpR12oDh--qoyNZRQPy43y34Qdy2dpsyG0o|10.10.55.2" }
   - match: { aggregations.m_terms.buckets.2.doc_count: 1 }
 
 ---

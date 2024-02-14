@@ -35,6 +35,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -78,7 +79,7 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
         for (int i = 0; i < vector.length; i++) {
             vector[i] = elementType().equals(DenseVectorFieldMapper.ElementType.BYTE) ? randomByte() : randomFloat();
         }
-        int numCands = randomIntBetween(1, 1000);
+        int numCands = randomIntBetween(DEFAULT_SIZE, 1000);
         KnnVectorQueryBuilder queryBuilder = new KnnVectorQueryBuilder(fieldName, vector, numCands, randomBoolean() ? null : randomFloat());
         if (randomBoolean()) {
             List<QueryBuilder> filters = new ArrayList<>();
@@ -219,7 +220,7 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
         TransportVersion differentQueryVersion = TransportVersionUtils.randomVersionBetween(
             random(),
             TransportVersions.V_8_2_0,
-            TransportVersions.KNN_AS_QUERY_ADDED
+            TransportVersions.V_8_12_0
         );
         Float similarity = differentQueryVersion.before(TransportVersions.V_8_8_0) ? null : query.getVectorSimilarity();
         KnnVectorQueryBuilder queryOlderVersion = new KnnVectorQueryBuilder(

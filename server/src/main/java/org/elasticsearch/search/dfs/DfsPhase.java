@@ -181,7 +181,7 @@ public class DfsPhase {
         }
 
         SearchExecutionContext searchExecutionContext = context.getSearchExecutionContext();
-        List<KnnSearchBuilder> knnSearch = context.request().source().knnSearch();
+        List<KnnSearchBuilder> knnSearch = source.knnSearch();
         List<KnnVectorQueryBuilder> knnVectorQueryBuilders = knnSearch.stream().map(KnnSearchBuilder::toQueryBuilder).toList();
         // Since we apply boost during the DfsQueryPhase, we should not apply boost here:
         knnVectorQueryBuilders.forEach(knnVectorQueryBuilder -> knnVectorQueryBuilder.boost(DEFAULT_BOOST));

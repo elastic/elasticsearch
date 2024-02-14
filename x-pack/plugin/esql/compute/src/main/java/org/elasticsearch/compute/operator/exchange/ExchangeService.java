@@ -91,7 +91,7 @@ public final class ExchangeService extends AbstractLifecycleComponent {
      * @throws IllegalStateException if a sink handler for the given id already exists
      */
     ExchangeSinkHandler createSinkHandler(String exchangeId, int maxBufferSize) {
-        ExchangeSinkHandler sinkHandler = new ExchangeSinkHandler(maxBufferSize, threadPool::relativeTimeInMillis);
+        ExchangeSinkHandler sinkHandler = new ExchangeSinkHandler(blockFactory, maxBufferSize, threadPool::relativeTimeInMillis);
         if (sinks.putIfAbsent(exchangeId, sinkHandler) != null) {
             throw new IllegalStateException("sink exchanger for id [" + exchangeId + "] already exists");
         }
@@ -180,7 +180,7 @@ public final class ExchangeService extends AbstractLifecycleComponent {
             ActionListener<ExchangeResponse> listener = new ChannelActionListener<>(channel);
             final ExchangeSinkHandler sinkHandler = sinks.get(exchangeId);
             if (sinkHandler == null) {
-                listener.onResponse(new ExchangeResponse(null, true));
+                listener.onResponse(new ExchangeResponse(blockFactory, null, true));
             } else {
                 sinkHandler.fetchPageAsync(request.sourcesFinished(), listener);
             }
@@ -254,11 +254,11 @@ public final class ExchangeService extends AbstractLifecycleComponent {
                 new ExchangeRequest(exchangeId, allSourcesFinished),
                 parentTask,
                 TransportRequestOptions.EMPTY,
-                new ActionListenerResponseHandler<>(
-                    listener,
-                    in -> new ExchangeResponse(new BlockStreamInput(in, blockFactory)),
-                    responseExecutor
-                )
+                new ActionListenerResponseHandler<>(listener, in -> {
+                    try (BlockStreamInput bsi = new BlockStreamInput(in, blockFactory)) {
+                        return new ExchangeResponse(bsi);
+                    }
+                }, responseExecutor)
             );
         }
     }

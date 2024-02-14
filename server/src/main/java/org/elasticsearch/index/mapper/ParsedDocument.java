@@ -35,7 +35,6 @@ public class ParsedDocument {
 
     private BytesReference source;
     private XContentType xContentType;
-
     private Mapping dynamicMappingsUpdate;
 
     /**

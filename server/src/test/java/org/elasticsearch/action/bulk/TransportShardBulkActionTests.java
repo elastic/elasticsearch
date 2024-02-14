@@ -46,7 +46,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.plugins.internal.DocumentParsingSupplier;
+import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -122,7 +122,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             new NoopMappingUpdatePerformer(),
             listener -> {},
             ASSERTING_DONE_LISTENER,
-            DocumentParsingSupplier.EMPTY_INSTANCE
+            DocumentParsingProvider.EMPTY_INSTANCE
         );
         assertFalse(context.hasMoreOperationsToExecute());
 
@@ -154,7 +154,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             new ThrowingMappingUpdatePerformer(new RuntimeException("fail")),
             listener -> {},
             ASSERTING_DONE_LISTENER,
-            DocumentParsingSupplier.EMPTY_INSTANCE
+            DocumentParsingProvider.EMPTY_INSTANCE
         );
         assertFalse(context.hasMoreOperationsToExecute());
 
@@ -285,7 +285,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             assertNotNull(update);
             updateCalled.incrementAndGet();
             listener.onResponse(null);
-        }, listener -> listener.onResponse(null), ASSERTING_DONE_LISTENER, DocumentParsingSupplier.EMPTY_INSTANCE);
+        }, listener -> listener.onResponse(null), ASSERTING_DONE_LISTENER, DocumentParsingProvider.EMPTY_INSTANCE);
         assertTrue(context.isInitial());
         assertTrue(context.hasMoreOperationsToExecute());
         assertThat(context.getUpdateRetryCounter(), equalTo(0));
@@ -306,7 +306,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             (update, shardId, listener) -> fail("should not have had to update the mappings"),
             listener -> {},
             ASSERTING_DONE_LISTENER,
-            DocumentParsingSupplier.EMPTY_INSTANCE
+            DocumentParsingProvider.EMPTY_INSTANCE
         );
 
         // Verify that the shard "executed" the operation only once (1 for previous invocations plus
@@ -355,7 +355,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
                     assertEquals(err, e);
                 }
             }, latch),
-            DocumentParsingSupplier.EMPTY_INSTANCE
+            DocumentParsingProvider.EMPTY_INSTANCE
         );
         latch.await();
         assertFalse(context.hasMoreOperationsToExecute());
@@ -400,7 +400,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             new NoopMappingUpdatePerformer(),
             listener -> {},
             ASSERTING_DONE_LISTENER,
-            DocumentParsingSupplier.EMPTY_INSTANCE
+            DocumentParsingProvider.EMPTY_INSTANCE
         );
         assertFalse(context.hasMoreOperationsToExecute());
 
@@ -448,7 +448,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             new NoopMappingUpdatePerformer(),
             listener -> {},
             ASSERTING_DONE_LISTENER,
-            DocumentParsingSupplier.EMPTY_INSTANCE
+            DocumentParsingProvider.EMPTY_INSTANCE
         );
         assertFalse(context.hasMoreOperationsToExecute());
 
@@ -512,7 +512,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             new NoopMappingUpdatePerformer(),
             listener -> {},
             ASSERTING_DONE_LISTENER,
-            DocumentParsingSupplier.EMPTY_INSTANCE
+            DocumentParsingProvider.EMPTY_INSTANCE
         );
 
         assertFalse(context.hasMoreOperationsToExecute());
@@ -568,7 +568,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             new NoopMappingUpdatePerformer(),
             listener -> {},
             ASSERTING_DONE_LISTENER,
-            DocumentParsingSupplier.EMPTY_INSTANCE
+            DocumentParsingProvider.EMPTY_INSTANCE
         );
         assertFalse(context.hasMoreOperationsToExecute());
 
@@ -630,7 +630,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
                 new NoopMappingUpdatePerformer(),
                 listener -> listener.onResponse(null),
                 ASSERTING_DONE_LISTENER,
-                DocumentParsingSupplier.EMPTY_INSTANCE
+                DocumentParsingProvider.EMPTY_INSTANCE
             );
         }
         assertFalse(context.hasMoreOperationsToExecute());
@@ -689,7 +689,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             new NoopMappingUpdatePerformer(),
             listener -> {},
             ASSERTING_DONE_LISTENER,
-            DocumentParsingSupplier.EMPTY_INSTANCE
+            DocumentParsingProvider.EMPTY_INSTANCE
         );
         assertFalse(context.hasMoreOperationsToExecute());
 
@@ -746,7 +746,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             new NoopMappingUpdatePerformer(),
             listener -> listener.onResponse(null),
             ASSERTING_DONE_LISTENER,
-            DocumentParsingSupplier.EMPTY_INSTANCE
+            DocumentParsingProvider.EMPTY_INSTANCE
         );
         assertFalse(context.hasMoreOperationsToExecute());
 
@@ -784,7 +784,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             new NoopMappingUpdatePerformer(),
             listener -> {},
             ASSERTING_DONE_LISTENER,
-            DocumentParsingSupplier.EMPTY_INSTANCE
+            DocumentParsingProvider.EMPTY_INSTANCE
         );
         assertFalse(context.hasMoreOperationsToExecute());
 
@@ -824,7 +824,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
                     new NoopMappingUpdatePerformer(),
                     listener -> {},
                     ASSERTING_DONE_LISTENER,
-                    DocumentParsingSupplier.EMPTY_INSTANCE
+                    DocumentParsingProvider.EMPTY_INSTANCE
                 );
             }
 

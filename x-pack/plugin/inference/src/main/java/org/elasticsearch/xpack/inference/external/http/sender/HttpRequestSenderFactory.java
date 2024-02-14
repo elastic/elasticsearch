@@ -78,7 +78,7 @@ public class HttpRequestSenderFactory {
 
         private final ThreadPool threadPool;
         private final HttpClientManager manager;
-        private final HttpRequestExecutorService service;
+        private final RequestExecutorService service;
         private final AtomicBoolean started = new AtomicBoolean(false);
         private volatile TimeValue maxRequestTimeout;
         private final CountDownLatch startCompleted = new CountDownLatch(2);
@@ -92,7 +92,13 @@ public class HttpRequestSenderFactory {
         ) {
             this.threadPool = Objects.requireNonNull(threadPool);
             this.manager = Objects.requireNonNull(httpClientManager);
-            service = new HttpRequestExecutorService(serviceName, manager.getHttpClient(), threadPool, startCompleted);
+            service = new RequestExecutorService(
+                serviceName,
+                manager.getHttpClient(),
+                threadPool,
+                startCompleted,
+                new RequestExecutorServiceSettings(settings, clusterService)
+            );
 
             this.maxRequestTimeout = MAX_REQUEST_TIMEOUT.get(settings);
             addSettingsUpdateConsumers(clusterService);
@@ -138,7 +144,7 @@ public class HttpRequestSenderFactory {
         public void send(HttpRequest request, @Nullable TimeValue timeout, ActionListener<HttpResult> listener) {
             assert started.get() : "call start() before sending a request";
             waitForStartToComplete();
-            service.send(request, timeout, listener);
+            service.execute(request, timeout, listener);
         }
 
         private void waitForStartToComplete() {
@@ -159,7 +165,7 @@ public class HttpRequestSenderFactory {
         public void send(HttpRequest request, ActionListener<HttpResult> listener) {
             assert started.get() : "call start() before sending a request";
             waitForStartToComplete();
-            service.send(request, maxRequestTimeout, listener);
+            service.execute(request, maxRequestTimeout, listener);
         }
 
         public static List<Setting<?>> getSettings() {

@@ -43,5 +43,4 @@ public interface DocumentSizeObserver {
      * @return a number representing a state parsed
      */
     long normalisedBytesParsed();
-    // TODO PG should we rename this to something more abstract? or return <? extends Writeable> T
 }

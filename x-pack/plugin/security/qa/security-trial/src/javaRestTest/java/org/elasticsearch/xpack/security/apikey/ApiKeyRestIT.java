@@ -460,6 +460,33 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         assertEquals(List.of(), response.get("noops"));
     }
 
+    public void testUpdateBadExpirationTimeApiKey() throws IOException {
+        final EncodedApiKey apiKey = createApiKey("my-api-key-name", Map.of());
+
+        final boolean bulkUpdate = randomBoolean();
+        TimeValue expiration = randomFrom(TimeValue.ZERO, TimeValue.MINUS_ONE);
+        final String method;
+        final Map<String, Object> requestBody;
+        final String requestPath;
+
+        if (bulkUpdate) {
+            method = "POST";
+            requestBody = Map.of("expiration", expiration, "ids", List.of(apiKey.id));
+            requestPath = "_security/api_key/_bulk_update";
+        } else {
+            method = "PUT";
+            requestBody = Map.of("expiration", expiration);
+            requestPath = "_security/api_key/" + apiKey.id;
+        }
+
+        final var bulkUpdateApiKeyRequest = new Request(method, requestPath);
+        bulkUpdateApiKeyRequest.setJsonEntity(XContentTestUtils.convertToXContent(requestBody, XContentType.JSON).utf8ToString());
+
+        final ResponseException e = expectThrows(ResponseException.class, () -> adminClient().performRequest(bulkUpdateApiKeyRequest));
+        assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
+        assertThat(e.getMessage(), containsString("API key expiration must be in the future"));
+    }
+
     public void testGrantTargetCanUpdateApiKey() throws IOException {
         final var request = new Request("POST", "_security/api_key/grant");
         request.setOptions(

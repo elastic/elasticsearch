@@ -61,8 +61,14 @@ The email of the user.
 
 `enabled`::
 Specifies whether the user is enabled.
-
 ====
+
+[[security-api-query-user-query-params]]
+==== {api-query-parms-title}
+
+`with_profile_uid`::
+(Optional, boolean) Determines whether to retrieve the <<user-profile,user profile>> `uid`,
+if exists, for the users. Defaults to `false`.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=from]
 +
@@ -212,6 +218,46 @@ A successful call returns a JSON structure for a user:
                 "intelligence": 7
             },
             "enabled": true
+        }
+    ]
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+To retrieve the user `profile_uid` as part of the response:
+
+[source,console]
+--------------------------------------------------
+GET /_security/_query/user?with_profile_uid=true
+{
+    "query": {
+        "prefix": {
+            "roles": "other"
+        }
+    }
+}
+--------------------------------------------------
+// TEST[setup:jacknich_user]
+
+[source,console-result]
+--------------------------------------------------
+{
+    "total": 1,
+    "count": 1,
+    "users": [
+        {
+            "username": "jacknich",
+            "roles": [
+                "admin",
+                "other_role1"
+            ],
+            "full_name": "Jack Nicholson",
+            "email": "jacknich@example.com",
+            "metadata": {
+                "intelligence": 7
+            },
+            "enabled": true,
+            "profile_uid": "u_79HkWkwmnBH5gqFKwoxggWPjEBOur1zLPXQPEl1VBW0_0"
         }
     ]
 }

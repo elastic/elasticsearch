@@ -24,7 +24,9 @@ import org.elasticsearch.xpack.inference.common.SimilarityMeasure;
 
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.Arrays;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -74,6 +76,15 @@ public class ServiceUtils {
         return value;
     }
 
+    @SuppressWarnings("unchecked")
+    public static Map<String, Object> removeFromMapOrDefaultEmpty(Map<String, Object> sourceMap, String fieldName) {
+        Map<String, Object> value = (Map<String, Object>) sourceMap.remove(fieldName);
+        if (value == null) {
+            return new HashMap<>();
+        }
+        return value;
+    }
+
     public static String removeStringOrThrowIfNull(Map<String, Object> sourceMap, String key) {
         String value = removeAsType(sourceMap, key, String.class);
         if (value == null) {
@@ -110,13 +121,16 @@ public class ServiceUtils {
         return Strings.format("[%s] Invalid value empty string. [%s] must be a non-empty string", scope, settingName);
     }
 
-    public static String invalidValue(String settingName, String scope, String invalidType, String[] requiredTypes) {
+    public static String invalidValue(String settingName, String scope, String invalidType, String[] requiredValues) {
+        var copyOfRequiredValues = requiredValues.clone();
+        Arrays.sort(copyOfRequiredValues);
+
         return Strings.format(
             "[%s] Invalid value [%s] received. [%s] must be one of [%s]",
             scope,
             invalidType,
             settingName,
-            String.join(", ", requiredTypes)
+            String.join(", ", copyOfRequiredValues)
         );
     }
 
@@ -235,6 +249,7 @@ public class ServiceUtils {
         }
 
         var validValuesAsStrings = validValues.stream().map(value -> value.toString().toLowerCase(Locale.ROOT)).toArray(String[]::new);
+
         try {
             var createdEnum = constructor.apply(enumString);
             validateEnumValue(createdEnum, validValues);
@@ -250,6 +265,14 @@ public class ServiceUtils {
     private static <E extends Enum<E>> void validateEnumValue(E enumValue, EnumSet<E> validValues) {
         if (validValues.contains(enumValue) == false) {
             throw new IllegalArgumentException(Strings.format("Enum value [%s] is not one of the acceptable values", enumValue.toString()));
+        }
+    }
+
+    public static String mustBeAPositiveNumberErrorMessage(String settingName, int value) {
+        if (value <= 0) {
+            return "Invalid value [" + value + "]. [" + settingName + "] must be a positive integer";
+        } else {
+            throw new IllegalArgumentException("Value [" + value + "] is not a positive integer");
         }
     }
 

@@ -276,6 +276,12 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
                         new Netty4ChunkedHttpContinuation(writeSequence, continuation, finishingWrite.combiner()),
                         finishingWrite.onDone() // pass the terminal listener/promise along the line
                     );
+                    if (channel.eventLoop().isShuttingDown()) {
+                        channel.eventLoop().terminationFuture().addListener(ignored -> finishingWrite.onDone().trySuccess());
+                        // The event loop is shutting down, and https://github.com/netty/netty/issues/8007 means that we cannot know if the
+                        // preceding writeAndFlush made it onto its queue before shutdown or whether it will just vanish without a trace, so
+                        // to avoid a leak we must double-check that the final listener is completed once the event loop is terminated.
+                    }
                 }
 
                 @Override

@@ -16,7 +16,6 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.ShapeType;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
@@ -108,7 +107,6 @@ import java.util.stream.Collectors;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.core.Tuple.tuple;
-import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.DOC_VALUES;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
@@ -2306,10 +2304,10 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, true);
         var extract = as(agg.child(), FieldExtractExec.class);
         source(extract.child());
-        assertTrue("Expect attributes field extract preference to be DOC_VALUES", extract.attributesToExtract().stream().allMatch(attr -> {
-            MappedFieldType.FieldExtractPreference extractPreference = PlannerUtils.extractPreference(extract.hasDocValuesAttribute(attr));
-            return extractPreference == DOC_VALUES && attr.dataType() == GEO_POINT;
-        }));
+        assertTrue(
+            "Expect field attribute to be extracted as doc-values",
+            extract.attributesToExtract().stream().allMatch(attr -> extract.hasDocValuesAttribute(attr) && attr.dataType() == GEO_POINT)
+        );
     }
 
     /**
@@ -2483,10 +2481,10 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, true);
         var extract = as(agg.child(), FieldExtractExec.class);
         source(extract.child());
-        assertTrue("Expect attributes field extract preference to be DOC_VALUES", extract.attributesToExtract().stream().allMatch(attr -> {
-            MappedFieldType.FieldExtractPreference extractPreference = PlannerUtils.extractPreference(extract.hasDocValuesAttribute(attr));
-            return extractPreference == DOC_VALUES && attr.dataType() == GEO_POINT;
-        }));
+        assertTrue(
+            "Expect field attribute to be extracted as doc-values",
+            extract.attributesToExtract().stream().allMatch(attr -> extract.hasDocValuesAttribute(attr) && attr.dataType() == GEO_POINT)
+        );
     }
 
     /**
@@ -2552,10 +2550,10 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertAggregation(agg, "cities", SpatialCentroid.class, GEO_POINT, true);
         var extract = as(agg.child(), FieldExtractExec.class);
         source(extract.child());
-        assertTrue("Expect attributes field extract preference to be DOC_VALUES", extract.attributesToExtract().stream().allMatch(attr -> {
-            MappedFieldType.FieldExtractPreference extractPreference = PlannerUtils.extractPreference(extract.hasDocValuesAttribute(attr));
-            return extractPreference == DOC_VALUES && attr.dataType() == GEO_POINT;
-        }));
+        assertTrue(
+            "Expect field attribute to be extracted as doc-values",
+            extract.attributesToExtract().stream().allMatch(attr -> extract.hasDocValuesAttribute(attr) && attr.dataType() == GEO_POINT)
+        );
     }
 
     /**
@@ -2616,10 +2614,10 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertAggregation(agg, "count", Count.class);
         assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, true);
         var extract = as(agg.child(), FieldExtractExec.class);
-        assertTrue("Expect attributes field extract preference to be DOC_VALUES", extract.attributesToExtract().stream().allMatch(attr -> {
-            MappedFieldType.FieldExtractPreference extractPreference = PlannerUtils.extractPreference(extract.hasDocValuesAttribute(attr));
-            return extractPreference == DOC_VALUES && attr.dataType() == GEO_POINT;
-        }));
+        assertTrue(
+            "Expect field attribute to be extracted as doc-values",
+            extract.attributesToExtract().stream().allMatch(attr -> extract.hasDocValuesAttribute(attr) && attr.dataType() == GEO_POINT)
+        );
         var source = source(extract.child());
         var qb = as(source.query(), SingleValueQuery.Builder.class);
         assertThat("Expected predicate to be passed to Lucene query", qb.source().text(), equalTo("scalerank == 9"));
@@ -2687,10 +2685,10 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertAggregation(agg, "count", Count.class);
         assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, true);
         var extract = as(agg.child(), FieldExtractExec.class);
-        assertTrue("Expect attributes field extract preference to be DOC_VALUES", extract.attributesToExtract().stream().allMatch(attr -> {
-            MappedFieldType.FieldExtractPreference extractPreference = PlannerUtils.extractPreference(extract.hasDocValuesAttribute(attr));
-            return extractPreference == DOC_VALUES && attr.dataType() == GEO_POINT;
-        }));
+        assertTrue(
+            "Expect field attribute to be extracted as doc-values",
+            extract.attributesToExtract().stream().allMatch(attr -> extract.hasDocValuesAttribute(attr) && attr.dataType() == GEO_POINT)
+        );
         source(extract.child());
     }
 
@@ -2780,10 +2778,10 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertAggregation(agg, "count", Count.class);
         assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, true);
         var extract = as(agg.child(), FieldExtractExec.class);
-        assertTrue("Expect attributes field extract preference to be DOC_VALUES", extract.attributesToExtract().stream().allMatch(attr -> {
-            MappedFieldType.FieldExtractPreference extractPreference = PlannerUtils.extractPreference(extract.hasDocValuesAttribute(attr));
-            return extractPreference == DOC_VALUES && attr.dataType() == GEO_POINT;
-        }));
+        assertTrue(
+            "Expect field attribute to be extracted as doc-values",
+            extract.attributesToExtract().stream().allMatch(attr -> extract.hasDocValuesAttribute(attr) && attr.dataType() == GEO_POINT)
+        );
         source(extract.child());
     }
 
@@ -3004,11 +3002,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, true);
             var extract = as(agg.child(), FieldExtractExec.class);
             assertTrue(
-                "Expect attributes field extract preference to be DOC_VALUES",
-                extract.attributesToExtract().stream().allMatch(attr -> {
-                    MappedFieldType.FieldExtractPreference extractPreference = extract.extractPreference(attr);
-                    return extractPreference == DOC_VALUES && attr.dataType() == GEO_POINT;
-                })
+                "Expect field attribute to be extracted as doc-values",
+                extract.attributesToExtract().stream().allMatch(attr -> extract.hasDocValuesAttribute(attr) && attr.dataType() == GEO_POINT)
             );
             var source = source(extract.child());
             // TODO: bring back SingleValueQuery once it can handle LeafShapeFieldData

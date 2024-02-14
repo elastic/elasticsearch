@@ -10,8 +10,8 @@ package org.elasticsearch.xpack.inference.services.huggingface;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.inference.common.SimilarityMeasure;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 

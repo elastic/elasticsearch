@@ -28,11 +28,13 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
+import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.convertToUri;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createOptionalUri;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSimilarity;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeAsType;
 
@@ -92,11 +94,13 @@ public class OpenAiEmbeddingsServiceSettings implements ServiceSettings {
         Integer maxInputTokens = removeAsType(map, MAX_INPUT_TOKENS, Integer.class);
         Integer dims = removeAsType(map, DIMENSIONS, Integer.class);
         URI uri = convertToUri(url, URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        String modelId = extractRequiredString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
-        return new CommonFields(uri, organizationId, similarity, maxInputTokens, dims);
+        return new CommonFields(modelId, uri, organizationId, similarity, maxInputTokens, dims);
     }
 
     private record CommonFields(
+        String modelId,
         @Nullable URI uri,
         @Nullable String organizationId,
         @Nullable SimilarityMeasure similarity,
@@ -104,6 +108,7 @@ public class OpenAiEmbeddingsServiceSettings implements ServiceSettings {
         @Nullable Integer dimensions
     ) {}
 
+    private final String modelId;
     private final URI uri;
     private final String organizationId;
     private final SimilarityMeasure similarity;
@@ -112,6 +117,7 @@ public class OpenAiEmbeddingsServiceSettings implements ServiceSettings {
     private final Boolean dimensionsSetByUser;
 
     public OpenAiEmbeddingsServiceSettings(
+        String modelId,
         @Nullable URI uri,
         @Nullable String organizationId,
         @Nullable SimilarityMeasure similarity,
@@ -120,6 +126,7 @@ public class OpenAiEmbeddingsServiceSettings implements ServiceSettings {
         Boolean dimensionsSetByUser
     ) {
         this.uri = uri;
+        this.modelId = modelId;
         this.organizationId = organizationId;
         this.similarity = similarity;
         this.dimensions = dimensions;
@@ -127,7 +134,8 @@ public class OpenAiEmbeddingsServiceSettings implements ServiceSettings {
         this.dimensionsSetByUser = Objects.requireNonNull(dimensionsSetByUser);
     }
 
-    public OpenAiEmbeddingsServiceSettings(
+    OpenAiEmbeddingsServiceSettings(
+        String modelId,
         @Nullable String uri,
         @Nullable String organizationId,
         @Nullable SimilarityMeasure similarity,
@@ -135,7 +143,7 @@ public class OpenAiEmbeddingsServiceSettings implements ServiceSettings {
         @Nullable Integer maxInputTokens,
         Boolean dimensionsSetByUser
     ) {
-        this(createOptionalUri(uri), organizationId, similarity, dimensions, maxInputTokens, dimensionsSetByUser);
+        this(modelId, createOptionalUri(uri), organizationId, similarity, dimensions, maxInputTokens, dimensionsSetByUser);
     }
 
     public OpenAiEmbeddingsServiceSettings(StreamInput in) throws IOException {
@@ -156,10 +164,23 @@ public class OpenAiEmbeddingsServiceSettings implements ServiceSettings {
         } else {
             dimensionsSetByUser = false;
         }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ML_MODEL_IN_SERVICE_SETTINGS)) {
+            modelId = in.readString();
+        } else {
+            modelId = "unset";
+        }
     }
 
     private OpenAiEmbeddingsServiceSettings(CommonFields fields, Boolean dimensionsSetByUser) {
-        this(fields.uri, fields.organizationId, fields.similarity, fields.dimensions, fields.maxInputTokens, dimensionsSetByUser);
+        this(
+            fields.modelId,
+            fields.uri,
+            fields.organizationId,
+            fields.similarity,
+            fields.dimensions,
+            fields.maxInputTokens,
+            dimensionsSetByUser
+        );
     }
 
     public URI uri() {
@@ -186,6 +207,10 @@ public class OpenAiEmbeddingsServiceSettings implements ServiceSettings {
         return maxInputTokens;
     }
 
+    public String modelId() {
+        return modelId;
+    }
+
     @Override
     public String getWriteableName() {
         return NAME;
@@ -206,6 +231,7 @@ public class OpenAiEmbeddingsServiceSettings implements ServiceSettings {
     }
 
     private void toXContentFragmentOfExposedFields(XContentBuilder builder, Params params) throws IOException {
+        builder.field(MODEL_ID, modelId);
         if (uri != null) {
             builder.field(URL, uri.toString());
         }
@@ -254,6 +280,9 @@ public class OpenAiEmbeddingsServiceSettings implements ServiceSettings {
         if (out.getTransportVersion().onOrAfter(TransportVersions.ML_DIMENSIONS_SET_BY_USER_ADDED)) {
             out.writeBoolean(dimensionsSetByUser);
         }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ML_MODEL_IN_SERVICE_SETTINGS)) {
+            out.writeString(modelId);
+        }
     }
 
     @Override
@@ -262,6 +291,7 @@ public class OpenAiEmbeddingsServiceSettings implements ServiceSettings {
         if (o == null || getClass() != o.getClass()) return false;
         OpenAiEmbeddingsServiceSettings that = (OpenAiEmbeddingsServiceSettings) o;
         return Objects.equals(uri, that.uri)
+            && Objects.equals(modelId, that.modelId)
             && Objects.equals(organizationId, that.organizationId)
             && Objects.equals(similarity, that.similarity)
             && Objects.equals(dimensions, that.dimensions)
@@ -271,6 +301,6 @@ public class OpenAiEmbeddingsServiceSettings implements ServiceSettings {
 
     @Override
     public int hashCode() {
-        return Objects.hash(uri, organizationId, similarity, dimensions, maxInputTokens, dimensionsSetByUser);
+        return Objects.hash(uri, modelId, organizationId, similarity, dimensions, maxInputTokens, dimensionsSetByUser);
     }
 }

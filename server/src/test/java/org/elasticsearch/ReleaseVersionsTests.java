@@ -29,7 +29,7 @@ public class ReleaseVersionsTests extends ESTestCase {
         IntFunction<String> versions = ReleaseVersions.generateVersionsLookup(ReleaseVersionsTests.class);
 
         assertThat(versions.apply(17), equalTo("8.1.2-8.2.0"));
-        assertThat(versions.apply(9), equalTo("0.0.0-8.0.0"));
+        assertThat(versions.apply(9), equalTo("0.0.0"));
         assertThat(versions.apply(24), equalTo("8.2.2-snapshot[24]"));
     }
 }

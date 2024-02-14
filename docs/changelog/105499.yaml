@@ -1,5 +1,5 @@
 pr: 105499
-summary: Make unattended transform create destination index explicitly
+summary: Fix a bug where destination index aliases are not set up for an unattended transform
 area: Transform
 type: bug
 issues: []

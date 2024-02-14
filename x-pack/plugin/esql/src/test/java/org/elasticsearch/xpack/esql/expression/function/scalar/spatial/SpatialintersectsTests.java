@@ -102,7 +102,7 @@ public class SpatialintersectsTests extends AbstractFunctionTestCase {
 
     private static String oneInvalid(int badArgPosition, int goodArgPosition, boolean includeOrdinal, List<DataType> types) {
         String ordinal = includeOrdinal ? TypeResolutions.ParamOrdinal.fromIndex(badArgPosition).name().toLowerCase(Locale.ROOT) + " " : "";
-        String expectedType = types.get(goodArgPosition).esType() + ", keyword or text";
+        String expectedType = types.get(goodArgPosition).esType() + " or keyword";
         String name = types.get(badArgPosition).typeName();
         return ordinal + "argument of [] must be [" + expectedType + "], found value [" + name + "] type [" + name + "]";
     }
@@ -112,7 +112,7 @@ public class SpatialintersectsTests extends AbstractFunctionTestCase {
             Locale.ROOT,
             "when neither arguments of [] are [%s], both must be [%s], found value [%s] type [%s] and value [%s] type [%s]",
             "geo_point or geo_shape or cartesian_point or cartesian_shape",
-            "keyword or text",
+            "keyword",
             leftType.typeName(),
             leftType.typeName(),
             rightType.typeName(),

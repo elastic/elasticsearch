@@ -92,15 +92,20 @@ public class SpatialIntersects extends SpatialRelatesFunction {
         return NodeInfo.create(this, SpatialIntersects::new, left(), right());
     }
 
-    protected Map<SpatialEvaluatorKey, SpatialEvaluatorFactory<?, ?>> evaluatorRules() {
-        HashMap<SpatialEvaluatorKey, SpatialEvaluatorFactory<?, ?>> evaluatorMap = new HashMap<>();
+    @Override
+    protected Map<SpatialEvaluatorFactory.SpatialEvaluatorKey, SpatialEvaluatorFactory<?, ?>> evaluatorRules() {
+        return evaluatorMap;
+    }
 
+    private static final Map<SpatialEvaluatorFactory.SpatialEvaluatorKey, SpatialEvaluatorFactory<?, ?>> evaluatorMap = new HashMap<>();
+
+    static {
         // Support geo_point and geo_shape from source and constant combinations
         for (DataType spatialType : new DataType[] { GEO_POINT, GEO_SHAPE }) {
             for (DataType otherType : new DataType[] { GEO_POINT, GEO_SHAPE, DataTypes.KEYWORD }) {
                 evaluatorMap.put(
-                    SpatialEvaluatorKey.fromSources(spatialType, otherType),
-                    new SpatialEvaluatorFactoryWithFields(
+                    SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSources(spatialType, otherType),
+                    new SpatialEvaluatorFactory.SpatialEvaluatorFactoryWithFields(
                         // Both Geometry and String fields are backed by BytesRef, so we need different evaluators
                         otherType == DataTypes.KEYWORD
                             ? SpatialIntersectsGeoSourceAndStringEvaluator.Factory::new
@@ -108,17 +113,21 @@ public class SpatialIntersects extends SpatialRelatesFunction {
                     )
                 );
                 evaluatorMap.put(
-                    SpatialEvaluatorKey.fromSourceAndConstant(spatialType, otherType),
-                    new SpatialEvaluatorWithConstantFactory(SpatialIntersectsGeoSourceAndConstantEvaluator.Factory::new)
+                    SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSourceAndConstant(spatialType, otherType),
+                    new SpatialEvaluatorFactory.SpatialEvaluatorWithConstantFactory(
+                        SpatialIntersectsGeoSourceAndConstantEvaluator.Factory::new
+                    )
                 );
                 evaluatorMap.put(
-                    SpatialEvaluatorKey.fromConstants(spatialType, otherType),
-                    new SpatialEvaluatorWithConstantsFactory(SpatialIntersectsGeoConstantAndConstantEvaluator.Factory::new)
+                    SpatialEvaluatorFactory.SpatialEvaluatorKey.fromConstants(spatialType, otherType),
+                    new SpatialEvaluatorFactory.SpatialEvaluatorWithConstantsFactory(
+                        SpatialIntersectsGeoConstantAndConstantEvaluator.Factory::new
+                    )
                 );
                 if (EsqlDataTypes.isSpatialPoint(spatialType)) {
                     evaluatorMap.put(
-                        SpatialEvaluatorKey.fromSources(spatialType, otherType).withDocValues(),
-                        new SpatialEvaluatorFactoryWithFields(
+                        SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSources(spatialType, otherType).withDocValues(),
+                        new SpatialEvaluatorFactory.SpatialEvaluatorFactoryWithFields(
                             // Both Geometry and String fields are backed by BytesRef, so we need different evaluators
                             otherType == DataTypes.KEYWORD
                                 ? SpatialIntersectsGeoPointDocValuesAndStringEvaluator.Factory::new
@@ -126,8 +135,10 @@ public class SpatialIntersects extends SpatialRelatesFunction {
                         )
                     );
                     evaluatorMap.put(
-                        SpatialEvaluatorKey.fromSourceAndConstant(spatialType, otherType).withDocValues(),
-                        new SpatialEvaluatorWithConstantFactory(SpatialIntersectsGeoPointDocValuesAndConstantEvaluator.Factory::new)
+                        SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSourceAndConstant(spatialType, otherType).withDocValues(),
+                        new SpatialEvaluatorFactory.SpatialEvaluatorWithConstantFactory(
+                            SpatialIntersectsGeoPointDocValuesAndConstantEvaluator.Factory::new
+                        )
                     );
                 }
             }
@@ -137,8 +148,8 @@ public class SpatialIntersects extends SpatialRelatesFunction {
         for (DataType spatialType : new DataType[] { CARTESIAN_POINT, CARTESIAN_SHAPE }) {
             for (DataType otherType : new DataType[] { CARTESIAN_POINT, CARTESIAN_SHAPE, DataTypes.KEYWORD }) {
                 evaluatorMap.put(
-                    SpatialEvaluatorKey.fromSources(spatialType, otherType),
-                    new SpatialEvaluatorFactoryWithFields(
+                    SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSources(spatialType, otherType),
+                    new SpatialEvaluatorFactory.SpatialEvaluatorFactoryWithFields(
                         // Both Geometry and String fields are backed by BytesRef, so we need different evaluators
                         otherType == DataTypes.KEYWORD
                             ? SpatialIntersectsCartesianSourceAndStringEvaluator.Factory::new
@@ -146,17 +157,21 @@ public class SpatialIntersects extends SpatialRelatesFunction {
                     )
                 );
                 evaluatorMap.put(
-                    SpatialEvaluatorKey.fromSourceAndConstant(spatialType, otherType),
-                    new SpatialEvaluatorWithConstantFactory(SpatialIntersectsCartesianSourceAndConstantEvaluator.Factory::new)
+                    SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSourceAndConstant(spatialType, otherType),
+                    new SpatialEvaluatorFactory.SpatialEvaluatorWithConstantFactory(
+                        SpatialIntersectsCartesianSourceAndConstantEvaluator.Factory::new
+                    )
                 );
                 evaluatorMap.put(
-                    SpatialEvaluatorKey.fromConstants(spatialType, otherType),
-                    new SpatialEvaluatorWithConstantsFactory(SpatialIntersectsCartesianConstantAndConstantEvaluator.Factory::new)
+                    SpatialEvaluatorFactory.SpatialEvaluatorKey.fromConstants(spatialType, otherType),
+                    new SpatialEvaluatorFactory.SpatialEvaluatorWithConstantsFactory(
+                        SpatialIntersectsCartesianConstantAndConstantEvaluator.Factory::new
+                    )
                 );
                 if (EsqlDataTypes.isSpatialPoint(spatialType)) {
                     evaluatorMap.put(
-                        SpatialEvaluatorKey.fromSources(spatialType, otherType).withDocValues(),
-                        new SpatialEvaluatorFactoryWithFields(
+                        SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSources(spatialType, otherType).withDocValues(),
+                        new SpatialEvaluatorFactory.SpatialEvaluatorFactoryWithFields(
                             // Both Geometry and String fields are backed by BytesRef, so we need different evaluators
                             otherType == DataTypes.KEYWORD
                                 ? SpatialIntersectsCartesianPointDocValuesAndStringEvaluator.Factory::new
@@ -164,8 +179,10 @@ public class SpatialIntersects extends SpatialRelatesFunction {
                         )
                     );
                     evaluatorMap.put(
-                        SpatialEvaluatorKey.fromSourceAndConstant(spatialType, otherType).withDocValues(),
-                        new SpatialEvaluatorWithConstantFactory(SpatialIntersectsCartesianPointDocValuesAndConstantEvaluator.Factory::new)
+                        SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSourceAndConstant(spatialType, otherType).withDocValues(),
+                        new SpatialEvaluatorFactory.SpatialEvaluatorWithConstantFactory(
+                            SpatialIntersectsCartesianPointDocValuesAndConstantEvaluator.Factory::new
+                        )
                     );
                 }
             }
@@ -175,17 +192,26 @@ public class SpatialIntersects extends SpatialRelatesFunction {
         // This is mostly a match for PostGIS, which assumes SRID=0 for WKT where SRID is not specified.
         // Elasticsearch does not have a concept of SRID in WKT parsing, and instead determines CRS from context.
         // In most cases this results in the same behavior as PostGIS, but there are some edge cases where it does not.
-        SpatialEvaluatorKey key = SpatialEvaluatorKey.fromSources(DataTypes.KEYWORD, DataTypes.KEYWORD);
-        evaluatorMap.put(key, new SpatialEvaluatorFactoryWithFields(SpatialIntersectsCartesianStringAndStringEvaluator.Factory::new));
+        SpatialEvaluatorFactory.SpatialEvaluatorKey key = SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSources(
+            DataTypes.KEYWORD,
+            DataTypes.KEYWORD
+        );
+        evaluatorMap.put(
+            key,
+            new SpatialEvaluatorFactory.SpatialEvaluatorFactoryWithFields(SpatialIntersectsCartesianStringAndStringEvaluator.Factory::new)
+        );
         evaluatorMap.put(
             key.withConstants(false, true),
-            new SpatialEvaluatorWithConstantFactory(SpatialIntersectsCartesianStringAndConstantEvaluator.Factory::new)
+            new SpatialEvaluatorFactory.SpatialEvaluatorWithConstantFactory(
+                SpatialIntersectsCartesianStringAndConstantEvaluator.Factory::new
+            )
         );
         evaluatorMap.put(
             key.withConstants(true, true),
-            new SpatialEvaluatorWithConstantsFactory(SpatialIntersectsCartesianConstantAndConstantEvaluator.Factory::new)
+            new SpatialEvaluatorFactory.SpatialEvaluatorWithConstantsFactory(
+                SpatialIntersectsCartesianConstantAndConstantEvaluator.Factory::new
+            )
         );
-        return evaluatorMap;
     }
 
     @Evaluator(extraName = "GeoSourceAndConstant", warnExceptions = { IllegalArgumentException.class, IOException.class })

@@ -64,4 +64,4 @@ There are reloadable secure settings for:
 * <<ref-jwt-settings, JWT realm>>
 * <<ref-ad-settings, Active Directory realm>>
 * <<ref-ldap-settings, LDAP realm>>
-* <<remote-cluster-credentials-setting, Remote cluster credentials for API key based model>>
+* <<remote-cluster-credentials-setting, Remote cluster credentials for the API key based connection model>>

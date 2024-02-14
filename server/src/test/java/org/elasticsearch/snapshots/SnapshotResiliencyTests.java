@@ -118,6 +118,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.FakeThreadPoolMasterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.cluster.version.CompatibilityVersionsUtils;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
@@ -224,11 +225,12 @@ import static org.elasticsearch.action.support.ActionTestUtils.assertNoFailureLi
 import static org.elasticsearch.env.Environment.PATH_HOME_SETTING;
 import static org.elasticsearch.monitor.StatusInfo.Status.HEALTHY;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.iterableWithSize;
@@ -433,9 +435,14 @@ public class SnapshotResiliencyTests extends ESTestCase {
             }
         }, e -> {
             if (partial == false) {
-                final SnapshotException unwrapped = (SnapshotException) ExceptionsHelper.unwrap(e, SnapshotException.class);
-                assertNotNull(unwrapped);
-                assertThat(unwrapped.getMessage(), endsWith("Indices don't have primary shards [test]"));
+                assertThat(
+                    asInstanceOf(SnapshotException.class, ExceptionsHelper.unwrap(e, SnapshotException.class)).getMessage(),
+                    allOf(
+                        containsString("the following indices have unassigned primary shards"),
+                        containsString("[test]"),
+                        containsString(ReferenceDocs.UNASSIGNED_SHARDS.toString())
+                    )
+                );
                 snapshotNeverStarted.set(true);
             } else {
                 throw new AssertionError(e);

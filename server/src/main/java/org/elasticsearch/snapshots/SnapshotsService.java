@@ -59,6 +59,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -4024,7 +4025,10 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                     }
                 }
                 if (missing.isEmpty() == false) {
-                    throw new SnapshotException(snapshot, "Indices don't have primary shards " + missing);
+                    throw new SnapshotException(snapshot, Strings.format("""
+                        the following indices have unassigned primary shards and cannot be snapshotted: %s; \
+                        for troubleshooting guidance, see %s
+                        """, missing, ReferenceDocs.UNASSIGNED_SHARDS));
                 }
             }
             final var newEntry = SnapshotsInProgress.startedEntry(

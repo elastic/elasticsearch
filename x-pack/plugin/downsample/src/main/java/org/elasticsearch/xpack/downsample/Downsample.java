@@ -97,7 +97,13 @@ public class Downsample extends Plugin implements ActionPlugin, PersistentTaskPl
         SettingsModule settingsModule,
         IndexNameExpressionResolver expressionResolver
     ) {
-        return List.of(new DownsampleShardPersistentTaskExecutor(client, DownsampleShardTask.TASK_NAME, DOWNSAMPLE_TASK_THREAD_POOL_NAME));
+        return List.of(
+            new DownsampleShardPersistentTaskExecutor(
+                client,
+                DownsampleShardTask.TASK_NAME,
+                threadPool.executor(DOWNSAMPLE_TASK_THREAD_POOL_NAME)
+            )
+        );
     }
 
     @Override

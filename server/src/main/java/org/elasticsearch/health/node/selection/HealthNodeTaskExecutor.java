@@ -70,7 +70,7 @@ public final class HealthNodeTaskExecutor extends PersistentTasksExecutor<Health
         FeatureService featureService,
         Settings settings
     ) {
-        super(TASK_NAME, ThreadPool.Names.MANAGEMENT);
+        super(TASK_NAME, clusterService.threadPool().executor(ThreadPool.Names.MANAGEMENT));
         this.clusterService = clusterService;
         this.persistentTasksService = persistentTasksService;
         this.featureService = featureService;

@@ -65,7 +65,7 @@ mode are described separately.
   is used as the fallback setting.
 
 
-`cluster.remote.<cluster_alias>.credentials` (<<secure-settings,Secure>>)::
+`cluster.remote.<cluster_alias>.credentials` (<<secure-settings,Secure>>, <<reloadable-secure-settings,Reloadable>>)::
 
 beta:[]
   Per cluster setting for configuring <<remote-clusters-api-key,remote clusters with the API Key based model>>.
@@ -75,6 +75,8 @@ beta:[]
   The presence (or not) of this setting determines which model a remote cluster uses.
   If present, the remote cluster uses the API key based model.
   Otherwise, it uses the certificate based model.
+  If the setting is added, removed, or updated in the <<secure-settings,{es} keystore>> and reloaded via the
+  <<cluster-nodes-reload-secure-settings>> API, the cluster will automatically rebuild its connection to the remote.
 
 [[remote-cluster-sniff-settings]]
 ==== Sniff mode remote cluster settings

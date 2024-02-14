@@ -18,6 +18,7 @@ import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamAutoShardingEvent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -37,6 +38,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.TransportVersions.V_8_11_X;
+import static org.elasticsearch.cluster.metadata.DataStream.AUTO_SHARDING_FIELD;
 
 public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response> {
 
@@ -179,6 +181,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             public static final ParseField TEMPORAL_RANGES = new ParseField("temporal_ranges");
             public static final ParseField TEMPORAL_RANGE_START = new ParseField("start");
             public static final ParseField TEMPORAL_RANGE_END = new ParseField("end");
+            public static final ParseField TIME_SINCE_LAST_AUTO_SHARDING = new ParseField("time_since_last_auto_sharding");
 
             private final DataStream dataStream;
             private final ClusterHealthStatus dataStreamStatus;
@@ -347,6 +350,16 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 builder.field(ROLLOVER_ON_WRITE.getPreferredName(), dataStream.rolloverOnWrite());
                 if (DataStream.isFailureStoreEnabled()) {
                     builder.field(DataStream.FAILURE_STORE_FIELD.getPreferredName(), dataStream.isFailureStore());
+                }
+                if (dataStream.getAutoShardingEvent() != null) {
+                    DataStreamAutoShardingEvent autoShardingEvent = dataStream.getAutoShardingEvent();
+                    builder.startObject(AUTO_SHARDING_FIELD.getPreferredName());
+                    autoShardingEvent.toXContent(builder, params);
+                    builder.field(
+                        TIME_SINCE_LAST_AUTO_SHARDING.getPreferredName(),
+                        autoShardingEvent.getTimeSinceLastAutoShardingEvent(System::currentTimeMillis)
+                    );
+                    builder.endObject();
                 }
                 if (timeSeries != null) {
                     builder.startObject(TIME_SERIES.getPreferredName());

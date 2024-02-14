@@ -66,6 +66,7 @@ mode are described separately.
 
 
 `cluster.remote.<cluster_alias>.credentials` (<<secure-settings,Secure>>, <<reloadable-secure-settings,Reloadable>>)::
+[[remote-cluster-credentials-setting]]
 
 beta:[]
   Per cluster setting for configuring <<remote-clusters-api-key,remote clusters with the API Key based model>>.

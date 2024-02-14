@@ -8,9 +8,8 @@ package org.elasticsearch.xpack.security.action.role;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.role.GetRolesAction;
@@ -25,7 +24,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-public class TransportGetRolesAction extends HandledTransportAction<GetRolesRequest, GetRolesResponse> {
+public class TransportGetRolesAction extends TransportAction<GetRolesRequest, GetRolesResponse> {
 
     private final NativeRolesStore nativeRolesStore;
     private final ReservedRolesStore reservedRolesStore;
@@ -37,7 +36,7 @@ public class TransportGetRolesAction extends HandledTransportAction<GetRolesRequ
         TransportService transportService,
         ReservedRolesStore reservedRolesStore
     ) {
-        super(GetRolesAction.NAME, transportService, actionFilters, GetRolesRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        super(GetRolesAction.NAME, actionFilters, transportService.getTaskManager());
         this.nativeRolesStore = nativeRolesStore;
         this.reservedRolesStore = reservedRolesStore;
     }
@@ -45,13 +44,14 @@ public class TransportGetRolesAction extends HandledTransportAction<GetRolesRequ
     @Override
     protected void doExecute(Task task, final GetRolesRequest request, final ActionListener<GetRolesResponse> listener) {
         final String[] requestedRoles = request.names();
+        final boolean includeReservedRoles = false == request.nativeOnly();
         final boolean specificRolesRequested = requestedRoles != null && requestedRoles.length > 0;
         final Set<String> rolesToSearchFor = new HashSet<>();
         final List<RoleDescriptor> roles = new ArrayList<>();
 
         if (specificRolesRequested) {
             for (String role : requestedRoles) {
-                if (ReservedRolesStore.isReserved(role)) {
+                if (includeReservedRoles && ReservedRolesStore.isReserved(role)) {
                     RoleDescriptor rd = ReservedRolesStore.roleDescriptor(role);
                     if (rd != null) {
                         roles.add(rd);
@@ -63,7 +63,7 @@ public class TransportGetRolesAction extends HandledTransportAction<GetRolesRequ
                     rolesToSearchFor.add(role);
                 }
             }
-        } else {
+        } else if (includeReservedRoles) {
             roles.addAll(ReservedRolesStore.roleDescriptors());
         }
 

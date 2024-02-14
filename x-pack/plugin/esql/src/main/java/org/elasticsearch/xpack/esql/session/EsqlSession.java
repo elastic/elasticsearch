@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
+import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizer;
@@ -41,6 +42,7 @@ import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.AttributeSet;
 import org.elasticsearch.xpack.ql.expression.EmptyAttribute;
 import org.elasticsearch.xpack.ql.expression.MetadataAttribute;
+import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.ql.expression.UnresolvedStar;
 import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
@@ -61,6 +63,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiFunction;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
@@ -361,6 +364,8 @@ public class EsqlSession {
         // "keep" attributes are special whenever a wildcard is used in their name
         // ie "from test | eval lang = languages + 1 | keep *l" should consider both "languages" and "*l" as valid fields to ask for
         AttributeSet keepCommandReferences = new AttributeSet();
+        List<Predicate<String>> keepMatches = new ArrayList<>();
+        List<String> keepPatterns = new ArrayList<>();
 
         parsed.forEachDown(p -> {// go over each plan top-down
             if (p instanceof RegexExtract re) { // for Grok and Dissect
@@ -380,6 +385,15 @@ public class EsqlSession {
                 references.addAll(enrichRefs);
             } else {
                 references.addAll(p.references());
+                // special handling for UnresolvedPattern (which is not an UnresolvedAttribute)
+                p.forEachExpression(UnresolvedNamePattern.class, up -> {
+                    var ua = new UnresolvedAttribute(up.source(), up.name());
+                    references.add(ua);
+                    if (p instanceof Keep) {
+                        keepCommandReferences.add(ua);
+                        keepMatches.add(up::match);
+                    }
+                });
                 if (p instanceof Keep) {
                     keepCommandReferences.addAll(p.references());
                 }
@@ -402,6 +416,7 @@ public class EsqlSession {
         // otherwise, in some edge cases, we will fail to ask for "*" (all fields) instead
         references.removeIf(a -> a instanceof MetadataAttribute || MetadataAttribute.isSupported(a.qualifiedName()));
         Set<String> fieldNames = references.names();
+
         if (fieldNames.isEmpty() && enrichPolicyMatchFields.isEmpty()) {
             // there cannot be an empty list of fields, we'll ask the simplest and lightest one instead: _index
             return IndexResolver.INDEX_METADATA_FIELD;
@@ -418,7 +433,8 @@ public class EsqlSession {
         if (skipIfPattern && isPattern) {
             return false;
         }
-        return isPattern ? Regex.simpleMatch(attr.qualifiedName(), other) : attr.qualifiedName().equals(other);
+        var name = attr.qualifiedName();
+        return isPattern ? Regex.simpleMatch(name, other) : name.equals(other);
     }
 
     private static Set<String> subfields(Set<String> names) {

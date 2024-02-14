@@ -256,6 +256,12 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitIdentifierPattern(EsqlBaseParser.IdentifierPatternContext ctx);
   /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#idPattern}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitIdPattern(EsqlBaseParser.IdPatternContext ctx);
+  /**
    * Visit a parse tree produced by the {@code nullLiteral}
    * labeled alternative in {@link EsqlBaseParser#constant}.
    * @param ctx the parse tree

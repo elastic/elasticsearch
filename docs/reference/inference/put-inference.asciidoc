@@ -35,9 +35,10 @@ perform a specific {infer} task.
 
 The following services are available through the {infer} API:
 
+* Cohere
 * ELSER
-* OpenAI
 * Hugging Face
+* OpenAI
 
 
 [discrete]
@@ -64,15 +65,46 @@ The type of the {infer} task that the model will perform. Available task types:
 (Required, string)
 The type of service supported for the specified task type.
 Available services:
+* `cohere`: specify the `text_embedding` task type to use the Cohere service. 
 * `elser`: specify the `sparse_embedding` task type to use the ELSER service.
-* `openai`: specify the `text_embedding` task type to use the OpenAI service.
 * `hugging_face`: specify the `text_embedding` task type to use the Hugging Face 
 service.
+* `openai`: specify the `text_embedding` task type to use the OpenAI service.
 
 `service_settings`::
 (Required, object)
 Settings used to install the {infer} model. These settings are specific to the
 `service` you specified.
++
+.`service_settings` for `cohere`
+[%collapsible%closed]
+=====
+`api_key`:::
+(Required, string)
+A valid API key of your Cohere account. You can find your Cohere API keys or you 
+can create a new one 
+https://dashboard.cohere.com/api-keys[on the API keys settings page].
+
+IMPORTANT: You need to provide the API key only once, during the {infer} model 
+creation. The <<get-inference-api>> does not retrieve your API key. After 
+creating the {infer} model, you cannot change the associated API key. If you 
+want to use a different API key, delete the {infer} model and recreate it with 
+the same name and the updated API key.
+
+`embedding_type`::
+(Optional, string)
+Specifies the types of embeddings you want to get back. Defaults to `float`.
+Valid values are:
+  * `float`: use it for the default float embeddings.
+  * `int8`: use it for signed int8 embeddings.
+
+`model_id`::
+(Optional, string)
+The name of the model to use for the {infer} task. To review the available 
+models, refer to the 
+https://docs.cohere.com/reference/embed[Cohere docs]. Defaults to 
+`embed-english-v2.0`.
+=====
 +
 .`service_settings` for `elser`
 [%collapsible%closed]
@@ -84,6 +116,26 @@ The number of model allocations to create.
 `num_threads`:::
 (Required, integer)
 The number of threads to use by each model allocation.
+=====
++
+.`service_settings` for `hugging_face`
+[%collapsible%closed]
+=====
+`api_key`:::
+(Required, string)
+A valid access token of your Hugging Face account. You can find your Hugging 
+Face access tokens or you can create a new one 
+https://huggingface.co/settings/tokens[on the settings page].
+
+IMPORTANT: You need to provide the API key only once, during the {infer} model 
+creation. The <<get-inference-api>> does not retrieve your API key. After 
+creating the {infer} model, you cannot change the associated API key. If you 
+want to use a different API key, delete the {infer} model and recreate it with 
+the same name and the updated API key.
+
+`url`:::
+(Required, string)
+The URL endpoint to use for the requests.
 =====
 +
 .`service_settings` for `openai`
@@ -112,26 +164,6 @@ https://platform.openai.com/account/organization[**Settings** > **Organizations*
 The URL endpoint to use for the requests. Can be changed for testing purposes.
 Defaults to `https://api.openai.com/v1/embeddings`.
 =====
-+
-.`service_settings` for `hugging_face`
-[%collapsible%closed]
-=====
-`api_key`:::
-(Required, string)
-A valid access token of your Hugging Face account. You can find your Hugging 
-Face access tokens or you can create a new one 
-https://huggingface.co/settings/tokens[on the settings page].
-
-IMPORTANT: You need to provide the API key only once, during the {infer} model 
-creation. The <<get-inference-api>> does not retrieve your API key. After 
-creating the {infer} model, you cannot change the associated API key. If you 
-want to use a different API key, delete the {infer} model and recreate it with 
-the same name and the updated API key.
-
-`url`:::
-(Required, string)
-The URL endpoint to use for the requests.
-=====
 
 `task_settings`::
 (Optional, object)
@@ -141,11 +173,33 @@ Settings to configure the {infer} task. These settings are specific to the
 .`task_settings` for `text_embedding`
 [%collapsible%closed]
 =====
+`input_type`:::
+(optional, string)
+For `cohere` service only. Specifies the type of input passed to the model.
+Valid values are:
+  * `classification`: use it for embeddings passed through a text classifier.
+  * `clusterning`: use it for the embeddings run through a clustering algorithm.
+  * `ingest`: use it for storing document embeddings in a vector database.
+  * `search`: use it for storing embeddings of search queries run against a 
+  vector data base to find relevant documents.
+
 `model`:::
 (Optional, string)
-The name of the model to use for the {infer} task. Refer to the 
+For `openai` sevice only. The name of the model to use for the {infer} task. Refer 
+to the 
 https://platform.openai.com/docs/guides/embeddings/what-are-embeddings[OpenAI documentation]
 for the list of available text embedding models.
+
+`truncate`:::
+(Optional, string)
+For `cohere` service only. Specifies how the API handles inputs longer than the 
+maximum token length. Defaults to `END`. Valid values are:
+ * `NONE`: when the input exceeds the maximum input token length an error is 
+ returned.
+ * `START`: when the input exceeds the maximum input token length the start of 
+ the input is discarded.
+ * `END`: when the input exceeds the maximum input token length the end of 
+ the input is discarded. 
 =====
 
 
@@ -154,6 +208,30 @@ for the list of available text embedding models.
 ==== {api-examples-title}
 
 This section contains example API calls for every service type.
+
+
+[discrete]
+[[inference-example-cohere]]
+===== Cohere service
+
+The following example shows how to create an {infer} model called
+`cohere_embeddings` to perform a `text_embedding` task type.
+
+[source,console]
+------------------------------------------------------------
+PUT _inference/text_embedding/cohere-embeddings
+{
+    "service": "cohere",
+    "service_settings": {
+        "api_key": "<api_key>",
+        "model": "embed-english-light-v3.0",
+        "embedding_type": "int8"
+    },
+    "task_settings": {
+    }
+}
+------------------------------------------------------------
+// TEST[skip:TBD]
 
 
 [discrete]
@@ -197,29 +275,6 @@ Example response:
 
 
 [discrete]
-[[inference-example-openai]]
-===== OpenAI service
-
-The following example shows how to create an {infer} model called
-`openai_embeddings` to perform a `text_embedding` task type.
-
-[source,console]
-------------------------------------------------------------
-PUT _inference/text_embedding/openai_embeddings
-{
-    "service": "openai",
-    "service_settings": {
-        "api_key": "<api_key>"
-    },
-    "task_settings": {
-       "model": "text-embedding-ada-002"
-    }
-}
-------------------------------------------------------------
-// TEST[skip:TBD]
-
-
-[discrete]
 [[inference-example-hugging-face]]
 ===== Hugging Face service
 
@@ -248,3 +303,26 @@ endpoint URL. Select the model you want to use on the new endpoint creation page
 - for example `intfloat/e5-small-v2` - then select the `Sentence Embeddings` 
 task under the Advanced configuration section. Create the endpoint. Copy the URL 
 after the endpoint initialization has been finished.
+
+
+[discrete]
+[[inference-example-openai]]
+===== OpenAI service
+
+The following example shows how to create an {infer} model called
+`openai_embeddings` to perform a `text_embedding` task type.
+
+[source,console]
+------------------------------------------------------------
+PUT _inference/text_embedding/openai_embeddings
+{
+    "service": "openai",
+    "service_settings": {
+        "api_key": "<api_key>"
+    },
+    "task_settings": {
+       "model": "text-embedding-ada-002"
+    }
+}
+------------------------------------------------------------
+// TEST[skip:TBD]

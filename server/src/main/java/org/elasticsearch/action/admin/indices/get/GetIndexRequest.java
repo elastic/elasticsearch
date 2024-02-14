@@ -98,7 +98,7 @@ public class GetIndexRequest extends ClusterInfoRequest<GetIndexRequest> {
             DataStream.isFailureStoreEnabled()
                 ? IndicesOptions.builder(IndicesOptions.strictExpandOpen())
                     .failureStoreOptions(
-                        IndicesOptions.FailureStoreOptions.builder().includeBackingIndices(true).includeFailureIndices(true)
+                        IndicesOptions.FailureStoreOptions.builder().includeRegularIndices(true).includeFailureIndices(true)
                     )
                     .build()
                 : IndicesOptions.strictExpandOpen()

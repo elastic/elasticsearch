@@ -57,7 +57,7 @@ public class IndicesOptionsTests extends ESTestCase {
                         .allowClosedIndices(randomBoolean())
                 )
                 .failureStoreOptions(
-                    FailureStoreOptions.builder().includeBackingIndices(randomBoolean()).includeFailureIndices(randomBoolean())
+                    FailureStoreOptions.builder().includeRegularIndices(randomBoolean()).includeFailureIndices(randomBoolean())
                 )
                 .build();
 

@@ -431,9 +431,9 @@ public record IndicesOptions(
                 ? new FailureStoreOptions.Builder()
                 : new FailureStoreOptions.Builder(defaultOptions);
             return switch (failureStoreValue.toString()) {
-                case INCLUDE_ALL -> builder.includeBackingIndices(true).includeFailureIndices(true).build();
-                case INCLUDE_ONLY_REGULAR_INDICES -> builder.includeBackingIndices(true).includeFailureIndices(false).build();
-                case INCLUDE_ONLY_FAILURE_INDICES -> builder.includeBackingIndices(false).includeFailureIndices(true).build();
+                case INCLUDE_ALL -> builder.includeRegularIndices(true).includeFailureIndices(true).build();
+                case INCLUDE_ONLY_REGULAR_INDICES -> builder.includeRegularIndices(true).includeFailureIndices(false).build();
+                case INCLUDE_ONLY_FAILURE_INDICES -> builder.includeRegularIndices(false).includeFailureIndices(true).build();
                 default -> throw new IllegalArgumentException("No valid " + FAILURE_STORE + " value [" + failureStoreValue + "]");
             };
         }
@@ -459,7 +459,7 @@ public record IndicesOptions(
         }
 
         public static class Builder {
-            private boolean includeBackingIndices;
+            private boolean includeRegularIndices;
             private boolean includeFailureIndices;
 
             public Builder() {
@@ -467,12 +467,12 @@ public record IndicesOptions(
             }
 
             Builder(FailureStoreOptions options) {
-                includeBackingIndices = options.includeRegularIndices;
+                includeRegularIndices = options.includeRegularIndices;
                 includeFailureIndices = options.includeFailureIndices;
             }
 
-            public Builder includeBackingIndices(boolean includeBackingIndices) {
-                this.includeBackingIndices = includeBackingIndices;
+            public Builder includeRegularIndices(boolean includeRegularIndices) {
+                this.includeRegularIndices = includeRegularIndices;
                 return this;
             }
 
@@ -482,7 +482,7 @@ public record IndicesOptions(
             }
 
             public FailureStoreOptions build() {
-                return new FailureStoreOptions(includeBackingIndices, includeFailureIndices);
+                return new FailureStoreOptions(includeRegularIndices, includeFailureIndices);
             }
         }
 
@@ -564,7 +564,7 @@ public record IndicesOptions(
                 .allowFailureIndices(true)
                 .ignoreThrottled(false)
         )
-        .failureStoreOptions(FailureStoreOptions.builder().includeBackingIndices(true).includeFailureIndices(false))
+        .failureStoreOptions(FailureStoreOptions.builder().includeRegularIndices(true).includeFailureIndices(false))
         .build();
     public static final IndicesOptions LENIENT_EXPAND_OPEN = IndicesOptions.builder()
         .concreteTargetOptions(ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
@@ -583,7 +583,7 @@ public record IndicesOptions(
                 .allowFailureIndices(true)
                 .ignoreThrottled(false)
         )
-        .failureStoreOptions(FailureStoreOptions.builder().includeBackingIndices(true).includeFailureIndices(false))
+        .failureStoreOptions(FailureStoreOptions.builder().includeRegularIndices(true).includeFailureIndices(false))
         .build();
     public static final IndicesOptions LENIENT_EXPAND_OPEN_HIDDEN = IndicesOptions.builder()
         .concreteTargetOptions(ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
@@ -602,7 +602,7 @@ public record IndicesOptions(
                 .allowFailureIndices(true)
                 .ignoreThrottled(false)
         )
-        .failureStoreOptions(FailureStoreOptions.builder().includeBackingIndices(true).includeFailureIndices(false))
+        .failureStoreOptions(FailureStoreOptions.builder().includeRegularIndices(true).includeFailureIndices(false))
         .build();
     public static final IndicesOptions LENIENT_EXPAND_OPEN_CLOSED = IndicesOptions.builder()
         .concreteTargetOptions(ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
@@ -621,7 +621,7 @@ public record IndicesOptions(
                 .allowFailureIndices(true)
                 .ignoreThrottled(false)
         )
-        .failureStoreOptions(FailureStoreOptions.builder().includeBackingIndices(true).includeFailureIndices(false))
+        .failureStoreOptions(FailureStoreOptions.builder().includeRegularIndices(true).includeFailureIndices(false))
         .build();
     public static final IndicesOptions LENIENT_EXPAND_OPEN_CLOSED_HIDDEN = IndicesOptions.builder()
         .concreteTargetOptions(ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
@@ -635,7 +635,7 @@ public record IndicesOptions(
                 .allowFailureIndices(true)
                 .ignoreThrottled(false)
         )
-        .failureStoreOptions(FailureStoreOptions.builder().includeBackingIndices(true).includeFailureIndices(false))
+        .failureStoreOptions(FailureStoreOptions.builder().includeRegularIndices(true).includeFailureIndices(false))
         .build();
     public static final IndicesOptions STRICT_EXPAND_OPEN_CLOSED = IndicesOptions.builder()
         .concreteTargetOptions(ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
@@ -654,7 +654,7 @@ public record IndicesOptions(
                 .allowFailureIndices(true)
                 .ignoreThrottled(false)
         )
-        .failureStoreOptions(FailureStoreOptions.builder().includeBackingIndices(true).includeFailureIndices(false))
+        .failureStoreOptions(FailureStoreOptions.builder().includeRegularIndices(true).includeFailureIndices(false))
         .build();
     public static final IndicesOptions STRICT_EXPAND_OPEN_CLOSED_HIDDEN = IndicesOptions.builder()
         .concreteTargetOptions(ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
@@ -668,7 +668,7 @@ public record IndicesOptions(
                 .allowFailureIndices(true)
                 .ignoreThrottled(false)
         )
-        .failureStoreOptions(FailureStoreOptions.builder().includeBackingIndices(true).includeFailureIndices(false))
+        .failureStoreOptions(FailureStoreOptions.builder().includeRegularIndices(true).includeFailureIndices(false))
         .build();
     public static final IndicesOptions STRICT_EXPAND_OPEN_FORBID_CLOSED = IndicesOptions.builder()
         .concreteTargetOptions(ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
@@ -687,7 +687,7 @@ public record IndicesOptions(
                 .allowFailureIndices(true)
                 .ignoreThrottled(false)
         )
-        .failureStoreOptions(FailureStoreOptions.builder().includeBackingIndices(true).includeFailureIndices(false))
+        .failureStoreOptions(FailureStoreOptions.builder().includeRegularIndices(true).includeFailureIndices(false))
         .build();
     public static final IndicesOptions STRICT_EXPAND_OPEN_HIDDEN_FORBID_CLOSED = IndicesOptions.builder()
         .concreteTargetOptions(ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
@@ -706,7 +706,7 @@ public record IndicesOptions(
                 .allowFailureIndices(true)
                 .ignoreThrottled(false)
         )
-        .failureStoreOptions(FailureStoreOptions.builder().includeBackingIndices(true).includeFailureIndices(false))
+        .failureStoreOptions(FailureStoreOptions.builder().includeRegularIndices(true).includeFailureIndices(false))
         .build();
     public static final IndicesOptions STRICT_EXPAND_OPEN_FORBID_CLOSED_IGNORE_THROTTLED = IndicesOptions.builder()
         .concreteTargetOptions(ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
@@ -725,7 +725,7 @@ public record IndicesOptions(
                 .allowFailureIndices(true)
                 .allowAliasToMultipleIndices(true)
         )
-        .failureStoreOptions(FailureStoreOptions.builder().includeBackingIndices(true).includeFailureIndices(false))
+        .failureStoreOptions(FailureStoreOptions.builder().includeRegularIndices(true).includeFailureIndices(false))
         .build();
     public static final IndicesOptions STRICT_SINGLE_INDEX_NO_EXPAND_FORBID_CLOSED = IndicesOptions.builder()
         .concreteTargetOptions(ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
@@ -744,7 +744,7 @@ public record IndicesOptions(
                 .allowFailureIndices(true)
                 .ignoreThrottled(false)
         )
-        .failureStoreOptions(FailureStoreOptions.builder().includeBackingIndices(true).includeFailureIndices(false))
+        .failureStoreOptions(FailureStoreOptions.builder().includeRegularIndices(true).includeFailureIndices(false))
         .build();
     public static final IndicesOptions STRICT_NO_EXPAND_FORBID_CLOSED = IndicesOptions.builder()
         .concreteTargetOptions(ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
@@ -763,7 +763,7 @@ public record IndicesOptions(
                 .allowFailureIndices(true)
                 .ignoreThrottled(false)
         )
-        .failureStoreOptions(FailureStoreOptions.builder().includeBackingIndices(true).includeFailureIndices(false))
+        .failureStoreOptions(FailureStoreOptions.builder().includeRegularIndices(true).includeFailureIndices(false))
         .build();
 
     /**
@@ -1277,11 +1277,11 @@ public record IndicesOptions(
                         failureStoreOptions = FailureStoreOptions.parseParameters(parser.text(), failureStoreOptions);
                     } else {
                         throw new ElasticsearchParseException(
-                            "could not read indices options. unexpected index option [" + currentFieldName + "]"
+                            "could not read indices options. Unexpected index option [" + currentFieldName + "]"
                         );
                     }
             } else {
-                throw new ElasticsearchParseException("could not read indices options. unexpected object field [" + currentFieldName + "]");
+                throw new ElasticsearchParseException("could not read indices options. Unexpected object field [" + currentFieldName + "]");
             }
         }
 

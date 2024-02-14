@@ -2734,7 +2734,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         // Test include failure store with an exact data stream name
         {
             IndicesOptions indicesOptions = IndicesOptions.builder(IndicesOptions.STRICT_EXPAND_OPEN)
-                .failureStoreOptions(IndicesOptions.FailureStoreOptions.builder().includeBackingIndices(true).includeFailureIndices(true))
+                .failureStoreOptions(IndicesOptions.FailureStoreOptions.builder().includeRegularIndices(true).includeFailureIndices(true))
                 .build();
             Index[] result = indexNameExpressionResolver.concreteIndices(state, indicesOptions, true, "my-data-stream");
             assertThat(result.length, equalTo(4));
@@ -2748,7 +2748,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         // We expect that they will be skipped
         {
             IndicesOptions indicesOptions = IndicesOptions.builder(IndicesOptions.STRICT_EXPAND_OPEN)
-                .failureStoreOptions(IndicesOptions.FailureStoreOptions.builder().includeBackingIndices(true).includeFailureIndices(true))
+                .failureStoreOptions(IndicesOptions.FailureStoreOptions.builder().includeRegularIndices(true).includeFailureIndices(true))
                 .gatekeeperOptions(IndicesOptions.GatekeeperOptions.builder().allowFailureIndices(false).build())
                 .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
                 .build();
@@ -2762,7 +2762,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         // We expect an error
         {
             IndicesOptions indicesOptions = IndicesOptions.builder(IndicesOptions.STRICT_EXPAND_OPEN)
-                .failureStoreOptions(IndicesOptions.FailureStoreOptions.builder().includeBackingIndices(true).includeFailureIndices(true))
+                .failureStoreOptions(IndicesOptions.FailureStoreOptions.builder().includeRegularIndices(true).includeFailureIndices(true))
                 .gatekeeperOptions(IndicesOptions.GatekeeperOptions.builder().allowFailureIndices(false).build())
                 .build();
             FailureIndexException failureIndexException = expectThrows(
@@ -2778,7 +2778,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         // Test only failure store with an exact data stream name
         {
             IndicesOptions indicesOptions = IndicesOptions.builder(IndicesOptions.STRICT_EXPAND_OPEN)
-                .failureStoreOptions(IndicesOptions.FailureStoreOptions.builder().includeBackingIndices(false).includeFailureIndices(true))
+                .failureStoreOptions(IndicesOptions.FailureStoreOptions.builder().includeRegularIndices(false).includeFailureIndices(true))
                 .build();
             Index[] result = indexNameExpressionResolver.concreteIndices(state, indicesOptions, true, "my-data-stream");
             assertThat(result.length, equalTo(2));
@@ -2805,7 +2805,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         // Test include failure store without any expressions
         {
             IndicesOptions indicesOptions = IndicesOptions.builder(IndicesOptions.STRICT_EXPAND_OPEN)
-                .failureStoreOptions(IndicesOptions.FailureStoreOptions.builder().includeBackingIndices(true).includeFailureIndices(true))
+                .failureStoreOptions(IndicesOptions.FailureStoreOptions.builder().includeRegularIndices(true).includeFailureIndices(true))
                 .build();
             Index[] result = indexNameExpressionResolver.concreteIndices(state, indicesOptions, true);
             assertThat(result.length, equalTo(5));
@@ -2825,7 +2825,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         // Test only failure store without any expressions
         {
             IndicesOptions indicesOptions = IndicesOptions.builder(IndicesOptions.STRICT_EXPAND_OPEN)
-                .failureStoreOptions(IndicesOptions.FailureStoreOptions.builder().includeBackingIndices(false).includeFailureIndices(true))
+                .failureStoreOptions(IndicesOptions.FailureStoreOptions.builder().includeRegularIndices(false).includeFailureIndices(true))
                 .build();
             Index[] result = indexNameExpressionResolver.concreteIndices(state, indicesOptions, true);
             assertThat(result.length, equalTo(2));
@@ -2858,7 +2858,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         // Test include failure store with wildcard expression
         {
             IndicesOptions indicesOptions = IndicesOptions.builder(IndicesOptions.STRICT_EXPAND_OPEN)
-                .failureStoreOptions(IndicesOptions.FailureStoreOptions.builder().includeBackingIndices(true).includeFailureIndices(true))
+                .failureStoreOptions(IndicesOptions.FailureStoreOptions.builder().includeRegularIndices(true).includeFailureIndices(true))
                 .build();
             Index[] result = indexNameExpressionResolver.concreteIndices(state, indicesOptions, true, "my-*");
             assertThat(result.length, equalTo(5));
@@ -2878,7 +2878,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         // Test only failure store with wildcard expression
         {
             IndicesOptions indicesOptions = IndicesOptions.builder(IndicesOptions.STRICT_EXPAND_OPEN)
-                .failureStoreOptions(IndicesOptions.FailureStoreOptions.builder().includeBackingIndices(false).includeFailureIndices(true))
+                .failureStoreOptions(IndicesOptions.FailureStoreOptions.builder().includeRegularIndices(false).includeFailureIndices(true))
                 .build();
             Index[] result = indexNameExpressionResolver.concreteIndices(state, indicesOptions, true, "my-*");
             assertThat(result.length, equalTo(2));

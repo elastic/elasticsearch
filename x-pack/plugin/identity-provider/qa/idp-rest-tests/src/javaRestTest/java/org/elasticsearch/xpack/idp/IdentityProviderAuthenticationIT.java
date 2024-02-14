@@ -30,7 +30,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -185,8 +185,8 @@ public class IdentityProviderAuthenticationIT extends IdpRestTestCase {
                 equalTo("urn:oasis:names:tc:SAML:2.0:nameid-format:transient")
             );
             assertThat(ObjectPath.eval("metadata.saml_roles", authMap), instanceOf(List.class));
-            assertThat(ObjectPath.eval("metadata.saml_roles", authMap), hasSize(1));
-            assertThat(ObjectPath.eval("metadata.saml_roles", authMap), contains("viewer"));
+            assertThat(ObjectPath.eval("metadata.saml_roles", authMap), hasSize(2));
+            assertThat(ObjectPath.eval("metadata.saml_roles", authMap), containsInAnyOrder("viewer", "custom"));
         }
     }
 

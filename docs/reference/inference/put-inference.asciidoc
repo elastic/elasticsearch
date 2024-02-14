@@ -8,9 +8,10 @@ Creates a model to perform an {infer} task.
 
 IMPORTANT: The {infer} APIs enable you to use certain services, such as built-in 
 {ml} models (ELSER, E5), models uploaded through Eland, Cohere, OpenAI, or 
-Hugging Face, in your cluster. This is not the same feature that you can use on 
-an ML node with custom {ml} models. If you want to train and use your own model, 
-use the <<ml-df-trained-models-apis>>.
+Hugging Face, in your cluster. For built-in models and models uploaded though 
+Eland, the {infer} APIs offer an alternative way to use and manage trained 
+models. However, if you do not plan to use the {infer} APIs to use these models 
+or if you want to use non-NLP models, use the <<ml-df-trained-models-apis>>.
 
 
 [discrete]
@@ -80,7 +81,7 @@ built-in model or text embedding models uploaded by Eland.
 Settings used to install the {infer} model. These settings are specific to the
 `service` you specified.
 +
-.`service_settings` for `cohere`
+.`service_settings` for the `cohere` service
 [%collapsible%closed]
 =====
 `api_key`:::
@@ -110,19 +111,22 @@ https://docs.cohere.com/reference/embed[Cohere docs]. Defaults to
 `embed-english-v2.0`.
 =====
 +
-.`service_settings` for `elser`
+.`service_settings` for the `elser` service
 [%collapsible%closed]
 =====
 `num_allocations`:::
 (Required, integer)
-The number of model allocations to create. 
+The number of model allocations to create. `num_allocations` must not exceed the 
+number of available processors per node divided by the `num_threads`.
 
 `num_threads`:::
 (Required, integer)
-The number of threads to use by each model allocation.
+The number of threads to use by each model allocation. `num_threads` must not 
+exceed the number of available processors per node divided by the number of 
+allocations. Must be a power of 2. Max allowed value is 32.
 =====
 +
-.`service_settings` for `hugging_face`
+.`service_settings` for the `hugging_face` service
 [%collapsible%closed]
 =====
 `api_key`:::
@@ -142,7 +146,7 @@ the same name and the updated API key.
 The URL endpoint to use for the requests.
 =====
 +
-.`service_settings` for `openai`
+.`service_settings` for the `openai` service
 [%collapsible%closed]
 =====
 `api_key`:::
@@ -169,7 +173,7 @@ The URL endpoint to use for the requests. Can be changed for testing purposes.
 Defaults to `https://api.openai.com/v1/embeddings`.
 =====
 +
-.`service_settings` for `text_embedding`
+.`service_settings` for the `text_embedding` service
 [%collapsible%closed]
 =====
 `model_id`:::
@@ -181,11 +185,14 @@ a text embedding model already
 
 `num_allocations`:::
 (Required, integer)
-The number of model allocations to create. `num_allocations` must not exceed the number of available processors per node divided by the `num_threads`.
+The number of model allocations to create. `num_allocations` must not exceed the 
+number of available processors per node divided by the `num_threads`.
 
 `num_threads`:::
 (Required, integer)
-The number of threads to use by each model allocation. `num_threads` must not exceed the number of available processors per node divided by the number of allocations. Must be a power of 2. Max allowed value is 32.
+The number of threads to use by each model allocation. `num_threads` must not 
+exceed the number of available processors per node divided by the number of 
+allocations. Must be a power of 2. Max allowed value is 32.
 =====
 
 
@@ -194,7 +201,7 @@ The number of threads to use by each model allocation. `num_threads` must not ex
 Settings to configure the {infer} task. These settings are specific to the
 `<task_type>` you specified.
 +
-.`task_settings` for `text_embedding`
+.`task_settings` for the `text_embedding` task type
 [%collapsible%closed]
 =====
 `input_type`:::
@@ -358,7 +365,7 @@ after the endpoint initialization has been finished.
 ===== Models uploaded by Eland via the text embedding service
 
 The following example shows how to create an {infer} model called
-`my-text-embedding-model` to perform a `text_embedding` task type.
+`my-msmarco-minilm-model` to perform a `text_embedding` task type.
 
 [source,console]
 ------------------------------------------------------------
@@ -373,7 +380,8 @@ PUT _inference/text_embedding/my-msmarco-minilm-model
 }
 ------------------------------------------------------------
 // TEST[skip:TBD]
-<1> The `model_id` must be the ID of a text embedding model which has already been 
+<1> The `model_id` must be the ID of a text embedding model which has already 
+been 
 {ml-docs}/ml-nlp-import-model.html#ml-nlp-import-script[uploaded through Eland].
 
 

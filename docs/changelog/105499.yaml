@@ -1,0 +1,5 @@
+pr: 105499
+summary: Make unattended transform create destination index explicitly
+area: Transform
+type: bug
+issues: []

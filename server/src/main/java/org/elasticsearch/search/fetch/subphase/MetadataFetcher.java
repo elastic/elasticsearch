@@ -23,17 +23,12 @@ import java.util.List;
 import java.util.Map;
 
 public class MetadataFetcher {
-
     private final Map<String, FieldContext> fieldContexts;
-
     public MetadataFetcher(Map<String, FieldContext> fieldContexts) {
         this.fieldContexts = fieldContexts;
     }
-
     private record MetadataField(String field, MappedFieldType mappedFieldType, String format) {}
-
     private record FieldContext(String fieldName, ValueFetcher valueFetcher) {}
-
     public static MetadataFetcher create(SearchExecutionContext context, List<FieldAndFormat> fieldAndFormats) {
         final List<MetadataField> metadataFields = new ArrayList<>(3);
         for (FieldAndFormat fieldAndFormat : fieldAndFormats) {
@@ -67,7 +62,7 @@ public class MetadataFetcher {
         try {
             return fieldAndFormat.mappedFieldType.valueFetcher(context, fieldAndFormat.format);
         } catch (IllegalArgumentException e) {
-            throw new IllegalArgumentException("error fetching [" + fieldAndFormat.field + ']', e);
+            throw new IllegalArgumentException("error fetching metadata field [" + fieldAndFormat.field + ']', e);
         }
     }
 

@@ -127,16 +127,7 @@ public class Driver implements Releasable, Describable {
         this.statusNanos = statusInterval.nanos();
         this.releasable = releasable;
         this.status = new AtomicReference<>(
-            new DriverStatus(
-                sessionId,
-                startTime,
-                System.currentTimeMillis(),
-                0,
-                0,
-                DriverStatus.Status.QUEUED,
-                List.of(),
-                List.of()
-            )
+            new DriverStatus(sessionId, startTime, System.currentTimeMillis(), 0, 0, DriverStatus.Status.QUEUED, List.of(), List.of())
         );
     }
 

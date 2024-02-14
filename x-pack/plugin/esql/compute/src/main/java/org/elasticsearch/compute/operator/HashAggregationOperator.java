@@ -125,7 +125,7 @@ public class HashAggregationOperator implements Operator {
                     if (groupIdsVector != null) {
                         add(positionOffset, groupIdsVector);
                     } else {
-                        start();
+                        startAggEndHash();
                         for (GroupingAggregatorFunction.AddInput p : prepared) {
                             p.add(positionOffset, groupIds);
                         }
@@ -135,7 +135,7 @@ public class HashAggregationOperator implements Operator {
 
                 @Override
                 public void add(int positionOffset, IntVector groupIds) {
-                    start();
+                    startAggEndHash();
                     for (GroupingAggregatorFunction.AddInput p : prepared) {
                         p.add(positionOffset, groupIds);
                     }

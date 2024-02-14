@@ -490,10 +490,15 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
                 if (exec instanceof FilterExec filterExec) {
                     // Note that ST_CENTROID does not support shapes, but SpatialRelatesFunction does, so when we extend the centroid
                     // to support shapes, we need to consider loading shape doc-values for both centroid and relates (ST_INTERSECTS)
-                    if (filterExec.condition() instanceof SpatialRelatesFunction spatialRelatesFunction) {
-                        if (spatialRelatesFunction.hasFieldAttribute(foundAttributes)) {
-                            exec = new FilterExec(filterExec.source(), filterExec.child(), spatialRelatesFunction.withDocValues());
-                        }
+                    var condition = filterExec.condition()
+                        .transformDown(
+                            SpatialRelatesFunction.class,
+                            spatialRelatesFunction -> (spatialRelatesFunction.hasFieldAttribute(foundAttributes))
+                                ? spatialRelatesFunction.withDocValues()
+                                : spatialRelatesFunction
+                        );
+                    if (filterExec.condition().equals(condition) == false) {
+                        exec = new FilterExec(filterExec.source(), filterExec.child(), condition);
                     }
                 }
                 if (exec instanceof FieldExtractExec fieldExtractExec) {

@@ -86,6 +86,7 @@ import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.SpatialAggregateFunction;
+import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.ql.index.EsIndex;
@@ -3009,6 +3010,105 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             // TODO: bring back SingleValueQuery once it can handle LeafShapeFieldData
             // var condition = as(sv(source.query(), "location"), AbstractGeometryQueryBuilder.class);
             var condition = as(source.query(), SpatialRelatesQuery.ShapeQueryBuilder.class);
+            assertThat("Geometry field name", condition.fieldName(), equalTo("location"));
+            assertThat("Spatial relationship", condition.relation(), equalTo(ShapeRelation.INTERSECTS));
+            assertThat("Geometry is Polygon", condition.shape().type(), equalTo(ShapeType.POLYGON));
+            var polygon = as(condition.shape(), Polygon.class);
+            assertThat("Polygon shell length", polygon.getPolygon().length(), equalTo(5));
+            assertThat("Polygon holes", polygon.getNumberOfHoles(), equalTo(0));
+        }
+    }
+
+    public void testPushSpatialIntersectsStringToSourceCompoundPredicate() {
+        for (String query : new String[] { """
+            FROM airports
+            | WHERE scalerank == 9 AND ST_INTERSECTS(location, "POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))") AND type == "mid"
+            """, """
+            FROM airports
+            | WHERE scalerank == 9 AND ST_INTERSECTS("POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))", location) AND type == "mid"
+            """ }) {
+
+            var plan = this.physicalPlan(query, airports);
+            var limit = as(plan, LimitExec.class);
+            var exchange = as(limit.child(), ExchangeExec.class);
+            var fragment = as(exchange.child(), FragmentExec.class);
+            var limit2 = as(fragment.fragment(), Limit.class);
+            var filter = as(limit2.child(), Filter.class);
+            var and = as(filter.condition(), And.class);
+            var left = as(and.left(), And.class);
+            assertThat("filter contains ST_INTERSECTS", left.right(), instanceOf(SpatialIntersects.class));
+
+            var optimized = optimizedPlan(plan);
+            var topLimit = as(optimized, LimitExec.class);
+            exchange = as(topLimit.child(), ExchangeExec.class);
+            var project = as(exchange.child(), ProjectExec.class);
+            var fieldExtract = as(project.child(), FieldExtractExec.class);
+            var source = source(fieldExtract.child());
+            // TODO: bring back SingleValueQuery once it can handle LeafShapeFieldData
+            // var condition = as(sv(source.query(), "location"), AbstractGeometryQueryBuilder.class);
+            var booleanQuery = as(source.query(), BoolQueryBuilder.class);
+            assertThat("Expected boolean query of three predicates", booleanQuery.must().size(), equalTo(3));
+            var condition = as(booleanQuery.must().get(1), SpatialRelatesQuery.ShapeQueryBuilder.class);
+            assertThat("Geometry field name", condition.fieldName(), equalTo("location"));
+            assertThat("Spatial relationship", condition.relation(), equalTo(ShapeRelation.INTERSECTS));
+            assertThat("Geometry is Polygon", condition.shape().type(), equalTo(ShapeType.POLYGON));
+            var polygon = as(condition.shape(), Polygon.class);
+            assertThat("Polygon shell length", polygon.getPolygon().length(), equalTo(5));
+            assertThat("Polygon holes", polygon.getNumberOfHoles(), equalTo(0));
+        }
+    }
+
+    public void testPushSpatialIntersectsStringToSourceCompoundPredicateAndUseDocValuesForCentroid() {
+        for (String query : new String[] { """
+            FROM airports
+            | WHERE scalerank == 9 AND ST_INTERSECTS(location, "POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))") AND type == "mid"
+            | STATS centroid=ST_CENTROID(location), count=COUNT()
+            """, """
+            FROM airports
+            | WHERE scalerank == 9 AND ST_INTERSECTS("POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))", location) AND type == "mid"
+            | STATS centroid=ST_CENTROID(location), count=COUNT()
+            """ }) {
+
+            var plan = this.physicalPlan(query, airports);
+            var limit = as(plan, LimitExec.class);
+            var agg = as(limit.child(), AggregateExec.class);
+            assertThat("No groupings in aggregation", agg.groupings().size(), equalTo(0));
+            // Before optimization the aggregation does not use doc-values
+            assertAggregation(agg, "count", Count.class);
+            assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
+
+            var exchange = as(agg.child(), ExchangeExec.class);
+            var fragment = as(exchange.child(), FragmentExec.class);
+            var fAgg = as(fragment.fragment(), Aggregate.class);
+            var filter = as(fAgg.child(), Filter.class);
+            var and = as(filter.condition(), And.class);
+            var left = as(and.left(), And.class);
+            assertThat("filter contains ST_INTERSECTS", left.right(), instanceOf(SpatialIntersects.class));
+
+            // Now verify that optimization re-writes the ExchangeExec and pushed down the filter into the Lucene query
+            var optimized = optimizedPlan(plan);
+            limit = as(optimized, LimitExec.class);
+            agg = as(limit.child(), AggregateExec.class);
+            // Above the exchange (in coordinator) the aggregation is not using doc-values
+            assertAggregation(agg, "count", Count.class);
+            assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
+            exchange = as(agg.child(), ExchangeExec.class);
+            agg = as(exchange.child(), AggregateExec.class);
+            assertThat("Aggregation is PARTIAL", agg.getMode(), equalTo(PARTIAL));
+            // below the exchange (in data node) the aggregation is using doc-values
+            assertAggregation(agg, "count", Count.class);
+            assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, true);
+            var extract = as(agg.child(), FieldExtractExec.class);
+            assertTrue(
+                "Expect field attribute to be extracted as doc-values",
+                extract.attributesToExtract().stream().allMatch(attr -> extract.hasDocValuesAttribute(attr) && attr.dataType() == GEO_POINT)
+            );
+            var source = source(extract.child());
+            // TODO: bring back SingleValueQuery once it can handle LeafShapeFieldData
+            // var condition = as(sv(source.query(), "location"), AbstractGeometryQueryBuilder.class);
+            var booleanQuery = as(source.query(), BoolQueryBuilder.class);
+            assertThat("Expected boolean query of three predicates", booleanQuery.must().size(), equalTo(3));
+            var condition = as(booleanQuery.must().get(1), SpatialRelatesQuery.ShapeQueryBuilder.class);
             assertThat("Geometry field name", condition.fieldName(), equalTo("location"));
             assertThat("Spatial relationship", condition.relation(), equalTo(ShapeRelation.INTERSECTS));
             assertThat("Geometry is Polygon", condition.shape().type(), equalTo(ShapeType.POLYGON));

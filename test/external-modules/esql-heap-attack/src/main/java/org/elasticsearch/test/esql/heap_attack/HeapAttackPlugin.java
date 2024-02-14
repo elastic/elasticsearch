@@ -65,8 +65,6 @@ public class HeapAttackPlugin extends Plugin implements ActionPlugin {
 
     @Override
     public Settings additionalSettings() {
-        Settings.Builder settings = Settings.builder().put(super.additionalSettings());
-        settings.put(IGNORE_DESERIALIZATION_ERRORS_SETTING.getKey(), true);
-        return settings.build();
+        return Settings.builder().put(super.additionalSettings()).put(IGNORE_DESERIALIZATION_ERRORS_SETTING.getKey(), true).build();
     }
 }

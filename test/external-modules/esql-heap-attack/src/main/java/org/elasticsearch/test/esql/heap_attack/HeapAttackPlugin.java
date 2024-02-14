@@ -23,13 +23,13 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -54,15 +54,13 @@ public class HeapAttackPlugin extends Plugin implements ActionPlugin {
     // so that tests in other packages can see it too.
     static final Setting<Boolean> IGNORE_DESERIALIZATION_ERRORS_SETTING = Setting.boolSetting(
         "transport.ignore_deserialization_errors",
-        false,
+        true,
         Setting.Property.NodeScope
     );
 
     @Override
     public List<Setting<?>> getSettings() {
-        var settings = new ArrayList<>(super.getSettings());
-        settings.add(IGNORE_DESERIALIZATION_ERRORS_SETTING);
-        return settings;
+        return CollectionUtils.appendToCopy(super.getSettings(), IGNORE_DESERIALIZATION_ERRORS_SETTING);
     }
 
     @Override

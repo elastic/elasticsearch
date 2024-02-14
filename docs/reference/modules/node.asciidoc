@@ -69,7 +69,7 @@ A node that has the `master` role, which makes it eligible to be
 <<data-node,Data node>>::
 
 A node that has the `data` role. Data nodes hold data and perform data
-related operations such as CRUD, search, and aggregations. A node with the `data` role can fill any of the specialised data node roles.
+related operations such as CRUD, search, and aggregations. A node with the `data` role can fill any of the specialized data node roles.
 
 <<node-ingest-node,Ingest node>>::
 

@@ -34,7 +34,7 @@ import java.util.List;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
-import static org.elasticsearch.xpack.esql.expression.Validations.isLiteral;
+import static org.elasticsearch.xpack.esql.expression.Validations.isFoldable;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FOURTH;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
@@ -208,7 +208,7 @@ public class AutoBucket extends EsqlScalarFunction implements Validatable {
     public void validate(Failures failures) {
         String operation = sourceText();
 
-        failures.add(isLiteral(buckets, operation, SECOND)).add(isLiteral(from, operation, THIRD)).add(isLiteral(to, operation, FOURTH));
+        failures.add(isFoldable(buckets, operation, SECOND)).add(isFoldable(from, operation, THIRD)).add(isFoldable(to, operation, FOURTH));
     }
 
     private long foldToLong(Expression e) {

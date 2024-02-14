@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.ql.common;
 
-import java.util.ArrayList;
 import java.util.Collection;
+import java.util.LinkedHashSet;
 import java.util.Objects;
 
 /**
@@ -19,11 +19,7 @@ public class Failures {
     private final Collection<Failure> failures;
 
     public Failures() {
-        this(new ArrayList<>());
-    }
-
-    public Failures(Collection<Failure> failures) {
-        this.failures = failures;
+        this.failures = new LinkedHashSet<>();
     }
 
     public Failures add(Failure failure) {

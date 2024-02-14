@@ -16,7 +16,10 @@ public final class Validations {
 
     private Validations() {}
 
-    public static Failure isLiteral(Expression e, String operationName, TypeResolutions.ParamOrdinal paramOrd) {
+    /**
+     * Validates if the given expression is foldable - if not returns a Failure.
+     */
+    public static Failure isFoldable(Expression e, String operationName, TypeResolutions.ParamOrdinal paramOrd) {
         TypeResolution resolution = TypeResolutions.isFoldable(e, operationName, paramOrd);
         return resolution.unresolved() ? Failure.fail(e, resolution.message()) : null;
     }

@@ -9,12 +9,8 @@ package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.xpack.esql.capabilities.Validatable;
 import org.elasticsearch.xpack.esql.optimizer.OptimizerRules.LogicalPlanDependencyCheck;
-import org.elasticsearch.xpack.ql.common.Failure;
 import org.elasticsearch.xpack.ql.common.Failures;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
-
-import java.util.LinkedHashSet;
-import java.util.Set;
 
 public final class LogicalVerifier {
 
@@ -25,24 +21,22 @@ public final class LogicalVerifier {
 
     /** Verifies the optimized logical plan. */
     public Failures verify(LogicalPlan plan) {
-        Set<Failure> set = new LinkedHashSet<>();
-        Failures f = new Failures(set);
+        Failures failures = new Failures();
 
         plan.forEachUp(p -> {
             // dependency check
             // FIXME: re-enable
             // DEPENDENCY_CHECK.checkPlan(p, failures);
 
-            if (set.isEmpty()) {
-                // post optimization folding check
+            if (failures.hasFailures() == false) {
                 p.forEachExpression(ex -> {
                     if (ex instanceof Validatable v) {
-                        v.validate(f);
+                        v.validate(failures);
                     }
                 });
             }
         });
 
-        return f;
+        return failures;
     }
 }

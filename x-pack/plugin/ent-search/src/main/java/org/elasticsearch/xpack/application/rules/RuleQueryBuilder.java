@@ -174,30 +174,12 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
 
     @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
-        if (TransportVersion.current().before(TransportVersions.RULE_QUERY_ALWAYS_REWRITE_TO_ANOTHER_TYPE)) {
-            if ((pinnedIds != null && pinnedIds.isEmpty() == false) && (pinnedDocs != null && pinnedDocs.isEmpty() == false)) {
-                throw new IllegalArgumentException(
-                    "applied rules contain both pinned ids and pinned docs, only one of ids or docs is allowed"
-                );
-            }
-
-            if (pinnedIds != null && pinnedIds.isEmpty() == false) {
-                PinnedQueryBuilder pinnedQueryBuilder = new PinnedQueryBuilder(organicQuery, pinnedIds.toArray(new String[0]));
-                return pinnedQueryBuilder.toQuery(context);
-            } else if (pinnedDocs != null && pinnedDocs.isEmpty() == false) {
-                PinnedQueryBuilder pinnedQueryBuilder = new PinnedQueryBuilder(organicQuery, pinnedDocs.toArray(new Item[0]));
-                return pinnedQueryBuilder.toQuery(context);
-            } else {
-                return organicQuery.toQuery(context);
-            }
-        }
-
         throw new IllegalStateException(NAME + " should have been rewritten to another query type");
     }
 
     @SuppressWarnings("unchecked")
     @Override
-    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) {
+    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
         if ((pinnedIds != null && pinnedIds.isEmpty() == false) && (pinnedDocs != null && pinnedDocs.isEmpty() == false)) {
             throw new IllegalArgumentException("applied rules contain both pinned ids and pinned docs, only one of ids or docs is allowed");
         }

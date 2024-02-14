@@ -133,7 +133,6 @@ public class TransportVersions {
     public static final TransportVersion INDEX_REQUEST_NORMALIZED_BYTES_PARSED = def(8_593_00_0);
     public static final TransportVersion INGEST_GRAPH_STRUCTURE_EXCEPTION = def(8_594_00_0);
     public static final TransportVersion ML_MODEL_IN_SERVICE_SETTINGS = def(8_595_00_0);
-    public static final TransportVersion RULE_QUERY_ALWAYS_REWRITE_TO_ANOTHER_TYPE = def(8_596_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

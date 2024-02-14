@@ -6,7 +6,7 @@
 
 preview::[]
 
-Updates the `index_name` field of a connector, specifying the index where the data ingested with connector is stored.
+Updates the `index_name` field of a connector, specifying the index where the data ingested by the connector is stored.
 
 [[update-connector-index-name-api-request]]
 ==== {api-request-title}

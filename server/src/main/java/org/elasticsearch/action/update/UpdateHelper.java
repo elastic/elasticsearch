@@ -271,7 +271,7 @@ public class UpdateHelper {
                     .waitForActiveShards(request.waitForActiveShards())
                     .timeout(request.timeout())
                     .setRefreshPolicy(request.getRefreshPolicy())
-                    .setNormalisedBytesParsed(request.script.getIdOrCode().length() * Character.SIZE);
+                    .setNormalisedBytesParsed(0L);
                 return new Result(indexRequest, DocWriteResponse.Result.UPDATED, updatedSourceAsMap, updateSourceContentType);
             }
             case DELETE -> {

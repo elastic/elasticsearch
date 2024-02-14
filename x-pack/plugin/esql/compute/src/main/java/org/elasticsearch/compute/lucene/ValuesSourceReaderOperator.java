@@ -534,7 +534,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
 
         @Override
         public int hashCode() {
-            return Objects.hash(readersBuilt, pagesProcessed());
+            return Objects.hash(super.hashCode(), readersBuilt);
         }
 
         @Override

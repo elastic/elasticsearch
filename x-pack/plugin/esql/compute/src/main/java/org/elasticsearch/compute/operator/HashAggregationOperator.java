@@ -114,14 +114,7 @@ public class HashAggregationOperator implements Operator {
     @Override
     public void addInput(Page page) {
         try {
-            checkState(needsInput(), "Operator is already finishing");
-            requireNonNull(page, "page is null");
-
             GroupingAggregatorFunction.AddInput[] prepared = new GroupingAggregatorFunction.AddInput[aggregators.size()];
-            for (int i = 0; i < prepared.length; i++) {
-                prepared[i] = aggregators.get(i).prepareProcessPage(blockHash, page);
-            }
-
             class AddInput implements GroupingAggregatorFunction.AddInput {
                 long hashStart = System.nanoTime();
                 long aggStart;
@@ -160,6 +153,14 @@ public class HashAggregationOperator implements Operator {
                 }
             }
             AddInput add = new AddInput();
+
+            checkState(needsInput(), "Operator is already finishing");
+            requireNonNull(page, "page is null");
+
+            for (int i = 0; i < prepared.length; i++) {
+                prepared[i] = aggregators.get(i).prepareProcessPage(blockHash, page);
+            }
+
             blockHash.add(wrapPage(page), add);
             hashNanos += add.hashStart - System.nanoTime();
         } finally {

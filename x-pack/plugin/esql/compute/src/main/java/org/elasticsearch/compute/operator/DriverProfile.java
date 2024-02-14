@@ -39,19 +39,33 @@ public class DriverProfile implements Writeable, ChunkedToXContentObject {
     private final long cpuNanos;
 
     /**
+     * The number of times the driver has moved a single page up the
+     * chain of operators as far as it'll go.
+     */
+    private final long iterations;
+
+    /**
      * Status of each {@link Operator} in the driver when it finishes.
      */
     private final List<DriverStatus.OperatorStatus> operators;
 
-    public DriverProfile(long tookNanos, long cpuNanos, List<DriverStatus.OperatorStatus> operators) {
+    public DriverProfile(long tookNanos, long cpuNanos, long iterations, List<DriverStatus.OperatorStatus> operators) {
         this.tookNanos = tookNanos;
         this.cpuNanos = cpuNanos;
+        this.iterations = iterations;
         this.operators = operators;
     }
 
     public DriverProfile(StreamInput in) throws IOException {
-        this.tookNanos = in.getTransportVersion().onOrAfter(TransportVersions.ESQL_TIMINGS) ? in.readVLong() : 0;
-        this.cpuNanos = in.getTransportVersion().onOrAfter(TransportVersions.ESQL_TIMINGS) ? in.readVLong() : 0;
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_TIMINGS)) {
+            this.tookNanos = in.readVLong();
+            this.cpuNanos = in.readVLong();
+            this.iterations = in.readVLong();
+        } else {
+            this.tookNanos = 0;
+            this.cpuNanos = 0;
+            this.iterations = 0;
+        }
         this.operators = in.readCollectionAsImmutableList(DriverStatus.OperatorStatus::new);
     }
 
@@ -60,6 +74,7 @@ public class DriverProfile implements Writeable, ChunkedToXContentObject {
         if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_TIMINGS)) {
             out.writeVLong(tookNanos);
             out.writeVLong(cpuNanos);
+            out.writeVLong(iterations);
         }
         out.writeCollection(operators);
     }
@@ -79,6 +94,14 @@ public class DriverProfile implements Writeable, ChunkedToXContentObject {
         return cpuNanos;
     }
 
+    /**
+     * The number of times the driver has moved a single page up the
+     * chain of operators as far as it'll go.
+     */
+    public long iterations() {
+        return iterations;
+    }
+
     List<DriverStatus.OperatorStatus> operators() {
         return operators;
     }
@@ -94,6 +117,7 @@ public class DriverProfile implements Writeable, ChunkedToXContentObject {
             if (b.humanReadable()) {
                 b.field("cpu_time", TimeValue.timeValueNanos(cpuNanos));
             }
+            b.field("iterations", iterations);
             return b;
         }), ChunkedToXContentHelper.array("operators", operators.iterator()), ChunkedToXContentHelper.endObject());
     }
@@ -107,12 +131,15 @@ public class DriverProfile implements Writeable, ChunkedToXContentObject {
             return false;
         }
         DriverProfile that = (DriverProfile) o;
-        return tookNanos == that.tookNanos && cpuNanos == that.cpuNanos && Objects.equals(operators, that.operators);
+        return tookNanos == that.tookNanos
+            && cpuNanos == that.cpuNanos
+            && iterations == that.iterations
+            && Objects.equals(operators, that.operators);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(operators);
+        return Objects.hash(tookNanos, cpuNanos, iterations, operators);
     }
 
     @Override

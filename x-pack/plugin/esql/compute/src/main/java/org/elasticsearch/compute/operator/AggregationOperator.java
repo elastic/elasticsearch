@@ -90,9 +90,9 @@ public class AggregationOperator implements Operator {
 
     @Override
     public void addInput(Page page) {
+        long start = System.nanoTime();
         checkState(needsInput(), "Operator is already finishing");
         requireNonNull(page, "page is null");
-        long start = System.nanoTime();
         try {
             for (Aggregator aggregator : aggregators) {
                 aggregator.processPage(page);

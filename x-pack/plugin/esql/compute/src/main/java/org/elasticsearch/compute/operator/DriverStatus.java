@@ -59,6 +59,12 @@ public class DriverStatus implements Task.Status {
     private final long cpuNanos;
 
     /**
+     * The number of times the driver has moved a single page up the
+     * chain of operators as far as it'll go.
+     */
+    private final long iterations;
+
+    /**
      * The state of the overall driver - queue, starting, running, finished.
      */
     private final Status status;
@@ -78,6 +84,7 @@ public class DriverStatus implements Task.Status {
         long started,
         long lastUpdated,
         long cpuTime,
+        long iterations,
         Status status,
         List<OperatorStatus> completedOperators,
         List<OperatorStatus> activeOperators
@@ -86,6 +93,7 @@ public class DriverStatus implements Task.Status {
         this.started = started;
         this.lastUpdated = lastUpdated;
         this.cpuNanos = cpuTime;
+        this.iterations = iterations;
         this.status = status;
         this.completedOperators = completedOperators;
         this.activeOperators = activeOperators;
@@ -96,6 +104,7 @@ public class DriverStatus implements Task.Status {
         this.started = in.getTransportVersion().onOrAfter(TransportVersions.ESQL_TIMINGS) ? in.readLong() : 0;
         this.lastUpdated = in.readLong();
         this.cpuNanos = in.getTransportVersion().onOrAfter(TransportVersions.ESQL_TIMINGS) ? in.readVLong() : 0;
+        this.iterations = in.getTransportVersion().onOrAfter(TransportVersions.ESQL_TIMINGS) ? in.readVLong() : 0;
         this.status = Status.valueOf(in.readString());
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             this.completedOperators = in.readCollectionAsImmutableList(OperatorStatus::new);
@@ -114,6 +123,7 @@ public class DriverStatus implements Task.Status {
         out.writeLong(lastUpdated);
         if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_TIMINGS)) {
             out.writeVLong(cpuNanos);
+            out.writeVLong(iterations);
         }
         out.writeString(status.toString());
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
@@ -157,6 +167,14 @@ public class DriverStatus implements Task.Status {
     }
 
     /**
+     * The number of times the driver has moved a single page up the
+     * chain of operators as far as it'll go.
+     */
+    public long iterations() {
+        return iterations;
+    }
+
+    /**
      * The state of the overall driver - queue, starting, running, finished.
      */
     public Status status() {
@@ -187,6 +205,7 @@ public class DriverStatus implements Task.Status {
         if (builder.humanReadable()) {
             builder.field("cpu_time", TimeValue.timeValueNanos(cpuNanos));
         }
+        builder.field("iterations", iterations);
         builder.field("status", status.toString().toLowerCase(Locale.ROOT));
         builder.startArray("completed_operators");
         for (OperatorStatus completed : completedOperators) {
@@ -210,6 +229,7 @@ public class DriverStatus implements Task.Status {
             && started == that.started
             && lastUpdated == that.lastUpdated
             && cpuNanos == that.cpuNanos
+            && iterations == that.iterations
             && status == that.status
             && completedOperators.equals(that.completedOperators)
             && activeOperators.equals(that.activeOperators);
@@ -217,7 +237,7 @@ public class DriverStatus implements Task.Status {
 
     @Override
     public int hashCode() {
-        return Objects.hash(sessionId, started, lastUpdated, cpuNanos, status, completedOperators, activeOperators);
+        return Objects.hash(sessionId, started, lastUpdated, cpuNanos, iterations, status, completedOperators, activeOperators);
     }
 
     @Override

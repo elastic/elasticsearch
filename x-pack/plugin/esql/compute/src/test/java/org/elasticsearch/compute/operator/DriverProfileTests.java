@@ -28,6 +28,7 @@ public class DriverProfileTests extends AbstractWireSerializingTestCase<DriverPr
         DriverProfile status = new DriverProfile(
             10012,
             10000,
+            12,
             List.of(
                 new DriverStatus.OperatorStatus("LuceneSource", LuceneSourceOperatorStatusTests.simple()),
                 new DriverStatus.OperatorStatus("ValuesSourceReader", ValuesSourceReaderOperatorStatusTests.simple())
@@ -39,6 +40,7 @@ public class DriverProfileTests extends AbstractWireSerializingTestCase<DriverPr
               "took_time" : "10micros",
               "cpu_nanos" : 10000,
               "cpu_time" : "10micros",
+              "iterations" : 12,
               "operators" : [
                 {
                   "operator" : "LuceneSource",
@@ -63,21 +65,28 @@ public class DriverProfileTests extends AbstractWireSerializingTestCase<DriverPr
 
     @Override
     protected DriverProfile createTestInstance() {
-        return new DriverProfile(randomNonNegativeLong(), randomNonNegativeLong(), DriverStatusTests.randomOperatorStatuses());
+        return new DriverProfile(
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            DriverStatusTests.randomOperatorStatuses()
+        );
     }
 
     @Override
     protected DriverProfile mutateInstance(DriverProfile instance) throws IOException {
         long tookNanos = instance.tookNanos();
         long cpuNanos = instance.cpuNanos();
+        long iterations = instance.iterations();
         var operators = instance.operators();
-        switch (between(0, 2)) {
+        switch (between(0, 3)) {
             case 0 -> tookNanos = randomValueOtherThan(tookNanos, ESTestCase::randomNonNegativeLong);
             case 1 -> cpuNanos = randomValueOtherThan(cpuNanos, ESTestCase::randomNonNegativeLong);
-            case 2 -> operators = randomValueOtherThan(operators, DriverStatusTests::randomOperatorStatuses);
+            case 2 -> iterations = randomValueOtherThan(iterations, ESTestCase::randomNonNegativeLong);
+            case 3 -> operators = randomValueOtherThan(operators, DriverStatusTests::randomOperatorStatuses);
             default -> throw new UnsupportedOperationException();
         }
-        return new DriverProfile(tookNanos, cpuNanos, operators);
+        return new DriverProfile(tookNanos, cpuNanos, iterations, operators);
     }
 
     @Override

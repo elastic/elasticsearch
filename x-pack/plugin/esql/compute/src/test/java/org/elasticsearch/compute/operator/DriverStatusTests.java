@@ -34,6 +34,7 @@ public class DriverStatusTests extends AbstractWireSerializingTestCase<DriverSta
             123413220000L,
             123413243214L,
             123213L,
+            55L,
             DriverStatus.Status.RUNNING,
             List.of(
                 new DriverStatus.OperatorStatus("LuceneSource", LuceneSourceOperatorStatusTests.simple()),
@@ -48,6 +49,7 @@ public class DriverStatusTests extends AbstractWireSerializingTestCase<DriverSta
               "last_updated" : "1973-11-29T09:27:23.214Z",
               "cpu_nanos" : 123213,
               "cpu_time" : "123.2micros",
+              "iterations" : 55,
               "status" : "running",
               "completed_operators" : [
                 {
@@ -86,6 +88,7 @@ public class DriverStatusTests extends AbstractWireSerializingTestCase<DriverSta
             randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
+            randomNonNegativeLong(),
             randomStatus(),
             randomOperatorStatuses(),
             randomOperatorStatuses()
@@ -120,20 +123,22 @@ public class DriverStatusTests extends AbstractWireSerializingTestCase<DriverSta
         long started = instance.started();
         long lastUpdated = instance.lastUpdated();
         long cpuNanos = instance.cpuNanos();
+        long iterations = instance.iterations();
         var status = instance.status();
         var completedOperators = instance.completedOperators();
         var activeOperators = instance.activeOperators();
-        switch (between(0, 6)) {
+        switch (between(0, 7)) {
             case 0 -> sessionId = randomValueOtherThan(sessionId, this::randomSessionId);
             case 1 -> started = randomValueOtherThan(started, ESTestCase::randomNonNegativeLong);
             case 2 -> lastUpdated = randomValueOtherThan(lastUpdated, ESTestCase::randomNonNegativeLong);
             case 3 -> cpuNanos = randomValueOtherThan(cpuNanos, ESTestCase::randomNonNegativeLong);
-            case 4 -> status = randomValueOtherThan(status, this::randomStatus);
-            case 5 -> completedOperators = randomValueOtherThan(completedOperators, DriverStatusTests::randomOperatorStatuses);
-            case 6 -> activeOperators = randomValueOtherThan(activeOperators, DriverStatusTests::randomOperatorStatuses);
+            case 4 -> iterations = randomValueOtherThan(iterations, ESTestCase::randomNonNegativeLong);
+            case 5 -> status = randomValueOtherThan(status, this::randomStatus);
+            case 6 -> completedOperators = randomValueOtherThan(completedOperators, DriverStatusTests::randomOperatorStatuses);
+            case 7 -> activeOperators = randomValueOtherThan(activeOperators, DriverStatusTests::randomOperatorStatuses);
             default -> throw new UnsupportedOperationException();
         }
-        return new DriverStatus(sessionId, started, lastUpdated, cpuNanos, status, completedOperators, activeOperators);
+        return new DriverStatus(sessionId, started, lastUpdated, cpuNanos, iterations, status, completedOperators, activeOperators);
     }
 
     @Override

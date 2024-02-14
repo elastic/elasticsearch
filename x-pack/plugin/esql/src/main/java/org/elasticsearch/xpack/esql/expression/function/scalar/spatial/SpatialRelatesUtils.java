@@ -15,7 +15,7 @@ import org.elasticsearch.common.geo.LuceneGeometriesUtils;
 import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Geometry;
-import org.elasticsearch.geometry.Point;
+import org.elasticsearch.geometry.ShapeType;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.index.mapper.ShapeIndexer;
 import org.elasticsearch.lucene.spatial.CartesianShapeIndexer;
@@ -79,12 +79,11 @@ public class SpatialRelatesUtils {
         throws IOException {
         GeometryDocValueReader reader = new GeometryDocValueReader();
         CentroidCalculator centroidCalculator = new CentroidCalculator();
-        if (geometry instanceof Circle circle) {
-            // TODO: How should we deal with circles?
-            centroidCalculator.add(new Point(circle.getX(), circle.getY()));
-        } else {
-            centroidCalculator.add(geometry);
+        if (geometry instanceof Circle) {
+            // Both the centroid calculator and the shape indexer do not support circles
+            throw new IllegalArgumentException(ShapeType.CIRCLE + " geometry is not supported");
         }
+        centroidCalculator.add(geometry);
         reader.reset(GeometryDocValueWriter.write(shapeIndexer.indexShape(geometry), encoder, centroidCalculator));
         return reader;
     }

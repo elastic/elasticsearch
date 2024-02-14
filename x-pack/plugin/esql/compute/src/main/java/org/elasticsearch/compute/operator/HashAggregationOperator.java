@@ -142,7 +142,7 @@ public class HashAggregationOperator implements Operator {
                     end();
                 }
 
-                private void start() {
+                private void startAggEndHash() {
                     aggStart = System.nanoTime();
                     hashNanos += aggStart - hashStart;
                 }

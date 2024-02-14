@@ -778,7 +778,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
                 null,
                 null,
                 null,
-                new CompoundProcessor(factory.create(Map.of(), null, null, nextPipelineConfig))
+                new CompoundProcessor(factory.create(Collections.emptyMap(), null, null, nextPipelineConfig))
             );
             when(ingestService.getPipeline(pipelineId)).thenReturn(pipeline);
         }
@@ -792,7 +792,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
         String firstPipelineId = "pipeline0";
         Map<String, Object> firstPipelineConfig = new HashMap<>();
         firstPipelineConfig.put("name", firstPipelineId);
-        PipelineProcessor pipelineProcessor = factory.create(Map.of(), null, null, firstPipelineConfig);
+        PipelineProcessor pipelineProcessor = factory.create(Collections.emptyMap(), null, null, firstPipelineConfig);
         CompoundProcessor actualProcessor = new CompoundProcessor(pipelineProcessor);
 
         CompoundProcessor trackingProcessor = decorate(actualProcessor, null, resultList);

@@ -112,6 +112,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executor;
@@ -4018,7 +4019,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 repositoryName
             );
             if (request.partial() == false) {
-                Set<String> missing = new HashSet<>();
+                Set<String> missing = new TreeSet<>(); // sorted for more usable message
                 for (Map.Entry<ShardId, ShardSnapshotStatus> entry : shards.entrySet()) {
                     if (entry.getValue().state() == ShardState.MISSING) {
                         missing.add(entry.getKey().getIndex().getName());
@@ -4027,7 +4028,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 if (missing.isEmpty() == false) {
                     throw new SnapshotException(snapshot, Strings.format("""
                         the following indices have unassigned primary shards \
-                        and cannot be included in a snapshot with [partial] set to [false]: %s; \
+                        and cannot be included in a snapshot unless [partial] is set to [true]: %s; \
                         for help with troubleshooting unassigned shards see %s
                         """, missing, ReferenceDocs.UNASSIGNED_SHARDS));
                 }

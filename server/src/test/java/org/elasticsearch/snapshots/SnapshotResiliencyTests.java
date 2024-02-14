@@ -439,7 +439,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     asInstanceOf(SnapshotException.class, ExceptionsHelper.unwrap(e, SnapshotException.class)).getMessage(),
                     allOf(
                         containsString("the following indices have unassigned primary shards"),
-                        containsString("[partial] set to [false]"),
+                        containsString("unless [partial] is set to [true]"),
                         containsString("[test]"),
                         containsString(ReferenceDocs.UNASSIGNED_SHARDS.toString())
                     )
@@ -1383,6 +1383,75 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 + Strings.toString(SnapshotsInProgress.get(masterClusterService.state()), true, true),
             testListener.isDone()
         );
+        safeAwait(testListener); // shouldn't throw
+    }
+
+    public void testFullSnapshotUnassignedShards() {
+        setupTestCluster(1, 0); // no data nodes, we want unassigned shards
+
+        final var indices = IntStream.range(0, between(1, 4)).mapToObj(i -> "index-" + i).sorted().toList();
+        final var repoName = "repo";
+        final var originalSnapshotName = "original-snapshot";
+
+        var testListener = SubscribableListener
+
+            // Create the repo and indices
+            .<Void>newForked(stepListener -> {
+                try (var listeners = new RefCountingListener(stepListener)) {
+                    client().admin()
+                        .cluster()
+                        .preparePutRepository(repoName)
+                        .setType(FsRepository.TYPE)
+                        .setSettings(Settings.builder().put("location", randomAlphaOfLength(10)))
+                        .execute(listeners.acquire(createRepoResponse -> {}));
+
+                    for (final var index : indices) {
+                        deterministicTaskQueue.scheduleNow( // randomize creation order
+                            ActionRunnable.<CreateIndexResponse>wrap(
+                                listeners.acquire(createIndexResponse -> {}),
+                                l -> client().admin()
+                                    .indices()
+                                    .create(
+                                        new CreateIndexRequest(index).waitForActiveShards(ActiveShardCount.NONE)
+                                            .settings(defaultIndexSettings(1)),
+                                        l
+                                    )
+                            )
+                        );
+                    }
+                }
+            })
+
+            // Take a full snapshot for use as the source for future clones
+            .<Void>andThen(
+                (l, ignored) -> client().admin()
+                    .cluster()
+                    .prepareCreateSnapshot(repoName, originalSnapshotName)
+                    .setWaitForCompletion(randomBoolean())
+                    .execute(new ActionListener<>() {
+                        @Override
+                        public void onResponse(CreateSnapshotResponse createSnapshotResponse) {
+                            fail("snapshot should not have started");
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            assertThat(
+                                asInstanceOf(SnapshotException.class, e).getMessage(),
+                                allOf(
+                                    containsString("the following indices have unassigned primary shards"),
+                                    containsString("unless [partial] is set to [true]"),
+                                    containsString(indices.toString() /* NB sorted */),
+                                    containsString(ReferenceDocs.UNASSIGNED_SHARDS.toString())
+                                )
+                            );
+                            l.onResponse(null);
+                        }
+                    })
+            );
+
+        deterministicTaskQueue.runAllRunnableTasks();
+        assertTrue("executed all runnable tasks but test steps are still incomplete", testListener.isDone());
         safeAwait(testListener); // shouldn't throw
     }
 

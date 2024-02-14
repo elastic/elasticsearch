@@ -1198,11 +1198,11 @@ couNt(*):l
 
 sumOfConst#[skip:-8.12.99,reason:supported in 8.13]
 FROM employees
-| STATS s1 = sum(1), s2point1 = sum(2.1), smv = sum([-1, 0, 3]), rows = count(*)
+| STATS s1 = sum(1), s2point1 = sum(2.1), smv = sum([-1, 0, 3]), snull = sum(null), rows = count(*)
 ;
 
-s1:l | s2point1:d | smv:l | rows:l
-100  | 210.0      | 200   | 100
+s1:l | s2point1:d | smv:l | snull:null | rows:l
+100  | 210.0      | 200   | null       | 100
 ;
 
 sumOfConstGrouped#[skip:-8.12.99,reason:supported in 8.13]

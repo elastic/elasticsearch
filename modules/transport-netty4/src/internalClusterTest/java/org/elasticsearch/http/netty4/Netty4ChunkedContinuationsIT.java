@@ -564,12 +564,12 @@ public class Netty4ChunkedContinuationsIT extends ESNetty4IntegTestCase {
                         return new RestChannelConsumer() {
                             @Override
                             public void close() {
-                                refs.decRef();
+                                localRefs.decRef();
                             }
 
                             @Override
                             public void accept(RestChannel channel) {
-                                refs.mustIncRef();
+                                localRefs.mustIncRef();
                                 client.execute(TYPE, new Request(), new RestActionListener<>(channel) {
                                     @Override
                                     protected void processResponse(Response response) {
@@ -577,7 +577,8 @@ public class Netty4ChunkedContinuationsIT extends ESNetty4IntegTestCase {
                                             // cancellation notification only happens while processing a continuation, not while computing
                                             // the next one; prompt cancellation requires use of something like RestCancellableNodeClient
                                             assertFalse(response.computingContinuation);
-                                            refs.decRef();
+                                            assertSame(localRefs, refs);
+                                            localRefs.decRef();
                                         }));
                                     }
                                 });

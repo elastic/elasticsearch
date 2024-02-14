@@ -85,7 +85,8 @@ public class RestGetRolesAction extends NativeRoleBaseRestHandler {
         // For restricted requests it should only be available if native role management is enabled
         if (false == request.hasParam(RestRequest.RESPONSE_RESTRICTED)) {
             return null;
+        } else {
+            return super.innerCheckFeatureAvailable(request);
         }
-        return super.innerCheckFeatureAvailable(request);
     }
 }

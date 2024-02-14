@@ -55,6 +55,7 @@ public class RestGetRolesAction extends NativeRoleBaseRestHandler {
         final String[] roles = request.paramAsStringArray("name", Strings.EMPTY_ARRAY);
         final boolean restrictRequest = request.hasParam(RestRequest.RESPONSE_RESTRICTED);
         return channel -> new GetRolesRequestBuilder(client).names(roles)
+            // TODO is this safe?
             .nativeOnly(restrictRequest)
             .execute(new RestBuilderListener<>(channel) {
                 @Override
@@ -83,6 +84,7 @@ public class RestGetRolesAction extends NativeRoleBaseRestHandler {
         // Note: For non-restricted requests this action handles both reserved roles and native
         // roles, and should still be available even if native role management is disabled.
         // For restricted requests it should only be available if native role management is enabled
+        // TODO is this safe?
         if (false == request.hasParam(RestRequest.RESPONSE_RESTRICTED)) {
             return null;
         } else {

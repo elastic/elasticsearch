@@ -21,9 +21,11 @@ import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 public class TransportGetRolesAction extends TransportAction<GetRolesRequest, GetRolesResponse> {
 
@@ -46,17 +48,17 @@ public class TransportGetRolesAction extends TransportAction<GetRolesRequest, Ge
     protected void doExecute(Task task, final GetRolesRequest request, final ActionListener<GetRolesResponse> listener) {
         final String[] requestedRoles = request.names();
         final boolean specificRolesRequested = requestedRoles != null && requestedRoles.length > 0;
-        final Set<String> rolesToSearchFor = new HashSet<>();
-        final List<RoleDescriptor> reservedRoles = new ArrayList<>();
 
         if (request.nativeOnly()) {
-            if (specificRolesRequested) {
-                rolesToSearchFor.addAll(Arrays.stream(requestedRoles).toList());
-            }
-            getNativeRoles(rolesToSearchFor, reservedRoles, listener);
+            final Set<String> rolesToSearchFor = specificRolesRequested
+                ? Arrays.stream(requestedRoles).collect(Collectors.toSet())
+                : Collections.emptySet();
+            getNativeRoles(rolesToSearchFor, listener);
             return;
         }
 
+        final Set<String> rolesToSearchFor = new HashSet<>();
+        final List<RoleDescriptor> reservedRoles = new ArrayList<>();
         if (specificRolesRequested) {
             for (String role : requestedRoles) {
                 if (ReservedRolesStore.isReserved(role)) {
@@ -81,6 +83,10 @@ public class TransportGetRolesAction extends TransportAction<GetRolesRequest, Ge
         } else {
             getNativeRoles(rolesToSearchFor, reservedRoles, listener);
         }
+    }
+
+    private void getNativeRoles(Set<String> rolesToSearchFor, ActionListener<GetRolesResponse> listener) {
+        getNativeRoles(rolesToSearchFor, new ArrayList<>(), listener);
     }
 
     private void getNativeRoles(

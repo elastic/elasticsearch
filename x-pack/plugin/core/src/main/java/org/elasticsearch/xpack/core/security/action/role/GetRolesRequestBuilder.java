@@ -24,7 +24,7 @@ public class GetRolesRequestBuilder extends ActionRequestBuilder<GetRolesRequest
     }
 
     public GetRolesRequestBuilder nativeOnly(boolean nativeOnly) {
-        request.setNativeOnly(nativeOnly);
+        request.nativeOnly(nativeOnly);
         return this;
     }
 }

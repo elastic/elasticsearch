@@ -44,7 +44,7 @@ public class GetRolesRequest extends ActionRequest {
         return names;
     }
 
-    public void setNativeOnly(boolean nativeOnly) {
+    public void nativeOnly(boolean nativeOnly) {
         this.nativeOnly = nativeOnly;
     }
 

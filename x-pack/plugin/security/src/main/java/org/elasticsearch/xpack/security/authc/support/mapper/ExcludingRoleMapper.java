@@ -16,6 +16,10 @@ import java.util.Collection;
 import java.util.Objects;
 import java.util.Set;
 
+/**
+ * Implementation of role mapper which wraps a {@link UserRoleMapper}
+ * and filters out the resolved roles by removing the configured roles to exclude.
+ */
 public class ExcludingRoleMapper implements UserRoleMapper {
 
     private final UserRoleMapper delegate;

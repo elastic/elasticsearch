@@ -1208,6 +1208,11 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         "strict_date_optional_time_nanos||strict_date_optional_time||epoch_millis"
     );
 
+    /**
+     * Returns the indices created within the {@param maxIndexAge} interval. Note that this strives to cover
+     * the entire {@param maxIndexAge} interval so one backing index created before the specified age will also
+     * be return.
+     */
     public static List<Index> getIndicesWithinMaxAgeRange(
         DataStream dataStream,
         Function<Index, IndexMetadata> indexProvider,

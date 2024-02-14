@@ -370,6 +370,10 @@ public final class ConnectorTestUtils {
         return randomFrom(invalidStatuses);
     }
 
+    public static String nullString() {
+        return null;
+    }
+
     public static ConnectorStatus getRandomConnectorStatus() {
         ConnectorStatus[] values = ConnectorStatus.values();
         return values[randomInt(values.length - 1)];

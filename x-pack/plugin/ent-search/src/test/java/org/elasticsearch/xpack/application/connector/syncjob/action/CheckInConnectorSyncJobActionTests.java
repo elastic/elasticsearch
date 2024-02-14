@@ -12,6 +12,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJobConstants;
 import org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJobTestUtils;
 
+import static org.elasticsearch.xpack.application.connector.ConnectorTestUtils.nullString;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -33,4 +34,13 @@ public class CheckInConnectorSyncJobActionTests extends ESTestCase {
         assertThat(exception.getMessage(), containsString(ConnectorSyncJobConstants.EMPTY_CONNECTOR_SYNC_JOB_ID_ERROR_MESSAGE));
     }
 
+    public void testValidate_WhenConnectorSyncJobIdIsNull_ExpectValidationError() {
+        CheckInConnectorSyncJobAction.Request requestWithMissingConnectorSyncJobId = new CheckInConnectorSyncJobAction.Request(
+            nullString()
+        );
+        ActionRequestValidationException exception = requestWithMissingConnectorSyncJobId.validate();
+
+        assertThat(exception, notNullValue());
+        assertThat(exception.getMessage(), containsString(ConnectorSyncJobConstants.EMPTY_CONNECTOR_SYNC_JOB_ID_ERROR_MESSAGE));
+    }
 }

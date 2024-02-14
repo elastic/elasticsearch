@@ -1,0 +1,7 @@
+pr: 105360
+summary: Cross-cluster painless/execute actions should check permissions only on target
+  remote cluster
+area: Search
+type: bug
+issues:
+ - 105084

@@ -8,25 +8,21 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.document.Field;
-import org.apache.lucene.document.IntField;
-import org.apache.lucene.document.IntPoint;
-import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.ByteUtils;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
-import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
+import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.index.fielddata.plain.SortedOrdinalsIndexFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.script.field.IntegerDocValuesField;
+import org.elasticsearch.script.field.DelegateDocValuesField;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 
 import java.util.Base64;
-import java.util.Collection;
 import java.util.Collections;
 
 /**
@@ -51,12 +47,12 @@ public class TimeSeriesRoutingIdFieldMapper extends MetadataFieldMapper {
 
     public static final TypeParser PARSER = new FixedTypeParser(c -> INSTANCE);
 
-    static final class TimeSeriesRoutingIdFieldType extends SimpleMappedFieldType {
+    static final class TimeSeriesRoutingIdFieldType extends MappedFieldType {
 
         private static final TimeSeriesRoutingIdFieldType INSTANCE = new TimeSeriesRoutingIdFieldType();
 
         private TimeSeriesRoutingIdFieldType() {
-            super(NAME, true, false, true, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, Collections.emptyMap());
+            super(NAME, false, false, true, TextSearchInfo.NONE, Collections.emptyMap());
         }
 
         @Override
@@ -64,73 +60,27 @@ public class TimeSeriesRoutingIdFieldMapper extends MetadataFieldMapper {
             return NAME;
         }
 
-        private static int parse(Object value) {
-            if (value instanceof Number) {
-                return ((Number) value).intValue();
-            }
-            if (value instanceof BytesRef) {
-                value = ((BytesRef) value).utf8ToString();
-            }
-            return Integer.parseInt(value.toString());
-        }
-
-        @Override
-        public boolean mayExistInIndex(SearchExecutionContext context) {
-            return false;
-        }
-
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            throw new UnsupportedOperationException("Cannot fetch values for internal field [" + name() + "].");
-        }
-
-        @Override
-        public Query termQuery(Object value, @Nullable SearchExecutionContext context) {
-            int v = parse(value);
-            return IntPoint.newExactQuery(name(), v);
-        }
-
-        @Override
-        public Query termsQuery(Collection<?> values, @Nullable SearchExecutionContext context) {
-            int[] v = values.stream().mapToInt(TimeSeriesRoutingIdFieldType::parse).toArray();
-            return IntPoint.newSetQuery(name(), v);
-        }
-
-        @Override
-        public Query rangeQuery(
-            Object lowerTerm,
-            Object upperTerm,
-            boolean includeLower,
-            boolean includeUpper,
-            SearchExecutionContext context
-        ) {
-            int l = Integer.MIN_VALUE;
-            int u = Integer.MAX_VALUE;
-            if (lowerTerm != null) {
-                l = parse(lowerTerm);
-                if (includeLower == false) {
-                    if (l == Integer.MAX_VALUE) {
-                        return new MatchNoDocsQuery();
-                    }
-                    ++l;
-                }
-            }
-            if (upperTerm != null) {
-                u = parse(upperTerm);
-                if (includeUpper == false) {
-                    if (u == Integer.MIN_VALUE) {
-                        return new MatchNoDocsQuery();
-                    }
-                    --u;
-                }
-            }
-            return IntPoint.newRangeQuery(name(), l, u);
+            return new DocValueFetcher(docValueFormat(format, null), context.getForField(this, MappedFieldType.FielddataOperation.SEARCH));
         }
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             failIfNoDocValues();
-            return new SortedNumericIndexFieldData.Builder(name(), NumericType.INT, IntegerDocValuesField::new);
+            return new SortedOrdinalsIndexFieldData.Builder(
+                name(),
+                CoreValuesSourceType.KEYWORD,
+                (dv, n) -> new DelegateDocValuesField(
+                    new ScriptDocValues.Strings(new ScriptDocValues.StringsSupplier(FieldData.toString(dv))),
+                    n
+                )
+            );
+        }
+
+        @Override
+        public Query termQuery(Object value, SearchExecutionContext context) {
+            throw new IllegalArgumentException("[" + NAME + "] is not searchable");
         }
     }
 
@@ -142,8 +92,7 @@ public class TimeSeriesRoutingIdFieldMapper extends MetadataFieldMapper {
     public void postParse(DocumentParserContext context) {
         if (context.indexSettings().getMode() == IndexMode.TIME_SERIES
             && context.indexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.TIME_SERIES_ROUTING_ID_IN_ID)) {
-            int routingId = decode(context.sourceToParse().id());
-            var field = new IntField(NAME, routingId, Field.Store.YES);
+            var field = new SortedDocValuesField(NAME, Uid.encodeId(context.sourceToParse().id()));
             context.doc().add(field);
         }
     }
@@ -161,7 +110,7 @@ public class TimeSeriesRoutingIdFieldMapper extends MetadataFieldMapper {
     public static String encode(int routingId) {
         byte[] bytes = new byte[4];
         ByteUtils.writeIntLE(routingId, bytes, 0);
-        return Base64.getUrlEncoder().encodeToString(bytes);
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
     }
 
     public static int decode(String routingId) {

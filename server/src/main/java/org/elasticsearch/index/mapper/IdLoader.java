@@ -107,11 +107,11 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
                     var routingBuilder = builders[i];
                     ids[i] = TsidExtractingIdFieldMapper.createId(false, routingBuilder, tsid, timestamp, new byte[16]);
                 } else {
-                    SortedNumericDocValues routingIdDocValues = DocValues.getSortedNumeric(reader, TimeSeriesRoutingIdFieldMapper.NAME);
+                    SortedDocValues routingIdDocValues = DocValues.getSorted(reader, TimeSeriesRoutingIdFieldMapper.NAME);
                     found = routingIdDocValues.advanceExact(docId);
                     assert found;
-                    assert routingIdDocValues.docValueCount() == 1 : routingIdDocValues.docValueCount();
-                    int routingId = Math.toIntExact(routingIdDocValues.nextValue());
+                    BytesRef routingIdBytes = routingIdDocValues.lookupOrd(routingIdDocValues.ordValue());
+                    int routingId = TimeSeriesRoutingIdFieldMapper.decode(Uid.decodeId(routingIdBytes.bytes));
                     ids[i] = TsidExtractingIdFieldMapper.createId(routingId, tsid, timestamp);
                 }
             }

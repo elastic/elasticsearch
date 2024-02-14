@@ -21,6 +21,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.mapper.TimeSeriesRoutingIdFieldMapper;
 import org.elasticsearch.transport.Transports;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParser.Token;
@@ -255,9 +256,7 @@ public abstract class IndexRouting {
         @Override
         public void postProcess(IndexRequest indexRequest) {
             if (indexRequest.id() == null) {
-                byte[] bytes = new byte[4];
-                ByteUtils.writeIntLE(routingId, bytes, 0);
-                indexRequest.id(Base64.getUrlEncoder().encodeToString(bytes));
+                indexRequest.id(TimeSeriesRoutingIdFieldMapper.encode(routingId));
             }
         }
 

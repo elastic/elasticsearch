@@ -1,0 +1,5 @@
+pr: 104618
+summary: Add named param support in ESQL `_query` API
+area: ES|QL
+type: enhancement
+issues: []

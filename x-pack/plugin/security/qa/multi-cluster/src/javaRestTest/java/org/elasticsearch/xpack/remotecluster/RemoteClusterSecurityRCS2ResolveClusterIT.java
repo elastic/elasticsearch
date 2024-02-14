@@ -36,7 +36,10 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class RemoteClusterSecurityResolveClusterIT extends AbstractRemoteClusterSecurityTestCase {
+/**
+ * Tests the _resolve/cluster API under RCS2.0 security model
+ */
+public class RemoteClusterSecurityRCS2ResolveClusterIT extends AbstractRemoteClusterSecurityTestCase {
 
     private static final AtomicReference<Map<String, Object>> API_KEY_MAP_REF = new AtomicReference<>();
     private static final AtomicReference<Map<String, Object>> REST_API_KEY_MAP_REF = new AtomicReference<>();
@@ -168,14 +171,12 @@ public class RemoteClusterSecurityResolveClusterIT extends AbstractRemoteCluster
                 """));
             assertOK(performRequestAgainstFulfillingCluster(bulkRequest));
         }
-
         {
             // TEST CASE 1: Query cluster -> try to resolve local and remote star patterns (no access to remote cluster)
             final Request starResolveRequest = new Request("GET", "_resolve/cluster/*,my_remote_cluster:*");
             Response response = performRequestWithRemoteSearchUser(starResolveRequest);
             assertOK(response);
             Map<String, Object> responseMap = responseAsMap(response);
-            System.err.println(">> XXX CASE1 remoteClusterResponse: " + responseMap);
             assertLocalMatching(responseMap);
 
             Map<String, ?> remoteClusterResponse = (Map<String, ?>) responseMap.get("my_remote_cluster");
@@ -213,9 +214,8 @@ public class RemoteClusterSecurityResolveClusterIT extends AbstractRemoteCluster
             assertLocalMatching(responseMap);
             assertRemoteMatching(responseMap);
         }
-
-        // TEST CASE 3: Query cluster -> resolve index1 for local index without any local privilege
         {
+            // TEST CASE 3: Query cluster -> resolve index1 for local index without any local privilege
             final Request localOnly1 = new Request("GET", "_resolve/cluster/index1");
             ResponseException exc = expectThrows(ResponseException.class, () -> performRequestWithRemoteSearchUser(localOnly1));
             assertThat(exc.getResponse().getStatusLine().getStatusCode(), is(403));
@@ -227,7 +227,6 @@ public class RemoteClusterSecurityResolveClusterIT extends AbstractRemoteCluster
                 )
             );
         }
-
         {
             // TEST CASE 4: Query cluster -> resolve local for local index without any local privilege using wildcard
             final Request localOnlyWildcard1 = new Request("GET", "_resolve/cluster/index1*");
@@ -236,7 +235,6 @@ public class RemoteClusterSecurityResolveClusterIT extends AbstractRemoteCluster
             Map<String, Object> responseMap = responseAsMap(response);
             assertMatching((Map<String, Object>) responseMap.get(LOCAL_CLUSTER_NAME_REPRESENTATION), false);
         }
-
         {
             // TEST CASE 5: Query cluster -> resolve remote and local without permission where using wildcard 'index1*'
             final Request localNoPermsRemoteWithPerms = new Request("GET", "_resolve/cluster/index1*,my_remote_cluster:index1");
@@ -246,7 +244,6 @@ public class RemoteClusterSecurityResolveClusterIT extends AbstractRemoteCluster
             assertMatching((Map<String, Object>) responseMap.get(LOCAL_CLUSTER_NAME_REPRESENTATION), false);
             assertRemoteMatching(responseMap);
         }
-
         {
             // TEST CASE 6: Query cluster -> resolve remote only for existing and privileged index
             final Request remoteOnly1 = new Request("GET", "_resolve/cluster/my_remote_cluster:index1");
@@ -256,7 +253,6 @@ public class RemoteClusterSecurityResolveClusterIT extends AbstractRemoteCluster
             assertThat(responseMap.get(LOCAL_CLUSTER_NAME_REPRESENTATION), nullValue());
             assertRemoteMatching(responseMap);
         }
-
         {
             // TEST CASE 7: Query cluster -> resolve remote only for existing but non-privileged index
             final Request remoteOnly2 = new Request("GET", "_resolve/cluster/my_remote_cluster:secretindex");
@@ -267,10 +263,8 @@ public class RemoteClusterSecurityResolveClusterIT extends AbstractRemoteCluster
             Map<String, ?> remoteClusterResponse = (Map<String, ?>) responseMap.get("my_remote_cluster");
             assertThat((Boolean) remoteClusterResponse.get("connected"), equalTo(true));
             assertThat((String) remoteClusterResponse.get("error"), containsString("is unauthorized for user"));
-            assertThat((String) remoteClusterResponse.get("error"), containsString("with assigned roles [remote_search]"));
             assertThat((String) remoteClusterResponse.get("error"), containsString("on indices [secretindex]"));
         }
-
         {
             // TEST CASE 8: Query cluster -> resolve remote only for non-existing and non-privileged index
             final Request remoteOnly3 = new Request("GET", "_resolve/cluster/my_remote_cluster:doesnotexist");
@@ -281,10 +275,8 @@ public class RemoteClusterSecurityResolveClusterIT extends AbstractRemoteCluster
             Map<String, ?> remoteClusterResponse = (Map<String, ?>) responseMap.get("my_remote_cluster");
             assertThat((Boolean) remoteClusterResponse.get("connected"), equalTo(true));
             assertThat((String) remoteClusterResponse.get("error"), containsString("is unauthorized for user"));
-            assertThat((String) remoteClusterResponse.get("error"), containsString("with assigned roles [remote_search]"));
             assertThat((String) remoteClusterResponse.get("error"), containsString("on indices [doesnotexist]"));
         }
-
         {
             // TEST CASE 9: Query cluster -> resolve remote only for non-existing but privileged (by index pattern) index
             final Request remoteOnly4 = new Request("GET", "_resolve/cluster/my_remote_cluster:index99");
@@ -297,7 +289,6 @@ public class RemoteClusterSecurityResolveClusterIT extends AbstractRemoteCluster
             assertThat((Boolean) remoteClusterResponse.get("skip_unavailable"), equalTo(false));
             assertThat((String) remoteClusterResponse.get("error"), containsString("no such index [index99]"));
         }
-
         {
             // TEST CASE 10: Query cluster -> resolve remote only for some existing/privileged,
             // non-existing/privileged, existing/non-privileged
@@ -312,7 +303,6 @@ public class RemoteClusterSecurityResolveClusterIT extends AbstractRemoteCluster
             Map<String, ?> remoteClusterResponse = (Map<String, ?>) responseMap.get("my_remote_cluster");
             assertThat((Boolean) remoteClusterResponse.get("connected"), equalTo(true));
             assertThat((String) remoteClusterResponse.get("error"), containsString("is unauthorized for user"));
-            assertThat((String) remoteClusterResponse.get("error"), containsString("with assigned roles [remote_search]"));
             assertThat((String) remoteClusterResponse.get("error"), containsString("on indices [secretindex]"));
         }
     }

@@ -317,17 +317,6 @@ public class InternalIpPrefix extends InternalMultiBucketAggregation<InternalIpP
         );
     }
 
-    private Bucket reduceBucket(List<Bucket> buckets, AggregationReduceContext context) {
-        assert buckets.isEmpty() == false;
-        long docCount = 0;
-        for (InternalIpPrefix.Bucket bucket : buckets) {
-            docCount += bucket.docCount;
-        }
-        final List<InternalAggregations> aggregations = new BucketAggregationList<>(buckets);
-        final InternalAggregations aggs = InternalAggregations.reduce(aggregations, context);
-        return createBucket(buckets.get(0), aggs, docCount);
-    }
-
     @Override
     public List<Bucket> getBuckets() {
         return Collections.unmodifiableList(buckets);

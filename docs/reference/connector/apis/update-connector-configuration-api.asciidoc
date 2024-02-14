@@ -229,7 +229,7 @@ PUT _connector/my-spo-connector/_configuration
 ----
 
 
-An example to update single configuration field of the `sharepoint_online` connector, in that case other configuration values won't change:
+An example to update single configuration field of the `sharepoint_online` connector. In this case other configuration values won't change:
 
 [source,console]
 ----

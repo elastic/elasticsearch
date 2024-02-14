@@ -11,7 +11,6 @@ package org.elasticsearch.transport.netty4;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelOption;
-import io.netty.channel.ChannelPromise;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -20,9 +19,11 @@ import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.transport.TcpChannel;
-import org.elasticsearch.transport.TransportException;
 
 import java.net.InetSocketAddress;
+
+import static org.elasticsearch.transport.netty4.Netty4Utils.addPromise;
+import static org.elasticsearch.transport.netty4.Netty4Utils.safeWriteAndFlush;
 
 public class Netty4TcpChannel implements TcpChannel {
 
@@ -63,31 +64,6 @@ public class Netty4TcpChannel implements TcpChannel {
                 }
             }
         });
-    }
-
-    /**
-     * Creates a {@link ChannelPromise} for the given {@link Channel} and adds a listener that invokes the given {@link ActionListener}
-     * on its completion.
-     * @param listener lister to invoke
-     * @param channel channel
-     * @return write promise
-     */
-    public static ChannelPromise addPromise(ActionListener<Void> listener, Channel channel) {
-        ChannelPromise writePromise = channel.newPromise();
-        writePromise.addListener(f -> {
-            if (f.isSuccess()) {
-                listener.onResponse(null);
-            } else {
-                final Throwable cause = f.cause();
-                ExceptionsHelper.maybeDieOnAnotherThread(cause);
-                if (cause instanceof Error) {
-                    listener.onFailure(new Exception(cause));
-                } else {
-                    listener.onFailure((Exception) cause);
-                }
-            }
-        });
-        return writePromise;
     }
 
     @Override
@@ -162,13 +138,7 @@ public class Netty4TcpChannel implements TcpChannel {
 
     @Override
     public void sendMessage(BytesReference reference, ActionListener<Void> listener) {
-        // We need to both guard against double resolving the listener and not resolving it in case of event loop shutdown so we need to
-        // use #notifyOnce here until https://github.com/netty/netty/issues/8007 is resolved.
-        var wrapped = ActionListener.notifyOnce(listener);
-        channel.writeAndFlush(reference, addPromise(wrapped, channel));
-        if (channel.eventLoop().isShutdown()) {
-            wrapped.onFailure(new TransportException("Cannot send message, event loop is shutting down."));
-        }
+        safeWriteAndFlush(channel, reference, addPromise(listener, channel));
     }
 
     public Channel getNettyChannel() {

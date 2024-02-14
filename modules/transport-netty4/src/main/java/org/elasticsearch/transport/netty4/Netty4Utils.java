@@ -11,16 +11,21 @@ package org.elasticsearch.transport.netty4;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.CompositeByteBuf;
 import io.netty.buffer.Unpooled;
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelPromise;
 import io.netty.util.NettyRuntime;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.transport.TransportException;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -120,5 +125,48 @@ public class Netty4Utils {
         // setting the processors. We must do it ourselves first just in case.
         setAvailableProcessors(EsExecutors.allocatedProcessors(settings));
         return NettyAllocator.getRecycler();
+    }
+
+    /**
+     * Calls {@link Channel#writeAndFlush} to write the given message to the given channel, but ensures that the promise is completed even
+     * if the event loop is concurrently shutting down since Netty does not offer this guarantee.
+     */
+    public static void safeWriteAndFlush(Channel channel, Object message, ChannelPromise promise) {
+        channel.writeAndFlush(message, promise);
+        if (channel.eventLoop().isShuttingDown()) {
+            // The event loop is shutting down, and https://github.com/netty/netty/issues/8007 means that we cannot know if the preceding
+            // writeAndFlush made it onto its queue before shutdown or whether it will just vanish without a trace, so to avoid a leak we
+            // must double-check that the final listener is completed once the event loop is terminated.
+            channel.eventLoop()
+                .terminationFuture()
+                .addListener(
+                    ignored -> promise.tryFailure(new TransportException("Cannot send network message, event loop is shutting down."))
+                );
+        }
+    }
+
+    /**
+     * Creates a {@link ChannelPromise} for the given {@link Channel} and adds a listener that invokes the given {@link ActionListener}
+     * on its completion.
+     * @param listener lister to invoke
+     * @param channel channel
+     * @return write promise
+     */
+    public static ChannelPromise addPromise(ActionListener<Void> listener, Channel channel) {
+        ChannelPromise writePromise = channel.newPromise();
+        writePromise.addListener(f -> {
+            if (f.isSuccess()) {
+                listener.onResponse(null);
+            } else {
+                final Throwable cause = f.cause();
+                ExceptionsHelper.maybeDieOnAnotherThread(cause);
+                if (cause instanceof Error) {
+                    listener.onFailure(new Exception(cause));
+                } else {
+                    listener.onFailure((Exception) cause);
+                }
+            }
+        });
+        return writePromise;
     }
 }

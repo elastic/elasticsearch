@@ -3210,7 +3210,12 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
     /**
      * Expects
-     * TODO
+     * Project[[s{r}#3, s_expr{r}#5, s_null{r}#7, w{r}#10]]
+     * \_Eval[[$$COUNT$s$0{r}#25 * 3[INTEGER] AS s, $$COUNT$s$0{r}#25 * 3.14[DOUBLE] AS s_expr, null[LONG] AS s_null]]
+     *   \_Limit[500[INTEGER]]
+     *     \_Aggregate[[w{r}#10],[COUNT([2a][KEYWORD]) AS $$COUNT$s$0, w{r}#10]]
+     *       \_Eval[[emp_no{f}#15 % 2[INTEGER] AS w]]
+     *         \_EsRelation[test][_meta_field{f}#21, emp_no{f}#15, first_name{f}#16, ..]
      */
     public void testSumOfConstant() throws Exception {
         var plan = optimizedPlan("""
@@ -3223,19 +3228,36 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             """);
 
         var project = as(plan, Project.class);
-        var limit = as(project.child(), Limit.class);
-        var aggregate = as(limit.child(), Aggregate.class);
-        var aggregates = aggregate.aggregates();
-        assertThat(Expressions.names(aggregates), contains("s", "s_expr", "s_null", "w"));
-        var unwrapped = Alias.unwrap(aggregates.get(0));
-        var sum = as(unwrapped, Sum.class);
-        var sum_argument = sum.field();
-        var grouping = aggregates.get(1);
+        var eval = as(project.child(), Eval.class);
+        var exprs = eval.fields();
 
-        var eval = as(aggregate.child(), Eval.class);
-        var fields = eval.fields();
-        assertThat(Expressions.attribute(fields.get(0)), is(Expressions.attribute(grouping)));
-        assertThat(Expressions.attribute(fields.get(1)), is(Expressions.attribute(sum_argument)));
+        // s = count(*) * 3
+        var mul = as(Alias.unwrap(exprs.get(0)), Mul.class);
+        assertThat(mul.source().text(), equalTo("sum([1,2])"));
+        var left = as(mul.left(), ReferenceAttribute.class);
+        assertThat(left.name(), equalTo("$$COUNT$s$0"));
+        var right = as(mul.right(), Literal.class);
+        assertThat(right.value(), equalTo(3));
+
+        // s_expr = count(*) * 3.14
+        var mul_expr = as(Alias.unwrap(exprs.get(1)), Mul.class);
+        assertThat(mul_expr.source().text(), equalTo("sum(314.0/100)"));
+        var left_expr = as(mul_expr.left(), ReferenceAttribute.class);
+        assertThat(left_expr.name(), equalTo("$$COUNT$s$0"));
+        var right_expr = as(mul_expr.right(), Literal.class);
+        assertThat(right_expr.value(), equalTo(3.14));
+
+        // s_null = null
+        var s_null = as(Alias.unwrap(exprs.get(2)), Literal.class);
+        assertThat(s_null.source().text(), equalTo("sum(null)"));
+        assertThat(s_null.value(), equalTo(null));
+
+        var limit = as(eval.child(), Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        var count = as(Alias.unwrap(agg.aggregates().get(0)), Count.class);
+        assertThat(count.children().get(0), instanceOf(Literal.class));
+        var w = as(Alias.unwrap(agg.groupings().get(0)), ReferenceAttribute.class);
+        assertThat(w.name(), equalTo("w"));
     }
 
     public void testEmptyMappingIndex() {

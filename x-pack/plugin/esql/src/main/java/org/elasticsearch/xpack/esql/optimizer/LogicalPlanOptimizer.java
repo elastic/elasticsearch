@@ -502,7 +502,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             plan = plan.transformUp(p -> {
                 // Apply the replacement inside Filter and Eval (which shouldn't make a difference)
                 // TODO: also allow aggregates once aggs on constants are supported.
-                //       C.f. https://github.com/elastic/elasticsearch/issues/100634
+                // C.f. https://github.com/elastic/elasticsearch/issues/100634
                 if (p instanceof Filter || p instanceof Eval) {
                     p = p.transformExpressionsOnly(ReferenceAttribute.class, replaceReference);
                 }

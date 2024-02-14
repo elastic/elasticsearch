@@ -14,6 +14,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
+import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.io.IOException;
@@ -31,9 +32,13 @@ public final class FetchFieldsPhase implements FetchSubPhase {
     @Override
     public FetchSubPhaseProcessor getProcessor(FetchContext fetchContext) {
         FetchFieldsContext fetchFieldsContext = fetchContext.fetchFieldsContext();
+        StoredFieldsContext storedFieldsContext = fetchContext.storedFieldsContext();
         List<FieldAndFormat> fields = fetchFieldsContext == null ? null : fetchFieldsContext.fields();
         FieldFetcher fieldFetcher = FieldFetcher.create(fetchContext.getSearchExecutionContext(), fields);
-        MetadataFetcher metadataFetcher = MetadataFetcher.create(fetchContext.getSearchExecutionContext());
+        MetadataFetcher metadataFetcher = MetadataFetcher.create(
+            fetchContext.getSearchExecutionContext(),
+            storedFieldsContext.fetchFields()
+        );
 
         return new FetchSubPhaseProcessor() {
             @Override

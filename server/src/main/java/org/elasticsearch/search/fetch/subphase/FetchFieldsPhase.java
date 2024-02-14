@@ -10,9 +10,6 @@ package org.elasticsearch.search.fetch.subphase;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.document.DocumentField;
-import org.elasticsearch.index.mapper.IgnoredFieldMapper;
-import org.elasticsearch.index.mapper.LegacyTypeFieldMapper;
-import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
@@ -20,7 +17,6 @@ import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -32,18 +28,12 @@ import java.util.Map;
  */
 public final class FetchFieldsPhase implements FetchSubPhase {
 
-    private static final List<FieldAndFormat> METADATA_FIELDS = Arrays.asList(
-        new FieldAndFormat(RoutingFieldMapper.NAME, null),
-        new FieldAndFormat(IgnoredFieldMapper.NAME, null),
-        new FieldAndFormat(LegacyTypeFieldMapper.NAME, null)
-    );
-
     @Override
     public FetchSubPhaseProcessor getProcessor(FetchContext fetchContext) {
         FetchFieldsContext fetchFieldsContext = fetchContext.fetchFieldsContext();
         List<FieldAndFormat> fields = fetchFieldsContext == null ? null : fetchFieldsContext.fields();
         FieldFetcher fieldFetcher = FieldFetcher.create(fetchContext.getSearchExecutionContext(), fields);
-        MetadataFetcher metadataFetcher = MetadataFetcher.create(fetchContext.getSearchExecutionContext(), METADATA_FIELDS);
+        MetadataFetcher metadataFetcher = MetadataFetcher.create(fetchContext.getSearchExecutionContext());
 
         return new FetchSubPhaseProcessor() {
             @Override

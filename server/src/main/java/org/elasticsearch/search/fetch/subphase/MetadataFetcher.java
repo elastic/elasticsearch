@@ -10,7 +10,10 @@ package org.elasticsearch.search.fetch.subphase;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.document.DocumentField;
+import org.elasticsearch.index.mapper.IgnoredFieldMapper;
+import org.elasticsearch.index.mapper.LegacyTypeFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.lookup.Source;
@@ -23,15 +26,24 @@ import java.util.List;
 import java.util.Map;
 
 public class MetadataFetcher {
+    private static final List<FieldAndFormat> METADATA_FIELDS = List.of(
+        new FieldAndFormat(RoutingFieldMapper.NAME, null),
+        new FieldAndFormat(IgnoredFieldMapper.NAME, null),
+        new FieldAndFormat(LegacyTypeFieldMapper.NAME, null)
+    );
     private final Map<String, FieldContext> fieldContexts;
+
     public MetadataFetcher(Map<String, FieldContext> fieldContexts) {
         this.fieldContexts = fieldContexts;
     }
+
     private record MetadataField(String field, MappedFieldType mappedFieldType, String format) {}
+
     private record FieldContext(String fieldName, ValueFetcher valueFetcher) {}
-    public static MetadataFetcher create(SearchExecutionContext context, List<FieldAndFormat> fieldAndFormats) {
+
+    public static MetadataFetcher create(SearchExecutionContext context) {
         final List<MetadataField> metadataFields = new ArrayList<>(3);
-        for (FieldAndFormat fieldAndFormat : fieldAndFormats) {
+        for (FieldAndFormat fieldAndFormat : METADATA_FIELDS) {
             for (final String field : context.getMatchingFieldNames(fieldAndFormat.field)) {
                 if (context.getFieldType(field) != null) {
                     metadataFields.add(new MetadataFetcher.MetadataField(field, context.getFieldType(field), fieldAndFormat.format));

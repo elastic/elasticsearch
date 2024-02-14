@@ -21,10 +21,10 @@ import java.util.Objects;
 public record ModelSettings(TaskType taskType, String inferenceId, @Nullable Integer dimensions, @Nullable SimilarityMeasure similarity) {
 
     public static final String NAME = "model_settings";
-    private static final ParseField TASK_TYPE_FIELD = new ParseField("task_type");
-    private static final ParseField INFERENCE_ID_FIELD = new ParseField("inference_id");
-    private static final ParseField DIMENSIONS_FIELD = new ParseField("dimensions");
-    private static final ParseField SIMILARITY_FIELD = new ParseField("similarity");
+    public static final ParseField TASK_TYPE_FIELD = new ParseField("task_type");
+    public static final ParseField INFERENCE_ID_FIELD = new ParseField("inference_id");
+    public static final ParseField DIMENSIONS_FIELD = new ParseField("dimensions");
+    public static final ParseField SIMILARITY_FIELD = new ParseField("similarity");
 
     public ModelSettings(TaskType taskType, String inferenceId, Integer dimensions, SimilarityMeasure similarity) {
         Objects.requireNonNull(taskType, "task type must not be null");

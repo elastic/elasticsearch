@@ -6,7 +6,7 @@
 
 preview::[]
 
-Updates a connector's `configuration``, allowing for complete schema modifications or just value updates within a registered configuration schema.
+Updates a connector's `configuration`, allowing for complete schema modifications or individual value updates within a registered configuration schema.
 
 
 [[update-connector-configuration-api-request]]

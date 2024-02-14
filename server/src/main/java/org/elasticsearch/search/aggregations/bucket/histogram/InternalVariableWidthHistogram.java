@@ -306,8 +306,7 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
         return ((Bucket) bucket).centroid;
     }
 
-    @Override
-    protected Bucket reduceBucket(List<Bucket> buckets, AggregationReduceContext context) {
+    private Bucket reduceBucket(List<Bucket> buckets, AggregationReduceContext context) {
         long docCount = 0;
         double min = Double.POSITIVE_INFINITY;
         double max = Double.NEGATIVE_INFINITY;

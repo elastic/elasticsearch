@@ -12,11 +12,13 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
+import org.elasticsearch.search.aggregations.bucket.FixedMultiBucketAggregatorsReducer;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -201,34 +203,31 @@ public class InternalFilters extends InternalMultiBucketAggregation<InternalFilt
     @Override
     protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
         return new AggregatorReducer() {
-            List<List<InternalBucket>> bucketsList = null;
+            final FixedMultiBucketAggregatorsReducer<InternalBucket> reducer = new FixedMultiBucketAggregatorsReducer<>(
+                reduceContext,
+                size,
+                getBuckets()
+            ) {
+                @Override
+                protected InternalBucket createBucket(InternalBucket proto, long docCount, InternalAggregations aggregations) {
+                    return new InternalBucket(proto.key, docCount, aggregations, proto.keyed, proto.keyedBucket);
+                }
+            };
 
             @Override
             public void accept(InternalAggregation aggregation) {
-                InternalFilters filters = (InternalFilters) aggregation;
-                if (bucketsList == null) {
-                    bucketsList = new ArrayList<>(filters.buckets.size());
-                    for (InternalBucket bucket : filters.buckets) {
-                        List<InternalBucket> sameRangeList = new ArrayList<>(size);
-                        sameRangeList.add(bucket);
-                        bucketsList.add(sameRangeList);
-                    }
-                } else {
-                    int i = 0;
-                    for (InternalBucket bucket : filters.buckets) {
-                        bucketsList.get(i++).add(bucket);
-                    }
-                }
+                final InternalFilters filters = (InternalFilters) aggregation;
+                reducer.accept(filters.getBuckets());
             }
 
             @Override
             public InternalAggregation get() {
-                reduceContext.consumeBucketsAndMaybeBreak(bucketsList.size());
-                InternalFilters reduced = new InternalFilters(name, new ArrayList<>(bucketsList.size()), keyed, keyedBucket, getMetadata());
-                for (List<InternalBucket> sameRangeList : bucketsList) {
-                    reduced.buckets.add(reduceBucket(sameRangeList, reduceContext));
-                }
-                return reduced;
+                return new InternalFilters(name, reducer.get(), keyed, keyedBucket, getMetadata());
+            }
+
+            @Override
+            public void close() {
+                Releasables.close(reducer);
             }
         };
     }
@@ -242,22 +241,6 @@ public class InternalFilters extends InternalMultiBucketAggregation<InternalFilt
             keyedBucket,
             getMetadata()
         );
-    }
-
-    @Override
-    protected InternalBucket reduceBucket(List<InternalBucket> buckets, AggregationReduceContext context) {
-        assert buckets.isEmpty() == false;
-        InternalBucket reduced = null;
-        for (InternalBucket bucket : buckets) {
-            if (reduced == null) {
-                reduced = new InternalBucket(bucket.key, bucket.docCount, bucket.aggregations, bucket.keyed, keyedBucket);
-            } else {
-                reduced.docCount += bucket.docCount;
-            }
-        }
-        final List<InternalAggregations> aggregations = new BucketAggregationList<>(buckets);
-        reduced.aggregations = InternalAggregations.reduce(aggregations, context);
-        return reduced;
     }
 
     @Override

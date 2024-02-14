@@ -342,8 +342,7 @@ public class InternalIpPrefix extends InternalMultiBucketAggregation<InternalIpP
         );
     }
 
-    @Override
-    protected Bucket reduceBucket(List<Bucket> buckets, AggregationReduceContext context) {
+    private Bucket reduceBucket(List<Bucket> buckets, AggregationReduceContext context) {
         assert buckets.isEmpty() == false;
         long docCount = 0;
         for (InternalIpPrefix.Bucket bucket : buckets) {

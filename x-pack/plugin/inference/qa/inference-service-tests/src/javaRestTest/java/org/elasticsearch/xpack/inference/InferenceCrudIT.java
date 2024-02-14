@@ -10,6 +10,7 @@
 package org.elasticsearch.xpack.inference;
 
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.inference.TaskType;
 
 import java.io.IOException;
@@ -95,5 +96,24 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
         var inference = inferOnMockService(modelId, List.of(randomAlphaOfLength(10)));
         assertNonEmptyInferenceResults(inference, 1, TaskType.SPARSE_EMBEDDING);
         deleteModel(modelId);
+    }
+
+    public void testSkipValidationAndStart() throws IOException {
+        String openAiConfigWithBadApiKey = """
+            {
+                "service": "openai",
+                "service_settings": {
+                    "api_key": "XXXX"
+                },
+                "task_settings": {
+                   "model": "text-embedding-ada-002"
+                }
+            }
+            """;
+
+        updateClusterSettings(Settings.builder().put("xpack.inference.skip_validate_and_start", true).build());
+
+        // We would expect an error about the invalid API key if the validation occurred
+        putModel("unvalidated", openAiConfigWithBadApiKey, TaskType.TEXT_EMBEDDING);
     }
 }

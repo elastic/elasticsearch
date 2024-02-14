@@ -209,8 +209,7 @@ public class InternalAdjacencyMatrix extends InternalMultiBucketAggregation<Inte
         return new InternalAdjacencyMatrix(name, buckets.stream().map(b -> b.finalizeSampling(samplingContext)).toList(), getMetadata());
     }
 
-    @Override
-    protected InternalBucket reduceBucket(List<InternalBucket> buckets, AggregationReduceContext context) {
+    private InternalBucket reduceBucket(List<InternalBucket> buckets, AggregationReduceContext context) {
         assert buckets.isEmpty() == false;
         InternalBucket reduced = null;
         for (InternalBucket bucket : buckets) {

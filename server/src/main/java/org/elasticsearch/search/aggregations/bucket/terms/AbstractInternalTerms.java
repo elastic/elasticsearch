@@ -86,8 +86,7 @@ public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B
 
     protected abstract B createBucket(long docCount, InternalAggregations aggs, long docCountError, B prototype);
 
-    @Override
-    public B reduceBucket(List<B> buckets, AggregationReduceContext context) {
+    private B reduceBucket(List<B> buckets, AggregationReduceContext context) {
         assert buckets.isEmpty() == false;
         long docCount = 0;
         // For the per term doc count error we add up the errors from the

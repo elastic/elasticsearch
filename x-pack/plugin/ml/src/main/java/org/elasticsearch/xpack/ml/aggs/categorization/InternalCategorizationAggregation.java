@@ -114,7 +114,7 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
                     "["
                         + CategorizeTextAggregationBuilder.NAME
                         + "] aggregation cannot be used in a cluster where some nodes have version ["
-                        + CategorizeTextAggregationBuilder.ALGORITHM_CHANGED_VERSION
+                        + CategorizeTextAggregationBuilder.ALGORITHM_CHANGED_VERSION.toReleaseVersion()
                         + "] or higher and others have a version before this",
                     RestStatus.BAD_REQUEST
                 );
@@ -133,7 +133,7 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
                     "["
                         + CategorizeTextAggregationBuilder.NAME
                         + "] aggregation cannot be used in a cluster where some nodes have version ["
-                        + CategorizeTextAggregationBuilder.ALGORITHM_CHANGED_VERSION
+                        + CategorizeTextAggregationBuilder.ALGORITHM_CHANGED_VERSION.toReleaseVersion()
                         + "] or higher and others have a version before this",
                     RestStatus.BAD_REQUEST
                 );
@@ -246,7 +246,7 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
                 "["
                     + CategorizeTextAggregationBuilder.NAME
                     + "] aggregation cannot be used in a cluster where some nodes have version ["
-                    + CategorizeTextAggregationBuilder.ALGORITHM_CHANGED_VERSION
+                    + CategorizeTextAggregationBuilder.ALGORITHM_CHANGED_VERSION.toReleaseVersion()
                     + "] or higher and others have a version before this",
                 RestStatus.BAD_REQUEST
             );
@@ -265,7 +265,7 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
                 "["
                     + CategorizeTextAggregationBuilder.NAME
                     + "] aggregation cannot be used in a cluster where some nodes have version ["
-                    + CategorizeTextAggregationBuilder.ALGORITHM_CHANGED_VERSION
+                    + CategorizeTextAggregationBuilder.ALGORITHM_CHANGED_VERSION.toReleaseVersion()
                     + "] or higher and others have a version before this",
                 RestStatus.BAD_REQUEST
             );
@@ -294,11 +294,6 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
     @Override
     public Bucket createBucket(InternalAggregations aggregations, Bucket prototype) {
         return new Bucket(prototype.serializableCategory, prototype.bucketOrd, aggregations);
-    }
-
-    @Override
-    protected Bucket reduceBucket(List<Bucket> buckets, AggregationReduceContext context) {
-        throw new UnsupportedOperationException("For optimization purposes, typical bucket path is not supported");
     }
 
     @Override

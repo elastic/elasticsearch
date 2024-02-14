@@ -196,6 +196,18 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitMetadata(EsqlBaseParser.MetadataContext ctx);
   /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#metadataOption}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitMetadataOption(EsqlBaseParser.MetadataOptionContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#deprecated_metadata}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitDeprecated_metadata(EsqlBaseParser.Deprecated_metadataContext ctx);
+  /**
    * Visit a parse tree produced by {@link EsqlBaseParser#evalCommand}.
    * @param ctx the parse tree
    * @return the visitor result
@@ -243,6 +255,12 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitIdentifierPattern(EsqlBaseParser.IdentifierPatternContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#idPattern}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitIdPattern(EsqlBaseParser.IdPatternContext ctx);
   /**
    * Visit a parse tree produced by the {@code nullLiteral}
    * labeled alternative in {@link EsqlBaseParser#constant}.
@@ -459,10 +477,4 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitEnrichWithClause(EsqlBaseParser.EnrichWithClauseContext ctx);
-  /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#setting}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitSetting(EsqlBaseParser.SettingContext ctx);
 }

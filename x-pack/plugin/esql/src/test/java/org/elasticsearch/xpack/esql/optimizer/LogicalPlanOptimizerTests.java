@@ -89,6 +89,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
@@ -3219,11 +3220,11 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         as(plan, LocalRelation.class);
         assertThat(plan.output(), equalTo(NO_FIELDS));
 
-        plan = logicalOptimizer.optimize(analyzer.analyze(parser.createStatement("from empty_test [metadata _id] | eval x = 1")));
+        plan = logicalOptimizer.optimize(analyzer.analyze(parser.createStatement("from empty_test metadata _id | eval x = 1")));
         as(plan, LocalRelation.class);
         assertThat(Expressions.names(plan.output()), contains("_id", "x"));
 
-        plan = logicalOptimizer.optimize(analyzer.analyze(parser.createStatement("from empty_test [metadata _id, _version] | limit 5")));
+        plan = logicalOptimizer.optimize(analyzer.analyze(parser.createStatement("from empty_test metadata _id, _version | limit 5")));
         as(plan, LocalRelation.class);
         assertThat(Expressions.names(plan.output()), contains("_id", "_version"));
 
@@ -3232,6 +3233,37 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         );
         LocalRelation local = as(plan, LocalRelation.class);
         assertThat(Expressions.names(local.output()), contains(NO_FIELDS.get(0).name(), "x", "language_code", "language_name"));
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105436")
+    public void testPlanSanityCheck() throws Exception {
+        var plan = optimizedPlan("""
+            from test
+            | stats a = min(salary) by emp_no
+            """);
+
+        var limit = as(plan, Limit.class);
+        var aggregate = as(limit.child(), Aggregate.class);
+        var min = as(Alias.unwrap(aggregate.aggregates().get(0)), Min.class);
+        var salary = as(min.field(), NamedExpression.class);
+        assertThat(salary.name(), is("salary"));
+        // emulate a rule that adds an invalid field
+        var invalidPlan = new OrderBy(
+            limit.source(),
+            limit,
+            asList(
+                new Order(
+                    limit.source(),
+                    salary,
+                    org.elasticsearch.xpack.ql.expression.Order.OrderDirection.ASC,
+                    org.elasticsearch.xpack.ql.expression.Order.NullsPosition.FIRST
+                )
+            )
+        );
+
+        VerificationException e = expectThrows(VerificationException.class, () -> logicalOptimizer.optimize(invalidPlan));
+        assertThat(e.getMessage(), containsString("Plan [OrderBy[[Order[salary"));
+        assertThat(e.getMessage(), containsString(" optimized incorrectly due to missing references [salary"));
     }
 
     private LogicalPlan optimizedPlan(String query) {

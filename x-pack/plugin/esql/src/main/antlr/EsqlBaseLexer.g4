@@ -291,7 +291,8 @@ fragment ENRICH_POLICY_NAME_BODY
     ;
 
 ENRICH_POLICY_NAME
-    : (LETTER | DIGIT) ENRICH_POLICY_NAME_BODY*
+    // allow prefix for the policy to specify its resolution
+    : (ENRICH_POLICY_NAME_BODY+ COLON)? ENRICH_POLICY_NAME_BODY+
     ;
 
 ENRICH_QUOTED_IDENTIFIER

@@ -28,7 +28,7 @@ public class ReleaseVersionsTests extends ESTestCase {
         VersionLookup versions = ReleaseVersions.generateVersionsLookup(ReleaseVersionsTests.class);
 
         assertThat(versions.inferVersion(17), equalTo("8.1.2-8.2.0"));
-        assertThat(versions.inferVersion(9), equalTo("0.0.0-8.0.0"));
+        assertThat(versions.inferVersion(9), equalTo("0.0.0"));
         assertThat(versions.inferVersion(24), equalTo("8.2.2-snapshot[24]"));
     }
 

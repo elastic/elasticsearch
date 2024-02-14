@@ -285,8 +285,7 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
         );
     }
 
-    @Override
-    protected B reduceBucket(List<B> buckets, AggregationReduceContext context) {
+    private B reduceBucket(List<B> buckets, AggregationReduceContext context) {
         assert buckets.isEmpty() == false;
         long subsetDf = 0;
         long supersetDf = 0;

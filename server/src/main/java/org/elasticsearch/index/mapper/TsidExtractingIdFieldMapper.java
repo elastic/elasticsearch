@@ -132,20 +132,21 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
             assert context.getDynamicMappers().isEmpty() == false
                 || context.getDynamicRuntimeFields().isEmpty() == false
                 || id.equals(indexRouting.createId(context.sourceToParse().getXContentType(), context.sourceToParse().source(), suffix));
+
+            if (context.sourceToParse().id() != null && false == context.sourceToParse().id().equals(id)) {
+                throw new IllegalArgumentException(
+                    String.format(
+                        Locale.ROOT,
+                        "_id must be unset or set to [%s] but was [%s] because [%s] is in time_series mode",
+                        id,
+                        context.sourceToParse().id(),
+                        context.indexSettings().getIndexMetadata().getIndex().getName()
+                    )
+                );
+            }
         } else {
-            int routingId = 0;  // FIXME
+            int routingId = TimeSeriesRoutingIdFieldMapper.decode(context.sourceToParse().id());
             id = createId(routingId, tsid, timestamp);
-        }
-        if (context.sourceToParse().id() != null && false == context.sourceToParse().id().equals(id)) {
-            throw new IllegalArgumentException(
-                String.format(
-                    Locale.ROOT,
-                    "_id must be unset or set to [%s] but was [%s] because [%s] is in time_series mode",
-                    id,
-                    context.sourceToParse().id(),
-                    context.indexSettings().getIndexMetadata().getIndex().getName()
-                )
-            );
         }
         context.id(id);
 

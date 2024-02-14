@@ -684,8 +684,13 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     }
 
     @Override
-    public void process(IndexRouting indexRouting) {
-        indexRouting.process(this);
+    public void preProcess(IndexRouting indexRouting) {
+        indexRouting.preProcess(this);
+    }
+
+    @Override
+    public void postProcess(IndexRouting indexRouting) {
+        indexRouting.postProcess(this);
     }
 
     /**

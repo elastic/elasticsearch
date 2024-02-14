@@ -68,7 +68,9 @@ public abstract class IndexRouting {
         this.routingFactor = metadata.getRoutingFactor();
     }
 
-    public abstract void process(IndexRequest indexRequest);
+    public void preProcess(IndexRequest indexRequest) {}
+
+    public void postProcess(IndexRequest indexRequest) {}
 
     /**
      * Called when indexing a document to generate the shard id that should contain
@@ -141,7 +143,7 @@ public abstract class IndexRouting {
         protected abstract int shardId(String id, @Nullable String routing);
 
         @Override
-        public void process(IndexRequest indexRequest) {
+        public void preProcess(IndexRequest indexRequest) {
             if ("".equals(indexRequest.id())) {
                 throw new IllegalArgumentException("if _id is specified it must not be empty");
             }
@@ -238,6 +240,8 @@ public abstract class IndexRouting {
         private final Predicate<String> isRoutingPath;
         private final XContentParserConfiguration parserConfig;
 
+        private int routingId = 0;
+
         ExtractFromSource(IndexMetadata metadata) {
             super(metadata);
             if (metadata.isRoutingPartitionedIndex()) {
@@ -249,7 +253,13 @@ public abstract class IndexRouting {
         }
 
         @Override
-        public void process(IndexRequest indexRequest) {}
+        public void postProcess(IndexRequest indexRequest) {
+            if (indexRequest.id() == null) {
+                byte[] bytes = new byte[4];
+                ByteUtils.writeIntLE(routingId, bytes, 0);
+                indexRequest.id(Base64.getUrlEncoder().encodeToString(bytes));
+            }
+        }
 
         @Override
         public int indexShard(String id, @Nullable String routing, XContentType sourceType, BytesReference source) {
@@ -363,6 +373,7 @@ public abstract class IndexRouting {
                     hash = 31 * hash + thisHash;
                     prev = next;
                 }
+                routingId = hash;
                 return hash;
             }
         }

@@ -848,7 +848,12 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     }
 
     @Override
-    public void process(IndexRouting indexRouting) {
+    public void preProcess(IndexRouting indexRouting) {
+        // Nothing to do
+    }
+
+    @Override
+    public void postProcess(IndexRouting indexRouting) {
         // Nothing to do
     }
 

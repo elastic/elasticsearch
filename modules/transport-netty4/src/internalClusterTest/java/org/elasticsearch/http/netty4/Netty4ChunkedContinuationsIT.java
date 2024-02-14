@@ -261,7 +261,7 @@ public class Netty4ChunkedContinuationsIT extends ESNetty4IntegTestCase {
                 }
             );
             if (randomBoolean()) {
-                safeSleep(10); // make it more likely the request started executing
+                safeSleep(scaledRandomIntBetween(10, 500)); // make it more likely the request started executing
             }
             cancellable.cancel();
         } // closing the request tracker ensures that everything is released, including all response chunks and the overall response

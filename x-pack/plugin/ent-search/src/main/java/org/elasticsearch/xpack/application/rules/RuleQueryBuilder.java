@@ -111,22 +111,6 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
             throw new IllegalArgumentException("rulesetId must not be null or empty");
         }
 
-        // PinnedQueryBuilder will return an error if we attempt to return more than the maximum number of
-        // pinned hits. Here, we truncate matching rules rather than return an error.
-        if (pinnedIds != null && pinnedIds.size() > MAX_NUM_PINNED_HITS) {
-            HeaderWarning.addWarning("Truncating query rule pinned hits to " + MAX_NUM_PINNED_HITS + " documents");
-            pinnedIds = pinnedIds.subList(0, MAX_NUM_PINNED_HITS);
-        }
-
-        if (pinnedDocs != null && pinnedDocs.size() > MAX_NUM_PINNED_HITS) {
-            HeaderWarning.addWarning("Truncating query rule pinned hits to " + MAX_NUM_PINNED_HITS + " documents");
-            pinnedDocs = pinnedDocs.subList(0, MAX_NUM_PINNED_HITS);
-        }
-
-        if ((pinnedIds != null && pinnedIds.isEmpty() == false) && (pinnedDocs != null && pinnedDocs.isEmpty() == false)) {
-            throw new IllegalArgumentException("applied rules contain both pinned ids and pinned docs, only one of ids or docs is allowed");
-        }
-
         this.organicQuery = organicQuery;
         this.matchCriteria = matchCriteria;
         this.rulesetId = rulesetId;
@@ -201,18 +185,18 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
         if (pinnedIdsSupplier != null || pinnedDocsSupplier != null) {
             List<String> identifiedPinnedIds = pinnedIdsSupplier != null ? pinnedIdsSupplier.get() : null;
             List<Item> identifiedPinnedDocs = pinnedDocsSupplier != null ? pinnedDocsSupplier.get() : null;
-            if ((identifiedPinnedIds != null && identifiedPinnedIds.isEmpty())
+            if (identifiedPinnedIds == null && identifiedPinnedDocs == null) {
+                return this; // Not executed yet
+            } else if ((identifiedPinnedIds != null && identifiedPinnedIds.isEmpty())
                 && (identifiedPinnedDocs != null && identifiedPinnedDocs.isEmpty())) {
-                return organicQuery;
-            } else if (identifiedPinnedIds != null && identifiedPinnedIds.isEmpty() == false) {
-                return new PinnedQueryBuilder(organicQuery, identifiedPinnedIds.toArray(new String[0])).queryName(this.queryName)
-                    .boost(this.boost);
-            } else if (identifiedPinnedDocs != null && identifiedPinnedDocs.isEmpty() == false) {
-                return new PinnedQueryBuilder(organicQuery, identifiedPinnedDocs.toArray(new Item[0])).queryName(this.queryName)
-                    .boost(this.boost);
-            } else {
-                return this;
-            }
+                    return organicQuery; // Nothing to pin here
+                } else if (identifiedPinnedIds != null && identifiedPinnedIds.isEmpty() == false) {
+                    return new PinnedQueryBuilder(organicQuery, truncateList(identifiedPinnedIds).toArray(new String[0]));
+                } else if (identifiedPinnedDocs != null && identifiedPinnedDocs.isEmpty() == false) {
+                    return new PinnedQueryBuilder(organicQuery, truncateList(identifiedPinnedDocs).toArray(new Item[0]));
+                } else {
+                    return this; // Should never happen
+                }
         }
 
         // Identify matching rules and apply them as applicable
@@ -257,6 +241,16 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
         return new RuleQueryBuilder(organicQuery, matchCriteria, this.rulesetId, null, null, pinnedIdsSetOnce::get, pinnedDocsSetOnce::get)
             .boost(this.boost)
             .queryName(this.queryName);
+    }
+
+    private List<?> truncateList(List<?> input) {
+        // PinnedQueryBuilder will return an error if we attempt to return more than the maximum number of
+        // pinned hits. Here, we truncate matching rules rather than return an error.
+        if (input.size() > MAX_NUM_PINNED_HITS) {
+            HeaderWarning.addWarning("Truncating query rule pinned hits to " + MAX_NUM_PINNED_HITS + " documents");
+            return input.subList(0, MAX_NUM_PINNED_HITS);
+        }
+        return input;
     }
 
     @Override

@@ -249,6 +249,8 @@ public class TSDBPassthroughIndexingIT extends ESSingleNodeTestCase {
                 DOC.replace("$time", formatInstant(time))
                     .replace("$uid", randomUUID())
                     .replace("$name", randomAlphaOfLength(4))
+                    .replace("$number1", Long.toString(randomLong()))
+                    .replace("$number2", Double.toString(randomDouble()))
                     .replace("$ip", InetAddresses.toAddrString(randomIp(randomBoolean()))),
                 XContentType.JSON
             );

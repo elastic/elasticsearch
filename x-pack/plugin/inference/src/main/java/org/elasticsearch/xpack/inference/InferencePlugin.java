@@ -88,6 +88,22 @@ public class InferencePlugin extends Plugin
         InferenceRegistryPlugin,
         MapperPlugin {
 
+    /**
+     * When this setting is true the verification check that
+     * connects to the external service will not be made at
+     * model creation and ml node models will not be deployed.
+     *
+     * This setting exists for testing service configurations in
+     * rolling upgrade test without connecting to those services,
+     * it should not be enabled in production.
+     */
+    public static final Setting<Boolean> SKIP_VALIDATE_AND_START = Setting.boolSetting(
+        "xpack.inference.skip_validate_and_start",
+        false,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     public static final String NAME = "inference";
     public static final String UTILITY_THREAD_POOL_NAME = "inference_utility";
     private final Settings settings;
@@ -239,7 +255,8 @@ public class InferencePlugin extends Plugin
             ThrottlerManager.getSettings(),
             RetrySettings.getSettingsDefinitions(),
             Truncator.getSettings(),
-            RequestExecutorServiceSettings.getSettingsDefinitions()
+            RequestExecutorServiceSettings.getSettingsDefinitions(),
+            List.of(SKIP_VALIDATE_AND_START)
         ).flatMap(Collection::stream).collect(Collectors.toList());
     }
 

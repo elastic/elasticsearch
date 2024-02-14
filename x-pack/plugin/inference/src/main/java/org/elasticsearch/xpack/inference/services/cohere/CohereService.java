@@ -181,7 +181,7 @@ public class CohereService extends SenderService {
         Map<String, Object> taskSettings,
         InputType inputType,
         ChunkingOptions chunkingOptions,
-        ActionListener<ChunkedInferenceServiceResults> listener
+        ActionListener<List<ChunkedInferenceServiceResults>> listener
     ) {
         listener.onFailure(new ElasticsearchStatusException("Chunking not supported by the {} service", RestStatus.BAD_REQUEST, NAME));
     }
@@ -223,6 +223,6 @@ public class CohereService extends SenderService {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_REQUEST_INPUT_TYPE_UNSPECIFIED_ADDED;
+        return TransportVersions.ML_INFERENCE_REQUEST_INPUT_TYPE_CLASS_CLUSTER_ADDED;
     }
 }

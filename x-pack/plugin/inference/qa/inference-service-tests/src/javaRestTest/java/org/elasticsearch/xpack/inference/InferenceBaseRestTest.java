@@ -62,6 +62,7 @@ public class InferenceBaseRestTest extends ESRestTestCase {
               "service": "test_service",
               "service_settings": {
                 "model": "my_model",
+                "hidden_field": "my_hidden_value",
                 "api_key": "abc64"
               },
               "task_settings": {
@@ -69,6 +70,25 @@ public class InferenceBaseRestTest extends ESRestTestCase {
               }
             }
             """, taskType);
+    }
+
+    static String mockServiceModelConfig(@Nullable TaskType taskTypeInBody, boolean shouldReturnHiddenField) {
+        var taskType = taskTypeInBody == null ? "" : "\"task_type\": \"" + taskTypeInBody + "\",";
+        return Strings.format("""
+            {
+              %s
+              "service": "test_service",
+              "service_settings": {
+                "model": "my_model",
+                "hidden_field": "my_hidden_value",
+                "should_return_hidden_field": %s,
+                "api_key": "abc64"
+              },
+              "task_settings": {
+                "temperature": 3
+              }
+            }
+            """, taskType, shouldReturnHiddenField);
     }
 
     protected void deleteModel(String modelId) throws IOException {
@@ -99,6 +119,31 @@ public class InferenceBaseRestTest extends ESRestTestCase {
     private Map<String, Object> putModelInternal(String endpoint, String modelConfig) throws IOException {
         var request = new Request("PUT", endpoint);
         request.setJsonEntity(modelConfig);
+        var response = client().performRequest(request);
+        assertOkOrCreated(response);
+        return entityAsMap(response);
+    }
+
+    protected Map<String, Object> putE5TrainedModels() throws IOException {
+        var request = new Request("PUT", "_ml/trained_models/.multilingual-e5-small?wait_for_completion=true");
+
+        String body = """
+                {
+                    "input": {
+                    "field_names": ["text_field"]
+                    }
+                }
+            """;
+
+        request.setJsonEntity(body);
+        var response = client().performRequest(request);
+        assertOkOrCreated(response);
+        return entityAsMap(response);
+    }
+
+    protected Map<String, Object> deployE5TrainedModels() throws IOException {
+        var request = new Request("POST", "_ml/trained_models/.multilingual-e5-small/deployment/_start?wait_for=fully_allocated");
+
         var response = client().performRequest(request);
         assertOkOrCreated(response);
         return entityAsMap(response);

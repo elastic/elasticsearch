@@ -380,7 +380,7 @@ public class MetadataRolloverService {
         String resolvedName = IndexNameExpressionResolver.resolveDateMathExpression(sourceIndexName);
         final boolean isDateMath = sourceIndexName.equals(resolvedName) == false;
         if (INDEX_NAME_PATTERN.matcher(resolvedName).matches()) {
-            int numberIndex = sourceIndexName.lastIndexOf("-");
+            int numberIndex = sourceIndexName.lastIndexOf('-');
             assert numberIndex != -1 : "no separator '-' found";
             int counter = Integer.parseInt(
                 sourceIndexName.substring(numberIndex + 1, isDateMath ? sourceIndexName.length() - 1 : sourceIndexName.length())

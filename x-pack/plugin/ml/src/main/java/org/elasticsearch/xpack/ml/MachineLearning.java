@@ -1147,7 +1147,14 @@ public class MachineLearning extends Plugin
         );
 
         this.deploymentManager.set(
-            new DeploymentManager(client, xContentRegistry, threadPool, pyTorchProcessFactory, getMaxModelDeploymentsPerNode())
+            new DeploymentManager(
+                client,
+                xContentRegistry,
+                threadPool,
+                pyTorchProcessFactory,
+                getMaxModelDeploymentsPerNode(),
+                inferenceAuditor
+            )
         );
 
         // Data frame analytics components
@@ -1337,7 +1344,7 @@ public class MachineLearning extends Plugin
                 getLicenseState(),
                 machineLearningExtension.get().includeNodeInfo()
             ),
-            new TransportStartDatafeedAction.StartDatafeedPersistentTasksExecutor(datafeedRunner.get(), expressionResolver),
+            new TransportStartDatafeedAction.StartDatafeedPersistentTasksExecutor(datafeedRunner.get(), expressionResolver, threadPool),
             new TransportStartDataFrameAnalyticsAction.TaskExecutor(
                 settings,
                 client,

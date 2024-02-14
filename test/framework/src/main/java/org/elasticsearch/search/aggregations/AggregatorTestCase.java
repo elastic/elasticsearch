@@ -1501,9 +1501,18 @@ public abstract class AggregatorTestCase extends ESTestCase {
         }
 
         @Override
-        public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
-            aggregations.forEach(ia -> { assertThat(((InternalAggCardinalityUpperBound) ia).cardinality, equalTo(cardinality)); });
-            return new InternalAggCardinalityUpperBound(name, cardinality, metadata);
+        protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
+            return new AggregatorReducer() {
+                @Override
+                public void accept(InternalAggregation aggregation) {
+                    assertThat(((InternalAggCardinalityUpperBound) aggregation).cardinality, equalTo(cardinality));
+                }
+
+                @Override
+                public InternalAggregation get() {
+                    return new InternalAggCardinalityUpperBound(name, cardinality, metadata);
+                }
+            };
         }
 
         @Override

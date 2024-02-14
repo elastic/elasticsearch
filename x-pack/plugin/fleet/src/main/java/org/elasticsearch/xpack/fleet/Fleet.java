@@ -18,7 +18,6 @@ import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateReque
 import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
 import org.elasticsearch.action.datastreams.DeleteDataStreamAction.Request;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.IndicesOptions.Option;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -60,7 +59,6 @@ import org.elasticsearch.xpack.fleet.rest.RestPostSecretsAction;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collection;
-import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
@@ -304,10 +302,11 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
                 Request request = new Request(
                     dataStreamDescriptors.stream().map(SystemDataStreamDescriptor::getDataStreamName).toArray(String[]::new)
                 );
-                EnumSet<Option> options = request.indicesOptions().options();
-                options.add(Option.IGNORE_UNAVAILABLE);
-                options.add(Option.ALLOW_NO_INDICES);
-                request.indicesOptions(new IndicesOptions(options, request.indicesOptions().expandWildcards()));
+                request.indicesOptions(
+                    IndicesOptions.builder(request.indicesOptions())
+                        .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
+                        .build()
+                );
 
                 client.execute(
                     DeleteDataStreamAction.INSTANCE,
@@ -368,8 +367,8 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
     ) {
         return List.of(
             new RestGetGlobalCheckpointsAction(),
-            new RestFleetSearchAction(restController.getSearchUsageHolder(), namedWriteableRegistry),
-            new RestFleetMultiSearchAction(settings, restController.getSearchUsageHolder(), namedWriteableRegistry),
+            new RestFleetSearchAction(restController.getSearchUsageHolder(), namedWriteableRegistry, clusterSupportsFeature),
+            new RestFleetMultiSearchAction(settings, restController.getSearchUsageHolder(), namedWriteableRegistry, clusterSupportsFeature),
             new RestGetSecretsAction(),
             new RestPostSecretsAction(),
             new RestDeleteSecretsAction()

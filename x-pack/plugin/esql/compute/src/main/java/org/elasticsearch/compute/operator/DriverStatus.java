@@ -76,7 +76,7 @@ public class DriverStatus implements Task.Status {
         this.sessionId = in.readString();
         this.lastUpdated = in.readLong();
         this.status = Status.valueOf(in.readString());
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             this.completedOperators = in.readCollectionAsImmutableList(OperatorStatus::new);
         } else {
             this.completedOperators = List.of();
@@ -89,7 +89,7 @@ public class DriverStatus implements Task.Status {
         out.writeString(sessionId);
         out.writeLong(lastUpdated);
         out.writeString(status.toString());
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             out.writeCollection(completedOperators);
         }
         out.writeCollection(activeOperators);

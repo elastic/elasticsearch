@@ -44,12 +44,12 @@ public class CohereEmbeddingsExecutableRequestCreator implements ExecutableReque
     public Runnable create(
         List<String> input,
         RequestSender requestSender,
-        Supplier<Boolean> hasRequestTimedOutFunction,
+        Supplier<Boolean> hasRequestCompletedFunction,
         HttpClientContext context,
         ActionListener<InferenceServiceResults> listener
     ) {
         CohereEmbeddingsRequest request = new CohereEmbeddingsRequest(account, input, model);
 
-        return new ExecutableInferenceRequest(requestSender, logger, request, context, HANDLER, hasRequestTimedOutFunction, listener);
+        return new ExecutableInferenceRequest(requestSender, logger, request, context, HANDLER, hasRequestCompletedFunction, listener);
     }
 }

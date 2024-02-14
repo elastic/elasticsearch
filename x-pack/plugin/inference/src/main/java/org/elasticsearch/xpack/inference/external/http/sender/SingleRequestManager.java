@@ -33,20 +33,20 @@ public class SingleRequestManager implements RequestManager {
 
     @Override
     public void execute(InferenceRequest inferenceRequest, HttpClientContext context) {
-        if (inferenceRequest.requestCreator() == null
-            || inferenceRequest.input() == null
-            || inferenceRequest.listener() == null
-            || inferenceRequest.hasFinished()) {
+        if (inferenceRequest.getRequestCreator() == null
+            || inferenceRequest.getInput() == null
+            || inferenceRequest.getListener() == null
+            || inferenceRequest.hasCompleted()) {
             return;
         }
 
-        inferenceRequest.requestCreator()
+        inferenceRequest.getRequestCreator()
             .create(
-                inferenceRequest.input(),
+                inferenceRequest.getInput(),
                 requestSender,
-                inferenceRequest.getRequestTimedOutFunction(),
+                inferenceRequest.getRequestCompletedFunction(),
                 context,
-                inferenceRequest.listener()
+                inferenceRequest.getListener()
             )
             .run();
     }

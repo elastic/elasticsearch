@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.external.http.sender;
 
-import org.apache.http.client.methods.HttpUriRequest;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
@@ -35,8 +34,7 @@ import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
 
 /**
- * A class for providing a more friendly interface for sending an {@link HttpUriRequest}. This leverages the queuing logic for sending
- * a request.
+ * A class for providing a more friendly interface for sending an inference request to a 3rd party service.
  */
 public class HttpRequestSender implements Sender {
 

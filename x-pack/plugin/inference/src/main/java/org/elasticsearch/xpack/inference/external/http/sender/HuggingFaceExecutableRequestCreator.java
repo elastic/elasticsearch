@@ -44,7 +44,7 @@ public class HuggingFaceExecutableRequestCreator implements ExecutableRequestCre
     public Runnable create(
         List<String> input,
         RequestSender requestSender,
-        Supplier<Boolean> hasRequestTimedOutFunction,
+        Supplier<Boolean> hasRequestCompletedFunction,
         HttpClientContext context,
         ActionListener<InferenceServiceResults> listener
     ) {
@@ -57,7 +57,7 @@ public class HuggingFaceExecutableRequestCreator implements ExecutableRequestCre
             request,
             context,
             responseHandler,
-            hasRequestTimedOutFunction,
+            hasRequestCompletedFunction,
             listener
         );
     }

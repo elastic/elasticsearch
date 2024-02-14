@@ -32,10 +32,8 @@ import java.util.function.Consumer;
 
 import static org.elasticsearch.core.Strings.format;
 
-// TODO rewrite this comment
 /**
- * An {@link java.util.concurrent.ExecutorService} for queuing and executing {@link RequestTask} containing
- * {@link org.apache.http.client.methods.HttpUriRequest}. This class is useful because the
+ * A service for queuing and executing {@link RequestTask}. This class is useful because the
  * {@link org.apache.http.impl.nio.conn.PoolingNHttpClientConnectionManager} will block when leasing a connection if no
  * connections are available. To avoid blocking the inference transport threads, this executor will queue up the
  * requests until connections are available.
@@ -261,7 +259,7 @@ class RequestExecutorService implements RequestExecutor {
         @Nullable TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
-        var task = new RequestTask2(requestCreator, input, timeout, threadPool, listener);
+        var task = new RequestTask(requestCreator, input, timeout, threadPool, listener);
 
         if (isShutdown()) {
             EsRejectedExecutionException rejected = new EsRejectedExecutionException(

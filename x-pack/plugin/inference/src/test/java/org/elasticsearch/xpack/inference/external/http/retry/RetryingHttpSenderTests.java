@@ -12,6 +12,7 @@ import org.apache.http.HttpResponse;
 import org.apache.http.StatusLine;
 import org.apache.http.client.protocol.HttpClientContext;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -299,6 +300,31 @@ public class RetryingHttpSenderTests extends ESTestCase {
         verifyNoMoreInteractions(httpClient);
     }
 
+    public void testSend_ReturnsElasticsearchExceptionFailure_WhenTheHttpClientThrowsAnIllegalStateException() throws IOException {
+        var httpClient = mock(HttpClient.class);
+
+        doAnswer(invocation -> { throw new IllegalStateException("failed"); }).when(httpClient).send(any(), any(), any());
+
+        var inferenceResults = mock(InferenceServiceResults.class);
+        Answer<InferenceServiceResults> answer = (invocation) -> inferenceResults;
+
+        var handler = mock(ResponseHandler.class);
+        when(handler.parseResult(any(), any())).thenAnswer(answer);
+
+        var retrier = createRetrier(httpClient);
+
+        var listener = new PlainActionFuture<InferenceServiceResults>();
+        executeTasks(
+            () -> retrier.send(mock(Logger.class), mockRequest("id"), HttpClientContext.create(), () -> false, handler, listener),
+            0
+        );
+
+        var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
+        assertThat(thrownException.getMessage(), is("Http client failed to send request from inference entity id [id]"));
+        verify(httpClient, times(1)).send(any(), any(), any());
+        verifyNoMoreInteractions(httpClient);
+    }
+
     public void testSend_ReturnsFailure_WhenValidateResponseThrowsAnException_AfterOneRetry() throws IOException {
         var httpResponse = mock(HttpResponse.class);
         when(httpResponse.getStatusLine()).thenReturn(mock(StatusLine.class));
@@ -452,9 +478,14 @@ public class RetryingHttpSenderTests extends ESTestCase {
     }
 
     private static Request mockRequest() {
+        return mockRequest("inferenceEntityId");
+    }
+
+    private static Request mockRequest(String inferenceEntityId) {
         var request = mock(Request.class);
         when(request.truncate()).thenReturn(request);
-        when(request.createHttpRequest()).thenReturn(HttpRequestTests.createMock("inferenceEntityId"));
+        when(request.createHttpRequest()).thenReturn(HttpRequestTests.createMock(inferenceEntityId));
+        when(request.getInferenceEntityId()).thenReturn(inferenceEntityId);
 
         return request;
     }

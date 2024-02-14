@@ -13,16 +13,33 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import java.util.List;
 import java.util.function.Supplier;
 
-// TODO maybe use a different name?
+/**
+ * A contract for defining a request sent to a 3rd party service.
+ */
 public interface InferenceRequest {
-    // TODO change Object to RequestCreator
-    ExecutableRequestCreator requestCreator();
 
-    List<String> input();
+    /**
+     * Returns the creator that handles building an executable request based on the input provided.
+     */
+    ExecutableRequestCreator getRequestCreator();
 
-    ActionListener<InferenceServiceResults> listener();
+    /**
+     * Returns the text input associated with this request.
+     */
+    List<String> getInput();
 
-    boolean hasFinished();
+    /**
+     * Returns the listener to notify of the results.
+     */
+    ActionListener<InferenceServiceResults> getListener();
 
-    Supplier<Boolean> getRequestTimedOutFunction();
+    /**
+     * Returns whether the request has completed. Returns true if from a failure, success, or a timeout.
+     */
+    boolean hasCompleted();
+
+    /**
+     * Returns a {@link Supplier} to determine if the request has completed.
+     */
+    Supplier<Boolean> getRequestCompletedFunction();
 }

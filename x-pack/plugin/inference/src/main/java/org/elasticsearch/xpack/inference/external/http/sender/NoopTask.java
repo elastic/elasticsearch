@@ -16,27 +16,27 @@ import java.util.function.Supplier;
 class NoopTask implements RejectableTask {
 
     @Override
-    public ExecutableRequestCreator requestCreator() {
+    public ExecutableRequestCreator getRequestCreator() {
         return null;
     }
 
     @Override
-    public List<String> input() {
+    public List<String> getInput() {
         return null;
     }
 
     @Override
-    public ActionListener<InferenceServiceResults> listener() {
+    public ActionListener<InferenceServiceResults> getListener() {
         return null;
     }
 
     @Override
-    public boolean hasFinished() {
+    public boolean hasCompleted() {
         return true;
     }
 
     @Override
-    public Supplier<Boolean> getRequestTimedOutFunction() {
+    public Supplier<Boolean> getRequestCompletedFunction() {
         return () -> true;
     }
 

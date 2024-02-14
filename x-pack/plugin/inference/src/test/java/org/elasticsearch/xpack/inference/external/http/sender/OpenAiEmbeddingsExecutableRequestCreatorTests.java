@@ -24,4 +24,17 @@ public class OpenAiEmbeddingsExecutableRequestCreatorTests {
 
         return new OpenAiEmbeddingsExecutableRequestCreator(model, TruncatorTests.createTruncator());
     }
+
+    public static OpenAiEmbeddingsExecutableRequestCreator makeCreator(
+        String url,
+        @Nullable String org,
+        String apiKey,
+        String modelName,
+        @Nullable String user,
+        String inferenceEntityId
+    ) {
+        var model = createModel(url, org, apiKey, modelName, user, inferenceEntityId);
+
+        return new OpenAiEmbeddingsExecutableRequestCreator(model, TruncatorTests.createTruncator());
+    }
 }

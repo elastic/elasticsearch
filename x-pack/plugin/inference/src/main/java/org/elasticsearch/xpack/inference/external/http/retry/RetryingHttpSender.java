@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.external.http.retry;
 
 import org.apache.http.client.protocol.HttpClientContext;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -66,13 +67,13 @@ public class RetryingHttpSender implements RequestSender {
         private final ResponseHandler responseHandler;
         private final Logger logger;
         private final HttpClientContext context;
-        private final Supplier<Boolean> hasRequestTimedOutFunction;
+        private final Supplier<Boolean> hasRequestCompletedFunction;
 
         InternalRetrier(
             Logger logger,
             Request request,
             HttpClientContext context,
-            Supplier<Boolean> hasRequestTimedOutFunction,
+            Supplier<Boolean> hasRequestCompletedFunction,
             ResponseHandler responseHandler,
             ActionListener<InferenceServiceResults> listener
         ) {
@@ -89,13 +90,13 @@ public class RetryingHttpSender implements RequestSender {
             this.request = Objects.requireNonNull(request);
             this.context = Objects.requireNonNull(context);
             this.responseHandler = Objects.requireNonNull(responseHandler);
-            this.hasRequestTimedOutFunction = Objects.requireNonNull(hasRequestTimedOutFunction);
+            this.hasRequestCompletedFunction = Objects.requireNonNull(hasRequestCompletedFunction);
         }
 
         @Override
         public void tryAction(ActionListener<InferenceServiceResults> listener) {
             // A timeout likely occurred so let's stop attempting to execute the request
-            if (hasRequestTimedOutFunction.get()) {
+            if (hasRequestCompletedFunction.get()) {
                 return;
             }
 
@@ -119,21 +120,8 @@ public class RetryingHttpSender implements RequestSender {
             } catch (Exception e) {
                 logException(logger, request, responseHandler.getRequestType(), e);
 
-                // TODO should we log?
-                // TODO is this the right exception to return? This is what we were doing for the runnable that the executor would execute
-                // listener.onFailure(new ElasticsearchException(format("Failed to send request [%s]", request.getRequestLine()), e));
-                listener.onFailure(transformIfRetryable(e));
+                listener.onFailure(wrapWithElasticsearchException(e, request.getInferenceEntityId()));
             }
-        }
-
-        @Override
-        public boolean shouldRetry(Exception e) {
-            if (e instanceof Retryable retry) {
-                request = retry.rebuildRequest(request);
-                return retry.shouldRetry();
-            }
-
-            return false;
         }
 
         /**
@@ -159,6 +147,29 @@ public class RetryingHttpSender implements RequestSender {
             }
 
             return exceptionToReturn;
+        }
+
+        private Exception wrapWithElasticsearchException(Exception e, String inferenceEntityId) {
+            var transformedException = transformIfRetryable(e);
+
+            if (transformedException instanceof ElasticsearchException) {
+                return transformedException;
+            }
+
+            return new ElasticsearchException(
+                format("Http client failed to send request from inference entity id [%s]", inferenceEntityId),
+                transformedException
+            );
+        }
+
+        @Override
+        public boolean shouldRetry(Exception e) {
+            if (e instanceof Retryable retry) {
+                request = retry.rebuildRequest(request);
+                return retry.shouldRetry();
+            }
+
+            return false;
         }
     }
 

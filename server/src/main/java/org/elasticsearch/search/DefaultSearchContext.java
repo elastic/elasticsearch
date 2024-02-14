@@ -19,6 +19,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -26,6 +27,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -892,7 +894,13 @@ final class DefaultSearchContext extends SearchContext {
     @Override
     public IdLoader newIdLoader() {
         if (indexService.getIndexSettings().getMode() == IndexMode.TIME_SERIES) {
-            return IdLoader.createTsIdLoader(request.shardId().id());
+            IndexRouting.ExtractFromSource indexRouting = null;
+            List<String> routingPaths = null;
+            if (indexService.getIndexSettings().getIndexVersionCreated().before(IndexVersions.TIME_SERIES_SHARD_ID_IN_ID)) {
+                indexRouting = (IndexRouting.ExtractFromSource) indexService.getIndexSettings().getIndexRouting();
+                routingPaths = indexService.getMetadata().getRoutingPaths();
+            }
+            return IdLoader.createTsIdLoader(indexRouting, routingPaths, request.shardId().id());
         } else {
             return IdLoader.fromLeafStoredFieldLoader();
         }

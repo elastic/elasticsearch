@@ -163,7 +163,7 @@ public class TimeSeriesRateAggregatorTests extends AggregatorTestCase {
     }
 
     private static BytesReference tsid(String dim) throws IOException {
-        TimeSeriesIdFieldMapper.TimeSeriesIdBuilder idBuilder = new TimeSeriesIdFieldMapper.TimeSeriesIdBuilder();
+        TimeSeriesIdFieldMapper.TimeSeriesIdBuilder idBuilder = new TimeSeriesIdFieldMapper.TimeSeriesIdBuilder(null);
         idBuilder.addString("dim", dim);
         return idBuilder.buildTsidHash();
     }

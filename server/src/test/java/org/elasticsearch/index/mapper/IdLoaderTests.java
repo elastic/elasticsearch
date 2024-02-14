@@ -47,7 +47,7 @@ import static org.hamcrest.Matchers.hasSize;
 public class IdLoaderTests extends ESTestCase {
 
     public void testSynthesizeIdSimple() throws Exception {
-        var idLoader = IdLoader.createTsIdLoader(7);
+        var idLoader = IdLoader.createTsIdLoader(null, null, 7);
 
         long startTime = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2023-01-01T00:00:00Z");
         List<Doc> docs = List.of(
@@ -71,7 +71,7 @@ public class IdLoaderTests extends ESTestCase {
     public void testSynthesizeIdMultipleSegments() throws Exception {
         var routingPaths = List.of("dim1");
         var routing = createRouting(routingPaths);
-        var idLoader = IdLoader.createTsIdLoader(7);
+        var idLoader = IdLoader.createTsIdLoader(null, null, 7);
 
         long startTime = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2023-01-01T00:00:00Z");
         List<Doc> docs1 = List.of(
@@ -143,7 +143,7 @@ public class IdLoaderTests extends ESTestCase {
     public void testSynthesizeIdRandom() throws Exception {
         var routingPaths = List.of("dim1");
         var routing = createRouting(routingPaths);
-        var idLoader = IdLoader.createTsIdLoader(7);
+        var idLoader = IdLoader.createTsIdLoader(null, null, 7);
 
         long startTime = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2023-01-01T00:00:00Z");
         Set<String> expectedIDs = new HashSet<>();
@@ -221,7 +221,7 @@ public class IdLoaderTests extends ESTestCase {
     }
 
     private static void indexDoc(IndexWriter iw, Doc doc) throws IOException {
-        final TimeSeriesIdFieldMapper.TimeSeriesIdBuilder builder = new TimeSeriesIdFieldMapper.TimeSeriesIdBuilder();
+        final TimeSeriesIdFieldMapper.TimeSeriesIdBuilder builder = new TimeSeriesIdFieldMapper.TimeSeriesIdBuilder(null);
 
         final List<IndexableField> fields = new ArrayList<>();
         fields.add(new SortedNumericDocValuesField(DataStreamTimestampFieldMapper.DEFAULT_PATH, doc.timestamp));
@@ -241,7 +241,7 @@ public class IdLoaderTests extends ESTestCase {
     }
 
     private static String expectedId(Doc doc) throws IOException {
-        var timeSeriesIdBuilder = new TimeSeriesIdFieldMapper.TimeSeriesIdBuilder();
+        var timeSeriesIdBuilder = new TimeSeriesIdFieldMapper.TimeSeriesIdBuilder(null);
         for (Dimension dimension : doc.dimensions) {
             if (dimension.value instanceof Number n) {
                 timeSeriesIdBuilder.addLong(dimension.field, n.longValue());

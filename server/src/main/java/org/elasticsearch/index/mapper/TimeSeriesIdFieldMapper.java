@@ -12,6 +12,7 @@ import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.StringHelper;
+import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.hash.Murmur3Hasher;
@@ -20,6 +21,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.util.ByteUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -137,7 +139,11 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
             ? timeSeriesIdBuilder.buildLegacyTsid().toBytesRef()
             : timeSeriesIdBuilder.buildTsidHash().toBytesRef();
         context.doc().add(new SortedDocValuesField(fieldType().name(), timeSeriesId));
-        TsidExtractingIdFieldMapper.createField(context, timeSeriesId);
+        TsidExtractingIdFieldMapper.createField(
+            context,
+            getIndexVersionCreated(context).before(IndexVersions.TIME_SERIES_SHARD_ID_IN_ID) ? timeSeriesIdBuilder.routingBuilder : null,
+            timeSeriesId
+        );
     }
 
     private IndexVersion getIndexVersionCreated(final DocumentParserContext context) {
@@ -181,10 +187,15 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
          * to build the _tsid field for the document.
          */
         private final SortedSet<Dimension> dimensions = new TreeSet<>(Comparator.comparing(o -> o.name));
-
         /**
          * Builds the routing. Used for building {@code _id}. If null then skipped.
          */
+        @Nullable
+        private final IndexRouting.ExtractFromSource.Builder routingBuilder;
+
+        public TimeSeriesIdBuilder(@Nullable IndexRouting.ExtractFromSource.Builder routingBuilder) {
+            this.routingBuilder = routingBuilder;
+        }
 
         public BytesReference buildLegacyTsid() throws IOException {
             if (dimensions.isEmpty()) {
@@ -277,6 +288,10 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
                  */
                 out.writeBytesRef(utf8Value);
                 add(fieldName, out.bytes());
+
+                if (routingBuilder != null) {
+                    routingBuilder.addMatching(fieldName, utf8Value);
+                }
             } catch (IOException e) {
                 throw new IllegalArgumentException("Dimension field cannot be serialized.", e);
             }

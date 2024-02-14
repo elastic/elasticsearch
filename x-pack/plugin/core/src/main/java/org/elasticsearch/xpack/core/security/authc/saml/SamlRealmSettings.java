@@ -24,6 +24,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.core.security.authc.support.SecuritySettingsUtil.verifyNonNullNotEmpty;
+
 public class SamlRealmSettings {
 
     public static final String TYPE = "saml";
@@ -150,7 +152,7 @@ public class SamlRealmSettings {
 
             @Override
             public void validate(List<String> excludedRoles) {
-                excludedRoles.forEach(excludedRole -> verifyNonNullNotEmpty(key, excludedRole, null));
+                excludedRoles.forEach(excludedRole -> verifyNonNullNotEmpty(key, excludedRole));
             }
 
             @Override
@@ -183,20 +185,6 @@ public class SamlRealmSettings {
             }
         }, Setting.Property.NodeScope)
     );
-
-    private static void verifyNonNullNotEmpty(final String key, final String value, final List<String> allowedValues) {
-        assert value != null : "Invalid null value for [" + key + "].";
-        if (value.isEmpty()) {
-            throw new IllegalArgumentException("Invalid empty value for [" + key + "].");
-        }
-        if (allowedValues != null) {
-            if (allowedValues.contains(value) == false) {
-                throw new IllegalArgumentException(
-                    "Invalid value [" + value + "] for [" + key + "]. Allowed values are " + allowedValues + "."
-                );
-            }
-        }
-    }
 
     public static final String SSL_PREFIX = "ssl.";
 

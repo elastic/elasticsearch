@@ -12,7 +12,6 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authc.support.CachingRealm;
 import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
-import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 
 import java.util.Set;
 
@@ -72,7 +71,7 @@ public class ExcludingRoleMapperTests extends ESTestCase {
     public void testRefreshRealmOnChange() {
         final UserRoleMapper delegate = mock(UserRoleMapper.class);
         final CachingRealm realm = mock(CachingRealm.class);
-        new ExcludingRoleMapper(delegate, randomSet(0, 5, () -> randomFrom(ReservedRolesStore.names()))).refreshRealmOnChange(realm);
+        new ExcludingRoleMapper(delegate, randomSet(0, 5, () -> randomAlphaOfLengthBetween(3, 6))).refreshRealmOnChange(realm);
 
         verify(delegate, times(1)).refreshRealmOnChange(same(realm));
         verify(delegate, times(0)).resolveRoles(any(UserRoleMapper.UserData.class), anyActionListener());

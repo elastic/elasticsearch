@@ -4026,8 +4026,9 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 }
                 if (missing.isEmpty() == false) {
                     throw new SnapshotException(snapshot, Strings.format("""
-                        the following indices have unassigned primary shards and cannot be snapshotted: %s; \
-                        for troubleshooting guidance, see %s
+                        the following indices have unassigned primary shards \
+                        and cannot be included in a snapshot with [partial] set to [false]: %s; \
+                        for help with troubleshooting unassigned shards see %s
                         """, missing, ReferenceDocs.UNASSIGNED_SHARDS));
                 }
             }

@@ -439,6 +439,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     asInstanceOf(SnapshotException.class, ExceptionsHelper.unwrap(e, SnapshotException.class)).getMessage(),
                     allOf(
                         containsString("the following indices have unassigned primary shards"),
+                        containsString("[partial] set to [false]"),
                         containsString("[test]"),
                         containsString(ReferenceDocs.UNASSIGNED_SHARDS.toString())
                     )

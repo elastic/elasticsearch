@@ -38,7 +38,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportChannel;
@@ -56,7 +55,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -463,7 +461,7 @@ public abstract class TransportBroadcastByNodeAction<
         }.run(task, shards.iterator(), listener);
     }
 
-    public class NodeRequest extends TransportRequest implements IndicesRequest.RemoteClusterShardRequest {
+    class NodeRequest extends TransportRequest implements IndicesRequest {
         private final Request indicesLevelRequest;
         private final List<ShardRouting> shards;
         private final String nodeId;
@@ -497,11 +495,6 @@ public abstract class TransportBroadcastByNodeAction<
         @Override
         public String[] indices() {
             return indicesLevelRequest.indices();
-        }
-
-        @Override
-        public List<ShardId> shards() {
-            return shards.stream().map(ShardRouting::shardId).collect(Collectors.toList());
         }
 
         @Override

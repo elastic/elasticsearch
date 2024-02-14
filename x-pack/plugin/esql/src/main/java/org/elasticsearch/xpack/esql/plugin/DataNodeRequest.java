@@ -27,12 +27,11 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 
 import java.io.IOException;
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-final class DataNodeRequest extends TransportRequest implements IndicesRequest.RemoteClusterShardRequest {
+final class DataNodeRequest extends TransportRequest implements IndicesRequest {
     private static final PlanNameRegistry planNameRegistry = new PlanNameRegistry();
     private final String sessionId;
     private final EsqlConfiguration configuration;
@@ -92,11 +91,6 @@ final class DataNodeRequest extends TransportRequest implements IndicesRequest.R
             indices = shardIds.stream().map(ShardId::getIndexName).distinct().toArray(String[]::new);
         }
         return indices;
-    }
-
-    @Override
-    public Collection<ShardId> shards() {
-        return this.shardIds;
     }
 
     @Override

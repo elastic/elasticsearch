@@ -14,8 +14,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 
 public class PutCcrRestoreSessionRequest extends SingleShardRequest<PutCcrRestoreSessionRequest> {
 
@@ -52,12 +50,5 @@ public class PutCcrRestoreSessionRequest extends SingleShardRequest<PutCcrRestor
 
     ShardId getShardId() {
         return shardId;
-    }
-
-    @Override
-    public List<ShardId> shards() {
-        var shards = new ArrayList<>(super.shards());
-        shards.add(shardId);
-        return shards;
     }
 }

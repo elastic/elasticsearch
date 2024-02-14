@@ -38,7 +38,8 @@ import static org.elasticsearch.xpack.core.security.action.apikey.CrossClusterAp
 public class CrossClusterShardTests extends ESSingleNodeTestCase {
 
     Set<String> MANUALLY_CHECKED_SHARD_ACTIONS = Set.of(
-        // The request types for these actions are all subtypes of SingleShardRequest
+        // The request types for these actions are all subtypes of SingleShardRequest, and have been evaluated to make sure their
+        // `shards()` methods return the correct thing.
         TransportShardMultiTermsVectorAction.TYPE.name(),
         TransportExplainAction.TYPE.name(),
         RetentionLeaseActions.ADD.name(),
@@ -49,7 +50,7 @@ public class CrossClusterShardTests extends ESSingleNodeTestCase {
         TransportShardMultiGetAction.TYPE.name(),
         TransportGetFieldMappingsIndexAction.TYPE.name(),
 
-        // These actions do not have any references to shard IDs in their requests
+        // These actions do not have any references to shard IDs in their requests.
         ClusterSearchShardsAction.NAME,
         TransportSearchShardsAction.NAME
     );
@@ -74,9 +75,7 @@ public class CrossClusterShardTests extends ESSingleNodeTestCase {
             .map(action -> action.actionName)
             .toList();
 
-        List<String> actionsNotOnAllowlist = shardActions.stream()
-            .filter(Predicate.not(MANUALLY_CHECKED_SHARD_ACTIONS::contains))
-            .toList();
+        List<String> actionsNotOnAllowlist = shardActions.stream().filter(Predicate.not(MANUALLY_CHECKED_SHARD_ACTIONS::contains)).toList();
         if (actionsNotOnAllowlist.isEmpty() == false) {
             fail("""
                 If this test fails, you likely just added a transport action, probably with `shard` in the name. Transport actions which
@@ -93,8 +92,11 @@ public class CrossClusterShardTests extends ESSingleNodeTestCase {
             .filter(Predicate.not(shardActions::contains))
             .toList();
         if (actionsOnAllowlistNotFound.isEmpty() == false) {
-            fail("Some actions were on the allowlist but not found in the list of cross-cluster capable transport actions, please remove " +
-                "these from MANUALLY_CHECKED_SHARD_ACTIONS if they have been removed from Elasticsearch: " + actionsOnAllowlistNotFound);
+            fail(
+                "Some actions were on the allowlist but not found in the list of cross-cluster capable transport actions, please remove "
+                    + "these from MANUALLY_CHECKED_SHARD_ACTIONS if they have been removed from Elasticsearch: "
+                    + actionsOnAllowlistNotFound
+            );
         }
     }
 

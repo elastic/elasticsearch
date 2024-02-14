@@ -82,8 +82,6 @@ import org.elasticsearch.xpack.ql.expression.NamedExpression;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -408,7 +406,7 @@ public class EnrichLookupService {
         }
     }
 
-    private static class LookupRequest extends TransportRequest implements IndicesRequest.RemoteClusterShardRequest {
+    private static class LookupRequest extends TransportRequest implements IndicesRequest {
         private final String sessionId;
         private final ShardId shardId;
         private final String matchType;
@@ -465,11 +463,6 @@ public class EnrichLookupService {
         @Override
         public String[] indices() {
             return new String[] { shardId.getIndexName() };
-        }
-
-        @Override
-        public Collection<ShardId> shards() {
-            return Collections.singletonList(shardId);
         }
 
         @Override

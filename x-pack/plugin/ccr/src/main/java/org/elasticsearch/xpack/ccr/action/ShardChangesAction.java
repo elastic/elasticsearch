@@ -103,13 +103,6 @@ public class ShardChangesAction extends ActionType<ShardChangesAction.Response> 
             return shardId;
         }
 
-        @Override
-        public List<ShardId> shards() {
-            var shards = new ArrayList<>(super.shards());
-            shards.add(shardId);
-            return shards;
-        }
-
         public long getFromSeqNo() {
             return fromSeqNo;
         }

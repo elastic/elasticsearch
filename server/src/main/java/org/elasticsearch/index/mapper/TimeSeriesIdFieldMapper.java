@@ -141,7 +141,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
         context.doc().add(new SortedDocValuesField(fieldType().name(), timeSeriesId));
         TsidExtractingIdFieldMapper.createField(
             context,
-            getIndexVersionCreated(context).before(IndexVersions.TIME_SERIES_SHARD_ID_IN_ID) ? timeSeriesIdBuilder.routingBuilder : null,
+            getIndexVersionCreated(context).before(IndexVersions.TIME_SERIES_ROUTING_ID_IN_ID) ? timeSeriesIdBuilder.routingBuilder : null,
             timeSeriesId
         );
     }

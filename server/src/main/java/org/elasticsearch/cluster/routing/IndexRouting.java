@@ -404,8 +404,7 @@ public abstract class IndexRouting {
             if (idBytes.length < 4) {
                 throw new ResourceNotFoundException("invalid id [{}] for index [{}] in time series mode", id, indexName);
             }
-            int shardId = ByteUtils.readIntLE(idBytes, 0);
-            return Math.floorMod(shardId, routingNumShards);
+            return hashToShardId(ByteUtils.readIntLE(idBytes, 0));
         }
 
         @Override

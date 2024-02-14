@@ -106,8 +106,7 @@ public class TranslogHandler implements Engine.TranslogRecoveryRunner {
                     true,
                     SequenceNumbers.UNASSIGNED_SEQ_NO,
                     SequenceNumbers.UNASSIGNED_PRIMARY_TERM,
-                    System.nanoTime(),
-                    0
+                    System.nanoTime()
                 );
                 return engineIndex;
             }

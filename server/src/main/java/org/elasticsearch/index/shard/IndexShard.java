@@ -980,8 +980,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 isRetry,
                 ifSeqNo,
                 ifPrimaryTerm,
-                getRelativeTimeInNanos(),
-                shardId().id()
+                getRelativeTimeInNanos()
             );
             Mapping update = operation.parsedDoc().dynamicMappingsUpdate();
             if (update != null) {
@@ -1018,8 +1017,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         boolean isRetry,
         long ifSeqNo,
         long ifPrimaryTerm,
-        long startTimeInNanos,
-        int shardId
+        long startTimeInNanos
     ) {
         assert source.dynamicTemplates().isEmpty() || origin == Engine.Operation.Origin.PRIMARY
             : "dynamic_templates parameter can only be associated with primary operations";
@@ -1029,7 +1027,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             documentMapper = DocumentMapper.createEmpty(mapperService);
             mapping = documentMapper.mapping();
         }
-        ParsedDocument doc = documentMapper.parse(source, shardId);
+        ParsedDocument doc = documentMapper.parse(source);
         if (mapping != null) {
             // If we are indexing but there is no mapping we create one. This is to ensure that whenever at least a document is indexed
             // some mappings do exist. It covers for the case of indexing an empty doc (`{}`).

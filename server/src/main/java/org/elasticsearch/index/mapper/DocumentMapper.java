@@ -89,11 +89,7 @@ public class DocumentMapper {
     }
 
     public ParsedDocument parse(SourceToParse source) throws DocumentParsingException {
-        return parse(source, 0);
-    }
-
-    public ParsedDocument parse(SourceToParse source, int shardId) throws DocumentParsingException {
-        return documentParser.parseDocument(source, mappingLookup, shardId);
+        return documentParser.parseDocument(source, mappingLookup);
     }
 
     public void validate(IndexSettings settings, boolean checkLimits) {

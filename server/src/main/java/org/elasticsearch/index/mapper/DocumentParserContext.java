@@ -115,8 +115,6 @@ public abstract class DocumentParserContext {
     private final Set<String> fieldsAppliedFromTemplates;
     private final Set<String> copyToFields;
 
-    private final int shardId;
-
     private DocumentParserContext(
         MappingLookup mappingLookup,
         MappingParserContext mappingParserContext,
@@ -133,8 +131,7 @@ public abstract class DocumentParserContext {
         ObjectMapper.Dynamic dynamic,
         Set<String> fieldsAppliedFromTemplates,
         Set<String> copyToFields,
-        DynamicMapperSize dynamicMapperSize,
-        final int shardId
+        DynamicMapperSize dynamicMapperSize
     ) {
         this.mappingLookup = mappingLookup;
         this.mappingParserContext = mappingParserContext;
@@ -152,7 +149,6 @@ public abstract class DocumentParserContext {
         this.fieldsAppliedFromTemplates = fieldsAppliedFromTemplates;
         this.copyToFields = copyToFields;
         this.dynamicMappersSize = dynamicMapperSize;
-        this.shardId = shardId;
     }
 
     private DocumentParserContext(ObjectMapper parent, ObjectMapper.Dynamic dynamic, DocumentParserContext in) {
@@ -172,8 +168,7 @@ public abstract class DocumentParserContext {
             dynamic,
             in.fieldsAppliedFromTemplates,
             in.copyToFields,
-            in.dynamicMappersSize,
-            in.shardId
+            in.dynamicMappersSize
         );
     }
 
@@ -182,8 +177,7 @@ public abstract class DocumentParserContext {
         MappingParserContext mappingParserContext,
         SourceToParse source,
         ObjectMapper parent,
-        ObjectMapper.Dynamic dynamic,
-        int shardId
+        ObjectMapper.Dynamic dynamic
     ) {
         this(
             mappingLookup,
@@ -201,8 +195,7 @@ public abstract class DocumentParserContext {
             dynamic,
             new HashSet<>(),
             new HashSet<>(),
-            new DynamicMapperSize(),
-            shardId
+            new DynamicMapperSize()
         );
     }
 
@@ -236,10 +229,6 @@ public abstract class DocumentParserContext {
 
     public final SourceToParse sourceToParse() {
         return this.sourceToParse;
-    }
-
-    public int getShardId() {
-        return shardId;
     }
 
     /**

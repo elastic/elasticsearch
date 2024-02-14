@@ -359,7 +359,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
      * Parse a document with current mapping.
      */
     public ParsedDocument parseDocument(SourceToParse source) throws DocumentParsingException {
-        return mapperService.documentParser().parseDocument(source, mappingLookup, shardId);
+        return mapperService.documentParser().parseDocument(source, mappingLookup);
     }
 
     public NestedLookup nestedLookup() {

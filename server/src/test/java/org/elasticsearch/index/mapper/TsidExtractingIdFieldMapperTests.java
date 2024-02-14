@@ -725,12 +725,12 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
             source.accept(builder);
             builder.endObject();
             SourceToParse sourceToParse = new SourceToParse(id, BytesReference.bytes(builder), builder.contentType());
-            return mapperService.documentParser().parseDocument(sourceToParse, mapperService.mappingLookup(), SHARD_ID);
+            return mapperService.documentParser().parseDocument(sourceToParse, mapperService.mappingLookup());
         }
     }
 
     public void testRoutingPathCompliant() throws IOException {
-        IndexVersion version = IndexVersions.TIME_SERIES_SHARD_ID_IN_ID;
+        IndexVersion version = IndexVersions.TIME_SERIES_ROUTING_ID_IN_ID;
         IndexRouting indexRouting = createIndexSettings(version, indexSettings(version)).getIndexRouting();
         assertThat(indexRouting.getShard(testCase.expectedId, null), equalTo(SHARD_ID));
         assertThat(indexRouting.deleteShard(testCase.expectedId, null), equalTo(SHARD_ID));

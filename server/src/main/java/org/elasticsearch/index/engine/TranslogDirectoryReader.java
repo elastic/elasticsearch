@@ -259,8 +259,7 @@ final class TranslogDirectoryReader extends DirectoryReader {
                     Map.of(),
                     DocumentSizeObserver.EMPTY_INSTANCE
                 ),
-                mappingLookup,
-                shardId.id()
+                mappingLookup
             );
 
             parsedDocs.updateSeqID(operation.seqNo(), operation.primaryTerm());

@@ -70,7 +70,7 @@ public class BlockSourceReaderTests extends MapperServiceTestCase {
         throws IOException {
         MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "text")));
         withLuceneIndex(mapperService, writer -> {
-            ParsedDocument parsed = mapperService.documentParser().parseDocument(source(buildSource), mapperService.mappingLookup(), 0);
+            ParsedDocument parsed = mapperService.documentParser().parseDocument(source(buildSource), mapperService.mappingLookup());
             writer.addDocuments(parsed.docs());
         }, reader -> {
             assertThat(reader.leaves(), hasSize(1));

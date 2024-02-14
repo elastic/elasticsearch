@@ -47,7 +47,7 @@ import static org.hamcrest.Matchers.hasSize;
 public class IdLoaderTests extends ESTestCase {
 
     public void testSynthesizeIdSimple() throws Exception {
-        var idLoader = IdLoader.createTsIdLoader(null, null, 7);
+        var idLoader = IdLoader.createTsIdLoader(null, null);
 
         long startTime = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2023-01-01T00:00:00Z");
         List<Doc> docs = List.of(
@@ -71,7 +71,7 @@ public class IdLoaderTests extends ESTestCase {
     public void testSynthesizeIdMultipleSegments() throws Exception {
         var routingPaths = List.of("dim1");
         var routing = createRouting(routingPaths);
-        var idLoader = IdLoader.createTsIdLoader(null, null, 7);
+        var idLoader = IdLoader.createTsIdLoader(null, null);
 
         long startTime = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2023-01-01T00:00:00Z");
         List<Doc> docs1 = List.of(
@@ -143,7 +143,7 @@ public class IdLoaderTests extends ESTestCase {
     public void testSynthesizeIdRandom() throws Exception {
         var routingPaths = List.of("dim1");
         var routing = createRouting(routingPaths);
-        var idLoader = IdLoader.createTsIdLoader(null, null, 7);
+        var idLoader = IdLoader.createTsIdLoader(null, null);
 
         long startTime = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2023-01-01T00:00:00Z");
         Set<String> expectedIDs = new HashSet<>();
@@ -249,7 +249,7 @@ public class IdLoaderTests extends ESTestCase {
                 timeSeriesIdBuilder.addString(dimension.field, dimension.value.toString());
             }
         }
-        return TsidExtractingIdFieldMapper.createId(7, timeSeriesIdBuilder.buildTsidHash().toBytesRef(), doc.timestamp);
+        return TsidExtractingIdFieldMapper.createId(randomInt(), timeSeriesIdBuilder.buildTsidHash().toBytesRef(), doc.timestamp);
     }
 
     private static IndexRouting.ExtractFromSource createRouting(List<String> routingPaths) {

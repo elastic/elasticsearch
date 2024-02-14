@@ -133,7 +133,8 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
                 || context.getDynamicRuntimeFields().isEmpty() == false
                 || id.equals(indexRouting.createId(context.sourceToParse().getXContentType(), context.sourceToParse().source(), suffix));
         } else {
-            id = createId(context.getShardId(), tsid, timestamp);
+            int routingId = 0;  // FIXME
+            id = createId(routingId, tsid, timestamp);
         }
         if (context.sourceToParse().id() != null && false == context.sourceToParse().id().equals(id)) {
             throw new IllegalArgumentException(
@@ -152,12 +153,12 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
         context.doc().add(new StringField(NAME, uidEncoded, Field.Store.YES));
     }
 
-    public static String createId(int shardId, BytesRef tsid, long timestamp) {
+    public static String createId(int routingId, BytesRef tsid, long timestamp) {
         Hash128 hash = new Hash128();
         MurmurHash3.hash128(tsid.bytes, tsid.offset, tsid.length, SEED, hash);
 
         byte[] bytes = new byte[20];
-        ByteUtils.writeIntLE(shardId, bytes, 0);
+        ByteUtils.writeIntLE(routingId, bytes, 0);
         ByteUtils.writeLongLE(hash.h1, bytes, 4);
         ByteUtils.writeLongBE(timestamp, bytes, 12);   // Big Ending shrinks the inverted index by ~37%
 

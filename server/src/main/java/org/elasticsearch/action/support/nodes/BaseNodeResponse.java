@@ -20,7 +20,7 @@ import java.io.IOException;
 /**
  * A base class for node level operations.
  */
-public abstract class BaseNodeResponse extends ActionResponse {
+public abstract class BaseNodeResponse extends TransportResponse {
 
     private final DiscoveryNode node;
 

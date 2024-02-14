@@ -228,7 +228,7 @@ public abstract class TransportNodesAction<
      * The default implementation is to fall through to {@link #nodeOperation}.
      */
     protected void nodeOperationAsync(NodeRequest request, ChannelActionListener<NodeResponse> listener, Task task) {
-        ActionListener.completeWith(listener, () -> nodeOperation(request, task));
+        ActionListener.respondAndRelease(listener, nodeOperation(request, task));
     }
 
     /**

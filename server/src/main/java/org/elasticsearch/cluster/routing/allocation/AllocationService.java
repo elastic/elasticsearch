@@ -267,7 +267,7 @@ public class AllocationService {
     }
 
     /**
-     * unassigned any shards that are associated with nodes that are no longer part of the cluster, potentially promoting replicas
+     * unassigned an shards that are associated with nodes that are no longer part of the cluster, potentially promoting replicas
      * if needed.
      */
     public ClusterState disassociateDeadNodes(ClusterState clusterState, boolean reroute, String reason) {
@@ -563,7 +563,7 @@ public class AllocationService {
         for (Iterator<RoutingNode> it = allocation.routingNodes().mutableIterator(); it.hasNext();) {
             RoutingNode node = it.next();
             if (allocation.nodes().getDataNodes().containsKey(node.nodeId())) {
-                // it's a live node, continue
+                // its a live node, continue
                 continue;
             }
 
@@ -591,7 +591,7 @@ public class AllocationService {
                 );
                 allocation.routingNodes().failShard(logger, shardRouting, unassignedInfo, allocation.changes());
             }
-            // it's a dead node, remove it, note, it's important to remove it *after* we apply failed shard
+            // its a dead node, remove it, note, its important to remove it *after* we apply failed shard
             // since it relies on the fact that the RoutingNode exists in the list of nodes
             it.remove();
         }

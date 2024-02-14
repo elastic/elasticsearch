@@ -11,6 +11,7 @@ package org.elasticsearch.common.io.stream;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.core.Releasable;
 
 import java.io.EOFException;
 import java.io.IOException;
@@ -55,6 +56,11 @@ public abstract class FilterStreamInput extends StreamInput {
     @Override
     public BytesReference readSlicedBytesReference() throws IOException {
         return delegate.readSlicedBytesReference();
+    }
+
+    @Override
+    public Releasable acquireBufferReference() {
+        return delegate.acquireBufferReference();
     }
 
     @Override

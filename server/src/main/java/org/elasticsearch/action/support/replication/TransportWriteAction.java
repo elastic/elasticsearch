@@ -210,17 +210,19 @@ public abstract class TransportWriteAction<
         IndexShard primary,
         ActionListener<PrimaryResult<ReplicaRequest, Response>> listener
     ) {
-        threadPool.executor(executorFunction.apply(executorSelector, primary)).execute(new ActionRunnable<>(listener) {
-            @Override
-            protected void doRun() {
-                dispatchedShardOperationOnPrimary(request, primary, listener);
-            }
+        request.mustIncRef();
+        threadPool.executor(executorFunction.apply(executorSelector, primary))
+            .execute(new ActionRunnable<>(ActionListener.releaseAfter(listener, request::decRef)) {
+                @Override
+                protected void doRun() {
+                    dispatchedShardOperationOnPrimary(request, primary, listener);
+                }
 
-            @Override
-            public boolean isForceExecution() {
-                return force(request);
-            }
-        });
+                @Override
+                public boolean isForceExecution() {
+                    return force(request);
+                }
+            });
     }
 
     protected abstract void dispatchedShardOperationOnPrimary(
@@ -238,17 +240,19 @@ public abstract class TransportWriteAction<
      */
     @Override
     protected void shardOperationOnReplica(ReplicaRequest request, IndexShard replica, ActionListener<ReplicaResult> listener) {
-        threadPool.executor(executorFunction.apply(executorSelector, replica)).execute(new ActionRunnable<>(listener) {
-            @Override
-            protected void doRun() {
-                dispatchedShardOperationOnReplica(request, replica, listener);
-            }
+        request.mustIncRef();
+        threadPool.executor(executorFunction.apply(executorSelector, replica))
+            .execute(new ActionRunnable<>(ActionListener.releaseAfter(listener, request::decRef)) {
+                @Override
+                protected void doRun() {
+                    dispatchedShardOperationOnReplica(request, replica, listener);
+                }
 
-            @Override
-            public boolean isForceExecution() {
-                return true;
-            }
-        });
+                @Override
+                public boolean isForceExecution() {
+                    return true;
+                }
+            });
     }
 
     protected abstract void dispatchedShardOperationOnReplica(

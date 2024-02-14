@@ -41,8 +41,10 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.SimpleRefCounted;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
@@ -1311,12 +1313,15 @@ public abstract class TransportReplicationAction<
         // is only true if sentFromLocalReroute is true.
         private final boolean localRerouteInitiatedByNodeClient;
 
+        private final RefCounted refCounted;
+
         public ConcreteShardRequest(Writeable.Reader<R> requestReader, StreamInput in) throws IOException {
             targetAllocationID = in.readString();
             primaryTerm = in.readVLong();
             sentFromLocalReroute = false;
             localRerouteInitiatedByNodeClient = false;
             request = requestReader.read(in);
+            this.refCounted = new SimpleRefCounted();
         }
 
         public ConcreteShardRequest(R request, String targetAllocationID, long primaryTerm) {
@@ -1332,6 +1337,7 @@ public abstract class TransportReplicationAction<
         ) {
             Objects.requireNonNull(request);
             Objects.requireNonNull(targetAllocationID);
+            this.refCounted = ALWAYS_REFERENCED;
             this.request = request;
             this.targetAllocationID = targetAllocationID;
             this.primaryTerm = primaryTerm;
@@ -1418,6 +1424,30 @@ public abstract class TransportReplicationAction<
         public String toString() {
             return "request: " + request + ", target allocation id: " + targetAllocationID + ", primary term: " + primaryTerm;
         }
+
+        @Override
+        public void incRef() {
+            refCounted.incRef();
+        }
+
+        @Override
+        public boolean tryIncRef() {
+            return refCounted.tryIncRef();
+        }
+
+        @Override
+        public boolean decRef() {
+            if (refCounted.decRef()) {
+                request.decRef();
+                return true;
+            }
+            return false;
+        }
+
+        @Override
+        public boolean hasReferences() {
+            return refCounted.hasReferences();
+        }
     }
 
     protected static final class ConcreteReplicaRequest<R extends TransportRequest> extends ConcreteShardRequest<R> {
@@ -1445,6 +1475,7 @@ public abstract class TransportReplicationAction<
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
+            assert hasReferences();
             super.writeTo(out);
             out.writeZLong(globalCheckpoint);
             out.writeZLong(maxSeqNoOfUpdatesOrDeletes);

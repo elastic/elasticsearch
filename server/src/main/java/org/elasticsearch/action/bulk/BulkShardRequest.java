@@ -18,6 +18,8 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.transport.RawIndexingDataTransportRequest;
 
@@ -33,14 +35,18 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
 
     private final BulkItemRequest[] items;
 
+    private final RefCounted refCounted;
+
     public BulkShardRequest(StreamInput in) throws IOException {
         super(in);
+        this.refCounted = AbstractRefCounted.of(in.acquireBufferReference()::close);
         items = in.readArray(i -> i.readOptionalWriteable(inpt -> new BulkItemRequest(shardId, inpt)), BulkItemRequest[]::new);
     }
 
     public BulkShardRequest(ShardId shardId, RefreshPolicy refreshPolicy, BulkItemRequest[] items) {
         super(shardId);
         this.items = items;
+        this.refCounted = ALWAYS_REFERENCED;
         setRefreshPolicy(refreshPolicy);
     }
 
@@ -63,6 +69,7 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
     }
 
     public BulkItemRequest[] items() {
+        assert hasReferences();
         return items;
     }
 
@@ -153,5 +160,25 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
             sum += item.ramBytesUsed();
         }
         return sum;
+    }
+
+    @Override
+    public void incRef() {
+        refCounted.incRef();
+    }
+
+    @Override
+    public boolean tryIncRef() {
+        return refCounted.tryIncRef();
+    }
+
+    @Override
+    public boolean decRef() {
+        return refCounted.decRef();
+    }
+
+    @Override
+    public boolean hasReferences() {
+        return refCounted.hasReferences();
     }
 }

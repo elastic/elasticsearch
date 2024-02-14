@@ -161,7 +161,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         }
         id = in.readOptionalString();
         routing = in.readOptionalString();
-        source = in.readBytesReference();
+        source = in.readSlicedBytesReference();
         opType = OpType.fromId(in.readByte());
         version = in.readLong();
         versionType = VersionType.fromValue(in.readByte());

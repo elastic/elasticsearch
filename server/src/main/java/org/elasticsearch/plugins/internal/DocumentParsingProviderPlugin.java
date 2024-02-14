@@ -9,20 +9,12 @@
 package org.elasticsearch.plugins.internal;
 
 /**
- * An internal plugin that will return a supplier of DocumentParsingSupplier.
+ * An internal plugin that will return a DocumentParsingProvider.
  */
-<<<<<<<< HEAD:server/src/main/java/org/elasticsearch/plugins/internal/DocumentParsingSupplierPlugin.java
-public interface DocumentParsingSupplierPlugin {
-========
 public interface DocumentParsingProviderPlugin {
->>>>>>>> origin/main:server/src/main/java/org/elasticsearch/plugins/internal/DocumentParsingProviderPlugin.java
 
     /**
-     * @return a DocumentParsingSupplier to create instances of observer and reporter of parsing events
+     * @return a DocumentParsingProvider to create instances of observer and reporter of parsing events
      */
-<<<<<<<< HEAD:server/src/main/java/org/elasticsearch/plugins/internal/DocumentParsingSupplierPlugin.java
-    DocumentParsingSupplier getDocumentParsingSupplier();
-========
-    DocumentParsingProvider getDocumentParsingSupplier();
->>>>>>>> origin/main:server/src/main/java/org/elasticsearch/plugins/internal/DocumentParsingProviderPlugin.java
+    DocumentParsingProvider getDocumentParsingProvider();
 }

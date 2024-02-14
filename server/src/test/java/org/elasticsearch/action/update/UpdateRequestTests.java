@@ -22,7 +22,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.plugins.internal.DocumentParsingSupplier;
+import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptEngine;
@@ -116,7 +116,7 @@ public class UpdateRequestTests extends ESTestCase {
         final MockScriptEngine engine = new MockScriptEngine("mock", scripts, Collections.emptyMap());
         Map<String, ScriptEngine> engines = Collections.singletonMap(engine.getType(), engine);
         ScriptService scriptService = new ScriptService(baseSettings, engines, ScriptModule.CORE_CONTEXTS, () -> 1L);
-        updateHelper = new UpdateHelper(scriptService, DocumentParsingSupplier.EMPTY_INSTANCE);
+        updateHelper = new UpdateHelper(scriptService, DocumentParsingProvider.EMPTY_INSTANCE);
     }
 
     @SuppressWarnings("unchecked")
@@ -592,7 +592,7 @@ public class UpdateRequestTests extends ESTestCase {
         try (var parser = createParser(JsonXContent.jsonXContent, new BytesArray("{\"doc\": {\"body\": \"foo\"}}"))) {
             request = new UpdateRequest("test", "1").fromXContent(parser);
         }
-        UpdateHelper updateHelper = new UpdateHelper(mock(ScriptService.class), DocumentParsingSupplier.EMPTY_INSTANCE);
+        UpdateHelper updateHelper = new UpdateHelper(mock(ScriptService.class), DocumentParsingProvider.EMPTY_INSTANCE);
         UpdateHelper.Result result = updateHelper.prepareUpdateIndexRequest(shardId, request, getResult, true);
 
         assertThat(result.action(), instanceOf(UpdateResponse.class));

@@ -937,8 +937,9 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         return normalisedBytesParsed;
     }
 
-    public void setNormalisedBytesParsed(long normalisedBytesParsed) {
+    public IndexRequest setNormalisedBytesParsed(long normalisedBytesParsed) {
         this.normalisedBytesParsed = normalisedBytesParsed;
+        return this;
     }
 
     /**

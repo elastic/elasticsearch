@@ -26,7 +26,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.plugins.internal.DocumentParsingSupplier;
+import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.plugins.internal.DocumentSizeObserver;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
@@ -49,11 +49,11 @@ public class UpdateHelper {
     private static final Logger logger = LogManager.getLogger(UpdateHelper.class);
 
     private final ScriptService scriptService;
-    private final DocumentParsingSupplier documentParsingSupplier;
+    private final DocumentParsingProvider documentParsingProvider;
 
-    public UpdateHelper(ScriptService scriptService, DocumentParsingSupplier documentParsingSupplier) {
+    public UpdateHelper(ScriptService scriptService, DocumentParsingProvider documentParsingProvider) {
         this.scriptService = scriptService;
-        this.documentParsingSupplier = documentParsingSupplier;
+        this.documentParsingProvider = documentParsingProvider;
     }
 
     /**
@@ -181,7 +181,7 @@ public class UpdateHelper {
     Result prepareUpdateIndexRequest(ShardId shardId, UpdateRequest request, GetResult getResult, boolean detectNoop) {
         final IndexRequest currentRequest = request.doc();
         final String routing = calculateRouting(getResult, currentRequest);
-        final DocumentSizeObserver documentSizeObserver = documentParsingSupplier.getDocumentSizeObserver();
+        final DocumentSizeObserver documentSizeObserver = documentParsingProvider.newDocumentSizeObserver();
         final Tuple<XContentType, Map<String, Object>> sourceAndContent = XContentHelper.convertToMap(getResult.internalSourceRef(), true);
         final XContentType updateSourceContentType = sourceAndContent.v1();
         final Map<String, Object> updatedSourceAsMap = sourceAndContent.v2();
@@ -242,7 +242,7 @@ public class UpdateHelper {
         final Tuple<XContentType, Map<String, Object>> sourceAndContent = XContentHelper.convertToMap(getResult.internalSourceRef(), true);
         final XContentType updateSourceContentType = sourceAndContent.v1();
 
-        // DocumentSizeObserver documentSizeObserver = documentParsingSupplier.getDocumentSizeObserver(request.script.getIdOrCode());
+        // DocumentSizeObserver documentSizeObserver = DocumentParsingProvider.getDocumentSizeObserver(request.script.getIdOrCode());
 
         UpdateCtxMap ctxMap = executeScript(
             request.script,

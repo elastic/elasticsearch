@@ -256,8 +256,9 @@ class NodeConstruction {
 
             SearchModule searchModule = constructor.createSearchModule(settingsModule.getSettings(), threadPool);
             constructor.createClientAndRegistries(settingsModule.getSettings(), threadPool, searchModule);
+            DocumentParsingProvider documentParsingProvider = constructor.getDocumentParsingProvider();
 
-            ScriptService scriptService = constructor.createScriptService(settingsModule, threadPool, serviceProvider);
+            ScriptService scriptService = constructor.createScriptService(settingsModule, threadPool, serviceProvider, documentParsingProvider);
 
             constructor.construct(
                 threadPool,
@@ -267,7 +268,8 @@ class NodeConstruction {
                 constructor.createAnalysisRegistry(),
                 serviceProvider,
                 forbidPrivateIndexSettings,
-                telemetryProvider
+                telemetryProvider,
+                documentParsingProvider
             );
 
             return constructor;
@@ -558,7 +560,7 @@ class NodeConstruction {
         });
     }
 
-    private ScriptService createScriptService(SettingsModule settingsModule, ThreadPool threadPool, NodeServiceProvider serviceProvider) {
+    private ScriptService createScriptService(SettingsModule settingsModule, ThreadPool threadPool, NodeServiceProvider serviceProvider, DocumentParsingProvider documentParsingProvider) {
         Settings settings = settingsModule.getSettings();
         ScriptModule scriptModule = new ScriptModule(settings, pluginsService.filterPlugins(ScriptPlugin.class).toList());
 
@@ -572,7 +574,7 @@ class NodeConstruction {
         ScriptModule.registerClusterSettingsListeners(scriptService, settingsModule.getClusterSettings());
         modules.add(b -> {
             b.bind(ScriptService.class).toInstance(scriptService);
-            b.bind(UpdateHelper.class).toInstance(new UpdateHelper(scriptService));
+            b.bind(UpdateHelper.class).toInstance(new UpdateHelper(scriptService, documentParsingProvider));
         });
 
         return scriptService;
@@ -596,7 +598,8 @@ class NodeConstruction {
         AnalysisRegistry analysisRegistry,
         NodeServiceProvider serviceProvider,
         boolean forbidPrivateIndexSettings,
-        TelemetryProvider telemetryProvider
+        TelemetryProvider telemetryProvider,
+        DocumentParsingProvider documentParsingProvider
     ) throws IOException {
 
         Settings settings = settingsModule.getSettings();
@@ -612,12 +615,10 @@ class NodeConstruction {
             ).collect(Collectors.toSet()),
             telemetryProvider.getTracer()
         );
-        final Tracer tracer = telemetryProvider.getTracer();
 
         ClusterService clusterService = createClusterService(settingsModule, threadPool, taskManager);
         clusterService.addStateApplier(scriptService);
 
-        DocumentParsingProvider documentParsingProvider = getDocumentParsingSupplier();
         modules.bindToInstance(DocumentParsingProvider.class, documentParsingProvider);
 
         final IngestService ingestService = new IngestService(
@@ -1298,8 +1299,8 @@ class NodeConstruction {
         logger.info("initialized");
     }
 
-    private DocumentParsingProvider getDocumentParsingSupplier() {
-        return getSinglePlugin(DocumentParsingProviderPlugin.class).map(DocumentParsingProviderPlugin::getDocumentParsingSupplier)
+    private DocumentParsingProvider getDocumentParsingProvider() {
+        return getSinglePlugin(DocumentParsingProviderPlugin.class).map(DocumentParsingProviderPlugin::getDocumentParsingProvider)
             .orElse(DocumentParsingProvider.EMPTY_INSTANCE);
     }
 

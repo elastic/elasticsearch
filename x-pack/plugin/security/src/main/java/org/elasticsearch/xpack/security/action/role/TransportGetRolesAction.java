@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -50,18 +51,22 @@ public class TransportGetRolesAction extends TransportAction<GetRolesRequest, Ge
         final List<RoleDescriptor> roles = new ArrayList<>();
 
         if (specificRolesRequested) {
-            for (String role : requestedRoles) {
-                if (includeReservedRoles && ReservedRolesStore.isReserved(role)) {
-                    RoleDescriptor rd = ReservedRolesStore.roleDescriptor(role);
-                    if (rd != null) {
-                        roles.add(rd);
+            if (includeReservedRoles) {
+                for (String role : requestedRoles) {
+                    if (ReservedRolesStore.isReserved(role)) {
+                        RoleDescriptor rd = ReservedRolesStore.roleDescriptor(role);
+                        if (rd != null) {
+                            roles.add(rd);
+                        } else {
+                            listener.onFailure(new IllegalStateException("unable to obtain reserved role [" + role + "]"));
+                            return;
+                        }
                     } else {
-                        listener.onFailure(new IllegalStateException("unable to obtain reserved role [" + role + "]"));
-                        return;
+                        rolesToSearchFor.add(role);
                     }
-                } else {
-                    rolesToSearchFor.add(role);
                 }
+            } else {
+                rolesToSearchFor.addAll(Arrays.stream(requestedRoles).toList());
             }
         } else if (includeReservedRoles) {
             roles.addAll(ReservedRolesStore.roleDescriptors());
@@ -69,12 +74,12 @@ public class TransportGetRolesAction extends TransportAction<GetRolesRequest, Ge
 
         if (specificRolesRequested && rolesToSearchFor.isEmpty()) {
             // specific roles were requested but they were built in only, no need to hit the store
-            listener.onResponse(new GetRolesResponse(roles.toArray(new RoleDescriptor[roles.size()])));
+            listener.onResponse(new GetRolesResponse(roles.toArray(new RoleDescriptor[0])));
         } else {
             nativeRolesStore.getRoleDescriptors(rolesToSearchFor, ActionListener.wrap((retrievalResult) -> {
                 if (retrievalResult.isSuccess()) {
                     roles.addAll(retrievalResult.getDescriptors());
-                    listener.onResponse(new GetRolesResponse(roles.toArray(new RoleDescriptor[roles.size()])));
+                    listener.onResponse(new GetRolesResponse(roles.toArray(new RoleDescriptor[0])));
                 } else {
                     listener.onFailure(retrievalResult.getFailure());
                 }

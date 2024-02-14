@@ -242,8 +242,6 @@ public class UpdateHelper {
         final Tuple<XContentType, Map<String, Object>> sourceAndContent = XContentHelper.convertToMap(getResult.internalSourceRef(), true);
         final XContentType updateSourceContentType = sourceAndContent.v1();
 
-        // DocumentSizeObserver documentSizeObserver = DocumentParsingProvider.getDocumentSizeObserver(request.script.getIdOrCode());
-
         UpdateCtxMap ctxMap = executeScript(
             request.script,
             new UpdateCtxMap(
@@ -271,7 +269,7 @@ public class UpdateHelper {
                     .waitForActiveShards(request.waitForActiveShards())
                     .timeout(request.timeout())
                     .setRefreshPolicy(request.getRefreshPolicy())
-                    .setNormalisedBytesParsed(0L);
+                    .setNormalisedBytesParsed(0L);// an indicator that this request should not be reported
                 return new Result(indexRequest, DocWriteResponse.Result.UPDATED, updatedSourceAsMap, updateSourceContentType);
             }
             case DELETE -> {

@@ -42,6 +42,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.RootObjectMapper;
+import org.elasticsearch.index.replication.ESIndexLevelReplicationTestCase;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.ShardId;
@@ -203,11 +204,10 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         rejectItem.abort("index", rejectionCause);
 
         final CountDownLatch latch = new CountDownLatch(1);
-        TransportShardBulkAction.performOnPrimary(
+        ESIndexLevelReplicationTestCase.performOnPrimary(
             bulkShardRequest,
             shard,
             null,
-            threadPool::absoluteTimeInMillis,
             new NoopMappingUpdatePerformer(),
             listener -> {},
             ActionListener.runAfter(ActionTestUtils.assertNoFailureListener(result -> {
@@ -919,11 +919,10 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
 
         final CountDownLatch latch = new CountDownLatch(1);
-        TransportShardBulkAction.performOnPrimary(
+        ESIndexLevelReplicationTestCase.performOnPrimary(
             bulkShardRequest,
             shard,
             updateHelper,
-            threadPool::absoluteTimeInMillis,
             new NoopMappingUpdatePerformer(),
             listener -> listener.onResponse(null),
             new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(result -> {
@@ -1004,28 +1003,21 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             AtomicInteger updateCalled = new AtomicInteger();
 
             final CountDownLatch latch = new CountDownLatch(1);
-            TransportShardBulkAction.performOnPrimary(
-                bulkShardRequest,
-                shard,
-                null,
-                rejectingThreadPool::absoluteTimeInMillis,
-                (update, shardId, listener) -> {
-                    // There should indeed be a mapping update
-                    assertNotNull(update);
-                    updateCalled.incrementAndGet();
-                    listener.onResponse(null);
-                    try {
-                        // Release blocking task now that the continue write execution has been rejected and
-                        // the finishRequest execution has been force enqueued
-                        cyclicBarrier.await();
-                    } catch (InterruptedException | BrokenBarrierException e) {
-                        throw new IllegalStateException(e);
-                    }
-                },
-                listener -> listener.onResponse(null),
-                new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(result ->
-                // Assert that we still need to fsync the location that was successfully written
-                assertThat(((WritePrimaryResult<BulkShardRequest, BulkShardResponse>) result).location, equalTo(resultLocation1))), latch),
+            ESIndexLevelReplicationTestCase.performOnPrimary(bulkShardRequest, shard, null, (update, shardId, listener) -> {
+                // There should indeed be a mapping update
+                assertNotNull(update);
+                updateCalled.incrementAndGet();
+                listener.onResponse(null);
+                try {
+                    // Release blocking task now that the continue write execution has been rejected and
+                    // the finishRequest execution has been force enqueued
+                    cyclicBarrier.await();
+                } catch (InterruptedException | BrokenBarrierException e) {
+                    throw new IllegalStateException(e);
+                }
+            }, listener -> listener.onResponse(null), new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(result ->
+            // Assert that we still need to fsync the location that was successfully written
+            assertThat(((WritePrimaryResult<BulkShardRequest, BulkShardResponse>) result).location, equalTo(resultLocation1))), latch),
                 rejectingThreadPool,
                 Names.WRITE
             );
@@ -1072,19 +1064,14 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
 
         final CountDownLatch latch = new CountDownLatch(1);
-        TransportShardBulkAction.performOnPrimary(
-            bulkShardRequest,
-            shard,
-            null,
-            threadPool::absoluteTimeInMillis,
-            (update, shardId, listener) -> {
-                try {
-                    // delay the operation so our time stats are always GT 0
-                    Thread.sleep(100);
-                } catch (InterruptedException ignored) {} finally {
-                    listener.onResponse(null);
-                }
-            },
+        ESIndexLevelReplicationTestCase.performOnPrimary(bulkShardRequest, shard, null, (update, shardId, listener) -> {
+            try {
+                // delay the operation so our time stats are always GT 0
+                Thread.sleep(100);
+            } catch (InterruptedException ignored) {} finally {
+                listener.onResponse(null);
+            }
+        },
             listener -> listener.onFailure(new IllegalStateException("no failure expected")),
             new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(result -> {
                 try {
@@ -1140,11 +1127,10 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
         AssertionError error = expectThrows(
             AssertionError.class,
-            () -> TransportShardBulkAction.performOnPrimary(
+            () -> ESIndexLevelReplicationTestCase.performOnPrimary(
                 bulkShardRequest,
                 shard,
                 updateHelper,
-                threadPool::absoluteTimeInMillis,
                 (update, shardId, listener) -> fail("the master should not be contacted as the operation yielded a noop mapping update"),
                 listener -> listener.onResponse(null),
                 ActionTestUtils.assertNoFailureListener(result -> {}),
@@ -1208,11 +1194,10 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
 
         final CountDownLatch latch = new CountDownLatch(1);
-        TransportShardBulkAction.performOnPrimary(
+        ESIndexLevelReplicationTestCase.performOnPrimary(
             bulkShardRequest,
             shard,
             updateHelper,
-            threadPool::absoluteTimeInMillis,
             (update, shardId, listener) -> fail("the master should not be contacted as the operation yielded a noop mapping update"),
             listener -> listener.onFailure(new IllegalStateException("no failure expected")),
             new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(result -> {

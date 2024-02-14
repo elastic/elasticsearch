@@ -107,6 +107,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.bulk.stats.BulkOperationListener;
+import org.elasticsearch.index.replication.ESIndexLevelReplicationTestCase;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
@@ -1573,11 +1574,10 @@ public class AuthorizationServiceTests extends ESTestCase {
         IndexShard indexShard = mock(IndexShard.class);
         when(indexShard.getBulkOperationListener()).thenReturn(new BulkOperationListener() {
         });
-        TransportShardBulkAction.performOnPrimary(
+        ESIndexLevelReplicationTestCase.performOnPrimary(
             request,
             indexShard,
             new UpdateHelper(mock(ScriptService.class)),
-            System::currentTimeMillis,
             mappingUpdater,
             waitForMappingUpdate,
             future,

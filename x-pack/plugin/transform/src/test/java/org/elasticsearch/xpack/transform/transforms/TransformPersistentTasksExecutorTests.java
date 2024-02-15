@@ -37,6 +37,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskParams;
 import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
+import org.elasticsearch.xpack.transform.DefaultTransformExtension;
 import org.elasticsearch.xpack.transform.Transform;
 import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.checkpoint.TransformCheckpointService;
@@ -458,7 +459,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
             threadPool,
             clusterService,
             Settings.EMPTY,
-            Settings.EMPTY,
+            new DefaultTransformExtension(),
             TestIndexNameExpressionResolver.newInstance()
         );
     }

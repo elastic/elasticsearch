@@ -271,7 +271,7 @@ public class ScriptCache {
                     "parameter must contain a positive integer and a timevalue, i.e. 10/1m, but was [" + value + "]"
                 );
             }
-            int idx = value.indexOf("/");
+            int idx = value.indexOf('/');
             String count = value.substring(0, idx);
             String time = value.substring(idx + 1);
             try {

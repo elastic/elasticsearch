@@ -55,7 +55,7 @@ public class ModelSettings {
         TaskType taskType = TaskType.fromString((String) args[0]);
         String inferenceId = (String) args[1];
         Integer dimensions = (Integer) args[2];
-        SimilarityMeasure similarity = args[3] == null ? null : SimilarityMeasure.fromString((String) args[2]);
+        SimilarityMeasure similarity = args[3] == null ? null : SimilarityMeasure.fromString((String) args[3]);
         return new ModelSettings(taskType, inferenceId, dimensions, similarity);
     });
     static {

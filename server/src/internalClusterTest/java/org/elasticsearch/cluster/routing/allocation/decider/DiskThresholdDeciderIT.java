@@ -33,6 +33,7 @@ import org.elasticsearch.snapshots.RestoreInfo;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.hamcrest.Description;
 import org.hamcrest.Matcher;
 import org.hamcrest.TypeSafeMatcher;
@@ -160,7 +161,11 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
         assertBusyWithDiskUsageRefresh(dataNode0Id, indexName, new ContainsExactlyOneOf<>(shardSizes.getSmallestShardIds()));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105331")
+    @TestIssueLogging(
+        value = "org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceReconciler:DEBUG,"
+            + "org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator:TRACE",
+        issueUrl = "https://github.com/elastic/elasticsearch/issues/105331"
+    )
     public void testRestoreSnapshotAllocationDoesNotExceedWatermarkWithMultipleShards() throws Exception {
         internalCluster().startMasterOnlyNode();
         internalCluster().startDataOnlyNode();
@@ -303,7 +308,8 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
 
     private void refreshDiskUsage() {
         final ClusterInfoService clusterInfoService = internalCluster().getCurrentMasterNodeInstance(ClusterInfoService.class);
-        ClusterInfoServiceUtils.refresh(((InternalClusterInfoService) clusterInfoService));
+        var clusterInfo = ClusterInfoServiceUtils.refresh(((InternalClusterInfoService) clusterInfoService));
+        logger.info("Refreshed cluster info: {}", clusterInfo);
         // if the nodes were all under the low watermark already (but unbalanced) then a change in the disk usage doesn't trigger a reroute
         // even though it's now possible to achieve better balance, so we have to do an explicit reroute. TODO fix this?
         if (clusterInfoService.getClusterInfo()

@@ -1,0 +1,5 @@
+pr: 105578
+summary: Upgrade to Lucene 9.10.0
+area: Search
+type: enhancement
+issues: []

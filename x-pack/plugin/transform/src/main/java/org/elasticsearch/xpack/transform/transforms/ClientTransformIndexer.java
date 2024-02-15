@@ -50,6 +50,7 @@ import org.elasticsearch.xpack.core.transform.action.ValidateTransformAction;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformEffectiveSettings;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPosition;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
@@ -131,17 +132,12 @@ class ClientTransformIndexer extends TransformIndexer {
         // TODO: move into context constructor
         context.setShouldStopAtCheckpoint(shouldStopAtCheckpoint);
 
-        if (transformConfig.getSettings().getUsePit() != null) {
-            disablePit = transformConfig.getSettings().getUsePit() == false;
-        }
+        disablePit = TransformEffectiveSettings.isPitDisabled(transformConfig.getSettings());
     }
 
     @Override
     public void applyNewSettings(SettingsConfig newSettings) {
-        if (newSettings.getUsePit() != null) {
-            disablePit = newSettings.getUsePit() == false;
-        }
-
+        disablePit = TransformEffectiveSettings.isPitDisabled(newSettings);
         super.applyNewSettings(newSettings);
     }
 

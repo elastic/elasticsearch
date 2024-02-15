@@ -220,7 +220,9 @@ public class PainlessExecuteAction {
             }
 
             /**
-             * @param indexExpression should be of the form "index" or "cluster:index". Wildcards are OK.
+             * @param indexExpression should be of the form "index" or "cluster:index". Wildcards are not allowed
+             *                        (if wildcards are present, an exception will be thrown in later processing, so
+             *                        we don't check it here).
              * @return Tuple where first entry is clusterAlias, which will be null if not in the indexExpression
              *         and second entry is the index name
              *         Tuple(null, null) will be returned if indexExpression is null
@@ -533,32 +535,33 @@ public class PainlessExecuteAction {
         @Override
         protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
             if (request.getContextSetup() == null || request.getContextSetup().getClusterAlias() == null) {
-                if (request.index() != null) {
-                    // ensure that `index` is a remote name and not a date math expression which includes ':' symbol
-                    // since date math expression after evaluation should not contain ':' symbol
-                    String indexExpression = IndexNameExpressionResolver.resolveDateMathExpression(request.index());
-                    String[] split = indexExpression.split(String.valueOf(RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR));
-                    if (split.length > 1) {
-                        /*
-                         * if the cluster alias is null and the index field has a clusterAlias (clusterAlias:index notation)
-                         * that means this is executing on a remote cluster (it was forwarded by the querying cluster).
-                         * The clusterAlias is not Writeable, so it will be null in the ContextSetup on the remote cluster.
-                         * We need to strip off the clusterAlias from the index before executing the script locally,
-                         * so it will resolve to a local index
-                         */
-                        assert split.length == 2
-                            : "If the index contains the REMOTE_CLUSTER_INDEX_SEPARATOR it should have only two parts but it has "
-                                + Arrays.toString(split);
-                        request.index(split[1]);
-                    }
-                }
                 super.doExecute(task, request, listener);
             } else {
-                // forward to remote cluster
-                String clusterAlias = request.getContextSetup().getClusterAlias();
+                // forward to remote cluster after stripping off the clusterAlias from the index expression
+                removeClusterAliasFromIndexExpression(request);
                 transportService.getRemoteClusterService()
-                    .getRemoteClusterClient(clusterAlias, EsExecutors.DIRECT_EXECUTOR_SERVICE)
+                    .getRemoteClusterClient(request.getContextSetup().getClusterAlias(), EsExecutors.DIRECT_EXECUTOR_SERVICE)
                     .execute(PainlessExecuteAction.REMOTE_TYPE, request, listener);
+            }
+        }
+
+        // Visible for testing
+        static void removeClusterAliasFromIndexExpression(Request request) {
+            if (request.index() != null) {
+                String[] split = request.index().split(String.valueOf(RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR));
+                if (split.length > 1) {
+                    /*
+                     * if the cluster alias is null and the index field has a clusterAlias (clusterAlias:index notation)
+                     * that means this is executing on a remote cluster (it was forwarded by the querying cluster).
+                     * The clusterAlias is not Writeable, so it will be null in the ContextSetup on the remote cluster.
+                     * We need to strip off the clusterAlias from the index before executing the script locally,
+                     * so it will resolve to a local index
+                     */
+                    assert split.length == 2
+                        : "If the index contains the REMOTE_CLUSTER_INDEX_SEPARATOR it should have only two parts but it has "
+                            + Arrays.toString(split);
+                    request.index(split[1]);
+                }
             }
         }
 

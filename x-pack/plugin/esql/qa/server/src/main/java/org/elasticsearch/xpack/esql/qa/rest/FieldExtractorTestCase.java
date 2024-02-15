@@ -275,6 +275,40 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
         intTest().createAlias().test(randomInt());
     }
 
+    public void testFlattenedUnsupported() throws IOException {
+        new Test("flattened").createIndex("test", "flattened");
+        index("test", """
+            {"flattened": {"a": "foo"}}""");
+        Map<String, Object> result = runEsqlSync(new RestEsqlTestCase.RequestObjectBuilder().query("FROM test* | LIMIT 2"));
+
+        assertMap(
+            result,
+            matchesMap().entry("columns", List.of(columnInfo("flattened", "unsupported")))
+                .entry("values", List.of(matchesList().item(null)))
+        );
+    }
+
+    public void testEmptyMapping() throws IOException {
+        createIndex("test", index -> {});
+        index("test", """
+            {}""");
+
+        ResponseException e = expectThrows(
+            ResponseException.class,
+            () -> runEsqlSync(new RestEsqlTestCase.RequestObjectBuilder().query("FROM test* | SORT missing | LIMIT 3"))
+        );
+        String err = EntityUtils.toString(e.getResponse().getEntity());
+        assertThat(err, containsString("Unknown column [missing]"));
+
+        // TODO this is broken in main too
+        // Map<String, Object> result = runEsqlSync(new RestEsqlTestCase.RequestObjectBuilder().query("FROM test* | LIMIT 2"));
+        // assertMap(
+        // result,
+        // matchesMap().entry("columns", List.of(columnInfo("f", "unsupported"), columnInfo("f.raw", "unsupported")))
+        // .entry("values", List.of(matchesList().item(null).item(null)))
+        // );
+    }
+
     /**
      * <pre>
      * "text_field": {
@@ -604,6 +638,42 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
     /**
      * Two indices, one with:
      * <pre>
+     * "f": {
+     *     "type": "keyword"
+     * }
+     * </pre>
+     * and the other with
+     * <pre>
+     * "f": {
+     *     "type": "long"
+     * }
+     * </pre>.
+     */
+    public void testIncompatibleTypes() throws IOException {
+        keywordTest().createIndex("test1", "f");
+        index("test1", """
+            {"f": "f1"}""");
+        longTest().createIndex("test2", "f");
+        index("test2", """
+            {"f": 1}""");
+
+        Map<String, Object> result = runEsqlSync(new RestEsqlTestCase.RequestObjectBuilder().query("FROM test*"));
+        assertMap(
+            result,
+            matchesMap().entry("columns", List.of(columnInfo("f", "unsupported")))
+                .entry("values", List.of(matchesList().item(null), matchesList().item(null)))
+        );
+        ResponseException e = expectThrows(
+            ResponseException.class,
+            () -> runEsqlSync(new RestEsqlTestCase.RequestObjectBuilder().query("FROM test* | SORT f | LIMIT 3"))
+        );
+        String err = EntityUtils.toString(e.getResponse().getEntity());
+        assertThat(err, containsString("mapped as [2] incompatible types: [KEYWORD] in [test1], [LONG] in [test2]"));
+    }
+
+    /**
+     * Two indices, one with:
+     * <pre>
      * "file": {
      *     "type": "keyword"
      * }
@@ -680,24 +750,72 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
         String err = EntityUtils.toString(e.getResponse().getEntity());
         assertThat(err, containsString("mapped as [2] incompatible types: [KEYWORD] in [test1], [OBJECT] in [test2]"));
 
-        Map<String, Object> result = runEsqlSync(new RestEsqlTestCase.RequestObjectBuilder().query("FROM test* | LIMIT 2"));
+        Map<String, Object> result = runEsqlSync(new RestEsqlTestCase.RequestObjectBuilder().query("FROM test* | SORT file.raw | LIMIT 2"));
         assertMap(
             result,
             matchesMap().entry("columns", List.of(columnInfo("file", "unsupported"), columnInfo("file.raw", "keyword")))
-                .entry("values", List.of(matchesList().item(null).item(null), matchesList().item(null).item("o2")))
+                .entry("values", List.of(matchesList().item(null).item("o2"), matchesList().item(null).item(null)))
+        );
+    }
+
+    /**
+     * One index with an unsupported field and a supported sub-field. The supported sub-field
+     * is marked as unsupported <strong>because</strong> the parent is unsupported. Mapping:
+     * <pre>
+     * "f": {
+     *    "type": "ip_range"  ----- The type here doesn't matter, but it has to be one we don't support
+     *    "fields": {
+     *       "raw": {
+     *          "type": "keyword"
+     *       }
+     *    }
+     * }
+     * </pre>.
+     */
+    public void testPropagateUnsupportedToSubFields() throws IOException {
+        createIndex("test", index -> {
+            index.startObject("properties");
+            index.startObject("f");
+            {
+                index.field("type", "ip_range");
+                index.startObject("fields");
+                {
+                    index.startObject("raw").field("type", "keyword").endObject();
+                }
+                index.endObject();
+            }
+            index.endObject();
+            index.endObject();
+        });
+        index("test", """
+            {"f": "192.168.0.1/24"}""");
+
+        ResponseException e = expectThrows(
+            ResponseException.class,
+            () -> runEsqlSync(new RestEsqlTestCase.RequestObjectBuilder().query("FROM test* | SORT f, f.raw | LIMIT 3"))
+        );
+        String err = EntityUtils.toString(e.getResponse().getEntity());
+        assertThat(err, containsString("Cannot use field [f] with unsupported type [ip_range]"));
+        assertThat(err, containsString("Cannot use field [f.raw] with unsupported type [ip_range]"));
+
+        Map<String, Object> result = runEsqlSync(new RestEsqlTestCase.RequestObjectBuilder().query("FROM test* | LIMIT 2"));
+        assertMap(
+            result,
+            matchesMap().entry("columns", List.of(columnInfo("f", "unsupported"), columnInfo("f.raw", "unsupported")))
+                .entry("values", List.of(matchesList().item(null).item(null)))
         );
     }
 
     /**
      * Two indices, one with:
      * <pre>
-     * "file": {
-     *    "type": "ip_range"  <--- The type here doesn't matter, but it has to be one we don't support
+     * "f": {
+     *    "type": "ip_range"  ----- The type here doesn't matter, but it has to be one we don't support
      * }
      * </pre>
      * and the other with
      * <pre>
-     * "file": {
+     * "f": {
      *    "type": "object",
      *    "properties": {
      *       "raw": {

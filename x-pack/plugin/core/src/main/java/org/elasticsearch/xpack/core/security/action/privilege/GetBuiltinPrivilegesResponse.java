@@ -7,8 +7,8 @@
 package org.elasticsearch.xpack.core.security.action.privilege;
 
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
@@ -37,12 +37,6 @@ public final class GetBuiltinPrivilegesResponse extends ActionResponse {
         this(Collections.emptySet(), Collections.emptySet());
     }
 
-    public GetBuiltinPrivilegesResponse(StreamInput in) throws IOException {
-        super(in);
-        this.clusterPrivileges = in.readStringArray();
-        this.indexPrivileges = in.readStringArray();
-    }
-
     public String[] getClusterPrivileges() {
         return clusterPrivileges;
     }
@@ -53,7 +47,6 @@ public final class GetBuiltinPrivilegesResponse extends ActionResponse {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeStringArray(clusterPrivileges);
-        out.writeStringArray(indexPrivileges);
+        TransportAction.localOnly();
     }
 }

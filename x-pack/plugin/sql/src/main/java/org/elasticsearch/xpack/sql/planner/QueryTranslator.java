@@ -425,7 +425,7 @@ final class QueryTranslator {
             return org.elasticsearch.xpack.ql.planner.ExpressionTranslators.BinaryComparisons.doTranslate(
                 bc,
                 handler,
-                ExpressionTranslators.BinaryComparisons::getQuery
+                ExpressionTranslators.BinaryComparisons::dispatchQlBinaryComparisons
             );
         }
     }

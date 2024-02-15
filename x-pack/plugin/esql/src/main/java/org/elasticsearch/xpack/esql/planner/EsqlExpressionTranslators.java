@@ -29,7 +29,9 @@ import org.elasticsearch.xpack.ql.planner.ExpressionTranslator;
 import org.elasticsearch.xpack.ql.planner.ExpressionTranslators;
 import org.elasticsearch.xpack.ql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.ql.querydsl.query.MatchAll;
+import org.elasticsearch.xpack.ql.querydsl.query.NotQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.Query;
+import org.elasticsearch.xpack.ql.querydsl.query.RangeQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.TermQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.TermsQuery;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -39,6 +41,7 @@ import org.elasticsearch.xpack.ql.util.Check;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.time.ZoneId;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -118,8 +121,50 @@ public final class EsqlExpressionTranslators {
             ExpressionTranslators.BinaryComparisons.checkBinaryComparison(bc);
             Query translated = translateOutOfRangeComparisons(bc);
             return translated == null
-                ? ExpressionTranslators.BinaryComparisons.doTranslate(bc, handler, ExpressionTranslators.BinaryComparisons::getQuery)
+                ? ExpressionTranslators.BinaryComparisons.doTranslate(bc, handler, BinaryComparisons::dispatchEsqlBinaryComparisons)
                 : handler.wrapFunctionQuery(bc, bc.left(), () -> translated);
+        }
+
+        public static Query dispatchEsqlBinaryComparisons(
+            BinaryComparison bc,
+            TypedAttribute attribute,
+            Source source,
+            String name,
+            Object value,
+            String format,
+            boolean isDateLiteralComparison,
+            ZoneId zoneId
+        ) {
+            if (bc instanceof org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThan) {
+                return new RangeQuery(source, name, value, false, null, false, format, zoneId);
+            }
+            if (bc instanceof org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThanOrEqual) {
+                return new RangeQuery(source, name, value, true, null, false, format, zoneId);
+            }
+            if (bc instanceof org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.LessThan) {
+                return new RangeQuery(source, name, null, false, value, false, format, zoneId);
+            }
+            if (bc instanceof org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.LessThanOrEqual) {
+                return new RangeQuery(source, name, null, false, value, true, format, zoneId);
+            }
+            if (bc instanceof org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals
+                || bc instanceof org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NullEquals
+                || bc instanceof org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.NotEquals) {
+                name = pushableAttributeName(attribute);
+
+                Query query;
+                if (isDateLiteralComparison) {
+                    // dates equality uses a range query because it's the one that has a "format" parameter
+                    query = new RangeQuery(source, name, value, true, value, true, format, zoneId);
+                } else {
+                    query = new TermQuery(source, name, value);
+                }
+                if (bc instanceof org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.NotEquals) {
+                    query = new NotQuery(source, query);
+                }
+                return query;
+            }
+            return null;
         }
 
         private static Query translateOutOfRangeComparisons(BinaryComparison bc) {

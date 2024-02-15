@@ -263,7 +263,7 @@ public final class ExpressionTranslators {
 
         @Override
         protected Query asQuery(BinaryComparison bc, TranslatorHandler handler) {
-            return doTranslate(bc, handler, BinaryComparisons::getQuery);
+            return doTranslate(bc, handler, BinaryComparisons::dispatchQlBinaryComparisons);
         }
 
         public static void checkBinaryComparison(BinaryComparison bc) {
@@ -279,7 +279,7 @@ public final class ExpressionTranslators {
 
         public static Query doTranslate(BinaryComparison bc, TranslatorHandler handler, Dispatcher expressionDispatcher) {
             checkBinaryComparison(bc);
-            return handler.wrapFunctionQuery(bc, bc.left(), () -> translate(bc, handler, BinaryComparisons::getQuery));
+            return handler.wrapFunctionQuery(bc, bc.left(), () -> translate(bc, handler, BinaryComparisons::dispatchQlBinaryComparisons));
         }
 
         static Query translate(BinaryComparison bc, TranslatorHandler handler, Dispatcher expressionDispatcher) {
@@ -349,7 +349,7 @@ public final class ExpressionTranslators {
             );
         }
 
-        public static Query getQuery(
+        public static Query dispatchQlBinaryComparisons(
             BinaryComparison bc,
             TypedAttribute attribute,
             Source source,
@@ -467,7 +467,7 @@ public final class ExpressionTranslators {
                         Query query = BinaryComparisons.translate(
                             new Equals(in.source(), in.value(), rhs, in.zoneId()),
                             handler,
-                            BinaryComparisons::getQuery
+                            BinaryComparisons::dispatchQlBinaryComparisons
                         );
 
                         if (query instanceof TermQuery) {

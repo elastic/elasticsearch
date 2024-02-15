@@ -333,7 +333,7 @@ public final class ExpressionTranslators {
         }
 
         /**
-         * Represents a function which maps between an expression type and a query type, in a given translation context.
+         * Represents a function which maps between a {@link BinaryComparison} type and a query type, in a given translation context.
          */
         @FunctionalInterface
         public interface Dispatcher {

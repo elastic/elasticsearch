@@ -1,5 +1,0 @@
-pr: 105073
-summary: Support non-keyword fields as dimension subfields of pass-through object
-area: TSDB
-type: enhancement
-issues: []

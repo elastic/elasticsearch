@@ -1,2 +1,2 @@
-org.elasticsearch.xpack.inference.mock.TestInferenceServiceExtension
-org.elasticsearch.xpack.inference.mock.TestInferenceTextEmbeddingServiceExtension
+org.elasticsearch.xpack.inference.mock.TestSparseInferenceServiceExtension
+org.elasticsearch.xpack.inference.mock.TestDenseInferenceServiceExtension

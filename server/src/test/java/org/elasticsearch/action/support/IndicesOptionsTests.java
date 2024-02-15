@@ -9,7 +9,7 @@
 package org.elasticsearch.action.support;
 
 import org.elasticsearch.action.support.IndicesOptions.ConcreteTargetOptions;
-import org.elasticsearch.action.support.IndicesOptions.GeneralOptions;
+import org.elasticsearch.action.support.IndicesOptions.GatekeeperOptions;
 import org.elasticsearch.action.support.IndicesOptions.WildcardOptions;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -343,9 +343,9 @@ public class IndicesOptionsTests extends ESTestCase {
             randomBoolean(),
             randomBoolean()
         );
-        GeneralOptions generalOptions = new GeneralOptions(randomBoolean(), randomBoolean(), randomBoolean());
+        GatekeeperOptions gatekeeperOptions = new GatekeeperOptions(randomBoolean(), randomBoolean(), randomBoolean());
 
-        IndicesOptions indicesOptions = new IndicesOptions(concreteTargetOptions, wildcardOptions, generalOptions);
+        IndicesOptions indicesOptions = new IndicesOptions(concreteTargetOptions, wildcardOptions, gatekeeperOptions);
 
         XContentType type = randomFrom(XContentType.values());
         BytesReference xContentBytes = toXContentBytes(indicesOptions, type);
@@ -359,7 +359,7 @@ public class IndicesOptionsTests extends ESTestCase {
         assertThat(((List<?>) map.get("expand_wildcards")).contains("hidden"), equalTo(wildcardOptions.includeHidden()));
         assertThat(map.get("ignore_unavailable"), equalTo(concreteTargetOptions.allowUnavailableTargets()));
         assertThat(map.get("allow_no_indices"), equalTo(wildcardOptions.allowEmptyExpressions()));
-        assertThat(map.get("ignore_throttled"), equalTo(generalOptions.ignoreThrottled()));
+        assertThat(map.get("ignore_throttled"), equalTo(gatekeeperOptions.ignoreThrottled()));
     }
 
     public void testFromXContent() throws IOException {

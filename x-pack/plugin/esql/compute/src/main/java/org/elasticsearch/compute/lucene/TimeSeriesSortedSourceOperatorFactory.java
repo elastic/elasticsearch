@@ -77,7 +77,6 @@ public record TimeSeriesSortedSourceOperatorFactory(int limit, int maxPageSize, 
 
     static final class Impl extends SourceOperator {
 
-        private final int minPageSize;
         private final int maxPageSize;
         private final BlockFactory blockFactory;
         private final LuceneSliceQueue sliceQueue;
@@ -94,7 +93,6 @@ public record TimeSeriesSortedSourceOperatorFactory(int limit, int maxPageSize, 
 
         Impl(BlockFactory blockFactory, LuceneSliceQueue sliceQueue, int maxPageSize, int limit) {
             this.maxPageSize = maxPageSize;
-            this.minPageSize = Math.max(1, maxPageSize / 2);
             this.blockFactory = blockFactory;
             this.remainingDocs = limit;
             this.docsBuilder = blockFactory.newIntVectorBuilder(Math.min(limit, maxPageSize));
@@ -230,10 +228,13 @@ public record TimeSeriesSortedSourceOperatorFactory(int limit, int maxPageSize, 
             void consume() throws IOException {
                 if (queue != null) {
                     currentTsid = BytesRef.deepCopyOf(queue.top().timeSeriesHash);
-                    boolean needConsumeRemainingDocs = false;
+                    boolean breakOnNextTsidChange = false;
                     while (queue.size() > 0) {
-                        if (remainingDocs <= 0 || currentPagePos > maxPageSize) {
-                            needConsumeRemainingDocs = true;
+                        if (remainingDocs <= 0) {
+                            break;
+                        }
+                        if (currentPagePos > maxPageSize) {
+                            breakOnNextTsidChange = true;
                         }
 
                         currentPagePos++;
@@ -250,7 +251,7 @@ public record TimeSeriesSortedSourceOperatorFactory(int limit, int maxPageSize, 
                             if (newTop.timeSeriesHash.equals(currentTsid) == false) {
                                 globalTsidOrd++;
                                 currentTsid = BytesRef.deepCopyOf(newTop.timeSeriesHash);
-                                if (needConsumeRemainingDocs) {
+                                if (breakOnNextTsidChange) {
                                     break;
                                 }
                             }
@@ -260,13 +261,16 @@ public record TimeSeriesSortedSourceOperatorFactory(int limit, int maxPageSize, 
                     }
                 } else {
                     int previousTsidOrd = leaf.timeSeriesHashOrd;
-                    boolean needConsumeRemainingDocs = false;
+                    boolean breakOnNextTsidChange = false;
                     // Only one segment, so no need to use priority queue and use segment ordinals as tsid ord.
                     while (leaf.nextDoc()) {
-                        if (currentPagePos > maxPageSize || remainingDocs <= 0) {
-                            needConsumeRemainingDocs = true;
+                        if (remainingDocs <= 0) {
+                            break;
                         }
-                        if (needConsumeRemainingDocs) {
+                        if (currentPagePos > maxPageSize) {
+                            breakOnNextTsidChange = true;
+                        }
+                        if (breakOnNextTsidChange) {
                             if (previousTsidOrd != leaf.timeSeriesHashOrd) {
                                 break;
                             }

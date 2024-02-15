@@ -12,7 +12,6 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.util.resource.Resource;
@@ -22,9 +21,6 @@ import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.nio.charset.StandardCharsets;
-import java.util.Base64;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -34,7 +30,10 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public class RemoteClusterSecurityPainlessExecuteIT extends AbstractRemoteClusterSecurityTestCase {
+/**
+ * Tests cross-cluster painless/execute API under RCS1.0 security model
+ */
+public class RemoteClusterSecurityRCS1PainlessExecuteIT extends AbstractRemoteClusterSecurityTestCase {
 
     private static final AtomicReference<Map<String, Object>> API_KEY_MAP_REF = new AtomicReference<>();
     private static final AtomicReference<Map<String, Object>> REST_API_KEY_MAP_REF = new AtomicReference<>();
@@ -46,70 +45,29 @@ public class RemoteClusterSecurityPainlessExecuteIT extends AbstractRemoteCluste
     static {
         fulfillingCluster = ElasticsearchCluster.local()
             .name("fulfilling-cluster")
-            .nodes(3)
+            .nodes(1)
             .apply(commonClusterConfig)
             .setting("remote_cluster.port", "0")
-            .setting("xpack.security.remote_cluster_server.ssl.enabled", () -> String.valueOf(SSL_ENABLED_REF.get()))
+            .setting("xpack.security.remote_cluster_server.ssl.enabled", "true")
+            // .setting("xpack.security.remote_cluster_server.ssl.enabled", () -> String.valueOf(SSL_ENABLED_REF.get()))
             .setting("xpack.security.remote_cluster_server.ssl.key", "remote-cluster.key")
             .setting("xpack.security.remote_cluster_server.ssl.certificate", "remote-cluster.crt")
             .setting("xpack.security.authc.token.enabled", "true")
             .keystore("xpack.security.remote_cluster_server.ssl.secure_key_passphrase", "remote-cluster-password")
             .node(0, spec -> spec.setting("remote_cluster_server.enabled", "true"))
-            .node(1, spec -> spec.setting("remote_cluster_server.enabled", () -> String.valueOf(NODE1_RCS_SERVER_ENABLED.get())))
-            .node(2, spec -> spec.setting("remote_cluster_server.enabled", () -> String.valueOf(NODE2_RCS_SERVER_ENABLED.get())))
+            // .node(1, spec -> spec.setting("remote_cluster_server.enabled", () -> String.valueOf(NODE1_RCS_SERVER_ENABLED.get())))
+            // .node(2, spec -> spec.setting("remote_cluster_server.enabled", () -> String.valueOf(NODE2_RCS_SERVER_ENABLED.get())))
             .build();
 
         queryCluster = ElasticsearchCluster.local()
             .name("query-cluster")
             .apply(commonClusterConfig)
-            .setting("xpack.security.remote_cluster_client.ssl.enabled", () -> String.valueOf(SSL_ENABLED_REF.get()))
+            .setting("xpack.security.remote_cluster_client.ssl.enabled", "true")
+            // .setting("xpack.security.remote_cluster_client.ssl.enabled", () -> String.valueOf(SSL_ENABLED_REF.get()))
             .setting("xpack.security.remote_cluster_client.ssl.certificate_authorities", "remote-cluster-ca.crt")
             .setting("xpack.security.authc.token.enabled", "true")
-            .keystore("cluster.remote.my_remote_cluster.credentials", () -> {
-                if (API_KEY_MAP_REF.get() == null) {
-                    final Map<String, Object> apiKeyMap = createCrossClusterAccessApiKey("""
-                        {
-                          "search": [
-                            {
-                                "names": ["index*"]
-                            }
-                          ]
-                        }""");
-                    API_KEY_MAP_REF.set(apiKeyMap);
-                }
-                return (String) API_KEY_MAP_REF.get().get("encoded");
-            })
-            // Define a bogus API key for another remote cluster
-            .keystore("cluster.remote.invalid_remote.credentials", randomEncodedApiKey())
-            // Define remote with a REST API key to observe expected failure
-            .keystore("cluster.remote.wrong_api_key_type.credentials", () -> {
-                if (REST_API_KEY_MAP_REF.get() == null) {
-                    initFulfillingClusterClient();
-                    final var createApiKeyRequest = new Request("POST", "/_security/api_key");
-                    createApiKeyRequest.setJsonEntity("""
-                        {
-                          "name": "rest_api_key"
-                        }""");
-                    try {
-                        final Response createApiKeyResponse = performRequestWithAdminUser(fulfillingClusterClient, createApiKeyRequest);
-                        assertOK(createApiKeyResponse);
-                        REST_API_KEY_MAP_REF.set(responseAsMap(createApiKeyResponse));
-                    } catch (IOException e) {
-                        throw new UncheckedIOException(e);
-                    }
-                }
-                return (String) REST_API_KEY_MAP_REF.get().get("encoded");
-            })
-            // Define a remote with invalid API key secret length
-            .keystore(
-                "cluster.remote.invalid_secret_length.credentials",
-                () -> Base64.getEncoder()
-                    .encodeToString(
-                        (UUIDs.base64UUID() + ":" + randomAlphaOfLength(INVALID_SECRET_LENGTH.get())).getBytes(StandardCharsets.UTF_8)
-                    )
-            )
             .rolesFile(Resource.fromClasspath("roles.yml"))
-            .user(REMOTE_METRIC_USER, PASS.toString(), "read_remote_shared_metrics", false)
+            .user(REMOTE_METRIC_USER, PASS.toString(), "read_remote_shared_metrics", false)  // TODO need this?
             .build();
     }
 
@@ -119,15 +77,15 @@ public class RemoteClusterSecurityPainlessExecuteIT extends AbstractRemoteCluste
     // We set it here, since randomization methods are not available in the static initialize context above
     public static TestRule clusterRule = RuleChain.outerRule(new RunnableTestRuleAdapter(() -> {
         SSL_ENABLED_REF.set(usually());
-        NODE1_RCS_SERVER_ENABLED.set(randomBoolean());
-        NODE2_RCS_SERVER_ENABLED.set(randomBoolean());
+        // NODE1_RCS_SERVER_ENABLED.set(randomBoolean());
+        // NODE2_RCS_SERVER_ENABLED.set(randomBoolean());
         INVALID_SECRET_LENGTH.set(randomValueOtherThan(22, () -> randomIntBetween(0, 99)));
     })).around(fulfillingCluster).around(queryCluster);
 
     @SuppressWarnings({ "unchecked", "checkstyle:LineLength" })
     public void testPainlessExecute() throws Exception {
-        configureRemoteCluster();
-
+        // Setup RCS 1.0 (basicSecurity=true)
+        configureRemoteCluster("my_remote_cluster", fulfillingCluster, true, randomBoolean(), randomBoolean());
         {
             // Query cluster -> add role for test user - do not give any privileges for remote_indices
             final var putRoleRequest = new Request("PUT", "/_security/role/" + REMOTE_SEARCH_ROLE);
@@ -195,27 +153,27 @@ public class RemoteClusterSecurityPainlessExecuteIT extends AbstractRemoteCluste
             // assertThat(responseBody, equalTo("{\"result\":[\"test\"]}"));
         }
         {
-            System.err.println("XXX >>> ABOUT TO UPDATE ROLES");
-            // update role to have permissions to remote index* pattern
-            var updateRoleRequest = new Request("PUT", "/_security/role/" + REMOTE_SEARCH_ROLE);
-            updateRoleRequest.setJsonEntity("""
+            System.err.println("XXX >>> ABOUT TO UPDATE ROLE on remote cluster");
+            // add user role and user on remote cluster
+            var putRoleOnRemoteClusterRequest = new Request("PUT", "/_security/role/" + REMOTE_SEARCH_ROLE);
+            putRoleOnRemoteClusterRequest.setJsonEntity("""
                 {
                   "indices": [
                     {
-                      "names": ["local_index", "my_local*"],
-                      "privileges": ["read"]
-                    }
-                  ],
-                  "remote_indices": [
-                    {
                       "names": ["index*"],
-                      "privileges": ["read", "read_cross_cluster"],
-                      "clusters": ["my_remote_cluster"]
+                      "privileges": ["read", "read_cross_cluster"]
                     }
                   ]
                 }""");
+            assertOK(performRequestAgainstFulfillingCluster(putRoleOnRemoteClusterRequest));
 
-            assertOK(adminClient().performRequest(updateRoleRequest));
+            var putUserOnRemoteClusterRequest = new Request("PUT", "/_security/user/" + REMOTE_SEARCH_USER);
+            putUserOnRemoteClusterRequest.setJsonEntity("""
+                {
+                  "password": "x-pack-test-password",
+                  "roles" : ["remote_search"]
+                }""");
+            assertOK(performRequestAgainstFulfillingCluster(putUserOnRemoteClusterRequest));
         }
         {
             // TEST CASE 3: Query remote cluster for secretindex - should fail since no perms granted for it

@@ -18,7 +18,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xcontent.ParseField;
@@ -74,7 +73,6 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
             return false;
         }
     }
-
 
     public TextExpansionQueryBuilder(String fieldName, String modelText, String modelId) {
         this(fieldName, modelText, modelId, null);

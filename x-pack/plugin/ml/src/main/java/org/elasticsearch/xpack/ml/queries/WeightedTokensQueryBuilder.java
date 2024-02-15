@@ -34,8 +34,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.ml.queries.TextExpansionQueryBuilder.PRUNING_CONFIG;
 import static org.elasticsearch.xpack.ml.queries.TextExpansionQueryBuilder.AllowedFieldTypesForTextExpansion;
+import static org.elasticsearch.xpack.ml.queries.TextExpansionQueryBuilder.PRUNING_CONFIG;
 
 public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTokensQueryBuilder> {
     public static final String NAME = "weighted_tokens";

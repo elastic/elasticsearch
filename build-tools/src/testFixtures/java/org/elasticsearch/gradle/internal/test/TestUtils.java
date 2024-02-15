@@ -16,16 +16,16 @@ public class TestUtils {
 
     public static String normalizeString(String input, File projectRootDir) {
         try {
-            String cannonicalNormalizedPathPrefix = projectRootDir.getCanonicalPath().replace("\\", "/");
-            String normalizedPathPrefix = projectRootDir.getAbsolutePath().replace("\\", "/");
+            String canonicalNormalizedPathPrefix = projectRootDir.getCanonicalPath().replace('\\', '/');
+            String normalizedPathPrefix = projectRootDir.getAbsolutePath().replace('\\', '/');
             return input.lines()
                 .filter(it -> it.startsWith("Picked up JAVA_TOOL_OPTIONS") == false)
-                .map(it -> it.replace("\\", "/"))
+                .map(it -> it.replace('\\', '/'))
                 .map(it -> it.replaceAll("\\d+\\.\\d\\ds", "0.00s"))
-                .map(it -> it.replaceAll(cannonicalNormalizedPathPrefix, "."))
-                .map(it -> it.replaceAll(normalizedPathPrefix, "."))
-                .map(it -> it.replaceAll("file:/./", "file:./"))
-                .map(it -> it.replaceAll("Gradle Test Executor \\d", "Gradle Test Executor 1"))
+                .map(it -> it.replace(canonicalNormalizedPathPrefix, "."))
+                .map(it -> it.replace(normalizedPathPrefix, "."))
+                .map(it -> it.replace("file:/./", "file:./"))
+                .map(it -> it.replaceAll("Gradle Test Executor \\d+", "Gradle Test Executor 1"))
                 .collect(Collectors.joining("\n"));
         } catch (IOException e) {
             throw new RuntimeException(e);

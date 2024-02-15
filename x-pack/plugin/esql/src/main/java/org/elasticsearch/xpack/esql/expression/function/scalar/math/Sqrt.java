@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
-import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
@@ -27,7 +26,7 @@ import java.util.function.Function;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
 
-public class Sqrt extends UnaryScalarFunction implements EvaluatorMapper {
+public class Sqrt extends UnaryScalarFunction {
     @FunctionInfo(returnType = "double", description = "Returns the square root of a number.")
     public Sqrt(Source source, @Param(name = "n", type = { "double", "integer", "long", "unsigned_long" }) Expression n) {
         super(source, n);
@@ -96,11 +95,6 @@ public class Sqrt extends UnaryScalarFunction implements EvaluatorMapper {
     @Override
     public DataType dataType() {
         return DataTypes.DOUBLE;
-    }
-
-    @Override
-    public Object fold() {
-        return EvaluatorMapper.super.fold();
     }
 
     @Override

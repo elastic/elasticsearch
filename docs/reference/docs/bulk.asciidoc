@@ -246,7 +246,7 @@ on.
 
 `list_executed_pipelines`::
 (Optional, Boolean) If `true`, the response will include the ingest pipelines that
-were executed for each `index` or ``create`.
+were executed for each `index` or `create`.
 Defaults to `false`.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=pipeline]

@@ -14,7 +14,7 @@ pluginManagement {
 }
 
 plugins {
-  id "com.gradle.enterprise" version "3.14.1"
+  id "com.gradle.enterprise" version "3.16.1"
   id 'elasticsearch.java-toolchain'
 }
 
@@ -48,7 +48,6 @@ List projects = [
   'rest-api-spec',
   'docs',
   'client:rest',
-  'client:rest-high-level',
   'client:sniffer',
   'client:test',
   'client:client-benchmark-noop-api-plugin',

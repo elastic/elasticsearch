@@ -55,7 +55,8 @@ public class GetStackTracesActionIT extends ProfilingTestCase {
             1.0d,
             1.0d,
             query,
-            "apm-test-*",
+            // also match an index that does not contain stacktrace ids to ensure it is ignored
+            new String[] { "apm-test-*", "apm-legacy-test-*" },
             "transaction.profiler_stack_trace_ids",
             null,
             null,
@@ -99,7 +100,7 @@ public class GetStackTracesActionIT extends ProfilingTestCase {
             1.0d,
             1.0d,
             query,
-            "apm-test-*",
+            new String[] { "apm-test-*" },
             "transaction.profiler_stack_trace_ids",
             null,
             null,
@@ -165,7 +166,49 @@ public class GetStackTracesActionIT extends ProfilingTestCase {
             1.0d,
             1.0d,
             query,
-            "apm-test-*",
+            new String[] { "apm-test-*" },
+            "transaction.profiler_stack_trace_ids",
+            null,
+            null,
+            null,
+            null,
+            null
+        );
+        GetStackTracesResponse response = client().execute(GetStackTracesAction.INSTANCE, request).get();
+        assertEquals(0, response.getTotalFrames());
+    }
+
+    public void testGetStackTracesFromAPMIndexNotAvailable() throws Exception {
+        TermQueryBuilder query = QueryBuilders.termQuery("transaction.name", "nonExistingTransaction");
+
+        GetStackTracesRequest request = new GetStackTracesRequest(
+            null,
+            1.0d,
+            1.0d,
+            1.0d,
+            query,
+            new String[] { "non-existing-apm-index-*" },
+            "transaction.profiler_stack_trace_ids",
+            null,
+            null,
+            null,
+            null,
+            null
+        );
+        GetStackTracesResponse response = client().execute(GetStackTracesAction.INSTANCE, request).get();
+        assertEquals(0, response.getTotalFrames());
+    }
+
+    public void testGetStackTracesFromAPMStackTraceFieldNotAvailable() throws Exception {
+        TermQueryBuilder query = QueryBuilders.termQuery("transaction.name", "encodeSha1");
+
+        GetStackTracesRequest request = new GetStackTracesRequest(
+            null,
+            1.0d,
+            1.0d,
+            1.0d,
+            query,
+            new String[] { "apm-legacy-test-*" },
             "transaction.profiler_stack_trace_ids",
             null,
             null,

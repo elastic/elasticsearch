@@ -62,6 +62,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.LeakTracker;
 import org.elasticsearch.transport.RawIndexingDataTransportRequest;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
@@ -412,16 +413,24 @@ public abstract class TransportReplicationAction<
                 );
             }
 
+            var request = primaryRequest.getRequest();
+            request.mustIncRef();
             acquirePrimaryOperationPermit(
                 indexShard,
-                primaryRequest.getRequest(),
-                ActionListener.wrap(releasable -> runWithPrimaryShardReference(new PrimaryShardReference(indexShard, releasable)), e -> {
-                    if (e instanceof ShardNotInPrimaryModeException) {
-                        onFailure(new ReplicationOperation.RetryOnPrimaryException(shardId, "shard is not in primary mode", e));
-                    } else {
-                        onFailure(e);
-                    }
-                })
+                request,
+                ActionListener.releaseAfter(
+                    ActionListener.wrap(
+                        releasable -> runWithPrimaryShardReference(new PrimaryShardReference(indexShard, releasable)),
+                        e -> {
+                            if (e instanceof ShardNotInPrimaryModeException) {
+                                onFailure(new ReplicationOperation.RetryOnPrimaryException(shardId, "shard is not in primary mode", e));
+                            } else {
+                                onFailure(e);
+                            }
+                        }
+                    ),
+                    request::decRef
+                )
             );
         }
 
@@ -637,11 +646,12 @@ public abstract class TransportReplicationAction<
             ReplicationTask task
         ) {
             this.replicaRequest = replicaRequest;
-            this.onCompletionListener = onCompletionListener;
+            this.onCompletionListener = ActionListener.releaseAfter(onCompletionListener, replicaRequest::decRef);
             this.task = task;
             final ShardId shardId = replicaRequest.getRequest().shardId();
             assert shardId != null : "request shardId must be set";
             this.replica = getIndexShard(shardId);
+            replicaRequest.mustIncRef();
         }
 
         @Override
@@ -780,11 +790,12 @@ public abstract class TransportReplicationAction<
 
         ReroutePhase(ReplicationTask task, Request request, ActionListener<Response> listener, boolean initiatedByNodeClient) {
             this.request = request;
+            request.mustIncRef();
             this.initiatedByNodeClient = initiatedByNodeClient;
             if (task != null) {
                 this.request.setParentTask(clusterService.localNode().getId(), task.getId());
             }
-            this.listener = listener;
+            this.listener = ActionListener.releaseAfter(listener, request::decRef);
             this.task = task;
             this.observer = new ClusterStateObserver(clusterService, request.timeout(), logger, threadPool.getThreadContext());
         }
@@ -1321,7 +1332,7 @@ public abstract class TransportReplicationAction<
             sentFromLocalReroute = false;
             localRerouteInitiatedByNodeClient = false;
             request = requestReader.read(in);
-            this.refCounted = new SimpleRefCounted();
+            this.refCounted = LeakTracker.wrap(new SimpleRefCounted());
         }
 
         public ConcreteShardRequest(R request, String targetAllocationID, long primaryTerm) {

@@ -161,7 +161,9 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         }
         id = in.readOptionalString();
         routing = in.readOptionalString();
-        source = in.readSlicedBytesReference();
+        // TODO: the code paths that pass null for the shard-id (full-non-shard-bulk request and single item actions) don't ref count
+        // the underlying buffer correctly yet. Once that's fixed we get stop using the copying readBytesReference().
+        source = shardId == null ? in.readBytesReference() : in.readSlicedBytesReference();
         opType = OpType.fromId(in.readByte());
         version = in.readLong();
         versionType = VersionType.fromValue(in.readByte());

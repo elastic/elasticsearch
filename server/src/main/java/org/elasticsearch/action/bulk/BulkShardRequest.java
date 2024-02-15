@@ -21,6 +21,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.transport.LeakTracker;
 import org.elasticsearch.transport.RawIndexingDataTransportRequest;
 
 import java.io.IOException;
@@ -39,7 +40,7 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
 
     public BulkShardRequest(StreamInput in) throws IOException {
         super(in);
-        this.refCounted = AbstractRefCounted.of(in.acquireBufferReference()::close);
+        this.refCounted = LeakTracker.wrap(AbstractRefCounted.of(in.acquireBufferReference()::close));
         items = in.readArray(i -> i.readOptionalWriteable(inpt -> new BulkItemRequest(shardId, inpt)), BulkItemRequest[]::new);
     }
 

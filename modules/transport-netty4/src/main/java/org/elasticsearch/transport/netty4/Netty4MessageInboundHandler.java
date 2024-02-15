@@ -93,6 +93,7 @@ public class Netty4MessageInboundHandler extends ByteToMessageDecoder {
                 return reg.canTripCircuitBreaker();
             }
         };
+        setCumulator(ByteToMessageDecoder.COMPOSITE_CUMULATOR);
     }
 
     @Override

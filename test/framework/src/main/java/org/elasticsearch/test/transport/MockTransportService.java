@@ -571,6 +571,11 @@ public class MockTransportService extends TransportService {
                         );
                         connection.sendRequest(requestId, action, clonedRequest, options);
                     }
+
+                    @Override
+                    public void onAfter() {
+                        clonedRequest.decRef();
+                    }
                 });
 
                 // store the request to send it once the rule is cleared.

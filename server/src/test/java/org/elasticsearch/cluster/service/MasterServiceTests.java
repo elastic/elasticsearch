@@ -2127,8 +2127,10 @@ public class MasterServiceTests extends ESTestCase {
 
         final var deterministicTaskQueue = new DeterministicTaskQueue();
         final var threadPool = deterministicTaskQueue.getThreadPool(r -> {
+            // create a threadpool which simulates the rejection of a master service timeout handler, but runs all other tasks as normal
             if (r.toString().startsWith("master service timeout handler for [batched][test task]")) {
-                actionCount.incrementAndGet();
+                // assertTrue because this should happen exactly once
+                assertTrue(actionCount.compareAndSet(0, 1));
                 throw new EsRejectedExecutionException("simulated rejection", true);
             } else {
                 return r;
@@ -2137,37 +2139,37 @@ public class MasterServiceTests extends ESTestCase {
 
         try (var masterService = createMasterService(true, null, threadPool, new StoppableExecutorServiceWrapper(threadPool.generic()))) {
 
-            class TestTask implements ClusterStateTaskListener {
-                @Override
-                public void onFailure(Exception e) {
-                    if ((e instanceof FailedToCommitClusterStateException
-                        && e.getMessage().startsWith("could not schedule timeout handler")
-                        && e.getCause() instanceof EsRejectedExecutionException esre
-                        && esre.isExecutorShutdown()
-                        && esre.getMessage().equals("simulated rejection")) == false) {
-                        throw new AssertionError("unexpected exception", e);
-                    }
-                    actionCount.incrementAndGet();
-                }
-
-                @Override
-                public String toString() {
-                    return "test task";
-                }
-            }
-
             final var queue = masterService.createTaskQueue(
                 "queue",
                 randomFrom(Priority.values()),
                 batchExecutionContext -> fail(null, "should not execute batch")
             );
 
-            try (var ignored = threadPool.getThreadContext().stashContext()) {
-                queue.submitTask("batched", new TestTask(), TimeValue.timeValueMillis(between(0, 100000)));
-            }
+            queue.submitTask("batched", new ClusterStateTaskListener() {
+                @Override
+                public void onFailure(Exception e) {
+                    if (e instanceof FailedToCommitClusterStateException
+                        && e.getMessage().startsWith("could not schedule timeout handler")
+                        && e.getCause() instanceof EsRejectedExecutionException esre
+                        && esre.isExecutorShutdown()
+                        && esre.getMessage().equals("simulated rejection")) {
+                        // we must receive the exception we synthesized, exactly once, after triggering the rejection
+                        assertTrue(actionCount.compareAndSet(1, 2));
+                    } else {
+                        // fail the test if we get anything else
+                        throw new AssertionError("unexpected exception", e);
+                    }
+                }
+
+                @Override
+                public String toString() {
+                    return "test task";
+                }
+            }, TimeValue.timeValueMillis(between(0, 100000)));
+
             assertFalse(deterministicTaskQueue.hasRunnableTasks());
             assertFalse(deterministicTaskQueue.hasDeferredTasks());
-            assertEquals(2, actionCount.get());
+            assertEquals(2, actionCount.get()); // ensures this test doesn't accidentally become trivial: both expected actions happened
         }
     }
 

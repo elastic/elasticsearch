@@ -47,7 +47,6 @@ import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.oneOf;
 
-@SuppressWarnings("removal")
 public class TransformIT extends TransformRestTestCase {
 
     private static final int NUM_USERS = 28;
@@ -83,76 +82,76 @@ public class TransformIT extends TransformRestTestCase {
     }
 
     public void testTransformCrud() throws Exception {
-        String indexName = "basic-crud-reviews";
-        String transformId = "transform-crud";
-        createReviewsIndex(indexName, 100, NUM_USERS, TransformIT::getUserIdForRow, TransformIT::getDateStringForRow);
+        var transformId = "transform-crud";
+        createStoppedTransform("basic-crud-reviews", transformId);
+        assertBusy(() -> { assertEquals("stopped", getTransformState(transformId)); });
 
-        Map<String, SingleGroupSource> groups = new HashMap<>();
-        groups.put("by-day", createDateHistogramGroupSourceWithCalendarInterval("timestamp", DateHistogramInterval.DAY, null));
-        groups.put("by-user", new TermsGroupSource("user_id", null, false));
-        groups.put("by-business", new TermsGroupSource("business_id", null, false));
-
-        AggregatorFactories.Builder aggs = AggregatorFactories.builder()
-            .addAggregator(AggregationBuilders.avg("review_score").field("stars"))
-            .addAggregator(AggregationBuilders.max("timestamp").field("timestamp"));
-
-        TransformConfig config = createTransformConfigBuilder(
-            transformId,
-            "reviews-by-user-business-day",
-            QueryConfig.matchAll(),
-            indexName
-        ).setPivotConfig(createPivotConfig(groups, aggs)).build();
-
-        putTransform(transformId, Strings.toString(config), RequestOptions.DEFAULT);
-        startTransform(config.getId(), RequestOptions.DEFAULT);
-
-        waitUntilCheckpoint(config.getId(), 1L);
-
-        stopTransform(config.getId());
-        assertBusy(() -> { assertEquals("stopped", getTransformStats(config.getId()).get("state")); });
-
-        var storedConfig = getTransform(config.getId());
+        var storedConfig = getTransform(transformId);
         assertThat(storedConfig.get("version"), equalTo(TransformConfigVersion.CURRENT.toString()));
         Instant now = Instant.now();
         long createTime = (long) storedConfig.get("create_time");
         assertTrue("[create_time] is not before current time", Instant.ofEpochMilli(createTime).isBefore(now));
-        deleteTransform(config.getId());
+        deleteTransform(transformId);
     }
 
-    public void testContinuousTransformCrud() throws Exception {
-        String indexName = "continuous-crud-reviews";
-        String transformId = "transform-continuous-crud";
+    private void createStoppedTransform(String indexName, String transformId) throws Exception {
         createReviewsIndex(indexName, 100, NUM_USERS, TransformIT::getUserIdForRow, TransformIT::getDateStringForRow);
 
-        Map<String, SingleGroupSource> groups = new HashMap<>();
-        groups.put("by-day", createDateHistogramGroupSourceWithCalendarInterval("timestamp", DateHistogramInterval.DAY, null));
-        groups.put("by-user", new TermsGroupSource("user_id", null, false));
-        groups.put("by-business", new TermsGroupSource("business_id", null, false));
+        var groups = Map.of(
+            "by-day",
+            createDateHistogramGroupSourceWithCalendarInterval("timestamp", DateHistogramInterval.DAY, null),
+            "by-user",
+            new TermsGroupSource("user_id", null, false),
+            "by-business",
+            new TermsGroupSource("business_id", null, false)
+        );
 
-        AggregatorFactories.Builder aggs = AggregatorFactories.builder()
+        var aggs = AggregatorFactories.builder()
             .addAggregator(AggregationBuilders.avg("review_score").field("stars"))
             .addAggregator(AggregationBuilders.max("timestamp").field("timestamp"));
 
-        TransformConfig config = createTransformConfigBuilder(
-            transformId,
-            "reviews-by-user-business-day",
-            QueryConfig.matchAll(),
-            indexName
-        ).setPivotConfig(createPivotConfig(groups, aggs))
-            .setSyncConfig(new TimeSyncConfig("timestamp", TimeValue.timeValueSeconds(1)))
-            .setSettings(new SettingsConfig.Builder().setAlignCheckpoints(false).build())
+        var config = createTransformConfigBuilder(transformId, "reviews-by-user-business-day", QueryConfig.matchAll(), indexName)
+            .setPivotConfig(createPivotConfig(groups, aggs))
             .build();
 
         putTransform(transformId, Strings.toString(config), RequestOptions.DEFAULT);
         startTransform(config.getId(), RequestOptions.DEFAULT);
 
         waitUntilCheckpoint(config.getId(), 1L);
-        var transformStats = getTransformStats(config.getId());
+        stopTransform(config.getId());
+    }
+
+    /**
+     * Verify the basic stats API, which includes state, health, and optionally progress (if it exists).
+     * These are required for Kibana 8.13+.
+     */
+    @SuppressWarnings("unchecked")
+    public void testBasicTransformStats() throws Exception {
+        var transformId = "transform-basic-stats";
+        createStoppedTransform("basic-stats-reviews", transformId);
+        var transformStats = getBasicTransformStats(transformId);
+
+        assertBusy(() -> assertEquals("stopped", XContentMapValues.extractValue("state", transformStats)));
+        assertEquals("green", XContentMapValues.extractValue("health.status", transformStats));
+        assertThat(
+            "percent_complete is not 100.0",
+            XContentMapValues.extractValue("checkpointing.next.checkpoint_progress.percent_complete", transformStats),
+            equalTo(100.0)
+        );
+
+        deleteTransform(transformId);
+    }
+
+    public void testContinuousTransformCrud() throws Exception {
+        var transformId = "transform-continuous-crud";
+        var indexName = "continuous-crud-reviews";
+        createContinuousTransform(indexName, transformId);
+        var transformStats = getBasicTransformStats(transformId);
         assertThat(transformStats.get("state"), equalTo("started"));
 
         int docsIndexed = (Integer) XContentMapValues.extractValue("stats.documents_indexed", transformStats);
 
-        var storedConfig = getTransform(config.getId());
+        var storedConfig = getTransform(transformId);
         assertThat(storedConfig.get("version"), equalTo(TransformConfigVersion.CURRENT.toString()));
         Instant now = Instant.now();
         long createTime = (long) storedConfig.get("create_time");
@@ -162,17 +161,66 @@ public class TransformIT extends TransformRestTestCase {
         long timeStamp = Instant.now().toEpochMilli() - 1_000;
         long user = 42;
         indexMoreDocs(timeStamp, user, indexName);
-        waitUntilCheckpoint(config.getId(), 2L);
+        waitUntilCheckpoint(transformId, 2L);
 
         // Assert that we wrote the new docs
 
         assertThat(
-            (Integer) XContentMapValues.extractValue("stats.documents_indexed", getTransformStats(config.getId())),
+            (Integer) XContentMapValues.extractValue("stats.documents_indexed", getBasicTransformStats(transformId)),
             greaterThan(docsIndexed)
         );
 
-        stopTransform(config.getId());
-        deleteTransform(config.getId());
+        stopTransform(transformId);
+        deleteTransform(transformId);
+    }
+
+    private void createContinuousTransform(String indexName, String transformId) throws Exception {
+        createReviewsIndex(indexName, 100, NUM_USERS, TransformIT::getUserIdForRow, TransformIT::getDateStringForRow);
+
+        var groups = Map.of(
+            "by-day",
+            createDateHistogramGroupSourceWithCalendarInterval("timestamp", DateHistogramInterval.DAY, null),
+            "by-user",
+            new TermsGroupSource("user_id", null, false),
+            "by-business",
+            new TermsGroupSource("business_id", null, false)
+        );
+
+        var aggs = AggregatorFactories.builder()
+            .addAggregator(AggregationBuilders.avg("review_score").field("stars"))
+            .addAggregator(AggregationBuilders.max("timestamp").field("timestamp"));
+
+        var config = createTransformConfigBuilder(transformId, "reviews-by-user-business-day", QueryConfig.matchAll(), indexName)
+            .setPivotConfig(createPivotConfig(groups, aggs))
+            .setSyncConfig(new TimeSyncConfig("timestamp", TimeValue.timeValueSeconds(1)))
+            .setSettings(new SettingsConfig.Builder().setAlignCheckpoints(false).build())
+            .build();
+
+        putTransform(transformId, Strings.toString(config), RequestOptions.DEFAULT);
+        startTransform(config.getId(), RequestOptions.DEFAULT);
+
+        waitUntilCheckpoint(config.getId(), 1L);
+    }
+
+    /**
+     * Verify the basic stats API, which includes state, health, and optionally progress (if it exists).
+     * These are required for Kibana 8.13+.
+     */
+    @SuppressWarnings("unchecked")
+    public void testBasicContinuousTransformStats() throws Exception {
+        var transformId = "transform-continuous-basic-stats";
+        createContinuousTransform("continuous-basic-stats-reviews", transformId);
+        var transformStats = getBasicTransformStats(transformId);
+
+        assertEquals("started", XContentMapValues.extractValue("state", transformStats));
+        assertEquals("green", XContentMapValues.extractValue("health.status", transformStats));
+
+        // We aren't testing for 'checkpointing.next.checkpoint_progress.percent_complete'.
+        // It's difficult to get the integration test to reliably call the stats API while that data is available, since continuous
+        // transforms start and finish the next checkpoint quickly (<1ms).
+
+        stopTransform(transformId);
+        deleteTransform(transformId);
     }
 
     public void testContinuousTransformUpdate() throws Exception {
@@ -198,7 +246,7 @@ public class TransformIT extends TransformRestTestCase {
         waitUntilCheckpoint(config.getId(), 1L);
         assertThat(getTransformState(config.getId()), oneOf("started", "indexing"));
 
-        int docsIndexed = (Integer) XContentMapValues.extractValue("stats.documents_indexed", getTransformStats(config.getId()));
+        int docsIndexed = (Integer) XContentMapValues.extractValue("stats.documents_indexed", getBasicTransformStats(config.getId()));
 
         var storedConfig = getTransform(config.getId());
         assertThat(storedConfig.get("version"), equalTo(TransformConfigVersion.CURRENT.toString()));
@@ -239,7 +287,7 @@ public class TransformIT extends TransformRestTestCase {
 
         // Since updates are loaded on checkpoint start, we should see the updated config on this next run
         waitUntilCheckpoint(config.getId(), 2L);
-        int numDocsAfterCp2 = (Integer) XContentMapValues.extractValue("stats.documents_indexed", getTransformStats(config.getId()));
+        int numDocsAfterCp2 = (Integer) XContentMapValues.extractValue("stats.documents_indexed", getBasicTransformStats(config.getId()));
         assertThat(numDocsAfterCp2, greaterThan(docsIndexed));
 
         Request searchRequest = new Request("GET", dest + "/_search");
@@ -327,7 +375,7 @@ public class TransformIT extends TransformRestTestCase {
 
         // wait until transform has been triggered and indexed at least 1 document
         assertBusy(() -> {
-            var stateAndStats = getTransformStats(config.getId());
+            var stateAndStats = getBasicTransformStats(config.getId());
             assertThat((Integer) XContentMapValues.extractValue("stats.documents_indexed", stateAndStats), greaterThan(1));
         });
 
@@ -339,7 +387,7 @@ public class TransformIT extends TransformRestTestCase {
 
         // Even though we are continuous, we should be stopped now as we needed to stop at the first checkpoint
         assertBusy(() -> {
-            var stateAndStats = getTransformStats(config.getId());
+            var stateAndStats = getBasicTransformStats(config.getId());
             assertThat(stateAndStats.get("state"), equalTo("stopped"));
             assertThat((Integer) XContentMapValues.extractValue("stats.documents_indexed", stateAndStats), equalTo(1000));
         });
@@ -357,12 +405,12 @@ public class TransformIT extends TransformRestTestCase {
             stopTransform(transformId, waitForCompletion, null, true);
 
             assertBusy(() -> {
-                var stateAndStats = getTransformStats(config.getId());
+                var stateAndStats = getBasicTransformStats(config.getId());
                 assertThat(stateAndStats.get("state"), equalTo("stopped"));
             });
         }
 
-        var stateAndStats = getTransformStats(config.getId());
+        var stateAndStats = getBasicTransformStats(config.getId());
         assertThat(stateAndStats.get("state"), equalTo("stopped"));
         // Despite indexing new documents into the source index, the number of documents in the destination index stays the same.
         assertThat((Integer) XContentMapValues.extractValue("stats.documents_indexed", stateAndStats), equalTo(1000));
@@ -400,10 +448,7 @@ public class TransformIT extends TransformRestTestCase {
         putTransform(transformId, Strings.toString(config), RequestOptions.DEFAULT);
         startTransform(config.getId(), RequestOptions.DEFAULT);
 
-        assertBusy(() -> {
-            var stateAndStats = getTransformStats(config.getId());
-            assertThat(stateAndStats.get("state"), equalTo("indexing"));
-        });
+        assertBusy(() -> { assertThat(getTransformState(config.getId()), equalTo("indexing")); });
 
         // test randomly: with explicit settings and reset to default
         String reqsPerSec = randomBoolean() ? "1000" : "null";
@@ -422,7 +467,7 @@ public class TransformIT extends TransformRestTestCase {
         waitUntilCheckpoint(config.getId(), 1L);
         assertThat(getTransformState(config.getId()), equalTo("started"));
 
-        var transformStats = getTransformStats(config.getId());
+        var transformStats = getBasicTransformStats(config.getId());
         int docsIndexed = (Integer) XContentMapValues.extractValue("stats.documents_indexed", transformStats);
         int pagesProcessed = (Integer) XContentMapValues.extractValue("stats.pages_processed", transformStats);
 

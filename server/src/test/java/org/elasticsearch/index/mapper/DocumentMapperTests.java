@@ -21,7 +21,6 @@ import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
-import org.elasticsearch.plugins.internal.DocumentParsingObserver;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 
@@ -30,6 +29,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
@@ -68,7 +68,7 @@ public class DocumentMapperTests extends MapperServiceTestCase {
         assertThat(stage1.mappers().getMapper("age"), nullValue());
         assertThat(stage1.mappers().getMapper("obj1.prop1"), nullValue());
         // but merged should
-        DocumentParser documentParser = new DocumentParser(null, null, () -> DocumentParsingObserver.EMPTY_INSTANCE);
+        DocumentParser documentParser = new DocumentParser(null, null);
         DocumentMapper mergedMapper = new DocumentMapper(documentParser, merged, merged.toCompressedXContent(), IndexVersion.current());
         assertThat(mergedMapper.mappers().getMapper("age"), notNullValue());
         assertThat(mergedMapper.mappers().getMapper("obj1.prop1"), notNullValue());
@@ -348,9 +348,13 @@ public class DocumentMapperTests extends MapperServiceTestCase {
     public void testTooManyDimensionFields() {
         int max;
         Settings settings;
+        String dimensionErrorSuffix = "";
         if (randomBoolean()) {
-            max = 21; // By default no more than 21 dimensions per document are supported
-            settings = getIndexSettings();
+            max = 1000; // By default no more than 1000 dimensions per document are supported
+            settings = Settings.builder()
+                .put(getIndexSettings())
+                .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), max)
+                .build();
         } else {
             max = between(1, 10000);
             settings = Settings.builder()
@@ -358,6 +362,7 @@ public class DocumentMapperTests extends MapperServiceTestCase {
                 .put(MapperService.INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING.getKey(), max)
                 .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), max + 1)
                 .build();
+            dimensionErrorSuffix = "dimension ";
         }
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> createMapperService(settings, mapping(b -> {
             for (int i = 0; i <= max; i++) {
@@ -367,7 +372,10 @@ public class DocumentMapperTests extends MapperServiceTestCase {
                     .endObject();
             }
         })));
-        assertThat(e.getMessage(), containsString("Limit of total dimension fields [" + max + "] has been exceeded"));
+        assertThat(
+            e.getMessage(),
+            containsString(String.format(Locale.ROOT, "Limit of total %sfields [" + max + "] has been exceeded", dimensionErrorSuffix))
+        );
     }
 
     public void testDeeplyNestedMapping() throws Exception {

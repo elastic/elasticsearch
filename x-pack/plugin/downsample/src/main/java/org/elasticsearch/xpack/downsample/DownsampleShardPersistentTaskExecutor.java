@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.downsample;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -26,6 +27,8 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
@@ -38,7 +41,6 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.downsample.DownsampleShardIndexerStatus;
 import org.elasticsearch.xpack.core.downsample.DownsampleShardPersistentTaskState;
@@ -48,13 +50,14 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.Executor;
 
 public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecutor<DownsampleShardTaskParams> {
     private static final Logger LOGGER = LogManager.getLogger(DownsampleShardPersistentTaskExecutor.class);
     private final Client client;
 
-    public DownsampleShardPersistentTaskExecutor(final Client client, final String taskName, final String executorName) {
-        super(taskName, executorName);
+    public DownsampleShardPersistentTaskExecutor(final Client client, final String taskName, final Executor executor) {
+        super(taskName, executor);
         this.client = Objects.requireNonNull(client);
     }
 
@@ -68,13 +71,19 @@ public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecut
         final SearchRequest searchRequest = new SearchRequest(params.downsampleIndex());
         searchRequest.source().sort(TimeSeriesIdFieldMapper.NAME, SortOrder.DESC).size(1);
         searchRequest.preference("_shards:" + params.shardId().id());
-        client.search(
-            searchRequest,
-            ActionListener.wrap(
-                searchResponse -> delegate(task, params, searchResponse.getHits().getHits()),
-                e -> delegate(task, params, new SearchHit[] {})
-            )
-        );
+        client.search(searchRequest, ActionListener.wrap(searchResponse -> {
+            delegate(task, params, extractTsId(searchResponse.getHits().getHits()));
+        }, e -> delegate(task, params, null)));
+    }
+
+    private static BytesRef extractTsId(SearchHit[] lastDownsampleTsidHits) {
+        if (lastDownsampleTsidHits.length == 0) {
+            return null;
+        } else {
+            var searchHit = Arrays.stream(lastDownsampleTsidHits).findFirst().get();
+            var field = searchHit.field("_tsid");
+            return field != null ? field.getValue() : null;
+        }
     }
 
     @Override
@@ -149,20 +158,16 @@ public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecut
     }
 
     @Override
-    public String getExecutor() {
+    public Executor getExecutor() {
         // The delegate action forks to the a downsample thread:
-        return ThreadPool.Names.SAME;
+        return EsExecutors.DIRECT_EXECUTOR_SERVICE;
     }
 
-    private void delegate(
-        final AllocatedPersistentTask task,
-        final DownsampleShardTaskParams params,
-        final SearchHit[] lastDownsampledTsidHits
-    ) {
+    private void delegate(final AllocatedPersistentTask task, final DownsampleShardTaskParams params, final BytesRef lastDownsampleTsid) {
         DownsampleShardTask downsampleShardTask = (DownsampleShardTask) task;
         client.execute(
             DelegatingAction.INSTANCE,
-            new DelegatingAction.Request(downsampleShardTask, lastDownsampledTsidHits, params),
+            new DelegatingAction.Request(downsampleShardTask, lastDownsampleTsid, params),
             ActionListener.wrap(empty -> {}, e -> {
                 LOGGER.error("error while delegating", e);
                 markAsFailed(downsampleShardTask, e);
@@ -175,7 +180,7 @@ public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecut
         IndicesService indicesService,
         DownsampleShardTask task,
         DownsampleShardTaskParams params,
-        SearchHit[] lastDownsampleTsidHits
+        BytesRef lastDownsampledTsid
     ) {
         client.threadPool().executor(Downsample.DOWNSAMPLE_TASK_THREAD_POOL_NAME).execute(new AbstractRunnable() {
             @Override
@@ -185,22 +190,21 @@ public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecut
 
             @Override
             protected void doRun() throws Exception {
-                final var initialState = lastDownsampleTsidHits.length == 0
-                    ? new DownsampleShardPersistentTaskState(DownsampleShardIndexerStatus.INITIALIZED, null)
-                    : new DownsampleShardPersistentTaskState(
-                        DownsampleShardIndexerStatus.STARTED,
-                        Arrays.stream(lastDownsampleTsidHits).findFirst().get().field("_tsid").getValue()
-                    );
+                final var initialState = new DownsampleShardPersistentTaskState(
+                    DownsampleShardIndexerStatus.INITIALIZED,
+                    lastDownsampledTsid
+                );
                 try {
                     final var downsampleShardIndexer = new DownsampleShardIndexer(
                         task,
                         client,
-                        indicesService.indexService(params.shardId().getIndex()),
+                        indicesService.indexServiceSafe(params.shardId().getIndex()),
                         params.shardId(),
                         params.downsampleIndex(),
                         params.downsampleConfig(),
                         params.metrics(),
                         params.labels(),
+                        params.dimensions(),
                         initialState
                     );
                     downsampleShardIndexer.execute();
@@ -215,6 +219,9 @@ public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecut
                         );
                         markAsFailed(task, e);
                     }
+                } catch (IndexNotFoundException e) {
+                    LOGGER.error("Downsampling task [" + task.getPersistentTaskId() + " failing because source index not assigned");
+                    markAsFailed(task, e);
                 } catch (final Exception e) {
                     LOGGER.error("Downsampling task [" + task.getPersistentTaskId() + " non-retriable failure [" + e.getMessage() + "]");
                     markAsFailed(task, e);
@@ -247,12 +254,12 @@ public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecut
         public static class Request extends ActionRequest implements IndicesRequest {
 
             private final DownsampleShardTask task;
-            private final SearchHit[] lastDownsampleTsidHits;
+            private final BytesRef lastDownsampleTsid;
             private final DownsampleShardTaskParams params;
 
-            public Request(DownsampleShardTask task, SearchHit[] lastDownsampleTsidHits, DownsampleShardTaskParams params) {
+            public Request(DownsampleShardTask task, BytesRef lastDownsampleTsid, DownsampleShardTaskParams params) {
                 this.task = task;
-                this.lastDownsampleTsidHits = lastDownsampleTsidHits;
+                this.lastDownsampleTsid = lastDownsampleTsid;
                 this.params = params;
             }
 
@@ -291,7 +298,7 @@ public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecut
 
             @Override
             protected void doExecute(Task t, Request request, ActionListener<ActionResponse.Empty> listener) {
-                realNodeOperation(client, indicesService, request.task, request.params, request.lastDownsampleTsidHits);
+                realNodeOperation(client, indicesService, request.task, request.params, request.lastDownsampleTsid);
                 listener.onResponse(ActionResponse.Empty.INSTANCE);
             }
         }

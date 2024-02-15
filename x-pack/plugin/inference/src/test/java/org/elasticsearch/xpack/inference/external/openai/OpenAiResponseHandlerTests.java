@@ -11,7 +11,6 @@ import org.apache.http.Header;
 import org.apache.http.HeaderElement;
 import org.apache.http.HttpResponse;
 import org.apache.http.StatusLine;
-import org.apache.http.client.methods.HttpRequestBase;
 import org.apache.http.message.BasicHeader;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.Strings;
@@ -20,6 +19,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.ContentTooLargeException;
 import org.elasticsearch.xpack.inference.external.http.retry.RetryException;
+import org.elasticsearch.xpack.inference.external.request.RequestTests;
 
 import java.nio.charset.StandardCharsets;
 
@@ -40,103 +40,106 @@ public class OpenAiResponseHandlerTests extends ESTestCase {
         when(header.getElements()).thenReturn(new HeaderElement[] {});
         when(httpResponse.getFirstHeader(anyString())).thenReturn(header);
 
-        var httpRequest = mock(HttpRequestBase.class);
+        var mockRequest = RequestTests.mockRequest("id");
         var httpResult = new HttpResult(httpResponse, new byte[] {});
         var handler = new OpenAiResponseHandler("", (request, result) -> null);
 
         // 200 ok
         when(statusLine.getStatusCode()).thenReturn(200);
-        handler.checkForFailureStatusCode(httpRequest, httpResult);
+        handler.checkForFailureStatusCode(mockRequest, httpResult);
         // 503
         when(statusLine.getStatusCode()).thenReturn(503);
-        var retryException = expectThrows(RetryException.class, () -> handler.checkForFailureStatusCode(httpRequest, httpResult));
+        var retryException = expectThrows(RetryException.class, () -> handler.checkForFailureStatusCode(mockRequest, httpResult));
         assertTrue(retryException.shouldRetry());
         assertThat(
             retryException.getCause().getMessage(),
-            containsString("Received a server busy error status code for request [null] status [503]")
+            containsString("Received a server busy error status code for request from inference entity id [id] status [503]")
         );
         assertThat(((ElasticsearchStatusException) retryException.getCause()).status(), is(RestStatus.BAD_REQUEST));
         // 501
         when(statusLine.getStatusCode()).thenReturn(501);
-        retryException = expectThrows(RetryException.class, () -> handler.checkForFailureStatusCode(httpRequest, httpResult));
+        retryException = expectThrows(RetryException.class, () -> handler.checkForFailureStatusCode(mockRequest, httpResult));
         assertFalse(retryException.shouldRetry());
         assertThat(
             retryException.getCause().getMessage(),
-            containsString("Received a server error status code for request [null] status [501]")
+            containsString("Received a server error status code for request from inference entity id [id] status [501]")
         );
         assertThat(((ElasticsearchStatusException) retryException.getCause()).status(), is(RestStatus.BAD_REQUEST));
         // 500
         when(statusLine.getStatusCode()).thenReturn(500);
-        retryException = expectThrows(RetryException.class, () -> handler.checkForFailureStatusCode(httpRequest, httpResult));
+        retryException = expectThrows(RetryException.class, () -> handler.checkForFailureStatusCode(mockRequest, httpResult));
         assertTrue(retryException.shouldRetry());
         assertThat(
             retryException.getCause().getMessage(),
-            containsString("Received a server error status code for request [null] status [500]")
+            containsString("Received a server error status code for request from inference entity id [id] status [500]")
         );
         assertThat(((ElasticsearchStatusException) retryException.getCause()).status(), is(RestStatus.BAD_REQUEST));
         // 429
         when(statusLine.getStatusCode()).thenReturn(429);
-        retryException = expectThrows(RetryException.class, () -> handler.checkForFailureStatusCode(httpRequest, httpResult));
+        retryException = expectThrows(RetryException.class, () -> handler.checkForFailureStatusCode(mockRequest, httpResult));
         assertTrue(retryException.shouldRetry());
         assertThat(retryException.getCause().getMessage(), containsString("Received a rate limit status code. Token limit"));
         assertThat(((ElasticsearchStatusException) retryException.getCause()).status(), is(RestStatus.TOO_MANY_REQUESTS));
         // 413
         when(statusLine.getStatusCode()).thenReturn(413);
-        retryException = expectThrows(ContentTooLargeException.class, () -> handler.checkForFailureStatusCode(httpRequest, httpResult));
+        retryException = expectThrows(ContentTooLargeException.class, () -> handler.checkForFailureStatusCode(mockRequest, httpResult));
         assertTrue(retryException.shouldRetry());
         assertThat(retryException.getCause().getMessage(), containsString("Received a content too large status code"));
         assertThat(((ElasticsearchStatusException) retryException.getCause()).status(), is(RestStatus.REQUEST_ENTITY_TOO_LARGE));
         // 400 content too large
         retryException = expectThrows(
             ContentTooLargeException.class,
-            () -> handler.checkForFailureStatusCode(httpRequest, createContentTooLargeResult(400))
+            () -> handler.checkForFailureStatusCode(mockRequest, createContentTooLargeResult(400))
         );
         assertTrue(retryException.shouldRetry());
         assertThat(retryException.getCause().getMessage(), containsString("Received a content too large status code"));
         assertThat(((ElasticsearchStatusException) retryException.getCause()).status(), is(RestStatus.BAD_REQUEST));
         // 400 generic bad request should not be marked as a content too large
         when(statusLine.getStatusCode()).thenReturn(400);
-        retryException = expectThrows(RetryException.class, () -> handler.checkForFailureStatusCode(httpRequest, httpResult));
+        retryException = expectThrows(RetryException.class, () -> handler.checkForFailureStatusCode(mockRequest, httpResult));
         assertFalse(retryException.shouldRetry());
         assertThat(
             retryException.getCause().getMessage(),
-            containsString("Received an unsuccessful status code for request [null] status [400]")
+            containsString("Received an unsuccessful status code for request from inference entity id [id] status [400]")
         );
         assertThat(((ElasticsearchStatusException) retryException.getCause()).status(), is(RestStatus.BAD_REQUEST));
         // 400 is not flagged as a content too large when the error message is different
         when(statusLine.getStatusCode()).thenReturn(400);
         retryException = expectThrows(
             RetryException.class,
-            () -> handler.checkForFailureStatusCode(httpRequest, createResult(400, "blah"))
+            () -> handler.checkForFailureStatusCode(mockRequest, createResult(400, "blah"))
         );
         assertFalse(retryException.shouldRetry());
         assertThat(
             retryException.getCause().getMessage(),
-            containsString("Received an unsuccessful status code for request [null] status [400]")
+            containsString("Received an unsuccessful status code for request from inference entity id [id] status [400]")
         );
         assertThat(((ElasticsearchStatusException) retryException.getCause()).status(), is(RestStatus.BAD_REQUEST));
         // 401
         when(statusLine.getStatusCode()).thenReturn(401);
-        retryException = expectThrows(RetryException.class, () -> handler.checkForFailureStatusCode(httpRequest, httpResult));
+        retryException = expectThrows(RetryException.class, () -> handler.checkForFailureStatusCode(mockRequest, httpResult));
         assertFalse(retryException.shouldRetry());
         assertThat(
             retryException.getCause().getMessage(),
-            containsString("Received an authentication error status code for request [null] status [401]")
+            containsString("Received an authentication error status code for request from inference entity id [id] status [401]")
         );
         assertThat(((ElasticsearchStatusException) retryException.getCause()).status(), is(RestStatus.UNAUTHORIZED));
         // 300
         when(statusLine.getStatusCode()).thenReturn(300);
-        retryException = expectThrows(RetryException.class, () -> handler.checkForFailureStatusCode(httpRequest, httpResult));
-        assertFalse(retryException.shouldRetry());
-        assertThat(retryException.getCause().getMessage(), containsString("Unhandled redirection for request [null] status [300]"));
-        assertThat(((ElasticsearchStatusException) retryException.getCause()).status(), is(RestStatus.MULTIPLE_CHOICES));
-        // 402
-        when(statusLine.getStatusCode()).thenReturn(402);
-        retryException = expectThrows(RetryException.class, () -> handler.checkForFailureStatusCode(httpRequest, httpResult));
+        retryException = expectThrows(RetryException.class, () -> handler.checkForFailureStatusCode(mockRequest, httpResult));
         assertFalse(retryException.shouldRetry());
         assertThat(
             retryException.getCause().getMessage(),
-            containsString("Received an unsuccessful status code for request [null] status [402]")
+            containsString("Unhandled redirection for request from inference entity id [id] status [300]")
+        );
+        assertThat(((ElasticsearchStatusException) retryException.getCause()).status(), is(RestStatus.MULTIPLE_CHOICES));
+        // 402
+        when(statusLine.getStatusCode()).thenReturn(402);
+        retryException = expectThrows(RetryException.class, () -> handler.checkForFailureStatusCode(mockRequest, httpResult));
+        assertFalse(retryException.shouldRetry());
+        assertThat(
+            retryException.getCause().getMessage(),
+            containsString("Received an unsuccessful status code for request from inference entity id [id] status [402]")
         );
         assertThat(((ElasticsearchStatusException) retryException.getCause()).status(), is(RestStatus.PAYMENT_REQUIRED));
     }

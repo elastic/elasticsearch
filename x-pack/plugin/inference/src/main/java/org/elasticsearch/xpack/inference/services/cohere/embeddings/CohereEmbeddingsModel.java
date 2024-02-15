@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.cohere.embeddings;
 
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
@@ -19,19 +20,25 @@ import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings
 import java.util.Map;
 
 public class CohereEmbeddingsModel extends CohereModel {
+    public static CohereEmbeddingsModel of(CohereEmbeddingsModel model, Map<String, Object> taskSettings, InputType inputType) {
+        var requestTaskSettings = CohereEmbeddingsTaskSettings.fromMap(taskSettings);
+        return new CohereEmbeddingsModel(model, CohereEmbeddingsTaskSettings.of(model.getTaskSettings(), requestTaskSettings, inputType));
+    }
+
     public CohereEmbeddingsModel(
         String modelId,
         TaskType taskType,
         String service,
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
-        @Nullable Map<String, Object> secrets
+        @Nullable Map<String, Object> secrets,
+        boolean logDeprecations
     ) {
         this(
             modelId,
             taskType,
             service,
-            CohereEmbeddingsServiceSettings.fromMap(serviceSettings),
+            CohereEmbeddingsServiceSettings.fromMap(serviceSettings, logDeprecations),
             CohereEmbeddingsTaskSettings.fromMap(taskSettings),
             DefaultSecretSettings.fromMap(secrets)
         );
@@ -73,16 +80,7 @@ public class CohereEmbeddingsModel extends CohereModel {
     }
 
     @Override
-    public ExecutableAction accept(CohereActionVisitor visitor, Map<String, Object> taskSettings) {
-        return visitor.create(this, taskSettings);
-    }
-
-    public CohereEmbeddingsModel overrideWith(Map<String, Object> taskSettings) {
-        if (taskSettings == null || taskSettings.isEmpty()) {
-            return this;
-        }
-
-        var requestTaskSettings = CohereEmbeddingsTaskSettings.fromMap(taskSettings);
-        return new CohereEmbeddingsModel(this, getTaskSettings().overrideWith(requestTaskSettings));
+    public ExecutableAction accept(CohereActionVisitor visitor, Map<String, Object> taskSettings, InputType inputType) {
+        return visitor.create(this, taskSettings, inputType);
     }
 }

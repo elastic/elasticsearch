@@ -29,7 +29,7 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 public class Sum extends NumericAggregate {
 
     @FunctionInfo(returnType = "long", description = "The sum of a numeric field.", isAggregation = true)
-    public Sum(Source source, @Param(name = "field", type = { "double", "integer", "long", "unsigned_long" }) Expression field) {
+    public Sum(Source source, @Param(name = "field", type = { "double", "integer", "long" }) Expression field) {
         super(source, field);
     }
 

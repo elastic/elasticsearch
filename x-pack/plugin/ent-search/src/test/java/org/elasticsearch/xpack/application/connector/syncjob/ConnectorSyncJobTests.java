@@ -87,7 +87,6 @@ public class ConnectorSyncJobTests extends ESTestCase {
                 "created_at": "2023-12-01T14:18:43.07693Z",
                 "deleted_document_count": 10,
                 "error": "some-error",
-                "id": "HIC-JYwB9RqKhB7x_hIE",
                 "indexed_document_count": 10,
                 "indexed_document_volume": 10,
                 "job_type": "full",
@@ -101,7 +100,7 @@ public class ConnectorSyncJobTests extends ESTestCase {
             }
             """);
 
-        ConnectorSyncJob syncJob = ConnectorSyncJob.fromXContentBytes(new BytesArray(content), XContentType.JSON);
+        ConnectorSyncJob syncJob = ConnectorSyncJob.fromXContentBytes(new BytesArray(content), "HIC-JYwB9RqKhB7x_hIE", XContentType.JSON);
 
         assertThat(syncJob.getCancelationRequestedAt(), equalTo(Instant.parse("2023-12-01T14:19:39.394194Z")));
         assertThat(syncJob.getCanceledAt(), equalTo(Instant.parse("2023-12-01T14:19:39.394194Z")));
@@ -170,7 +169,6 @@ public class ConnectorSyncJobTests extends ESTestCase {
                 },
                 "created_at": "2023-12-01T14:18:43.07693Z",
                 "deleted_document_count": 10,
-                "id": "HIC-JYwB9RqKhB7x_hIE",
                 "indexed_document_count": 10,
                 "indexed_document_volume": 10,
                 "job_type": "full",
@@ -182,7 +180,7 @@ public class ConnectorSyncJobTests extends ESTestCase {
             }
             """);
 
-        ConnectorSyncJob.fromXContentBytes(new BytesArray(content), XContentType.JSON);
+        ConnectorSyncJob.fromXContentBytes(new BytesArray(content), "HIC-JYwB9RqKhB7x_hIE", XContentType.JSON);
     }
 
     public void testFromXContent_WithAllNullableFieldsSetToNull_DoesNotThrow() throws IOException {
@@ -230,7 +228,6 @@ public class ConnectorSyncJobTests extends ESTestCase {
                 "created_at": "2023-12-01T14:18:43.07693Z",
                 "deleted_document_count": 10,
                 "error": null,
-                "id": "HIC-JYwB9RqKhB7x_hIE",
                 "indexed_document_count": 10,
                 "indexed_document_volume": 10,
                 "job_type": "full",
@@ -238,13 +235,13 @@ public class ConnectorSyncJobTests extends ESTestCase {
                 "metadata": {},
                 "started_at": null,
                 "status": "canceling",
-                "total_document_count": 0,
+                "total_document_count": null,
                 "trigger_method": "scheduled",
                 "worker_hostname": null
             }
             """);
 
-        ConnectorSyncJob.fromXContentBytes(new BytesArray(content), XContentType.JSON);
+        ConnectorSyncJob.fromXContentBytes(new BytesArray(content), "HIC-JYwB9RqKhB7x_hIE", XContentType.JSON);
     }
 
     public void testSyncJobConnectorFromXContent_WithAllFieldsSet() throws IOException {

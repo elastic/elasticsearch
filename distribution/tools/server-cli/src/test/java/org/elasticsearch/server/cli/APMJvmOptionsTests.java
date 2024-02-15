@@ -9,6 +9,7 @@
 package org.elasticsearch.server.cli;
 
 import org.elasticsearch.cli.UserException;
+import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.node.Node;
@@ -20,11 +21,15 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
 
+import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
@@ -75,9 +80,34 @@ public class APMJvmOptionsTests extends ESTestCase {
         assertFalse(Files.exists(tempFile));
     }
 
+    public void testExtractSecureSettings() {
+        MockSecureSettings duplicateSecureSettings = new MockSecureSettings();
+
+        for (String prefix : List.of("telemetry.", "tracing.apm.")) {
+            MockSecureSettings secureSettings = new MockSecureSettings();
+            secureSettings.setString(prefix + "secret_token", "token");
+            secureSettings.setString(prefix + "api_key", "key");
+
+            duplicateSecureSettings.setString(prefix + "api_key", "secret");
+
+            Map<String, String> propertiesMap = new HashMap<>();
+            APMJvmOptions.extractSecureSettings(secureSettings, propertiesMap);
+
+            assertThat(propertiesMap, matchesMap(Map.of("secret_token", "token", "api_key", "key")));
+        }
+
+        Exception exception = expectThrows(
+            IllegalStateException.class,
+            () -> APMJvmOptions.extractSecureSettings(duplicateSecureSettings, new HashMap<>())
+        );
+        assertThat(exception.getMessage(), containsString("Duplicate telemetry setting"));
+        assertThat(exception.getMessage(), containsString("telemetry.api_key"));
+        assertThat(exception.getMessage(), containsString("tracing.apm.api_key"));
+
+    }
+
     public void testExtractSettings() throws UserException {
         Function<String, Settings.Builder> buildSettings = (prefix) -> Settings.builder()
-            .put("tracing.apm.enabled", true)
             .put(prefix + "server_url", "https://myurl:443")
             .put(prefix + "service_node_name", "instance-0000000001");
 
@@ -127,7 +157,6 @@ public class APMJvmOptionsTests extends ESTestCase {
             IllegalStateException.class,
             () -> APMJvmOptions.extractApmSettings(
                 Settings.builder()
-                    .put("tracing.apm.enabled", true)
                     .put("tracing.apm.agent.server_url", "https://myurl:443")
                     .put("telemetry.agent.server_url", "https://myurl-2:443")
                     .build()

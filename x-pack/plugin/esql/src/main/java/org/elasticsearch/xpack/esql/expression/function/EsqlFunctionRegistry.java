@@ -53,6 +53,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cosh;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.E;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Floor;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Log;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Log10;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pi;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pow;
@@ -136,6 +137,7 @@ public final class EsqlFunctionRegistry extends FunctionRegistry {
                 def(E.class, E::new, "e"),
                 def(Floor.class, Floor::new, "floor"),
                 def(Greatest.class, Greatest::new, "greatest"),
+                def(Log.class, Log::new, "log"),
                 def(Log10.class, Log10::new, "log10"),
                 def(Least.class, Least::new, "least"),
                 def(Pi.class, Pi::new, "pi"),
@@ -267,7 +269,7 @@ public final class EsqlFunctionRegistry extends FunctionRegistry {
         }
         Constructor<?> constructor = constructors[0];
         FunctionInfo functionInfo = constructor.getAnnotation(FunctionInfo.class);
-        String functionDescription = functionInfo == null ? "" : functionInfo.description().replaceAll("\n", " ");
+        String functionDescription = functionInfo == null ? "" : functionInfo.description().replace('\n', ' ');
         String[] returnType = functionInfo == null ? new String[] { "?" } : functionInfo.returnType();
         var params = constructor.getParameters(); // no multiple c'tors supported
 
@@ -280,7 +282,7 @@ public final class EsqlFunctionRegistry extends FunctionRegistry {
                 String name = paramInfo == null ? params[i].getName() : paramInfo.name();
                 variadic |= List.class.isAssignableFrom(params[i].getType());
                 String[] type = paramInfo == null ? new String[] { "?" } : paramInfo.type();
-                String desc = paramInfo == null ? "" : paramInfo.description().replaceAll("\n", " ");
+                String desc = paramInfo == null ? "" : paramInfo.description().replace('\n', ' ');
                 boolean optional = paramInfo == null ? false : paramInfo.optional();
 
                 args.add(new EsqlFunctionRegistry.ArgSignature(name, type, desc, optional));

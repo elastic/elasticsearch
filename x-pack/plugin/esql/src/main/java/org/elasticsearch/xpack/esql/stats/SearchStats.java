@@ -307,8 +307,8 @@ public class SearchStats {
     //
     // @see org.elasticsearch.search.query.QueryPhaseCollectorManager#shortcutTotalHitCount(IndexReader, Query)
     //
-    private static int countEntries(IndexReader indexReader, String field) {
-        int count = 0;
+    private static long countEntries(IndexReader indexReader, String field) {
+        long count = 0;
         try {
             for (LeafReaderContext context : indexReader.leaves()) {
                 LeafReader reader = context.reader();
@@ -323,12 +323,12 @@ public class SearchStats {
                     if (fieldInfo.getPointIndexDimensionCount() > 0) {
                         PointValues points = reader.getPointValues(field);
                         if (points != null) {
-                            count += points.getDocCount();
+                            count += points.size();
                         }
                     } else if (fieldInfo.getIndexOptions() != IndexOptions.NONE) {
                         Terms terms = reader.terms(field);
                         if (terms != null) {
-                            count += terms.getDocCount();
+                            count += terms.getSumTotalTermFreq();
                         }
                     } else {
                         return -1; // no shortcut possible for fields that are not indexed

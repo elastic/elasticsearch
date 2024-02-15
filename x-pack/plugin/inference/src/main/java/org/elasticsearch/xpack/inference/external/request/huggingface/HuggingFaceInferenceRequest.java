@@ -9,13 +9,14 @@ package org.elasticsearch.xpack.inference.external.request.huggingface;
 
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
-import org.apache.http.client.methods.HttpRequestBase;
 import org.apache.http.entity.ByteArrayEntity;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.huggingface.HuggingFaceAccount;
+import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceModel;
 
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
@@ -28,14 +29,21 @@ public class HuggingFaceInferenceRequest implements Request {
     private final Truncator truncator;
     private final HuggingFaceAccount account;
     private final Truncator.TruncationResult truncationResult;
+    private final HuggingFaceModel model;
 
-    public HuggingFaceInferenceRequest(Truncator truncator, HuggingFaceAccount account, Truncator.TruncationResult input) {
+    public HuggingFaceInferenceRequest(
+        Truncator truncator,
+        HuggingFaceAccount account,
+        Truncator.TruncationResult input,
+        HuggingFaceModel model
+    ) {
         this.truncator = Objects.requireNonNull(truncator);
         this.account = Objects.requireNonNull(account);
         this.truncationResult = Objects.requireNonNull(input);
+        this.model = Objects.requireNonNull(model);
     }
 
-    public HttpRequestBase createRequest() {
+    public HttpRequest createHttpRequest() {
         HttpPost httpPost = new HttpPost(account.url());
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(
@@ -45,7 +53,7 @@ public class HuggingFaceInferenceRequest implements Request {
         httpPost.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaTypeWithoutParameters());
         httpPost.setHeader(createAuthBearerHeader(account.apiKey()));
 
-        return httpPost;
+        return new HttpRequest(httpPost, getInferenceEntityId());
     }
 
     public URI getURI() {
@@ -53,10 +61,15 @@ public class HuggingFaceInferenceRequest implements Request {
     }
 
     @Override
+    public String getInferenceEntityId() {
+        return model.getInferenceEntityId();
+    }
+
+    @Override
     public Request truncate() {
         var truncateResult = truncator.truncate(truncationResult.input());
 
-        return new HuggingFaceInferenceRequest(truncator, account, truncateResult);
+        return new HuggingFaceInferenceRequest(truncator, account, truncateResult, model);
     }
 
     @Override

@@ -1,0 +1,5 @@
+pr: 103973
+summary: Add stricter validation for api key expiration time
+area: Security
+type: enhancement
+issues: []

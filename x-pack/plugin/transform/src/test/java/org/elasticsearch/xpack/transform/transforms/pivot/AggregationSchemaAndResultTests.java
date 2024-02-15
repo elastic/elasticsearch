@@ -18,7 +18,6 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -28,6 +27,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
+import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.AggregationConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.GroupConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.GroupConfigTests;
@@ -151,10 +152,10 @@ public class AggregationSchemaAndResultTests extends ESTestCase {
             listener -> SchemaUtil.deduceMappings(
                 client,
                 emptyMap(),
+                "my-transform",
+                new SettingsConfig(),
                 pivotConfig,
-                new String[] { "source-index" },
-                QueryBuilders.matchAllQuery(),
-                emptyMap(),
+                new SourceConfig(new String[] { "source-index" }),
                 listener
             ),
             mappings -> {
@@ -231,10 +232,10 @@ public class AggregationSchemaAndResultTests extends ESTestCase {
             listener -> SchemaUtil.deduceMappings(
                 client,
                 emptyMap(),
+                "my-transform",
+                new SettingsConfig(),
                 pivotConfig,
-                new String[] { "source-index" },
-                QueryBuilders.matchAllQuery(),
-                emptyMap(),
+                new SourceConfig(new String[] { "source-index" }),
                 listener
             ),
             mappings -> {

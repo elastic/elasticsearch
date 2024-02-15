@@ -1,8 +1,8 @@
 ---
 setup:
   - skip:
-      version: " - 8.1.99,8.7.00 - 8.9.99"
-      reason: "tsdb indexing changed in 8.2.0, synthetic source shows up in the mapping in 8.10 and on, may trigger assert failures in mixed cluster tests"
+      version: " - 8.1.99,8.7.00 - 8.12.99"
+      reason: _tsid hashing introduced in 8.13
       features: "arbitrary_key"
 
   # Force allocating all shards to a single node so that we can shrink later.
@@ -102,8 +102,8 @@ split:
 ---
 shrink:
   - skip:
-      version: " - 8.1.99"
-      reason: tsdb indexing changed in 8.2.0
+      version: " - 8.12.99"
+      reason: _tsid hashing introduced in 8.13
 
   - do:
       indices.shrink:
@@ -124,13 +124,13 @@ shrink:
               query: '+@timestamp:"2021-04-28T18:51:04.467Z" +k8s.pod.name:cat'
 
   - match: {hits.total.value: 1}
-  - match: {hits.hits.0.fields._tsid: [{k8s.pod.uid: 947e4ced-1786-4e53-9e0c-5c447e959507, metricset: pod}]}
+  - match: {hits.hits.0.fields._tsid: ["KCjEJ9R_BgO8TRX2QOd6dpR12oDh--qoyNZRQPy43y34Qdy2dpsyG0o"]}
 
 ---
 clone:
   - skip:
-      version: " - 8.1.99"
-      reason: tsdb indexing changed in 8.2.0
+      version: " - 8.12.99"
+      reason: _tsid hashing introduced in 8.13
 
   - do:
       indices.clone:
@@ -148,4 +148,4 @@ clone:
               query: '+@timestamp:"2021-04-28T18:51:04.467Z" +k8s.pod.name:cat'
 
   - match: {hits.total.value: 1}
-  - match: {hits.hits.0.fields._tsid: [{k8s.pod.uid: 947e4ced-1786-4e53-9e0c-5c447e959507, metricset: pod}]}
+  - match: {hits.hits.0.fields._tsid: ["KCjEJ9R_BgO8TRX2QOd6dpR12oDh--qoyNZRQPy43y34Qdy2dpsyG0o"]}

@@ -13,9 +13,9 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * The {@link ConnectorStateMachine} class manages state transitions for connectors
+ * The {@link ConnectorStateMachine} class manages state transitions for instances of {@link Connector}
  * in accordance with the <a href="https://github.com/elastic/connectors/blob/main/docs/CONNECTOR_PROTOCOL.md">Connector Protocol</a>.
- * It defines valid transitions between different connector states and provides a method to validate these transitions.
+ * It defines valid transitions between instances of {@link ConnectorStatus} and provides a method to validate these transitions.
  */
 public class ConnectorStateMachine {
 
@@ -23,7 +23,7 @@ public class ConnectorStateMachine {
         ConnectorStatus.CREATED,
         EnumSet.of(ConnectorStatus.NEEDS_CONFIGURATION, ConnectorStatus.ERROR),
         ConnectorStatus.NEEDS_CONFIGURATION,
-        EnumSet.of(ConnectorStatus.CONFIGURED),
+        EnumSet.of(ConnectorStatus.CONFIGURED, ConnectorStatus.ERROR),
         ConnectorStatus.CONFIGURED,
         EnumSet.of(ConnectorStatus.NEEDS_CONFIGURATION, ConnectorStatus.CONNECTED, ConnectorStatus.ERROR),
         ConnectorStatus.CONNECTED,
@@ -33,12 +33,22 @@ public class ConnectorStateMachine {
     );
 
     /**
-     * Checks if a transition from one connector state to another is valid.
+     * Checks if a transition from one {@link ConnectorStatus} to another is valid.
      *
-     * @param current The current state of the connector.
-     * @param next The proposed next state of the connector.
+     * @param current The current {@link ConnectorStatus} of the {@link Connector}.
+     * @param next The proposed next {@link ConnectorStatus} of the {@link Connector}.
      */
     public static boolean isValidTransition(ConnectorStatus current, ConnectorStatus next) {
-        return VALID_TRANSITIONS.getOrDefault(current, Collections.emptySet()).contains(next);
+        return validNextStates(current).contains(next);
+    }
+
+    public static void assertValidStateTransition(ConnectorStatus current, ConnectorStatus next)
+        throws ConnectorInvalidStatusTransitionException {
+        if (isValidTransition(current, next)) return;
+        throw new ConnectorInvalidStatusTransitionException(current, next);
+    }
+
+    public static Set<ConnectorStatus> validNextStates(ConnectorStatus current) {
+        return VALID_TRANSITIONS.getOrDefault(current, Collections.emptySet());
     }
 }

@@ -6,13 +6,13 @@
 
 [source,esql]
 ----
-MEDIAN_ABSOLUTE_DEVIATION(column)
+MEDIAN_ABSOLUTE_DEVIATION(expression)
 ----
 
 *Parameters*
 
-`column`::
-Column from which to return the median absolute deviation.
+`expression`::
+Expression from which to return the median absolute deviation.
 
 *Description*
 
@@ -43,4 +43,18 @@ include::{esql-specs}/stats_percentile.csv-spec[tag=median-absolute-deviation]
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
 include::{esql-specs}/stats_percentile.csv-spec[tag=median-absolute-deviation-result]
+|===
+
+The expression can use inline functions. For example, to calculate the the
+median absolute deviation of the maximum values of a multivalued column, first
+use `MV_MAX` to get the maximum value per row, and use the result with the
+`MEDIAN_ABSOLUTE_DEVIATION` function:
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/stats_percentile.csv-spec[tag=docsStatsMADNestedExpression]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/stats_percentile.csv-spec[tag=docsStatsMADNestedExpression-result]
 |===

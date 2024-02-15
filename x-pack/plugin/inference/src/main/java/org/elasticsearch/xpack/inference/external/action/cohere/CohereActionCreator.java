@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.external.action.cohere;
 
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
@@ -28,8 +29,8 @@ public class CohereActionCreator implements CohereActionVisitor {
     }
 
     @Override
-    public ExecutableAction create(CohereEmbeddingsModel model, Map<String, Object> taskSettings) {
-        var overriddenModel = model.overrideWith(taskSettings);
+    public ExecutableAction create(CohereEmbeddingsModel model, Map<String, Object> taskSettings, InputType inputType) {
+        var overriddenModel = CohereEmbeddingsModel.of(model, taskSettings, inputType);
 
         return new CohereEmbeddingsAction(sender, overriddenModel, serviceComponents);
     }

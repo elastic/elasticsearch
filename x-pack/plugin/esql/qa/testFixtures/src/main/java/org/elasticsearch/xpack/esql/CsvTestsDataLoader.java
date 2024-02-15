@@ -85,6 +85,7 @@ public class CsvTestsDataLoader {
     private static final EnrichConfig LANGUAGES_ENRICH = new EnrichConfig("languages_policy", "enrich-policy-languages.json");
     private static final EnrichConfig CLIENT_IPS_ENRICH = new EnrichConfig("clientip_policy", "enrich-policy-clientips.json");
 
+    public static final List<String> ENRICH_SOURCE_INDICES = List.of("languages", "clientips");
     public static final List<EnrichConfig> ENRICH_POLICIES = List.of(LANGUAGES_ENRICH, CLIENT_IPS_ENRICH);
 
     /**
@@ -242,7 +243,8 @@ public class CsvTestsDataLoader {
         CheckedBiFunction<XContent, InputStream, XContentParser, IOException> p,
         Logger logger
     ) throws IOException {
-        Request request = new Request("POST", "/_bulk");
+        // The indexName is optional for a bulk request, but we use it for routing in MultiClusterSpecIT.
+        Request request = new Request("POST", "/" + indexName + "/_bulk");
         StringBuilder builder = new StringBuilder();
         try (BufferedReader reader = org.elasticsearch.xpack.ql.TestUtils.reader(resource)) {
             String line;
@@ -259,7 +261,7 @@ public class CsvTestsDataLoader {
                     if (columns == null) {
                         columns = new String[entries.length];
                         for (int i = 0; i < entries.length; i++) {
-                            int split = entries[i].indexOf(":");
+                            int split = entries[i].indexOf(':');
                             String name, typeName;
 
                             if (split < 0) {

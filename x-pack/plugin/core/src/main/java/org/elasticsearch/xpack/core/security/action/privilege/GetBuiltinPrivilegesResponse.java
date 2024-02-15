@@ -21,8 +21,8 @@ import java.util.Objects;
  */
 public final class GetBuiltinPrivilegesResponse extends ActionResponse {
 
-    private String[] clusterPrivileges;
-    private String[] indexPrivileges;
+    private final String[] clusterPrivileges;
+    private final String[] indexPrivileges;
 
     public GetBuiltinPrivilegesResponse(String[] clusterPrivileges, String[] indexPrivileges) {
         this.clusterPrivileges = Objects.requireNonNull(clusterPrivileges, "Cluster privileges cannot be null");

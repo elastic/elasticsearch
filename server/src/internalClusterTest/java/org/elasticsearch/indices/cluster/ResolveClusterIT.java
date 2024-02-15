@@ -522,6 +522,7 @@ public class ResolveClusterIT extends AbstractMultiClustersTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105489")
     public void testClusterResolveDisconnectedAndErrorScenarios() throws Exception {
         Map<String, Object> testClusterInfo = setupThreeClusters(false);
         String localIndex = (String) testClusterInfo.get("local.index");

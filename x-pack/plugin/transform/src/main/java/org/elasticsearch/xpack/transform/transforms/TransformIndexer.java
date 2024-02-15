@@ -171,6 +171,8 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
     abstract void doGetFieldMappings(ActionListener<Map<String, String>> fieldMappingsListener);
 
+    abstract void doMaybeCreateDestIndex(Map<String, String> deducedDestIndexMappings, ActionListener<Boolean> listener);
+
     abstract void doDeleteByQuery(DeleteByQueryRequest deleteByQueryRequest, ActionListener<BulkByScrollResponse> responseListener);
 
     abstract void refreshDestinationIndex(ActionListener<Void> responseListener);
@@ -288,7 +290,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         // On each run, we need to get the total number of docs and reset the count of processed docs
         // Since multiple checkpoints can be executed in the task while it is running on the same node, we need to gather
         // the progress here, and not in the executor.
-        ActionListener<Void> configurationReadyListener = ActionListener.wrap(r -> {
+        ActionListener<Boolean> configurationReadyListener = ActionListener.wrap(unused -> {
             initializeFunction();
 
             if (initialRun()) {
@@ -339,7 +341,16 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
                 // ... otherwise we fall back to index mappings deduced based on source indices
                 this.fieldMappings = deducedDestIndexMappings.get();
             }
-            configurationReadyListener.onResponse(null);
+            // Since the unattended transform could not have created the destination index yet, we do it here.
+            // This is important to create the destination index explicitly before indexing first documents. Otherwise, the destination
+            // index aliases may be missing.
+            if (destIndexMappings.isEmpty()
+                && context.getCheckpoint() == 0
+                && Boolean.TRUE.equals(transformConfig.getSettings().getUnattended())) {
+                doMaybeCreateDestIndex(deducedDestIndexMappings.get(), configurationReadyListener);
+            } else {
+                configurationReadyListener.onResponse(null);
+            }
         }, listener::onFailure);
 
         ActionListener<Void> reLoadFieldMappingsListener = ActionListener.wrap(updateConfigResponse -> {

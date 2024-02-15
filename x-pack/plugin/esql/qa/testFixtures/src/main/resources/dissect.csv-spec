@@ -149,12 +149,14 @@ overwriteNameAfterSort#[skip:-8.13.99]
 FROM employees
 | MV_EXPAND job_positions
 | SORT emp_no ASC
-| DISSECT job_positions "%{emp_no} %{} %{}"
+| DISSECT first_name "Ge%{emp_no}gi"
 | LIMIT 1
+| RENAME emp_no as first_name_fragment
+| KEEP first_name_fragment
 ;
 
-emp_no:keyword  | b:keyword
-b               | d
+first_name_fragment:keyword
+or
 ;
 
 # for now it calculates only based on the first value

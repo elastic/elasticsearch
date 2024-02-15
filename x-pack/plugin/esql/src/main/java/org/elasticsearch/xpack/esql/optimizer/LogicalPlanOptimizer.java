@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
+import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
@@ -76,6 +77,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.singleton;
@@ -839,6 +841,47 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         }
     }
 
+    private record AttributeReplacement(List<Expression> rewrittenExpressions, AttributeMap<Alias> replacedAttributes) {};
+
+    /**
+     * Replace attributes in the given expressions by assigning them temporary names.
+     * Returns the rewritten expressions and a map with an alias for each replaced attribute; the rewritten expressions reference
+     * these aliases.
+     */
+    private static AttributeReplacement renameAttributesInExpressions(
+        Set<String> attributeNamesToRename,
+        List<? extends Expression> expressions
+    ) {
+        AttributeMap<Alias> aliasesForReplacedAttributes = new AttributeMap<>();
+        List<Expression> rewrittenExpressions = new ArrayList<>();
+        Holder<Integer> shadowedAttrs = new Holder<>(0);
+
+        for (Expression expr : expressions) {
+            rewrittenExpressions.add(expr.transformUp(Attribute.class, attr -> {
+                if (attributeNamesToRename.contains(attr.name())) {
+                    Alias existingAlias = aliasesForReplacedAttributes.get(attr);
+                    if (existingAlias == null) {
+                        Alias tempNameForShadowedAttr = new Alias(
+                            Source.EMPTY,
+                            SubstituteSurrogates.temporaryName(attr, expr, shadowedAttrs.get()),
+                            attr
+                        );
+                        aliasesForReplacedAttributes.put(attr, tempNameForShadowedAttr);
+                        shadowedAttrs.set(shadowedAttrs.get() + 1);
+
+                        return tempNameForShadowedAttr.toAttribute();
+                    } else {
+                        return existingAlias.toAttribute();
+                    }
+                }
+
+                return attr;
+            }));
+        }
+
+        return new AttributeReplacement(rewrittenExpressions, aliasesForReplacedAttributes);
+    }
+
     /**
      * Pushes Evals past OrderBys. Although it seems arbitrary whether the OrderBy or the Eval is executed first,
      * this transformation ensures that OrderBys only separated by an eval can be combined by PushDownAndCombineOrderBy.
@@ -853,13 +896,36 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
      *
      * Ordering the evals before the orderBys has the advantage that it's always possible to order the plans like this.
      * E.g., in the example above it would not be possible to put the eval after the two orderBys.
+     * TODO update javadoc
      */
     protected static class PushDownEval extends OptimizerRules.OptimizerRule<Eval> {
+
         @Override
         protected LogicalPlan rule(Eval eval) {
             LogicalPlan child = eval.child();
 
             if (child instanceof OrderBy orderBy) {
+                // TODO: should we generally use qualified names?
+                Set<String> evalFieldNames = eval.fields().stream().map(NamedExpression::name).collect(Collectors.toSet());
+
+                // Look for attributes in the OrderBy's expressions and create aliases with temporary names for them.
+                AttributeReplacement nonShadowedOrders = renameAttributesInExpressions(evalFieldNames, orderBy.order());
+
+                AttributeMap<Alias> aliasesForShadowedOrderByAttrs = nonShadowedOrders.replacedAttributes;
+                @SuppressWarnings("unchecked")
+                List<Order> newOrder = (List<Order>) (Object) nonShadowedOrders.rewrittenExpressions;
+
+                if (aliasesForShadowedOrderByAttrs.isEmpty() == false) {
+                    List<Alias> newAliases = aliasesForShadowedOrderByAttrs.values().stream().toList();
+
+                    LogicalPlan plan = new Eval(Source.EMPTY, orderBy.child(), newAliases);
+                    plan = eval.replaceChild(plan);
+                    plan = new OrderBy(orderBy.source(), plan, newOrder);
+                    plan = new EsqlProject(Source.EMPTY, plan, eval.output());
+
+                    return plan;
+                }
+
                 return orderBy.replaceChild(eval.replaceChild(orderBy.child()));
             } else if (child instanceof Project) {
                 var projectWithEvalChild = pushDownPastProject(eval);
@@ -878,6 +944,26 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             LogicalPlan child = re.child();
 
             if (child instanceof OrderBy orderBy) {
+                Set<String> extractedFieldNames = re.extractedFields().stream().map(NamedExpression::name).collect(Collectors.toSet());
+
+                // Look for attributes in the OrderBy's expressions and create aliases with temporary names for them.
+                AttributeReplacement nonShadowedOrders = renameAttributesInExpressions(extractedFieldNames, orderBy.order());
+
+                AttributeMap<Alias> aliasesForShadowedOrderByAttrs = nonShadowedOrders.replacedAttributes;
+                @SuppressWarnings("unchecked")
+                List<Order> newOrder = (List<Order>) (Object) nonShadowedOrders.rewrittenExpressions;
+
+                if (aliasesForShadowedOrderByAttrs.isEmpty() == false) {
+                    List<Alias> newAliases = aliasesForShadowedOrderByAttrs.values().stream().toList();
+
+                    LogicalPlan plan = new Eval(Source.EMPTY, orderBy.child(), newAliases);
+                    plan = re.replaceChild(plan);
+                    plan = new OrderBy(orderBy.source(), plan, newOrder);
+                    plan = new EsqlProject(Source.EMPTY, plan, re.output());
+
+                    return plan;
+                }
+
                 return orderBy.replaceChild(re.replaceChild(orderBy.child()));
             } else if (child instanceof Project) {
                 var projectWithChild = pushDownPastProject(re);
@@ -891,18 +977,38 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
     // TODO double-check: this should be the same as EVAL and GROK/DISSECT, needed to avoid unbounded sort
     protected static class PushDownEnrich extends OptimizerRules.OptimizerRule<Enrich> {
         @Override
-        protected LogicalPlan rule(Enrich re) {
-            LogicalPlan child = re.child();
+        protected LogicalPlan rule(Enrich en) {
+            LogicalPlan child = en.child();
 
             if (child instanceof OrderBy orderBy) {
-                return orderBy.replaceChild(re.replaceChild(orderBy.child()));
+                Set<String> extractedFieldNames = en.enrichFields().stream().map(NamedExpression::name).collect(Collectors.toSet());
+
+                // Look for attributes in the OrderBy's expressions and create aliases with temporary names for them.
+                AttributeReplacement nonShadowedOrders = renameAttributesInExpressions(extractedFieldNames, orderBy.order());
+
+                AttributeMap<Alias> aliasesForShadowedOrderByAttrs = nonShadowedOrders.replacedAttributes;
+                @SuppressWarnings("unchecked")
+                List<Order> newOrder = (List<Order>) (Object) nonShadowedOrders.rewrittenExpressions;
+
+                if (aliasesForShadowedOrderByAttrs.isEmpty() == false) {
+                    List<Alias> newAliases = aliasesForShadowedOrderByAttrs.values().stream().toList();
+
+                    LogicalPlan plan = new Eval(Source.EMPTY, orderBy.child(), newAliases);
+                    plan = en.replaceChild(plan);
+                    plan = new OrderBy(orderBy.source(), plan, newOrder);
+                    plan = new EsqlProject(Source.EMPTY, plan, en.output());
+
+                    return plan;
+                }
+
+                return orderBy.replaceChild(en.replaceChild(orderBy.child()));
             } else if (child instanceof Project) {
-                var projectWithChild = pushDownPastProject(re);
-                var attrs = asAttributes(re.enrichFields());
+                var projectWithChild = pushDownPastProject(en);
+                var attrs = asAttributes(en.enrichFields());
                 return projectWithChild.withProjections(mergeOutputExpressions(attrs, projectWithChild.projections()));
             }
 
-            return re;
+            return en;
         }
     }
 

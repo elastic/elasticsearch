@@ -376,8 +376,8 @@ FROM employees
 | KEEP emp_no
 ;
 
-emp_no:l
--1
--2
--3
+emp_no:i
+-10001
+-10002
+-10003
 ;

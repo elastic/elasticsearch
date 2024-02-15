@@ -3266,6 +3266,18 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(e.getMessage(), containsString(" optimized incorrectly due to missing references [salary"));
     }
 
+    public void testAsdf() throws Exception {
+        var plan = optimizedPlan("""
+            from test
+            | SORT 13*(emp_no+salary) ASC, -salary DESC
+            | eval emp_no = 3*emp_no, salary = -2*emp_no-salary
+            | LIMIT 3
+            | KEEP emp_no, salary
+            """);
+
+        var limit = as(plan, Limit.class);
+    }
+
     private LogicalPlan optimizedPlan(String query) {
         return plan(query);
     }

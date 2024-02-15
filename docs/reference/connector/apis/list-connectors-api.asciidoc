@@ -29,6 +29,15 @@ Returns information about all stored connectors.
 `from`::
 (Optional, integer) The offset from the first result to fetch.
 
+`index_name`::
+(Optional, string) A comma-separated list of data index names associated with connectors, used to filter search results.
+
+`connector_name`::
+(Optional, string) A comma-separated list of connector names, used to filter search results.
+
+`service_type`::
+(Optional, string) A comma-separated list of connector service types, used to filter search results.
+
 [[list-connector-api-example]]
 ==== {api-examples-title}
 
@@ -73,4 +82,26 @@ The following example lists the first two connectors:
 [source,console]
 ----
 GET _connector/?from=0&size=2
+----
+
+An example to list connectors associated with `search-google-drive` data index name:
+
+[source,console]
+----
+GET _connector/?index_name=search-google-drive
+----
+
+
+An example to list all connectors with `sharepoint_online` service type:
+
+[source,console]
+----
+GET _connector/?service_type=sharepoint_online
+----
+
+An example to list all connectors with `sharepoint_online` or `google_drive` service type:
+
+[source,console]
+----
+GET _connector/?service_type=sharepoint_online,google_drive
 ----

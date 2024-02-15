@@ -182,21 +182,22 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
 
     @Override
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) {
-        if (pinnedIdsSupplier != null || pinnedDocsSupplier != null) {
-            List<String> identifiedPinnedIds = pinnedIdsSupplier != null ? pinnedIdsSupplier.get() : null;
-            List<Item> identifiedPinnedDocs = pinnedDocsSupplier != null ? pinnedDocsSupplier.get() : null;
-            if (identifiedPinnedIds == null && identifiedPinnedDocs == null) {
+        if (pinnedIdsSupplier != null && pinnedDocsSupplier != null) {
+            List<String> identifiedPinnedIds = pinnedIdsSupplier.get();
+            List<Item> identifiedPinnedDocs = pinnedDocsSupplier.get();
+            if (identifiedPinnedIds == null || identifiedPinnedDocs == null) {
                 return this; // Not executed yet
-            } else if ((identifiedPinnedIds != null && identifiedPinnedIds.isEmpty())
-                && (identifiedPinnedDocs != null && identifiedPinnedDocs.isEmpty())) {
-                    return organicQuery; // Nothing to pin here
-                } else if (identifiedPinnedIds != null && identifiedPinnedIds.isEmpty() == false) {
-                    return new PinnedQueryBuilder(organicQuery, truncateList(identifiedPinnedIds).toArray(new String[0]));
-                } else if (identifiedPinnedDocs != null && identifiedPinnedDocs.isEmpty() == false) {
-                    return new PinnedQueryBuilder(organicQuery, truncateList(identifiedPinnedDocs).toArray(new Item[0]));
-                } else {
-                    return this; // Should never happen
-                }
+            } else if (identifiedPinnedIds.isEmpty() && identifiedPinnedDocs.isEmpty()) {
+                return organicQuery; // Nothing to pin here
+            } else if (identifiedPinnedIds.isEmpty() == false && identifiedPinnedDocs.isEmpty() == false) {
+                throw new IllegalArgumentException(
+                    "applied rules contain both pinned ids and pinned docs, only one of ids or docs is allowed"
+                );
+            } else if (identifiedPinnedIds.isEmpty() == false) {
+                return new PinnedQueryBuilder(organicQuery, truncateList(identifiedPinnedIds).toArray(new String[0]));
+            } else {
+                return new PinnedQueryBuilder(organicQuery, truncateList(identifiedPinnedDocs).toArray(new Item[0]));
+            }
         }
 
         // Identify matching rules and apply them as applicable

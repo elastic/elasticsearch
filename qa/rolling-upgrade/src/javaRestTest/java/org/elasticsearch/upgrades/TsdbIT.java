@@ -301,7 +301,8 @@ public class TsdbIT extends ParameterizedRollingUpgradeTestCase {
             assertOK(indexResponse);
         }
 
-        expectThrows(ResponseException.class, () -> client().performRequest(createIndexRequest(indexName)));
+        var e = expectThrows(ResponseException.class, () -> client().performRequest(createIndexRequest(indexName)));
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(409));
         boolean hashingId = Version.fromString(getOldClusterVersion()).onOrAfter(Version.V_8_13_0);
         String id = hashingId ? "Z_lRoL05Mm17v3n2AAABjMJR9AA" : "Z_lRoFah9uMXCwkFAAABjMJR9AA";
 
@@ -316,6 +317,7 @@ public class TsdbIT extends ParameterizedRollingUpgradeTestCase {
     private static Request createIndexRequest(String indexName) {
         var indexRequest = new Request("POST", "/" + indexName + "/_doc");
         indexRequest.addParameter("refresh", "true");
+        indexRequest.addParameter("op_type", "create");
         indexRequest.setJsonEntity(
             DOC_TEMPLATE.replace("$time", "2024-01-01T00:00:00.000Z")
                 .replace("$uid", "df3145b3-0563-4d3b-a0f7-897eb2876ea9")

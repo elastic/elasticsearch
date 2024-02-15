@@ -253,6 +253,14 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         Setting.Property.NodeScope
     );
 
+    public static final Setting<Boolean> USE_FULL_REGION_SIZE = Setting.boolSetting(
+        SHARED_CACHE_SETTINGS_PREFIX + "use_full_region_size",
+        false,
+        Setting.Property.NodeScope
+    );
+
+    private final Boolean useFullRegionSize;
+
     // used in tests
     void computeDecay() {
         if (cache instanceof LFUCache lfuCache) {
@@ -382,6 +390,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
 
         this.blobCacheMetrics = blobCacheMetrics;
         this.evictIncrementer = blobCacheMetrics.getEvictedCountNonZeroFrequency()::increment;
+        this.useFullRegionSize = USE_FULL_REGION_SIZE.get(settings);
     }
 
     public static long calculateCacheSize(Settings settings, long totalFsSize) {
@@ -433,6 +442,15 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             getRegionRelativePosition(rangeStart),
             rangeEnd == regionEnd ? regionSize : getRegionRelativePosition(rangeEnd)
         );
+    }
+
+    // package private for tests
+    int computeCacheFileRegionSize(long fileLength, int region) {
+        if (useFullRegionSize) {
+            return getRegionSize();
+        }
+        // the size of the region is computed from the file length
+        return getRegionSize(fileLength, region);
     }
 
     private int getRegionSize(long fileLength, int region) {
@@ -1209,7 +1227,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             // if we did not find an entry
             var entry = keyMapping.get(regionKey);
             if (entry == null) {
-                final int effectiveRegionSize = getRegionSize(fileLength, region);
+                final int effectiveRegionSize = computeCacheFileRegionSize(fileLength, region);
                 entry = keyMapping.computeIfAbsent(regionKey, key -> new LFUCacheEntry(new CacheFileRegion(key, effectiveRegionSize), now));
             }
             // io is volatile, double locking is fine, as long as we assign it last.

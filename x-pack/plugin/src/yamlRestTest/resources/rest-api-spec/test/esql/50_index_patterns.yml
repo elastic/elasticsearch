@@ -298,8 +298,6 @@ same_name_different_type:
         index: test1
         body:
           mappings:
-            _size:
-              enabled: true
             properties:
               message:
                 type: keyword

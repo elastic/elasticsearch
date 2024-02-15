@@ -255,6 +255,11 @@ public class TransformIndexerTests extends ESTestCase {
             fieldMappingsListener.onResponse(Collections.emptyMap());
         }
 
+        @Override
+        void doMaybeCreateDestIndex(Map<String, String> deducedDestIndexMappings, ActionListener<Boolean> listener) {
+            listener.onResponse(null);
+        }
+
         public boolean waitingForNextSearch() {
             return super.getScheduledNextSearch() != null;
         }

@@ -13,18 +13,18 @@ import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
-import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.capabilities.Validatable;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
+import org.elasticsearch.xpack.ql.common.Failures;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Foldables;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.TypeResolutions;
-import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
-import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
@@ -34,11 +34,11 @@ import java.util.List;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
+import static org.elasticsearch.xpack.esql.expression.Validations.isFoldable;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FOURTH;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.THIRD;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isFoldable;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isInteger;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
@@ -54,7 +54,7 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
  *     in the above case we'll pick month long buckets, yielding 12 buckets.
  * </p>
  */
-public class AutoBucket extends ScalarFunction implements EvaluatorMapper {
+public class AutoBucket extends EsqlScalarFunction implements Validatable {
     // TODO maybe we should just cover the whole of representable dates here - like ten years, 100 years, 1000 years, all the way up.
     // That way you never end up with more than the target number of buckets.
     private static final Rounding LARGEST_HUMAN_DATE_ROUNDING = Rounding.builder(Rounding.DateTimeUnit.YEAR_OF_CENTURY).build();
@@ -103,11 +103,6 @@ public class AutoBucket extends ScalarFunction implements EvaluatorMapper {
     @Override
     public boolean foldable() {
         return field.foldable() && buckets.foldable() && from.foldable() && to.foldable();
-    }
-
-    @Override
-    public Object fold() {
-        return EvaluatorMapper.super.fold();
     }
 
     @Override
@@ -195,10 +190,6 @@ public class AutoBucket extends ScalarFunction implements EvaluatorMapper {
         if (resolution.unresolved()) {
             return resolution;
         }
-        resolution = isFoldable(buckets, sourceText(), SECOND);
-        if (resolution.unresolved()) {
-            return resolution;
-        }
         return checkThirdAndForth.apply(from, THIRD).and(checkThirdAndForth.apply(to, FOURTH));
     }
 
@@ -211,6 +202,13 @@ public class AutoBucket extends ScalarFunction implements EvaluatorMapper {
             "datetime",
             "string"
         );
+    }
+
+    @Override
+    public void validate(Failures failures) {
+        String operation = sourceText();
+
+        failures.add(isFoldable(buckets, operation, SECOND)).add(isFoldable(from, operation, THIRD)).add(isFoldable(to, operation, FOURTH));
     }
 
     private long foldToLong(Expression e) {
@@ -226,11 +224,6 @@ public class AutoBucket extends ScalarFunction implements EvaluatorMapper {
             return DataTypes.DOUBLE;
         }
         return field.dataType();
-    }
-
-    @Override
-    public ScriptTemplate asScript() {
-        throw new UnsupportedOperationException("functions do not support scripting");
     }
 
     @Override

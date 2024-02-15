@@ -165,7 +165,7 @@ public class NodeShutdownTasksIT extends ESIntegTestCase {
         private final PersistentTasksService persistentTasksService;
 
         protected TaskExecutor(Client client, ClusterService clusterService, ThreadPool threadPool) {
-            super("task_name", ThreadPool.Names.GENERIC);
+            super("task_name", threadPool.generic());
             persistentTasksService = new PersistentTasksService(clusterService, threadPool, client);
             clusterService.addListener(this);
         }

@@ -128,6 +128,7 @@ public class RandomSamplerIT extends ESIntegTestCase {
         );
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105542")
     public void testRandomSamplerHistogram() {
         Map<String, Double> sampleMonotonicValue = new HashMap<>();
         Map<String, Double> sampleNumericValue = new HashMap<>();

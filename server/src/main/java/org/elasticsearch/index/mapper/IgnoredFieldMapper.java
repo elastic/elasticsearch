@@ -13,7 +13,6 @@ import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.index.IndexVersion;
@@ -63,11 +62,6 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
         @Override
         public String typeName() {
             return CONTENT_TYPE;
-        }
-
-        @Override
-        public Query existsQuery(SearchExecutionContext context) {
-            return new TermRangeQuery(name(), null, null, true, true);
         }
 
         @Override

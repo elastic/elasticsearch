@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.index.IndexResolver;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypeRegistry;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.DateEsField;
 import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.ql.type.InvalidMappedField;
@@ -77,6 +78,7 @@ public class EsqlIndexResolver {
             Map<String, EsField> fields = rootFields;
             String fullName = name;
             boolean isAlias = false;
+            UnsupportedEsField firstUnsupportedParent = null;
             while (true) {
                 int nextDot = name.indexOf('.');
                 if (nextDot < 0) {
@@ -88,12 +90,16 @@ public class EsqlIndexResolver {
                     obj = new EsField(parent, OBJECT, new HashMap<>(), false, true);
                     isAlias = true;
                     fields.put(parent, obj);
+                } else if (firstUnsupportedParent == null && obj instanceof UnsupportedEsField unsupportedParent) {
+                    firstUnsupportedParent = unsupportedParent;
                 }
                 fields = obj.getProperties();
                 name = name.substring(nextDot + 1);
             }
             // TODO we're careful to make isAlias match IndexResolver - but do we use it?
-            EsField field = createField(fieldCapsResponse, name, fieldsCaps.get(fullName), isAlias);
+            EsField field = firstUnsupportedParent == null
+                ? createField(fieldCapsResponse, name, fieldsCaps.get(fullName), isAlias)
+                : new UnsupportedEsField(name, firstUnsupportedParent.getOriginalType(), firstUnsupportedParent.getName(), new HashMap<>());
             fields.put(name, field);
         }
 
@@ -132,6 +138,7 @@ public class EsqlIndexResolver {
         IndexFieldCapabilities first = fcs.get(0);
         List<IndexFieldCapabilities> rest = fcs.subList(1, fcs.size());
         DataType type = typeRegistry.fromEs(first.type(), first.metricType());
+        boolean aggregatable = first.isAggregatable();
         if (rest.isEmpty() == false) {
             for (IndexFieldCapabilities fc : rest) {
                 if (first.metricType() != fc.metricType()) {
@@ -144,10 +151,7 @@ public class EsqlIndexResolver {
                 }
             }
             for (IndexFieldCapabilities fc : rest) {
-                if (first.isAggregatable() != fc.isAggregatable() || first.isSearchable() != fc.isSearchable()) {
-                    // TODO why do we care if there's a conflict in "searchable" - also, can't we just search everything?
-                    return conflictingAggregatableOrSearchable(first.name(), fieldCapsResponse);
-                }
+                aggregatable &= fc.isAggregatable();
             }
         }
 
@@ -160,17 +164,21 @@ public class EsqlIndexResolver {
             int length = Short.MAX_VALUE;
             // TODO: to check whether isSearchable/isAggregateable takes into account the presence of the normalizer
             boolean normalized = false;
-            return new KeywordEsField(name, new HashMap<>(), first.isAggregatable(), length, normalized, isAlias);
+            return new KeywordEsField(name, new HashMap<>(), aggregatable, length, normalized, isAlias);
         }
         if (type == DATETIME) {
-            return DateEsField.dateEsField(name, new HashMap<>(), first.isAggregatable());
+            return DateEsField.dateEsField(name, new HashMap<>(), aggregatable);
         }
         if (type == UNSUPPORTED) {
-            String originalType = first.metricType() == TimeSeriesParams.MetricType.COUNTER ? "counter" : first.type();
-            return new UnsupportedEsField(name, originalType, null, new HashMap<>());
+            return unsupported(first);
         }
 
-        return new EsField(name, type, new HashMap<>(), first.isAggregatable(), isAlias);
+        return new EsField(name, type, new HashMap<>(), aggregatable, isAlias);
+    }
+
+    private UnsupportedEsField unsupported(IndexFieldCapabilities fc) {
+        String originalType = fc.metricType() == TimeSeriesParams.MetricType.COUNTER ? "counter" : fc.type();
+        return new UnsupportedEsField(fc.name(), originalType);
     }
 
     private EsField conflictingTypes(String name, FieldCapabilitiesResponse fieldCapsResponse) {
@@ -178,8 +186,11 @@ public class EsqlIndexResolver {
         for (FieldCapabilitiesIndexResponse ir : fieldCapsResponse.getIndexResponses()) {
             IndexFieldCapabilities fc = ir.get().get(name);
             if (fc != null) {
-                typesToIndices.computeIfAbsent(typeRegistry.fromEs(fc.type(), fc.metricType()).name(), _key -> new TreeSet<>())
-                    .add(ir.getIndexName());
+                DataType type = typeRegistry.fromEs(fc.type(), fc.metricType());
+                if (type == UNSUPPORTED) {
+                    return unsupported(fc);
+                }
+                typesToIndices.computeIfAbsent(type.name(), _key -> new TreeSet<>()).add(ir.getIndexName());
             }
         }
         StringBuilder errorMessage = new StringBuilder();
@@ -202,6 +213,7 @@ public class EsqlIndexResolver {
     }
 
     private EsField conflictingAggregatableOrSearchable(String name, FieldCapabilitiesResponse fieldCapsResponse) {
+        // NOCOMMIT remove me?
         Set<String> nonAggregatableIndices = new TreeSet<>();
         Set<String> nonSearchableIndices = new TreeSet<>();
         for (FieldCapabilitiesIndexResponse ir : fieldCapsResponse.getIndexResponses()) {

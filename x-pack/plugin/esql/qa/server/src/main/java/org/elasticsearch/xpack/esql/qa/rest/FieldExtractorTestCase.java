@@ -9,10 +9,15 @@ package org.elasticsearch.xpack.esql.qa.rest;
 
 import com.carrotsearch.randomizedtesting.annotations.Repeat;
 
+import junit.framework.TestCase;
+
+import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.NetworkAddress;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
@@ -36,6 +41,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 import static org.elasticsearch.test.ListMatcher.matchesList;
@@ -44,6 +50,7 @@ import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.entityToMap;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.runEsqlSync;
 import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.containsString;
 
 /**
  * Creates indices with many different mappings and fetches values from them to make sure
@@ -51,9 +58,8 @@ import static org.hamcrest.Matchers.closeTo;
  * implementations <strong>and</strong> an integration test for field resolution.
  * This is a port of a test with the same name on the SQL side.
  */
-@Repeat(iterations = 10)
 public abstract class FieldExtractorTestCase extends ESRestTestCase {
-    private static final String TEST_INDEX = "test";
+    private static final Logger logger = LogManager.getLogger(FieldExtractorTestCase.class);
 
     public void testTextField() throws IOException {
         textTest().test(randomAlphaOfLength(20));
@@ -64,7 +70,6 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
     }
 
     public void testKeywordField() throws IOException {
-        // TODO randomize store
         Integer ignoreAbove = randomBoolean() ? null : between(10, 50);
         int length = between(10, 50);
 
@@ -596,6 +601,186 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
         );
     }
 
+    /**
+     * Two indices, one with:
+     * <pre>
+     * "file": {
+     *     "type": "keyword"
+     * }
+     * </pre>
+     * and the other with
+     * <pre>
+     * "other_file": {
+     *     "type": "keyword"
+     * }
+     * </pre>.
+     */
+    public void testDistinctInEachIndex() throws IOException {
+        keywordTest().createIndex("test1", "file");
+        index("test1", """
+            {"file": "f1"}""");
+        keywordTest().createIndex("test2", "other");
+        index("test2", """
+            {"other": "o2"}""");
+
+        Map<String, Object> result = runEsqlSync(new RestEsqlTestCase.RequestObjectBuilder().query("FROM test* | SORT file, other"));
+        assertMap(
+            result,
+            matchesMap().entry("columns", List.of(columnInfo("file", "keyword"), columnInfo("other", "keyword")))
+                .entry("values", List.of(matchesList().item("f1").item(null), matchesList().item(null).item("o2")))
+        );
+    }
+
+    /**
+     * Two indices, one with:
+     * <pre>
+     * "file": {
+     *    "type": "keyword"
+     * }
+     * </pre>
+     * and the other with
+     * <pre>
+     * "file": {
+     *    "type": "object",
+     *    "properties": {
+     *       "raw": {
+     *          "type": "keyword"
+     *       }
+     *    }
+     * }
+     * </pre>.
+     */
+    public void testMergeKeywordAndObject() throws IOException {
+        keywordTest().createIndex("test1", "file");
+        index("test1", """
+            {"file": "f1"}""");
+        createIndex("test2", index -> {
+            index.startObject("properties");
+            {
+                index.startObject("file");
+                {
+                    index.field("type", "object");
+                    index.startObject("properties");
+                    {
+                        index.startObject("raw").field("type", "keyword").endObject();
+                    }
+                    index.endObject();
+                }
+                index.endObject();
+            }
+            index.endObject();
+        });
+        index("test2", """
+            {"file": {"raw": "o2"}}""");
+
+        ResponseException e = expectThrows(
+            ResponseException.class,
+            () -> runEsqlSync(new RestEsqlTestCase.RequestObjectBuilder().query("FROM test* | SORT file, file.raw | LIMIT 3"))
+        );
+        String err = EntityUtils.toString(e.getResponse().getEntity());
+        assertThat(err, containsString("mapped as [2] incompatible types: [KEYWORD] in [test1], [OBJECT] in [test2]"));
+
+        Map<String, Object> result = runEsqlSync(new RestEsqlTestCase.RequestObjectBuilder().query("FROM test* | LIMIT 2"));
+        assertMap(
+            result,
+            matchesMap().entry("columns", List.of(columnInfo("file", "unsupported"), columnInfo("file.raw", "keyword")))
+                .entry("values", List.of(matchesList().item(null).item(null), matchesList().item(null).item("o2")))
+        );
+    }
+
+    /**
+     * Two indices, one with:
+     * <pre>
+     * "file": {
+     *    "type": "ip_range"  <--- The type here doesn't matter, but it has to be one we don't support
+     * }
+     * </pre>
+     * and the other with
+     * <pre>
+     * "file": {
+     *    "type": "object",
+     *    "properties": {
+     *       "raw": {
+     *          "type": "keyword"
+     *       }
+     *    }
+     * }
+     * </pre>.
+     */
+    public void testMergeUnsupportedAndObject() throws IOException {
+        createIndex("test1", index -> {
+            index.startObject("properties");
+            index.startObject("f").field("type", "ip_range").endObject();
+            index.endObject();
+        });
+        index("test1", """
+            {"f": "192.168.0.1/24"}""");
+        createIndex("test2", index -> {
+            index.startObject("properties");
+            {
+                index.startObject("f");
+                {
+                    index.field("type", "object");
+                    index.startObject("properties");
+                    {
+                        index.startObject("raw").field("type", "keyword").endObject();
+                    }
+                    index.endObject();
+                }
+                index.endObject();
+            }
+            index.endObject();
+        });
+        index("test2", """
+            {"f": {"raw": "o2"}}""");
+
+        ResponseException e = expectThrows(
+            ResponseException.class,
+            () -> runEsqlSync(new RestEsqlTestCase.RequestObjectBuilder().query("FROM test* | SORT f, f.raw | LIMIT 3"))
+        );
+        String err = EntityUtils.toString(e.getResponse().getEntity());
+        assertThat(err, containsString("Cannot use field [f] with unsupported type [ip_range]"));
+        assertThat(err, containsString("Cannot use field [f.raw] with unsupported type [ip_range]"));
+
+        Map<String, Object> result = runEsqlSync(new RestEsqlTestCase.RequestObjectBuilder().query("FROM test* | LIMIT 2"));
+        assertMap(
+            result,
+            matchesMap().entry("columns", List.of(columnInfo("f", "unsupported"), columnInfo("f.raw", "unsupported")))
+                .entry("values", List.of(matchesList().item(null).item(null), matchesList().item(null).item(null)))
+        );
+    }
+
+    /**
+     * Two indices, one with:
+     * <pre>
+     * "emp_no": {
+     *     "type": "integer"
+     * }
+     * </pre>
+     * and the other with
+     * <pre>
+     * "emp_no": {
+     *     "type": "integer",
+     *     "doc_values": false
+     * }
+     * </pre>.
+     */
+    public void testIntegerDocValuesConflict() throws IOException {
+        intTest().sourceMode(SourceMode.DEFAULT).storeAndDocValues(null, true).createIndex("test1", "emp_no");
+        index("test1", """
+            {"emp_no": 1}""");
+        intTest().sourceMode(SourceMode.DEFAULT).storeAndDocValues(null, false).createIndex("test2", "emp_no");
+        index("test2", """
+            {"emp_no": 2}""");
+
+        Map<String, Object> result = runEsqlSync(new RestEsqlTestCase.RequestObjectBuilder().query("FROM test* | SORT emp_no | LIMIT 2"));
+        assertMap(
+            result,
+            matchesMap().entry("columns", List.of(columnInfo("emp_no", "integer")))
+                .entry("values", List.of(matchesList().item(1), matchesList().item(2)))
+        );
+    }
+
     private enum SourceMode {
         DEFAULT {
             @Override
@@ -679,8 +864,6 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
     private record StoreAndDocValues(Boolean store, Boolean docValues) {}
 
     private static class Test {
-        private static final Logger logger = LogManager.getLogger(Test.class);
-
         private final String type;
         private final Map<String, Test> subFields = new TreeMap<>();
 
@@ -779,18 +962,18 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
         }
 
         Map<String, Object> roundTrip(Object value) throws IOException {
-            if (sourceMode == null) {
-                sourceMode(randomFrom(SourceMode.values()));
+            String fieldName = type + "_field";
+            createIndex("test", fieldName);
+            if (randomBoolean()) {
+                createIndex("test2", fieldName);
             }
-            logger.info("source_mode: {}", sourceMode);
-            createIndex();
 
             if (value == null) {
                 logger.info("indexing empty doc");
-                index("{}");
+                index("test", "{}");
             } else {
                 logger.info("indexing {}::{}", value, value.getClass().getName());
-                index(Strings.toString(JsonXContent.contentBuilder().startObject().field(type + "_field", value).endObject()));
+                index("test", Strings.toString(JsonXContent.contentBuilder().startObject().field(fieldName, value).endObject()));
             }
 
             return fetchAll();
@@ -828,23 +1011,16 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
             assertMap(result, matchesMap().entry("columns", columns).entry("values", List.of(values)));
         }
 
-        private void createIndex() throws IOException {
-            Request request = new Request("PUT", "/test");
-            XContentBuilder index = JsonXContent.contentBuilder().prettyPrint().startObject();
-
-            index.startObject("settings");
-            {
-                index.field("index.number_of_replicas", 0);
-                index.field("index.number_of_shards", 1);
+        void createIndex(String name, String fieldName) throws IOException {
+            if (sourceMode == null) {
+                sourceMode(randomFrom(SourceMode.values()));
             }
-            index.endObject();
-            index.startObject("mappings");
-            {
+            logger.info("source_mode: {}", sourceMode);
+
+            FieldExtractorTestCase.createIndex(name, index -> {
                 sourceMode.sourceMapping(index);
                 index.startObject("properties");
                 {
-                    String fieldName = type + "_field";
-
                     index.startObject(fieldName);
                     fieldMapping(index);
                     index.endObject();
@@ -866,22 +1042,18 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
                     }
                 }
                 index.endObject();
-            }
-            index.endObject();
-            index.endObject();
-
-            String mapping = Strings.toString(index);
-            logger.info("index: {}", Strings.toString(index));
-            request.setJsonEntity(mapping);
-            client().performRequest(request);
+            });
         }
 
         private void fieldMapping(XContentBuilder builder) throws IOException {
             builder.field("type", type);
             if (ignoreMalformed != null) {
-                builder.field("ignore_malformed", ignoreMalformed.apply(sourceMode));
+                boolean v = ignoreMalformed.apply(sourceMode);
+                builder.field("ignore_malformed", v);
+                ignoreMalformed = m -> v;
             }
             StoreAndDocValues sd = storeAndDocValues.apply(sourceMode);
+            storeAndDocValues = m -> sd;
             if (sd.docValues != null) {
                 builder.field("doc_values", sd.docValues);
             }
@@ -902,10 +1074,11 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
                 builder.startObject("fields");
                 for (Map.Entry<String, Test> sub : subFields.entrySet()) {
                     builder.startObject(sub.getKey());
-                    if (sub.getValue().sourceMode != null) {
+                    if (sub.getValue().sourceMode == null) {
+                        sub.getValue().sourceMode = sourceMode;
+                    } else if (sub.getValue().sourceMode != sourceMode) {
                         throw new IllegalStateException("source_mode can't be configured on sub-fields");
                     }
-                    sub.getValue().sourceMode = sourceMode;
                     sub.getValue().fieldMapping(builder);
                     builder.endObject();
                 }
@@ -913,29 +1086,47 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
             }
         }
 
-        private void index(String... docs) throws IOException {
-            Request request = new Request("POST", "/" + TEST_INDEX + "/_bulk");
-            request.addParameter("refresh", "true");
-            StringBuilder bulk = new StringBuilder();
-            for (String doc : docs) {
-                bulk.append(String.format(Locale.ROOT, """
-                    {"index":{}}
-                    %s
-                    """, doc));
-            }
-            request.setJsonEntity(bulk.toString());
-            Response response = client().performRequest(request);
-            Map<String, Object> result = entityToMap(response.getEntity(), XContentType.JSON);
-            assertMap(result, matchesMap().extraOk().entry("errors", false));
-        }
-
         private Map<String, Object> fetchAll() throws IOException {
-            return runEsqlSync(new RestEsqlTestCase.RequestObjectBuilder().query("from " + TEST_INDEX));
+            return runEsqlSync(new RestEsqlTestCase.RequestObjectBuilder().query("FROM test* | LIMIT 10"));
         }
-
     }
 
     private static Map<String, Object> columnInfo(String name, String type) {
         return Map.of("name", name, "type", type);
+    }
+
+    private static void index(String name, String... docs) throws IOException {
+        Request request = new Request("POST", "/" + name + "/_bulk");
+        request.addParameter("refresh", "true");
+        StringBuilder bulk = new StringBuilder();
+        for (String doc : docs) {
+            bulk.append(String.format(Locale.ROOT, """
+                {"index":{}}
+                %s
+                """, doc));
+        }
+        request.setJsonEntity(bulk.toString());
+        Response response = client().performRequest(request);
+        Map<String, Object> result = entityToMap(response.getEntity(), XContentType.JSON);
+        assertMap(result, matchesMap().extraOk().entry("errors", false));
+    }
+
+    private static void createIndex(String name, CheckedConsumer<XContentBuilder, IOException> mapping) throws IOException {
+        Request request = new Request("PUT", "/" + name);
+        XContentBuilder index = JsonXContent.contentBuilder().prettyPrint().startObject();
+        index.startObject("settings");
+        {
+            index.field("index.number_of_replicas", 0);
+            index.field("index.number_of_shards", 1);
+        }
+        index.endObject();
+        index.startObject("mappings");
+        mapping.accept(index);
+        index.endObject();
+        index.endObject();
+        String configStr = Strings.toString(index);
+        logger.info("index: {} {}", name, configStr);
+        request.setJsonEntity(configStr);
+        client().performRequest(request);
     }
 }

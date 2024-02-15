@@ -293,6 +293,8 @@ public class EsqlSession {
                             if (qlField.getName().equals(esqlField.getName()) == false) {
                                 throw new IllegalArgumentException(
                                     prefix
+                                        + "."
+                                        + name
                                         + ": ql and esql didn't make the same resolution: names differ ["
                                         + qlField.getName()
                                         + "] != ["
@@ -303,6 +305,8 @@ public class EsqlSession {
                             if (qlField.getDataType() != esqlField.getDataType()) {
                                 throw new IllegalArgumentException(
                                     prefix
+                                        + "."
+                                        + name
                                         + ": ql and esql didn't make the same resolution: types differ ["
                                         + qlField.getDataType()
                                         + "] != ["
@@ -313,6 +317,8 @@ public class EsqlSession {
                             if (qlField.isAggregatable() != esqlField.isAggregatable()) {
                                 throw new IllegalArgumentException(
                                     prefix
+                                        + "."
+                                        + name
                                         + ": ql and esql didn't make the same resolution: aggregability differ ["
                                         + qlField.isAggregatable()
                                         + "] != ["

@@ -48,6 +48,8 @@ public final class IngestDocument {
     private static final String SOURCE_PREFIX = SourceFieldMapper.NAME + ".";
 
     static final String TIMESTAMP = "timestamp";
+    // This is the maximum number of nested pipelines that can be within a pipeline. If there are more, we bail out with an error
+    public static final int MAX_PIPELINES = Integer.parseInt(System.getProperty("es.ingest.max_pipelines", "100"));
 
     private final Map<String, Object> sourceAndMetadata;
     private final Map<String, Object> ingestMetadata;
@@ -840,7 +842,12 @@ public final class IngestDocument {
      * @param handler handles the result or failure
      */
     public void executePipeline(Pipeline pipeline, BiConsumer<IngestDocument, Exception> handler) {
-        if (executedPipelines.add(pipeline.getId())) {
+        if (executedPipelines.size() >= MAX_PIPELINES) {
+            handler.accept(
+                null,
+                new GraphStructureException("Too many nested pipelines. Cannot have more than " + MAX_PIPELINES + " nested pipelines")
+            );
+        } else if (executedPipelines.add(pipeline.getId())) {
             Object previousPipeline = ingestMetadata.put("pipeline", pipeline.getId());
             pipeline.execute(this, (result, e) -> {
                 executedPipelines.remove(pipeline.getId());

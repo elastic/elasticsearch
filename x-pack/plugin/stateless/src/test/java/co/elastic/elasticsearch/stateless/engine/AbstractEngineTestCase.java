@@ -439,6 +439,10 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
         ) {
             store.incRef();
             try {
+                Map<String, BlobLocation> commitFiles = collectBlobLocations(
+                    primaryTerm,
+                    store.getMetadata(indexCommitRef.getIndexCommit())
+                );
                 notifications.add(
                     new NewCommitNotificationRequest(
                         IndexShardRoutingTable.builder(shardId)
@@ -449,7 +453,8 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
                             new PrimaryTermAndGeneration(primaryTerm, indexCommitRef.getIndexCommit().getGeneration()),
                             0,
                             "fake_node_ephemeral_id",
-                            collectBlobLocations(primaryTerm, store.getMetadata(indexCommitRef.getIndexCommit()))
+                            commitFiles,
+                            commitFiles.values().stream().mapToLong(BlobLocation::fileLength).sum()
                         )
                     )
                 );

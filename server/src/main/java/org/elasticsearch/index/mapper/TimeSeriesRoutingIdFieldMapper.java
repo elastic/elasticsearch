@@ -93,7 +93,7 @@ public class TimeSeriesRoutingIdFieldMapper extends MetadataFieldMapper {
         if (context.indexSettings().getMode() == IndexMode.TIME_SERIES
             && context.indexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.TIME_SERIES_ROUTING_ID_IN_ID)) {
             var field = new SortedDocValuesField(NAME, Uid.encodeId(context.sourceToParse().id()));
-            context.doc().add(field);
+            context.rootDoc().add(field);
         }
     }
 

@@ -684,37 +684,30 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
 
     private final TestCase testCase;
 
+    private static final int ROUTING_HASH = 7;
+
     public TsidExtractingIdFieldMapperTests(@Named("testCase") TestCase testCase) {
         this.testCase = testCase;
     }
 
     public void testExpectedId() throws IOException {
-        assertThat(parse(null, mapperService(), testCase.source).id(), equalTo(testCase.expectedId));
+        assertThat(
+            parse(TimeSeriesRoutingIdFieldMapper.encode(ROUTING_HASH), mapperService(), testCase.source).id(),
+            equalTo(testCase.expectedId)
+        );
     }
 
     public void testProvideExpectedId() throws IOException {
         assertThat(parse(testCase.expectedId, mapperService(), testCase.source).id(), equalTo(testCase.expectedId));
     }
 
-    public void testProvideWrongId() {
-        String wrongId = testCase.expectedId + "wrong";
-        Exception e = expectThrows(DocumentParsingException.class, () -> parse(wrongId, mapperService(), testCase.source));
-        assertThat(
-            e.getCause().getMessage(),
-            equalTo(
-                "_id must be unset or set to ["
-                    + testCase.expectedId
-                    + "] but was ["
-                    + testCase.expectedId
-                    + "wrong] because [index] is in time_series mode"
-            )
-        );
-    }
-
     public void testEquivalentSources() throws IOException {
         MapperService mapperService = mapperService();
         for (CheckedConsumer<XContentBuilder, IOException> equivalent : testCase.equivalentSources) {
-            assertThat(parse(null, mapperService, equivalent).id(), equalTo(testCase.expectedId));
+            assertThat(
+                parse(TimeSeriesRoutingIdFieldMapper.encode(ROUTING_HASH), mapperService, equivalent).id(),
+                equalTo(testCase.expectedId)
+            );
         }
     }
 
@@ -734,15 +727,6 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
         IndexRouting indexRouting = createIndexSettings(version, indexSettings(version)).getIndexRouting();
         assertThat(indexRouting.getShard(testCase.expectedId, null), equalTo(SHARD_ID));
         assertThat(indexRouting.deleteShard(testCase.expectedId, null), equalTo(SHARD_ID));
-    }
-
-    private int indexShard(IndexRouting indexRouting) throws IOException {
-        try (XContentBuilder builder = XContentBuilder.builder(randomFrom(XContentType.values()).xContent())) {
-            builder.startObject();
-            testCase.source.accept(builder);
-            builder.endObject();
-            return indexRouting.indexShard(null, null, builder.contentType(), BytesReference.bytes(builder));
-        }
     }
 
     private Settings indexSettings(IndexVersion version) {
@@ -803,7 +787,7 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
 
     public void testSourceDescription() throws IOException {
         assertThat(TsidExtractingIdFieldMapper.INSTANCE.documentDescription(documentParserContext()), equalTo("a time series document"));
-        ParsedDocument d = parse(null, mapperService(), testCase.randomSource());
+        ParsedDocument d = parse(TimeSeriesRoutingIdFieldMapper.encode(ROUTING_HASH), mapperService(), testCase.randomSource());
         IndexableField timestamp = d.rootDoc().getField(DataStreamTimestampFieldMapper.DEFAULT_PATH);
         assertThat(
             TsidExtractingIdFieldMapper.INSTANCE.documentDescription(documentParserContext(timestamp)),
@@ -833,7 +817,9 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
 
     public void testParsedDescription() throws IOException {
         assertThat(
-            TsidExtractingIdFieldMapper.INSTANCE.documentDescription(parse(null, mapperService(), testCase.randomSource())),
+            TsidExtractingIdFieldMapper.INSTANCE.documentDescription(
+                parse(TimeSeriesRoutingIdFieldMapper.encode(ROUTING_HASH), mapperService(), testCase.randomSource())
+            ),
             equalTo("[" + testCase.expectedId + "][" + testCase.expectedTsid + "@" + testCase.expectedTimestamp + "]")
         );
     }

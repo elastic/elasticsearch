@@ -60,6 +60,7 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.OnScriptError;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.mapper.TimeSeriesRoutingIdFieldMapper;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -780,7 +781,7 @@ public class PainlessExecuteAction {
                     XContentType xContentType = request.contextSetup.xContentType;
                     String id;
                     if (indexService.getIndexSettings().getMode() == IndexMode.TIME_SERIES) {
-                        id = null; // The id gets auto generated for time series indices.
+                        id = TimeSeriesRoutingIdFieldMapper.encode(0);
                     } else {
                         id = "_id";
                     }

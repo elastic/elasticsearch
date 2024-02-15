@@ -51,6 +51,31 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
     private SetOnce<TextExpansionResults> weightedTokensSupplier;
     private final TokenPruningConfig tokenPruningConfig;
 
+    public enum AllowedFieldTypesForTextExpansion {
+        RANK_FEATURES("rank_features"),
+        SPARSE_VECTOR("sparse_vector");
+
+        private final String typeName;
+
+        AllowedFieldTypesForTextExpansion(String typeName) {
+            this.typeName = typeName;
+        }
+
+        public String getTypeName() {
+            return typeName;
+        }
+
+        public static boolean contains(String typeName) {
+            for (AllowedFieldTypesForTextExpansion fieldType : values()) {
+                if (fieldType.getTypeName().equals(typeName)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+    }
+
+
     public TextExpansionQueryBuilder(String fieldName, String modelText, String modelId) {
         this(fieldName, modelText, modelId, null);
     }
@@ -198,24 +223,14 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
     }
 
     private QueryBuilder weightedTokensToQuery(String fieldName, TextExpansionResults textExpansionResults) {
-        if (tokenPruningConfig != null) {
-            WeightedTokensQueryBuilder weightedTokensQueryBuilder = new WeightedTokensQueryBuilder(
-                fieldName,
-                textExpansionResults.getWeightedTokens(),
-                tokenPruningConfig
-            );
-            weightedTokensQueryBuilder.queryName(queryName);
-            weightedTokensQueryBuilder.boost(boost);
-            return weightedTokensQueryBuilder;
-        }
-        var boolQuery = QueryBuilders.boolQuery();
-        for (var weightedToken : textExpansionResults.getWeightedTokens()) {
-            boolQuery.should(QueryBuilders.termQuery(fieldName, weightedToken.token()).boost(weightedToken.weight()));
-        }
-        boolQuery.minimumShouldMatch(1);
-        boolQuery.boost(this.boost);
-        boolQuery.queryName(this.queryName);
-        return boolQuery;
+        WeightedTokensQueryBuilder weightedTokensQueryBuilder = new WeightedTokensQueryBuilder(
+            fieldName,
+            textExpansionResults.getWeightedTokens(),
+            tokenPruningConfig
+        );
+        weightedTokensQueryBuilder.queryName(queryName);
+        weightedTokensQueryBuilder.boost(boost);
+        return weightedTokensQueryBuilder;
     }
 
     @Override

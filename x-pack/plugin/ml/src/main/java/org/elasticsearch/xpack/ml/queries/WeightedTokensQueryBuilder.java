@@ -35,6 +35,7 @@ import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.ml.queries.TextExpansionQueryBuilder.PRUNING_CONFIG;
+import static org.elasticsearch.xpack.ml.queries.TextExpansionQueryBuilder.AllowedFieldTypesForTextExpansion;
 
 public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTokensQueryBuilder> {
     public static final String NAME = "weighted_tokens";
@@ -152,6 +153,12 @@ public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTok
         if (ft == null) {
             return new MatchNoDocsQuery("The \"" + getName() + "\" query is against a field that does not exist");
         }
+
+        String fieldTypeName = ft.typeName();
+        if (AllowedFieldTypesForTextExpansion.contains(fieldTypeName) == false) {
+            throw new ElasticsearchParseException("[" + fieldTypeName + "]" + " is not an appropriate field type for text expansion query");
+        }
+
         var qb = new BooleanQuery.Builder();
         int fieldDocCount = context.getIndexReader().getDocCount(fieldName);
         float bestWeight = 0f;

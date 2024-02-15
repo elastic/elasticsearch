@@ -17,6 +17,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.NavigableMap;
+import java.util.OptionalInt;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
@@ -219,9 +220,22 @@ public class TransportVersions {
             MINIMUM_CCS_VERSION = MINIMUM_COMPATIBLE;
         } else {
             Version minCcsVersion = Version.fromString(Version.CURRENT.major + "." + (Version.CURRENT.minor - 1) + ".0");
-            int tvCcsId = VERSION_LOOKUP.findId(minCcsVersion)
-                .orElseThrow(() -> new IllegalStateException("Could not find transport version id for version " + minCcsVersion));
-            MINIMUM_CCS_VERSION = VERSION_IDS.get(tvCcsId);
+            OptionalInt tvCcsId = VERSION_LOOKUP.findId(minCcsVersion);
+            if (tvCcsId.isEmpty()) {
+                // we might be on main in that weird state between freeze and finalize of a new minor version,
+                // where the Version constant has been created (freeze), but a transport version id has not been recorded yet (finalize)
+                // so check the next minor too
+                if (Version.CURRENT.minor == 1) {
+                    tvCcsId = OptionalInt.of(MINIMUM_COMPATIBLE.id());
+                } else {
+                    Version prevMinor = Version.fromString(Version.CURRENT.major + "." + (Version.CURRENT.minor - 2) + ".0");
+                    tvCcsId = VERSION_LOOKUP.findId(prevMinor);
+                }
+            }
+
+            MINIMUM_CCS_VERSION = VERSION_IDS.get(
+                tvCcsId.orElseThrow(() -> new IllegalStateException("Could not find transport version id for version " + minCcsVersion))
+            );
             if (MINIMUM_CCS_VERSION == null) {
                 throw new IllegalStateException("Could not find transport version constant for id " + tvCcsId);
             }

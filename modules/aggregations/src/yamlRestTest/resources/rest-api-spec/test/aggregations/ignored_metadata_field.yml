@@ -97,3 +97,206 @@ setup:
   - match: { aggregations.ignored_terms.buckets.7.doc_count: 3 }
   - match: { aggregations.ignored_terms.buckets.8.key: "email" }
   - match: { aggregations.ignored_terms.buckets.8.doc_count: 2 }
+
+---
+"terms aggregation on _ignored metadata field with top hits":
+  - skip:
+      version: " - 8.12.99"
+      reason: "_ignored metadata field aggregation support added in 8.13"
+  - do:
+      search:
+        body:
+          size: 0
+          aggs:
+            ignored_terms:
+              terms:
+                field: _ignored
+                size: 3
+              aggs:
+                top_by_datetime:
+                  top_hits:
+                    sort:
+                      - order_datetime: { order: desc }
+                    size: 1
+
+  - match: { hits.total.value: 11 }
+  - length: { aggregations.ignored_terms.buckets: 3 }
+
+  - match: { aggregations.ignored_terms.buckets.0.key: "ip_address" }
+  - match: { aggregations.ignored_terms.buckets.0.doc_count: 7 }
+  - match: { aggregations.ignored_terms.buckets.0.top_by_datetime.hits.hits.0._ignored: ["date_of_birth", "email", "ip_address", "newsletter", "total_price"]}
+
+  - match: { aggregations.ignored_terms.buckets.1.key: "order_datetime" }
+  - match: { aggregations.ignored_terms.buckets.1.doc_count: 7 }
+  - match: { aggregations.ignored_terms.buckets.1.top_by_datetime.hits.hits.0._ignored: ["order_datetime", "products"]}
+
+  - match: { aggregations.ignored_terms.buckets.2.key: "products" }
+  - match: { aggregations.ignored_terms.buckets.2.doc_count: 6 }
+  - match: { aggregations.ignored_terms.buckets.2.top_by_datetime.hits.hits.0._ignored: ["city", "ip_address", "location", "products", "total_price"]}
+
+---
+"date histogram aggregation with terms on _ignored metadata field":
+  - skip:
+      version: " - 8.12.99"
+      reason: "_ignored metadata field aggregation support added in 8.13"
+  - do:
+      search:
+        body:
+          size: 0
+          aggs:
+            order_datetime_histo:
+              date_histogram:
+                field: order_datetime
+                calendar_interval: day
+              aggs:
+                ignored_terms:
+                  terms:
+                    field: _ignored
+                    size: 2
+
+  - match: { hits.total.value: 11 }
+  - length: { aggregations.order_datetime_histo.buckets: 3 }
+
+  - match: { aggregations.order_datetime_histo.buckets.0.key_as_string: "2021-05-01 00:00:00" }
+  - match: { aggregations.order_datetime_histo.buckets.0.doc_count: 3 }
+  - match: { aggregations.order_datetime_histo.buckets.0.ignored_terms.buckets.0: { key: "products", doc_count: 2 } }
+
+  - match: { aggregations.order_datetime_histo.buckets.1.key_as_string: "2021-05-02 00:00:00" }
+  - match: { aggregations.order_datetime_histo.buckets.1.doc_count: 0 }
+  - length: { aggregations.order_datetime_histo.buckets.1.ignored_terms.buckets: 0 }
+
+  - match: { aggregations.order_datetime_histo.buckets.2.key_as_string: "2021-05-03 00:00:00" }
+  - match: { aggregations.order_datetime_histo.buckets.2.doc_count: 1 }
+  - match: { aggregations.order_datetime_histo.buckets.2.ignored_terms.buckets.0: { key: "date_of_birth", doc_count: 1 } }
+  - match: { aggregations.order_datetime_histo.buckets.2.ignored_terms.buckets.1: { key: "email", doc_count: 1 } }
+
+---
+"cardinality aggregation on _ignored metadata field":
+  - skip:
+      version: " - 8.12.99"
+      reason: "_ignored metadata field aggregation support added in 8.13"
+  - do:
+      search:
+        body:
+          size: 0
+          aggs:
+            ignored_cardinality:
+              cardinality:
+                field: _ignored
+
+  - match: { hits.total.value: 11 }
+  - match: {aggregations.ignored_cardinality.value: 9 }
+
+---
+"value count aggregation on _ignored metadata field":
+  - skip:
+      version: " - 8.12.99"
+      reason: "_ignored metadata field aggregation support added in 8.13"
+  - do:
+      search:
+        body:
+          size: 0
+          aggs:
+            ignored_value_count:
+              value_count:
+                field: _ignored
+
+  - match: { hits.total.value: 11 }
+  - match: {aggregations.ignored_value_count.value: 42 }
+
+---
+"date range aggregation with terms on _ignored metadata field":
+  - skip:
+      version: " - 8.12.99"
+      reason: "_ignored metadata field aggregation support added in 8.13"
+  - do:
+      search:
+        body:
+          size: 0
+          aggs:
+            order_datetime_range:
+              date_range:
+                field: order_datetime
+                format: "dd-MM-yyyy"
+                ranges:
+                  - to: "03-05-2021"
+                  - from: "02-05-2021"
+              aggs:
+                ignored_terms:
+                  terms:
+                    field: _ignored
+
+  - match: { hits.total.value: 11 }
+  - length: { aggregations.order_datetime_range.buckets: 2 }
+
+  - match: { aggregations.order_datetime_range.buckets.0.to_as_string: "03-05-2021" }
+  - match: { aggregations.order_datetime_range.buckets.0.doc_count: 3 }
+  - length: { aggregations.order_datetime_range.buckets.0.ignored_terms.buckets: 5 }
+  - match: { aggregations.order_datetime_range.buckets.0.ignored_terms.buckets.0: { key: "products", doc_count: 2 } }
+  - match: { aggregations.order_datetime_range.buckets.0.ignored_terms.buckets.1: { key: "city", doc_count: 1 } }
+  - match: { aggregations.order_datetime_range.buckets.0.ignored_terms.buckets.2: { key: "ip_address", doc_count: 1 } }
+  - match: { aggregations.order_datetime_range.buckets.0.ignored_terms.buckets.3: { key: "location", doc_count: 1 } }
+  - match: { aggregations.order_datetime_range.buckets.0.ignored_terms.buckets.4: { key: "total_price", doc_count: 1 } }
+
+  - match: { aggregations.order_datetime_range.buckets.1.from_as_string: "02-05-2021" }
+  - match: { aggregations.order_datetime_range.buckets.1.doc_count: 1 }
+  - length: { aggregations.order_datetime_range.buckets.1.ignored_terms.buckets: 5 }
+  - match: { aggregations.order_datetime_range.buckets.1.ignored_terms.buckets.0: { key: "date_of_birth", doc_count: 1 } }
+  - match: { aggregations.order_datetime_range.buckets.1.ignored_terms.buckets.1: { key: "email", doc_count: 1 } }
+  - match: { aggregations.order_datetime_range.buckets.1.ignored_terms.buckets.2: { key: "ip_address", doc_count: 1 } }
+  - match: { aggregations.order_datetime_range.buckets.1.ignored_terms.buckets.3: { key: "newsletter", doc_count: 1 } }
+  - match: { aggregations.order_datetime_range.buckets.1.ignored_terms.buckets.4: { key: "total_price", doc_count: 1 } }
+
+---
+"random sampler aggregation with terms on _ignored metadata field":
+  - skip:
+      version: " - 8.12.99"
+      reason: "_ignored metadata field aggregation support added in 8.13"
+  - do:
+      search:
+        body:
+          size: 0
+          aggs:
+            sample:
+              random_sampler:
+                probability: 1.0 # make sure buckets count is consistent
+                seed: 43
+              aggs:
+                ignored_terms:
+                  terms:
+                    field: _ignored
+
+  - match: { hits.total.value: 11 }
+  - length: { aggregations.sample.ignored_terms.buckets: 9 }
+  - match: { aggregations.sample.ignored_terms.buckets.0: { key: "ip_address", doc_count: 7 } }
+  - match: { aggregations.sample.ignored_terms.buckets.1: { key: "order_datetime", doc_count: 7 } }
+  - match: { aggregations.sample.ignored_terms.buckets.2: { key: "products", doc_count: 6 } }
+  - match: { aggregations.sample.ignored_terms.buckets.3: { key: "date_of_birth", doc_count: 5 } }
+  - match: { aggregations.sample.ignored_terms.buckets.4: { key: "newsletter", doc_count: 5 } }
+  - match: { aggregations.sample.ignored_terms.buckets.5: { key: "total_price", doc_count: 4 } }
+  - match: { aggregations.sample.ignored_terms.buckets.6: { key: "city", doc_count: 3 } }
+  - match: { aggregations.sample.ignored_terms.buckets.7: { key: "location", doc_count: 3 } }
+  - match: { aggregations.sample.ignored_terms.buckets.8: { key: "email", doc_count: 2 } }
+
+---
+"filter aggregation on _ignored metadata field":
+  - skip:
+      version: " - 8.12.99"
+      reason: "_ignored metadata field aggregation support added in 8.13"
+      features: close_to
+  - do:
+      search:
+        body:
+          size: 0
+          aggs:
+            total:
+              sum:
+                field: total_price
+            filter_ignored:
+              filter:
+                term:
+                  _ignored: "email"
+
+  - match: { hits.total.value: 11 }
+  - close_to: { aggregations.total.value: { value: 162.98, error: 0.01 } }
+  - match: { aggregations.filter_ignored.doc_count: 2 }

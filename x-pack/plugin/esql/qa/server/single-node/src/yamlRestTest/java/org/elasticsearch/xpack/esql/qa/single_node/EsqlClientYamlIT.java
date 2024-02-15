@@ -16,10 +16,6 @@ import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
  */
 public class EsqlClientYamlIT extends AbstractEsqlClientYamlIT {
 
-    static {
-        clusterConfig = specBuilder -> specBuilder.plugin("mapper-size").plugin("mapper-murmur3");
-    }
-
     public EsqlClientYamlIT(final ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }

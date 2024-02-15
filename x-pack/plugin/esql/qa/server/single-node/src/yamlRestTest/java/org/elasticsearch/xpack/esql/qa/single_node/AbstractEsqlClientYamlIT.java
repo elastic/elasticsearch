@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.qa.single_node;
 
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.local.LocalClusterConfigProvider;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
@@ -19,14 +18,11 @@ import org.junit.ClassRule;
 
 abstract class AbstractEsqlClientYamlIT extends ESClientYamlSuiteTestCase {
 
-    static LocalClusterConfigProvider clusterConfig = config -> {};
-
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
         .setting("xpack.security.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
-        .apply(() -> clusterConfig)
         .build();
 
     @Override

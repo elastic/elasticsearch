@@ -29,6 +29,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 
 import java.util.ArrayList;
@@ -158,6 +159,7 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
                 } else {
                     try {
                         CompatibilityVersions compatibilityVersions = nodeJoinTask.compatibilityVersions();
+                        assert systemIndexVersionConsistent(compatibilityVersions.systemIndexMappingsVersion(), compatibilityVersionsMap);
                         Set<String> features = nodeJoinTask.features();
                         if (enforceVersionBarrier) {
                             ensureVersionBarrier(node.getVersion(), minClusterNodeVersion);
@@ -259,6 +261,25 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
             // for the joining node to finalize its join and set us as a master
             return newState.build();
         }
+    }
+
+    private boolean systemIndexVersionConsistent(
+        Map<String, SystemIndexDescriptor.MappingsVersion> newMappingsVersions,
+        Map<String, CompatibilityVersions> existingCompatibilityVersions
+    ) {
+        for (Map.Entry<String, CompatibilityVersions> nodeCompatibility : existingCompatibilityVersions.entrySet()) {
+            Map<String, SystemIndexDescriptor.MappingsVersion> existingVersions = nodeCompatibility.getValue().systemIndexMappingsVersion();
+            for (Map.Entry<String, SystemIndexDescriptor.MappingsVersion> existingMappingVersion : existingVersions.entrySet()) {
+                String indexName = existingMappingVersion.getKey();
+                if (newMappingsVersions.containsKey(indexName)
+                    && existingMappingVersion.getValue().version() == newMappingsVersions.get(indexName).version()
+                    && existingMappingVersion.getValue().hash() != newMappingsVersions.get(indexName).hash()) {
+                    // log warning message?
+                    return false;
+                }
+            }
+        }
+        return true;
     }
 
     protected ClusterState.Builder becomeMasterAndTrimConflictingNodes(

@@ -17,10 +17,10 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.test.rest.RestTestLegacyFeatures;
-import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.backingIndexEqualTo;
@@ -245,6 +245,18 @@ public class TsdbIT extends ParameterizedRollingUpgradeTestCase {
                       "uid": {
                         "type": "keyword",
                         "time_series_dimension": true
+                      },
+                      "name": {
+                        "type": "keyword",
+                        "time_series_dimension": true
+                      },
+                      "number": {
+                        "type": "long",
+                        "time_series_dimension": true
+                      },
+                      "ip": {
+                        "type": "ip",
+                        "time_series_dimension": true
                       }
                     }
                   }
@@ -277,7 +289,9 @@ public class TsdbIT extends ParameterizedRollingUpgradeTestCase {
                 "metricset": "pod",
                 "pod": {
                     "name": "$name",
-                    "uid": "$uid"
+                    "uid": "$uid",
+                    "ip": "8.8.8.8",
+                    "number": 43221
                 }
             },
             "metrics": {
@@ -297,31 +311,26 @@ public class TsdbIT extends ParameterizedRollingUpgradeTestCase {
             var createIndexRequest = new Request("PUT", "/" + indexName);
             createIndexRequest.setJsonEntity(CREATE_INDEX_REQUEST_BODY);
             assertOK(client().performRequest(createIndexRequest));
-            var indexResponse = client().performRequest(createIndexRequest(indexName));
-            assertOK(indexResponse);
+            for (int i = 0; i < 128; i++) {
+                var indexResponse = client().performRequest(createIndexRequest(indexName, i));
+                assertOK(indexResponse);
+            }
         }
-
-        var e = expectThrows(ResponseException.class, () -> client().performRequest(createIndexRequest(indexName)));
-        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(409));
-        boolean hashingId = Version.fromString(getOldClusterVersion()).onOrAfter(Version.V_8_13_0);
-        String id = hashingId ? "Z_lRoL05Mm17v3n2AAABjMJR9AA" : "Z_lRoFah9uMXCwkFAAABjMJR9AA";
-
-        var getRequest = new Request("GET", "/" + indexName + "/_doc/" + id);
-        var getResponse = client().performRequest(getRequest);
-        assertOK(getResponse);
-        var getResponseBody = entityAsMap(getResponse);
-        assertThat(getResponseBody.get("found"), Matchers.is(true));
-        assertThat(getResponseBody.get("_id"), equalTo(id));
+        for (int i = 0; i < 128; i++) {
+            int finalI = i;
+            var e = expectThrows(ResponseException.class, () -> client().performRequest(createIndexRequest(indexName, finalI)));
+            assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(409));
+        }
     }
 
-    private static Request createIndexRequest(String indexName) {
+    private static Request createIndexRequest(String indexName, int i) {
         var indexRequest = new Request("POST", "/" + indexName + "/_doc");
         indexRequest.addParameter("refresh", "true");
         indexRequest.addParameter("op_type", "create");
         indexRequest.setJsonEntity(
             DOC_TEMPLATE.replace("$time", "2024-01-01T00:00:00.000Z")
-                .replace("$uid", "df3145b3-0563-4d3b-a0f7-897eb2876ea9")
-                .replace("$name", "pod-004")
+                .replace("$uid", "df3145b3-0563-4d3b-a0f7-897eb2876ea9" + i)
+                .replace("$name", String.format(Locale.ROOT, "host-%02d", i))
         );
         return indexRequest;
     }

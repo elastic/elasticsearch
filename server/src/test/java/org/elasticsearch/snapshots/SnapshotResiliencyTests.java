@@ -1406,7 +1406,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         .execute(listeners.acquire(createRepoResponse -> {}));
 
                     for (final var index : indices) {
-                        deterministicTaskQueue.scheduleNow( // randomize creation order
+                        deterministicTaskQueue.scheduleNow(
+                            // wrapped in another scheduleNow() to randomize creation order
                             ActionRunnable.<CreateIndexResponse>wrap(
                                 listeners.acquire(createIndexResponse -> {}),
                                 l -> client().admin()

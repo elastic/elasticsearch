@@ -223,7 +223,7 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
         return internalCluster().startNode(settingsForRoles(DiscoveryNodeRole.SEARCH_ROLE).put(extraSettings));
     }
 
-    private Settings.Builder settingsForRoles(DiscoveryNodeRole... roles) {
+    protected Settings.Builder settingsForRoles(DiscoveryNodeRole... roles) {
         return nodeSettings().putList(
             NodeRoleSettings.NODE_ROLES_SETTING.getKey(),
             Arrays.stream(roles).map(DiscoveryNodeRole::roleName).toList()

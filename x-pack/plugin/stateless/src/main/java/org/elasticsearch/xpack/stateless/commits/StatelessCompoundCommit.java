@@ -62,6 +62,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static co.elastic.elasticsearch.serverless.constants.ServerlessTransportVersions.COMPOUND_COMMIT_WITH_SIZE;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
@@ -74,7 +75,9 @@ public record StatelessCompoundCommit(
     PrimaryTermAndGeneration primaryTermAndGeneration,
     long translogRecoveryStartFile,
     String nodeEphemeralId,
-    Map<String, BlobLocation> commitFiles
+    Map<String, BlobLocation> commitFiles,
+    // the size of the compound commit including codec, header, checksums and all files
+    long sizeInBytes
 ) implements Writeable {
 
     public StatelessCompoundCommit(
@@ -82,9 +85,10 @@ public record StatelessCompoundCommit(
         long generation,
         long primaryTerm,
         String nodeEphemeralId,
-        Map<String, BlobLocation> commitFiles
+        Map<String, BlobLocation> commitFiles,
+        long sizeInBytes
     ) {
-        this(shardId, new PrimaryTermAndGeneration(primaryTerm, generation), 0, nodeEphemeralId, commitFiles);
+        this(shardId, new PrimaryTermAndGeneration(primaryTerm, generation), 0, nodeEphemeralId, commitFiles, sizeInBytes);
     }
 
     private static final String PREFIX = "stateless_commit_";
@@ -114,6 +118,8 @@ public record StatelessCompoundCommit(
             + translogRecoveryStartFile
             + ", nodeEphemeralId='"
             + nodeEphemeralId
+            + "', sizeInBytes="
+            + sizeInBytes
             + '}';
     }
 
@@ -134,6 +140,9 @@ public record StatelessCompoundCommit(
         out.writeVLong(translogRecoveryStartFile);
         out.writeString(nodeEphemeralId);
         out.writeMap(commitFiles, StreamOutput::writeString, (o, v) -> v.writeTo(o));
+        if (out.getTransportVersion().onOrAfter(COMPOUND_COMMIT_WITH_SIZE)) {
+            out.writeVLong(sizeInBytes);
+        }
     }
 
     public static StatelessCompoundCommit readFromTransport(StreamInput in) throws IOException {
@@ -142,7 +151,8 @@ public record StatelessCompoundCommit(
             primaryTermAndGeneration(in),
             in.readVLong(),
             in.readString(),
-            in.readImmutableMap(StreamInput::readString, BlobLocation::readFromTransport)
+            in.readImmutableMap(StreamInput::readString, BlobLocation::readFromTransport),
+            in.getTransportVersion().onOrAfter(COMPOUND_COMMIT_WITH_SIZE) ? in.readVLong() : 0
         );
     }
 
@@ -178,6 +188,8 @@ public record StatelessCompoundCommit(
         // knowing the length of the serialized header.
         private final Map<String, BlobLocation> referencedBlobFiles = new HashMap<>();
         private final List<InternalFile> internalFiles = new ArrayList<>();
+        private long headerSize = -1;
+        private long internalFilesSize;
 
         public Writer(ShardId shardId, long generation, long primaryTerm, long translogRecoveryStartFile, String nodeEphemeralId) {
             this.shardId = shardId;
@@ -192,6 +204,7 @@ public record StatelessCompoundCommit(
         }
 
         public void addInternalFile(String fileName, long fileLength) {
+            internalFilesSize += fileLength;
             internalFiles.add(new InternalFile(fileName, fileLength));
         }
 
@@ -230,8 +243,6 @@ public record StatelessCompoundCommit(
                 return builder.startObject().field("name", name).field("length", length).endObject();
             }
         }
-
-        private long headerSize = -1;
 
         public long writeToStore(OutputStream output, Directory directory) throws IOException {
             var positionTracking = new PositionTrackingOutputStreamStreamOutput(output);
@@ -329,12 +340,14 @@ public record StatelessCompoundCommit(
                 referencedBlobFiles
             );
 
+            assert headerSize > 0;
             return new StatelessCompoundCommit(
                 shardId,
                 new PrimaryTermAndGeneration(primaryTerm, generation),
                 translogRecoveryStartFile,
                 nodeEphemeralId,
-                Collections.unmodifiableMap(commitFiles)
+                Collections.unmodifiableMap(commitFiles),
+                headerSize + internalFilesSize
             );
         }
     }
@@ -374,7 +387,8 @@ public record StatelessCompoundCommit(
                     nodeEphemeralId,
                     referencedBlobLocations,
                     internalFiles,
-                    headerSize
+                    headerSize,
+                    headerSize + internalFiles.stream().mapToLong(Writer.InternalFile::length).sum()
                 );
             } else {
                 assert version == VERSION_WITH_XCONTENT_ENCODING;
@@ -386,7 +400,9 @@ public record StatelessCompoundCommit(
                 input.readBytes(bytes, 0, bytes.length);
                 verifyChecksum(input);
 
-                return readXContentHeader(new BytesArray(bytes).streamInput(), fileLength);
+                // codec header + serialized header size + checksum + header content + checksum
+                var headerSize = CodecUtil.headerLength(SHARD_COMMIT_CODEC) + 4 + 4 + xContentLength + 4;
+                return readXContentHeader(new BytesArray(bytes).streamInput(), headerSize);
             }
         } catch (Exception e) {
             throw new IOException("Failed to read shard commit", e);
@@ -407,7 +423,7 @@ public record StatelessCompoundCommit(
         }
     }
 
-    private static StatelessCompoundCommit readXContentHeader(StreamInput is, long fileLength) throws IOException {
+    private static StatelessCompoundCommit readXContentHeader(StreamInput is, long headerSize) throws IOException {
         record XContentStatelessCompoundCommit(
             ShardId shardId,
             long generation,
@@ -449,10 +465,7 @@ public record StatelessCompoundCommit(
         try (XContentParser parser = XContentType.SMILE.xContent().createParser(XContentParserConfiguration.EMPTY, is)) {
             XContentStatelessCompoundCommit c = XContentStatelessCompoundCommit.PARSER.parse(parser, null);
 
-            // The XContent parser reads the stream in buffers, so we can't just count the amount of read bytes,
-            // so we have to calculate the header size based on file length and the cumulative length of the internal files
-            long internalFilesCount = c.internalFiles.stream().mapToLong(Writer.InternalFile::length).sum();
-            long headerSize = fileLength - internalFilesCount;
+            long internalFilesLength = c.internalFiles.stream().mapToLong(Writer.InternalFile::length).sum();
             assert headerSize > 0;
             return statelessCompoundCommit(
                 c.shardId,
@@ -462,7 +475,8 @@ public record StatelessCompoundCommit(
                 c.nodeEphemeralId,
                 c.referencedBlobLocations,
                 c.internalFiles,
-                headerSize
+                headerSize,
+                headerSize + internalFilesLength
             );
         }
     }
@@ -475,14 +489,15 @@ public record StatelessCompoundCommit(
         String nodeEphemeralId,
         Map<String, BlobLocation> referencedBlobLocations,
         List<Writer.InternalFile> internalFiles,
-        long headerSize
+        long startingOffset,
+        long totalSizeInBytes
     ) {
         String commitFileName = blobNameFromGeneration(generation);
         Map<String, BlobLocation> commitFiles = combineCommitFiles(
             commitFileName,
             primaryTerm,
             internalFiles,
-            headerSize,
+            startingOffset,
             referencedBlobLocations
         );
         return new StatelessCompoundCommit(
@@ -490,7 +505,8 @@ public record StatelessCompoundCommit(
             new PrimaryTermAndGeneration(primaryTerm, generation),
             translogRecoveryStartFile,
             nodeEphemeralId,
-            Collections.unmodifiableMap(commitFiles)
+            Collections.unmodifiableMap(commitFiles),
+            totalSizeInBytes
         );
     }
 

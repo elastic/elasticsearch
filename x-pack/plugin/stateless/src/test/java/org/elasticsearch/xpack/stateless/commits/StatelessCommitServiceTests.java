@@ -1151,7 +1151,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
     public void testLargeRecovery() throws IOException {
         try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm)) {
             var shardId = testHarness.shardId;
-            StatelessCompoundCommit recoveredCommit = new StatelessCompoundCommit(shardId, 1, 2, "xx", Map.of());
+            StatelessCompoundCommit recoveredCommit = new StatelessCompoundCommit(shardId, 1, 2, "xx", Map.of(), 10);
             int count = rarely() ? 50000 : 10000;
             var unreferencedFiles = IntStream.range(1, count)
                 .mapToObj(i -> new BlobFile(1, StatelessCompoundCommit.blobNameFromGeneration(i), 100))

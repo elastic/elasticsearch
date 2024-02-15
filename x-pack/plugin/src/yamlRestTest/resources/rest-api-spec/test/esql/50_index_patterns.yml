@@ -346,8 +346,6 @@ same_name_different_type:
 
 ---
 same_name_different_unsupported_types:
-  - skip:
-      features: allowed_warnings_regex
   - do:
       indices.create:
         index: test1
@@ -360,7 +358,7 @@ same_name_different_unsupported_types:
                 type: keyword
                 fields:
                   hash:
-                    type: integer
+                    type: murmur3
 
   - do:
       indices.create:
@@ -405,34 +403,40 @@ same_name_different_unsupported_types:
         name: test_alias
 
   - do:
-      catch: '/Cannot use field \[message\] due to ambiguities being mapped as \[2\] incompatible types: \[long\] in \[test2\], \[keyword\] in \[test1\]'
+      catch: '/Cannot use field \[message\] due to ambiguities being mapped as \[2\] incompatible types: \[keyword\] in \[test1\], \[long\] in \[test2\]/'
       esql.query:
         body:
           query: 'from test1,test2 | stats count(message)'
 
   - do:
-      catch: '/Cannot use field \[message\] due to ambiguities being mapped as \[2\] incompatible types: \[long\] in \[test2\], \[keyword\] in \[test1\]'
+      catch: '/Cannot use field \[message\] due to ambiguities being mapped as \[2\] incompatible types: \[keyword\] in \[test1\], \[long\] in \[test2\]/'
       esql.query:
         body:
           query: 'from test1,test2 | where message is not null'
 
   - do:
-      catch: '/Cannot use field \[message\] due to ambiguities being mapped as \[2\] incompatible types: \[long\] in \[test2\], \[keyword\] in \[test1\]'
+      catch: '/Cannot use field \[message\] due to ambiguities being mapped as \[2\] incompatible types: \[keyword\] in \[test1\], \[long\] in \[test2\]/'
       esql.query:
         body:
           query: 'from test_alias | where message is not null'
 
   - do:
-      catch: '/Cannot use field \[_size\] due to ambiguities being mapped as \[2\] incompatible types: \[long\] in \[test2\], \[keyword\] in \[test1\]'
+      catch: '/Unknown column \[_size\]/'
       esql.query:
         body:
           query: 'from test_alias | where _size is not null | limit 1'
 
   - do:
-      catch: '/Cannot use field \[message.hash\] due to ambiguities being mapped as \[2\] incompatible types: \[integer\] in \[test2\], \[murmur3\] in \[test1\]'
+      catch: '/Cannot use field \[message.hash\] due to ambiguities being mapped as \[2\] incompatible types: \[integer\] in \[test2\], \[murmur3\] in \[test1\]/'
       esql.query:
         body:
           query: 'from test_alias | where message.hash is not null | limit 1'
+
+  - do:
+      catch: '/Cannot use field \[message.hash\] with unsupported type \[murmur3\]/'
+      esql.query:
+        body:
+          query: 'from test1 | where message.hash is not null | limit 1'
 
 ---
 same_name_different_type_same_family:

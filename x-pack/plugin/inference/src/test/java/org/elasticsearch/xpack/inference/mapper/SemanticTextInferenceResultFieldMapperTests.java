@@ -451,8 +451,10 @@ public class SemanticTextInferenceResultFieldMapperTests extends MetadataMapperT
 
     private static Map<String, Object> modelSettingsMap() {
         return Map.of(
-            ModelSettings.TASK_TYPE_FIELD.getPreferredName(), TaskType.SPARSE_EMBEDDING.toString(),
-            ModelSettings.INFERENCE_ID_FIELD.getPreferredName(), randomAlphaOfLength(8)
+            ModelSettings.TASK_TYPE_FIELD.getPreferredName(),
+            TaskType.SPARSE_EMBEDDING.toString(),
+            ModelSettings.INFERENCE_ID_FIELD.getPreferredName(),
+            randomAlphaOfLength(8)
         );
     }
 
@@ -487,10 +489,7 @@ public class SemanticTextInferenceResultFieldMapperTests extends MetadataMapperT
         BooleanQuery.Builder queryBuilder = new BooleanQuery.Builder();
         for (String token : tokens) {
             queryBuilder.add(
-                new BooleanClause(
-                    new TermQuery(new Term(path + "." + INFERENCE_CHUNKS_RESULTS, token)),
-                    BooleanClause.Occur.MUST
-                )
+                new BooleanClause(new TermQuery(new Term(path + "." + INFERENCE_CHUNKS_RESULTS, token)), BooleanClause.Occur.MUST)
             );
         }
         queryBuilder.add(new BooleanClause(mapper.nestedTypeFilter(), BooleanClause.Occur.FILTER));
@@ -505,11 +504,7 @@ public class SemanticTextInferenceResultFieldMapperTests extends MetadataMapperT
     ) {
         assertEquals(expectedParent, childDoc.getParent());
         visitedChildDocs.add(
-            new VisitedChildDocInfo(
-                childDoc.getPath(),
-                childDoc.getFields(childDoc.getPath() + "." + INFERENCE_CHUNKS_RESULTS)
-                    .size()
-            )
+            new VisitedChildDocInfo(childDoc.getPath(), childDoc.getFields(childDoc.getPath() + "." + INFERENCE_CHUNKS_RESULTS).size())
         );
     }
 

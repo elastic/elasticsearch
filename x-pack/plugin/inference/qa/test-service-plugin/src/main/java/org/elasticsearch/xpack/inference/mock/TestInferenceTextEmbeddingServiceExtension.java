@@ -321,8 +321,7 @@ public class TestInferenceTextEmbeddingServiceExtension implements InferenceServ
         }
 
         @Override
-        public void writeTo(StreamOutput out) throws IOException {
-        }
+        public void writeTo(StreamOutput out) throws IOException {}
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {

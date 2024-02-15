@@ -17,6 +17,8 @@ public interface PutRoleRequestBuilderFactory {
     class Default implements PutRoleRequestBuilderFactory {
         @Override
         public PutRoleRequestBuilder create(Client client, boolean restrictRequest, Predicate<String> fileRolesStoreNameChecker) {
+            // by default, we don't apply extra restrictions to Put Role requests and don't require checks against file-based roles
+            // these dependencies are only used by our stateless implementation
             return new PutRoleRequestBuilder(client);
         }
     }

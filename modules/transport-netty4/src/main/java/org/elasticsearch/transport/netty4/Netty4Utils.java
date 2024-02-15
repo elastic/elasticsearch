@@ -34,6 +34,7 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class Netty4Utils {
@@ -156,7 +157,10 @@ public class Netty4Utils {
 
     private static boolean assertCorrectPromiseListenerThreading(Channel channel, Future<?> promise) {
         final var eventLoop = channel.eventLoop();
-        promise.addListener(ignored -> { assert eventLoop.inEventLoop() || channel.eventLoop().isTerminated(); });
+        promise.addListener(future -> {
+            assert eventLoop.inEventLoop() || future.cause() instanceof RejectedExecutionException || channel.eventLoop().isTerminated()
+                : future.cause();
+        });
         return true;
     }
 

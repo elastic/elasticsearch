@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.security.rest.action.role;
 
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.RestApiVersion;
@@ -54,8 +55,8 @@ public class RestGetRolesAction extends NativeRoleBaseRestHandler {
     public RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
         final String[] roles = request.paramAsStringArray("name", Strings.EMPTY_ARRAY);
         final boolean restrictRequest = request.hasParam(RestRequest.RESPONSE_RESTRICTED);
+        assert false == restrictRequest || DiscoveryNode.isStateless(settings);
         return channel -> new GetRolesRequestBuilder(client).names(roles)
-            // TODO is this safe?
             .nativeOnly(restrictRequest)
             .execute(new RestBuilderListener<>(channel) {
                 @Override
@@ -84,8 +85,9 @@ public class RestGetRolesAction extends NativeRoleBaseRestHandler {
         // Note: For non-restricted requests this action handles both reserved roles and native
         // roles, and should still be available even if native role management is disabled.
         // For restricted requests it should only be available if native role management is enabled
-        // TODO is this safe?
-        if (false == request.hasParam(RestRequest.RESPONSE_RESTRICTED)) {
+        final boolean restrictPath = request.hasParam(RestRequest.RESPONSE_RESTRICTED);
+        assert false == restrictPath || DiscoveryNode.isStateless(settings);
+        if (false == restrictPath) {
             return null;
         } else {
             return super.innerCheckFeatureAvailable(request);

@@ -7,10 +7,8 @@
 package org.elasticsearch.xpack.core.security.action.role;
 
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.admin.cluster.remote.RemoteClusterNodesAction;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.transport.Transport;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 
 import java.io.IOException;

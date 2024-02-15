@@ -103,7 +103,7 @@ public interface InferenceService extends Closeable {
      * @param taskSettings Settings in the request to override the model's defaults
      * @param inputType For search, ingest etc
      * @param chunkingOptions The window and span options to apply
-     * @param listener Inference result listener
+     * @param listener Chunked Inference result listener
      */
     void chunkedInfer(
         Model model,
@@ -111,7 +111,7 @@ public interface InferenceService extends Closeable {
         Map<String, Object> taskSettings,
         InputType inputType,
         ChunkingOptions chunkingOptions,
-        ActionListener<ChunkedInferenceServiceResults> listener
+        ActionListener<List<ChunkedInferenceServiceResults>> listener
     );
 
     /**
@@ -141,6 +141,17 @@ public interface InferenceService extends Closeable {
     default void putModel(Model modelVariant, ActionListener<Boolean> listener) {
         listener.onResponse(true);
     }
+
+    /**
+     * Checks if the modelId has been downloaded to the local Elasticsearch cluster using the trained models API
+     * The default action does nothing except acknowledge the request (false).
+     * Any internal services should Override this method.
+     * @param model
+     * @param listener The listener
+     */
+    default void isModelDownloaded(Model model, ActionListener<Boolean> listener) {
+        listener.onResponse(false);
+    };
 
     /**
      * Optionally test the new model configuration in the inference service.

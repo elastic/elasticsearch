@@ -38,8 +38,8 @@ public class Atan2 extends EsqlScalarFunction {
     )
     public Atan2(
         Source source,
-        @Param(name = "y", type = { "double", "integer", "long", "unsigned_long" }) Expression y,
-        @Param(name = "x", type = { "double", "integer", "long", "unsigned_long" }) Expression x
+        @Param(name = "y", type = { "double", "integer", "long", "unsigned_long" }, description = "y coordinate") Expression y,
+        @Param(name = "x", type = { "double", "integer", "long", "unsigned_long" }, description = "x coordinate") Expression x
     ) {
         super(source, List.of(y, x));
         this.y = y;

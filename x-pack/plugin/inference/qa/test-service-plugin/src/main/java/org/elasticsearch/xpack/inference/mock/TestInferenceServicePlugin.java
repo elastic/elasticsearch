@@ -34,6 +34,21 @@ public class TestInferenceServicePlugin extends Plugin {
                 SecretSettings.class,
                 TestInferenceServiceExtension.TestSecretSettings.NAME,
                 TestInferenceServiceExtension.TestSecretSettings::new
+            ),
+            new NamedWriteableRegistry.Entry(
+                ServiceSettings.class,
+                TestInferenceTextEmbeddingServiceExtension.TestServiceSettings.NAME,
+                TestInferenceTextEmbeddingServiceExtension.TestServiceSettings::new
+            ),
+            new NamedWriteableRegistry.Entry(
+                TaskSettings.class,
+                TestInferenceTextEmbeddingServiceExtension.TestTaskSettings.NAME,
+                TestInferenceTextEmbeddingServiceExtension.TestTaskSettings::new
+            ),
+            new NamedWriteableRegistry.Entry(
+                SecretSettings.class,
+                TestInferenceTextEmbeddingServiceExtension.TestSecretSettings.NAME,
+                TestInferenceTextEmbeddingServiceExtension.TestSecretSettings::new
             )
         );
     }

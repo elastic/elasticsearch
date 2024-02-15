@@ -422,7 +422,11 @@ final class QueryTranslator {
                 }
             }
             // fallback default
-            return org.elasticsearch.xpack.ql.planner.ExpressionTranslators.BinaryComparisons.doTranslate(bc, handler);
+            return org.elasticsearch.xpack.ql.planner.ExpressionTranslators.BinaryComparisons.doTranslate(
+                bc,
+                handler,
+                ExpressionTranslators.BinaryComparisons::getQuery
+            );
         }
     }
 

@@ -263,7 +263,7 @@ public final class ExpressionTranslators {
 
         @Override
         protected Query asQuery(BinaryComparison bc, TranslatorHandler handler) {
-            return doTranslate(bc, handler);
+            return doTranslate(bc, handler, BinaryComparisons::getQuery);
         }
 
         public static void checkBinaryComparison(BinaryComparison bc) {
@@ -277,12 +277,12 @@ public final class ExpressionTranslators {
             );
         }
 
-        public static Query doTranslate(BinaryComparison bc, TranslatorHandler handler) {
+        public static Query doTranslate(BinaryComparison bc, TranslatorHandler handler, Dispatcher expressionDispatcher) {
             checkBinaryComparison(bc);
-            return handler.wrapFunctionQuery(bc, bc.left(), () -> translate(bc, handler));
+            return handler.wrapFunctionQuery(bc, bc.left(), () -> translate(bc, handler, BinaryComparisons::getQuery));
         }
 
-        static Query translate(BinaryComparison bc, TranslatorHandler handler) {
+        static Query translate(BinaryComparison bc, TranslatorHandler handler, Dispatcher expressionDispatcher) {
             TypedAttribute attribute = checkIsPushableAttribute(bc.left());
             Source source = bc.source();
             String name = handler.nameOf(attribute);
@@ -324,6 +324,41 @@ public final class ExpressionTranslators {
             if (DataTypes.isDateTime(attribute.dataType())) {
                 zoneId = bc.zoneId();
             }
+            Query translated = expressionDispatcher.apply(bc, attribute, source, name, value, format, isDateLiteralComparison, zoneId);
+            if (translated != null) {
+                return translated;
+            }
+
+            throw new QlIllegalArgumentException("Don't know how to translate binary comparison [{}] in [{}]", bc.right().nodeString(), bc);
+        }
+
+        /**
+         * Represents a function which maps between an expression type and a query type, in a given translation context.
+         */
+        @FunctionalInterface
+        public interface Dispatcher {
+            Query apply(
+                BinaryComparison bc,
+                TypedAttribute attribute,
+                Source source,
+                String name,
+                Object value,
+                String format,
+                boolean isDateLiteralComparison,
+                ZoneId zoneId
+            );
+        }
+
+        public static Query getQuery(
+            BinaryComparison bc,
+            TypedAttribute attribute,
+            Source source,
+            String name,
+            Object value,
+            String format,
+            boolean isDateLiteralComparison,
+            ZoneId zoneId
+        ) {
             if (bc instanceof GreaterThan) {
                 return new RangeQuery(source, name, value, false, null, false, format, zoneId);
             }
@@ -351,8 +386,7 @@ public final class ExpressionTranslators {
                 }
                 return query;
             }
-
-            throw new QlIllegalArgumentException("Don't know how to translate binary comparison [{}] in [{}]", bc.right().nodeString(), bc);
+            return null;
         }
     }
 
@@ -430,7 +464,11 @@ public final class ExpressionTranslators {
                 if (DataTypes.isNull(rhs.dataType()) == false) {
                     if (needsTypeSpecificValueHandling(attribute.dataType())) {
                         // delegates to BinaryComparisons translator to ensure consistent handling of date and time values
-                        Query query = BinaryComparisons.translate(new Equals(in.source(), in.value(), rhs, in.zoneId()), handler);
+                        Query query = BinaryComparisons.translate(
+                            new Equals(in.source(), in.value(), rhs, in.zoneId()),
+                            handler,
+                            BinaryComparisons::getQuery
+                        );
 
                         if (query instanceof TermQuery) {
                             terms.add(((TermQuery) query).value());

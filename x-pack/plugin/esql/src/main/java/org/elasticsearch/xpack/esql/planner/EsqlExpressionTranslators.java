@@ -118,7 +118,7 @@ public final class EsqlExpressionTranslators {
             ExpressionTranslators.BinaryComparisons.checkBinaryComparison(bc);
             Query translated = translateOutOfRangeComparisons(bc);
             return translated == null
-                ? ExpressionTranslators.BinaryComparisons.doTranslate(bc, handler)
+                ? ExpressionTranslators.BinaryComparisons.doTranslate(bc, handler, ExpressionTranslators.BinaryComparisons::getQuery)
                 : handler.wrapFunctionQuery(bc, bc.left(), () -> translated);
         }
 

@@ -80,7 +80,7 @@ public record LegacyTextEmbeddingResults(List<Embedding> embeddings) implements 
     @Override
     public Map<String, Object> asMap() {
         Map<String, Object> map = new LinkedHashMap<>();
-        map.put(getResultsField(), embeddings.stream().flatMap(v -> v.values.stream()).collect(Collectors.toList()));
+        map.put(getResultsField(), embeddings.stream().map(Embedding::asMap).collect(Collectors.toList()));
 
         return map;
     }
@@ -88,7 +88,7 @@ public record LegacyTextEmbeddingResults(List<Embedding> embeddings) implements 
     @Override
     public Map<String, Object> asMap(String outputField) {
         Map<String, Object> map = new LinkedHashMap<>();
-        map.put(outputField, embeddings.stream().flatMap(v -> v.values.stream()).collect(Collectors.toList()));
+        map.put(outputField, embeddings.stream().map(Embedding::asMap).collect(Collectors.toList()));
 
         return map;
     }

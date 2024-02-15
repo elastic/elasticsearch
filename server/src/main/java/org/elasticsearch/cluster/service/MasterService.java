@@ -1522,11 +1522,24 @@ public class MasterService extends AbstractLifecycleComponent {
             final var taskHolder = new AtomicReference<>(task);
             final Scheduler.Cancellable timeoutCancellable;
             if (timeout != null && timeout.millis() > 0) {
-                timeoutCancellable = threadPool.schedule(
-                    new TaskTimeoutHandler<>(timeout, source, taskHolder),
-                    timeout,
-                    threadPool.generic()
-                );
+                try {
+                    timeoutCancellable = threadPool.schedule(
+                        new TaskTimeoutHandler<>(timeout, source, taskHolder),
+                        timeout,
+                        threadPool.generic()
+                    );
+                } catch (Exception e) {
+                    task.onFailure(
+                        new FailedToCommitClusterStateException(
+                            "could not schedule timeout handler for [%s][%s] on queue [%s]",
+                            e,
+                            source,
+                            task,
+                            name
+                        )
+                    );
+                    return;
+                }
             } else {
                 timeoutCancellable = null;
             }

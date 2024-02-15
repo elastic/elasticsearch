@@ -2121,6 +2121,56 @@ public class MasterServiceTests extends ESTestCase {
         }
     }
 
+    public void testTimeoutRejectionBehaviourAtSubmission() {
+
+        final var actionCount = new AtomicInteger();
+
+        final var deterministicTaskQueue = new DeterministicTaskQueue();
+        final var threadPool = deterministicTaskQueue.getThreadPool(r -> {
+            if (r.toString().startsWith("master service timeout handler for [batched][test task]")) {
+                actionCount.incrementAndGet();
+                throw new EsRejectedExecutionException("simulated rejection", true);
+            } else {
+                return r;
+            }
+        });
+
+        try (var masterService = createMasterService(true, null, threadPool, new StoppableExecutorServiceWrapper(threadPool.generic()))) {
+
+            class TestTask implements ClusterStateTaskListener {
+                @Override
+                public void onFailure(Exception e) {
+                    if ((e instanceof FailedToCommitClusterStateException
+                        && e.getMessage().startsWith("could not schedule timeout handler")
+                        && e.getCause() instanceof EsRejectedExecutionException esre
+                        && esre.isExecutorShutdown()
+                        && esre.getMessage().equals("simulated rejection")) == false) {
+                        throw new AssertionError("unexpected exception", e);
+                    }
+                    actionCount.incrementAndGet();
+                }
+
+                @Override
+                public String toString() {
+                    return "test task";
+                }
+            }
+
+            final var queue = masterService.createTaskQueue(
+                "queue",
+                randomFrom(Priority.values()),
+                batchExecutionContext -> fail(null, "should not execute batch")
+            );
+
+            try (var ignored = threadPool.getThreadContext().stashContext()) {
+                queue.submitTask("batched", new TestTask(), TimeValue.timeValueMillis(between(0, 100000)));
+            }
+            assertFalse(deterministicTaskQueue.hasRunnableTasks());
+            assertFalse(deterministicTaskQueue.hasDeferredTasks());
+            assertEquals(2, actionCount.get());
+        }
+    }
+
     @TestLogging(reason = "verifying DEBUG logs", value = "org.elasticsearch.cluster.service.MasterService:DEBUG")
     public void testRejectionBehaviourAtCompletion() {
 

@@ -145,6 +145,17 @@ full_name:keyword | emp_no:keyword | b:keyword
 Bezalel Simmel    | Bezalel        | Simmel 
 ;
 
+overwriteNameAfterSort#[skip:-8.13.99]
+FROM employees
+| MV_EXPAND job_positions
+| SORT emp_no ASC
+| DISSECT job_positions "%{emp_no} %{} %{}"
+| LIMIT 1
+;
+
+emp_no:keyword  | b:keyword
+b               | d
+;
 
 # for now it calculates only based on the first value
 multivalueInput

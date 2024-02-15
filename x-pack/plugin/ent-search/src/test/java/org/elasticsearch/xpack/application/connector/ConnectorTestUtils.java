@@ -48,6 +48,9 @@ import static org.elasticsearch.test.ESTestCase.randomLong;
 import static org.elasticsearch.test.ESTestCase.randomLongBetween;
 
 public final class ConnectorTestUtils {
+
+    public static final String NULL_STRING = null;
+
     public static PutConnectorAction.Request getRandomPutConnectorActionRequest() {
         return new PutConnectorAction.Request(
             randomAlphaOfLengthBetween(5, 15),
@@ -368,10 +371,6 @@ public final class ConnectorTestUtils {
             .filter(status -> validNextStatus.contains(status) == false)
             .toList();
         return randomFrom(invalidStatuses);
-    }
-
-    public static String nullString() {
-        return null;
     }
 
     public static ConnectorStatus getRandomConnectorStatus() {

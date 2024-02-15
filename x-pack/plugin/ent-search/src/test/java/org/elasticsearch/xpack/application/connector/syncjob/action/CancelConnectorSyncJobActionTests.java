@@ -11,7 +11,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJobTestUtils;
 
-import static org.elasticsearch.xpack.application.connector.ConnectorTestUtils.nullString;
+import static org.elasticsearch.xpack.application.connector.ConnectorTestUtils.NULL_STRING;
 import static org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJobConstants.EMPTY_CONNECTOR_SYNC_JOB_ID_ERROR_MESSAGE;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
@@ -35,7 +35,7 @@ public class CancelConnectorSyncJobActionTests extends ESTestCase {
     }
 
     public void testValidate_WhenConnectorSyncJobIdIsNull_ExpectValidationError() {
-        CancelConnectorSyncJobAction.Request requestWithMissingConnectorId = new CancelConnectorSyncJobAction.Request(nullString());
+        CancelConnectorSyncJobAction.Request requestWithMissingConnectorId = new CancelConnectorSyncJobAction.Request(NULL_STRING);
         ActionRequestValidationException exception = requestWithMissingConnectorId.validate();
 
         assertThat(exception, notNullValue());

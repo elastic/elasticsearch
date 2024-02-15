@@ -145,12 +145,7 @@ identifier
     ;
 
 identifierPattern
-    : idPattern+
-    ;
-
-idPattern
-    : UNQUOTED_ID_PATTERN
-    | QUOTED_IDENTIFIER
+    : ID_PATTERN
     ;
 
 constant

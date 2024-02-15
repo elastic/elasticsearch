@@ -1,0 +1,5 @@
+pr: 105272
+summary: "Stop the periodic health logger when es is stopping"
+area: Health
+type: bug
+issues: []

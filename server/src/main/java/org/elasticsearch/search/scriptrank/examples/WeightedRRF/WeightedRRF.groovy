@@ -11,9 +11,12 @@ import org.elasticsearch.search.scriptrank.ScriptRankDoc
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
+
+def retrievers = ctx.retrievers;
+
 def results = [:];
-for (int retrieverNum = 0; retrieverNum < inputs.size(); ++retrieverNum) {
-    def retrieverResult = inputs[retrieverNum];
+for (int retrieverNum = 0; retrieverNum < retrievers.size(); ++retrieverNum) {
+    def retrieverResult = retrievers.get(retrieverNum);
     int rank = retrieverResult.size();
     for (ScriptRankDoc scriptRankDoc : retrieverResult) {
         ScoreDoc scoreDoc = scriptRankDoc.scoreDoc();

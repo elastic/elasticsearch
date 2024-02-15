@@ -135,7 +135,13 @@ public class ScriptRankCoordinatorContext extends RankCoordinatorContext {
             allRetrieverResults.add(currentRetrieverResults);
         }
 
-        List<ScoreDoc> scriptResult = rankScript.execute(allRetrieverResults);
+        Map<String, Object> ctx = new HashMap<>();
+        ctx.put("retrievers",allRetrieverResults);
+        ctx.put("size", size);
+        ctx.put("from", from);
+        ctx.put("windowSize", windowSize);
+
+        List<ScoreDoc> scriptResult = rankScript.execute(ctx);
 
         var sortedTopDocs = new SearchPhaseController.SortedTopDocs(scriptResult.toArray(ScoreDoc[]::new), false, null, null, null, 0);
         return new SearchPhaseController.ReducedQueryPhase(

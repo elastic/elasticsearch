@@ -17,7 +17,7 @@ import java.util.Map;
 
 public abstract class RankScript {
 
-    public static final String[] PARAMETERS = { "inputs" };
+    public static final String[] PARAMETERS = {"ctx"};
 
     private final Map<String, Object> params;
 
@@ -25,7 +25,7 @@ public abstract class RankScript {
         this.params = params;
     }
 
-    public abstract List<ScoreDoc> execute(List<List<ScriptRankDoc>> inputs);
+    public abstract List<ScoreDoc> execute(Map<String, Object> ctx);
 
     public Map<String, Object> getParams() {
         return params;

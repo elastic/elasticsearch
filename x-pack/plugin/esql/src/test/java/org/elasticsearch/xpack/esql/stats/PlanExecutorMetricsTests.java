@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.stats;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesIndexResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.fieldcaps.IndexFieldCapabilities;
@@ -30,15 +31,18 @@ import org.junit.Before;
 import org.mockito.stubbing.Answer;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class PlanExecutorMetricsTests extends ESTestCase {
 
@@ -67,19 +71,34 @@ public class PlanExecutorMetricsTests extends ESTestCase {
     }
 
     public void testFailedMetric() {
-        Client client = mock(Client.class);
-        IndexResolver idxResolver = new IndexResolver(client, randomAlphaOfLength(10), EsqlDataTypeRegistry.INSTANCE, Set::of);
-        EsqlIndexResolver esqlIndexResolver = new EsqlIndexResolver(client, EsqlDataTypeRegistry.INSTANCE);
-        var planExecutor = new PlanExecutor(idxResolver, esqlIndexResolver);
         String[] indices = new String[] { "test" };
-        var enrichResolver = mockEnrichResolver();
+
+        Client qlClient = mock(Client.class);
+        IndexResolver idxResolver = new IndexResolver(qlClient, randomAlphaOfLength(10), EsqlDataTypeRegistry.INSTANCE, Set::of);
+        // simulate a valid field_caps response so we can parse and correctly analyze de query
+        FieldCapabilitiesResponse fieldCapabilitiesResponse = mock(FieldCapabilitiesResponse.class);
+        when(fieldCapabilitiesResponse.getIndices()).thenReturn(indices);
+        when(fieldCapabilitiesResponse.get()).thenReturn(fields(indices));
+        doAnswer((Answer<Void>) invocation -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<FieldCapabilitiesResponse> listener = (ActionListener<FieldCapabilitiesResponse>) invocation.getArguments()[1];
+            // simulate a valid field_caps response so we can parse and correctly analyze de query
+            listener.onResponse(fieldCapabilitiesResponse);
+            return null;
+        }).when(qlClient).fieldCaps(any(), any());
+
+        Client esqlClient = mock(Client.class);
+        EsqlIndexResolver esqlIndexResolver = new EsqlIndexResolver(esqlClient, EsqlDataTypeRegistry.INSTANCE);
         doAnswer((Answer<Void>) invocation -> {
             @SuppressWarnings("unchecked")
             ActionListener<FieldCapabilitiesResponse> listener = (ActionListener<FieldCapabilitiesResponse>) invocation.getArguments()[1];
             // simulate a valid field_caps response so we can parse and correctly analyze de query
             listener.onResponse(new FieldCapabilitiesResponse(indexFieldCapabilities(indices), List.of()));
             return null;
-        }).when(client).fieldCaps(any(), any());
+        }).when(esqlClient).fieldCaps(any(), any());
+
+        var planExecutor = new PlanExecutor(idxResolver, esqlIndexResolver);
+        var enrichResolver = mockEnrichResolver();
 
         var request = new EsqlQueryRequest();
         // test a failed query: xyz field doesn't exist
@@ -135,6 +154,15 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             );
         }
         return responses;
+    }
+
+    private Map<String, Map<String, FieldCapabilities>> fields(String[] indices) {
+        FieldCapabilities fooField = new FieldCapabilities("foo", "integer", false, true, true, indices, null, null, Map.of());
+        FieldCapabilities barField = new FieldCapabilities("bar", "long", false, true, true, indices, null, null, Map.of());
+        Map<String, Map<String, FieldCapabilities>> fields = new HashMap<>();
+        fields.put(fooField.getName(), Map.of(fooField.getName(), fooField));
+        fields.put(barField.getName(), Map.of(barField.getName(), barField));
+        return fields;
     }
 
     @Override

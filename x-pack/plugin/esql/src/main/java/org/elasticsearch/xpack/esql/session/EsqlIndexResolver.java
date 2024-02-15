@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.index.IndexResolver;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypeRegistry;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.DateEsField;
 import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.ql.type.InvalidMappedField;
@@ -208,40 +207,6 @@ public class EsqlIndexResolver {
             errorMessage.append(e.getKey());
             errorMessage.append("] in ");
             errorMessage.append(e.getValue());
-        }
-        return new InvalidMappedField(name, errorMessage.toString());
-    }
-
-    private EsField conflictingAggregatableOrSearchable(String name, FieldCapabilitiesResponse fieldCapsResponse) {
-        // NOCOMMIT remove me?
-        Set<String> nonAggregatableIndices = new TreeSet<>();
-        Set<String> nonSearchableIndices = new TreeSet<>();
-        for (FieldCapabilitiesIndexResponse ir : fieldCapsResponse.getIndexResponses()) {
-            IndexFieldCapabilities fc = ir.get().get(name);
-            if (fc == null) {
-                continue;
-            }
-            if (fc.isAggregatable() == false) {
-                nonAggregatableIndices.add(ir.getIndexName());
-            }
-            if (fc.isSearchable() == false) {
-                nonSearchableIndices.add(ir.getIndexName());
-            }
-        }
-        StringBuilder errorMessage = new StringBuilder();
-        if (nonAggregatableIndices.size() > 0) {
-            errorMessage.append("mapped as aggregatable except in ");
-            errorMessage.append(nonAggregatableIndices);
-        }
-        if (nonSearchableIndices.size() > 0) {
-            if (errorMessage.length() > 0) {
-                errorMessage.append(",");
-            }
-            errorMessage.append("mapped as searchable except in ");
-            errorMessage.append(nonSearchableIndices);
-        }
-        if (errorMessage.isEmpty()) {
-            throw new AssertionError("called conflictingAggregatableOrSearchable without conflicts");
         }
         return new InvalidMappedField(name, errorMessage.toString());
     }

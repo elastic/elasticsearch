@@ -1316,7 +1316,6 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105543")
     public void testStatsMissingFieldWithStats() {
         final String node1, node2;
         if (randomBoolean()) {

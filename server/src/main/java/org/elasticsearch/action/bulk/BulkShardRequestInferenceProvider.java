@@ -267,7 +267,7 @@ public class BulkShardRequestInferenceProvider {
                         }
 
                         int i = 0;
-                        for (InferenceResults inferenceResults : results.transformToLegacyFormat()) {
+                        for (InferenceResults inferenceResults : results.transformToCoordinationFormat()) {
                             String inferenceFieldName = inferenceFieldNames.get(i++);
                             Map<String, Object> inferenceFieldResult = new LinkedHashMap<>();
                             inferenceFieldResult.putAll(new ModelSettings(inferenceProvider.model).asMap());

@@ -111,18 +111,6 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
             throw new IllegalArgumentException("rulesetId must not be null or empty");
         }
 
-        // PinnedQueryBuilder will return an error if we attempt to return more than the maximum number of
-        // pinned hits. Here, we truncate matching rules rather than return an error.
-        if (pinnedIds != null && pinnedIds.size() > MAX_NUM_PINNED_HITS) {
-            HeaderWarning.addWarning("Truncating query rule pinned hits to " + MAX_NUM_PINNED_HITS + " documents");
-            pinnedIds = pinnedIds.subList(0, MAX_NUM_PINNED_HITS);
-        }
-
-        if (pinnedDocs != null && pinnedDocs.size() > MAX_NUM_PINNED_HITS) {
-            HeaderWarning.addWarning("Truncating query rule pinned hits to " + MAX_NUM_PINNED_HITS + " documents");
-            pinnedDocs = pinnedDocs.subList(0, MAX_NUM_PINNED_HITS);
-        }
-
         this.organicQuery = organicQuery;
         this.matchCriteria = matchCriteria;
         this.rulesetId = rulesetId;
@@ -174,6 +162,9 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
 
     @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
+        // NOTE: this is old query logic, as in 8.12.2+ and 8.13.0+ we will always rewrite this query
+        // into a pinned query or the organic query. This logic remains here for backwards compatibility
+        // with coordinator nodes running versions 8.10.0 - 8.12.1.
         if ((pinnedIds != null && pinnedIds.isEmpty() == false) && (pinnedDocs != null && pinnedDocs.isEmpty() == false)) {
             throw new IllegalArgumentException("applied rules contain both pinned ids and pinned docs, only one of ids or docs is allowed");
         }
@@ -187,21 +178,25 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
         } else {
             return organicQuery.toQuery(context);
         }
-
     }
 
-    @SuppressWarnings("unchecked")
     @Override
-    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
-        if (pinnedIds != null || pinnedDocs != null) {
-            return this;
-        } else if (pinnedIdsSupplier != null || pinnedDocsSupplier != null) {
-            List<String> identifiedPinnedIds = pinnedIdsSupplier != null ? pinnedIdsSupplier.get() : null;
-            List<Item> identifiedPinnedDocs = pinnedDocsSupplier != null ? pinnedDocsSupplier.get() : null;
-            if (identifiedPinnedIds == null && identifiedPinnedDocs == null) {
-                return this; // not executed yet
+    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) {
+        if (pinnedIdsSupplier != null && pinnedDocsSupplier != null) {
+            List<String> identifiedPinnedIds = pinnedIdsSupplier.get();
+            List<Item> identifiedPinnedDocs = pinnedDocsSupplier.get();
+            if (identifiedPinnedIds == null || identifiedPinnedDocs == null) {
+                return this; // Not executed yet
+            } else if (identifiedPinnedIds.isEmpty() && identifiedPinnedDocs.isEmpty()) {
+                return organicQuery; // Nothing to pin here
+            } else if (identifiedPinnedIds.isEmpty() == false && identifiedPinnedDocs.isEmpty() == false) {
+                throw new IllegalArgumentException(
+                    "applied rules contain both pinned ids and pinned docs, only one of ids or docs is allowed"
+                );
+            } else if (identifiedPinnedIds.isEmpty() == false) {
+                return new PinnedQueryBuilder(organicQuery, truncateList(identifiedPinnedIds).toArray(new String[0]));
             } else {
-                return new RuleQueryBuilder(organicQuery, matchCriteria, rulesetId, identifiedPinnedIds, identifiedPinnedDocs, null, null);
+                return new PinnedQueryBuilder(organicQuery, truncateList(identifiedPinnedDocs).toArray(new Item[0]));
             }
         }
 
@@ -244,18 +239,19 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
             });
         });
 
-        QueryBuilder newOrganicQuery = organicQuery.rewrite(queryRewriteContext);
-        RuleQueryBuilder rewritten = new RuleQueryBuilder(
-            newOrganicQuery,
-            matchCriteria,
-            this.rulesetId,
-            null,
-            null,
-            pinnedIdsSetOnce::get,
-            pinnedDocsSetOnce::get
-        );
-        rewritten.boost(this.boost);
-        return rewritten;
+        return new RuleQueryBuilder(organicQuery, matchCriteria, this.rulesetId, null, null, pinnedIdsSetOnce::get, pinnedDocsSetOnce::get)
+            .boost(this.boost)
+            .queryName(this.queryName);
+    }
+
+    private List<?> truncateList(List<?> input) {
+        // PinnedQueryBuilder will return an error if we attempt to return more than the maximum number of
+        // pinned hits. Here, we truncate matching rules rather than return an error.
+        if (input.size() > MAX_NUM_PINNED_HITS) {
+            HeaderWarning.addWarning("Truncating query rule pinned hits to " + MAX_NUM_PINNED_HITS + " documents");
+            return input.subList(0, MAX_NUM_PINNED_HITS);
+        }
+        return input;
     }
 
     @Override

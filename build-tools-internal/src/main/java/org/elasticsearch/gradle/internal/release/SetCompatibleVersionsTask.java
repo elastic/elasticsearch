@@ -62,7 +62,7 @@ public class SetCompatibleVersionsTask extends AbstractVersionsTask {
         }
     }
 
-    private Optional<CompilationUnit> setMinimumCcsTransportVersion(CompilationUnit unit, int transportVersion) {
+    static Optional<CompilationUnit> setMinimumCcsTransportVersion(CompilationUnit unit, int transportVersion) {
         ClassOrInterfaceDeclaration transportVersions = unit.getClassByName("TransportVersions").get();
 
         String tvConstantName = transportVersions.getFields().stream().filter(f -> {

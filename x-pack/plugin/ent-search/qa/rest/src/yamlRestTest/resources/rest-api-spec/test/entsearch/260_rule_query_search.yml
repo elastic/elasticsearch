@@ -239,7 +239,7 @@ setup:
 ---
 "Perform a rule query with an organic query that must be rewritten to another query type":
   - skip:
-      version: " - 8.13.99"
+      version: " - 8.12.99"
       reason: Bugfix that was broken in previous versions
 
   - do:

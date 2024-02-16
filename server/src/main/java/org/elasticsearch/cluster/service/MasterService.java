@@ -1470,8 +1470,13 @@ public class MasterService extends AbstractLifecycleComponent {
 
         @Override
         public String toString() {
-            return Strings.format("master service timeout handler for [%s][%s] after [%s]", source, taskHolder.get(), timeout);
+            return getTimeoutTaskDescription(source, taskHolder.get(), timeout);
         }
+
+    }
+
+    static String getTimeoutTaskDescription(String source, Object task, TimeValue timeout) {
+        return Strings.format("master service timeout handler for [%s][%s] after [%s]", source, task, timeout);
     }
 
     /**

@@ -151,7 +151,7 @@ public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTok
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
         final MappedFieldType ft = context.getFieldType(fieldName);
         if (ft == null) {
-            return new MatchNoDocsQuery("The \"" + getName() + "\" query is against a field that does not exist");
+            throw new ElasticsearchParseException("[" + fieldName + "]" + " is not a mapped field");
         }
 
         String fieldTypeName = ft.typeName();

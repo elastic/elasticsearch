@@ -81,7 +81,8 @@ public class AverageWriteLoadSampler {
         return new ExecutorStats(
             averageLoadPerExector.get(executorName).get(),
             executor.getTaskExecutionEWMA(),
-            executor.getCurrentQueueSize()
+            executor.getCurrentQueueSize(),
+            executor.getMaximumPoolSize()
         );
     }
 

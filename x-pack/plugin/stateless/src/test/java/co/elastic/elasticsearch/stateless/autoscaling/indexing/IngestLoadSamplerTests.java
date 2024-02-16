@@ -456,7 +456,8 @@ public class IngestLoadSamplerTests extends ESTestCase {
             return new ExecutorStats(
                 randomDoubleBetween(0.0, 8.0, true),
                 randomDoubleBetween(100.0, 500.0, true),
-                randomIntBetween(0, 100)
+                randomIntBetween(0, 100),
+                between(1, 10)
             );
         }
     }

@@ -154,7 +154,7 @@ public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTok
             throw new ElasticsearchParseException("[" + fieldName + "]" + " is not a mapped field");
         }
 
-        String fieldTypeName = ft.typeName();
+        final String fieldTypeName = ft.typeName();
         if (AllowedFieldTypesForTextExpansion.contains(fieldTypeName) == false) {
             throw new ElasticsearchParseException("[" + fieldTypeName + "]" + " is not an appropriate field type for text expansion query");
         }

@@ -7,6 +7,10 @@ dependencies {
   javaRestTestImplementation project(xpackModule('esql:qa:testFixtures'))
   javaRestTestImplementation project(xpackModule('esql:qa:server'))
   yamlRestTestImplementation project(xpackModule('esql:qa:server'))
+  dependencies {
+    clusterPlugins project(':plugins:mapper-size')
+    clusterPlugins project(':plugins:mapper-murmur3')
+  }
 }
 
 restResources {
@@ -21,10 +25,6 @@ restResources {
 tasks.named('javaRestTest') {
   usesDefaultDistribution()
   maxParallelForks = 1
-  dependencies {
-    clusterPlugins project(':plugins:mapper-size')
-    clusterPlugins project(':plugins:mapper-murmur3')
-  }
 }
 
 tasks.named('yamlRestTest') {

@@ -140,6 +140,7 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
 
     @Override
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+
         if (weightedTokensSupplier != null) {
             if (weightedTokensSupplier.get() == null) {
                 return this;

@@ -345,11 +345,9 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
         }
 
         private void add(String fieldName, BytesReference encoded) throws IOException {
-            final Dimension dimension = new Dimension(new BytesRef(fieldName), encoded);
-            if (dimensions.contains(dimension)) {
+            if (dimensions.add(new Dimension(new BytesRef(fieldName), encoded)) == false) {
                 throw new IllegalArgumentException("Dimension field [" + fieldName + "] cannot be a multi-valued field.");
             }
-            dimensions.add(dimension);
         }
     }
 

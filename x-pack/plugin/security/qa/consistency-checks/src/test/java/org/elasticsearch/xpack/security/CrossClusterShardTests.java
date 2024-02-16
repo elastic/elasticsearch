@@ -5,26 +5,44 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.core.security.support;
+package org.elasticsearch.xpack.security;
 
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsAction;
-import org.elasticsearch.action.admin.indices.mapping.get.TransportGetFieldMappingsIndexAction;
-import org.elasticsearch.action.explain.TransportExplainAction;
-import org.elasticsearch.action.get.TransportGetAction;
-import org.elasticsearch.action.get.TransportShardMultiGetAction;
 import org.elasticsearch.action.search.TransportSearchShardsAction;
 import org.elasticsearch.action.support.TransportAction;
-import org.elasticsearch.action.termvectors.TermVectorsAction;
-import org.elasticsearch.action.termvectors.TransportShardMultiTermsVectorAction;
+import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
 import org.elasticsearch.common.inject.Binding;
 import org.elasticsearch.common.inject.TypeLiteral;
-import org.elasticsearch.index.seqno.RetentionLeaseActions;
+import org.elasticsearch.datastreams.DataStreamsPlugin;
+import org.elasticsearch.index.rankeval.RankEvalPlugin;
+import org.elasticsearch.ingest.IngestTestPlugin;
+import org.elasticsearch.ingest.common.IngestCommonPlugin;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.reindex.ReindexPlugin;
+import org.elasticsearch.script.mustache.MustachePlugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
+import org.elasticsearch.xpack.autoscaling.Autoscaling;
+import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
+import org.elasticsearch.xpack.core.security.action.apikey.CrossClusterApiKeyRoleDescriptorBuilder;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
+import org.elasticsearch.xpack.downsample.Downsample;
+import org.elasticsearch.xpack.downsample.DownsampleShardPersistentTaskExecutor;
+import org.elasticsearch.xpack.eql.plugin.EqlPlugin;
+import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
+import org.elasticsearch.xpack.frozen.FrozenIndices;
+import org.elasticsearch.xpack.graph.Graph;
+import org.elasticsearch.xpack.ilm.IndexLifecycle;
+import org.elasticsearch.xpack.inference.InferencePlugin;
+import org.elasticsearch.xpack.profiling.ProfilingPlugin;
+import org.elasticsearch.xpack.rollup.Rollup;
+import org.elasticsearch.xpack.search.AsyncSearch;
+import org.elasticsearch.xpack.slm.SnapshotLifecycle;
+import org.elasticsearch.xpack.sql.plugin.SqlPlugin;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
@@ -32,32 +50,56 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.function.Predicate;
 
-import static org.elasticsearch.xpack.core.security.action.apikey.CrossClusterApiKeyRoleDescriptorBuilder.CCR_INDICES_PRIVILEGE_NAMES;
-import static org.elasticsearch.xpack.core.security.action.apikey.CrossClusterApiKeyRoleDescriptorBuilder.CCS_INDICES_PRIVILEGE_NAMES;
-
 public class CrossClusterShardTests extends ESSingleNodeTestCase {
 
     Set<String> MANUALLY_CHECKED_SHARD_ACTIONS = Set.of(
         // The request types for these actions are all subtypes of SingleShardRequest, and have been evaluated to make sure their
         // `shards()` methods return the correct thing.
-        TransportShardMultiTermsVectorAction.TYPE.name(),
-        TransportExplainAction.TYPE.name(),
-        RetentionLeaseActions.ADD.name(),
-        RetentionLeaseActions.REMOVE.name(),
-        RetentionLeaseActions.RENEW.name(),
-        TermVectorsAction.NAME,
-        TransportGetAction.TYPE.name(),
-        TransportShardMultiGetAction.TYPE.name(),
-        TransportGetFieldMappingsIndexAction.TYPE.name(),
+        TransportSearchShardsAction.NAME,
+
+        // These types have had the interface implemented manually.
+        DownsampleShardPersistentTaskExecutor.DelegatingAction.NAME,
 
         // These actions do not have any references to shard IDs in their requests.
-        ClusterSearchShardsAction.NAME,
-        TransportSearchShardsAction.NAME
+        ClusterSearchShardsAction.NAME
+    );
+
+
+    Set<Class<?>> CHECKED_ABSTRACT_CLASSES = Set.of(
+        // This abstract class implements the interface so we can assume all of its subtypes do so properly as well.
+        TransportSingleShardAction.class
     );
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Set.of(LocalStateCompositeXPackPlugin.class);
+        final ArrayList<Class<? extends Plugin>> plugins = new ArrayList<>(super.getPlugins());
+        plugins.addAll(
+            List.of(
+                LocalStateCompositeXPackPlugin.class,
+                AnalyticsPlugin.class,
+                AsyncSearch.class,
+                Autoscaling.class,
+                Ccr.class,
+                DataStreamsPlugin.class,
+                Downsample.class,
+                EqlPlugin.class,
+                EsqlPlugin.class,
+                FrozenIndices.class,
+                Graph.class,
+                IndexLifecycle.class,
+                InferencePlugin.class,
+                IngestCommonPlugin.class,
+                IngestTestPlugin.class,
+                MustachePlugin.class,
+                ProfilingPlugin.class,
+                RankEvalPlugin.class,
+                ReindexPlugin.class,
+                Rollup.class,
+                SnapshotLifecycle.class,
+                SqlPlugin.class
+            )
+        );
+        return plugins;
     }
 
     @SuppressWarnings("rawtypes")
@@ -65,8 +107,8 @@ public class CrossClusterShardTests extends ESSingleNodeTestCase {
         Node node = node();
         List<Binding<TransportAction>> transportActionBindings = node.injector().findBindingsByType(TypeLiteral.get(TransportAction.class));
         Set<String> crossClusterPrivilegeNames = new HashSet<>();
-        crossClusterPrivilegeNames.addAll(List.of(CCS_INDICES_PRIVILEGE_NAMES));
-        crossClusterPrivilegeNames.addAll(List.of(CCR_INDICES_PRIVILEGE_NAMES));
+        crossClusterPrivilegeNames.addAll(List.of(CrossClusterApiKeyRoleDescriptorBuilder.CCS_INDICES_PRIVILEGE_NAMES));
+        crossClusterPrivilegeNames.addAll(List.of(CrossClusterApiKeyRoleDescriptorBuilder.CCR_INDICES_PRIVILEGE_NAMES));
 
         List<String> shardActions = transportActionBindings.stream()
             .map(binding -> binding.getProvider().get())
@@ -84,7 +126,7 @@ public class CrossClusterShardTests extends ESSingleNodeTestCase {
                 IndicesRequest.RemoteClusterShardRequest interface and implemented it if appropriate and not already appropriately
                 implemented by a supertype, then add the name (as in "indices:data/read/get") of your new transport action to
                 MANUALLY_CHECKED_SHARD_ACTIONS above. Found actions not in allowlist:
-                """ + shardActions);
+                """ + actionsNotOnAllowlist);
         }
 
         // Also make sure the allowlist stays up to date and doesn't have any unnecessary entries.
@@ -108,14 +150,18 @@ public class CrossClusterShardTests extends ESSingleNodeTestCase {
      */
     private boolean actionIsLikelyShardAction(TransportAction<?, ?> transportAction) {
         Class<?> clazz = transportAction.getClass();
-        Set<String> classHeirarchy = new HashSet<>();
+        Set<Class<?>> classHeirarchy = new HashSet<>();
         while (clazz != TransportAction.class) {
-            classHeirarchy.add(clazz.getName());
+            classHeirarchy.add(clazz);
             clazz = clazz.getSuperclass();
         }
-        return classHeirarchy.stream().anyMatch(className -> className.toLowerCase(Locale.ROOT).contains("shard"))
+        boolean hasCheckedSuperclass = classHeirarchy.stream()
+            .anyMatch(clz -> CHECKED_ABSTRACT_CLASSES.contains(clz));
+        boolean shardInClassName = classHeirarchy.stream()
+            .anyMatch(clz -> clz.getName().toLowerCase(Locale.ROOT).contains("shard"));
+        return hasCheckedSuperclass == false && (shardInClassName
             || transportAction.actionName.toLowerCase(Locale.ROOT).contains("shard")
-            || transportAction.actionName.toLowerCase(Locale.ROOT).contains("[s]");
+            || transportAction.actionName.toLowerCase(Locale.ROOT).contains("[s]"));
     }
 
 }

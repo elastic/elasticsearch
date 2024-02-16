@@ -104,10 +104,10 @@ public final class ShardFollowTasksExecutor extends PersistentTasksExecutor<Shar
     private volatile TimeValue waitForMetadataTimeOut;
 
     public ShardFollowTasksExecutor(Client client, ThreadPool threadPool, ClusterService clusterService, SettingsModule settingsModule) {
-        super(ShardFollowTask.NAME, Ccr.CCR_THREAD_POOL_NAME);
+        super(ShardFollowTask.NAME, threadPool.executor(Ccr.CCR_THREAD_POOL_NAME));
         this.client = client;
         this.threadPool = threadPool;
-        this.ccrExecutor = threadPool.executor(getExecutor());
+        this.ccrExecutor = getExecutor();
         this.clusterService = clusterService;
         this.indexScopedSettings = settingsModule.getIndexScopedSettings();
         this.retentionLeaseRenewInterval = CcrRetentionLeases.RETENTION_LEASE_RENEW_INTERVAL_SETTING.get(settingsModule.getSettings());

@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderFactory;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
+import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsModelTests;
 import org.hamcrest.MatcherAssert;
@@ -60,6 +61,7 @@ import static org.elasticsearch.xpack.inference.services.openai.embeddings.OpenA
 import static org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettingsTests.getSecretSettingsMap;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -103,7 +105,7 @@ public class OpenAiServiceTests extends ESTestCase {
                 var embeddingsModel = (OpenAiEmbeddingsModel) model;
                 assertThat(embeddingsModel.getServiceSettings().uri().toString(), is("url"));
                 assertThat(embeddingsModel.getServiceSettings().organizationId(), is("org"));
-                assertThat(embeddingsModel.getTaskSettings().modelId(), is("model"));
+                assertThat(embeddingsModel.getServiceSettings().modelId(), is("model"));
                 assertThat(embeddingsModel.getTaskSettings().user(), is("user"));
                 assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
             }, exception -> fail("Unexpected exception: " + exception));
@@ -112,8 +114,8 @@ public class OpenAiServiceTests extends ESTestCase {
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 getRequestConfigMap(
-                    getServiceSettingsMap("url", "org"),
-                    getTaskSettingsMap("model", "user"),
+                    getServiceSettingsMap("model", "url", "org"),
+                    getTaskSettingsMap("user"),
                     getSecretSettingsMap("secret")
                 ),
                 Set.of(),
@@ -141,8 +143,8 @@ public class OpenAiServiceTests extends ESTestCase {
                 "id",
                 TaskType.SPARSE_EMBEDDING,
                 getRequestConfigMap(
-                    getServiceSettingsMap("url", "org"),
-                    getTaskSettingsMap("model", "user"),
+                    getServiceSettingsMap("model", "url", "org"),
+                    getTaskSettingsMap("user"),
                     getSecretSettingsMap("secret")
                 ),
                 Set.of(),
@@ -159,8 +161,8 @@ public class OpenAiServiceTests extends ESTestCase {
             )
         ) {
             var config = getRequestConfigMap(
-                getServiceSettingsMap("url", "org"),
-                getTaskSettingsMap("model", "user"),
+                getServiceSettingsMap("model", "url", "org"),
+                getTaskSettingsMap("user"),
                 getSecretSettingsMap("secret")
             );
             config.put("extra_key", "value");
@@ -187,10 +189,10 @@ public class OpenAiServiceTests extends ESTestCase {
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
-            var serviceSettings = getServiceSettingsMap("url", "org");
+            var serviceSettings = getServiceSettingsMap("model", "url", "org");
             serviceSettings.put("extra_key", "value");
 
-            var config = getRequestConfigMap(serviceSettings, getTaskSettingsMap("model", "user"), getSecretSettingsMap("secret"));
+            var config = getRequestConfigMap(serviceSettings, getTaskSettingsMap("user"), getSecretSettingsMap("secret"));
 
             ActionListener<Model> modelVerificationListener = ActionListener.<Model>wrap((model) -> {
                 fail("Expected exception, but got model: " + model);
@@ -210,10 +212,10 @@ public class OpenAiServiceTests extends ESTestCase {
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
-            var taskSettingsMap = getTaskSettingsMap("model", "user");
+            var taskSettingsMap = getTaskSettingsMap("user");
             taskSettingsMap.put("extra_key", "value");
 
-            var config = getRequestConfigMap(getServiceSettingsMap("url", "org"), taskSettingsMap, getSecretSettingsMap("secret"));
+            var config = getRequestConfigMap(getServiceSettingsMap("model", "url", "org"), taskSettingsMap, getSecretSettingsMap("secret"));
 
             ActionListener<Model> modelVerificationListener = ActionListener.<Model>wrap((model) -> {
                 fail("Expected exception, but got model: " + model);
@@ -236,7 +238,7 @@ public class OpenAiServiceTests extends ESTestCase {
             var secretSettingsMap = getSecretSettingsMap("secret");
             secretSettingsMap.put("extra_key", "value");
 
-            var config = getRequestConfigMap(getServiceSettingsMap("url", "org"), getTaskSettingsMap("model", "user"), secretSettingsMap);
+            var config = getRequestConfigMap(getServiceSettingsMap("model", "url", "org"), getTaskSettingsMap("user"), secretSettingsMap);
 
             ActionListener<Model> modelVerificationListener = ActionListener.<Model>wrap((model) -> {
                 fail("Expected exception, but got model: " + model);
@@ -263,7 +265,7 @@ public class OpenAiServiceTests extends ESTestCase {
                 var embeddingsModel = (OpenAiEmbeddingsModel) model;
                 assertNull(embeddingsModel.getServiceSettings().uri());
                 assertNull(embeddingsModel.getServiceSettings().organizationId());
-                assertThat(embeddingsModel.getTaskSettings().modelId(), is("model"));
+                assertThat(embeddingsModel.getServiceSettings().modelId(), is("model"));
                 assertNull(embeddingsModel.getTaskSettings().user());
                 assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
             }, exception -> fail("Unexpected exception: " + exception));
@@ -271,7 +273,39 @@ public class OpenAiServiceTests extends ESTestCase {
             service.parseRequestConfig(
                 "id",
                 TaskType.TEXT_EMBEDDING,
-                getRequestConfigMap(getServiceSettingsMap(null, null), getTaskSettingsMap("model", null), getSecretSettingsMap("secret")),
+                getRequestConfigMap(getServiceSettingsMap("model", null, null), getTaskSettingsMap(null), getSecretSettingsMap("secret")),
+                Set.of(),
+                modelVerificationListener
+            );
+        }
+    }
+
+    public void testParseRequestConfig_MovesModel() throws IOException {
+        try (
+            var service = new OpenAiService(
+                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
+                new SetOnce<>(createWithEmptySettings(threadPool))
+            )
+        ) {
+            ActionListener<Model> modelVerificationListener = ActionListener.wrap(model -> {
+                assertThat(model, instanceOf(OpenAiEmbeddingsModel.class));
+
+                var embeddingsModel = (OpenAiEmbeddingsModel) model;
+                assertThat(embeddingsModel.getServiceSettings().uri().toString(), is("url"));
+                assertThat(embeddingsModel.getServiceSettings().organizationId(), is("org"));
+                assertThat(embeddingsModel.getServiceSettings().modelId(), is("model"));
+                assertThat(embeddingsModel.getTaskSettings().user(), is("user"));
+                assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
+            }, exception -> fail("Unexpected exception: " + exception));
+
+            service.parseRequestConfig(
+                "id",
+                TaskType.TEXT_EMBEDDING,
+                getRequestConfigMap(
+                    getServiceSettingsMap("model", "url", "org"),
+                    getTaskSettingsMap("user"),
+                    getSecretSettingsMap("secret")
+                ),
                 Set.of(),
                 modelVerificationListener
             );
@@ -286,8 +320,8 @@ public class OpenAiServiceTests extends ESTestCase {
             )
         ) {
             var persistedConfig = getPersistedConfigMap(
-                getServiceSettingsMap("url", "org", 100, false),
-                getTaskSettingsMap("model", "user"),
+                getServiceSettingsMap("model", "url", "org", 100, false),
+                getTaskSettingsMap("user"),
                 getSecretSettingsMap("secret")
             );
 
@@ -303,7 +337,7 @@ public class OpenAiServiceTests extends ESTestCase {
             var embeddingsModel = (OpenAiEmbeddingsModel) model;
             assertThat(embeddingsModel.getServiceSettings().uri().toString(), is("url"));
             assertThat(embeddingsModel.getServiceSettings().organizationId(), is("org"));
-            assertThat(embeddingsModel.getTaskSettings().modelId(), is("model"));
+            assertThat(embeddingsModel.getServiceSettings().modelId(), is("model"));
             assertThat(embeddingsModel.getTaskSettings().user(), is("user"));
             assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
         }
@@ -317,8 +351,8 @@ public class OpenAiServiceTests extends ESTestCase {
             )
         ) {
             var persistedConfig = getPersistedConfigMap(
-                getServiceSettingsMap("url", "org"),
-                getTaskSettingsMap("model", "user"),
+                getServiceSettingsMap("model", "url", "org"),
+                getTaskSettingsMap("user"),
                 getSecretSettingsMap("secret")
             );
 
@@ -347,8 +381,8 @@ public class OpenAiServiceTests extends ESTestCase {
             )
         ) {
             var persistedConfig = getPersistedConfigMap(
-                getServiceSettingsMap(null, null, null, true),
-                getTaskSettingsMap("model", null),
+                getServiceSettingsMap("model", null, null, null, true),
+                getTaskSettingsMap(null),
                 getSecretSettingsMap("secret")
             );
 
@@ -364,7 +398,7 @@ public class OpenAiServiceTests extends ESTestCase {
             var embeddingsModel = (OpenAiEmbeddingsModel) model;
             assertNull(embeddingsModel.getServiceSettings().uri());
             assertNull(embeddingsModel.getServiceSettings().organizationId());
-            assertThat(embeddingsModel.getTaskSettings().modelId(), is("model"));
+            assertThat(embeddingsModel.getServiceSettings().modelId(), is("model"));
             assertNull(embeddingsModel.getTaskSettings().user());
             assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
         }
@@ -378,8 +412,8 @@ public class OpenAiServiceTests extends ESTestCase {
             )
         ) {
             var persistedConfig = getPersistedConfigMap(
-                getServiceSettingsMap("url", "org", null, true),
-                getTaskSettingsMap("model", "user"),
+                getServiceSettingsMap("model", "url", "org", null, true),
+                getTaskSettingsMap("user"),
                 getSecretSettingsMap("secret")
             );
             persistedConfig.config().put("extra_key", "value");
@@ -394,9 +428,10 @@ public class OpenAiServiceTests extends ESTestCase {
             assertThat(model, instanceOf(OpenAiEmbeddingsModel.class));
 
             var embeddingsModel = (OpenAiEmbeddingsModel) model;
+            assertThat(embeddingsModel.getServiceSettings().modelId(), is("model"));
             assertThat(embeddingsModel.getServiceSettings().uri().toString(), is("url"));
             assertThat(embeddingsModel.getServiceSettings().organizationId(), is("org"));
-            assertThat(embeddingsModel.getTaskSettings().modelId(), is("model"));
+            assertThat(embeddingsModel.getServiceSettings().modelId(), is("model"));
             assertThat(embeddingsModel.getTaskSettings().user(), is("user"));
             assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
         }
@@ -413,8 +448,8 @@ public class OpenAiServiceTests extends ESTestCase {
             secretSettingsMap.put("extra_key", "value");
 
             var persistedConfig = getPersistedConfigMap(
-                getServiceSettingsMap("url", "org", null, true),
-                getTaskSettingsMap("model", "user"),
+                getServiceSettingsMap("model", "url", "org", null, true),
+                getTaskSettingsMap("user"),
                 secretSettingsMap
             );
 
@@ -430,7 +465,7 @@ public class OpenAiServiceTests extends ESTestCase {
             var embeddingsModel = (OpenAiEmbeddingsModel) model;
             assertThat(embeddingsModel.getServiceSettings().uri().toString(), is("url"));
             assertThat(embeddingsModel.getServiceSettings().organizationId(), is("org"));
-            assertThat(embeddingsModel.getTaskSettings().modelId(), is("model"));
+            assertThat(embeddingsModel.getServiceSettings().modelId(), is("model"));
             assertThat(embeddingsModel.getTaskSettings().user(), is("user"));
             assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
         }
@@ -444,8 +479,8 @@ public class OpenAiServiceTests extends ESTestCase {
             )
         ) {
             var persistedConfig = getPersistedConfigMap(
-                getServiceSettingsMap("url", "org", null, true),
-                getTaskSettingsMap("model", "user"),
+                getServiceSettingsMap("model", "url", "org", null, true),
+                getTaskSettingsMap("user"),
                 getSecretSettingsMap("secret")
             );
             persistedConfig.secrets.put("extra_key", "value");
@@ -460,9 +495,10 @@ public class OpenAiServiceTests extends ESTestCase {
             assertThat(model, instanceOf(OpenAiEmbeddingsModel.class));
 
             var embeddingsModel = (OpenAiEmbeddingsModel) model;
+            assertThat(embeddingsModel.getServiceSettings().modelId(), is("model"));
             assertThat(embeddingsModel.getServiceSettings().uri().toString(), is("url"));
             assertThat(embeddingsModel.getServiceSettings().organizationId(), is("org"));
-            assertThat(embeddingsModel.getTaskSettings().modelId(), is("model"));
+            assertThat(embeddingsModel.getServiceSettings().modelId(), is("model"));
             assertThat(embeddingsModel.getTaskSettings().user(), is("user"));
             assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
         }
@@ -475,14 +511,10 @@ public class OpenAiServiceTests extends ESTestCase {
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
-            var serviceSettingsMap = getServiceSettingsMap("url", "org", null, true);
+            var serviceSettingsMap = getServiceSettingsMap("model", "url", "org", null, true);
             serviceSettingsMap.put("extra_key", "value");
 
-            var persistedConfig = getPersistedConfigMap(
-                serviceSettingsMap,
-                getTaskSettingsMap("model", "user"),
-                getSecretSettingsMap("secret")
-            );
+            var persistedConfig = getPersistedConfigMap(serviceSettingsMap, getTaskSettingsMap("user"), getSecretSettingsMap("secret"));
 
             var model = service.parsePersistedConfigWithSecrets(
                 "id",
@@ -496,7 +528,7 @@ public class OpenAiServiceTests extends ESTestCase {
             var embeddingsModel = (OpenAiEmbeddingsModel) model;
             assertThat(embeddingsModel.getServiceSettings().uri().toString(), is("url"));
             assertThat(embeddingsModel.getServiceSettings().organizationId(), is("org"));
-            assertThat(embeddingsModel.getTaskSettings().modelId(), is("model"));
+            assertThat(embeddingsModel.getServiceSettings().modelId(), is("model"));
             assertThat(embeddingsModel.getTaskSettings().user(), is("user"));
             assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
         }
@@ -509,11 +541,11 @@ public class OpenAiServiceTests extends ESTestCase {
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
-            var taskSettingsMap = getTaskSettingsMap("model", "user");
+            var taskSettingsMap = getTaskSettingsMap("user");
             taskSettingsMap.put("extra_key", "value");
 
             var persistedConfig = getPersistedConfigMap(
-                getServiceSettingsMap("url", "org", null, true),
+                getServiceSettingsMap("model", "url", "org", null, true),
                 taskSettingsMap,
                 getSecretSettingsMap("secret")
             );
@@ -530,7 +562,7 @@ public class OpenAiServiceTests extends ESTestCase {
             var embeddingsModel = (OpenAiEmbeddingsModel) model;
             assertThat(embeddingsModel.getServiceSettings().uri().toString(), is("url"));
             assertThat(embeddingsModel.getServiceSettings().organizationId(), is("org"));
-            assertThat(embeddingsModel.getTaskSettings().modelId(), is("model"));
+            assertThat(embeddingsModel.getServiceSettings().modelId(), is("model"));
             assertThat(embeddingsModel.getTaskSettings().user(), is("user"));
             assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
         }
@@ -544,8 +576,8 @@ public class OpenAiServiceTests extends ESTestCase {
             )
         ) {
             var persistedConfig = getPersistedConfigMap(
-                getServiceSettingsMap("url", "org", null, true),
-                getTaskSettingsMap("model", "user")
+                getServiceSettingsMap("model", "url", "org", null, true),
+                getTaskSettingsMap("user")
             );
 
             var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config());
@@ -555,7 +587,7 @@ public class OpenAiServiceTests extends ESTestCase {
             var embeddingsModel = (OpenAiEmbeddingsModel) model;
             assertThat(embeddingsModel.getServiceSettings().uri().toString(), is("url"));
             assertThat(embeddingsModel.getServiceSettings().organizationId(), is("org"));
-            assertThat(embeddingsModel.getTaskSettings().modelId(), is("model"));
+            assertThat(embeddingsModel.getServiceSettings().modelId(), is("model"));
             assertThat(embeddingsModel.getTaskSettings().user(), is("user"));
             assertNull(embeddingsModel.getSecretSettings());
         }
@@ -568,7 +600,7 @@ public class OpenAiServiceTests extends ESTestCase {
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
-            var persistedConfig = getPersistedConfigMap(getServiceSettingsMap("url", "org"), getTaskSettingsMap("model", "user"));
+            var persistedConfig = getPersistedConfigMap(getServiceSettingsMap("model", "url", "org"), getTaskSettingsMap("user"));
 
             var thrownException = expectThrows(
                 ElasticsearchStatusException.class,
@@ -589,7 +621,7 @@ public class OpenAiServiceTests extends ESTestCase {
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
-            var persistedConfig = getPersistedConfigMap(getServiceSettingsMap(null, null, null, true), getTaskSettingsMap("model", null));
+            var persistedConfig = getPersistedConfigMap(getServiceSettingsMap("model", null, null, null, true), getTaskSettingsMap(null));
 
             var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config());
 
@@ -598,7 +630,7 @@ public class OpenAiServiceTests extends ESTestCase {
             var embeddingsModel = (OpenAiEmbeddingsModel) model;
             assertNull(embeddingsModel.getServiceSettings().uri());
             assertNull(embeddingsModel.getServiceSettings().organizationId());
-            assertThat(embeddingsModel.getTaskSettings().modelId(), is("model"));
+            assertThat(embeddingsModel.getServiceSettings().modelId(), is("model"));
             assertNull(embeddingsModel.getTaskSettings().user());
             assertNull(embeddingsModel.getSecretSettings());
         }
@@ -612,8 +644,8 @@ public class OpenAiServiceTests extends ESTestCase {
             )
         ) {
             var persistedConfig = getPersistedConfigMap(
-                getServiceSettingsMap("url", "org", null, true),
-                getTaskSettingsMap("model", "user")
+                getServiceSettingsMap("model", "url", "org", null, true),
+                getTaskSettingsMap("user")
             );
             persistedConfig.config().put("extra_key", "value");
 
@@ -624,7 +656,7 @@ public class OpenAiServiceTests extends ESTestCase {
             var embeddingsModel = (OpenAiEmbeddingsModel) model;
             assertThat(embeddingsModel.getServiceSettings().uri().toString(), is("url"));
             assertThat(embeddingsModel.getServiceSettings().organizationId(), is("org"));
-            assertThat(embeddingsModel.getTaskSettings().modelId(), is("model"));
+            assertThat(embeddingsModel.getServiceSettings().modelId(), is("model"));
             assertThat(embeddingsModel.getTaskSettings().user(), is("user"));
             assertNull(embeddingsModel.getSecretSettings());
         }
@@ -637,10 +669,10 @@ public class OpenAiServiceTests extends ESTestCase {
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
-            var serviceSettingsMap = getServiceSettingsMap("url", "org", null, true);
+            var serviceSettingsMap = getServiceSettingsMap("model", "url", "org", null, true);
             serviceSettingsMap.put("extra_key", "value");
 
-            var persistedConfig = getPersistedConfigMap(serviceSettingsMap, getTaskSettingsMap("model", "user"));
+            var persistedConfig = getPersistedConfigMap(serviceSettingsMap, getTaskSettingsMap("user"));
 
             var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config());
 
@@ -649,7 +681,7 @@ public class OpenAiServiceTests extends ESTestCase {
             var embeddingsModel = (OpenAiEmbeddingsModel) model;
             assertThat(embeddingsModel.getServiceSettings().uri().toString(), is("url"));
             assertThat(embeddingsModel.getServiceSettings().organizationId(), is("org"));
-            assertThat(embeddingsModel.getTaskSettings().modelId(), is("model"));
+            assertThat(embeddingsModel.getServiceSettings().modelId(), is("model"));
             assertThat(embeddingsModel.getTaskSettings().user(), is("user"));
             assertNull(embeddingsModel.getSecretSettings());
         }
@@ -662,19 +694,20 @@ public class OpenAiServiceTests extends ESTestCase {
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
-            var taskSettingsMap = getTaskSettingsMap("model", "user");
+            var taskSettingsMap = getTaskSettingsMap("user");
             taskSettingsMap.put("extra_key", "value");
 
-            var persistedConfig = getPersistedConfigMap(getServiceSettingsMap("url", "org", null, true), taskSettingsMap);
+            var persistedConfig = getPersistedConfigMap(getServiceSettingsMap("model", "url", "org", null, true), taskSettingsMap);
 
             var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config());
 
             assertThat(model, instanceOf(OpenAiEmbeddingsModel.class));
 
             var embeddingsModel = (OpenAiEmbeddingsModel) model;
+            assertThat(embeddingsModel.getServiceSettings().modelId(), is("model"));
             assertThat(embeddingsModel.getServiceSettings().uri().toString(), is("url"));
             assertThat(embeddingsModel.getServiceSettings().organizationId(), is("org"));
-            assertThat(embeddingsModel.getTaskSettings().modelId(), is("model"));
+            assertThat(embeddingsModel.getServiceSettings().modelId(), is("model"));
             assertThat(embeddingsModel.getTaskSettings().user(), is("user"));
             assertNull(embeddingsModel.getSecretSettings());
         }
@@ -1056,6 +1089,33 @@ public class OpenAiServiceTests extends ESTestCase {
             assertThat(error.getMessage(), containsString("Error message: [Incorrect API key provided:]"));
             assertThat(webServer.requests(), hasSize(1));
         }
+    }
+
+    public void testMoveModelFromTaskToServiceSettings() {
+        var taskSettings = new HashMap<String, Object>();
+        taskSettings.put(ServiceFields.MODEL_ID, "model");
+        var serviceSettings = new HashMap<String, Object>();
+        OpenAiService.moveModelFromTaskToServiceSettings(taskSettings, serviceSettings);
+        assertThat(taskSettings.keySet(), empty());
+        assertEquals("model", serviceSettings.get(ServiceFields.MODEL_ID));
+    }
+
+    public void testMoveModelFromTaskToServiceSettings_OldID() {
+        var taskSettings = new HashMap<String, Object>();
+        taskSettings.put("model", "model");
+        var serviceSettings = new HashMap<String, Object>();
+        OpenAiService.moveModelFromTaskToServiceSettings(taskSettings, serviceSettings);
+        assertThat(taskSettings.keySet(), empty());
+        assertEquals("model", serviceSettings.get(ServiceFields.MODEL_ID));
+    }
+
+    public void testMoveModelFromTaskToServiceSettings_AlreadyMoved() {
+        var taskSettings = new HashMap<String, Object>();
+        var serviceSettings = new HashMap<String, Object>();
+        taskSettings.put(ServiceFields.MODEL_ID, "model");
+        OpenAiService.moveModelFromTaskToServiceSettings(taskSettings, serviceSettings);
+        assertThat(taskSettings.keySet(), empty());
+        assertEquals("model", serviceSettings.get(ServiceFields.MODEL_ID));
     }
 
     private Map<String, Object> getRequestConfigMap(

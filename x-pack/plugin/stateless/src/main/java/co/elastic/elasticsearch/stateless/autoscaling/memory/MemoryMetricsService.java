@@ -56,10 +56,10 @@ public class MemoryMetricsService implements ClusterStateListener {
     );
     private static final Logger logger = LogManager.getLogger(MemoryMetricsService.class);
     private static final int SENDING_PRIMARY_SHARD_ID = 0;
-    // let each shard use 4MB, which matches what we see in heap dumps (with a bit of margin).
-    // It also means that a 2GB heap node can handle around 300 shards.
+    // let each shard use 5MB, which matches what we see in heap dumps (with a bit of margin).
+    // It also means that a 2GB heap node can handle a little less than 300 shards.
     // visible for testing
-    static final long SHARD_MEMORY_OVERHEAD = ByteSizeValue.ofMb(4).getBytes();
+    static final long SHARD_MEMORY_OVERHEAD = ByteSizeValue.ofMb(5).getBytes();
     // visible for testing
     static final long INDEX_MEMORY_OVERHEAD = ByteSizeValue.ofKb(350).getBytes();
     // visible for testing
@@ -89,20 +89,18 @@ public class MemoryMetricsService implements ClusterStateListener {
     public MemoryMetrics getMemoryMetrics() {
         final IndexMemoryMetrics totalIndicesMappingSize = getTotalIndicesMappingSize();
 
-        // we assume 1 shard per index for now, divide by 2 because shards are spread on at least 2 nodes.
         final long nodeMemoryInBytes = Math.min(
-            HeapToSystemMemory.dataNode((INDEX_MEMORY_OVERHEAD + (SHARD_MEMORY_OVERHEAD / 2)) * indicesCount() + WORKLOAD_MEMORY_OVERHEAD),
+            HeapToSystemMemory.dataNode(INDEX_MEMORY_OVERHEAD * indicesCount() + WORKLOAD_MEMORY_OVERHEAD),
             MAX_NODE_MEMORY
         );
 
         // notice that autoscaling controller adds the node memory multiplied by replicas to the tier memory:
         // https://github.com/elastic/elasticsearch-serverless/pull/1372/files#r1467399624
-        // That indirectly adds the necessary total shard and indices memory due to being included in the node memory above.
-        // We should notice however, that the node memory is capped to 48GB, so once we move beyond that size, this will
-        // result in too little total memory. We accept that for now, since fixing this will need a contract change between
-        // ES and the autoscaling controller. Additionally, if we were to return a higher node memory, the result would be
-        // too high, since the node memory is multiplied by replicas.
-        final long tierMemoryInBytes = HeapToSystemMemory.dataNode(totalIndicesMappingSize.sizeInBytes);
+        // That indirectly adds the necessary total indices and workload memory due to being included in the node memory above.
+        // We assume 1 shard per index for now.
+        final long tierMemoryInBytes = HeapToSystemMemory.dataNode(
+            totalIndicesMappingSize.sizeInBytes + SHARD_MEMORY_OVERHEAD * indicesCount()
+        );
 
         return new MemoryMetrics(nodeMemoryInBytes, tierMemoryInBytes, totalIndicesMappingSize.metricQuality);
     }

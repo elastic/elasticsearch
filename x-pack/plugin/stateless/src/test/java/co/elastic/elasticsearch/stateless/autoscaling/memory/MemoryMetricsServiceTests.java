@@ -47,6 +47,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
 
 public class MemoryMetricsServiceTests extends ESTestCase {
@@ -307,14 +308,34 @@ public class MemoryMetricsServiceTests extends ESTestCase {
         MemoryMetrics memoryMetrics = service.getMemoryMetrics();
         assertThat(
             memoryMetrics.nodeMemoryInBytes(),
-            equalTo(
-                (MemoryMetricsService.INDEX_MEMORY_OVERHEAD + MemoryMetricsService.SHARD_MEMORY_OVERHEAD / 2
-                    + MemoryMetricsService.WORKLOAD_MEMORY_OVERHEAD) * 2
-            )
+            equalTo((MemoryMetricsService.INDEX_MEMORY_OVERHEAD + MemoryMetricsService.WORKLOAD_MEMORY_OVERHEAD) * 2)
         );
-        assertThat(memoryMetrics.totalMemoryInBytes(), equalTo(small ? HeapToSystemMemory.dataNode(1) : size * 2));
+        assertThat(
+            memoryMetrics.totalMemoryInBytes(),
+            equalTo(small ? HeapToSystemMemory.dataNode(1) : (size + MemoryMetricsService.SHARD_MEMORY_OVERHEAD) * 2)
+        );
 
         // a relatively high starting point, coming from 500MB heap work * 2 (for memory)
         assertThat(memoryMetrics.nodeMemoryInBytes(), lessThan(ByteSizeUnit.MB.toBytes(1200)));
+    }
+
+    public void testManyShards() {
+        for (int i = 0; i < 300; ++i) {
+            service.getIndicesMemoryMetrics()
+                .put(
+                    new Index(randomAlphaOfLength(10), randomUUID()),
+                    new MemoryMetricsService.IndexMemoryMetrics(0, 0, MetricQuality.EXACT, "node-0", 0)
+                );
+        }
+
+        MemoryMetrics memoryMetrics = service.getMemoryMetrics();
+        assertThat(memoryMetrics.totalMemoryInBytes(), greaterThan(ByteSizeUnit.GB.toBytes(2)));
+        assertThat(memoryMetrics.totalMemoryInBytes(), lessThan(ByteSizeUnit.GB.toBytes(4)));
+        // * 2 to go from heap to system memory
+        assertThat(memoryMetrics.totalMemoryInBytes(), equalTo(300 * MemoryMetricsService.SHARD_MEMORY_OVERHEAD * 2));
+
+        // show that one 4GB node is not enough, but 1.5 node would be.
+        assertThat(memoryMetrics.totalMemoryInBytes() + memoryMetrics.nodeMemoryInBytes() * 2, greaterThan(ByteSizeUnit.GB.toBytes(4)));
+        assertThat(memoryMetrics.totalMemoryInBytes() + memoryMetrics.nodeMemoryInBytes() * 2, lessThan(ByteSizeUnit.GB.toBytes(6)));
     }
 }

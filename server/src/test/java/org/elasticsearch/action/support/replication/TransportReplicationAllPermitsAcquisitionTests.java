@@ -68,7 +68,7 @@ import java.util.concurrent.Executor;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_CREATION_DATE;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_UUID;
-import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
+import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.hamcrest.Matchers.allOf;
@@ -120,13 +120,9 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
         state.nodes(DiscoveryNodes.builder().add(node1).add(node2).localNodeId(node1.getId()).masterNodeId(node1.getId()));
 
         shardId = new ShardId("index", UUID.randomUUID().toString(), 0);
-        ShardRouting shardRouting = newShardRouting(
-            shardId,
-            node1.getId(),
-            true,
-            ShardRoutingState.INITIALIZING,
+        ShardRouting shardRouting = shardRoutingBuilder(shardId, node1.getId(), true, ShardRoutingState.INITIALIZING).withRecoverySource(
             RecoverySource.EmptyStoreRecoverySource.INSTANCE
-        );
+        ).build();
 
         Settings indexSettings = indexSettings(IndexVersion.current(), 1, 1).put(SETTING_INDEX_UUID, shardId.getIndex().getUUID())
             .put(SETTING_CREATION_DATE, System.currentTimeMillis())
@@ -181,7 +177,7 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
                         }
 
                         @Override
-                        public Executor executor(ThreadPool threadPool) {
+                        public Executor executor() {
                             return TransportResponseHandler.TRANSPORT_WORKER;
                         }
 

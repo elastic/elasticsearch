@@ -148,7 +148,7 @@ public abstract class RestEnrichTestCase extends ESRestTestCase {
         );
         assertThat(
             EntityUtils.toString(re.getResponse().getEntity()),
-            containsString("unresolved enrich policy [countris], did you mean [countries]?")
+            containsString("cannot find enrich policy [countris], did you mean [countries]?")
         );
     }
 
@@ -161,7 +161,7 @@ public abstract class RestEnrichTestCase extends ESRestTestCase {
         );
         assertThat(
             EntityUtils.toString(re.getResponse().getEntity()),
-            containsString("unresolved enrich policy [countris], did you mean [countries]?")
+            containsString("cannot find enrich policy [countris], did you mean [countries]?")
         );
     }
 

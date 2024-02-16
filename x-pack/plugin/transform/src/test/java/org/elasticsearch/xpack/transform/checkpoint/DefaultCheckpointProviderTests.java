@@ -310,7 +310,7 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
         GetCheckpointAction.Response remoteCheckpointResponse = new GetCheckpointAction.Response(
             Map.of("index-1", new long[] { 4L, 5L, 6L, 7L, 8L })
         );
-        doAnswer(withResponse(remoteCheckpointResponse)).when(remoteClient1).execute(eq(GetCheckpointAction.INSTANCE), any(), any());
+        doAnswer(withResponse(remoteCheckpointResponse)).when(remoteClient1).execute(eq(GetCheckpointAction.REMOTE_TYPE), any(), any());
 
         RemoteClusterResolver remoteClusterResolver = mock(RemoteClusterResolver.class);
 
@@ -350,15 +350,15 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
         GetCheckpointAction.Response remoteCheckpointResponse1 = new GetCheckpointAction.Response(
             Map.of("index-1", new long[] { 1L, 2L, 3L })
         );
-        doAnswer(withResponse(remoteCheckpointResponse1)).when(remoteClient1).execute(eq(GetCheckpointAction.INSTANCE), any(), any());
+        doAnswer(withResponse(remoteCheckpointResponse1)).when(remoteClient1).execute(eq(GetCheckpointAction.REMOTE_TYPE), any(), any());
 
         GetCheckpointAction.Response remoteCheckpointResponse2 = new GetCheckpointAction.Response(
             Map.of("index-1", new long[] { 4L, 5L, 6L, 7L, 8L })
         );
-        doAnswer(withResponse(remoteCheckpointResponse2)).when(remoteClient2).execute(eq(GetCheckpointAction.INSTANCE), any(), any());
+        doAnswer(withResponse(remoteCheckpointResponse2)).when(remoteClient2).execute(eq(GetCheckpointAction.REMOTE_TYPE), any(), any());
 
         GetCheckpointAction.Response remoteCheckpointResponse3 = new GetCheckpointAction.Response(Map.of("index-1", new long[] { 9L }));
-        doAnswer(withResponse(remoteCheckpointResponse3)).when(remoteClient3).execute(eq(GetCheckpointAction.INSTANCE), any(), any());
+        doAnswer(withResponse(remoteCheckpointResponse3)).when(remoteClient3).execute(eq(GetCheckpointAction.REMOTE_TYPE), any(), any());
 
         RemoteClusterResolver remoteClusterResolver = mock(RemoteClusterResolver.class);
 

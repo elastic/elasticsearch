@@ -32,7 +32,7 @@ include::processing-commands/limit.asciidoc[tag=limitation]
 * `long`
 * `null`
 * `text`
-* `unsigned_long`
+* experimental:[] `unsigned_long`
 * `version`
 * Spatial types
 ** `geo_point`
@@ -72,6 +72,16 @@ Querying a column with an unsupported type returns an error. If a column with an
 unsupported type is not explicitly used in a query, it is returned with `null`
 values, with the exception of nested fields. Nested fields are not returned at
 all.
+
+[discrete]
+[[esql-_source-availability]]
+=== _source availability
+
+{esql} does not support configurations where the
+<<mapping-source-field,_source field>> is <<disable-source-field,disabled>>.
+
+experimental:[] {esql}'s support for <<synthetic-source,synthetic `_source`>>
+is currently experimental.
 
 [discrete]
 [[esql-limitations-full-text-search]]

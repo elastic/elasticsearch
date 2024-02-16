@@ -27,7 +27,7 @@ public class GetSnapshotLifecycleAction extends ActionType<GetSnapshotLifecycleA
     public static final String NAME = "cluster:admin/slm/get";
 
     protected GetSnapshotLifecycleAction() {
-        super(NAME, GetSnapshotLifecycleAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<GetSnapshotLifecycleAction.Request> {

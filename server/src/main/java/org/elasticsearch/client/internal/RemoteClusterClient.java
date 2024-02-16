@@ -10,8 +10,9 @@ package org.elasticsearch.client.internal;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.RemoteClusterActionType;
+import org.elasticsearch.transport.TransportResponse;
 
 /**
  * A client which can execute requests on a specific remote cluster.
@@ -26,8 +27,8 @@ public interface RemoteClusterClient {
      * @param <Request>        The request type.
      * @param <Response>       the response type.
      */
-    <Request extends ActionRequest, Response extends ActionResponse> void execute(
-        ActionType<Response> action,
+    <Request extends ActionRequest, Response extends TransportResponse> void execute(
+        RemoteClusterActionType<Response> action,
         Request request,
         ActionListener<Response> listener
     );

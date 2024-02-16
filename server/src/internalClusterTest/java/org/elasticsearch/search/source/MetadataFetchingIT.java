@@ -8,12 +8,10 @@
 package org.elasticsearch.search.source;
 
 import org.apache.lucene.search.join.ScoreMode;
-import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.search.SearchPhaseExecutionException;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.NestedQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
-import org.elasticsearch.search.SearchException;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -22,6 +20,7 @@ import java.util.Collections;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -101,24 +100,18 @@ public class MetadataFetchingIT extends ESIntegTestCase {
         refresh();
 
         {
-            SearchPhaseExecutionException exc = expectThrows(
-                SearchPhaseExecutionException.class,
+            ValidationException exc = expectThrows(
+                ValidationException.class,
                 prepareSearch("test").setFetchSource(true).storedFields("_none_")
             );
-            Throwable rootCause = ExceptionsHelper.unwrap(exc, SearchException.class);
-            assertNotNull(rootCause);
-            assertThat(rootCause.getClass(), equalTo(SearchException.class));
-            assertThat(rootCause.getMessage(), equalTo("[stored_fields] cannot be disabled if [_source] is requested"));
+            assertThat(exc.getMessage(), containsString("[stored_fields] cannot be disabled if [_source] is requested"));
         }
         {
-            SearchPhaseExecutionException exc = expectThrows(
-                SearchPhaseExecutionException.class,
+            ValidationException exc = expectThrows(
+                ValidationException.class,
                 prepareSearch("test").storedFields("_none_").addFetchField("field")
             );
-            Throwable rootCause = ExceptionsHelper.unwrap(exc, SearchException.class);
-            assertNotNull(rootCause);
-            assertThat(rootCause.getClass(), equalTo(SearchException.class));
-            assertThat(rootCause.getMessage(), equalTo("[stored_fields] cannot be disabled when using the [fields] option"));
+            assertThat(exc.getMessage(), containsString("[stored_fields] cannot be disabled when using the [fields] option"));
         }
         {
             IllegalArgumentException exc = expectThrows(

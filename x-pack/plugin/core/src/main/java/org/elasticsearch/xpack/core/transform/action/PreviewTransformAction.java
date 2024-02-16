@@ -52,7 +52,7 @@ public class PreviewTransformAction extends ActionType<PreviewTransformAction.Re
     public static final String DUMMY_DEST_INDEX_FOR_PREVIEW = "unused-transform-preview-index";
 
     private PreviewTransformAction() {
-        super(NAME, PreviewTransformAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject {

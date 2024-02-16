@@ -16,7 +16,6 @@ apply plugin: 'elasticsearch.rest-resources'
 
 dependencies {
   testImplementation project(':x-pack:qa')
-  testImplementation project(':client:rest-high-level')
 }
 
 restResources {

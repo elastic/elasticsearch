@@ -1,6 +1,7 @@
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
 v | result
+geo_point | geo_shape
 geo_shape | geo_shape
 keyword | geo_shape
 text | geo_shape

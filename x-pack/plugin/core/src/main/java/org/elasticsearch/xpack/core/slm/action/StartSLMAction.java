@@ -19,7 +19,7 @@ public class StartSLMAction extends ActionType<AcknowledgedResponse> {
     public static final String NAME = "cluster:admin/slm/start";
 
     protected StartSLMAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<StartSLMAction.Request> {

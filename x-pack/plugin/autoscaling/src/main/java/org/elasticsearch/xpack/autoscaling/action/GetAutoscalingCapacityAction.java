@@ -32,7 +32,7 @@ public class GetAutoscalingCapacityAction extends ActionType<GetAutoscalingCapac
     public static final String NAME = "cluster:admin/autoscaling/get_autoscaling_capacity";
 
     private GetAutoscalingCapacityAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<GetAutoscalingCapacityAction.Request> {

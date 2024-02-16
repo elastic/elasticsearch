@@ -27,7 +27,10 @@ import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -54,9 +57,11 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformStoredDoc;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
 import org.elasticsearch.xpack.core.transform.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.transform.TransformExtension;
 import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.checkpoint.CheckpointProvider;
 import org.elasticsearch.xpack.transform.persistence.SeqNoPrimaryTermAndIndex;
+import org.elasticsearch.xpack.transform.persistence.TransformIndex;
 import org.elasticsearch.xpack.transform.transforms.pivot.SchemaUtil;
 import org.elasticsearch.xpack.transform.utils.ExceptionRootCauseFinder;
 
@@ -75,6 +80,9 @@ class ClientTransformIndexer extends TransformIndexer {
     private static final Logger logger = LogManager.getLogger(ClientTransformIndexer.class);
 
     private final ParentTaskAssigningClient client;
+    private final ClusterService clusterService;
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
+    private final Settings destIndexSettings;
     private final AtomicBoolean oldStatsCleanedUp = new AtomicBoolean(false);
 
     private final AtomicReference<SeqNoPrimaryTermAndIndex> seqNoPrimaryTermAndIndexHolder;
@@ -84,6 +92,9 @@ class ClientTransformIndexer extends TransformIndexer {
 
     ClientTransformIndexer(
         ThreadPool threadPool,
+        ClusterService clusterService,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        TransformExtension transformExtension,
         TransformServices transformServices,
         CheckpointProvider checkpointProvider,
         AtomicReference<IndexerState> initialState,
@@ -112,6 +123,9 @@ class ClientTransformIndexer extends TransformIndexer {
             context
         );
         this.client = ExceptionsHelper.requireNonNull(client, "client");
+        this.clusterService = clusterService;
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
+        this.destIndexSettings = transformExtension.getTransformDestinationIndexSettings();
         this.seqNoPrimaryTermAndIndexHolder = new AtomicReference<>(seqNoPrimaryTermAndIndex);
 
         // TODO: move into context constructor
@@ -288,6 +302,20 @@ class ClientTransformIndexer extends TransformIndexer {
         SchemaUtil.getDestinationFieldMappings(client, getConfig().getDestination().getIndex(), fieldMappingsListener);
     }
 
+    @Override
+    void doMaybeCreateDestIndex(Map<String, String> deducedDestIndexMappings, ActionListener<Boolean> listener) {
+        TransformIndex.createDestinationIndex(
+            client,
+            auditor,
+            indexNameExpressionResolver,
+            clusterService.state(),
+            transformConfig,
+            destIndexSettings,
+            deducedDestIndexMappings,
+            listener
+        );
+    }
+
     void validate(ActionListener<ValidateTransformAction.Response> listener) {
         ClientHelper.executeAsyncWithOrigin(
             client,
@@ -449,8 +477,7 @@ class ClientTransformIndexer extends TransformIndexer {
         ActionListener<Tuple<String, SearchRequest>> listener
     ) {
         SearchRequest searchRequest = namedSearchRequest.v2();
-        // We explicitly disable PIT in the presence of remote clusters in the source due to huge PIT handles causing performance problems.
-        if (disablePit || searchRequest.indices().length == 0 || transformConfig.getSource().requiresRemoteCluster()) {
+        if (disablePit || searchRequest.indices().length == 0) {
             listener.onResponse(namedSearchRequest);
             return;
         }

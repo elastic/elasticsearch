@@ -65,7 +65,6 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Function;
 
 import static java.util.stream.Collectors.toMap;
 import static org.elasticsearch.cluster.ClusterInfo.shardIdentifierFromRouting;
@@ -74,6 +73,7 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
 import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
+import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
 import static org.elasticsearch.test.MockLogAppender.assertThatLogger;
 import static org.hamcrest.Matchers.aMapWithSize;
@@ -639,14 +639,9 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                     dataPath.put(new NodeAndShard(primaryNodeId, shardId), "/data");
                     usedDiskSpace.compute(primaryNodeId, (k, v) -> v + thisShardSize);
                     indexRoutingTableBuilder.addShard(
-                        newShardRouting(
-                            shardId,
-                            primaryNodeId,
-                            null,
-                            true,
-                            STARTED,
+                        shardRoutingBuilder(shardId, primaryNodeId, true, STARTED).withAllocationId(
                             AllocationId.newInitializing(inSyncIds.get(shard * (replicas + 1)))
-                        )
+                        ).build()
                     );
                 } else {
                     var lastAllocatedNodeId = randomFrom(remainingNodeIds);
@@ -654,27 +649,25 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                     dataPath.put(new NodeAndShard(lastAllocatedNodeId, shardId), "/data");
                     usedDiskSpace.compute(lastAllocatedNodeId, (k, v) -> v + thisShardSize);
                     indexRoutingTableBuilder.addShard(
-                        newShardRouting(
-                            shardId,
-                            null,
-                            null,
-                            true,
-                            UNASSIGNED,
-                            RecoverySource.ExistingStoreRecoverySource.INSTANCE,
-                            new UnassignedInfo(
-                                UnassignedInfo.Reason.NODE_LEFT,
-                                null,
-                                null,
-                                0,
-                                0,
-                                0,
-                                false,
-                                UnassignedInfo.AllocationStatus.NO_ATTEMPT,
-                                Set.of(),
-                                lastAllocatedNodeId
-                            ),
-                            AllocationId.newInitializing(inSyncIds.get(shard * (replicas + 1)))
+                        shardRoutingBuilder(shardId, null, true, UNASSIGNED).withRecoverySource(
+                            RecoverySource.ExistingStoreRecoverySource.INSTANCE
                         )
+                            .withUnassignedInfo(
+                                new UnassignedInfo(
+                                    UnassignedInfo.Reason.NODE_LEFT,
+                                    null,
+                                    null,
+                                    0,
+                                    0,
+                                    0,
+                                    false,
+                                    UnassignedInfo.AllocationStatus.NO_ATTEMPT,
+                                    Set.of(),
+                                    lastAllocatedNodeId
+                                )
+                            )
+                            .withAllocationId(AllocationId.newInitializing(inSyncIds.get(shard * (replicas + 1))))
+                            .build()
                     );
                 }
 
@@ -688,14 +681,9 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                     }
 
                     indexRoutingTableBuilder.addShard(
-                        newShardRouting(
-                            shardId,
-                            replicaNodeId,
-                            null,
-                            false,
-                            replicaNodeId == null ? UNASSIGNED : STARTED,
+                        shardRoutingBuilder(shardId, replicaNodeId, false, replicaNodeId == null ? UNASSIGNED : STARTED).withAllocationId(
                             AllocationId.newInitializing(inSyncIds.get(shard * (replicas + 1) + 1 + replica))
-                        )
+                        ).build()
                     );
                 }
 
@@ -931,7 +919,11 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                 ShardId index2ShardId = shardIdFrom(indexMetadata2, 0);
                 routingTableBuilder.add(
                     IndexRoutingTable.builder(indexMetadata2.getIndex())
-                        .addShard(newShardRouting(index2ShardId, "node-1", true, INITIALIZING, index2SnapshotRecoverySource))
+                        .addShard(
+                            shardRoutingBuilder(index2ShardId, "node-1", true, INITIALIZING).withRecoverySource(
+                                index2SnapshotRecoverySource
+                            ).build()
+                        )
                 );
                 if (randomBoolean()) {
                     // Shard is 75% downloaded
@@ -945,7 +937,11 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                 ShardId index2ShardId = shardIdFrom(indexMetadata2, 0);
                 routingTableBuilder.add(
                     IndexRoutingTable.builder(indexMetadata2.getIndex())
-                        .addShard(newShardRouting(index2ShardId, "node-2", true, INITIALIZING, index2SnapshotRecoverySource))
+                        .addShard(
+                            shardRoutingBuilder(index2ShardId, "node-2", true, INITIALIZING).withRecoverySource(
+                                index2SnapshotRecoverySource
+                            ).build()
+                        )
                 );
                 if (randomBoolean()) {
                     // Shard is 75% downloaded
@@ -1180,12 +1176,6 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                 )
             )
         );
-    }
-
-    @Deprecated
-    private static ClusterInfo createClusterInfo(List<DiskUsage> diskUsages, Map<String, Long> shardSizes) {
-        var diskUsage = diskUsages.stream().collect(toMap(usage -> usage.nodeId(), Function.identity()));
-        return new ClusterInfo(diskUsage, diskUsage, shardSizes, Map.of(), Map.of(), Map.of());
     }
 
     private static class ClusterInfoTestBuilder {

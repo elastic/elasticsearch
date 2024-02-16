@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.ml.job.persistence.overallbuckets;
 
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.metrics.Max;
@@ -38,7 +38,7 @@ public class OverallBucketsProvider {
     public List<OverallBucket> computeOverallBuckets(Histogram histogram) {
         List<OverallBucket> overallBuckets = new ArrayList<>();
         for (Histogram.Bucket histogramBucket : histogram.getBuckets()) {
-            Aggregations histogramBucketAggs = histogramBucket.getAggregations();
+            InternalAggregations histogramBucketAggs = histogramBucket.getAggregations();
             Terms jobsAgg = histogramBucketAggs.get(Job.ID.getPreferredName());
             int jobsCount = jobsAgg.getBuckets().size();
             int bucketTopN = Math.min(topN, jobsCount);

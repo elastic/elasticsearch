@@ -39,6 +39,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
+import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.ENRICH_SOURCE_INDICES;
 import static org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase.Mode.SYNC;
 import static org.elasticsearch.xpack.ql.CsvSpecReader.specParser;
 import static org.elasticsearch.xpack.ql.TestUtils.classpathResources;
@@ -87,7 +88,6 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
     @Override
     protected void shouldSkipTest(String testName) {
         super.shouldSkipTest(testName);
-        assumeFalse("CCQ doesn't support enrich yet", hasEnrich(testCase.query));
         assumeFalse("can't test with _index metadata", hasIndexMetadata(testCase.query));
         assumeTrue("Test " + testName + " is skipped on " + Clusters.oldVersion(), isEnabled(testName, Clusters.oldVersion()));
     }
@@ -120,7 +120,7 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
             String endpoint = request.getEndpoint();
             if (endpoint.startsWith("/_query")) {
                 return localClient.performRequest(request);
-            } else if (endpoint.contains("_bulk")) {
+            } else if (endpoint.endsWith("/_bulk") && ENRICH_SOURCE_INDICES.stream().noneMatch(i -> endpoint.equals("/" + i + "/_bulk"))) {
                 return bulkClient.performRequest(request);
             } else {
                 Request[] clones = cloneRequests(request, 2);
@@ -161,16 +161,18 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         String query = testCase.query;
         String[] commands = query.split("\\|");
         String first = commands[0].trim();
+
         if (commands[0].toLowerCase(Locale.ROOT).startsWith("from")) {
-            String[] parts = commands[0].split("\\[");
+            String[] parts = commands[0].split("(?i)metadata");
             assert parts.length >= 1 : parts;
             String fromStatement = parts[0];
+
             String[] localIndices = fromStatement.substring("FROM ".length()).split(",");
             String remoteIndices = Arrays.stream(localIndices)
                 .map(index -> "*:" + index.trim() + "," + index.trim())
                 .collect(Collectors.joining(","));
-            var newFrom = "FROM " + remoteIndices + commands[0].substring(fromStatement.length());
-            testCase.query = newFrom + " " + query.substring(first.length());
+            var newFrom = "FROM " + remoteIndices + " " + commands[0].substring(fromStatement.length());
+            testCase.query = newFrom + query.substring(first.length());
         }
         int offset = testCase.query.length() - query.length();
         if (offset != 0) {
@@ -192,21 +194,10 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         return testCase;
     }
 
-    static boolean hasEnrich(String query) {
-        String[] commands = query.split("\\|");
-        for (int i = 0; i < commands.length; i++) {
-            commands[i] = commands[i].trim();
-            if (commands[i].toLowerCase(Locale.ROOT).startsWith("enrich")) {
-                return true;
-            }
-        }
-        return false;
-    }
-
     static boolean hasIndexMetadata(String query) {
         String[] commands = query.split("\\|");
         if (commands[0].trim().toLowerCase(Locale.ROOT).startsWith("from")) {
-            String[] parts = commands[0].split("\\[");
+            String[] parts = commands[0].split("(?i)metadata");
             return parts.length > 1 && parts[1].contains("_index");
         }
         return false;

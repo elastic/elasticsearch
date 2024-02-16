@@ -1,0 +1,5 @@
+pr: 105096
+summary: Harden index mapping parameter check in enrich runner
+area: Ingest Node
+type: bug
+issues: []

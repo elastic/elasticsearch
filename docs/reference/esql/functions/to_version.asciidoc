@@ -1,10 +1,30 @@
 [discrete]
 [[esql-to_version]]
 === `TO_VERSION`
+
+*Alias*
+
+`TO_VER`
+
+*Syntax*
+
 [.text-center]
 image::esql/functions/signature/to_version.svg[Embedded,opts=inline]
 
-Converts an input string to a version value. For example:
+*Parameters*
+
+`v`::
+Input value. The input can be a single- or multi-valued column or an expression.
+
+*Description*
+
+Converts an input string to a version value.
+
+*Supported types*
+
+include::types/to_version.asciidoc[]
+
+*Example*
 
 [source.merge.styled,esql]
 ----
@@ -14,11 +34,3 @@ include::{esql-specs}/version.csv-spec[tag=to_version]
 |===
 include::{esql-specs}/version.csv-spec[tag=to_version-result]
 |===
-
-The input can be a single- or multi-valued field or an expression.
-
-Alias: TO_VER
-
-Supported types:
-
-include::types/to_version.asciidoc[]

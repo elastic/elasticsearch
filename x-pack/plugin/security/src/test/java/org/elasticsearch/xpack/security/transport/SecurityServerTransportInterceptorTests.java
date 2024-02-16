@@ -492,7 +492,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 threadContext.wrapRestorable(storedContext),
                 new TransportResponseHandler.Empty() {
                     @Override
-                    public Executor executor(ThreadPool threadPool) {
+                    public Executor executor() {
                         return TransportResponseHandler.TRANSPORT_WORKER;
                     }
 
@@ -527,7 +527,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 threadContext.newRestorableContext(true),
                 new TransportResponseHandler.Empty() {
                     @Override
-                    public Executor executor(ThreadPool threadPool) {
+                    public Executor executor() {
                         return TransportResponseHandler.TRANSPORT_WORKER;
                     }
 
@@ -626,7 +626,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         final AtomicReference<TransportException> actualException = new AtomicReference<>();
         sender.sendRequest(connection, "action", mock(TransportRequest.class), null, new TransportResponseHandler<>() {
             @Override
-            public Executor executor(ThreadPool threadPool) {
+            public Executor executor() {
                 return TransportResponseHandler.TRANSPORT_WORKER;
             }
 
@@ -788,7 +788,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
 
         sender.sendRequest(connection, action, request, null, new TransportResponseHandler<>() {
             @Override
-            public Executor executor(ThreadPool threadPool) {
+            public Executor executor() {
                 return TransportResponseHandler.TRANSPORT_WORKER;
             }
 
@@ -974,7 +974,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         final AtomicReference<TransportException> actualException = new AtomicReference<>();
         sender.sendRequest(connection, "action", mock(TransportRequest.class), null, new TransportResponseHandler<>() {
             @Override
-            public Executor executor(ThreadPool threadPool) {
+            public Executor executor() {
                 return TransportResponseHandler.TRANSPORT_WORKER;
             }
 
@@ -1068,7 +1068,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         final var actualException = new AtomicReference<Throwable>();
         sender.sendRequest(connection, "action", mock(TransportRequest.class), null, new TransportResponseHandler<>() {
             @Override
-            public Executor executor(ThreadPool threadPool) {
+            public Executor executor() {
                 return TransportResponseHandler.TRANSPORT_WORKER;
             }
 

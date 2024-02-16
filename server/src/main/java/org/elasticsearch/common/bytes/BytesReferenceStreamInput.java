@@ -143,6 +143,14 @@ class BytesReferenceStreamInput extends StreamInput {
 
     @Override
     public int read(final byte[] b, final int bOffset, final int len) throws IOException {
+        if (slice.remaining() >= len) {
+            slice.get(b, bOffset, len);
+            return len;
+        }
+        return readFromMultipleSlices(b, bOffset, len);
+    }
+
+    private int readFromMultipleSlices(byte[] b, int bOffset, int len) throws IOException {
         final int length = bytesReference.length();
         final int offset = offset();
         if (offset >= length) {
@@ -186,6 +194,14 @@ class BytesReferenceStreamInput extends StreamInput {
         if (n <= 0L) {
             return 0L;
         }
+        if (n <= slice.remaining()) {
+            slice.position(slice.position() + (int) n);
+            return n;
+        }
+        return skipMultiple(n);
+    }
+
+    private int skipMultiple(long n) throws IOException {
         assert offset() <= bytesReference.length() : offset() + " vs " + bytesReference.length();
         // definitely >= 0 and <= Integer.MAX_VALUE so casting is ok
         final int numBytesSkipped = (int) Math.min(n, bytesReference.length() - offset());
@@ -211,6 +227,16 @@ class BytesReferenceStreamInput extends StreamInput {
             final long skipped = skip(mark);
             assert skipped == mark : skipped + " vs " + mark;
         }
+    }
+
+    @Override
+    public BytesReference readSlicedBytesReference() throws IOException {
+        int len = readVInt();
+        int pos = offset();
+        if (len != skip(len)) {
+            throw new EOFException();
+        }
+        return bytesReference.slice(pos, len);
     }
 
     @Override

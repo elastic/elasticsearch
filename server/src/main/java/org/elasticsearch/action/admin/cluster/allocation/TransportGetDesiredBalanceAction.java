@@ -43,10 +43,7 @@ import java.util.OptionalLong;
 
 public class TransportGetDesiredBalanceAction extends TransportMasterNodeReadAction<DesiredBalanceRequest, DesiredBalanceResponse> {
 
-    public static final ActionType<DesiredBalanceResponse> TYPE = new ActionType<>(
-        "cluster:admin/desired_balance/get",
-        DesiredBalanceResponse::from
-    );
+    public static final ActionType<DesiredBalanceResponse> TYPE = new ActionType<>("cluster:admin/desired_balance/get");
     @Nullable
     private final DesiredBalanceShardsAllocator desiredBalanceShardsAllocator;
     private final ClusterInfoService clusterInfoService;

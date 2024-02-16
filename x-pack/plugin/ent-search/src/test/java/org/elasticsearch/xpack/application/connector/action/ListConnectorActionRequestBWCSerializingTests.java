@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
 
 import java.io.IOException;
+import java.util.List;
 
 public class ListConnectorActionRequestBWCSerializingTests extends AbstractBWCSerializationTestCase<ListConnectorAction.Request> {
     @Override
@@ -25,7 +26,13 @@ public class ListConnectorActionRequestBWCSerializingTests extends AbstractBWCSe
     @Override
     protected ListConnectorAction.Request createTestInstance() {
         PageParams pageParams = SearchApplicationTestUtils.randomPageParams();
-        return new ListConnectorAction.Request(pageParams);
+        return new ListConnectorAction.Request(
+            pageParams,
+            List.of(generateRandomStringArray(10, 10, false)),
+            List.of(generateRandomStringArray(10, 10, false)),
+            List.of(generateRandomStringArray(10, 10, false)),
+            randomAlphaOfLengthBetween(3, 10)
+        );
     }
 
     @Override
@@ -40,6 +47,12 @@ public class ListConnectorActionRequestBWCSerializingTests extends AbstractBWCSe
 
     @Override
     protected ListConnectorAction.Request mutateInstanceForVersion(ListConnectorAction.Request instance, TransportVersion version) {
-        return new ListConnectorAction.Request(instance.getPageParams());
+        return new ListConnectorAction.Request(
+            instance.getPageParams(),
+            instance.getIndexNames(),
+            instance.getConnectorNames(),
+            instance.getConnectorServiceTypes(),
+            instance.getConnectorSearchQuery()
+        );
     }
 }

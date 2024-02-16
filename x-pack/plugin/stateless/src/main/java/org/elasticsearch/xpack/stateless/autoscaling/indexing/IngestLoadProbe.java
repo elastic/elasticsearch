@@ -42,12 +42,29 @@ public class IngestLoadProbe {
         Setting.Property.OperatorDynamic
     );
 
+    /**
+     * The amount that we'll allow the queue contribution to be relative to the size of the current node. Default value of 3
+     * means 3*thread count, i.e., a max scale up of 4x.
+     */
+    public static final Setting<Float> MAX_QUEUE_CONTRIBUTION_FACTOR = Setting.floatSetting(
+        "serverless.autoscaling.indexing.sampler.max_queue_contribution_factor",
+        3,
+        Setting.Property.NodeScope,
+        Setting.Property.OperatorDynamic
+    );
+
     private final Function<String, ExecutorStats> executorStatsProvider;
     private volatile TimeValue maxTimeToClearQueue;
+    private volatile float maxQueueContributionFactor;
 
     public IngestLoadProbe(ClusterSettings clusterSettings, Function<String, ExecutorStats> executorStatsProvider) {
         this.executorStatsProvider = executorStatsProvider;
         clusterSettings.initializeAndWatch(MAX_TIME_TO_CLEAR_QUEUE, this::setMaxTimeToClearQueue);
+        clusterSettings.initializeAndWatch(MAX_QUEUE_CONTRIBUTION_FACTOR, this::setMaxQueueContributionFactor);
+    }
+
+    private void setMaxQueueContributionFactor(float maxQueueContributionFactor) {
+        this.maxQueueContributionFactor = maxQueueContributionFactor;
     }
 
     /**
@@ -65,7 +82,8 @@ public class IngestLoadProbe {
                 executorStats.averageLoad(),
                 executorStats.averageTaskExecutionEWMA(),
                 executorStats.currentQueueSize(),
-                maxTimeToClearQueue
+                maxTimeToClearQueue,
+                maxQueueContributionFactor * executorStats.maxThreads()
             );
         }
         return totalIngestionLoad;
@@ -75,15 +93,17 @@ public class IngestLoadProbe {
         double averageWriteLoad,
         double averageTaskExecutionTime,
         long currentQueueSize,
-        TimeValue maxTimeToClearQueue
+        TimeValue maxTimeToClearQueue,
+        double maxThreadsToHandleQueue
     ) {
+        assert maxThreadsToHandleQueue > 0.0;
         if (averageTaskExecutionTime == 0.0) {
             return averageWriteLoad;
         }
         double tasksManageablePerThreadWithinMaxTime = maxTimeToClearQueue.nanos() / averageTaskExecutionTime;
-        double totalThreadsNeeded = currentQueueSize / tasksManageablePerThreadWithinMaxTime;
-        assert totalThreadsNeeded >= 0.0;
-        return averageWriteLoad + totalThreadsNeeded;
+        double queueThreadsNeeded = Math.min(currentQueueSize / tasksManageablePerThreadWithinMaxTime, maxThreadsToHandleQueue);
+        assert queueThreadsNeeded >= 0.0;
+        return averageWriteLoad + queueThreadsNeeded;
     }
 
     public void setMaxTimeToClearQueue(TimeValue maxTimeToClearQueue) {

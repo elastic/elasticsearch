@@ -656,6 +656,7 @@ public class Stateless extends Plugin
             IngestMetricsService.ACCURATE_LOAD_WINDOW,
             IngestMetricsService.STALE_LOAD_WINDOW,
             IngestLoadProbe.MAX_TIME_TO_CLEAR_QUEUE,
+            IngestLoadProbe.MAX_QUEUE_CONTRIBUTION_FACTOR,
             AverageWriteLoadSampler.WRITE_LOAD_SAMPLER_EWMA_ALPHA_SETTING,
             SearchShardSizeCollector.PUSH_INTERVAL_SETTING,
             SearchShardSizeCollector.PUSH_DELTA_THRESHOLD_SETTING,

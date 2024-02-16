@@ -38,7 +38,16 @@ public class TransformChainIT extends TransformRestTestCase {
           },
           "dest": {
             "index": "%s",
-            "pipeline": "%s"
+            "pipeline": "%s",
+            "aliases": [
+              {
+                "alias": "%s"
+              },
+              {
+                "alias": "%s",
+                "move_on_creation": true
+              }
+            ]
           },
           "sync": {
             "time": {
@@ -172,9 +181,14 @@ public class TransformChainIT extends TransformRestTestCase {
             // The number of documents is expected to be the same in all the indices.
             String sourceIndex = i == 0 ? reviewsIndexName : transformIds.get(i - 1) + "-dest";
             String destIndex = transformId + "-dest";
+            String destReadAlias = destIndex + "-read";
+            String destWriteAlias = destIndex + "-write";
             assertFalse(indexExists(destIndex));
+            assertFalse(aliasExists(destReadAlias));
+            assertFalse(aliasExists(destWriteAlias));
 
-            assertAcknowledged(putTransform(transformId, createTransformConfig(sourceIndex, destIndex), true, RequestOptions.DEFAULT));
+            String transformConfig = createTransformConfig(sourceIndex, destIndex, destReadAlias, destWriteAlias);
+            assertAcknowledged(putTransform(transformId, transformConfig, true, RequestOptions.DEFAULT));
         }
 
         List<String> transformIdsShuffled = new ArrayList<>(transformIds);
@@ -198,6 +212,17 @@ public class TransformChainIT extends TransformRestTestCase {
             }
         }, 60, TimeUnit.SECONDS);
 
+        for (String transformId : transformIds) {
+            String destIndex = transformId + "-dest";
+            String destReadAlias = destIndex + "-read";
+            String destWriteAlias = destIndex + "-write";
+            // Verify that the destination index is created.
+            assertTrue(indexExists(destIndex));
+            // Verify that the destination index aliases are set up.
+            assertTrue(aliasExists(destReadAlias));
+            assertTrue(aliasExists(destWriteAlias));
+        }
+
         // Stop all the transforms.
         for (String transformId : transformIds) {
             stopTransform(transformId);
@@ -208,12 +233,14 @@ public class TransformChainIT extends TransformRestTestCase {
         }
     }
 
-    private static String createTransformConfig(String sourceIndex, String destIndex) {
+    private static String createTransformConfig(String sourceIndex, String destIndex, String destReadAlias, String destWriteAlias) {
         return Strings.format(
             TRANSFORM_CONFIG_TEMPLATE,
             sourceIndex,
             destIndex,
             SET_INGEST_TIME_PIPELINE,
+            destReadAlias,
+            destWriteAlias,
             "1s",
             "1s",
             randomBoolean(),

@@ -26,7 +26,6 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
 import java.util.Locale;
 
 /**
@@ -107,13 +106,13 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
     private static final long SEED = 0;
 
     public static void createField(DocumentParserContext context, IndexRouting.ExtractFromSource.Builder routingBuilder, BytesRef tsid) {
-        List<IndexableField> timestampFields = context.rootDoc().getFields(DataStreamTimestampFieldMapper.DEFAULT_PATH);
-        if (timestampFields.isEmpty()) {
+        final IndexableField timestampField = context.rootDoc().getField(DataStreamTimestampFieldMapper.DEFAULT_PATH);
+        if (timestampField == null) {
             throw new IllegalArgumentException(
                 "data stream timestamp field [" + DataStreamTimestampFieldMapper.DEFAULT_PATH + "] is missing"
             );
         }
-        long timestamp = timestampFields.get(0).numericValue().longValue();
+        long timestamp = timestampField.numericValue().longValue();
         byte[] suffix = new byte[16];
         String id = createId(context.hasDynamicMappers() == false, routingBuilder, tsid, timestamp, suffix);
         /*
@@ -160,14 +159,11 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
         ByteUtils.writeLongLE(hash.h1, suffix, 0);
         ByteUtils.writeLongBE(timestamp, suffix, 8);   // Big Ending shrinks the inverted index by ~37%
 
-        String id = routingBuilder.createId(suffix, () -> {
-            if (dynamicMappersExists == false) {
-                throw new IllegalStateException(
-                    "Didn't find any fields to include in the routing which would be fine if there are"
-                        + " dynamic mapping waiting but we couldn't find any of those either!"
-                );
-            }
-            return 0;
+        String id = routingBuilder.createId(suffix, dynamicMappersExists ? () -> 0 : () -> {
+            throw new IllegalStateException(
+                "Didn't find any fields to include in the routing which would be fine if there are"
+                    + " dynamic mapping waiting but we couldn't find any of those either!"
+            );
         });
         assert Uid.isURLBase64WithoutPadding(id); // Make sure we get to use Uid's nice optimizations
         return id;

@@ -58,10 +58,86 @@ public final class BytesArray extends AbstractBytesReference {
 
     @Override
     public int indexOf(byte marker, int from) {
-        for (int i = offset + from; i < offset + length; i++) {
-            if (bytes[i] == marker) {
-                return i - offset;
+        final int len = length - from;
+        int off = offset + from;
+        final int toIndex = offset + length;
+        // first try to find the marker in the first few bytes, so we can enter the faster 8-byte aligned loop below
+        // The idea for this logic is taken from Netty's io.netty.buffer.ByteBufUtil.firstIndexOf and optimized for little endian hardware
+        final int byteCount = len & 7;
+        if (byteCount > 0) {
+            final int index = unrolledFirstIndexOf(bytes, off, byteCount, marker);
+            if (index != -1) {
+                return index - offset;
             }
+            off += byteCount;
+            if (off == toIndex) {
+                return -1;
+            }
+        }
+        final int longCount = len >>> 3;
+        // faster SWAR loop
+        final long pattern = compilePattern(marker);
+        for (int i = 0; i < longCount; i++) {
+            int index = findInLong(ByteUtils.readLongLE(bytes, off), pattern);
+            if (index < Long.BYTES) {
+                return off + index - offset;
+            }
+            off += Long.BYTES;
+        }
+        return -1;
+    }
+
+    private static long compilePattern(byte byteToFind) {
+        return (byteToFind & 0xFFL) * 0x101010101010101L;
+    }
+
+    private static int findInLong(long word, long pattern) {
+        long input = word ^ pattern;
+        long tmp = (input & 0x7F7F7F7F7F7F7F7FL) + 0x7F7F7F7F7F7F7F7FL;
+        tmp = ~(tmp | input | 0x7F7F7F7F7F7F7F7FL);
+        final int binaryPosition = Long.numberOfTrailingZeros(tmp);
+        return binaryPosition >>> 3;
+    }
+
+    private static int unrolledFirstIndexOf(byte[] buffer, int fromIndex, int byteCount, byte value) {
+        if (buffer[fromIndex] == value) {
+            return fromIndex;
+        }
+        if (byteCount == 1) {
+            return -1;
+        }
+        if (buffer[fromIndex + 1] == value) {
+            return fromIndex + 1;
+        }
+        if (byteCount == 2) {
+            return -1;
+        }
+        if (buffer[fromIndex + 2] == value) {
+            return fromIndex + 2;
+        }
+        if (byteCount == 3) {
+            return -1;
+        }
+        if (buffer[fromIndex + 3] == value) {
+            return fromIndex + 3;
+        }
+        if (byteCount == 4) {
+            return -1;
+        }
+        if (buffer[fromIndex + 4] == value) {
+            return fromIndex + 4;
+        }
+        if (byteCount == 5) {
+            return -1;
+        }
+        if (buffer[fromIndex + 5] == value) {
+            return fromIndex + 5;
+        }
+        if (byteCount == 6) {
+            return -1;
+        }
+        if (buffer[fromIndex + 6] == value) {
+            return fromIndex + 6;
         }
         return -1;
     }

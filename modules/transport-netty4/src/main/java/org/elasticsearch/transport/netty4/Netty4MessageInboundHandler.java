@@ -18,6 +18,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -59,8 +60,6 @@ public class Netty4MessageInboundHandler extends ByteToMessageDecoder {
 
     private int totalNetworkSize = -1;
     private int bytesConsumed = 0;
-
-    private boolean isCompressed = false;
 
     private TransportDecompressor decompressor;
 
@@ -113,7 +112,7 @@ public class Netty4MessageInboundHandler extends ByteToMessageDecoder {
     @Override
     public void channelInactive(ChannelHandlerContext ctx) throws Exception {
         super.channelInactive(ctx);
-        Releasables.closeExpectNoException(this::closeCurrentAggregation);
+        Releasables.closeExpectNoException(this::resetCurrentAggregation);
     }
 
     @Override
@@ -248,10 +247,6 @@ public class Netty4MessageInboundHandler extends ByteToMessageDecoder {
         return aggregationException != null;
     }
 
-    private void closeCurrentAggregation() {
-        resetCurrentAggregation();
-    }
-
     private void resetCurrentAggregation() {
         currentHeader = null;
         aggregationException = null;
@@ -277,9 +272,7 @@ public class Netty4MessageInboundHandler extends ByteToMessageDecoder {
 
                     Header header = readHeader(messageLength, byteBuf.readSlice(headerBytesToRead), channelType);
                     bytesConsumed = headerBytesToRead;
-                    if (header.isCompressed()) {
-                        isCompressed = true;
-                    }
+                    header.isCompressed();
                     headerReceived(header);
 
                     if (headerBytesToRead == messageLength + TcpHeader.BYTES_REQUIRED_FOR_MESSAGE_SIZE) {
@@ -333,26 +326,12 @@ public class Netty4MessageInboundHandler extends ByteToMessageDecoder {
     }
 
     private int readBody(ByteBuf byteBuf, TcpChannel channel) throws IOException {
-        if (isCompressed && decompressor == null) {
-            // Attempt to initialize decompressor
-            TransportDecompressor decompressor = TransportDecompressor.getDecompressor(
-                transport.recycler(),
-                Netty4Utils.toBytesReference(byteBuf)
-            );
-            if (decompressor == null) {
-                return 0;
-            } else {
-                this.decompressor = decompressor;
-                assert isAggregating();
-                updateCompressionScheme(this.decompressor.getScheme());
-            }
-        }
         int remainingToConsume = totalNetworkSize - bytesConsumed;
         if (byteBuf.readableBytes() < remainingToConsume) {
             return 0;
         }
         final int bytesConsumedThisDecode;
-        if (decompressor != null) {
+        if (currentHeader.isCompressed()) {
             bytesConsumedThisDecode = decompressBody(byteBuf, channel, remainingToConsume);
         } else {
             bytesConsumedThisDecode = remainingToConsume;
@@ -364,9 +343,18 @@ public class Netty4MessageInboundHandler extends ByteToMessageDecoder {
     }
 
     private int decompressBody(ByteBuf byteBuf, TcpChannel channel, int remainingToConsume) throws IOException {
-        final int bytesConsumedThisDecode;
-        ByteBuf retainedContent = byteBuf.readSlice(remainingToConsume);
-        bytesConsumedThisDecode = decompressor.decompress(Netty4Utils.toBytesReference(retainedContent));
+        // Attempt to initialize decompressor
+        final BytesReference bytesReference = Netty4Utils.toBytesReference(byteBuf);
+        TransportDecompressor decompressor = TransportDecompressor.getDecompressor(transport.recycler(), bytesReference);
+        if (decompressor == null) {
+            return 0;
+        } else {
+            this.decompressor = decompressor;
+            assert isAggregating();
+            updateCompressionScheme(this.decompressor.getScheme());
+        }
+        byteBuf.skipBytes(remainingToConsume);
+        final int bytesConsumedThisDecode = decompressor.decompress(bytesReference.slice(0, remainingToConsume));
         bytesConsumed += bytesConsumedThisDecode;
         ReleasableBytesReference decompressed;
         int pagesDecompressed = decompressor.pages();
@@ -483,7 +471,6 @@ public class Netty4MessageInboundHandler extends ByteToMessageDecoder {
         try {
             Releasables.closeExpectNoException(decompressor);
         } finally {
-            isCompressed = false;
             decompressor = null;
             totalNetworkSize = -1;
             bytesConsumed = 0;

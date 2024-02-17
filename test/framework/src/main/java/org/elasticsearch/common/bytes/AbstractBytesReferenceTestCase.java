@@ -667,6 +667,7 @@ public abstract class AbstractBytesReferenceTestCase extends ESTestCase {
         });
         final byte missing = randomValueOtherThanMany(map::containsKey, ESTestCase::randomByte);
         assertEquals(-1, bytesReference.indexOf(missing, randomIntBetween(0, Math.max(0, size - 1))));
+        assertEquals(-1, bytesReference.indexOf(missing, bytesReference.length() + randomIntBetween(0, 100)));
     }
 
     public void testWriteWithIterator() throws IOException {

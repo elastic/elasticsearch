@@ -59,10 +59,14 @@ public final class BytesArray extends AbstractBytesReference {
     @Override
     public int indexOf(byte marker, int from) {
         final int len = length - from;
+        if (len <= 0) {
+            return -1;
+        }
         int off = offset + from;
         final int toIndex = offset + length;
-        // first try to find the marker in the first few bytes, so we can enter the faster 8-byte aligned loop below
-        // The idea for this logic is taken from Netty's io.netty.buffer.ByteBufUtil.firstIndexOf and optimized for little endian hardware
+        // First, try to find the marker in the first few bytes, so we can enter the faster 8-byte aligned loop below.
+        // The idea for this logic is taken from Netty's io.netty.buffer.ByteBufUtil.firstIndexOf and optimized for little endian hardware.
+        // See e.g. https://richardstartin.github.io/posts/finding-bytes for the idea behind this optimization.
         final int byteCount = len & 7;
         if (byteCount > 0) {
             final int index = unrolledFirstIndexOf(bytes, off, byteCount, marker);
@@ -75,7 +79,7 @@ public final class BytesArray extends AbstractBytesReference {
             }
         }
         final int longCount = len >>> 3;
-        // faster SWAR loop
+        // faster SWAR (SIMD Within A Register) loop
         final long pattern = compilePattern(marker);
         for (int i = 0; i < longCount; i++) {
             int index = findInLong(ByteUtils.readLongLE(bytes, off), pattern);

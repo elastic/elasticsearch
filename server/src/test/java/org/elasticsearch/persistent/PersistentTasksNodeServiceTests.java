@@ -94,7 +94,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
         PersistentTasksService persistentTasksService = mock(PersistentTasksService.class);
         @SuppressWarnings("unchecked")
         PersistentTasksExecutor<TestParams> action = mock(PersistentTasksExecutor.class);
-        when(action.getExecutor()).thenReturn(ThreadPool.Names.SAME);
+        when(action.getExecutor()).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
         when(action.getTaskName()).thenReturn(TestPersistentTasksExecutor.NAME);
         int nonLocalNodesCount = randomInt(10);
         // need to account for 5 original tasks on each node and their relocations
@@ -208,7 +208,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
         PersistentTasksService persistentTasksService = mock(PersistentTasksService.class);
         @SuppressWarnings("unchecked")
         PersistentTasksExecutor<TestParams> action = mock(PersistentTasksExecutor.class);
-        when(action.getExecutor()).thenReturn(ThreadPool.Names.SAME);
+        when(action.getExecutor()).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
         when(action.getTaskName()).thenReturn(TestPersistentTasksExecutor.NAME);
         TaskId parentId = new TaskId("cluster", 1);
         AllocatedPersistentTask nodeTask = new TestPersistentTasksPlugin.TestTask(
@@ -276,7 +276,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
         };
         @SuppressWarnings("unchecked")
         PersistentTasksExecutor<TestParams> action = mock(PersistentTasksExecutor.class);
-        when(action.getExecutor()).thenReturn(ThreadPool.Names.SAME);
+        when(action.getExecutor()).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
         when(action.getTaskName()).thenReturn("test");
         when(action.createTask(anyLong(), anyString(), anyString(), any(), any(), any())).thenReturn(
             new TestPersistentTasksPlugin.TestTask(1, "persistent", "test", "", new TaskId("cluster", 1), Collections.emptyMap())
@@ -370,7 +370,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
         };
         @SuppressWarnings("unchecked")
         PersistentTasksExecutor<TestParams> action = mock(PersistentTasksExecutor.class);
-        when(action.getExecutor()).thenReturn(ThreadPool.Names.SAME);
+        when(action.getExecutor()).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
         when(action.getTaskName()).thenReturn("test");
         when(action.createTask(anyLong(), anyString(), anyString(), any(), any(), any())).thenReturn(
             new TestPersistentTasksPlugin.TestTask(1, "persistent", "test", "", new TaskId("cluster", 1), Collections.emptyMap())
@@ -478,7 +478,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
 
         @SuppressWarnings("unchecked")
         PersistentTasksExecutor<TestParams> action = mock(PersistentTasksExecutor.class);
-        when(action.getExecutor()).thenReturn(ThreadPool.Names.SAME);
+        when(action.getExecutor()).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
         when(action.getTaskName()).thenReturn(TestPersistentTasksExecutor.NAME);
         when(action.createTask(anyLong(), anyString(), anyString(), any(), any(), any())).thenThrow(
             new RuntimeException("Something went wrong")
@@ -559,7 +559,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
             .build();
     }
 
-    private class Execution {
+    private static class Execution {
 
         private final PersistentTaskParams params;
         private final AllocatedPersistentTask task;
@@ -573,11 +573,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
     }
 
     private class MockExecutor extends NodePersistentTasksExecutor {
-        private List<Execution> executions = new ArrayList<>();
-
-        MockExecutor() {
-            super(null);
-        }
+        private final List<Execution> executions = new ArrayList<>();
 
         @Override
         public <Params extends PersistentTaskParams> void executeTask(

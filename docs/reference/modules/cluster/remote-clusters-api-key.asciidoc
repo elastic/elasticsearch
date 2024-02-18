@@ -31,7 +31,7 @@ In this model, cross-cluster operations use <<remote_cluster.port,a dedicated
 server port>> (remote cluster interface) for communication between clusters. A
 remote cluster must enable this port for local clusters to connect. Configure
 Transport Layer Security (TLS) for this port to maximize security (as explained
-in <<remote-clusters-security-api-key>>). 
+in <<remote-clusters-security-api-key>>).
 
 The local cluster must trust the remote cluster on the remote cluster interface.
 This means that the local cluster trusts the remote cluster's certificate
@@ -65,15 +65,15 @@ information, refer to https://www.elastic.co/subscriptions.
 ===== On the remote cluster
 
 // tag::remote-cluster-steps[]
-. Enable the remote cluster server on every node of the remote cluster. In 
+. Enable the remote cluster server on every node of the remote cluster. In
 `elasticsearch.yml`:
-.. Set <<remote-cluster-network-settings,`remote_cluster_server.enabled`>> to 
+.. Set <<remote-cluster-network-settings,`remote_cluster_server.enabled`>> to
 `true`.
 .. Configure the bind and publish address for remote cluster server traffic, for
 example using <<remote-cluster-network-settings,`remote_cluster.host`>>. Without
 configuring the address, remote cluster traffic may be bound to the local
 interface, and remote clusters running on other machines can't connect.
-.. Optionally, configure the remote server port using 
+.. Optionally, configure the remote server port using
 <<remote_cluster.port,`remote_cluster.port`>> (defaults to `9443`).
 . Next, generate a certificate authority (CA) and a server certificate/key pair.
 On one of the nodes of the remote cluster, from the directory where {es} has
@@ -86,8 +86,8 @@ been installed:
 ./bin/elasticsearch-certutil ca --pem --out=cross-cluster-ca.zip --pass CA_PASSWORD
 ----
 +
-Replace `CA_PASSWORD` with the password you want to use for the CA. You can 
-remove the `--pass` option and its argument if you are not deploying to a 
+Replace `CA_PASSWORD` with the password you want to use for the CA. You can
+remove the `--pass` option and its argument if you are not deploying to a
 production environment.
 
 .. Unzip the generated `cross-cluster-ca.zip` file. This compressed file
@@ -100,7 +100,7 @@ contains the following content:
 |_ ca.key
 ----
 
-.. Generate a certificate and private key pair for the nodes in the remote 
+.. Generate a certificate and private key pair for the nodes in the remote
 cluster:
 +
 [source,sh]
@@ -183,13 +183,16 @@ Replace `ALIAS` with the same name that you will use to create the remote cluste
 later. When prompted, enter the encoded cross-cluster API key created on the
 remote cluster earlier.
 
-. Restart the local cluster to load the keystore change.
+. Restart the local cluster to load changes to the keystore and settings.
+
+**Note:** If you are configuring only the cross-cluster API key, you can call the <<cluster-nodes-reload-secure-settings>> API, instead of restarting the cluster.
+Configuring the `remote_cluster_client` settings in `elasticsearch.yml` still requires a restart.
 
 [[remote-clusters-connect-api-key]]
 ==== Connect to a remote cluster
 
 :trust-mechanism: api-key
 include::remote-clusters-connect.asciidoc[]
-:!trust-mechanism: 
+:!trust-mechanism:
 
 include::{es-repo-dir}/security/authentication/remote-clusters-privileges-api-key.asciidoc[leveloffset=+1]

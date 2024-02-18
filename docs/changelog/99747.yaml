@@ -1,5 +1,19 @@
 pr: 99747
-summary: TSDB dimensions encoding
+summary: Improve storage efficiency for non-metric fields in TSDB
 area: TSDB
 type: enhancement
 issues: []
+highlight:
+  title: Improve storage efficiency for non-metric fields in TSDB
+  body: |-
+    Adds a new `doc_values` encoding for non-metric fields in TSDB that takes advantage of TSDB's index sorting.
+    While terms that are used in multiple documents (such as the host name) are already stored only once in the terms dictionary,
+    there are a lot of repetitions in the references to the terms dictionary that are stored in `doc_values` (ordinals).
+    In TSDB, documents (and therefore `doc_values`) are implicitly sorted by dimenstions and timestamp.
+    This means that for each time series, we are storing long consecutive runs of the same ordinal.
+    With this change, we are introducing an encoding that detects and efficiently stores runs of the same value (such as `1 1 1 2 2 2 …`),
+    and runs of cycling values (such as `1 2 1 2 …`).
+    In our testing, we have seen a reduction in storage size by about 13%.
+    The effectiveness of this encoding depends on how many non-metric fields, such as dimensions, are used.
+    The more non-metric fields, the more effective this improvement will be.
+  notable: true

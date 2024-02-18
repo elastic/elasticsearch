@@ -96,7 +96,6 @@ include::client-authentication.asciidoc[]
 The type of grant. Supported grant types are: `access_token`,`password`.
 
 `access_token`:::
-(Required*, string)
 In this type of grant, you must supply either an access token, that was created by the
 {es} token service (see <<security-api-get-token>> and <<encrypt-http-communication>>),
 or a <<jwt-auth-realm, JWT>> (either a JWT `access_token` or a JWT `id_token`).
@@ -106,18 +105,20 @@ In this type of grant, you must supply the user ID and password for which you
 want to create the API key.
 
 `password`::
-(Optional*, string)
+(Required*, string)
 The user's password. If you specify the `password` grant type, this parameter is
 required. It is not valid with other grant types.
 
 `username`::
-(Optional*, string)
+(Required*, string)
 The user name that identifies the user. If you specify the `password` grant type,
 this parameter is required. It is not valid with other grant types.
 
 `run_as`::
 (Optional, string)
 The name of the user to be <<run-as-privilege,impersonated>>.
+
+*Indicates that the setting is required in some, but not all situations.
 
 [[security-api-grant-api-key-example]]
 ==== {api-examples-title}

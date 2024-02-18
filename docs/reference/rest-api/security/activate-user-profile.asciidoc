@@ -28,6 +28,9 @@ Creates or updates a user profile on behalf of another user.
 The activate user profile API creates or updates a profile document for end
 users with information that is extracted from the user's authentication object,
 including `username`, `full_name`, `roles`, and the authentication realm.
+For example, in the JWT `access_token` case, the profile user's `username` is
+extracted from the JWT token claim pointed to by the `claims.principal`
+setting of the JWT realm that authenticated the token.
 
 When updating a profile document, the API enables the document if it was
 disabled. Any updates do not change existing content for either the `labels` or
@@ -46,8 +49,9 @@ is intended for.
 
 `access_token`::
 (Required*, string)
-The user's access token. If you specify the `access_token` grant type, this
-parameter is required. It is not valid with other grant types.
+The user's <<security-api-get-token, {es} access token>>, or JWT. Both <<jwt-realm-oauth2, access>> and
+<<jwt-realm-oidc, id>> JWT token types are supported, and they depend on the underlying JWT realm configuration.
+If you specify the `access_token` grant type, this parameter is required. It is not valid with other grant types.
 
 include::client-authentication.asciidoc[]
 
@@ -59,24 +63,22 @@ The type of grant.
 [%collapsible%open]
 ====
 `access_token`::
-(Required*, string)
-In this type of grant, you must supply an access token that was created by the
-{es} token service. For more information, see
-<<security-api-get-token>> and <<token-service-settings>>.
+In this type of grant, you must supply either an access token, that was created by the
+{es} token service (see <<security-api-get-token>> and <<encrypt-http-communication>>),
+or a <<jwt-auth-realm, JWT>> (either a JWT `access_token` or a JWT `id_token`).
 
 `password`::
-(Required*, string)
 In this type of grant, you must supply the `username` and `password` for the
 user that you want to create the API key for.
 ====
 
 `password`::
-(Optional*, string)
+(Required*, string)
 The user's password. If you specify the `password` grant type, this parameter is
 required. It is not valid with other grant types.
 
 `username`::
-(Optional*, string)
+(Required*, string)
 The username that identifies the user. If you specify the `password` grant type,
 this parameter is required. It is not valid with other grant types.
 

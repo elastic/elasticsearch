@@ -59,9 +59,6 @@ public final class BytesArray extends AbstractBytesReference {
     @Override
     public int indexOf(byte marker, int from) {
         final int len = length - from;
-        if (len <= 0) {
-            return -1;
-        }
         int off = offset + from;
         final int toIndex = offset + length;
         // First, try to find the marker in the first few bytes, so we can enter the faster 8-byte aligned loop below.

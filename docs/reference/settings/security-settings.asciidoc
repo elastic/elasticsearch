@@ -226,9 +226,10 @@ Invalidated or expired API keys older than the retention period are eligible for
 Defaults to `7d`.
 
 --
-NOTE:  The large real-time clock inaccuracies across the cluster nodes can cause problems
-with evaluating the API key retention period (in the likely case that the node performing
-the invalidation is different from the one performing the deletion).
+NOTE:  Large real-time clock inconsistency across cluster nodes can cause problems
+with evaluating the API key retention period. That is, if the clock on the node 
+invalidating the API key is significantly different than the one performing the deletion,
+the key may be retained for longer or shorter than the configured retention period.
 
 --
 

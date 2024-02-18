@@ -148,7 +148,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         ActionListener<PrimaryResult<BulkShardRequest, BulkShardResponse>> listener
     ) {
         ClusterStateObserver observer = new ClusterStateObserver(clusterService, request.timeout(), logger, threadPool.getThreadContext());
-        performOnPrimary(request, primary, updateHelper, threadPool::absoluteTimeInMillis, (update, shardId, mappingListener) -> {
+        performOnPrimary(request, primary, updateHelper, (update, shardId, mappingListener) -> {
             assert update != null;
             assert shardId != null;
             mappingUpdatedAction.updateMappingOnMaster(shardId.getIndex(), update, mappingListener);
@@ -184,34 +184,6 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         BulkShardRequest request,
         IndexShard primary,
         UpdateHelper updateHelper,
-        LongSupplier nowInMillisSupplier,
-        MappingUpdatePerformer mappingUpdater,
-        Consumer<ActionListener<Void>> waitForMappingUpdate,
-        ActionListener<PrimaryResult<BulkShardRequest, BulkShardResponse>> listener,
-        ThreadPool threadPool,
-        String executorName
-    ) {
-        performOnPrimary(
-            request,
-            primary,
-            updateHelper,
-            nowInMillisSupplier,
-            mappingUpdater,
-            waitForMappingUpdate,
-            listener,
-            threadPool,
-            executorName,
-            null,
-            null,
-            DocumentParsingProvider.EMPTY_INSTANCE
-        );
-    }
-
-    public static void performOnPrimary(
-        BulkShardRequest request,
-        IndexShard primary,
-        UpdateHelper updateHelper,
-        LongSupplier nowInMillisSupplier,
         MappingUpdatePerformer mappingUpdater,
         Consumer<ActionListener<Void>> waitForMappingUpdate,
         ActionListener<PrimaryResult<BulkShardRequest, BulkShardResponse>> listener,
@@ -235,10 +207,9 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     if (executeBulkItemRequest(
                         context,
                         updateHelper,
-                        nowInMillisSupplier,
+                        threadPool::absoluteTimeInMillis,
                         mappingUpdater,
                         waitForMappingUpdate,
-
                         ActionListener.wrap(v -> executor.execute(this), this::onRejection),
                         documentParsingProvider
                     ) == false) {

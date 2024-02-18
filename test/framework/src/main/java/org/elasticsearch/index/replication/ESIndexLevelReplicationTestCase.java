@@ -37,6 +37,7 @@ import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.action.support.replication.TransportReplicationAction.ReplicaResponse;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.action.support.replication.TransportWriteActionTestHelper;
+import org.elasticsearch.action.update.UpdateHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -74,6 +75,7 @@ import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
+import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.test.transport.MockTransport;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
@@ -93,6 +95,7 @@ import java.util.concurrent.FutureTask;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
@@ -109,6 +112,31 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
     protected final Index index = new Index("test", "uuid");
     private final ShardId shardId = new ShardId(index, 0);
     protected final String indexMapping = "{ \"_doc\": {} }";
+
+    public static void performOnPrimary(
+        BulkShardRequest request,
+        IndexShard primary,
+        UpdateHelper updateHelper,
+        MappingUpdatePerformer mappingUpdater,
+        Consumer<ActionListener<Void>> waitForMappingUpdate,
+        ActionListener<TransportReplicationAction.PrimaryResult<BulkShardRequest, BulkShardResponse>> listener,
+        ThreadPool threadPool,
+        String executorName
+    ) {
+        TransportShardBulkAction.performOnPrimary(
+            request,
+            primary,
+            updateHelper,
+            mappingUpdater,
+            waitForMappingUpdate,
+            listener,
+            threadPool,
+            executorName,
+            null,
+            null,
+            DocumentParsingProvider.EMPTY_INSTANCE
+        );
+    }
 
     protected ReplicationGroup createGroup(int replicas) throws IOException {
         return createGroup(replicas, Settings.EMPTY);
@@ -879,25 +907,15 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         primary.acquirePrimaryOperationPermit(permitAcquiredFuture, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         try (Releasable ignored = permitAcquiredFuture.actionGet()) {
             MappingUpdatePerformer noopMappingUpdater = (_update, _shardId, _listener1) -> {};
-            TransportShardBulkAction.performOnPrimary(
-                request,
-                primary,
-                null,
-                System::currentTimeMillis,
-                noopMappingUpdater,
-                null,
-                ActionTestUtils.assertNoFailureListener(result -> {
-                    TransportWriteActionTestHelper.performPostWriteActions(
-                        primary,
-                        request,
-                        ((TransportWriteAction.WritePrimaryResult<BulkShardRequest, BulkShardResponse>) result).location,
-                        logger
-                    );
-                    listener.onResponse((TransportWriteAction.WritePrimaryResult<BulkShardRequest, BulkShardResponse>) result);
-                }),
-                threadPool,
-                Names.WRITE
-            );
+            performOnPrimary(request, primary, null, noopMappingUpdater, null, ActionTestUtils.assertNoFailureListener(result -> {
+                TransportWriteActionTestHelper.performPostWriteActions(
+                    primary,
+                    request,
+                    ((TransportWriteAction.WritePrimaryResult<BulkShardRequest, BulkShardResponse>) result).location,
+                    logger
+                );
+                listener.onResponse((TransportWriteAction.WritePrimaryResult<BulkShardRequest, BulkShardResponse>) result);
+            }), threadPool, Names.WRITE);
         } catch (Exception e) {
             listener.onFailure(e);
         }

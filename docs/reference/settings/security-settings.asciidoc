@@ -239,6 +239,9 @@ Cluster nodes schedule the automatic deletion of invalidated or expired API keys
 that are older than the retention period.
 This setting controls the minimum time interval between two such deletion jobs.
 Defaults to `24h`.
++
+NOTE: This is a low-level setting that currently controls the interval between
+deletion jobs triggered per-node, not across the cluster.
 
 `xpack.security.authc.api_key.delete.timeout`::
 (<<static-cluster-setting,Static>>, Expert)

@@ -245,16 +245,16 @@ public class JwtRealmSingleNodeTests extends SecuritySingleNodeTestCase {
 
     public void testActivateProfileForJWT() throws Exception {
         final JWTClaimsSet.Builder jwtClaims = new JWTClaimsSet.Builder();
-        final String subject;
+        final String principal;
         final String sharedSecret;
         final String realmName;
         // id_token or access_token
         if (randomBoolean()) {
-            subject = "me";
+            principal = "me";
             // JWT "id_token" valid for jwt0
             jwtClaims.audience("es-01")
                 .issuer("my-issuer-01")
-                .subject(subject)
+                .subject(principal)
                 .claim("groups", "admin")
                 .issueTime(Date.from(Instant.now()))
                 .expirationTime(Date.from(Instant.now().plusSeconds(600)))
@@ -262,13 +262,13 @@ public class JwtRealmSingleNodeTests extends SecuritySingleNodeTestCase {
             sharedSecret = jwt0SharedSecret;
             realmName = "jwt0";
         } else {
-            subject = "me@example.com";
+            principal = "me@example.com";
             // JWT "access_token" valid for jwt2
             jwtClaims.audience("es-03")
                 .issuer("my-issuer-03")
                 .subject("user-03")
                 .claim("groups", "admin")
-                .claim("email", subject)
+                .claim("email", principal)
                 .issueTime(Date.from(Instant.now()))
                 .expirationTime(Date.from(Instant.now().plusSeconds(300)));
             sharedSecret = jwt2SharedSecret;
@@ -293,7 +293,7 @@ public class JwtRealmSingleNodeTests extends SecuritySingleNodeTestCase {
                 .actionGet();
             assertThat(activateProfileResponse.getProfile(), notNullValue());
             assertThat(activateProfileResponse.getProfile().uid(), notNullValue());
-            assertThat(activateProfileResponse.getProfile().user().username(), is(subject));
+            assertThat(activateProfileResponse.getProfile().user().username(), is(principal));
             assertThat(activateProfileResponse.getProfile().user().realmName(), is(realmName));
             // test to get the profile by uid
             GetProfilesRequest getProfilesRequest = new GetProfilesRequest(List.of(activateProfileResponse.getProfile().uid()), Set.of());
@@ -301,7 +301,7 @@ public class JwtRealmSingleNodeTests extends SecuritySingleNodeTestCase {
             assertThat(getProfilesResponse.getProfiles().size(), is(1));
             assertThat(getProfilesResponse.getProfiles().get(0).uid(), is(activateProfileResponse.getProfile().uid()));
             assertThat(getProfilesResponse.getProfiles().get(0).enabled(), is(true));
-            assertThat(getProfilesResponse.getProfiles().get(0).user().username(), is(subject));
+            assertThat(getProfilesResponse.getProfiles().get(0).user().username(), is(principal));
             assertThat(getProfilesResponse.getProfiles().get(0).user().realmName(), is(realmName));
         }
         {

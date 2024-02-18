@@ -13,16 +13,12 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.util.resource.Resource;
-import org.elasticsearch.test.junit.RunnableTestRuleAdapter;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
 import java.io.IOException;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.action.search.SearchResponse.LOCAL_CLUSTER_NAME_REPRESENTATION;
 import static org.hamcrest.CoreMatchers.is;
@@ -36,50 +32,21 @@ import static org.hamcrest.Matchers.nullValue;
  */
 public class RemoteClusterSecurityRCS1ResolveClusterIT extends AbstractRemoteClusterSecurityTestCase {
 
-    private static final AtomicBoolean SSL_ENABLED_REF = new AtomicBoolean();
-    private static final AtomicBoolean NODE1_RCS_SERVER_ENABLED = new AtomicBoolean();
-    private static final AtomicBoolean NODE2_RCS_SERVER_ENABLED = new AtomicBoolean();
-    private static final AtomicInteger INVALID_SECRET_LENGTH = new AtomicInteger();
-
     static {
         fulfillingCluster = ElasticsearchCluster.local()
             .name("fulfilling-cluster")
-            .nodes(1)
+            .nodes(3)
             .apply(commonClusterConfig)
-            .setting("remote_cluster.port", "0")
-            .setting("xpack.security.remote_cluster_server.ssl.enabled", "true")
-            // .setting("xpack.security.remote_cluster_server.ssl.enabled", () -> String.valueOf(SSL_ENABLED_REF.get()))
-            .setting("xpack.security.remote_cluster_server.ssl.key", "remote-cluster.key")
-            .setting("xpack.security.remote_cluster_server.ssl.certificate", "remote-cluster.crt")
-            .setting("xpack.security.authc.token.enabled", "true")
-            .keystore("xpack.security.remote_cluster_server.ssl.secure_key_passphrase", "remote-cluster-password")
-            .node(0, spec -> spec.setting("remote_cluster_server.enabled", "true"))
-            // .node(1, spec -> spec.setting("remote_cluster_server.enabled", () -> String.valueOf(NODE1_RCS_SERVER_ENABLED.get())))
-            // .node(2, spec -> spec.setting("remote_cluster_server.enabled", () -> String.valueOf(NODE2_RCS_SERVER_ENABLED.get())))
             .build();
 
         queryCluster = ElasticsearchCluster.local()
             .name("query-cluster")
             .apply(commonClusterConfig)
-            .setting("xpack.security.remote_cluster_client.ssl.enabled", "true")
-            // .setting("xpack.security.remote_cluster_client.ssl.enabled", () -> String.valueOf(SSL_ENABLED_REF.get()))
-            .setting("xpack.security.remote_cluster_client.ssl.certificate_authorities", "remote-cluster-ca.crt")
-            .setting("xpack.security.authc.token.enabled", "true")
-            .rolesFile(Resource.fromClasspath("roles.yml"))
-            .user(REMOTE_METRIC_USER, PASS.toString(), "read_remote_shared_metrics", false)  // TODO need this?
             .build();
     }
 
     @ClassRule
-    // Use a RuleChain to ensure that fulfilling cluster is started before query cluster
-    // `SSL_ENABLED_REF` is used to control the SSL-enabled setting on the test clusters
-    // We set it here, since randomization methods are not available in the static initialize context above
-    public static TestRule clusterRule = RuleChain.outerRule(new RunnableTestRuleAdapter(() -> {
-        SSL_ENABLED_REF.set(usually()); // TODO: why do we want to randomize this?
-        // NODE1_RCS_SERVER_ENABLED.set(randomBoolean());
-        // NODE2_RCS_SERVER_ENABLED.set(randomBoolean());
-        INVALID_SECRET_LENGTH.set(randomValueOtherThan(22, () -> randomIntBetween(0, 99)));
-    })).around(fulfillingCluster).around(queryCluster);
+    public static TestRule clusterRule = RuleChain.outerRule(fulfillingCluster).around(queryCluster);
 
     @SuppressWarnings("unchecked")
     public void testResolveClusterUnderRCS1() throws Exception {

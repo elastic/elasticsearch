@@ -23,7 +23,7 @@ public class IdFieldTypeTests extends ESTestCase {
     public void testRangeQuery() {
         MappedFieldType ft = randomBoolean()
             ? new ProvidedIdFieldMapper.IdFieldType(() -> false)
-            : new TsidExtractingIdFieldMapper.IdFieldType();
+            : TsidExtractingIdFieldMapper.INSTANCE.fieldType();
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> ft.rangeQuery(null, null, randomBoolean(), randomBoolean(), null, null, null, null)
@@ -58,7 +58,6 @@ public class IdFieldTypeTests extends ESTestCase {
         ft = new ProvidedIdFieldMapper.IdFieldType(() -> true);
         assertTrue(ft.isAggregatable());
 
-        ft = new TsidExtractingIdFieldMapper.IdFieldType();
-        assertFalse(ft.isAggregatable());
+        assertFalse(TsidExtractingIdFieldMapper.INSTANCE.fieldType().isAggregatable());
     }
 }

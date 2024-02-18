@@ -22,7 +22,10 @@ import java.util.List;
  */
 public class Acos extends AbstractTrigonometricFunction {
     @FunctionInfo(returnType = "double", description = "The arccosine of an angle, expressed in radians.")
-    public Acos(Source source, @Param(name = "n", type = { "double", "integer", "long", "unsigned_long" }) Expression n) {
+    public Acos(
+        Source source,
+        @Param(name = "n", type = { "double", "integer", "long", "unsigned_long" }, description = "Number between -1 and 1") Expression n
+    ) {
         super(source, n);
     }
 

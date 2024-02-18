@@ -91,7 +91,7 @@ public class RegisteredDomainProcessor extends AbstractProcessor {
             }
             return null;
         }
-        if (registeredDomain.indexOf(".") == -1) {
+        if (registeredDomain.indexOf('.') == -1) {
             // we have domain with no matching public suffix, but "." in it
             return null;
         }
@@ -117,7 +117,7 @@ public class RegisteredDomainProcessor extends AbstractProcessor {
         }
 
         private DomainInfo(String registeredDomain, String domain) {
-            int index = registeredDomain.indexOf(".") + 1;
+            int index = registeredDomain.indexOf('.') + 1;
             if (index > 0 && index < registeredDomain.length()) {
                 this.domain = domain;
                 this.eTLD = registeredDomain.substring(index);

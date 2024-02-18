@@ -26,6 +26,7 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Arrays;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -71,6 +72,15 @@ public class ServiceUtils {
         Map<String, Object> value = (Map<String, Object>) sourceMap.remove(fieldName);
         if (value == null) {
             throw new ElasticsearchStatusException("Missing required field [{}]", RestStatus.BAD_REQUEST, fieldName);
+        }
+        return value;
+    }
+
+    @SuppressWarnings("unchecked")
+    public static Map<String, Object> removeFromMapOrDefaultEmpty(Map<String, Object> sourceMap, String fieldName) {
+        Map<String, Object> value = (Map<String, Object>) sourceMap.remove(fieldName);
+        if (value == null) {
+            return new HashMap<>();
         }
         return value;
     }

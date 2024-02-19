@@ -321,6 +321,12 @@ public class DataStreamAutoShardingService {
     }
 
     // Visible for testing
+
+    /**
+     * Calculates the maximum write index load observed for the provided data stream across all the backing indices that were created
+     * during the provide {@param coolingPeriod} (note: to cover the entire cooling period, the backing index created before the cooling
+     * period is also considered).
+     */
     static double getMaxIndexLoadWithinCoolingPeriod(
         Metadata metadata,
         DataStream dataStream,

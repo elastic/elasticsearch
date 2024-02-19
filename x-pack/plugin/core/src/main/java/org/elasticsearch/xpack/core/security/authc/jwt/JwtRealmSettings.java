@@ -29,6 +29,8 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.xpack.core.security.authc.support.SecuritySettingsUtil.verifyNonNullNotEmpty;
+
 /**
  * Settings unique to each JWT realm.
  */
@@ -490,34 +492,6 @@ public class JwtRealmSettings {
 
     public static final Collection<Setting.AffixSetting<?>> DELEGATED_AUTHORIZATION_REALMS_SETTINGS = DelegatedAuthorizationSettings
         .getSettings(TYPE);
-
-    private static void verifyNonNullNotEmpty(final String key, final String value, final List<String> allowedValues) {
-        assert value != null : "Invalid null value for [" + key + "].";
-        if (value.isEmpty()) {
-            throw new IllegalArgumentException("Invalid empty value for [" + key + "].");
-        }
-        if (allowedValues != null) {
-            if (allowedValues.contains(value) == false) {
-                throw new IllegalArgumentException(
-                    "Invalid value [" + value + "] for [" + key + "]. Allowed values are " + allowedValues + "."
-                );
-            }
-        }
-    }
-
-    private static void verifyNonNullNotEmpty(final String key, final List<String> values, final List<String> allowedValues) {
-        assert values != null : "Invalid null list of values for [" + key + "].";
-        if (values.isEmpty()) {
-            if (allowedValues == null) {
-                throw new IllegalArgumentException("Invalid empty list for [" + key + "].");
-            } else {
-                throw new IllegalArgumentException("Invalid empty list for [" + key + "]. Allowed values are " + allowedValues + ".");
-            }
-        }
-        for (final String value : values) {
-            verifyNonNullNotEmpty(key, value, allowedValues);
-        }
-    }
 
     private static void validateFallbackClaimSetting(
         Setting.AffixSetting<String> setting,

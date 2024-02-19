@@ -124,4 +124,17 @@ public class URLSnapshotRestoreIT extends ESIntegTestCase {
         getSnapshotsResponse = client.admin().cluster().prepareGetSnapshots("url-repo").get();
         assertThat(getSnapshotsResponse.getSnapshots().size(), equalTo(0));
     }
+
+    public void testUrlRepositoryPermitsShutdown() throws Exception {
+        assertAcked(
+            client().admin()
+                .cluster()
+                .preparePutRepository("url-repo")
+                .setType(URLRepository.TYPE)
+                .setVerify(false)
+                .setSettings(Settings.builder().put(URLRepository.URL_SETTING.getKey(), "http://localhost/"))
+        );
+
+        internalCluster().fullRestart(); // just checking that URL repositories don't block node shutdown
+    }
 }

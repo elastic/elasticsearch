@@ -32,7 +32,6 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingHelper;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
@@ -69,6 +68,7 @@ import static org.elasticsearch.cluster.routing.RoutingNodesHelper.shardsWithSta
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
+import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -352,26 +352,18 @@ public class IndexVersionAllocationDeciderTests extends ESAllocationTestCase {
                 IndexRoutingTable.builder(shard1.getIndex())
                     .addIndexShard(
                         new IndexShardRoutingTable.Builder(shard1).addShard(
-                            TestShardRouting.newShardRouting(
-                                shard1.getIndexName(),
-                                shard1.getId(),
-                                newNode.getId(),
-                                null,
-                                true,
-                                ShardRoutingState.STARTED,
-                                allocationId1P
+                                shardRoutingBuilder(shard1.getIndexName(), shard1.getId(), newNode.getId(), true, ShardRoutingState.STARTED)
+                                    .withAllocationId(allocationId1P)
+                                    .build()
                             )
-                        )
                             .addShard(
-                                TestShardRouting.newShardRouting(
+                                shardRoutingBuilder(
                                     shard1.getIndexName(),
                                     shard1.getId(),
                                     oldNode1.getId(),
-                                    null,
                                     false,
-                                    ShardRoutingState.STARTED,
-                                    allocationId1R
-                                )
+                                    ShardRoutingState.STARTED
+                                ).withAllocationId(allocationId1R).build()
                             )
                     )
             )
@@ -379,26 +371,18 @@ public class IndexVersionAllocationDeciderTests extends ESAllocationTestCase {
                 IndexRoutingTable.builder(shard2.getIndex())
                     .addIndexShard(
                         new IndexShardRoutingTable.Builder(shard2).addShard(
-                            TestShardRouting.newShardRouting(
-                                shard2.getIndexName(),
-                                shard2.getId(),
-                                newNode.getId(),
-                                null,
-                                true,
-                                ShardRoutingState.STARTED,
-                                allocationId2P
+                                shardRoutingBuilder(shard2.getIndexName(), shard2.getId(), newNode.getId(), true, ShardRoutingState.STARTED)
+                                    .withAllocationId(allocationId2P)
+                                    .build()
                             )
-                        )
                             .addShard(
-                                TestShardRouting.newShardRouting(
+                                shardRoutingBuilder(
                                     shard2.getIndexName(),
                                     shard2.getId(),
                                     oldNode1.getId(),
-                                    null,
                                     false,
-                                    ShardRoutingState.STARTED,
-                                    allocationId2R
-                                )
+                                    ShardRoutingState.STARTED
+                                ).withAllocationId(allocationId2R).build()
                             )
                     )
             )
@@ -603,9 +587,9 @@ public class IndexVersionAllocationDeciderTests extends ESAllocationTestCase {
             decision.getExplanation(),
             is(
                 "can relocate primary shard from a node with max index version ["
-                    + oldNode.node().getMaxIndexVersion()
+                    + oldNode.node().getMaxIndexVersion().toReleaseVersion()
                     + "] to a node with equal-or-newer max index version ["
-                    + newNode.node().getMaxIndexVersion()
+                    + newNode.node().getMaxIndexVersion().toReleaseVersion()
                     + "]"
             )
         );
@@ -616,9 +600,9 @@ public class IndexVersionAllocationDeciderTests extends ESAllocationTestCase {
             decision.getExplanation(),
             is(
                 "cannot relocate primary shard from a node with max index version ["
-                    + newNode.node().getMaxIndexVersion()
+                    + newNode.node().getMaxIndexVersion().toReleaseVersion()
                     + "] to a node with older max index version ["
-                    + oldNode.node().getMaxIndexVersion()
+                    + oldNode.node().getMaxIndexVersion().toReleaseVersion()
                     + "]"
             )
         );
@@ -647,9 +631,9 @@ public class IndexVersionAllocationDeciderTests extends ESAllocationTestCase {
             decision.getExplanation(),
             is(
                 "max supported index version ["
-                    + oldNode.node().getMaxIndexVersion()
+                    + oldNode.node().getMaxIndexVersion().toReleaseVersion()
                     + "] is older than the snapshot version ["
-                    + newNode.node().getMaxIndexVersion()
+                    + newNode.node().getMaxIndexVersion().toReleaseVersion()
                     + "]"
             )
         );
@@ -664,9 +648,9 @@ public class IndexVersionAllocationDeciderTests extends ESAllocationTestCase {
             decision.getExplanation(),
             is(
                 "max supported index version ["
-                    + newNode.node().getMaxIndexVersion()
+                    + newNode.node().getMaxIndexVersion().toReleaseVersion()
                     + "] is the same or newer than snapshot version ["
-                    + oldNode.node().getMaxIndexVersion()
+                    + oldNode.node().getMaxIndexVersion().toReleaseVersion()
                     + "]"
             )
         );
@@ -689,9 +673,9 @@ public class IndexVersionAllocationDeciderTests extends ESAllocationTestCase {
             decision.getExplanation(),
             is(
                 "cannot allocate replica shard to a node with max index version ["
-                    + oldNode.node().getMaxIndexVersion()
+                    + oldNode.node().getMaxIndexVersion().toReleaseVersion()
                     + "] since this is older than the primary max index version ["
-                    + newNode.node().getMaxIndexVersion()
+                    + newNode.node().getMaxIndexVersion().toReleaseVersion()
                     + "]"
             )
         );
@@ -711,9 +695,9 @@ public class IndexVersionAllocationDeciderTests extends ESAllocationTestCase {
             decision.getExplanation(),
             is(
                 "can allocate replica shard to a node with max index version ["
-                    + newNode.node().getMaxIndexVersion()
+                    + newNode.node().getMaxIndexVersion().toReleaseVersion()
                     + "] since this is equal-or-newer than the primary max index version ["
-                    + oldNode.node().getMaxIndexVersion()
+                    + oldNode.node().getMaxIndexVersion().toReleaseVersion()
                     + "]"
             )
         );

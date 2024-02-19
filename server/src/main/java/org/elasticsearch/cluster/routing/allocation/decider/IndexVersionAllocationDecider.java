@@ -70,16 +70,16 @@ public class IndexVersionAllocationDecider extends AllocationDecider {
                 Decision.YES,
                 NAME,
                 "can relocate primary shard from a node with max index version [%s] to a node with equal-or-newer max index version [%s]",
-                source.node().getMaxIndexVersion(),
-                target.node().getMaxIndexVersion()
+                source.node().getMaxIndexVersion().toReleaseVersion(),
+                target.node().getMaxIndexVersion().toReleaseVersion()
             );
         } else {
             return allocation.decision(
                 Decision.NO,
                 NAME,
                 "cannot relocate primary shard from a node with max index version [%s] to a node with older max index version [%s]",
-                source.node().getMaxIndexVersion(),
-                target.node().getMaxIndexVersion()
+                source.node().getMaxIndexVersion().toReleaseVersion(),
+                target.node().getMaxIndexVersion().toReleaseVersion()
             );
         }
     }
@@ -100,8 +100,8 @@ public class IndexVersionAllocationDecider extends AllocationDecider {
                 NAME,
                 "can allocate replica shard to a node with max index version [%s]"
                     + " since this is equal-or-newer than the primary max index version [%s]",
-                target.node().getMaxIndexVersion(),
-                source.node().getMaxIndexVersion()
+                target.node().getMaxIndexVersion().toReleaseVersion(),
+                source.node().getMaxIndexVersion().toReleaseVersion()
             );
         } else {
             return allocation.decision(
@@ -109,8 +109,8 @@ public class IndexVersionAllocationDecider extends AllocationDecider {
                 NAME,
                 "cannot allocate replica shard to a node with max index version [%s]"
                     + " since this is older than the primary max index version [%s]",
-                target.node().getMaxIndexVersion(),
-                source.node().getMaxIndexVersion()
+                target.node().getMaxIndexVersion().toReleaseVersion(),
+                source.node().getMaxIndexVersion().toReleaseVersion()
             );
         }
     }
@@ -126,16 +126,16 @@ public class IndexVersionAllocationDecider extends AllocationDecider {
                 Decision.YES,
                 NAME,
                 "max supported index version [%s] is the same or newer than snapshot version [%s]",
-                target.node().getMaxIndexVersion(),
-                recoverySource.version()
+                target.node().getMaxIndexVersion().toReleaseVersion(),
+                recoverySource.version().toReleaseVersion()
             );
         } else {
             return allocation.decision(
                 Decision.NO,
                 NAME,
                 "max supported index version [%s] is older than the snapshot version [%s]",
-                target.node().getMaxIndexVersion(),
-                recoverySource.version()
+                target.node().getMaxIndexVersion().toReleaseVersion(),
+                recoverySource.version().toReleaseVersion()
             );
         }
     }

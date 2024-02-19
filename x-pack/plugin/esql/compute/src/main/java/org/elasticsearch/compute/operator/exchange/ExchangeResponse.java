@@ -65,6 +65,14 @@ public final class ExchangeResponse extends TransportResponse implements Releasa
         return page;
     }
 
+    public long ramBytesUsedByPage() {
+        if (page != null) {
+            return page.ramBytesUsedByBlocks();
+        } else {
+            return 0;
+        }
+    }
+
     /**
      * Returns true if the {@link RemoteSink} is already completed. In this case, the {@link ExchangeSourceHandler}
      * can stop polling pages and finish itself.

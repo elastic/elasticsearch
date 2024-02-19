@@ -22,6 +22,8 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -49,6 +51,7 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPositio
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
 import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
+import org.elasticsearch.xpack.transform.TransformExtension;
 import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.checkpoint.CheckpointProvider;
 import org.elasticsearch.xpack.transform.checkpoint.TransformCheckpointService;
@@ -129,6 +132,9 @@ public class ClientTransformIndexerTests extends ESTestCase {
             final var client = new PitMockClient(threadPool, true);
             MockClientTransformIndexer indexer = new MockClientTransformIndexer(
                 mock(ThreadPool.class),
+                mock(ClusterService.class),
+                mock(IndexNameExpressionResolver.class),
+                mock(TransformExtension.class),
                 new TransformServices(
                     mock(IndexBasedTransformConfigManager.class),
                     mock(TransformCheckpointService.class),
@@ -223,6 +229,9 @@ public class ClientTransformIndexerTests extends ESTestCase {
             final var client = new PitMockClient(threadPool, false);
             MockClientTransformIndexer indexer = new MockClientTransformIndexer(
                 mock(ThreadPool.class),
+                mock(ClusterService.class),
+                mock(IndexNameExpressionResolver.class),
+                mock(TransformExtension.class),
                 new TransformServices(
                     mock(IndexBasedTransformConfigManager.class),
                     mock(TransformCheckpointService.class),
@@ -306,6 +315,9 @@ public class ClientTransformIndexerTests extends ESTestCase {
             final var client = new PitMockClient(threadPool, true);
             MockClientTransformIndexer indexer = new MockClientTransformIndexer(
                 mock(ThreadPool.class),
+                mock(ClusterService.class),
+                mock(IndexNameExpressionResolver.class),
+                mock(TransformExtension.class),
                 new TransformServices(
                     mock(IndexBasedTransformConfigManager.class),
                     mock(TransformCheckpointService.class),
@@ -393,6 +405,9 @@ public class ClientTransformIndexerTests extends ESTestCase {
 
         MockClientTransformIndexer(
             ThreadPool threadPool,
+            ClusterService clusterService,
+            IndexNameExpressionResolver indexNameExpressionResolver,
+            TransformExtension transformExtension,
             TransformServices transformServices,
             CheckpointProvider checkpointProvider,
             AtomicReference<IndexerState> initialState,
@@ -409,6 +424,9 @@ public class ClientTransformIndexerTests extends ESTestCase {
         ) {
             super(
                 threadPool,
+                clusterService,
+                indexNameExpressionResolver,
+                transformExtension,
                 transformServices,
                 checkpointProvider,
                 initialState,
@@ -546,6 +564,9 @@ public class ClientTransformIndexerTests extends ESTestCase {
 
         return new ClientTransformIndexer(
             mock(ThreadPool.class),
+            mock(ClusterService.class),
+            mock(IndexNameExpressionResolver.class),
+            mock(TransformExtension.class),
             new TransformServices(
                 mock(IndexBasedTransformConfigManager.class),
                 mock(TransformCheckpointService.class),

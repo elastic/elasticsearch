@@ -19,6 +19,7 @@ import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 
+import java.util.Base64;
 import java.util.Locale;
 
 /**
@@ -89,6 +90,18 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
 
         BytesRef uidEncoded = Uid.encodeId(context.id());
         context.doc().add(new StringField(NAME, uidEncoded, Field.Store.YES));
+    }
+
+    public static String createId(int routingId, BytesRef tsid, long timestamp) {
+        Hash128 hash = new Hash128();
+        MurmurHash3.hash128(tsid.bytes, tsid.offset, tsid.length, SEED, hash);
+
+        byte[] bytes = new byte[20];
+        ByteUtils.writeIntLE(routingId, bytes, 0);
+        ByteUtils.writeLongLE(hash.h1, bytes, 4);
+        ByteUtils.writeLongBE(timestamp, bytes, 12);   // Big Ending shrinks the inverted index by ~37%
+
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
     }
 
     public static String createId(

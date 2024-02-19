@@ -15,8 +15,9 @@ import org.elasticsearch.core.TimeValue;
  * Represents an auto sharding recommendation. It includes the current and target number of shards together with a remaining cooldown
  * period that needs to lapse before the current recommendation should be applied.
  * <p>
- * If auto sharding is not applicable for a data stream (e.g. due to {@link DataStreamAutoShardingService#DATA_STREAMS_AUTO_SHARDING_EXCLUDES_SETTING})
- * the target number of shards will be 0 and cool down remaining {@link TimeValue#MAX_VALUE}.
+ * If auto sharding is not applicable for a data stream (e.g. due to
+ * {@link DataStreamAutoShardingService#DATA_STREAMS_AUTO_SHARDING_EXCLUDES_SETTING}) the target number of shards will be 0 and cool down
+ * remaining {@link TimeValue#MAX_VALUE}.
  */
 public record AutoShardingResult(
     AutoShardingType type,

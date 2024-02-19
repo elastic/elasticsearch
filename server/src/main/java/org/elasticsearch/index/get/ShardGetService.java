@@ -19,18 +19,23 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.NestedPathFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceLoader;
+import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.MultiEngineGet;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.lookup.Source;
 
@@ -272,7 +277,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
 
     private GetResult innerGetFetch(
         String id,
-        String[] storedFields,
+        String[] fields,
         FetchSourceContext fetchSourceContext,
         Engine.GetResult get,
         boolean forceSyntheticSource
@@ -281,8 +286,8 @@ public final class ShardGetService extends AbstractIndexShardComponent {
 
         // check first if stored fields to be loaded don't contain an object field
         MappingLookup mappingLookup = mapperService.mappingLookup();
-        if (storedFields != null) {
-            for (String field : storedFields) {
+        if (fields != null) {
+            for (String field : fields) {
                 Mapper fieldMapper = mappingLookup.getMapper(field);
                 if (fieldMapper == null) {
                     if (mappingLookup.objectMappers().get(field) != null) {
@@ -293,13 +298,13 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             }
         }
 
-        Map<String, DocumentField> documentFields = null;
-        Map<String, DocumentField> metadataFields = null;
+        Map<String, DocumentField> documentFields;
+        Map<String, DocumentField> metadataFields;
         DocIdAndVersion docIdAndVersion = get.docIdAndVersion();
         SourceLoader loader = forceSyntheticSource
             ? new SourceLoader.Synthetic(mappingLookup.getMapping())
             : mappingLookup.newSourceLoader();
-        StoredFieldLoader storedFieldLoader = buildStoredFieldLoader(storedFields, fetchSourceContext, loader);
+        StoredFieldLoader storedFieldLoader = buildStoredFieldLoader(fields, fetchSourceContext, loader);
         LeafStoredFieldLoader leafStoredFieldLoader = storedFieldLoader.getLoader(docIdAndVersion.reader.getContext(), null);
         try {
             leafStoredFieldLoader.advanceTo(docIdAndVersion.docId);
@@ -307,37 +312,63 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             throw new ElasticsearchException("Failed to get id [" + id + "]", e);
         }
 
-        // put stored fields into result objects
-        if (leafStoredFieldLoader.storedFields().isEmpty() == false) {
-            Set<String> needed = new HashSet<>();
-            if (storedFields != null) {
-                Collections.addAll(needed, storedFields);
+        Set<String> requiredFields = new HashSet<>();
+        if (fields != null) {
+            Collections.addAll(requiredFields, fields);
+        }
+        requiredFields.add(RoutingFieldMapper.NAME); // we always return _routing if we see it, even if you don't ask for it.....
+        documentFields = new HashMap<>();
+        metadataFields = new HashMap<>();
+        Source source = loader.leaf(docIdAndVersion.reader, new int[] { docIdAndVersion.docId })
+            .source(leafStoredFieldLoader, docIdAndVersion.docId);
+        final SearchExecutionContext searchExecutionContext = new SearchExecutionContext(
+            shardId.id(),
+            0,
+            indexSettings,
+            null,
+            (mappedFieldType, fieldDataContext) -> mappedFieldType.fielddataBuilder(fieldDataContext)
+                .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService()),
+            mapperService,
+            mapperService.mappingLookup(),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            Collections.emptyMap()
+        );
+        for (String field : fields != null ? fields : new String[0]) {
+            if (field.equals(NestedPathFieldMapper.NAME) || field.equals(SourceFieldMapper.NAME)) {
+                continue;
             }
-            needed.add(RoutingFieldMapper.NAME); // we always return _routing if we see it, even if you don't ask for it.....
-            documentFields = new HashMap<>();
-            metadataFields = new HashMap<>();
-            for (Map.Entry<String, List<Object>> entry : leafStoredFieldLoader.storedFields().entrySet()) {
-                if (false == needed.contains(entry.getKey())) {
-                    continue;
-                }
-                MappedFieldType ft = mapperService.fieldType(entry.getKey());
-                if (ft == null) {
-                    continue;   // user asked for a non-existent field, ignore it
-                }
-                List<Object> values = entry.getValue().stream().map(ft::valueForDisplay).toList();
-                if (mapperService.isMetadataField(entry.getKey())) {
-                    metadataFields.put(entry.getKey(), new DocumentField(entry.getKey(), values));
-                } else {
-                    documentFields.put(entry.getKey(), new DocumentField(entry.getKey(), values));
-                }
+            if (false == requiredFields.contains(field)) {
+                continue;
+            }
+            final MappedFieldType mappedFieldType = mapperService.fieldType(field);
+            if (mappedFieldType == null) {
+                continue;   // user asked for a non-existent field, ignore it
+            }
+            final ValueFetcher valueFetcher = mappedFieldType.valueFetcher(searchExecutionContext, null);
+            valueFetcher.setNextReader(docIdAndVersion.reader.getContext());
+            final List<Object> values = valueFetcher.fetchValues(source, get.docIdAndVersion().docId, Collections.emptyList());
+            if (values == null || values.isEmpty()) {
+                continue;
+            }
+            if (mapperService.isMetadataField(field)) {
+                metadataFields.put(field, new DocumentField(field, values));
+            } else {
+                documentFields.put(field, new DocumentField(field, values));
             }
         }
 
         BytesReference sourceBytes = null;
         if (mapperService.mappingLookup().isSourceEnabled() && fetchSourceContext.fetchSource()) {
-            Source source = loader.leaf(docIdAndVersion.reader, new int[] { docIdAndVersion.docId })
-                .source(leafStoredFieldLoader, docIdAndVersion.docId);
-
             if (fetchSourceContext.hasFilter()) {
                 source = source.filter(fetchSourceContext.filter());
             }

@@ -351,9 +351,7 @@ public class DataStreamAutoShardingService {
             double totalIndexLoad = 0;
             for (int shardId = 0; shardId < writeLoad.numberOfShards(); shardId++) {
                 final OptionalDouble writeLoadForShard = writeLoad.getWriteLoadForShard(shardId);
-                if (writeLoadForShard.isPresent()) {
-                    totalIndexLoad += writeLoadForShard.getAsDouble();
-                }
+                totalIndexLoad += writeLoadForShard.orElse(0);
             }
 
             if (totalIndexLoad > maxIndexLoadWithinCoolingPeriod) {

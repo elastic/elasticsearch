@@ -97,7 +97,7 @@ fetch:
   - do:
       allowed_warnings:
         - "Field [ip_noidx] cannot be retrieved, it is unsupported or not indexed; returning null"
-        - "No limit defined, adding default limit of [500]"
+        - "No limit defined, adding default limit of [1000]"
       esql.query:
         body:
           query: 'from test'

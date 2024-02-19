@@ -17,7 +17,7 @@
       warnings:
         - "Line 1:37: evaluation of [to_ip(coalesce(ip1.keyword, \"255.255.255.255\"))] failed, treating result as null. Only first 20 failures recorded."
         - "Line 1:37: java.lang.IllegalArgumentException: '127.0' is not an IP string literal."
-        - "No limit defined, adding default limit of [500]"
+        - "No limit defined, adding default limit of [1000]"
       esql.query:
         body:
           query: 'FROM test | sort emp_no | eval ip = to_ip(coalesce(ip1.keyword, "255.255.255.255")) | keep emp_no, ip'
@@ -36,7 +36,7 @@
       warnings:
         - "Line 1:98: evaluation of [to_ip(x2)] failed, treating result as null. Only first 20 failures recorded."
         - "Line 1:98: java.lang.IllegalArgumentException: '127.00.1' is not an IP string literal."
-        - "No limit defined, adding default limit of [500]"
+        - "No limit defined, adding default limit of [1000]"
       esql.query:
         body:
           query: 'FROM test | sort emp_no | eval x1 = concat(ip1, ip2), x2 = coalesce(x1, "255.255.255.255"), x3 = to_ip(x2) | keep emp_no, x*'

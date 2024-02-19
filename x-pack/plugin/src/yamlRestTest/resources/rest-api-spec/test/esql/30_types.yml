@@ -31,7 +31,7 @@ constant_keyword:
 
   - do:
       warnings:
-        - "No limit defined, adding default limit of [500]"
+        - "No limit defined, adding default limit of [1000]"
       esql.query:
         body:
           query: 'from test'
@@ -45,7 +45,7 @@ constant_keyword:
 
   - do:
       warnings:
-        - "No limit defined, adding default limit of [500]"
+        - "No limit defined, adding default limit of [1000]"
       esql.query:
         body:
           query: 'from test | eval l=length(kind) | keep l'
@@ -109,7 +109,7 @@ multivalued keyword:
 
   - do:
       warnings:
-        - "No limit defined, adding default limit of [500]"
+        - "No limit defined, adding default limit of [1000]"
       esql.query:
         body:
           query: 'from test'
@@ -140,7 +140,7 @@ keyword no doc_values:
 
   - do:
       warnings:
-        - "No limit defined, adding default limit of [500]"
+        - "No limit defined, adding default limit of [1000]"
       esql.query:
         body:
           query: 'from test'
@@ -170,7 +170,7 @@ wildcard:
 
   - do:
       warnings:
-        - "No limit defined, adding default limit of [500]"
+        - "No limit defined, adding default limit of [1000]"
       esql.query:
         body:
           query: 'from test'
@@ -181,7 +181,7 @@ wildcard:
 
   - do:
       warnings:
-        - "No limit defined, adding default limit of [500]"
+        - "No limit defined, adding default limit of [1000]"
       esql.query:
         body:
           query: 'from test | eval l=length(card) | keep l'
@@ -221,7 +221,7 @@ numbers:
 
   - do:
       warnings:
-        - "No limit defined, adding default limit of [500]"
+        - "No limit defined, adding default limit of [1000]"
       esql.query:
         body:
           query: 'from test'
@@ -272,7 +272,7 @@ small_numbers:
 
   - do:
       warnings:
-        - "No limit defined, adding default limit of [500]"
+        - "No limit defined, adding default limit of [1000]"
       esql.query:
         body:
           query: 'from test'
@@ -292,7 +292,7 @@ small_numbers:
 
   - do:
       warnings:
-        - "No limit defined, adding default limit of [500]"
+        - "No limit defined, adding default limit of [1000]"
       esql.query:
         body:
           query: 'from test | eval sum_d = b + f + hf + s, sum_i = b + s | keep sum_d, sum_i'
@@ -306,7 +306,7 @@ small_numbers:
 
   - do:
       warnings:
-        - "No limit defined, adding default limit of [500]"
+        - "No limit defined, adding default limit of [1000]"
       esql.query:
         body:
           query: 'from test | eval r_f = round(f), r_hf = round(hf) | keep r_f, r_hf'
@@ -342,7 +342,7 @@ scaled_float:
 
   - do:
       warnings:
-        - "No limit defined, adding default limit of [500]"
+        - "No limit defined, adding default limit of [1000]"
       esql.query:
         body:
           query: 'from test'
@@ -356,7 +356,7 @@ scaled_float:
 
   - do:
       warnings:
-        - "No limit defined, adding default limit of [500]"
+        - "No limit defined, adding default limit of [1000]"
       esql.query:
         body:
           query: 'from test | eval sum = d + f | keep sum'
@@ -386,7 +386,7 @@ multivalued boolean:
 
   - do:
       warnings:
-        - "No limit defined, adding default limit of [500]"
+        - "No limit defined, adding default limit of [1000]"
       esql.query:
         body:
           query: 'from test'
@@ -418,7 +418,7 @@ ip:
 
   - do:
       warnings:
-        - "No limit defined, adding default limit of [500]"
+        - "No limit defined, adding default limit of [1000]"
       esql.query:
         body:
           query: 'from test'
@@ -432,7 +432,7 @@ ip:
 
   - do:
       warnings:
-        - "No limit defined, adding default limit of [500]"
+        - "No limit defined, adding default limit of [1000]"
       esql.query:
         body:
           query: 'from test | where keyword == "127.0.0.2" | rename ip as IP | drop keyword'
@@ -488,7 +488,7 @@ alias:
 
   - do:
       warnings:
-        - "No limit defined, adding default limit of [500]"
+        - "No limit defined, adding default limit of [1000]"
       esql.query:
         body:
           query: 'from test | keep foo, bar, level1.level2, level2_alias, some_long, some_long_alias, some_long_alias2, some_date, some_date_alias | sort level2_alias'
@@ -532,7 +532,7 @@ alias:
 
   - do:
       warnings:
-        - "No limit defined, adding default limit of [500]"
+        - "No limit defined, adding default limit of [1000]"
       esql.query:
         body:
           query: 'from test | where bar == "abc" | keep foo, bar, level1.level2, level2_alias'
@@ -552,7 +552,7 @@ alias:
 
   - do:
       warnings:
-        - "No limit defined, adding default limit of [500]"
+        - "No limit defined, adding default limit of [1000]"
       esql.query:
         body:
           query: 'from test | where level2_alias == 10 | keep foo, bar, level1.level2, level2_alias'
@@ -572,7 +572,7 @@ alias:
 
   - do:
       warnings:
-        - "No limit defined, adding default limit of [500]"
+        - "No limit defined, adding default limit of [1000]"
       esql.query:
         body:
           query: 'from test | where level2_alias == 20'
@@ -580,7 +580,7 @@ alias:
 
   - do:
       warnings:
-        - "No limit defined, adding default limit of [500]"
+        - "No limit defined, adding default limit of [1000]"
       esql.query:
         body:
           query: 'from test | stats x = max(level2_alias)'
@@ -610,7 +610,7 @@ version:
 
   - do:
       warnings:
-        - "No limit defined, adding default limit of [500]"
+        - "No limit defined, adding default limit of [1000]"
       esql.query:
         body:
           query: 'from test'
@@ -643,7 +643,7 @@ id:
 
   - do:
       warnings:
-        - "No limit defined, adding default limit of [500]"
+        - "No limit defined, adding default limit of [1000]"
       esql.query:
         body:
           query: 'from test metadata _id | keep _id, kw'
@@ -674,7 +674,7 @@ unsigned_long:
 
   - do:
       warnings:
-        - "No limit defined, adding default limit of [500]"
+        - "No limit defined, adding default limit of [1000]"
       esql.query:
         body:
           query: 'from test'
@@ -893,7 +893,7 @@ geo_point:
 
   - do:
       warnings:
-        - "No limit defined, adding default limit of [500]"
+        - "No limit defined, adding default limit of [1000]"
       esql.query:
         body:
           query: 'from test'
@@ -926,7 +926,7 @@ cartesian_point:
 
   - do:
       warnings:
-        - "No limit defined, adding default limit of [500]"
+        - "No limit defined, adding default limit of [1000]"
       esql.query:
         body:
           query: 'from test'

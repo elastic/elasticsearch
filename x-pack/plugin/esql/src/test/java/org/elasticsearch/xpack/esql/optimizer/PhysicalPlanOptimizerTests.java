@@ -349,7 +349,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
     /**
      * Expects
-     * LimitExec[500[INTEGER]]
+     * LimitExec[1000[INTEGER]]
      * \_AggregateExec[[],[SUM(salary{f}#882) AS x],FINAL,null]
      *   \_ExchangeExec[[sum{r}#887, seen{r}#888],true]
      *     \_FragmentExec[filter=null, estimatedRowSize=0, fragment=[
@@ -615,7 +615,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     /**
      * Expects
      * EvalExec[[agg_emp{r}#4 + 7[INTEGER] AS x]]
-     * \_LimitExec[500[INTEGER]]
+     * \_LimitExec[1000[INTEGER]]
      *   \_AggregateExec[[],[SUM(emp_no{f}#8) AS agg_emp],FINAL,16]
      *     \_ExchangeExec[[sum{r}#18, seen{r}#19],true]
      *       \_AggregateExec[[],[SUM(emp_no{f}#8) AS agg_emp],PARTIAL,8]
@@ -1569,7 +1569,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      *     \_FieldExtractExec[_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gen..]
      *       \_EsQueryExec[test], query[{"esql_single_value":{"field":"first_name","next":
      *       {"term":{"first_name":{"value":"foo","case_insensitive":true}}},"source":"first_name =~ \"foo\"@2:9"}}]
-     *       [_doc{f}#23], limit[500], sort[] estimatedRowSize[324]
+     *       [_doc{f}#23], limit[1000], sort[] estimatedRowSize[324]
      */
     public void testPushDownEqualsIgnoreCase() {
         var plan = physicalPlan("""

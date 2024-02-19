@@ -101,8 +101,8 @@ public class DataStreamAutoShardingService {
     private final LongSupplier nowSupplier;
     private volatile TimeValue increaseShardsCooldown;
     private volatile TimeValue reduceShardsCooldown;
-    private volatile int minNumberWriteThreads;
-    private volatile int maxNumberWriteThreads;
+    private volatile int minWriteThreads;
+    private volatile int maxWriteThreads;
     private volatile List<String> dataStreamExcludePatterns;
 
     public DataStreamAutoShardingService(
@@ -115,8 +115,8 @@ public class DataStreamAutoShardingService {
         this.isAutoShardingEnabled = settings.getAsBoolean(DATA_STREAMS_AUTO_SHARDING_ENABLED, false);
         this.increaseShardsCooldown = DATA_STREAMS_AUTO_SHARDING_INCREASE_SHARDS_COOLDOWN.get(settings);
         this.reduceShardsCooldown = DATA_STREAMS_AUTO_SHARDING_DECREASE_SHARDS_COOLDOWN.get(settings);
-        this.minNumberWriteThreads = CLUSTER_AUTO_SHARDING_MIN_WRITE_THREADS.get(settings);
-        this.maxNumberWriteThreads = CLUSTER_AUTO_SHARDING_MAX_WRITE_THREADS.get(settings);
+        this.minWriteThreads = CLUSTER_AUTO_SHARDING_MIN_WRITE_THREADS.get(settings);
+        this.maxWriteThreads = CLUSTER_AUTO_SHARDING_MAX_WRITE_THREADS.get(settings);
         this.dataStreamExcludePatterns = DATA_STREAMS_AUTO_SHARDING_EXCLUDES_SETTING.get(settings);
         this.featureService = featureService;
         this.nowSupplier = nowSupplier;
@@ -128,9 +128,9 @@ public class DataStreamAutoShardingService {
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(DATA_STREAMS_AUTO_SHARDING_DECREASE_SHARDS_COOLDOWN, this::updateReduceShardsCooldown);
         clusterService.getClusterSettings()
-            .addSettingsUpdateConsumer(CLUSTER_AUTO_SHARDING_MIN_WRITE_THREADS, this::updateMinNumberWriteThreads);
+            .addSettingsUpdateConsumer(CLUSTER_AUTO_SHARDING_MIN_WRITE_THREADS, this::updateMinWriteThreads);
         clusterService.getClusterSettings()
-            .addSettingsUpdateConsumer(CLUSTER_AUTO_SHARDING_MAX_WRITE_THREADS, this::updateMaxNumberWriteThreads);
+            .addSettingsUpdateConsumer(CLUSTER_AUTO_SHARDING_MAX_WRITE_THREADS, this::updateMaxWriteThreads);
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(DATA_STREAMS_AUTO_SHARDING_EXCLUDES_SETTING, this::updateDataStreamExcludePatterns);
     }
@@ -192,7 +192,7 @@ public class DataStreamAutoShardingService {
 
     private AutoShardingResult innerCalculate(Metadata metadata, DataStream dataStream, double writeIndexLoad, LongSupplier nowSupplier) {
         // increasing the number of shards is calculated solely based on the index load of the write index
-        long optimalShardCount = computeOptimalNumberOfShards(minNumberWriteThreads, maxNumberWriteThreads, writeIndexLoad);
+        long optimalShardCount = computeOptimalNumberOfShards(minWriteThreads, maxWriteThreads, writeIndexLoad);
         IndexMetadata writeIndex = metadata.index(dataStream.getWriteIndex());
         assert writeIndex != null : "the data stream write index must exist in the provided cluster metadata";
         TimeValue timeSinceLastAutoShardingEvent = dataStream.getAutoShardingEvent() != null
@@ -231,7 +231,7 @@ public class DataStreamAutoShardingService {
             )
             : TimeValue.timeValueMillis(Math.max(0L, reduceShardsCooldown.millis() - timeSinceLastAutoShardingEvent.millis()));
 
-        // the way we hand the cool down when reducing the number of shards is concerned is a bit different as it involves checking the
+        // the way we handle the cool down when reducing the number of shards is concerned is a bit different as it involves checking the
         // write load of more than just the write index.
         // because we have to look at the maximum write load encountered within the configured cool down period this can involve
         // checking the write load for older backing indices. if the cool down period hasn't lapsed we short circuit here and return
@@ -274,8 +274,8 @@ public class DataStreamAutoShardingService {
             maxIndexLoadWithinCoolingPeriod
         );
         long optimalReduceNumberOfShards = computeOptimalNumberOfShards(
-            minNumberWriteThreads,
-            maxNumberWriteThreads,
+            minWriteThreads,
+            maxWriteThreads,
             maxIndexLoadWithinCoolingPeriod
         );
 
@@ -369,12 +369,12 @@ public class DataStreamAutoShardingService {
         this.reduceShardsCooldown = scaleDownCooldown;
     }
 
-    void updateMinNumberWriteThreads(int minNumberWriteThreads) {
-        this.minNumberWriteThreads = minNumberWriteThreads;
+    void updateMinWriteThreads(int minNumberWriteThreads) {
+        this.minWriteThreads = minNumberWriteThreads;
     }
 
-    void updateMaxNumberWriteThreads(int maxNumberWriteThreads) {
-        this.maxNumberWriteThreads = maxNumberWriteThreads;
+    void updateMaxWriteThreads(int maxNumberWriteThreads) {
+        this.maxWriteThreads = maxNumberWriteThreads;
     }
 
     private void updateDataStreamExcludePatterns(List<String> newExcludePatterns) {

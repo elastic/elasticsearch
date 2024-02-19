@@ -161,7 +161,8 @@ public class DownsampleActionIT extends ESRestTestCase {
         Settings.Builder settings = Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(LifecycleSettings.LIFECYCLE_NAME, policy);
+            .put(LifecycleSettings.LIFECYCLE_NAME, policy)
+            .put(LifecycleSettings.LIFECYCLE_POLL_INTERVAL, "10s");
 
         if (isTimeSeries) {
             settings.put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)

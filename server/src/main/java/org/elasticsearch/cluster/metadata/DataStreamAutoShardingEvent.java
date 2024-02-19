@@ -8,6 +8,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -32,7 +33,8 @@ public record DataStreamAutoShardingEvent(String triggerIndexName, long generati
     public static final ParseField TRIGGER_DATA_STREAM_GENERATION = new ParseField("trigger_generation");
     public static final ParseField TRIGGER_INDEX_NAME = new ParseField("trigger_index_name");
     public static final ParseField TARGET_NUMBER_OF_SHARDS = new ParseField("target_number_of_shards");
-    public static final ParseField EVENT_TIMESTAMP = new ParseField("event_timestamp");
+    public static final ParseField EVENT_TIME = new ParseField("event_time");
+    public static final ParseField EVENT_TIME_MILLIS = new ParseField("event_time_millis");
 
     public static final ConstructingObjectParser<DataStreamAutoShardingEvent, Void> PARSER = new ConstructingObjectParser<>(
         "auto_sharding",
@@ -44,11 +46,15 @@ public record DataStreamAutoShardingEvent(String triggerIndexName, long generati
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), TRIGGER_INDEX_NAME);
         PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), TRIGGER_DATA_STREAM_GENERATION);
         PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), TARGET_NUMBER_OF_SHARDS);
-        PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), EVENT_TIMESTAMP);
+        PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), EVENT_TIME_MILLIS);
     }
 
     public static DataStreamAutoShardingEvent fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
+    }
+
+    static Diff<DataStreamAutoShardingEvent> readDiffFrom(StreamInput in) throws IOException {
+        return SimpleDiffable.readDiffFrom(DataStreamAutoShardingEvent::new, in);
     }
 
     DataStreamAutoShardingEvent(StreamInput in) throws IOException {
@@ -60,7 +66,11 @@ public record DataStreamAutoShardingEvent(String triggerIndexName, long generati
         builder.field(TRIGGER_DATA_STREAM_GENERATION.getPreferredName(), generation);
         builder.field(TRIGGER_INDEX_NAME.getPreferredName(), triggerIndexName);
         builder.field(TARGET_NUMBER_OF_SHARDS.getPreferredName(), targetNumberOfShards);
-        builder.field(EVENT_TIMESTAMP.getPreferredName(), timestamp);
+        builder.humanReadableField(
+            EVENT_TIME_MILLIS.getPreferredName(),
+            EVENT_TIME.getPreferredName(),
+            TimeValue.timeValueMillis(timestamp)
+        );
         return builder;
     }
 

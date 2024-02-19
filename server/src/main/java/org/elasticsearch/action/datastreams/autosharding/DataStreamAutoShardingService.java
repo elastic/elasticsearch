@@ -17,9 +17,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadataStats;
 import org.elasticsearch.cluster.metadata.IndexWriteLoad;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -28,16 +25,14 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.ToXContentObject;
-import org.elasticsearch.xcontent.XContentBuilder;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 import java.util.OptionalDouble;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
+
+import static org.elasticsearch.action.datastreams.autosharding.AutoShardingResult.NOT_APPLICABLE_RESULT;
 
 /**
  * Calculates the optimal number of shards the data stream write index should have based on the indexing load.
@@ -80,10 +75,10 @@ public class DataStreamAutoShardingService {
     );
 
     /**
-     * Represents the minimum number of write threads we expect to have in the environments where auto sharding will be enabled.
+     * Represents the minimum number of write threads we expect a node to have in the environments where auto sharding will be enabled.
      */
-    public static final Setting<Integer> CLUSTER_AUTO_SHARDING_MIN_NUMBER_WRITE_THREADS = Setting.intSetting(
-        "cluster.auto_sharding.min_number_of_write_threads",
+    public static final Setting<Integer> CLUSTER_AUTO_SHARDING_MIN_WRITE_THREADS = Setting.intSetting(
+        "cluster.auto_sharding.min_write_threads",
         2,
         1,
         Setting.Property.Dynamic,
@@ -91,10 +86,10 @@ public class DataStreamAutoShardingService {
     );
 
     /**
-     * Represents the maximum number of write threads we expect to have in the environments where auto sharding will be enabled.
+     * Represents the maximum number of write threads we expect a node to have in the environments where auto sharding will be enabled.
      */
-    public static final Setting<Integer> CLUSTER_AUTO_SHARDING_MAX_NUMBER_WRITE_THREADS = Setting.intSetting(
-        "cluster.auto_sharding.max_number_of_write_threads",
+    public static final Setting<Integer> CLUSTER_AUTO_SHARDING_MAX_WRITE_THREADS = Setting.intSetting(
+        "cluster.auto_sharding.max_write_threads",
         32,
         1,
         Setting.Property.Dynamic,
@@ -110,89 +105,6 @@ public class DataStreamAutoShardingService {
     private volatile int maxNumberWriteThreads;
     private volatile List<String> dataStreamExcludePatterns;
 
-    public enum AutoShardingType {
-        INCREASE_NUMBER_OF_SHARDS,
-        DECREASES_NUMBER_OF_SHARDS,
-        NO_CHANGE_REQUIRED,
-        NOT_APPLICABLE
-    }
-
-    /**
-     * Represents an auto sharding recommendation. It includes the current and target number of shards together with a remaining cooldown
-     * period that needs to lapse before the current recommendation should be applied.
-     * <p>
-     * If auto sharding is not applicable for a data stream (e.g. due to {@link #DATA_STREAMS_AUTO_SHARDING_EXCLUDES_SETTING}) the target
-     * number of shards will be 0 and cool down remaining {@link TimeValue#MAX_VALUE}.
-     */
-    public record AutoShardingResult(
-        AutoShardingType type,
-        int currentNumberOfShards,
-        int targetNumberOfShards,
-        TimeValue coolDownRemaining,
-        @Nullable Double writeLoad
-    ) implements Writeable, ToXContentObject {
-
-        public static final ParseField AUTO_SHARDING_TYPE = new ParseField("type");
-        public static final ParseField CURRENT_NUMBER_OF_SHARDS = new ParseField("current_number_of_shards");
-        public static final ParseField TARGET_NUMBER_OF_SHARDS = new ParseField("target_number_of_shards");
-        public static final ParseField COOLDOWN_REMAINING = new ParseField("cool_down_remaining");
-        public static final ParseField WRITE_LOAD = new ParseField("write_load");
-
-        public AutoShardingResult(
-            AutoShardingType type,
-            int currentNumberOfShards,
-            int targetNumberOfShards,
-            TimeValue coolDownRemaining,
-            @Nullable Double writeLoad
-        ) {
-            this.type = type;
-            this.currentNumberOfShards = currentNumberOfShards;
-            this.targetNumberOfShards = targetNumberOfShards;
-            this.coolDownRemaining = coolDownRemaining;
-            this.writeLoad = writeLoad;
-        }
-
-        public AutoShardingResult(StreamInput in) throws IOException {
-            this(in.readEnum(AutoShardingType.class), in.readVInt(), in.readVInt(), in.readTimeValue(), in.readOptionalDouble());
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.field(AUTO_SHARDING_TYPE.getPreferredName(), type);
-            builder.field(CURRENT_NUMBER_OF_SHARDS.getPreferredName(), currentNumberOfShards);
-            builder.field(TARGET_NUMBER_OF_SHARDS.getPreferredName(), targetNumberOfShards);
-            builder.field(COOLDOWN_REMAINING.getPreferredName(), coolDownRemaining.toHumanReadableString(2));
-            builder.field(WRITE_LOAD.getPreferredName(), writeLoad);
-            builder.endObject();
-            return builder;
-        }
-
-        @Override
-        public String toString() {
-            return "{ type: "
-                + type
-                + ", currentNumberOfShards: "
-                + currentNumberOfShards
-                + ", targetNumberOfShards: "
-                + targetNumberOfShards
-                + ", coolDownRemaining: "
-                + coolDownRemaining
-                + ", writeLoad: "
-                + writeLoad
-                + " }";
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeEnum(type);
-            out.writeVInt(currentNumberOfShards);
-            out.writeVInt(targetNumberOfShards);
-            out.writeTimeValue(coolDownRemaining);
-            out.writeOptionalDouble(writeLoad);
-        }
-    }
-
     public DataStreamAutoShardingService(
         Settings settings,
         ClusterService clusterService,
@@ -203,8 +115,8 @@ public class DataStreamAutoShardingService {
         this.isAutoShardingEnabled = settings.getAsBoolean(DATA_STREAMS_AUTO_SHARDING_ENABLED, false);
         this.increaseShardsCooldown = DATA_STREAMS_AUTO_SHARDING_INCREASE_SHARDS_COOLDOWN.get(settings);
         this.reduceShardsCooldown = DATA_STREAMS_AUTO_SHARDING_DECREASE_SHARDS_COOLDOWN.get(settings);
-        this.minNumberWriteThreads = CLUSTER_AUTO_SHARDING_MIN_NUMBER_WRITE_THREADS.get(settings);
-        this.maxNumberWriteThreads = CLUSTER_AUTO_SHARDING_MAX_NUMBER_WRITE_THREADS.get(settings);
+        this.minNumberWriteThreads = CLUSTER_AUTO_SHARDING_MIN_WRITE_THREADS.get(settings);
+        this.maxNumberWriteThreads = CLUSTER_AUTO_SHARDING_MAX_WRITE_THREADS.get(settings);
         this.dataStreamExcludePatterns = DATA_STREAMS_AUTO_SHARDING_EXCLUDES_SETTING.get(settings);
         this.featureService = featureService;
         this.nowSupplier = nowSupplier;
@@ -216,9 +128,9 @@ public class DataStreamAutoShardingService {
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(DATA_STREAMS_AUTO_SHARDING_DECREASE_SHARDS_COOLDOWN, this::updateReduceShardsCooldown);
         clusterService.getClusterSettings()
-            .addSettingsUpdateConsumer(CLUSTER_AUTO_SHARDING_MIN_NUMBER_WRITE_THREADS, this::updateMinNumberWriteThreads);
+            .addSettingsUpdateConsumer(CLUSTER_AUTO_SHARDING_MIN_WRITE_THREADS, this::updateMinNumberWriteThreads);
         clusterService.getClusterSettings()
-            .addSettingsUpdateConsumer(CLUSTER_AUTO_SHARDING_MAX_NUMBER_WRITE_THREADS, this::updateMaxNumberWriteThreads);
+            .addSettingsUpdateConsumer(CLUSTER_AUTO_SHARDING_MAX_WRITE_THREADS, this::updateMaxNumberWriteThreads);
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(DATA_STREAMS_AUTO_SHARDING_EXCLUDES_SETTING, this::updateDataStreamExcludePatterns);
     }
@@ -246,7 +158,7 @@ public class DataStreamAutoShardingService {
         Metadata metadata = state.metadata();
         if (isAutoShardingEnabled == false) {
             logger.debug("Data stream auto sharding service is not enabled.");
-            return new AutoShardingResult(AutoShardingType.NOT_APPLICABLE, 0, 0, TimeValue.MAX_VALUE, null);
+            return NOT_APPLICABLE_RESULT;
         }
 
         if (featureService.clusterHasFeature(state, DataStreamAutoShardingService.DATA_STREAM_AUTO_SHARDING_FEATURE) == false) {
@@ -255,7 +167,7 @@ public class DataStreamAutoShardingService {
                     + "doesn't have the auto sharding feature",
                 dataStream.getName()
             );
-            return new AutoShardingResult(AutoShardingType.NOT_APPLICABLE, 0, 0, TimeValue.MAX_VALUE, null);
+            return NOT_APPLICABLE_RESULT;
         }
 
         if (dataStreamExcludePatterns.stream().anyMatch(pattern -> Regex.simpleMatch(pattern, dataStream.getName()))) {
@@ -264,7 +176,7 @@ public class DataStreamAutoShardingService {
                 dataStream.getName(),
                 DATA_STREAMS_AUTO_SHARDING_EXCLUDES_SETTING.getKey()
             );
-            return new AutoShardingResult(AutoShardingType.NOT_APPLICABLE, 0, 0, TimeValue.MAX_VALUE, null);
+            return NOT_APPLICABLE_RESULT;
         }
 
         if (writeIndexLoad == null) {
@@ -273,21 +185,21 @@ public class DataStreamAutoShardingService {
                     + "load is not available",
                 dataStream.getName()
             );
-            return new AutoShardingResult(AutoShardingType.NOT_APPLICABLE, 0, 0, TimeValue.MAX_VALUE, null);
+            return NOT_APPLICABLE_RESULT;
         }
         return innerCalculate(metadata, dataStream, writeIndexLoad, nowSupplier);
     }
 
     private AutoShardingResult innerCalculate(Metadata metadata, DataStream dataStream, double writeIndexLoad, LongSupplier nowSupplier) {
         // increasing the number of shards is calculated solely based on the index load of the write index
-        long optimalIncreaseShardsNumber = computeOptimalNumberOfShards(minNumberWriteThreads, maxNumberWriteThreads, writeIndexLoad);
+        long optimalShardCount = computeOptimalNumberOfShards(minNumberWriteThreads, maxNumberWriteThreads, writeIndexLoad);
         IndexMetadata writeIndex = metadata.index(dataStream.getWriteIndex());
         assert writeIndex != null : "the data stream write index must exist in the provided cluster metadata";
         TimeValue timeSinceLastAutoShardingEvent = dataStream.getAutoShardingEvent() != null
             ? dataStream.getAutoShardingEvent().getTimeSinceLastAutoShardingEvent(nowSupplier)
             : TimeValue.MAX_VALUE;
 
-        if (optimalIncreaseShardsNumber > writeIndex.getNumberOfShards()) {
+        if (optimalShardCount > writeIndex.getNumberOfShards()) {
             TimeValue coolDownRemaining = TimeValue.timeValueMillis(
                 Math.max(0L, increaseShardsCooldown.millis() - timeSinceLastAutoShardingEvent.millis())
             );
@@ -295,14 +207,14 @@ public class DataStreamAutoShardingService {
                 "data stream autosharding service recommends increasing the number of shards from [{}] to [{}] after [{}] cooldown for "
                     + "data stream [{}]",
                 writeIndex.getNumberOfShards(),
-                optimalIncreaseShardsNumber,
+                optimalShardCount,
                 coolDownRemaining,
                 dataStream.getName()
             );
             return new AutoShardingResult(
-                AutoShardingType.INCREASE_NUMBER_OF_SHARDS,
+                AutoShardingType.INCREASE_SHARDS,
                 writeIndex.getNumberOfShards(),
-                Math.toIntExact(optimalIncreaseShardsNumber),
+                Math.toIntExact(optimalShardCount),
                 coolDownRemaining,
                 writeIndexLoad
             );
@@ -379,7 +291,7 @@ public class DataStreamAutoShardingService {
 
             // we should reduce the number of shards
             return new AutoShardingResult(
-                AutoShardingType.DECREASES_NUMBER_OF_SHARDS,
+                AutoShardingType.DECREASE_SHARDS,
                 writeIndex.getNumberOfShards(),
                 Math.toIntExact(optimalReduceNumberOfShards),
                 remainingReduceShardsCooldown,

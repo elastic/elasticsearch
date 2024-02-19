@@ -10,7 +10,6 @@ package org.elasticsearch.action.datastreams.autosharding;
 
 import org.elasticsearch.action.admin.indices.rollover.MaxAgeCondition;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
-import org.elasticsearch.action.datastreams.autosharding.DataStreamAutoShardingService.AutoShardingResult;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -45,10 +44,10 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 
-import static org.elasticsearch.action.datastreams.autosharding.DataStreamAutoShardingService.AutoShardingType.DECREASES_NUMBER_OF_SHARDS;
-import static org.elasticsearch.action.datastreams.autosharding.DataStreamAutoShardingService.AutoShardingType.INCREASE_NUMBER_OF_SHARDS;
-import static org.elasticsearch.action.datastreams.autosharding.DataStreamAutoShardingService.AutoShardingType.NOT_APPLICABLE;
-import static org.elasticsearch.action.datastreams.autosharding.DataStreamAutoShardingService.AutoShardingType.NO_CHANGE_REQUIRED;
+import static org.elasticsearch.action.datastreams.autosharding.AutoShardingResult.NOT_APPLICABLE_RESULT;
+import static org.elasticsearch.action.datastreams.autosharding.AutoShardingType.DECREASE_SHARDS;
+import static org.elasticsearch.action.datastreams.autosharding.AutoShardingType.INCREASE_SHARDS;
+import static org.elasticsearch.action.datastreams.autosharding.AutoShardingType.NO_CHANGE_REQUIRED;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.hamcrest.Matchers.is;
 
@@ -64,8 +63,8 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
     public void setupService() {
         threadPool = new TestThreadPool(getTestName());
         Set<Setting<?>> builtInClusterSettings = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        builtInClusterSettings.add(DataStreamAutoShardingService.CLUSTER_AUTO_SHARDING_MIN_NUMBER_WRITE_THREADS);
-        builtInClusterSettings.add(DataStreamAutoShardingService.CLUSTER_AUTO_SHARDING_MAX_NUMBER_WRITE_THREADS);
+        builtInClusterSettings.add(DataStreamAutoShardingService.CLUSTER_AUTO_SHARDING_MIN_WRITE_THREADS);
+        builtInClusterSettings.add(DataStreamAutoShardingService.CLUSTER_AUTO_SHARDING_MAX_WRITE_THREADS);
         builtInClusterSettings.add(DataStreamAutoShardingService.DATA_STREAMS_AUTO_SHARDING_INCREASE_SHARDS_COOLDOWN);
         builtInClusterSettings.add(DataStreamAutoShardingService.DATA_STREAMS_AUTO_SHARDING_DECREASE_SHARDS_COOLDOWN);
         builtInClusterSettings.add(
@@ -142,9 +141,7 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
             );
 
             AutoShardingResult autoShardingResult = disabledAutoshardingService.calculate(state, dataStream, 2.0);
-            assertThat(autoShardingResult.type(), is(NOT_APPLICABLE));
-            assertThat(autoShardingResult.coolDownRemaining(), is(TimeValue.MAX_VALUE));
-            assertThat(autoShardingResult.targetNumberOfShards(), is(0));
+            assertThat(autoShardingResult, is(NOT_APPLICABLE_RESULT));
         }
 
         {
@@ -162,9 +159,7 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
             );
 
             AutoShardingResult autoShardingResult = noFeatureService.calculate(stateNoFeature, dataStream, 2.0);
-            assertThat(autoShardingResult.type(), is(NOT_APPLICABLE));
-            assertThat(autoShardingResult.coolDownRemaining(), is(TimeValue.MAX_VALUE));
-            assertThat(autoShardingResult.targetNumberOfShards(), is(0));
+            assertThat(autoShardingResult, is(NOT_APPLICABLE_RESULT));
         }
 
         {
@@ -183,17 +178,13 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
             );
 
             AutoShardingResult autoShardingResult = noFeatureService.calculate(state, dataStream, 2.0);
-            assertThat(autoShardingResult.type(), is(NOT_APPLICABLE));
-            assertThat(autoShardingResult.coolDownRemaining(), is(TimeValue.MAX_VALUE));
-            assertThat(autoShardingResult.targetNumberOfShards(), is(0));
+            assertThat(autoShardingResult, is(NOT_APPLICABLE_RESULT));
         }
 
         {
             // null write load passed
             AutoShardingResult autoShardingResult = service.calculate(state, dataStream, null);
-            assertThat(autoShardingResult.type(), is(NOT_APPLICABLE));
-            assertThat(autoShardingResult.coolDownRemaining(), is(TimeValue.MAX_VALUE));
-            assertThat(autoShardingResult.targetNumberOfShards(), is(0));
+            assertThat(autoShardingResult, is(NOT_APPLICABLE_RESULT));
         }
     }
 
@@ -228,7 +219,7 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
                 .build();
 
             AutoShardingResult autoShardingResult = service.calculate(state, dataStream, 2.5);
-            assertThat(autoShardingResult.type(), is(INCREASE_NUMBER_OF_SHARDS));
+            assertThat(autoShardingResult.type(), is(INCREASE_SHARDS));
             // no pre-existing scaling event so the cool down must be zero
             assertThat(autoShardingResult.coolDownRemaining(), is(TimeValue.ZERO));
             assertThat(autoShardingResult.targetNumberOfShards(), is(3));
@@ -265,7 +256,7 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
                 .build();
 
             AutoShardingResult autoShardingResult = service.calculate(state, dataStream, 2.5);
-            assertThat(autoShardingResult.type(), is(INCREASE_NUMBER_OF_SHARDS));
+            assertThat(autoShardingResult.type(), is(INCREASE_SHARDS));
             // no pre-existing scaling event so the cool down must be zero
             assertThat(autoShardingResult.targetNumberOfShards(), is(3));
             // it's been 1005 millis since the last auto sharding event and the cool down is 15m (900_000 millis)
@@ -303,7 +294,7 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
                 .build();
 
             AutoShardingResult autoShardingResult = service.calculate(state, dataStream, 2.5);
-            assertThat(autoShardingResult.type(), is(INCREASE_NUMBER_OF_SHARDS));
+            assertThat(autoShardingResult.type(), is(INCREASE_SHARDS));
             // no pre-existing scaling event so the cool down must be zero
             assertThat(autoShardingResult.targetNumberOfShards(), is(3));
             assertThat(autoShardingResult.coolDownRemaining(), is(TimeValue.ZERO));
@@ -379,7 +370,7 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
                 .build();
 
             AutoShardingResult autoShardingResult = service.calculate(state, dataStream, 1.0);
-            assertThat(autoShardingResult.type(), is(DECREASES_NUMBER_OF_SHARDS));
+            assertThat(autoShardingResult.type(), is(DECREASE_SHARDS));
             assertThat(autoShardingResult.targetNumberOfShards(), is(1));
             // no pre-existing auto sharding event however we have old enough backing indices (older than the cooldown period) so we can
             // make a decision to reduce the number of shards
@@ -428,7 +419,7 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
                 .build();
 
             AutoShardingResult autoShardingResult = service.calculate(state, dataStream, 1.0);
-            assertThat(autoShardingResult.type(), is(DECREASES_NUMBER_OF_SHARDS));
+            assertThat(autoShardingResult.type(), is(DECREASE_SHARDS));
             assertThat(autoShardingResult.targetNumberOfShards(), is(1));
             assertThat(autoShardingResult.coolDownRemaining(), is(TimeValue.ZERO));
         }

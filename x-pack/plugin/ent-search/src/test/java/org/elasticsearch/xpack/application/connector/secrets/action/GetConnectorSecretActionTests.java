@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.application.connector.secrets.action;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.application.connector.secrets.ConnectorSecretsConstants;
 import org.elasticsearch.xpack.application.connector.secrets.ConnectorSecretsTestUtils;
 
 import static org.hamcrest.Matchers.containsString;
@@ -29,6 +30,14 @@ public class GetConnectorSecretActionTests extends ESTestCase {
         ActionRequestValidationException exception = requestWithMissingConnectorId.validate();
 
         assertThat(exception, notNullValue());
-        assertThat(exception.getMessage(), containsString("id missing"));
+        assertThat(exception.getMessage(), containsString(ConnectorSecretsConstants.CONNECTOR_SECRET_ID_NULL_OR_EMPTY_MESSAGE));
+    }
+
+    public void testValidate_WhenConnectorSecretIdIsNull_ExpectValidationError() {
+        GetConnectorSecretRequest requestWithMissingConnectorId = new GetConnectorSecretRequest("");
+        ActionRequestValidationException exception = requestWithMissingConnectorId.validate();
+
+        assertThat(exception, notNullValue());
+        assertThat(exception.getMessage(), containsString(ConnectorSecretsConstants.CONNECTOR_SECRET_ID_NULL_OR_EMPTY_MESSAGE));
     }
 }

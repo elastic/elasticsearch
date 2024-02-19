@@ -31,7 +31,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
-import static org.elasticsearch.rest.RestRequest.RESPONSE_RESTRICTED;
+import static org.elasticsearch.rest.RestRequest.PATH_RESTRICTED;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -249,20 +249,20 @@ public class RestRequestTests extends ESTestCase {
         assertEquals("unknown content type", e.getMessage());
     }
 
-    public void testMarkResponseRestricted() {
+    public void testMarkPathRestricted() {
         RestRequest request1 = contentRestRequest("content", new HashMap<>());
-        request1.markResponseRestricted("foo");
-        assertEquals(request1.param(RESPONSE_RESTRICTED), "foo");
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> request1.markResponseRestricted("foo"));
-        assertThat(exception.getMessage(), is("The parameter [" + RESPONSE_RESTRICTED + "] is already defined."));
+        request1.markPathRestricted("foo");
+        assertEquals(request1.param(PATH_RESTRICTED), "foo");
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> request1.markPathRestricted("foo"));
+        assertThat(exception.getMessage(), is("The parameter [" + PATH_RESTRICTED + "] is already defined."));
 
         RestRequest request2 = contentRestRequest("content", new HashMap<>() {
             {
-                put(RESPONSE_RESTRICTED, "foo");
+                put(PATH_RESTRICTED, "foo");
             }
         });
-        exception = expectThrows(IllegalArgumentException.class, () -> request2.markResponseRestricted("bar"));
-        assertThat(exception.getMessage(), is("The parameter [" + RESPONSE_RESTRICTED + "] is already defined."));
+        exception = expectThrows(IllegalArgumentException.class, () -> request2.markPathRestricted("bar"));
+        assertThat(exception.getMessage(), is("The parameter [" + PATH_RESTRICTED + "] is already defined."));
     }
 
     public static RestRequest contentRestRequest(String content, Map<String, String> params) {

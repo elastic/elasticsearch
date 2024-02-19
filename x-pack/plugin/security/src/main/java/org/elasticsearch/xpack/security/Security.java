@@ -147,6 +147,7 @@ import org.elasticsearch.xpack.core.security.action.role.ClearRolesCacheAction;
 import org.elasticsearch.xpack.core.security.action.role.DeleteRoleAction;
 import org.elasticsearch.xpack.core.security.action.role.GetRolesAction;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleAction;
+import org.elasticsearch.xpack.core.security.action.role.PutRoleRequestBuilderFactory;
 import org.elasticsearch.xpack.core.security.action.rolemapping.DeleteRoleMappingAction;
 import org.elasticsearch.xpack.core.security.action.rolemapping.GetRoleMappingsAction;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingAction;
@@ -558,6 +559,8 @@ public class Security extends Plugin
     private final SetOnce<Transport> transportReference = new SetOnce<>();
     private final SetOnce<ScriptService> scriptServiceReference = new SetOnce<>();
     private final SetOnce<OperatorOnlyRegistry> operatorOnlyRegistry = new SetOnce<>();
+    private final SetOnce<PutRoleRequestBuilderFactory> putRoleRequestBuilderFactory = new SetOnce<>();
+    private final SetOnce<FileRolesStore> fileRolesStore = new SetOnce<>();
     private final SetOnce<OperatorPrivileges.OperatorPrivilegesService> operatorPrivilegesService = new SetOnce<>();
     private final SetOnce<ReservedRoleMappingAction> reservedRoleMappingAction = new SetOnce<>();
     private final SetOnce<WorkflowService> workflowService = new SetOnce<>();
@@ -802,13 +805,8 @@ public class Security extends Plugin
         final ReservedRolesStore reservedRolesStore = new ReservedRolesStore(Set.copyOf(INCLUDED_RESERVED_ROLES_SETTING.get(settings)));
         dlsBitsetCache.set(new DocumentSubsetBitsetCache(settings, threadPool));
         final FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(settings);
-        final FileRolesStore fileRolesStore = new FileRolesStore(
-            settings,
-            environment,
-            resourceWatcherService,
-            getLicenseState(),
-            xContentRegistry
-        );
+
+        this.fileRolesStore.set(new FileRolesStore(settings, environment, resourceWatcherService, getLicenseState(), xContentRegistry));
         final NativeRolesStore nativeRolesStore = new NativeRolesStore(
             settings,
             client,
@@ -817,6 +815,10 @@ public class Security extends Plugin
             clusterService
         );
         RoleDescriptor.setFieldPermissionsCache(fieldPermissionsCache);
+        // Need to set to default if it wasn't set by an extension
+        if (putRoleRequestBuilderFactory.get() == null) {
+            putRoleRequestBuilderFactory.set(new PutRoleRequestBuilderFactory.Default());
+        }
 
         final Map<String, List<BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>>>> customRoleProviders = new LinkedHashMap<>();
         for (SecurityExtension extension : securityExtensions) {
@@ -868,7 +870,7 @@ public class Security extends Plugin
 
         final RoleProviders roleProviders = new RoleProviders(
             reservedRolesStore,
-            fileRolesStore,
+            fileRolesStore.get(),
             nativeRolesStore,
             customRoleProviders,
             getLicenseState()
@@ -1423,7 +1425,7 @@ public class Security extends Plugin
             new RestPutUserAction(settings, getLicenseState()),
             new RestDeleteUserAction(settings, getLicenseState()),
             new RestGetRolesAction(settings, getLicenseState()),
-            new RestPutRoleAction(settings, getLicenseState()),
+            new RestPutRoleAction(settings, getLicenseState(), putRoleRequestBuilderFactory.get(), fileRolesStore.get()),
             new RestDeleteRoleAction(settings, getLicenseState()),
             new RestChangePasswordAction(settings, securityContext.get(), getLicenseState()),
             new RestSetEnabledAction(settings, getLicenseState()),
@@ -2040,6 +2042,21 @@ public class Security extends Plugin
                 "Loaded implementation [{}] for interface OperatorOnlyRegistry",
                 operatorOnlyRegistry.getClass().getCanonicalName()
             );
+        }
+
+        List<PutRoleRequestBuilderFactory> builderFactories = loader.loadExtensions(PutRoleRequestBuilderFactory.class);
+        if (builderFactories.size() > 1) {
+            throw new IllegalStateException(PutRoleRequestBuilderFactory.class + " may not have multiple implementations");
+        } else if (builderFactories.size() == 1) {
+            PutRoleRequestBuilderFactory builderFactory = builderFactories.get(0);
+            this.putRoleRequestBuilderFactory.set(builderFactory);
+            logger.debug(
+                "Loaded implementation [{}] for interface [{}]",
+                builderFactory.getClass().getCanonicalName(),
+                PutRoleRequestBuilderFactory.class
+            );
+        } else {
+            logger.debug("Will fall back on default implementation for interface [{}]", PutRoleRequestBuilderFactory.class);
         }
     }
 

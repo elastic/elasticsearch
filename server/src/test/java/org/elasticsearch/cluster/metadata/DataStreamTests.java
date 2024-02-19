@@ -1738,7 +1738,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             false,
             false,
             false,
-            IndexMode.STANDARD
+            randomBoolean() ? IndexMode.STANDARD : IndexMode.TIME_SERIES
         );
 
         metadataBuilder.put(dataStream);

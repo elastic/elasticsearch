@@ -21,6 +21,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.TimeSeriesRoutingIdFieldMapper;
 import org.elasticsearch.transport.Transports;
 import org.elasticsearch.xcontent.XContentParser;
@@ -240,6 +241,7 @@ public abstract class IndexRouting {
     public static class ExtractFromSource extends IndexRouting {
         private final Predicate<String> isRoutingPath;
         private final XContentParserConfiguration parserConfig;
+        private final boolean indexTracksRoutingId;
 
         private int routingId = 0;
 
@@ -248,6 +250,7 @@ public abstract class IndexRouting {
             if (metadata.isRoutingPartitionedIndex()) {
                 throw new IllegalArgumentException("routing_partition_size is incompatible with routing_path");
             }
+            indexTracksRoutingId = metadata.getCreationVersion().onOrAfter(IndexVersions.TIME_SERIES_ROUTING_ID_IN_ID);
             List<String> routingPaths = metadata.getRoutingPaths();
             isRoutingPath = Regex.simpleMatcher(routingPaths.toArray(String[]::new));
             this.parserConfig = XContentParserConfiguration.EMPTY.withFiltering(Set.copyOf(routingPaths), null, true);
@@ -255,7 +258,7 @@ public abstract class IndexRouting {
 
         @Override
         public void postProcess(IndexRequest indexRequest) {
-            if (indexRequest.id() == null) {
+            if (indexRequest.id() == null && indexTracksRoutingId) {
                 indexRequest.id(TimeSeriesRoutingIdFieldMapper.encode(routingId));
             }
         }

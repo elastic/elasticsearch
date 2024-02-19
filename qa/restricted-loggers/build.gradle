@@ -6,12 +6,6 @@
  * Side Public License, v 1.
  */
 
-/*
- * Evil tests that need to do unrealistic things: test OS security
- * integration, change default filesystem impl, mess with arbitrary
- * threads, etc.
- */
-
 apply plugin: 'elasticsearch.standalone-test'
 
 dependencies {

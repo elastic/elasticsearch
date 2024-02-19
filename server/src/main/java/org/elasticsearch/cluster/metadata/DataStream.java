@@ -421,6 +421,9 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         return lifecycle;
     }
 
+    /**
+     * Returns the latest auto sharding event that happened for this data stream
+     */
     public DataStreamAutoShardingEvent getAutoShardingEvent() {
         return autoShardingEvent;
     }

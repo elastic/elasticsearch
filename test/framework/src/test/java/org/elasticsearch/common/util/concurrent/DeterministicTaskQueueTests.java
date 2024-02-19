@@ -254,7 +254,7 @@ public class DeterministicTaskQueueTests extends ESTestCase {
         IntStream.range(0, randomIntBetween(0, 10))
             .forEach(
                 i -> taskQueue.scheduleAt(
-                    randomLongBetween(cutoffTimeInMillis + 1, 2 * cutoffTimeInMillis),
+                    randomLongBetween(cutoffTimeInMillis + 1, 2 * cutoffTimeInMillis + 1),
                     () -> seenNumbers.add(i + nRunnableTasks + nDeferredTasksUpToCutoff)
                 )
             );

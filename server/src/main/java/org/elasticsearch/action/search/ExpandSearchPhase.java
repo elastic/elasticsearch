@@ -96,6 +96,7 @@ final class ExpandSearchPhase extends SearchPhase {
                             hit.setInnerHits(Maps.newMapWithExpectedSize(innerHitBuilders.size()));
                         }
                         hit.getInnerHits().put(innerHitBuilder.getName(), innerHits);
+                        innerHits.mustIncRef();
                     }
                 }
                 onPhaseDone();
@@ -120,7 +121,7 @@ final class ExpandSearchPhase extends SearchPhase {
             }
         }
         if (options.getFetchFields() != null) {
-            options.getFetchFields().forEach(ff -> groupSource.fetchField(ff));
+            options.getFetchFields().forEach(groupSource::fetchField);
         }
         if (options.getDocValueFields() != null) {
             options.getDocValueFields().forEach(ff -> groupSource.docValueField(ff.field, ff.format));

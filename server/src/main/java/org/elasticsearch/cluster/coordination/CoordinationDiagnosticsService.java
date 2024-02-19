@@ -15,7 +15,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.coordination.ClusterFormationInfoAction;
 import org.elasticsearch.action.admin.cluster.coordination.CoordinationDiagnosticsAction;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -944,7 +943,8 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
         return sendTransportRequest(
             node,
             responseConsumer,
-            ClusterFormationInfoAction.INSTANCE,
+            ClusterFormationInfoAction.NAME,
+            ClusterFormationInfoAction.Response::new,
             new ClusterFormationInfoAction.Request(),
             (response, e) -> {
                 assert response != null || e != null : "a response or an exception must be provided";
@@ -1062,7 +1062,8 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
         return sendTransportRequest(
             masterEligibleNode,
             responseConsumer,
-            CoordinationDiagnosticsAction.INSTANCE,
+            CoordinationDiagnosticsAction.NAME,
+            CoordinationDiagnosticsAction.Response::new,
             new CoordinationDiagnosticsAction.Request(true),
             (response, e) -> {
                 assert response != null || e != null : "a response or an exception must be provided";
@@ -1083,7 +1084,8 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
      * @param masterEligibleNode        The master eligible node to be queried, or null if we do not yet know of a master eligible node.
      *                                  If this is null, the responseConsumer will be given a null response
      * @param responseConsumer          The consumer of the transformed response
-     * @param transportActionType       The ActionType for the transport action
+     * @param actionName                The name of the transport action
+     * @param responseReader            How to deserialize the transport response
      * @param transportActionRequest    The ActionRequest to be sent
      * @param responseTransformationFunction A function that converts a response or exception to the response type expected by the
      *                                       responseConsumer
@@ -1092,7 +1094,8 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
     private <R extends ActionResponse, T> Scheduler.Cancellable sendTransportRequest(
         @Nullable DiscoveryNode masterEligibleNode,
         Consumer<T> responseConsumer,
-        ActionType<R> transportActionType,
+        String actionName,
+        Writeable.Reader<R> responseReader,
         ActionRequest transportActionRequest,
         BiFunction<R, Exception, T> responseTransformationFunction
     ) {
@@ -1109,12 +1112,12 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
                 final TimeValue transportTimeout = TimeValue.timeValueSeconds(10);
                 transportService.sendRequest(
                     masterEligibleNode,
-                    transportActionType.name(),
+                    actionName,
                     transportActionRequest,
                     TransportRequestOptions.timeout(transportTimeout),
                     new ActionListenerResponseHandler<>(
                         ActionListener.runBefore(fetchRemoteResultListener, () -> Releasables.close(releasable)),
-                        transportActionType.getResponseReader(),
+                        responseReader,
                         clusterCoordinationExecutor
                     )
                 );

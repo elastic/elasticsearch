@@ -79,18 +79,25 @@ public class CannedSourceOperator extends SourceOperator {
      * Make a deep copy of some pages. Useful so that when the originals are
      * released the copies are still live.
      */
-    public static List<Page> deepCopyOf(List<Page> pages) {
+    public static List<Page> deepCopyOf(BlockFactory blockFactory, List<Page> pages) {
         List<Page> out = new ArrayList<>(pages.size());
-        BlockFactory blockFactory = TestBlockFactory.getNonBreakingInstance();
-        for (Page p : pages) {
-            Block[] blocks = new Block[p.getBlockCount()];
-            for (int b = 0; b < blocks.length; b++) {
-                Block orig = p.getBlock(b);
-                Block.Builder builder = orig.elementType().newBlockBuilder(p.getPositionCount(), blockFactory);
-                builder.copyFrom(orig, 0, p.getPositionCount());
-                blocks[b] = builder.build();
+        try {
+            for (Page p : pages) {
+                Block[] blocks = new Block[p.getBlockCount()];
+                for (int b = 0; b < blocks.length; b++) {
+                    Block orig = p.getBlock(b);
+                    try (Block.Builder builder = orig.elementType().newBlockBuilder(p.getPositionCount(), blockFactory)) {
+                        builder.copyFrom(orig, 0, p.getPositionCount());
+                        blocks[b] = builder.build();
+                    }
+                }
+                out.add(new Page(blocks));
             }
-            out.add(new Page(blocks));
+        } finally {
+            if (pages.size() != out.size()) {
+                // failed to copy all the pages, we're bubbling out an exception. So we have to close the copy.
+                Releasables.closeExpectNoException(Releasables.wrap(() -> Iterators.map(out.iterator(), p -> p::releaseBlocks)));
+            }
         }
         return out;
     }

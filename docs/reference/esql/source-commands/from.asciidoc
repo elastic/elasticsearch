@@ -66,9 +66,9 @@ or aliases:
 FROM employees-00001,other-employees-*
 ----
 
-Use the `METADATA` directive to enable <<esql-metadata-fields,metadata fields>>:
+Use the optional `METADATA` directive to enable <<esql-metadata-fields,metadata fields>>:
 
 [source,esql]
 ----
-FROM employees [METADATA _id]
+FROM employees METADATA _id
 ----

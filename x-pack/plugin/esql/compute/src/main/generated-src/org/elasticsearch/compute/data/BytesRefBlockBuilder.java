@@ -203,7 +203,7 @@ final class BytesRefBlockBuilder extends AbstractBlockBuilder implements BytesRe
              * still technically be open, meaning the calling code should close it
              * which will return all used memory to the breaker.
              */
-            blockFactory.adjustBreaker(theBlock.ramBytesUsed() - estimatedBytes, false);
+            blockFactory.adjustBreaker(theBlock.ramBytesUsed() - estimatedBytes);
             Releasables.closeExpectNoException(values);
         } else {
             if (isDense() && singleValued()) {
@@ -219,7 +219,7 @@ final class BytesRefBlockBuilder extends AbstractBlockBuilder implements BytesRe
              * still technically be open, meaning the calling code should close it
              * which will return all used memory to the breaker.
              */
-            blockFactory.adjustBreaker(theBlock.ramBytesUsed() - estimatedBytes - values.bigArraysRamBytesUsed(), false);
+            blockFactory.adjustBreaker(theBlock.ramBytesUsed() - estimatedBytes - values.bigArraysRamBytesUsed());
         }
         return theBlock;
     }

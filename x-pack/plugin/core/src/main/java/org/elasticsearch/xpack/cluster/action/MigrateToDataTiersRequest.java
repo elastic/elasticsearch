@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.cluster.action;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -67,11 +66,6 @@ public class MigrateToDataTiersRequest extends AcknowledgedRequest<MigrateToData
         dryRun = in.readBoolean();
         legacyTemplateToDelete = in.readOptionalString();
         nodeAttributeName = in.readOptionalString();
-    }
-
-    @Override
-    public ActionRequestValidationException validate() {
-        return null;
     }
 
     @Override

@@ -32,6 +32,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.DriverRunner;
 import org.elasticsearch.compute.operator.SinkOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.core.ReleasableRef;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancellationService;
@@ -54,8 +55,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -91,15 +90,12 @@ public class ExchangeServiceTests extends ESTestCase {
         for (int i = 0; i < pages.length; i++) {
             pages[i] = new Page(blockFactory.newConstantIntBlockWith(i, 2));
         }
-        ExchangeSinkHandler sinkExchanger = new ExchangeSinkHandler(2, threadPool::relativeTimeInMillis);
+        ExchangeSinkHandler sinkExchanger = new ExchangeSinkHandler(blockFactory, 2, threadPool::relativeTimeInMillis);
         ExchangeSink sink1 = sinkExchanger.createExchangeSink();
         ExchangeSink sink2 = sinkExchanger.createExchangeSink();
         ExchangeSourceHandler sourceExchanger = new ExchangeSourceHandler(3, threadPool.executor(ESQL_TEST_EXECUTOR));
-        assertThat(sourceExchanger.refCount(), equalTo(1));
         ExchangeSource source = sourceExchanger.createExchangeSource();
-        assertThat(sourceExchanger.refCount(), equalTo(2));
         sourceExchanger.addRemoteSink(sinkExchanger::fetchPageAsync, 1);
-        assertThat(sourceExchanger.refCount(), equalTo(3));
         SubscribableListener<Void> waitForReading = source.waitForReading();
         assertFalse(waitForReading.isDone());
         assertNull(source.pollPage());
@@ -137,13 +133,7 @@ public class ExchangeServiceTests extends ESTestCase {
         sink2.finish();
         assertTrue(sink2.isFinished());
         assertTrue(source.isFinished());
-        assertBusy(() -> assertThat(sourceExchanger.refCount(), equalTo(2)));
         source.finish();
-        assertThat(sourceExchanger.refCount(), equalTo(1));
-        CountDownLatch latch = new CountDownLatch(1);
-        sourceExchanger.addCompletionListener(ActionListener.releasing(latch::countDown));
-        sourceExchanger.decRef();
-        assertTrue(latch.await(1, TimeUnit.SECONDS));
         ESTestCase.terminate(threadPool);
         for (Page page : pages) {
             page.releaseBlocks();
@@ -325,6 +315,7 @@ public class ExchangeServiceTests extends ESTestCase {
     }
 
     public void testConcurrentWithHandlers() {
+        BlockFactory blockFactory = blockFactory();
         var sourceExchanger = new ExchangeSourceHandler(randomExchangeBuffer(), threadPool.executor(ESQL_TEST_EXECUTOR));
         List<ExchangeSinkHandler> sinkHandlers = new ArrayList<>();
         Supplier<ExchangeSink> exchangeSink = () -> {
@@ -332,7 +323,7 @@ public class ExchangeServiceTests extends ESTestCase {
             if (sinkHandlers.isEmpty() == false && randomBoolean()) {
                 sinkHandler = randomFrom(sinkHandlers);
             } else {
-                sinkHandler = new ExchangeSinkHandler(randomExchangeBuffer(), threadPool::relativeTimeInMillis);
+                sinkHandler = new ExchangeSinkHandler(blockFactory, randomExchangeBuffer(), threadPool::relativeTimeInMillis);
                 sourceExchanger.addRemoteSink(sinkHandler::fetchPageAsync, randomIntBetween(1, 3));
                 sinkHandlers.add(sinkHandler);
             }
@@ -349,7 +340,7 @@ public class ExchangeServiceTests extends ESTestCase {
         IntBlock block2 = blockFactory.newConstantIntBlockWith(1, 2);
         Page p1 = new Page(block1);
         Page p2 = new Page(block2);
-        ExchangeSinkHandler sinkExchanger = new ExchangeSinkHandler(2, threadPool::relativeTimeInMillis);
+        ExchangeSinkHandler sinkExchanger = new ExchangeSinkHandler(blockFactory, 2, threadPool::relativeTimeInMillis);
         ExchangeSink sink = sinkExchanger.createExchangeSink();
         sink.addPage(p1);
         sink.addPage(p2);
@@ -396,6 +387,7 @@ public class ExchangeServiceTests extends ESTestCase {
         AbstractSimpleTransportTestCase.connectToNode(node0, node1.getLocalNode());
         final int maxSeqNo = randomIntBetween(1000, 5000);
         final int disconnectOnSeqNo = randomIntBetween(100, 500);
+        BlockFactory blockFactory = blockFactory();
         node1.addRequestHandlingBehavior(ExchangeService.EXCHANGE_ACTION_NAME, new StubbableTransport.RequestHandlingBehavior<>() {
             @Override
             public void messageReceived(
@@ -406,7 +398,7 @@ public class ExchangeServiceTests extends ESTestCase {
             ) throws Exception {
                 FilterTransportChannel filterChannel = new FilterTransportChannel(channel) {
                     @Override
-                    public void sendResponse(TransportResponse transportResponse) throws IOException {
+                    public void sendResponse(TransportResponse transportResponse) {
                         ExchangeResponse origResp = (ExchangeResponse) transportResponse;
                         Page page = origResp.takePage();
                         if (page != null) {
@@ -414,13 +406,14 @@ public class ExchangeServiceTests extends ESTestCase {
                             for (int i = 0; i < block.getPositionCount(); i++) {
                                 if (block.getInt(i) == disconnectOnSeqNo) {
                                     page.releaseBlocks();
-                                    throw new IOException("page is too large");
+                                    sendResponse(new IOException("page is too large"));
+                                    return;
                                 }
                             }
                         }
-                        origResp.decRef();
-                        ExchangeResponse newResp = new ExchangeResponse(page, origResp.finished());
-                        super.sendResponse(newResp);
+                        try (var newRespRef = ReleasableRef.of(new ExchangeResponse(blockFactory, page, origResp.finished()))) {
+                            super.sendResponse(newRespRef.get());
+                        }
                     }
                 };
                 handler.messageReceived(request, filterChannel, task);
@@ -479,17 +472,12 @@ public class ExchangeServiceTests extends ESTestCase {
         }
 
         @Override
-        public String getChannelType() {
-            return in.getChannelType();
-        }
-
-        @Override
-        public void sendResponse(TransportResponse response) throws IOException {
+        public void sendResponse(TransportResponse response) {
             in.sendResponse(response);
         }
 
         @Override
-        public void sendResponse(Exception exception) throws IOException {
+        public void sendResponse(Exception exception) {
             in.sendResponse(exception);
         }
     }

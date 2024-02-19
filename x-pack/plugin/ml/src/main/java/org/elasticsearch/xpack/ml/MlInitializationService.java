@@ -16,7 +16,7 @@ import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
-import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsAction;
+import org.elasticsearch.action.admin.indices.settings.put.TransportUpdateSettingsAction;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -234,7 +234,7 @@ public final class MlInitializationService implements ClusterStateListener {
             UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest().indices(nonHiddenIndices)
                 .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
                 .settings(Collections.singletonMap(SETTING_INDEX_HIDDEN, true));
-            executeAsyncWithOrigin(client, ML_ORIGIN, UpdateSettingsAction.INSTANCE, updateSettingsRequest, updateSettingsListener);
+            executeAsyncWithOrigin(client, ML_ORIGIN, TransportUpdateSettingsAction.TYPE, updateSettingsRequest, updateSettingsListener);
         }, finalListener::onFailure);
 
         // Step 1: Fetch ML internal indices settings to find out whether they are already hidden or not.

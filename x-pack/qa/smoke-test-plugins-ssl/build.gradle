@@ -6,7 +6,6 @@ apply plugin: 'elasticsearch.legacy-yaml-rest-test'
 
 dependencies {
   yamlRestTestImplementation project(':x-pack:plugin:core')
-  yamlRestTestImplementation project(':client:rest-high-level')
 }
 
 String outputDir = "${buildDir}/generated-resources/${project.name}"

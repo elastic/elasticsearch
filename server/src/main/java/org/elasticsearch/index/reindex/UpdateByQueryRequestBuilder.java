@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 
@@ -15,12 +16,15 @@ public class UpdateByQueryRequestBuilder extends AbstractBulkIndexByScrollReques
     UpdateByQueryRequest,
     UpdateByQueryRequestBuilder> {
 
+    private Boolean abortOnVersionConflict;
+    private String pipeline;
+
     public UpdateByQueryRequestBuilder(ElasticsearchClient client) {
         this(client, new SearchRequestBuilder(client));
     }
 
     private UpdateByQueryRequestBuilder(ElasticsearchClient client, SearchRequestBuilder search) {
-        super(client, UpdateByQueryAction.INSTANCE, search, new UpdateByQueryRequest(search.request()));
+        super(client, UpdateByQueryAction.INSTANCE, search);
     }
 
     @Override
@@ -30,12 +34,41 @@ public class UpdateByQueryRequestBuilder extends AbstractBulkIndexByScrollReques
 
     @Override
     public UpdateByQueryRequestBuilder abortOnVersionConflict(boolean abortOnVersionConflict) {
-        request.setAbortOnVersionConflict(abortOnVersionConflict);
+        this.abortOnVersionConflict = abortOnVersionConflict;
         return this;
     }
 
     public UpdateByQueryRequestBuilder setPipeline(String pipeline) {
-        request.setPipeline(pipeline);
+        this.pipeline = pipeline;
         return this;
+    }
+
+    @Override
+    public UpdateByQueryRequest request() {
+        SearchRequest search = source().request();
+        try {
+            UpdateByQueryRequest updateByQueryRequest = new UpdateByQueryRequest(search, false);
+            try {
+                apply(updateByQueryRequest);
+                return updateByQueryRequest;
+            } catch (Exception e) {
+                updateByQueryRequest.decRef();
+                throw e;
+            }
+        } catch (Exception e) {
+            search.decRef();
+            throw e;
+        }
+    }
+
+    @Override
+    public void apply(UpdateByQueryRequest request) {
+        super.apply(request);
+        if (abortOnVersionConflict != null) {
+            request.setAbortOnVersionConflict(abortOnVersionConflict);
+        }
+        if (pipeline != null) {
+            request.setPipeline(pipeline);
+        }
     }
 }

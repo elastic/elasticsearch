@@ -20,6 +20,6 @@ public class GetTaskAction extends ActionType<GetTaskResponse> {
     public static final String NAME = "cluster:monitor/task/get";
 
     private GetTaskAction() {
-        super(NAME, GetTaskResponse::new);
+        super(NAME);
     }
 }

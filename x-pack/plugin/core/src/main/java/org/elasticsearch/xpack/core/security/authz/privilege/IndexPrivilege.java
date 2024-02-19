@@ -18,8 +18,9 @@ import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexAction;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsAction;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsAction;
-import org.elasticsearch.action.admin.indices.mapping.put.AutoPutMappingAction;
+import org.elasticsearch.action.admin.indices.mapping.put.TransportAutoPutMappingAction;
 import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction;
+import org.elasticsearch.action.admin.indices.resolve.TransportResolveClusterAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
@@ -74,11 +75,16 @@ public final class IndexPrivilege extends Privilege {
     private static final Logger logger = LogManager.getLogger(IndexPrivilege.class);
 
     private static final Automaton ALL_AUTOMATON = patterns("indices:*", "internal:transport/proxy/indices:*");
-    private static final Automaton READ_AUTOMATON = patterns("indices:data/read/*", ResolveIndexAction.NAME);
+    private static final Automaton READ_AUTOMATON = patterns(
+        "indices:data/read/*",
+        ResolveIndexAction.NAME,
+        TransportResolveClusterAction.NAME
+    );
     private static final Automaton READ_CROSS_CLUSTER_AUTOMATON = patterns(
         "internal:transport/proxy/indices:data/read/*",
         ClusterSearchShardsAction.NAME,
         TransportSearchShardsAction.TYPE.name(),
+        TransportResolveClusterAction.NAME,
         // cross clusters query for ESQL
         "internal:data/read/esql/open_exchange",
         "internal:data/read/esql/exchange",
@@ -103,7 +109,7 @@ public final class IndexPrivilege extends Privilege {
         "indices:data/write/simulate/bulk*"
     );
     private static final Automaton DELETE_AUTOMATON = patterns("indices:data/write/delete*", "indices:data/write/bulk*");
-    private static final Automaton WRITE_AUTOMATON = patterns("indices:data/write/*", AutoPutMappingAction.NAME);
+    private static final Automaton WRITE_AUTOMATON = patterns("indices:data/write/*", TransportAutoPutMappingAction.TYPE.name());
     private static final Automaton MONITOR_AUTOMATON = patterns("indices:monitor/*");
     private static final Automaton MANAGE_AUTOMATON = unionAndMinimize(
         Arrays.asList(
@@ -131,6 +137,7 @@ public final class IndexPrivilege extends Privilege {
         "indices:admin/data_stream/lifecycle/explain",
         GetDataStreamAction.NAME,
         ResolveIndexAction.NAME,
+        TransportResolveClusterAction.NAME,
         TransportFieldCapabilitiesAction.NAME + "*",
         GetRollupIndexCapsAction.NAME + "*",
         GetCheckpointAction.NAME + "*" // transform internal action
@@ -151,7 +158,7 @@ public final class IndexPrivilege extends Privilege {
         "indices:admin/synced_flush",
         "indices:admin/forcemerge*"
     );
-    private static final Automaton AUTO_CONFIGURE_AUTOMATON = patterns(AutoPutMappingAction.NAME, AutoCreateAction.NAME);
+    private static final Automaton AUTO_CONFIGURE_AUTOMATON = patterns(TransportAutoPutMappingAction.TYPE.name(), AutoCreateAction.NAME);
 
     private static final Automaton CROSS_CLUSTER_REPLICATION_AUTOMATON = patterns(
         "indices:data/read/xpack/ccr/shard_changes*",

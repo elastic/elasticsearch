@@ -99,7 +99,7 @@ public class LuceneSourceOperatorStatusTests extends AbstractWireSerializingTest
         switch (between(0, 8)) {
             case 0 -> processedSlices = randomValueOtherThan(processedSlices, ESTestCase::randomNonNegativeInt);
             case 1 -> processedQueries = randomValueOtherThan(processedQueries, LuceneSourceOperatorStatusTests::randomProcessedQueries);
-            case 2 -> processedQueries = randomValueOtherThan(processedShards, LuceneSourceOperatorStatusTests::randomProcessedShards);
+            case 2 -> processedShards = randomValueOtherThan(processedShards, LuceneSourceOperatorStatusTests::randomProcessedShards);
             case 3 -> sliceIndex = randomValueOtherThan(sliceIndex, ESTestCase::randomNonNegativeInt);
             case 4 -> totalSlices = randomValueOtherThan(totalSlices, ESTestCase::randomNonNegativeInt);
             case 5 -> pagesEmitted = randomValueOtherThan(pagesEmitted, ESTestCase::randomNonNegativeInt);

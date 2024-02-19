@@ -24,6 +24,7 @@ import org.elasticsearch.license.License;
 import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.license.internal.XPackLicenseStatus;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestMatchers;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -156,7 +157,8 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
             tokenService,
             apiKeyService,
             serviceAccountService,
-            OperatorPrivileges.NOOP_OPERATOR_PRIVILEGES_SERVICE
+            OperatorPrivileges.NOOP_OPERATOR_PRIVILEGES_SERVICE,
+            MeterRegistry.NOOP
         );
         authenticator = new SecondaryAuthenticator(securityContext, authenticationService, auditTrail);
     }

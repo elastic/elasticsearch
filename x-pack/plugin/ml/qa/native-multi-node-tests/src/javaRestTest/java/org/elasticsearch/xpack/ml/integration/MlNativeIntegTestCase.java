@@ -10,12 +10,12 @@ import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureSta
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
-import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.TransportSearchAction;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterModule;
@@ -308,7 +308,7 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
 
     protected static List<String> fetchAllAuditMessages(String jobId) throws Exception {
         RefreshRequest refreshRequest = new RefreshRequest(NotificationsIndex.NOTIFICATIONS_INDEX);
-        RefreshResponse refreshResponse = client().execute(RefreshAction.INSTANCE, refreshRequest).actionGet();
+        BroadcastResponse refreshResponse = client().execute(RefreshAction.INSTANCE, refreshRequest).actionGet();
         assertThat(refreshResponse.getStatus().getStatus(), anyOf(equalTo(200), equalTo(201)));
 
         SearchRequest searchRequest = new SearchRequestBuilder(client()).setIndices(NotificationsIndex.NOTIFICATIONS_INDEX)
@@ -440,8 +440,8 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
 
     protected static void createDataStreamAndTemplate(String dataStreamName, String mapping) throws IOException {
         client().execute(
-            PutComposableIndexTemplateAction.INSTANCE,
-            new PutComposableIndexTemplateAction.Request(dataStreamName + "_template").indexTemplate(
+            TransportPutComposableIndexTemplateAction.TYPE,
+            new TransportPutComposableIndexTemplateAction.Request(dataStreamName + "_template").indexTemplate(
                 ComposableIndexTemplate.builder()
                     .indexPatterns(Collections.singletonList(dataStreamName))
                     .template(new Template(null, new CompressedXContent(mapping), null))

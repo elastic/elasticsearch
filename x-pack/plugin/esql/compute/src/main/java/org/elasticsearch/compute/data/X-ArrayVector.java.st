@@ -28,7 +28,9 @@ $endif$
  */
 final class $Type$ArrayVector extends AbstractVector implements $Type$Vector {
 
-    static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance($Type$ArrayVector.class);
+    static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance($Type$ArrayVector.class)
+        // TODO: remove these extra bytes once `asBlock` returns a block with a separate reference to the vector.
+        + RamUsageEstimator.shallowSizeOfInstance($Type$VectorBlock.class);
 
 $if(BytesRef)$
     private final BytesRefArray values;
@@ -123,7 +125,7 @@ $if(BytesRef)$
     public void closeInternal() {
         // The circuit breaker that tracks the values {@link BytesRefArray} is adjusted outside
         // of this class.
-        blockFactory().adjustBreaker(-ramBytesUsed() + values.bigArraysRamBytesUsed(), true);
+        blockFactory().adjustBreaker(-ramBytesUsed() + values.bigArraysRamBytesUsed());
         Releasables.closeExpectNoException(values);
     }
 $endif$

@@ -20,7 +20,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.plugins.internal.DocumentParsingObserver;
+import org.elasticsearch.plugins.internal.DocumentSizeObserver;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
@@ -120,13 +120,9 @@ public class XContentHelper {
         Objects.requireNonNull(xContentType);
         Compressor compressor = CompressorFactory.compressor(bytes);
         if (compressor != null) {
-            InputStream compressedInput = compressor.threadLocalInputStream(bytes.streamInput());
-            if (compressedInput.markSupported() == false) {
-                compressedInput = new BufferedInputStream(compressedInput);
-            }
-            return XContentFactory.xContent(xContentType).createParser(config, compressedInput);
+            return XContentFactory.xContent(xContentType).createParser(config, compressor.threadLocalInputStream(bytes.streamInput()));
         } else {
-            // TODO now that we have config we make a method on bytes to do this building wihout needing this check everywhere
+            // TODO now that we have config we make a method on bytes to do this building without needing this check everywhere
             return createParserNotCompressed(config, bytes, xContentType);
         }
     }
@@ -156,14 +152,14 @@ public class XContentHelper {
         BytesReference bytes,
         boolean ordered,
         XContentType xContentType,
-        DocumentParsingObserver documentParsingObserver
+        DocumentSizeObserver documentSizeObserver
     ) {
         return parseToType(
             ordered ? XContentParser::mapOrdered : XContentParser::map,
             bytes,
             xContentType,
             XContentParserConfiguration.EMPTY,
-            documentParsingObserver
+            documentSizeObserver
         );
     }
 
@@ -211,7 +207,7 @@ public class XContentHelper {
         @Nullable XContentType xContentType,
         @Nullable XContentParserConfiguration config
     ) throws ElasticsearchParseException {
-        return parseToType(extractor, bytes, xContentType, config, DocumentParsingObserver.EMPTY_INSTANCE);
+        return parseToType(extractor, bytes, xContentType, config, DocumentSizeObserver.EMPTY_INSTANCE);
     }
 
     public static <T> Tuple<XContentType, T> parseToType(
@@ -219,11 +215,11 @@ public class XContentHelper {
         BytesReference bytes,
         @Nullable XContentType xContentType,
         @Nullable XContentParserConfiguration config,
-        DocumentParsingObserver documentParsingObserver
+        DocumentSizeObserver documentSizeObserver
     ) throws ElasticsearchParseException {
         config = config != null ? config : XContentParserConfiguration.EMPTY;
         try (
-            XContentParser parser = documentParsingObserver.wrapParser(
+            XContentParser parser = documentSizeObserver.wrapParser(
                 xContentType != null ? createParser(config, bytes, xContentType) : createParser(config, bytes)
             )
         ) {
@@ -323,7 +319,7 @@ public class XContentHelper {
 
     @Deprecated
     public static String convertToJson(BytesReference bytes, boolean reformatJson, boolean prettyPrint) throws IOException {
-        return convertToJson(bytes, reformatJson, prettyPrint, XContentFactory.xContentType(bytes.toBytesRef().bytes));
+        return convertToJson(bytes, reformatJson, prettyPrint, xContentType(bytes));
     }
 
     public static String convertToJson(BytesReference bytes, boolean reformatJson, XContentType xContentType) throws IOException {

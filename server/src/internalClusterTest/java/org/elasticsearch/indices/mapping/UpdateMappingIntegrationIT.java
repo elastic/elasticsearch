@@ -9,8 +9,8 @@
 package org.elasticsearch.indices.mapping;
 
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
@@ -82,7 +82,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
         indexRandom(true, false, indexRequests);
 
         logger.info("checking all the documents are there");
-        RefreshResponse refreshResponse = indicesAdmin().prepareRefresh().get();
+        BroadcastResponse refreshResponse = indicesAdmin().prepareRefresh().get();
         assertThat(refreshResponse.getFailedShards(), equalTo(0));
         assertHitCount(prepareSearch("test").setSize(0), recCount);
 
@@ -236,8 +236,9 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
             threads[j].start();
         }
 
-        for (Thread t : threads)
+        for (Thread t : threads) {
             t.join();
+        }
 
         if (threadException.get() != null) {
             throw threadException.get();

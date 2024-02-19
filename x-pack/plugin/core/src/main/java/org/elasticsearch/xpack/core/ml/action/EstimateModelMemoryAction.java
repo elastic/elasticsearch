@@ -34,7 +34,7 @@ public class EstimateModelMemoryAction extends ActionType<EstimateModelMemoryAct
     public static final String NAME = "cluster:admin/xpack/ml/job/estimate_model_memory";
 
     private EstimateModelMemoryAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
     public static class Request extends ActionRequest {

@@ -19,6 +19,8 @@ import java.util.stream.Stream;
 final class SystemJvmOptions {
 
     static List<String> systemJvmOptions(Settings nodeSettings, final Map<String, String> sysprops) {
+        String distroType = sysprops.get("es.distribution.type");
+        boolean isHotspot = sysprops.getOrDefault("sun.management.compiler", "").contains("HotSpot");
         return Stream.of(
             /*
              * Cache ttl in seconds for positive DNS lookups noting that this overrides the JDK security property networkaddress.cache.ttl;
@@ -65,10 +67,12 @@ final class SystemJvmOptions {
              * explore alternatives. See org.elasticsearch.xpack.searchablesnapshots.preallocate.Preallocate.
              */
             "--add-opens=java.base/java.io=org.elasticsearch.preallocate",
-            maybeOverrideDockerCgroup(),
+            maybeEnableNativeAccess(),
+            maybeOverrideDockerCgroup(distroType),
             maybeSetActiveProcessorCount(nodeSettings),
+            setReplayFile(distroType, isHotspot),
             // Pass through distribution type
-            "-Des.distribution.type=" + sysprops.get("es.distribution.type")
+            "-Des.distribution.type=" + distroType
         ).filter(e -> e.isEmpty() == false).collect(Collectors.toList());
     }
 
@@ -86,11 +90,23 @@ final class SystemJvmOptions {
      * that cgroup statistics are available for the container this process
      * will run in.
      */
-    private static String maybeOverrideDockerCgroup() {
-        if ("docker".equals(System.getProperty("es.distribution.type"))) {
+    private static String maybeOverrideDockerCgroup(String distroType) {
+        if ("docker".equals(distroType)) {
             return "-Des.cgroups.hierarchy.override=/";
         }
         return "";
+    }
+
+    private static String setReplayFile(String distroType, boolean isHotspot) {
+        if (isHotspot == false) {
+            // the replay file option is only guaranteed for hotspot vms
+            return "";
+        }
+        String replayDir = "logs";
+        if ("rpm".equals(distroType) || "deb".equals(distroType)) {
+            replayDir = "/var/log/elasticsearch";
+        }
+        return "-XX:ReplayDataFile=" + replayDir + "/replay_pid%p.log";
     }
 
     /*
@@ -101,6 +117,13 @@ final class SystemJvmOptions {
         if (EsExecutors.NODE_PROCESSORS_SETTING.exists(nodeSettings)) {
             int allocated = EsExecutors.allocatedProcessors(nodeSettings);
             return "-XX:ActiveProcessorCount=" + allocated;
+        }
+        return "";
+    }
+
+    private static String maybeEnableNativeAccess() {
+        if (Runtime.version().feature() >= 21) {
+            return "--enable-native-access=org.elasticsearch.nativeaccess";
         }
         return "";
     }

@@ -1,0 +1,5 @@
+pr: 104063
+summary: Add serverless scopes for Connector APIs
+area: Application
+type: enhancement
+issues: []

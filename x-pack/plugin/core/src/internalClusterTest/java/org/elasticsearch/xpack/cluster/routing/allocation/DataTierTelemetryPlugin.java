@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.cluster.routing.allocation;
 
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -24,7 +25,9 @@ import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.action.TransportXPackInfoAction;
 import org.elasticsearch.xpack.core.action.TransportXPackUsageAction;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
+import org.elasticsearch.xpack.core.action.XPackInfoFeatureResponse;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
+import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.action.XPackUsageResponse;
 
 import java.nio.file.Path;
@@ -52,7 +55,7 @@ public class DataTierTelemetryPlugin extends LocalStateCompositeXPackPlugin {
         }
 
         @Override
-        protected List<XPackUsageFeatureAction> usageActions() {
+        protected List<ActionType<XPackUsageFeatureResponse>> usageActions() {
             return Collections.singletonList(XPackUsageFeatureAction.DATA_TIERS);
         }
     }
@@ -69,7 +72,7 @@ public class DataTierTelemetryPlugin extends LocalStateCompositeXPackPlugin {
         }
 
         @Override
-        protected List<XPackInfoFeatureAction> infoActions() {
+        protected List<ActionType<XPackInfoFeatureResponse>> infoActions() {
             return Collections.singletonList(XPackInfoFeatureAction.DATA_TIERS);
         }
     }

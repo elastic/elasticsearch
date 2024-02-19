@@ -41,7 +41,8 @@ import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.Phase;
-import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
+import org.elasticsearch.xpack.core.ilm.action.ILMActions;
+import org.elasticsearch.xpack.core.ilm.action.PutLifecycleRequest;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
 
 import java.io.IOException;
@@ -135,8 +136,8 @@ public class ILMDownsampleDisruptionIT extends ESIntegTestCase {
             )
         );
         LifecyclePolicy policy = new LifecyclePolicy(POLICY_NAME, phases);
-        PutLifecycleAction.Request putLifecycleRequest = new PutLifecycleAction.Request(policy);
-        assertAcked(client().execute(PutLifecycleAction.INSTANCE, putLifecycleRequest).actionGet());
+        PutLifecycleRequest putLifecycleRequest = new PutLifecycleRequest(policy);
+        assertAcked(client().execute(ILMActions.PUT, putLifecycleRequest).actionGet());
     }
 
     public void testILMDownsampleRollingRestart() throws Exception {

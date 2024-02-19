@@ -7,11 +7,11 @@
 
 package org.elasticsearch.xpack.transform.transforms.pivot;
 
-import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
@@ -20,13 +20,13 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.search.aggregations.Aggregations;
-import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
+import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.bucket.composite.InternalComposite;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -41,6 +41,8 @@ import org.elasticsearch.xpack.core.transform.TransformDeprecations;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfigTests;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
+import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.AggregationConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.AggregationConfigTests;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.GroupConfig;
@@ -241,32 +243,55 @@ public class PivotTests extends ESTestCase {
             SettingsConfigTests.randomSettingsConfig(),
             TransformConfigVersion.CURRENT,
             Collections.emptySet()
-        );
+        ) {
+            @Override
+            public Tuple<Stream<IndexRequest>, Map<String, Object>> processSearchResponse(
+                SearchResponse searchResponse,
+                String destinationIndex,
+                String destinationPipeline,
+                Map<String, String> fieldTypeMap,
+                TransformIndexerStats stats,
+                TransformProgress progress
+            ) {
+                try {
+                    return super.processSearchResponse(
+                        searchResponse,
+                        destinationIndex,
+                        destinationPipeline,
+                        fieldTypeMap,
+                        stats,
+                        progress
+                    );
+                } finally {
+                    searchResponse.decRef();
+                }
+            }
+        };
 
-        Aggregations aggs = null;
+        InternalAggregations aggs = null;
         assertThat(pivot.processSearchResponse(searchResponseFromAggs(aggs), null, null, null, null, null), is(nullValue()));
 
-        aggs = new Aggregations(List.of());
+        aggs = InternalAggregations.from(List.of());
         assertThat(pivot.processSearchResponse(searchResponseFromAggs(aggs), null, null, null, null, null), is(nullValue()));
 
-        CompositeAggregation compositeAgg = mock(CompositeAggregation.class);
+        InternalComposite compositeAgg = mock(InternalComposite.class);
         when(compositeAgg.getName()).thenReturn("_transform");
         when(compositeAgg.getBuckets()).thenReturn(List.of());
         when(compositeAgg.afterKey()).thenReturn(null);
-        aggs = new Aggregations(List.of(compositeAgg));
+        aggs = InternalAggregations.from(List.of(compositeAgg));
         assertThat(pivot.processSearchResponse(searchResponseFromAggs(aggs), null, null, null, null, null), is(nullValue()));
 
         when(compositeAgg.getBuckets()).thenReturn(List.of());
         when(compositeAgg.afterKey()).thenReturn(Map.of("key", "value"));
-        aggs = new Aggregations(List.of(compositeAgg));
+        aggs = InternalAggregations.from(List.of(compositeAgg));
         // Empty bucket list is *not* a stop condition for composite agg processing.
         assertThat(pivot.processSearchResponse(searchResponseFromAggs(aggs), null, null, null, null, null), is(notNullValue()));
 
-        CompositeAggregation.Bucket bucket = mock(CompositeAggregation.Bucket.class);
-        List<? extends CompositeAggregation.Bucket> buckets = List.of(bucket);
+        InternalComposite.InternalBucket bucket = mock(InternalComposite.InternalBucket.class);
+        List<InternalComposite.InternalBucket> buckets = List.of(bucket);
         doReturn(buckets).when(compositeAgg).getBuckets();
         when(compositeAgg.afterKey()).thenReturn(null);
-        aggs = new Aggregations(List.of(compositeAgg));
+        aggs = InternalAggregations.from(List.of(compositeAgg));
         assertThat(pivot.processSearchResponse(searchResponseFromAggs(aggs), null, null, null, null, null), is(nullValue()));
     }
 
@@ -325,8 +350,23 @@ public class PivotTests extends ESTestCase {
         assertThat(responseHolder.get(), is(empty()));
     }
 
-    private static SearchResponse searchResponseFromAggs(Aggregations aggs) {
-        return new SearchResponse(null, aggs, null, false, null, null, 1, null, 10, 5, 0, 0, new ShardSearchFailure[0], null);
+    private static SearchResponse searchResponseFromAggs(InternalAggregations aggs) {
+        return new SearchResponse(
+            SearchHits.EMPTY_WITH_TOTAL_HITS,
+            aggs,
+            null,
+            false,
+            null,
+            null,
+            1,
+            null,
+            10,
+            5,
+            0,
+            0,
+            ShardSearchFailure.EMPTY_ARRAY,
+            null
+        );
     }
 
     private class MyMockClient extends NoOpClient {
@@ -355,25 +395,25 @@ public class PivotTests extends ESTestCase {
                         searchFailures.add(new ShardSearchFailure(new RuntimeException("shard failed")));
                     }
                 }
-
-                final SearchResponse response = new SearchResponse(
-                    new SearchHits(new SearchHit[0], new TotalHits(0L, TotalHits.Relation.EQUAL_TO), 0),
-                    null,
-                    null,
-                    false,
-                    null,
-                    null,
-                    1,
-                    null,
-                    10,
-                    searchFailures.size() > 0 ? 0 : 5,
-                    0,
-                    0,
-                    searchFailures.toArray(new ShardSearchFailure[searchFailures.size()]),
-                    null
+                ActionListener.respondAndRelease(
+                    listener,
+                    (Response) new SearchResponse(
+                        SearchHits.EMPTY_WITH_TOTAL_HITS,
+                        null,
+                        null,
+                        false,
+                        null,
+                        null,
+                        1,
+                        null,
+                        10,
+                        searchFailures.size() > 0 ? 0 : 5,
+                        0,
+                        0,
+                        searchFailures.toArray(new ShardSearchFailure[searchFailures.size()]),
+                        null
+                    )
                 );
-
-                listener.onResponse((Response) response);
                 return;
             }
 
@@ -394,7 +434,7 @@ public class PivotTests extends ESTestCase {
             ActionListener<Response> listener
         ) {
             SearchResponse response = mock(SearchResponse.class);
-            when(response.getAggregations()).thenReturn(new Aggregations(List.of()));
+            when(response.getAggregations()).thenReturn(InternalAggregations.from(List.of()));
             listener.onResponse((Response) response);
         }
     }
@@ -412,8 +452,8 @@ public class PivotTests extends ESTestCase {
             ActionListener<Response> listener
         ) {
             SearchResponse response = mock(SearchResponse.class);
-            CompositeAggregation compositeAggregation = mock(CompositeAggregation.class);
-            when(response.getAggregations()).thenReturn(new Aggregations(List.of(compositeAggregation)));
+            InternalComposite compositeAggregation = mock(InternalComposite.class);
+            when(response.getAggregations()).thenReturn(InternalAggregations.from(List.of(compositeAggregation)));
             when(compositeAggregation.getBuckets()).thenReturn(new ArrayList<>());
             listener.onResponse((Response) response);
         }

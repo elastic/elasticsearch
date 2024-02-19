@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.application.connector.action;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.common.Strings;
@@ -31,16 +30,14 @@ import java.util.Objects;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
-public class UpdateConnectorSchedulingAction extends ActionType<ConnectorUpdateActionResponse> {
+public class UpdateConnectorSchedulingAction {
 
-    public static final UpdateConnectorSchedulingAction INSTANCE = new UpdateConnectorSchedulingAction();
-    public static final String NAME = "cluster:admin/xpack/connector/update_scheduling";
+    public static final String NAME = "indices:data/write/xpack/connector/update_scheduling";
+    public static final ActionType<ConnectorUpdateActionResponse> INSTANCE = new ActionType<>(NAME);
 
-    public UpdateConnectorSchedulingAction() {
-        super(NAME, ConnectorUpdateActionResponse::new);
-    }
+    private UpdateConnectorSchedulingAction() {/* no instances */}
 
-    public static class Request extends ActionRequest implements ToXContentObject {
+    public static class Request extends ConnectorActionRequest implements ToXContentObject {
 
         private final String connectorId;
         private final ConnectorScheduling scheduling;
@@ -69,11 +66,11 @@ public class UpdateConnectorSchedulingAction extends ActionType<ConnectorUpdateA
             ActionRequestValidationException validationException = null;
 
             if (Strings.isNullOrEmpty(connectorId)) {
-                validationException = addValidationError("[connector_id] cannot be null or empty.", validationException);
+                validationException = addValidationError("[connector_id] cannot be [null] or [\"\"].", validationException);
             }
 
             if (Objects.isNull(scheduling)) {
-                validationException = addValidationError("[scheduling] cannot be null.", validationException);
+                validationException = addValidationError("[scheduling] cannot be [null].", validationException);
             }
 
             return validationException;

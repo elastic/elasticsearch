@@ -34,6 +34,7 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.indexing.IterationResult;
+import org.elasticsearch.xpack.core.transform.action.ValidateTransformAction;
 import org.elasticsearch.xpack.core.transform.transforms.TimeRetentionPolicyConfigTests;
 import org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
@@ -254,6 +255,11 @@ public class TransformIndexerTests extends ESTestCase {
             fieldMappingsListener.onResponse(Collections.emptyMap());
         }
 
+        @Override
+        void doMaybeCreateDestIndex(Map<String, String> deducedDestIndexMappings, ActionListener<Boolean> listener) {
+            listener.onResponse(null);
+        }
+
         public boolean waitingForNextSearch() {
             return super.getScheduledNextSearch() != null;
         }
@@ -268,7 +274,7 @@ public class TransformIndexerTests extends ESTestCase {
         }
 
         @Override
-        void validate(ActionListener<Void> listener) {
+        void validate(ActionListener<ValidateTransformAction.Response> listener) {
             listener.onResponse(null);
         }
     }

@@ -12,6 +12,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.core.Releasables;
@@ -40,10 +41,10 @@ public class InMapper extends ExpressionMapper<In> {
             ExpressionEvaluator.Factory eqEvaluator = ((ExpressionMapper) EQUALS).map(eq, layout);
             listEvaluators.add(eqEvaluator);
         });
-        return dvrCtx -> new InExpressionEvaluator(dvrCtx.blockFactory(), listEvaluators.stream().map(fac -> fac.get(dvrCtx)).toList());
+        return dvrCtx -> new InExpressionEvaluator(dvrCtx, listEvaluators.stream().map(fac -> fac.get(dvrCtx)).toList());
     }
 
-    record InExpressionEvaluator(BlockFactory blockFactory, List<EvalOperator.ExpressionEvaluator> listEvaluators)
+    record InExpressionEvaluator(DriverContext driverContext, List<EvalOperator.ExpressionEvaluator> listEvaluators)
         implements
             EvalOperator.ExpressionEvaluator {
         @Override
@@ -69,7 +70,7 @@ public class InMapper extends ExpressionMapper<In> {
                 }
             }
 
-            return evalWithNulls(blockFactory(), values, nulls, nullInValues);
+            return evalWithNulls(driverContext.blockFactory(), values, nulls, nullInValues);
         }
 
         private static void updateValues(BooleanVector vector, boolean[] values) {

@@ -8,7 +8,7 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.common.util.$if(boolean)$Bit$else$$Type$$endif$Array;
+import org.elasticsearch.common.util.$Array$;
 import org.elasticsearch.core.Releasable;
 
 /**
@@ -20,9 +20,9 @@ public final class $Type$BigArrayVector extends AbstractVector implements $Type$
 
     private static final long BASE_RAM_BYTES_USED = 0; // FIXME
 
-    private final $if(boolean)$Bit$else$$Type$$endif$Array values;
+    private final $Array$ values;
 
-    public $Type$BigArrayVector($if(boolean)$Bit$else$$Type$$endif$Array values, int positionCount, BlockFactory blockFactory) {
+    public $Type$BigArrayVector($Array$ values, int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
         this.values = values;
     }
@@ -55,19 +55,22 @@ public final class $Type$BigArrayVector extends AbstractVector implements $Type$
     @Override
     public $Type$Vector filter(int... positions) {
         var blockFactory = blockFactory();
-   $if(boolean)$
+    $if(boolean)$
         final BitArray filtered = new BitArray(positions.length, blockFactory.bigArrays());
+    $else$
+        final $Array$ filtered = blockFactory.bigArrays().new$Array$(positions.length);
+    $endif$
+    $if(boolean)$
         for (int i = 0; i < positions.length; i++) {
             if (values.get(positions[i])) {
                 filtered.set(i);
             }
         }
-   $else$
-        final $Type$Array filtered = blockFactory.bigArrays().new$Type$Array(positions.length, true);
+    $else$
         for (int i = 0; i < positions.length; i++) {
             filtered.set(i, values.get(positions[i]));
         }
-   $endif$
+    $endif$
         return new $Type$BigArrayVector(filtered, positions.length, blockFactory);
     }
 

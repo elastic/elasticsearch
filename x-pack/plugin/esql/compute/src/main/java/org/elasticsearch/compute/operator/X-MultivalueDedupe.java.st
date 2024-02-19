@@ -16,20 +16,16 @@ import org.elasticsearch.common.util.LongHash;
 $endif$
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
-$if(int)$
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+$if(int)$
 import org.elasticsearch.compute.data.IntBlock;
 
 $elseif(long)$
-import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 
 $else$
-import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.$Type$Block;
 import org.elasticsearch.compute.data.IntBlock;
 
@@ -50,9 +46,7 @@ $if(BytesRef)$
     private static final int ALWAYS_COPY_MISSING = 20;  // TODO BytesRef should try adding to the hash *first* and then comparing.
 $elseif(double)$
     private static final int ALWAYS_COPY_MISSING = 110;
-$elseif(int)$
-    private static final int ALWAYS_COPY_MISSING = 300;
-$elseif(long)$
+$else$
     private static final int ALWAYS_COPY_MISSING = 300;
 $endif$
 

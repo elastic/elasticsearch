@@ -96,7 +96,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
 
     private EsqlQueryGenerator.QueryExecuted execute(String command, int depth) {
         try {
-            Map<String, Object> a = RestEsqlTestCase.runEsql(new RestEsqlTestCase.RequestObjectBuilder().query(command).build());
+            Map<String, Object> a = RestEsqlTestCase.runEsqlSync(new RestEsqlTestCase.RequestObjectBuilder().query(command).build());
             List<EsqlQueryGenerator.Column> outputSchema = outputSchema(a);
             return new EsqlQueryGenerator.QueryExecuted(command, depth, outputSchema, null);
         } catch (Exception e) {

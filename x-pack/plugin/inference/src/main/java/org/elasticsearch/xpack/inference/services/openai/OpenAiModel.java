@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.inference.services.openai;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.ServiceSettings;
+import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.openai.OpenAiActionVisitor;
 
@@ -19,6 +21,14 @@ public abstract class OpenAiModel extends Model {
 
     public OpenAiModel(ModelConfigurations configurations, ModelSecrets secrets) {
         super(configurations, secrets);
+    }
+
+    protected OpenAiModel(OpenAiModel model, TaskSettings taskSettings) {
+        super(model, taskSettings);
+    }
+
+    protected OpenAiModel(OpenAiModel model, ServiceSettings serviceSettings) {
+        super(model, serviceSettings);
     }
 
     public abstract ExecutableAction accept(OpenAiActionVisitor creator, Map<String, Object> taskSettings);

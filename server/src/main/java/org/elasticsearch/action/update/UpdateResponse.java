@@ -46,7 +46,7 @@ public class UpdateResponse extends DocWriteResponse {
      * For example: update script with operation set to none
      */
     public UpdateResponse(ShardId shardId, String id, long seqNo, long primaryTerm, long version, Result result) {
-        this(new ShardInfo(0, 0), shardId, id, seqNo, primaryTerm, version, result);
+        this(ShardInfo.EMPTY, shardId, id, seqNo, primaryTerm, version, result);
     }
 
     @SuppressWarnings("this-escape")

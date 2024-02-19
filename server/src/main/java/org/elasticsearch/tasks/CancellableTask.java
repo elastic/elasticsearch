@@ -85,9 +85,11 @@ public class CancellableTask extends Task {
     /**
      * Throws a {@link TaskCancelledException} if this task has been cancelled, otherwise does nothing.
      */
-    public final synchronized void ensureNotCancelled() {
+    public final void ensureNotCancelled() {
         if (isCancelled()) {
-            throw getTaskCancelledException();
+            synchronized (this) {
+                throw getTaskCancelledException();
+            }
         }
     }
 

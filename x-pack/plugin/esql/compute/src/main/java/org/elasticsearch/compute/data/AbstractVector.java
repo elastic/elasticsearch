@@ -41,7 +41,7 @@ abstract class AbstractVector extends AbstractNonThreadSafeRefCounted implements
 
     @Override
     protected void closeInternal() {
-        blockFactory.adjustBreaker(-ramBytesUsed(), true);
+        blockFactory.adjustBreaker(-ramBytesUsed());
     }
 
     @Override

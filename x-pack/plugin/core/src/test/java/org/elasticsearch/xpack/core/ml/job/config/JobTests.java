@@ -48,6 +48,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.test.hamcrest.OptionalMatchers.isEmpty;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -114,7 +115,7 @@ public class JobTests extends AbstractXContentSerializingTestCase<Job> {
         ) {
             Job parsedConfig = Job.LENIENT_PARSER.apply(parser, null).build();
             // When we are writing for internal storage, we do not include the datafeed config
-            assertThat(parsedConfig.getDatafeedConfig().isPresent(), is(false));
+            assertThat(parsedConfig.getDatafeedConfig(), isEmpty());
         }
     }
 

@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
+import org.elasticsearch.cluster.metadata.MetadataDataStreamsService;
 import org.elasticsearch.cluster.metadata.MetadataIndexAliasesService;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
@@ -290,6 +291,7 @@ public class MetadataRolloverService {
         createIndexClusterStateRequest.setMatchingTemplate(templateV2);
         assert createIndexClusterStateRequest.performReroute() == false
             : "rerouteCompletionIsNotRequired() assumes reroute is not called by underlying service";
+
         ClusterState newState = createIndexService.applyCreateIndexRequest(
             currentState,
             createIndexClusterStateRequest,
@@ -312,6 +314,7 @@ public class MetadataRolloverService {
         metadataBuilder = withShardSizeForecastForWriteIndex(dataStreamName, metadataBuilder);
 
         newState = ClusterState.builder(newState).metadata(metadataBuilder).build();
+        newState = MetadataDataStreamsService.setRolloverOnWrite(newState, dataStreamName, false);
 
         return new RolloverResult(newWriteIndexName, originalWriteIndex.getName(), newState);
     }
@@ -377,7 +380,7 @@ public class MetadataRolloverService {
         String resolvedName = IndexNameExpressionResolver.resolveDateMathExpression(sourceIndexName);
         final boolean isDateMath = sourceIndexName.equals(resolvedName) == false;
         if (INDEX_NAME_PATTERN.matcher(resolvedName).matches()) {
-            int numberIndex = sourceIndexName.lastIndexOf("-");
+            int numberIndex = sourceIndexName.lastIndexOf('-');
             assert numberIndex != -1 : "no separator '-' found";
             int counter = Integer.parseInt(
                 sourceIndexName.substring(numberIndex + 1, isDateMath ? sourceIndexName.length() - 1 : sourceIndexName.length())

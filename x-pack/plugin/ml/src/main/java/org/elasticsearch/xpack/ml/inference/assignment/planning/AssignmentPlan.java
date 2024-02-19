@@ -401,8 +401,7 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
             if (allocations <= 0) {
                 return this;
             }
-            if (/*isAlreadyAssigned(deployment, node) == false
-                &&*/ requiredMemory > remainingNodeMemory.get(node)) {
+            if (requiredMemory > remainingNodeMemory.get(node)) {
                 throw new IllegalArgumentException(
                     "not enough memory on node ["
                         + node.id()
@@ -437,10 +436,6 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
             return this;
         }
 
-        private boolean isAlreadyAssigned(Deployment deployment, Node node) {
-            return deployment.currentAllocationsByNodeId().containsKey(node.id()) || assignments.get(deployment).get(node) > 0;
-        }
-
         private int getAssignedAllocations(Deployment deployment, Node node) {
             int currentAllocations = getCurrentAllocations(deployment, node);
             int assignmentAllocations = assignments.get(deployment).get(node);
@@ -452,13 +447,14 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
         }
 
         public void accountMemory(Deployment m, Node n) {
-            // TODO (#101612) remove or refactor unused method
-            long requiredMemory = getDeploymentMemoryRequirement(m, n, getCurrentAllocations(m, n));
-            accountMemory(m, n, requiredMemory);
+            if (m.currentAllocationsByNodeId().containsKey(n.id())) {
+                int allocations = m.currentAllocationsByNodeId().get(n.id());
+                long requiredMemory = m.estimateMemoryUsageBytes(allocations);
+                accountMemory(m, n, requiredMemory);
+            }
         }
 
-        public void accountMemory(Deployment m, Node n, long requiredMemory) {
-            // TODO (#101612) computation of required memory should be done internally
+        private void accountMemory(Deployment m, Node n, long requiredMemory) {
             remainingNodeMemory.computeIfPresent(n, (k, v) -> v - requiredMemory);
             if (remainingNodeMemory.containsKey(n) && remainingNodeMemory.get(n) < 0) {
                 throw new IllegalArgumentException("not enough memory on node [" + n.id() + "] to assign model [" + m.id() + "]");

@@ -8,14 +8,14 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.common.util.$if(boolean)$Bit$else$$Type$$endif$Array;
+import org.elasticsearch.common.util.$Array$;
 import org.elasticsearch.core.Releasables;
 
 import java.util.BitSet;
 
 /**
  * Block implementation that stores values in a {@link $Type$BigArrayVector}. Does not take ownership of the given
- * {@link $if(boolean)$Bit$else$$Type$$endif$Array} and does not adjust circuit breakers to account for it.
+ * {@link $Array$} and does not adjust circuit breakers to account for it.
  * This class is generated. Do not edit it.
  */
 public final class $Type$BigArrayBlock extends AbstractArrayBlock implements $Type$Block {
@@ -24,7 +24,25 @@ public final class $Type$BigArrayBlock extends AbstractArrayBlock implements $Ty
     private final $Type$BigArrayVector vector;
 
     public $Type$BigArrayBlock(
-        $if(boolean)$Bit$else$$Type$$endif$Array values,
+        $Array$ values,
+        int positionCount,
+        int[] firstValueIndexes,
+        BitSet nulls,
+        MvOrdering mvOrdering,
+        BlockFactory blockFactory
+    ) {
+        this(
+            new $Type$BigArrayVector(values, firstValueIndexes == null ? positionCount : firstValueIndexes[positionCount], blockFactory),
+            positionCount,
+            firstValueIndexes,
+            nulls,
+            mvOrdering,
+            blockFactory
+        );
+    }
+
+    private $Type$BigArrayBlock(
+        $Type$BigArrayVector vector,
         int positionCount,
         int[] firstValueIndexes,
         BitSet nulls,
@@ -32,7 +50,10 @@ public final class $Type$BigArrayBlock extends AbstractArrayBlock implements $Ty
         BlockFactory blockFactory
     ) {
         super(positionCount, firstValueIndexes, nulls, mvOrdering, blockFactory);
-        this.vector = new $Type$BigArrayVector(values, (int) values.size(), blockFactory);
+        this.vector = vector;
+        assert firstValueIndexes == null
+            ? vector.getPositionCount() == getPositionCount()
+            : firstValueIndexes[getPositionCount()] == vector.getPositionCount();
     }
 
     @Override
@@ -80,21 +101,28 @@ public final class $Type$BigArrayBlock extends AbstractArrayBlock implements $Ty
             incRef();
             return this;
         }
-        // TODO use reference counting to share the vector
-        try (var builder = blockFactory().new$Type$BlockBuilder(firstValueIndexes[getPositionCount()])) {
-            for (int pos = 0; pos < getPositionCount(); pos++) {
-                if (isNull(pos)) {
-                    builder.appendNull();
-                    continue;
-                }
-                int first = getFirstValueIndex(pos);
-                int end = first + getValueCount(pos);
-                for (int i = first; i < end; i++) {
-                    builder.append$Type$(get$Type$(i));
-                }
-            }
-            return builder.mvOrdering(MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING).build();
+        if (nullsMask == null) {
+            vector.incRef();
+            return vector.asBlock();
         }
+
+        // The following line is correct because positions with multi-values are never null.
+        int expandedPositionCount = vector.getPositionCount();
+        long bitSetRamUsedEstimate = Math.max(nullsMask.size(), BlockRamUsageEstimator.sizeOfBitSet(expandedPositionCount));
+        blockFactory().adjustBreaker(bitSetRamUsedEstimate);
+
+        $Type$BigArrayBlock expanded = new $Type$BigArrayBlock(
+            vector,
+            expandedPositionCount,
+            null,
+            shiftNullsToExpandedPositions(),
+            MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING,
+            blockFactory()
+        );
+        blockFactory().adjustBreaker(expanded.ramBytesUsedOnlyBlock() - bitSetRamUsedEstimate);
+        // We need to incRef after adjusting any breakers, otherwise we might leak the vector if the breaker trips.
+        vector.incRef();
+        return expanded;
     }
 
     private long ramBytesUsedOnlyBlock() {
@@ -139,7 +167,7 @@ public final class $Type$BigArrayBlock extends AbstractArrayBlock implements $Ty
 
     @Override
     public void closeInternal() {
-        blockFactory().adjustBreaker(-ramBytesUsedOnlyBlock(), true);
+        blockFactory().adjustBreaker(-ramBytesUsedOnlyBlock());
         Releasables.closeExpectNoException(vector);
     }
 }

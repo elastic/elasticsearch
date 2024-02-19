@@ -127,7 +127,7 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
         if (in.readBoolean()) {
             collateQuery = new Script(in);
         }
-        collateParams = in.readMap();
+        collateParams = in.readGenericMap();
         collatePrune = in.readOptionalBoolean();
         int generatorsEntries = in.readVInt();
         for (int i = 0; i < generatorsEntries; i++) {

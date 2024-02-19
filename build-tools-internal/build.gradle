@@ -139,6 +139,14 @@ gradlePlugin {
       id = 'elasticsearch.java-module'
       implementationClass = 'org.elasticsearch.gradle.internal.ElasticsearchJavaModulePathPlugin'
     }
+    mrjar {
+      id = 'elasticsearch.mrjar'
+      implementationClass = 'org.elasticsearch.gradle.internal.MrjarPlugin'
+    }
+    embeddedProvider {
+      id = 'elasticsearch.embedded-providers'
+      implementationClass = 'org.elasticsearch.gradle.internal.EmbeddedProviderPlugin'
+    }
     releaseTools {
       id = 'elasticsearch.release-tools'
       implementationClass = 'org.elasticsearch.gradle.internal.release.ReleaseToolsPlugin'
@@ -255,7 +263,7 @@ dependencies {
     // ensuring brought asm version brought in by spock is up-to-date
     testImplementation buildLibs.asm
     integTestImplementation buildLibs.asm
-    integTestImplementation('org.ow2.asm:asm:9.5')
+    integTestImplementation('org.ow2.asm:asm:9.6')
     api("org.yaml:snakeyaml") {
       version { strictly(versions.snakeyaml) }
     }

@@ -13,12 +13,12 @@ composed_of:
 - apm@settings
 - apm-10d@lifecycle
 - logs-apm.error@mappings
-- apm@custom
+- logs@custom
 - logs-apm.error@custom
 - ecs@mappings
 ignore_missing_component_templates:
+- logs@custom
 - logs-apm.error@custom
-- apm@custom
 template:
   mappings:
     properties:

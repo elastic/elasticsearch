@@ -512,7 +512,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
         final List<SnapshotShardFailure> shardFailures = in.readCollectionAsImmutableList(SnapshotShardFailure::new);
         final IndexVersion version = in.readBoolean() ? IndexVersion.readVersion(in) : null;
         final Boolean includeGlobalState = in.readOptionalBoolean();
-        final Map<String, Object> userMetadata = in.readMap();
+        final Map<String, Object> userMetadata = in.readGenericMap();
         final List<String> dataStreams = in.readStringCollectionAsImmutableList();
         final List<SnapshotFeatureInfo> featureStates = in.readCollectionAsImmutableList(SnapshotFeatureInfo::new);
         final Map<String, IndexSnapshotDetails> indexSnapshotDetails = in.readImmutableMap(IndexSnapshotDetails::new);

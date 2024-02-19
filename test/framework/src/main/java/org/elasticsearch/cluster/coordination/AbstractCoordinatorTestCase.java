@@ -1181,8 +1181,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     transportService.getTaskManager(),
                     localNode::getId,
                     transportService.getLocalNodeConnection(),
-                    null,
-                    getNamedWriteableRegistry()
+                    null
                 );
                 stableMasterHealthIndicatorService = new StableMasterHealthIndicatorService(coordinationDiagnosticsService, clusterService);
                 masterService.setClusterStatePublisher(coordinator);

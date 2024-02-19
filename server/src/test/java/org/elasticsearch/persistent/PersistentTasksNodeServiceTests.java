@@ -9,7 +9,7 @@
 package org.elasticsearch.persistent;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
@@ -94,7 +94,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
         PersistentTasksService persistentTasksService = mock(PersistentTasksService.class);
         @SuppressWarnings("unchecked")
         PersistentTasksExecutor<TestParams> action = mock(PersistentTasksExecutor.class);
-        when(action.getExecutor()).thenReturn(ThreadPool.Names.SAME);
+        when(action.getExecutor()).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
         when(action.getTaskName()).thenReturn(TestPersistentTasksExecutor.NAME);
         int nonLocalNodesCount = randomInt(10);
         // need to account for 5 original tasks on each node and their relocations
@@ -208,7 +208,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
         PersistentTasksService persistentTasksService = mock(PersistentTasksService.class);
         @SuppressWarnings("unchecked")
         PersistentTasksExecutor<TestParams> action = mock(PersistentTasksExecutor.class);
-        when(action.getExecutor()).thenReturn(ThreadPool.Names.SAME);
+        when(action.getExecutor()).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
         when(action.getTaskName()).thenReturn(TestPersistentTasksExecutor.NAME);
         TaskId parentId = new TaskId("cluster", 1);
         AllocatedPersistentTask nodeTask = new TestPersistentTasksPlugin.TestTask(
@@ -253,12 +253,12 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
 
     public void testTaskCancellation() {
         AtomicLong capturedTaskId = new AtomicLong();
-        AtomicReference<ActionListener<CancelTasksResponse>> capturedListener = new AtomicReference<>();
+        AtomicReference<ActionListener<ListTasksResponse>> capturedListener = new AtomicReference<>();
         Client client = mock(Client.class);
         when(client.settings()).thenReturn(Settings.EMPTY);
         PersistentTasksService persistentTasksService = new PersistentTasksService(null, null, client) {
             @Override
-            void sendCancelRequest(final long taskId, final String reason, final ActionListener<CancelTasksResponse> listener) {
+            void sendCancelRequest(final long taskId, final String reason, final ActionListener<ListTasksResponse> listener) {
                 capturedTaskId.set(taskId);
                 capturedListener.set(listener);
             }
@@ -276,7 +276,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
         };
         @SuppressWarnings("unchecked")
         PersistentTasksExecutor<TestParams> action = mock(PersistentTasksExecutor.class);
-        when(action.getExecutor()).thenReturn(ThreadPool.Names.SAME);
+        when(action.getExecutor()).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
         when(action.getTaskName()).thenReturn("test");
         when(action.createTask(anyLong(), anyString(), anyString(), any(), any(), any())).thenReturn(
             new TestPersistentTasksPlugin.TestTask(1, "persistent", "test", "", new TaskId("cluster", 1), Collections.emptyMap())
@@ -327,8 +327,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
         // That should trigger cancellation request
         assertThat(capturedTaskId.get(), equalTo(localId));
         // Notify successful cancellation
-        capturedListener.get()
-            .onResponse(new CancelTasksResponse(Collections.emptyList(), Collections.emptyList(), Collections.emptyList()));
+        capturedListener.get().onResponse(new ListTasksResponse(Collections.emptyList(), Collections.emptyList(), Collections.emptyList()));
 
         // finish or fail task
         if (randomBoolean()) {
@@ -349,7 +348,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
         when(client.settings()).thenReturn(Settings.EMPTY);
         PersistentTasksService persistentTasksService = new PersistentTasksService(null, null, client) {
             @Override
-            void sendCancelRequest(final long taskId, final String reason, final ActionListener<CancelTasksResponse> listener) {
+            void sendCancelRequest(final long taskId, final String reason, final ActionListener<ListTasksResponse> listener) {
                 fail("Shouldn't be called during local abort");
             }
 
@@ -371,7 +370,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
         };
         @SuppressWarnings("unchecked")
         PersistentTasksExecutor<TestParams> action = mock(PersistentTasksExecutor.class);
-        when(action.getExecutor()).thenReturn(ThreadPool.Names.SAME);
+        when(action.getExecutor()).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
         when(action.getTaskName()).thenReturn("test");
         when(action.createTask(anyLong(), anyString(), anyString(), any(), any(), any())).thenReturn(
             new TestPersistentTasksPlugin.TestTask(1, "persistent", "test", "", new TaskId("cluster", 1), Collections.emptyMap())
@@ -479,7 +478,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
 
         @SuppressWarnings("unchecked")
         PersistentTasksExecutor<TestParams> action = mock(PersistentTasksExecutor.class);
-        when(action.getExecutor()).thenReturn(ThreadPool.Names.SAME);
+        when(action.getExecutor()).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
         when(action.getTaskName()).thenReturn(TestPersistentTasksExecutor.NAME);
         when(action.createTask(anyLong(), anyString(), anyString(), any(), any(), any())).thenThrow(
             new RuntimeException("Something went wrong")
@@ -560,7 +559,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
             .build();
     }
 
-    private class Execution {
+    private static class Execution {
 
         private final PersistentTaskParams params;
         private final AllocatedPersistentTask task;
@@ -574,11 +573,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
     }
 
     private class MockExecutor extends NodePersistentTasksExecutor {
-        private List<Execution> executions = new ArrayList<>();
-
-        MockExecutor() {
-            super(null);
-        }
+        private final List<Execution> executions = new ArrayList<>();
 
         @Override
         public <Params extends PersistentTaskParams> void executeTask(

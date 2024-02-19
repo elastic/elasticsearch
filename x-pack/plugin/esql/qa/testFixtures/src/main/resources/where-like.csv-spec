@@ -298,3 +298,24 @@ FROM sample_data
 
 @timestamp:date | client_ip:ip | event_duration:long | message:keyword
 ;
+
+multiValueLike#[skip:-8.12.99]
+from employees | where job_positions like "Account*" | keep emp_no, job_positions;
+
+warning:Line 1:24: evaluation of [job_positions like \"Account*\"] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:24: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+emp_no:integer | job_positions:keyword 
+10025          | Accountant 
+;
+
+
+multiValueRLike#[skip:-8.12.99]
+from employees | where job_positions rlike "Account.*" | keep emp_no, job_positions;
+
+warning:Line 1:24: evaluation of [job_positions rlike \"Account.*\"] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:24: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+emp_no:integer | job_positions:keyword 
+10025          | Accountant 
+;

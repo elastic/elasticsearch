@@ -73,7 +73,7 @@ public class QueryProvider implements Writeable, ToXContentObject, Rewriteable<Q
     }
 
     public static QueryProvider fromStream(StreamInput in) throws IOException {
-        return new QueryProvider(in.readMap(), in.readOptionalNamedWriteable(QueryBuilder.class), in.readException());
+        return new QueryProvider(in.readGenericMap(), in.readOptionalNamedWriteable(QueryBuilder.class), in.readException());
     }
 
     QueryProvider(Map<String, Object> query, QueryBuilder parsedQuery, Exception parsingException) {

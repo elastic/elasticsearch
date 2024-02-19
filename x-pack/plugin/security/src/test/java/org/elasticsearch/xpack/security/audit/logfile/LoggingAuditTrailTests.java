@@ -46,6 +46,7 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.security.action.apikey.ApiKeyTests;
 import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyAction;
@@ -626,20 +627,23 @@ public class LoggingAuditTrailTests extends ESTestCase {
         CapturingLogger.output(logger.getName(), Level.INFO).clear();
 
         final String keyId = randomAlphaOfLength(10);
+        final TimeValue newExpiration = randomFrom(ApiKeyTests.randomFutureExpirationTime(), null);
         final var updateApiKeyRequest = new UpdateApiKeyRequest(
             keyId,
             randomBoolean() ? null : keyRoleDescriptors,
-            metadataWithSerialization.metadata()
+            metadataWithSerialization.metadata(),
+            newExpiration
         );
         auditTrail.accessGranted(requestId, authentication, UpdateApiKeyAction.NAME, updateApiKeyRequest, authorizationInfo);
         final var expectedUpdateKeyAuditEventString = String.format(
             Locale.ROOT,
             """
-                "change":{"apikey":{"id":"%s","type":"rest"%s%s}}\
+                "change":{"apikey":{"id":"%s","type":"rest"%s%s,"expiration":%s}}\
                 """,
             keyId,
             updateApiKeyRequest.getRoleDescriptors() == null ? "" : "," + roleDescriptorsStringBuilder,
-            updateApiKeyRequest.getMetadata() == null ? "" : Strings.format(",\"metadata\":%s", metadataWithSerialization.serialization())
+            updateApiKeyRequest.getMetadata() == null ? "" : Strings.format(",\"metadata\":%s", metadataWithSerialization.serialization()),
+            updateApiKeyRequest.getExpiration() == null ? null : Strings.format("\"%s\"", newExpiration)
         );
         output = CapturingLogger.output(logger.getName(), Level.INFO);
         assertThat(output.size(), is(2));
@@ -661,13 +665,14 @@ public class LoggingAuditTrailTests extends ESTestCase {
         final var bulkUpdateApiKeyRequest = new BulkUpdateApiKeyRequest(
             keyIds,
             randomBoolean() ? null : keyRoleDescriptors,
-            metadataWithSerialization.metadata()
+            metadataWithSerialization.metadata(),
+            null
         );
         auditTrail.accessGranted(requestId, authentication, BulkUpdateApiKeyAction.NAME, bulkUpdateApiKeyRequest, authorizationInfo);
         final var expectedBulkUpdateKeyAuditEventString = String.format(
             Locale.ROOT,
             """
-                "change":{"apikeys":{"ids":[%s],"type":"rest"%s%s}}\
+                "change":{"apikeys":{"ids":[%s],"type":"rest"%s%s,"expiration":null}}\
                 """,
             bulkUpdateApiKeyRequest.getIds().stream().map(s -> Strings.format("\"%s\"", s)).collect(Collectors.joining(",")),
             bulkUpdateApiKeyRequest.getRoleDescriptors() == null ? "" : "," + roleDescriptorsStringBuilder,
@@ -872,21 +877,24 @@ public class LoggingAuditTrailTests extends ESTestCase {
             updateMetadataWithSerialization = randomApiKeyMetadataWithSerialization();
         }
 
+        final TimeValue newExpiration = randomFrom(ApiKeyTests.randomFutureExpirationTime(), null);
         final var updateRequest = new UpdateCrossClusterApiKeyRequest(
             createRequest.getId(),
             updateAccess,
-            updateMetadataWithSerialization.metadata()
+            updateMetadataWithSerialization.metadata(),
+            newExpiration
         );
         auditTrail.accessGranted(requestId, authentication, UpdateCrossClusterApiKeyAction.NAME, updateRequest, authorizationInfo);
 
         final String expectedUpdateAuditEventString = String.format(
             Locale.ROOT,
             """
-                "change":{"apikey":{"id":"%s","type":"cross_cluster"%s%s}}\
+                "change":{"apikey":{"id":"%s","type":"cross_cluster"%s%s,"expiration":%s}}\
                 """,
             createRequest.getId(),
             updateAccess == null ? "" : ",\"role_descriptors\":" + accessWithSerialization.serialization(),
-            updateRequest.getMetadata() == null ? "" : Strings.format(",\"metadata\":%s", updateMetadataWithSerialization.serialization())
+            updateRequest.getMetadata() == null ? "" : Strings.format(",\"metadata\":%s", updateMetadataWithSerialization.serialization()),
+            newExpiration == null ? null : String.format(Locale.ROOT, "\"%s\"", newExpiration)
         );
 
         output = CapturingLogger.output(logger.getName(), Level.INFO);

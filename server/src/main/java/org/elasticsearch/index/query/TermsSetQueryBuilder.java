@@ -45,7 +45,7 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
 
     public static final String NAME = "terms_set";
 
-    public static final TransportVersion MINIMUM_SHOULD_MATCH_ADDED_VERSION = TransportVersions.V_8_500_061;
+    public static final TransportVersion MINIMUM_SHOULD_MATCH_ADDED_VERSION = TransportVersions.V_8_10_X;
 
     static final ParseField TERMS_FIELD = new ParseField("terms");
     static final ParseField MINIMUM_SHOULD_MATCH_FIELD = new ParseField("minimum_should_match_field");

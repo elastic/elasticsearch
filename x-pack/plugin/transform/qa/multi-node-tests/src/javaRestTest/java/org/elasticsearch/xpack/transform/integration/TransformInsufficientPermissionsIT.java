@@ -420,8 +420,14 @@ public class TransformInsufficientPermissionsIT extends TransformRestTestCase {
 
         startTransform(config.getId(), RequestOptions.DEFAULT);
 
-        // transform is red due to lacking permissions
-        assertRed(transformId, authIssue);
+        // Give the transform indexer enough time to try creating destination index
+        Thread.sleep(5_000);
+
+        String destIndexIssue = Strings.format("Could not create destination index [%s] for transform [%s]", destIndexName, transformId);
+        // transform's auth state status is still RED due to:
+        // - lacking permissions
+        // - and the inability to create destination index in the indexer (which is also a consequence of lacking permissions)
+        assertRed(transformId, authIssue, destIndexIssue);
 
         // update transform's credentials so that the transform has permission to access source/dest indices
         updateConfig(transformId, "{}", RequestOptions.DEFAULT.toBuilder().addHeader(AUTH_KEY, Users.SENIOR.header).build());
@@ -571,14 +577,15 @@ public class TransformInsufficientPermissionsIT extends TransformRestTestCase {
     }
 
     private void assertGreen(String transformId) throws IOException {
-        Map<String, Object> stats = getTransformStats(transformId);
+        Map<String, Object> stats = getBasicTransformStats(transformId);
         assertThat("Stats were: " + stats, extractValue(stats, "health", "status"), is(equalTo(GREEN)));
         assertThat("Stats were: " + stats, extractValue(stats, "health", "issues"), is(nullValue()));
     }
 
+    // We expect exactly the issues passed as "expectedHealthIssueDetails". Not more, not less.
     @SuppressWarnings("unchecked")
     private void assertRed(String transformId, String... expectedHealthIssueDetails) throws IOException {
-        Map<String, Object> stats = getTransformStats(transformId);
+        Map<String, Object> stats = getBasicTransformStats(transformId);
         assertThat("Stats were: " + stats, extractValue(stats, "health", "status"), is(equalTo(RED)));
         List<Object> issues = (List<Object>) extractValue(stats, "health", "issues");
         assertThat("Stats were: " + stats, issues, hasSize(expectedHealthIssueDetails.length));

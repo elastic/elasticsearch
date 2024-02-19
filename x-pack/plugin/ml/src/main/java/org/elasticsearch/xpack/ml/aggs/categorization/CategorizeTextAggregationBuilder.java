@@ -23,7 +23,6 @@ import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.job.config.CategorizationAnalyzerConfig;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -85,10 +84,6 @@ public class CategorizeTextAggregationBuilder extends AbstractAggregationBuilder
         PARSER.declareInt(CategorizeTextAggregationBuilder::size, REQUIRED_SIZE_FIELD_NAME);
     }
 
-    public static CategorizeTextAggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
-        return PARSER.parse(parser, new CategorizeTextAggregationBuilder(aggregationName), null);
-    }
-
     private TermsAggregator.BucketCountThresholds bucketCountThresholds = new TermsAggregator.BucketCountThresholds(
         DEFAULT_BUCKET_COUNT_THRESHOLDS
     );
@@ -128,7 +123,7 @@ public class CategorizeTextAggregationBuilder extends AbstractAggregationBuilder
                 "["
                     + NAME
                     + "] aggregation cannot be used in a cluster where some nodes have version ["
-                    + ALGORITHM_CHANGED_VERSION
+                    + ALGORITHM_CHANGED_VERSION.toReleaseVersion()
                     + "] or higher and others have a version before this",
                 RestStatus.BAD_REQUEST
             );
@@ -285,7 +280,7 @@ public class CategorizeTextAggregationBuilder extends AbstractAggregationBuilder
                 "["
                     + NAME
                     + "] aggregation cannot be used in a cluster where some nodes have version ["
-                    + ALGORITHM_CHANGED_VERSION
+                    + ALGORITHM_CHANGED_VERSION.toReleaseVersion()
                     + "] or higher and others have a version before this",
                 RestStatus.BAD_REQUEST
             );

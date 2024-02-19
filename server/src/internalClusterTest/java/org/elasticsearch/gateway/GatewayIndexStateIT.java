@@ -414,7 +414,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         assertEquals(IndexMetadata.State.CLOSE, state.getMetadata().index(metadata.getIndex()).getState());
         assertEquals("boolean", state.getMetadata().index(metadata.getIndex()).getSettings().get("archived.index.similarity.BM25.type"));
         // try to open it with the broken setting - fail again!
-        ElasticsearchException ex = expectThrows(ElasticsearchException.class, () -> indicesAdmin().prepareOpen("test").get());
+        ElasticsearchException ex = expectThrows(ElasticsearchException.class, indicesAdmin().prepareOpen("test"));
         assertEquals(ex.getMessage(), "Failed to verify index " + metadata.getIndex());
         assertNotNull(ex.getCause());
         assertEquals(IllegalArgumentException.class, ex.getCause().getClass());
@@ -480,7 +480,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         indicesAdmin().prepareClose("test").get();
 
         // try to open it with the broken setting - fail again!
-        ElasticsearchException ex = expectThrows(ElasticsearchException.class, () -> indicesAdmin().prepareOpen("test").get());
+        ElasticsearchException ex = expectThrows(ElasticsearchException.class, indicesAdmin().prepareOpen("test"));
         assertEquals(ex.getMessage(), "Failed to verify index " + metadata.getIndex());
         assertNotNull(ex.getCause());
         assertEquals(MapperParsingException.class, ex.getCause().getClass());

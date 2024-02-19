@@ -190,6 +190,7 @@ public class DownsampleActionIT extends ESRestTestCase {
         createIndexWithSettings(client(), index, alias, settings, mapping);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105437")
     public void testRollupIndex() throws Exception {
         createIndex(index, alias, true);
         index(client(), index, true, null, "@timestamp", "2020-01-01T05:10:00Z", "volume", 11.0, "metricset", randomAlphaOfLength(5));
@@ -213,6 +214,7 @@ public class DownsampleActionIT extends ESRestTestCase {
             assertEquals(index, settings.get(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME.getKey()));
             assertEquals(policy, settings.get(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey()));
             assertEquals(DownsampleTaskStatus.SUCCESS.toString(), settings.get(IndexMetadata.INDEX_DOWNSAMPLE_STATUS.getKey()));
+            assertEquals(fixedInterval.toString(), settings.get(IndexMetadata.INDEX_DOWNSAMPLE_INTERVAL.getKey()));
         });
         assertBusy(
             () -> assertTrue("Alias [" + alias + "] does not point to index [" + rollupIndex + "]", aliasExists(rollupIndex, alias))
@@ -299,10 +301,10 @@ public class DownsampleActionIT extends ESRestTestCase {
             assertEquals(originalIndex, settings.get(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME.getKey()));
             assertEquals(policy, settings.get(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey()));
             assertEquals(DownsampleTaskStatus.SUCCESS.toString(), settings.get(IndexMetadata.INDEX_DOWNSAMPLE_STATUS.getKey()));
+            assertEquals(fixedInterval.toString(), settings.get(IndexMetadata.INDEX_DOWNSAMPLE_INTERVAL.getKey()));
         });
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/103439")
     public void testTsdbDataStreams() throws Exception {
         // Create the ILM policy
         DateHistogramInterval fixedInterval = ConfigTestHelpers.randomInterval();
@@ -338,9 +340,6 @@ public class DownsampleActionIT extends ESRestTestCase {
         rolloverMaxOneDocCondition(client(), dataStream);
 
         String rollupIndex = waitAndGetRollupIndexName(client(), backingIndexName, fixedInterval);
-        if (rollupIndex == null) {
-            logger.warn("explain:" + explainIndex(client(), backingIndexName));
-        }
         assertNotNull(String.format(Locale.ROOT, "Cannot retrieve rollup index [%s]", rollupIndex), rollupIndex);
         assertBusy(() -> assertTrue("Rollup index does not exist", indexExists(rollupIndex)), 30, TimeUnit.SECONDS);
         assertBusy(() -> assertFalse("Source index should have been deleted", indexExists(backingIndexName)), 30, TimeUnit.SECONDS);
@@ -349,6 +348,7 @@ public class DownsampleActionIT extends ESRestTestCase {
             assertEquals(backingIndexName, settings.get(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME.getKey()));
             assertEquals(policy, settings.get(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey()));
             assertEquals(DownsampleTaskStatus.SUCCESS.toString(), settings.get(IndexMetadata.INDEX_DOWNSAMPLE_STATUS.getKey()));
+            assertEquals(fixedInterval.toString(), settings.get(IndexMetadata.INDEX_DOWNSAMPLE_INTERVAL.getKey()));
         });
     }
 
@@ -395,6 +395,7 @@ public class DownsampleActionIT extends ESRestTestCase {
         }, 30, TimeUnit.SECONDS);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/103981")
     public void testRollupNonTSIndex() throws Exception {
         createIndex(index, alias, false);
         index(client(), index, true, null, "@timestamp", "2020-01-01T05:10:00Z", "volume", 11.0, "metricset", randomAlphaOfLength(5));
@@ -404,13 +405,21 @@ public class DownsampleActionIT extends ESRestTestCase {
         createNewSingletonPolicy(client(), policy, phaseName, new DownsampleAction(fixedInterval, DownsampleAction.DEFAULT_WAIT_TIMEOUT));
         updatePolicy(client(), index, policy);
 
-        assertBusy(() -> assertThat(getStepKeyForIndex(client(), index), equalTo(PhaseCompleteStep.finalStep(phaseName).getKey())));
-        String rollupIndex = getRollupIndexName(client(), index, fixedInterval);
-        assertNull("Rollup index should not have been created", rollupIndex);
-        assertTrue("Source index should not have been deleted", indexExists(index));
+        try {
+            assertBusy(() -> assertThat(getStepKeyForIndex(client(), index), equalTo(PhaseCompleteStep.finalStep(phaseName).getKey())));
+            String rollupIndex = getRollupIndexName(client(), index, fixedInterval);
+            assertNull("Rollup index should not have been created", rollupIndex);
+            assertTrue("Source index should not have been deleted", indexExists(index));
+        } catch (AssertionError ea) {
+            logger.warn(
+                "--> original index name is [{}], rollup index name is NULL, possible explanation: {}",
+                index,
+                explainIndex(client(), index)
+            );
+            throw ea;
+        }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/101428")
     public void testDownsampleTwice() throws Exception {
         // Create the ILM policy
         Request request = new Request("PUT", "_ilm/policy/" + policy);
@@ -481,7 +490,8 @@ public class DownsampleActionIT extends ESRestTestCase {
                 assertEquals(downsampleIndexName, settings.get(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME.getKey()));
                 assertEquals(DownsampleTaskStatus.SUCCESS.toString(), settings.get(IndexMetadata.INDEX_DOWNSAMPLE_STATUS.getKey()));
                 assertEquals(policy, settings.get(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey()));
-            }, 60, TimeUnit.SECONDS);
+                assertEquals("1h", settings.get(IndexMetadata.INDEX_DOWNSAMPLE_INTERVAL.getKey()));
+            }, 120, TimeUnit.SECONDS);
         } catch (AssertionError ae) {
             if (indexExists(firstBackingIndex)) {
                 logger.error("Index [{}] ilm explain {}", firstBackingIndex, explainIndex(client(), firstBackingIndex));
@@ -561,8 +571,9 @@ public class DownsampleActionIT extends ESRestTestCase {
             assertEquals(firstBackingIndex, settings.get(IndexMetadata.INDEX_DOWNSAMPLE_ORIGIN_NAME.getKey()));
             assertEquals(firstBackingIndex, settings.get(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME.getKey()));
             assertEquals(DownsampleTaskStatus.SUCCESS.toString(), settings.get(IndexMetadata.INDEX_DOWNSAMPLE_STATUS.getKey()));
+            assertEquals("5m", settings.get(IndexMetadata.INDEX_DOWNSAMPLE_INTERVAL.getKey()));
             assertEquals(policy, settings.get(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey()));
-        }, 60, TimeUnit.SECONDS);
+        }, 120, TimeUnit.SECONDS);
 
         // update the policy to now contain the downsample action in cold, whilst not existing in warm anymore (this will have our already
         // downsampled index attempt to go through the downsample action again when in cold)
@@ -606,7 +617,7 @@ public class DownsampleActionIT extends ESRestTestCase {
      * @return the name of the rollup index for a given index, null if none exist
      */
     public String waitAndGetRollupIndexName(RestClient client, String originalIndexName, DateHistogramInterval fixedInterval)
-        throws InterruptedException {
+        throws InterruptedException, IOException {
         final String[] rollupIndexName = new String[1];
         waitUntil(() -> {
             try {
@@ -616,7 +627,15 @@ public class DownsampleActionIT extends ESRestTestCase {
                 return false;
             }
         }, 120, TimeUnit.SECONDS); // High timeout in case we're unlucky and end_time has been increased.
-        logger.info("--> original index name is [{}], rollup index name is [{}]", originalIndexName, rollupIndexName[0]);
+        if (rollupIndexName[0] == null) {
+            logger.warn(
+                "--> original index name is [{}], rollup index name is NULL, possible explanation: {}",
+                originalIndexName,
+                explainIndex(client(), originalIndexName)
+            );
+        } else {
+            logger.info("--> original index name is [{}], rollup index name is [{}]", originalIndexName, rollupIndexName[0]);
+        }
         return rollupIndexName[0];
     }
 

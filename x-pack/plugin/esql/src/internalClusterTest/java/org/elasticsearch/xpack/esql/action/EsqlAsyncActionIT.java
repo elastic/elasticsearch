@@ -20,11 +20,11 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
-import org.elasticsearch.xpack.core.async.DeleteAsyncResultAction;
 import org.elasticsearch.xpack.core.async.DeleteAsyncResultRequest;
 import org.elasticsearch.xpack.core.async.GetAsyncResultRequest;
+import org.elasticsearch.xpack.core.async.TransportDeleteAsyncResultAction;
 import org.elasticsearch.xpack.esql.TestBlockFactory;
-import org.elasticsearch.xpack.esql.analysis.VerificationException;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
@@ -40,7 +40,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.IsEqual.equalTo;
-import static org.hamcrest.core.IsNot.not;
 
 /**
  * Runs test scenarios from EsqlActionIT, with an extra level of indirection
@@ -57,10 +56,9 @@ public class EsqlAsyncActionIT extends EsqlActionIT {
 
     @Override
     protected EsqlQueryResponse run(String esqlCommands, QueryPragmas pragmas, QueryBuilder filter) {
-        EsqlQueryRequest request = new EsqlQueryRequest();
+        EsqlQueryRequest request = EsqlQueryRequest.asyncEsqlQueryRequest();
         request.query(esqlCommands);
         request.pragmas(pragmas);
-        request.async(true);
         // deliberately small timeout, to frequently trigger incomplete response
         request.waitForCompletionTimeout(TimeValue.timeValueNanos(1));
         request.keepOnCompletion(randomBoolean());
@@ -75,8 +73,6 @@ public class EsqlAsyncActionIT extends EsqlActionIT {
             String id = response.asyncExecutionId().get();
             if (response.isRunning() == false) {
                 assertThat(request.keepOnCompletion(), is(true));
-                assertThat(response.columns(), is(not(empty())));
-                assertThat(response.pages(), is(not(empty())));
                 initialColumns = List.copyOf(response.columns());
                 initialPages = deepCopyOf(response.pages(), TestBlockFactory.getNonBreakingInstance());
             } else {
@@ -119,7 +115,7 @@ public class EsqlAsyncActionIT extends EsqlActionIT {
     AcknowledgedResponse deleteAsyncId(String id) {
         try {
             DeleteAsyncResultRequest request = new DeleteAsyncResultRequest(id);
-            return client().execute(DeleteAsyncResultAction.INSTANCE, request).actionGet(30, TimeUnit.SECONDS);
+            return client().execute(TransportDeleteAsyncResultAction.TYPE, request).actionGet(30, TimeUnit.SECONDS);
         } catch (ElasticsearchTimeoutException e) {
             throw new AssertionError("timeout", e);
         }

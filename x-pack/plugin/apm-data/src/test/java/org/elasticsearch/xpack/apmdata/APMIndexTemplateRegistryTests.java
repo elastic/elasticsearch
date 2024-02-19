@@ -12,9 +12,9 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.indices.template.put.PutComponentTemplateAction;
-import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
-import org.elasticsearch.action.ingest.PutPipelineAction;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
+import org.elasticsearch.action.ingest.PutPipelineTransportAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.ingest.IngestMetadata;
@@ -55,12 +56,15 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
-import static org.elasticsearch.xpack.core.XPackSettings.APM_DATA_ENABLED;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.isIn;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -75,20 +79,28 @@ public class APMIndexTemplateRegistryTests extends ESTestCase {
 
     @Before
     public void createRegistryAndClient() {
+        final ClusterSettings clusterSettings = new ClusterSettings(
+            Settings.EMPTY,
+            Stream.concat(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.stream(), Set.of(APMPlugin.APM_DATA_REGISTRY_ENABLED).stream())
+                .collect(Collectors.toSet())
+        );
+
         threadPool = new TestThreadPool(this.getClass().getName());
         client = new VerifyingClient(threadPool);
-        clusterService = ClusterServiceUtils.createClusterService(threadPool);
+        clusterService = ClusterServiceUtils.createClusterService(threadPool, clusterSettings);
         FeatureService featureService = new FeatureService(List.of());
         stackTemplateRegistryAccessor = new StackTemplateRegistryAccessor(
             new StackTemplateRegistry(Settings.EMPTY, clusterService, threadPool, client, NamedXContentRegistry.EMPTY, featureService)
         );
+
         apmIndexTemplateRegistry = new APMIndexTemplateRegistry(
-            Settings.builder().put(APM_DATA_ENABLED.getKey(), true).build(),
+            Settings.EMPTY,
             clusterService,
             threadPool,
             client,
             NamedXContentRegistry.EMPTY
         );
+        apmIndexTemplateRegistry.setEnabled(true);
     }
 
     @After
@@ -109,6 +121,28 @@ public class APMIndexTemplateRegistryTests extends ESTestCase {
 
         ClusterChangedEvent event = createClusterChangedEvent(Map.of(), Map.of(), nodes);
         apmIndexTemplateRegistry.clusterChanged(event);
+    }
+
+    public void testThatDisablingRegistryDoesNothing() throws Exception {
+        DiscoveryNode node = DiscoveryNodeUtils.create("node");
+        DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
+
+        apmIndexTemplateRegistry.setEnabled(false);
+        assertThat(apmIndexTemplateRegistry.getComponentTemplateConfigs().entrySet(), hasSize(0));
+        assertThat(apmIndexTemplateRegistry.getComposableTemplateConfigs().entrySet(), hasSize(0));
+        assertThat(apmIndexTemplateRegistry.getIngestPipelines(), hasSize(0));
+
+        client.setVerifier((a, r, l) -> {
+            fail("if the registry is disabled nothing should happen");
+            return null;
+        });
+        ClusterChangedEvent event = createClusterChangedEvent(Map.of(), Map.of(), nodes);
+        apmIndexTemplateRegistry.clusterChanged(event);
+
+        apmIndexTemplateRegistry.setEnabled(true);
+        assertThat(apmIndexTemplateRegistry.getComponentTemplateConfigs().entrySet(), not(hasSize(0)));
+        assertThat(apmIndexTemplateRegistry.getComposableTemplateConfigs().entrySet(), not(hasSize(0)));
+        assertThat(apmIndexTemplateRegistry.getIngestPipelines(), not(hasSize(0)));
     }
 
     public void testThatIndependentTemplatesAreAddedImmediatelyIfMissing() throws Exception {
@@ -249,6 +283,48 @@ public class APMIndexTemplateRegistryTests extends ESTestCase {
         assertThat(actualInstalledIngestPipelines.get(), equalTo(0));
     }
 
+    public void testIndexTemplateConventions() throws Exception {
+        for (Map.Entry<String, ComposableIndexTemplate> entry : apmIndexTemplateRegistry.getComposableTemplateConfigs().entrySet()) {
+            final String name = entry.getKey();
+            final int atIndex = name.lastIndexOf('@');
+            assertThat(atIndex, not(equalTo(-1)));
+            assertThat(name.substring(atIndex + 1), equalTo("template"));
+
+            final String dataStreamType = name.substring(0, name.indexOf('-'));
+            assertThat(dataStreamType, isIn(List.of("logs", "metrics", "traces")));
+
+            final ComposableIndexTemplate template = entry.getValue();
+            assertThat(template.indexPatterns().size(), equalTo(1));
+
+            final String namePrefix = name.substring(0, atIndex);
+            switch (namePrefix) {
+                case "logs-apm.app", "metrics-apm.app":
+                    // These two data streams have a service-specific dataset.
+                    assertThat(template.indexPatterns().get(0), equalTo(namePrefix + ".*-*"));
+                    break;
+                default:
+                    assertThat(template.indexPatterns().get(0), equalTo(namePrefix + "-*"));
+                    break;
+            }
+
+            // Each index template should be composed of the following optional component templates:
+            // <data_stream.type>@custom
+            // <data_stream.type>-<data_stream.dataset>@custom
+            final List<String> optionalComponentTemplates = template.composedOf()
+                .stream()
+                .filter(t -> template.getIgnoreMissingComponentTemplates().contains(t))
+                .toList();
+            assertThat(optionalComponentTemplates, containsInAnyOrder(namePrefix + "@custom", dataStreamType + "@custom"));
+
+            // There should be no required custom component templates.
+            final List<String> requiredCustomComponentTemplates = template.getRequiredComponentTemplates()
+                .stream()
+                .filter(t -> t.endsWith("@custom"))
+                .toList();
+            assertThat(requiredCustomComponentTemplates, empty());
+        }
+    }
+
     private Map<String, ComponentTemplate> getIndependentComponentTemplateConfigs() {
         return apmIndexTemplateRegistry.getComponentTemplateConfigs().entrySet().stream().filter(template -> {
             Settings settings = template.getValue().template().settings();
@@ -274,14 +350,15 @@ public class APMIndexTemplateRegistryTests extends ESTestCase {
         if (action instanceof PutComponentTemplateAction) {
             componentTemplatesCounter.incrementAndGet();
             return AcknowledgedResponse.TRUE;
-        } else if (action instanceof PutComposableIndexTemplateAction) {
+        } else if (action == TransportPutComposableIndexTemplateAction.TYPE) {
             indexTemplatesCounter.incrementAndGet();
-            assertThat(request, instanceOf(PutComposableIndexTemplateAction.Request.class));
-            final PutComposableIndexTemplateAction.Request putRequest = ((PutComposableIndexTemplateAction.Request) request);
+            assertThat(request, instanceOf(TransportPutComposableIndexTemplateAction.Request.class));
+            final TransportPutComposableIndexTemplateAction.Request putRequest =
+                ((TransportPutComposableIndexTemplateAction.Request) request);
             assertThat(putRequest.indexTemplate().version(), equalTo((long) apmIndexTemplateRegistry.getVersion()));
             assertNotNull(listener);
             return AcknowledgedResponse.TRUE;
-        } else if (action instanceof PutPipelineAction) {
+        } else if (action == PutPipelineTransportAction.TYPE) {
             ingestPipelinesCounter.incrementAndGet();
             return AcknowledgedResponse.TRUE;
         } else {

@@ -37,6 +37,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.action.Grant;
 import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
+import org.elasticsearch.xpack.core.security.action.apikey.ApiKeyTests;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequestBuilder;
@@ -625,6 +626,7 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
             null,
             null,
             null,
+            null,
             randomBoolean()
         );
         final QueryApiKeyResponse queryApiKeyResponse = client().execute(QueryApiKeyAction.INSTANCE, queryApiKeyRequest).actionGet();
@@ -706,7 +708,13 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
             updateMetadata = null;
         }
 
-        final var updateApiKeyRequest = new UpdateCrossClusterApiKeyRequest(apiKeyId, roleDescriptorBuilder, updateMetadata);
+        final boolean shouldUpdateExpiration = randomBoolean();
+        TimeValue expiration = null;
+        if (shouldUpdateExpiration) {
+            ApiKeyTests.randomFutureExpirationTime();
+        }
+
+        final var updateApiKeyRequest = new UpdateCrossClusterApiKeyRequest(apiKeyId, roleDescriptorBuilder, updateMetadata, expiration);
         final UpdateApiKeyResponse updateApiKeyResponse = client().execute(UpdateCrossClusterApiKeyAction.INSTANCE, updateApiKeyRequest)
             .actionGet();
 
@@ -718,6 +726,7 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
 
         final QueryApiKeyRequest queryApiKeyRequest = new QueryApiKeyRequest(
             QueryBuilders.boolQuery().filter(QueryBuilders.idsQuery().addIds(apiKeyId)),
+            null,
             null,
             null,
             null,

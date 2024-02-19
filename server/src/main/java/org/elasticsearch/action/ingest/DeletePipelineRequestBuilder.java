@@ -15,7 +15,7 @@ import org.elasticsearch.client.internal.ElasticsearchClient;
 public class DeletePipelineRequestBuilder extends ActionRequestBuilder<DeletePipelineRequest, AcknowledgedResponse> {
 
     public DeletePipelineRequestBuilder(ElasticsearchClient client, String id) {
-        super(client, DeletePipelineAction.INSTANCE, new DeletePipelineRequest(id));
+        super(client, DeletePipelineTransportAction.TYPE, new DeletePipelineRequest(id));
     }
 
     /**

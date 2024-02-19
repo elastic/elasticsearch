@@ -505,11 +505,11 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=knn-field]
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=knn-filter]
 
 `k`::
-(Required, integer)
+(Optional, integer)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=knn-k]
 
 `num_candidates`::
-(Required, integer)
+(Optional, integer)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=knn-num-candidates]
 
 `query_vector`::

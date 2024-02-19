@@ -12,8 +12,8 @@ import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.ingest.PutPipelineAction;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
+import org.elasticsearch.action.ingest.PutPipelineTransportAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -123,7 +123,7 @@ public class EnrichResiliencyTests extends ESSingleNodeTestCase {
         pipe1.endObject();
 
         client().execute(
-            PutPipelineAction.INSTANCE,
+            PutPipelineTransportAction.TYPE,
             new PutPipelineRequest(enrichPipelineName, BytesReference.bytes(pipe1), XContentType.JSON)
         ).actionGet();
 
@@ -241,12 +241,12 @@ public class EnrichResiliencyTests extends ESSingleNodeTestCase {
         pipe2.endObject();
 
         client().execute(
-            PutPipelineAction.INSTANCE,
+            PutPipelineTransportAction.TYPE,
             new PutPipelineRequest(enrichPipelineName1, BytesReference.bytes(pipe1), XContentType.JSON)
         ).actionGet();
 
         client().execute(
-            PutPipelineAction.INSTANCE,
+            PutPipelineTransportAction.TYPE,
             new PutPipelineRequest(enrichPipelineName2, BytesReference.bytes(pipe2), XContentType.JSON)
         ).actionGet();
 

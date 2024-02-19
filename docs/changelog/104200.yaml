@@ -1,0 +1,5 @@
+pr: 104200
+summary: Expose realms authentication metrics
+area: Authentication
+type: enhancement
+issues: []

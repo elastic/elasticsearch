@@ -7,7 +7,7 @@
 
 package org.elasticsearch.compute.operator;
 
-import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.data.BlockFactory;
 
@@ -20,9 +20,9 @@ import static org.hamcrest.Matchers.matchesPattern;
 public abstract class AnyOperatorTestCase extends ComputeTestCase {
     /**
      * The operator configured a "simple" or basic way, used for smoke testing
-     * descriptions and {@link BigArrays} and scatter/gather.
+     * descriptions, {@link CircuitBreaker}s, and scatter/gather.
      */
-    protected abstract Operator.OperatorFactory simple(BigArrays bigArrays);  // TODO remove BigArrays - that's part of the context
+    protected abstract Operator.OperatorFactory simple();
 
     /**
      * The description of the operator produced by {@link #simple}.
@@ -53,7 +53,7 @@ public abstract class AnyOperatorTestCase extends ComputeTestCase {
      * Makes sure the description of {@link #simple} matches the {@link #expectedDescriptionOfSimple}.
      */
     public final void testSimpleDescription() {
-        Operator.OperatorFactory factory = simple(nonBreakingBigArrays());
+        Operator.OperatorFactory factory = simple();
         String description = factory.describe();
         assertThat(description, equalTo(expectedDescriptionOfSimple()));
         try (Operator op = factory.get(driverContext())) {
@@ -69,7 +69,7 @@ public abstract class AnyOperatorTestCase extends ComputeTestCase {
      * Makes sure the description of {@link #simple} matches the {@link #expectedDescriptionOfSimple}.
      */
     public final void testSimpleToString() {
-        try (Operator operator = simple(nonBreakingBigArrays()).get(driverContext())) {
+        try (Operator operator = simple().get(driverContext())) {
             assertThat(operator.toString(), equalTo(expectedToStringOfSimple()));
         }
     }

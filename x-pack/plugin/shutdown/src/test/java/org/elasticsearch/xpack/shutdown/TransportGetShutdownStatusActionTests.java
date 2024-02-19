@@ -68,6 +68,7 @@ import java.util.function.Function;
 
 import static java.util.stream.Collectors.toMap;
 import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
+import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.elasticsearch.xpack.core.ilm.LifecycleOperationMetadata.currentSLMMode;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
@@ -812,14 +813,9 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
     private ShardRouting makeUnassignedShard(Index index, int shardId, String nodeId, boolean primary) {
         var unsignedInfo = makeUnassignedInfo(nodeId);
 
-        return TestShardRouting.newShardRouting(
-            new ShardId(index, shardId),
-            null,
-            null,
-            primary,
-            ShardRoutingState.UNASSIGNED,
+        return shardRoutingBuilder(new ShardId(index, shardId), null, primary, ShardRoutingState.UNASSIGNED).withUnassignedInfo(
             unsignedInfo
-        );
+        ).build();
     }
 
     private ShutdownShardMigrationStatus getUnassignedShutdownStatus(Index index, IndexMetadata imd, ShardRouting... shards) {

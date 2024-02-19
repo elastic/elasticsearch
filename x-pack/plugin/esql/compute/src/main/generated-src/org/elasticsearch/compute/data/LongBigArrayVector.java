@@ -55,7 +55,7 @@ public final class LongBigArrayVector extends AbstractVector implements LongVect
     @Override
     public LongVector filter(int... positions) {
         var blockFactory = blockFactory();
-        final LongArray filtered = blockFactory.bigArrays().newLongArray(positions.length, true);
+        final LongArray filtered = blockFactory.bigArrays().newLongArray(positions.length);
         for (int i = 0; i < positions.length; i++) {
             filtered.set(i, values.get(positions[i]));
         }

@@ -14,7 +14,7 @@ public class OpenIdConnectPrepareAuthenticationAction extends ActionType<OpenIdC
     public static final String NAME = "cluster:admin/xpack/security/oidc/prepare";
 
     private OpenIdConnectPrepareAuthenticationAction() {
-        super(NAME, OpenIdConnectPrepareAuthenticationResponse::new);
+        super(NAME);
     }
 
 }

@@ -26,7 +26,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  */
 public final class GetApiKeyRequest extends ActionRequest {
 
-    static TransportVersion API_KEY_ACTIVE_ONLY_PARAM_TRANSPORT_VERSION = TransportVersions.V_8_500_061;
+    static TransportVersion API_KEY_ACTIVE_ONLY_PARAM_TRANSPORT_VERSION = TransportVersions.V_8_10_X;
 
     private final String realmName;
     private final String userName;

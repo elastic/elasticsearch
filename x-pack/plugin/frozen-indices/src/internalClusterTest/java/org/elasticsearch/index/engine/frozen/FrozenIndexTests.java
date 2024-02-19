@@ -63,7 +63,6 @@ import org.hamcrest.Matchers;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.Collection;
-import java.util.EnumSet;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -100,7 +99,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
         assertAcked(client().execute(FreezeIndexAction.INSTANCE, new FreezeRequest(indexName)).actionGet());
         expectThrows(
             ClusterBlockException.class,
-            () -> prepareIndex(indexName).setId("4").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get()
+            prepareIndex(indexName).setId("4").setSource("field", "value").setRefreshPolicy(IMMEDIATE)
         );
         IndicesService indexServices = getInstanceFromNode(IndicesService.class);
         Index index = resolveIndex(indexName);
@@ -272,12 +271,12 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
         assertAcked(client().execute(FreezeIndexAction.INSTANCE, new FreezeRequest("test-idx")).actionGet());
         ResourceNotFoundException exception = expectThrows(
             ResourceNotFoundException.class,
-            () -> client().execute(
+            client().execute(
                 FreezeIndexAction.INSTANCE,
                 new FreezeRequest("test-idx").indicesOptions(
-                    new IndicesOptions(EnumSet.noneOf(IndicesOptions.Option.class), EnumSet.of(IndicesOptions.WildcardStates.OPEN))
+                    IndicesOptions.builder().wildcardOptions(IndicesOptions.WildcardOptions.builder().allowEmptyExpressions(false)).build()
                 )
-            ).actionGet()
+            )
         );
         assertEquals("no index found to freeze", exception.getMessage());
     }
@@ -469,10 +468,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
         prepareIndex("idx").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
         assertAcked(client().execute(FreezeIndexAction.INSTANCE, new FreezeRequest("idx")).actionGet());
         assertIndexFrozen("idx");
-        expectThrows(
-            ClusterBlockException.class,
-            () -> prepareIndex("idx").setId("2").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get()
-        );
+        expectThrows(ClusterBlockException.class, prepareIndex("idx").setId("2").setSource("field", "value").setRefreshPolicy(IMMEDIATE));
     }
 
     public void testIgnoreUnavailable() {
@@ -498,13 +494,15 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
         assertEquals(IndexMetadata.State.CLOSE, clusterAdmin().prepareState().get().getState().metadata().index("idx").getState());
         expectThrows(
             IndexNotFoundException.class,
-            () -> client().execute(
+            client().execute(
                 FreezeIndexAction.INSTANCE,
                 new FreezeRequest("id*").setFreeze(false)
                     .indicesOptions(
-                        new IndicesOptions(EnumSet.noneOf(IndicesOptions.Option.class), EnumSet.of(IndicesOptions.WildcardStates.OPEN))
+                        IndicesOptions.builder()
+                            .wildcardOptions(IndicesOptions.WildcardOptions.builder().allowEmptyExpressions(false))
+                            .build()
                     )
-            ).actionGet()
+            )
         );
         // we don't resolve to closed indices
         assertAcked(client().execute(FreezeIndexAction.INSTANCE, new FreezeRequest("idx").setFreeze(false)).actionGet());

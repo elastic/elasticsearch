@@ -14,9 +14,9 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
-import org.elasticsearch.action.admin.indices.dangling.find.FindDanglingIndexAction;
 import org.elasticsearch.action.admin.indices.dangling.find.FindDanglingIndexRequest;
 import org.elasticsearch.action.admin.indices.dangling.find.NodeFindDanglingIndexResponse;
+import org.elasticsearch.action.admin.indices.dangling.find.TransportFindDanglingIndexAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -39,7 +39,7 @@ import java.util.stream.Collectors;
  * to perform the actual allocation.
  */
 public class TransportImportDanglingIndexAction extends HandledTransportAction<ImportDanglingIndexRequest, AcknowledgedResponse> {
-    public static final ActionType<AcknowledgedResponse> TYPE = ActionType.acknowledgedResponse("cluster:admin/indices/dangling/import");
+    public static final ActionType<AcknowledgedResponse> TYPE = new ActionType<>("cluster:admin/indices/dangling/import");
     private static final Logger logger = LogManager.getLogger(TransportImportDanglingIndexAction.class);
 
     private final LocalAllocateDangledIndices danglingIndexAllocator;
@@ -97,7 +97,7 @@ public class TransportImportDanglingIndexAction extends HandledTransportAction<I
     private void findDanglingIndex(ImportDanglingIndexRequest request, ActionListener<IndexMetadata> listener) {
         final String indexUUID = request.getIndexUUID();
         this.nodeClient.execute(
-            FindDanglingIndexAction.INSTANCE,
+            TransportFindDanglingIndexAction.TYPE,
             new FindDanglingIndexRequest(indexUUID),
             listener.delegateFailure((l, response) -> {
                 if (response.hasFailures()) {

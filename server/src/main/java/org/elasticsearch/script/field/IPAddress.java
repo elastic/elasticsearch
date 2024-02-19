@@ -70,6 +70,6 @@ public class IPAddress implements ToXContentObject, GenericNamedWriteable {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.IP_ADDRESS_WRITEABLE;
+        return TransportVersions.V_8_12_0;
     }
 }

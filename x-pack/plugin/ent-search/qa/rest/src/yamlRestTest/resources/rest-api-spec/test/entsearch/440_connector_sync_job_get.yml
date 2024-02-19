@@ -34,3 +34,49 @@ setup:
       connector_sync_job.get:
         connector_sync_job_id: non-existing-sync-job-id
       catch: missing
+
+
+---
+"Read-only access is sufficient to get the sync job":
+  - skip:
+      features: headers
+
+  - do:
+      connector_sync_job.post:
+        body:
+          id: test-connector
+          job_type: full
+          trigger_method: on_demand
+
+  - set: { id: sync-job-id }
+
+  - do:
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # entsearch-user with read-only access
+      connector_sync_job.get:
+        connector_sync_job_id: $sync-job-id
+
+  - match: { job_type: full }
+  - match: { trigger_method: on_demand }
+  - match: { id: $sync-job-id }
+
+
+---
+"Get sync job fails for unprivileged user":
+  - skip:
+      features: headers
+
+  - do:
+      connector_sync_job.post:
+        body:
+          id: test-connector
+          job_type: full
+          trigger_method: on_demand
+
+  - set: { id: sync-job-id }
+
+  - do:
+      catch: forbidden
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVucHJpdmlsZWdlZDplbnRzZWFyY2gtdW5wcml2aWxlZ2VkLXBhc3N3b3Jk" }  # entsearch-unprivileged user
+      connector_sync_job.get:
+        connector_sync_job_id: $sync-job-id
+

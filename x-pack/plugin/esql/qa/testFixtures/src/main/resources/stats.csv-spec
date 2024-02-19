@@ -435,7 +435,7 @@ g:keyword  | l:integer
  null      | 5
 ;
 
-repetitiveAggregation
+repetitiveAggregation#[skip:-8.11.99,reason:ReplaceDuplicateAggWithEval breaks bwc]
 from employees | stats m1 = max(salary), m2 = min(salary), m3 = min(salary), m4 = max(salary);
 
 m1:i | m2:i | m3:i | m4:i
@@ -581,6 +581,33 @@ gender:keyword
 F
 M
 null
+;
+
+aggsWithoutStatsTwo
+FROM employees | STATS BY gender, still_hired | SORT gender, still_hired;
+
+gender:keyword | still_hired:boolean
+F              | false
+F              | true
+M              | false
+M              | true
+null           | false
+null           | true
+;
+
+aggsWithoutStatsFormula
+FROM employees | EVAL birth_decade = ROUND(DATE_EXTRACT("YEAR", birth_date), -1) | STATS BY gender, birth_decade | SORT gender, birth_decade;
+
+gender:keyword | birth_decade:long
+F              | 1950
+F              | 1960
+F              | null
+M              | 1950
+M              | 1960
+M              | 1970
+M              | null
+null           | 1950
+null           | 1960
 ;
 
 countFieldNoGrouping
@@ -790,4 +817,381 @@ FROM sample_data
 
 count(`event_duration`):l
 7
+;
+
+docsStats
+// tag::stats[]
+FROM employees
+| STATS count = COUNT(emp_no) BY languages
+| SORT languages
+// end::stats[]
+;
+
+// tag::stats-result[]
+    count:long | languages:integer
+15             |1
+19             |2
+17             |3
+18             |4
+21             |5
+10             |null
+// end::stats-result[]
+;
+
+docsStatsWithoutBy
+// tag::statsWithoutBy[]
+FROM employees
+| STATS avg_lang = AVG(languages)
+// end::statsWithoutBy[]
+;
+
+// tag::statsWithoutBy-result[]
+avg_lang:double
+3.1222222222222222
+// end::statsWithoutBy-result[]
+;
+
+docsStatsMultiple
+// tag::statsCalcMultipleValues[]
+FROM employees
+| STATS avg_lang = AVG(languages), max_lang = MAX(languages)
+// end::statsCalcMultipleValues[]
+;
+
+// tag::statsCalcMultipleValues-result[]
+avg_lang:double | max_lang:integer
+3.1222222222222222|5
+// end::statsCalcMultipleValues-result[]
+;
+
+docsStatsGroupByMultipleValues
+// tag::statsGroupByMultipleValues[]
+FROM employees
+| EVAL hired = DATE_FORMAT("YYYY", hire_date)
+| STATS avg_salary = AVG(salary) BY hired, languages.long
+| EVAL avg_salary = ROUND(avg_salary)
+| SORT hired, languages.long
+// end::statsGroupByMultipleValues[]
+| LIMIT 4
+;
+
+hired:keyword |languages.long:long | avg_salary:double
+1985           |1              |54668.0        
+1985           |3              |47723.0        
+1985           |4              |44817.0        
+1985           |5              |47720.0  
+;
+
+docsStatsUnnamedColumn
+// tag::statsUnnamedColumn[]
+FROM employees
+| STATS AVG(salary)
+// end::statsUnnamedColumn[]
+;
+
+// tag::statsUnnamedColumn-result[]
+AVG(salary):double
+48248.55
+// end::statsUnnamedColumn-result[]
+;
+
+docsStatsUnnamedColumnEval
+// tag::statsUnnamedColumnEval[]
+FROM employees
+| STATS AVG(salary)
+| EVAL avg_salary_rounded = ROUND(`AVG(salary)`)
+// end::statsUnnamedColumnEval[]
+;
+
+// tag::statsUnnamedColumnEval-result[]
+AVG(salary):double | avg_salary_rounded:double
+48248.55           | 48249.0
+// end::statsUnnamedColumnEval-result[]
+;
+
+nestedExpressionNoGrouping#[skip:-8.12.99,reason:supported in 8.13+]
+FROM employees
+| STATS s = SUM(emp_no + 3), c = COUNT(emp_no)
+;
+
+s: long | c: long
+1005350 | 100
+;
+
+nestedExpressionInSurrogateAgg#[skip:-8.12.99,reason:supported in 8.13+]
+FROM employees
+| STATS a = AVG(emp_no % 5), s = SUM(emp_no % 5), c = COUNT(emp_no % 5)
+;
+
+a:double | s:long | c:long
+2.0      | 200    | 100
+;
+
+nestedExpressionInGroupingWithAlias#[skip:-8.12.99,reason:supported in 8.13+]
+FROM employees
+| STATS s = SUM(emp_no % 5), c = COUNT(emp_no % 5) BY l = languages + 20
+| SORT l
+;
+
+s:long | c:long | l : i
+39     | 15     | 21  
+36     | 19     | 22  
+30     | 17     | 23  
+32     | 18     | 24  
+43     | 21     | 25  
+20     | 10     | null
+;
+
+nestedMultiExpressionInGroupingsAndAggs#[skip:-8.12.99,reason:supported in 8.13+]
+FROM employees 
+| EVAL sal = salary + 10000 
+| STATS sum(sal), sum(salary + 10000) BY left(first_name, 1), concat(gender,   to_string(languages))
+| SORT `left(first_name, 1)`, `concat(gender,   to_string(languages))`
+| LIMIT 5
+;
+
+sum(sal):l | sum(salary + 10000):l | left(first_name, 1):s  | concat(gender,   to_string(languages)):s
+54307      | 54307                  |  A                    | F2
+70335      | 70335                  |  A                    | F3
+76817      | 76817                  |  A                    | F5
+123675     | 123675                 |  A                    | M3
+43370      | 43370                  |  B                    | F2
+;
+
+nestedExpressionMultipleParams#[skip:-8.12.99,reason:supported in 8.13+]
+FROM employees
+| STATS p = percentile(emp_no + 10, 50), m = median(emp_no + 10) BY languages
+| SORT languages
+;
+
+p:double     | m:double      | languages:integer
+10053.0      | 10053.0       | 1
+10069.0      | 10069.0       | 2
+10068.0      | 10068.0       | 3
+10060.5      | 10060.5       | 4
+10076.0      | 10076.0       | 5
+10034.5      | 10034.5       | null
+;
+
+groupByNull#[skip:-8.12.99,reason:bug fixed in 8.13+]
+ROW a = 1, c = null
+| STATS COUNT(a) BY c;
+
+COUNT(a):long | c:null
+            1 | null
+;
+
+groupByNullAndString#[skip:-8.12.99,reason:bug fixed in 8.13+]
+ROW a = 1, b = "foo", c = null
+| STATS COUNT(a) BY c, b;
+
+COUNT(a):long | c:null | b:keyword
+            1 | null   | foo
+;
+
+groupByStringAndNull#[skip:-8.12.99,reason:bug fixed in 8.13+]
+ROW a = 1, b = "foo", c = null
+| STATS COUNT(a) BY b, c;
+
+COUNT(a):long | b:keyword | c:null
+            1 | foo       | null
+;
+
+countNull#[skip:-8.12.99,reason:bug fixed in 8.13+]
+ROW a = 1, c = null
+| STATS COUNT(c) BY a;
+
+COUNT(c):long | a:integer
+            0 | 1
+;
+
+countDistinctNull#[skip:-8.99.99,reason:not yet fixed]
+ROW a = 1, c = null
+| STATS COUNT_DISTINCT(c) BY a;
+
+COUNT(c):long | a:integer
+            0 | 1
+;
+
+
+countVersion#[skip:-8.12.99,reason:bug fixed in 8.13+]
+from apps | stats c = count(version), cd = count_distinct(version);
+
+c:long | cd:long
+12     | 9
+;
+
+
+docsStatsAvgNestedExpression#[skip:-8.12.99,reason:supported in 8.13+]
+// tag::docsStatsAvgNestedExpression[]
+FROM employees
+| STATS avg_salary_change = AVG(MV_AVG(salary_change))
+// end::docsStatsAvgNestedExpression[]
+;
+
+// tag::docsStatsAvgNestedExpression-result[]
+avg_salary_change:double
+1.3904535864978902
+// end::docsStatsAvgNestedExpression-result[]
+;
+
+docsStatsByExpression#[skip:-8.12.99,reason:supported in 8.13+]
+// tag::docsStatsByExpression[]
+FROM employees
+| STATS my_count = COUNT() BY LEFT(last_name, 1)
+| SORT `LEFT(last_name, 1)`
+// end::docsStatsByExpression[]
+;
+
+// tag::docsStatsByExpression-result[]
+my_count:long    |LEFT(last_name, 1):keyword
+2              |A                 
+11             |B                 
+5              |C                 
+5              |D                 
+2              |E                 
+4              |F                 
+4              |G                 
+6              |H                 
+2              |J                 
+3              |K                 
+5              |L                 
+12             |M                 
+4              |N                 
+1              |O                 
+7              |P                 
+5              |R                 
+13             |S                 
+4              |T                 
+2              |W                 
+3              |Z
+// end::docsStatsByExpression-result[]
+;
+
+docsStatsMaxNestedExpression#[skip:-8.12.99,reason:supported in 8.13+]
+// tag::docsStatsMaxNestedExpression[]
+FROM employees
+| STATS max_avg_salary_change = MAX(MV_AVG(salary_change))
+// end::docsStatsMaxNestedExpression[]
+;
+
+// tag::docsStatsMaxNestedExpression-result[]
+max_avg_salary_change:double
+13.75
+// end::docsStatsMaxNestedExpression-result[]
+;
+
+docsStatsMinNestedExpression#[skip:-8.12.99,reason:supported in 8.13+]
+// tag::docsStatsMinNestedExpression[]
+FROM employees
+| STATS min_avg_salary_change = MIN(MV_AVG(salary_change))
+// end::docsStatsMinNestedExpression[]
+;
+
+// tag::docsStatsMinNestedExpression-result[]
+min_avg_salary_change:double
+-8.46
+// end::docsStatsMinNestedExpression-result[]
+;
+
+docsStatsSumNestedExpression#[skip:-8.12.99,reason:supported in 8.13+]
+// tag::docsStatsSumNestedExpression[]
+FROM employees
+| STATS total_salary_changes = SUM(MV_MAX(salary_change))
+// end::docsStatsSumNestedExpression[]
+;
+
+// tag::docsStatsSumNestedExpression-result[]
+total_salary_changes:double
+446.75
+// end::docsStatsSumNestedExpression-result[]
+;
+
+docsCountWithExpression#[skip:-8.12.99,reason:supported in 8.13+]
+// tag::docsCountWithExpression[]
+ROW words="foo;bar;baz;qux;quux;foo"
+| STATS word_count = COUNT(SPLIT(words, ";"))
+// end::docsCountWithExpression[]
+;
+
+// tag::docsCountWithExpression-result[]
+word_count:long
+6
+// end::docsCountWithExpression-result[]
+;
+
+countMultiValuesRow
+ROW keyword_field = ["foo", "bar"], int_field = [1, 2, 3] | STATS ck = COUNT(keyword_field), ci = COUNT(int_field), c = COUNT(*);
+
+ck:l | ci:l | c:l 
+2    | 3    | 1
+;
+
+countSource
+FROM employees | 
+STATS ck = COUNT(job_positions), 
+      cb = COUNT(is_rehired), 
+      cd = COUNT(salary_change), 
+      ci = COUNT(salary_change.int), 
+      c = COUNT(*), 
+      csv = COUNT(emp_no);
+
+ck:l | cb:l | cd:l | ci:l | c:l | csv:l 
+221  | 204  | 183  | 183  | 100 | 100
+;
+
+nestedAggsNoGrouping#[skip:-8.12.99,reason:supported in 8.13+]
+FROM employees
+| STATS x = AVG(salary) / 2 + MAX(salary), a = AVG(salary), m = MAX(salary)
+;
+
+x:d       | a:d      | m:i
+99123.275 | 48248.55 |74999
+;
+
+nestedAggsWithGrouping#[skip:-8.12.99,reason:supported in 8.13+]
+FROM employees
+| STATS x = ROUND(AVG(salary % 3)) + MAX(emp_no), y = MIN(emp_no / 3) + 10 - MEDIAN(salary) by z = languages % 2
+| SORT z
+;
+
+x:d   | y:d       | z:i
+10101 | -41474.0  | 0
+10098 | -45391.0  | 1
+10030 | -44714.5  | null
+;
+
+nestedAggsWithScalars#[skip:-8.12.99,reason:supported in 8.13+]
+FROM employees
+| STATS x = CONCAT(TO_STRING(ROUND(AVG(salary % 3))), TO_STRING(MAX(emp_no))), 
+        y = ROUND((MIN(emp_no / 3) + PI() - MEDIAN(salary))/E()) 
+        BY z = languages % 2
+| SORT z
+;
+
+x:s        | y:d        | z:i
+1.010100   | -15260.0   | 0
+1.010097   | -16701.0   | 1
+1.010029   | -16452.0   | null
+;
+
+nestedAggsOverGroupingWithAlias#[skip:-8.12.99,reason:supported in 8.13]
+FROM employees
+| STATS e = max(languages) + 1 by l = languages
+| SORT l
+| LIMIT 3
+;
+
+e:i | l:i
+2   | 1
+3   | 2
+4   | 3
+;
+
+defaultNameWithSpace
+ROW a = 1 | STATS couNt(*) | SORT `couNt(*)`
+;
+
+couNt(*):l
+1
 ;

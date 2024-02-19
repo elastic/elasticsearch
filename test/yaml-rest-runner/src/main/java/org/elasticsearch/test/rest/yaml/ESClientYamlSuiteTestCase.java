@@ -15,7 +15,6 @@ import org.apache.http.HttpHost;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.tests.util.TimeUnits;
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Node;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
@@ -61,10 +60,8 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.test.rest.yaml.ClientYamlTestExecutionContext.getEsVersion;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
 /**
@@ -144,6 +141,8 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
             final Set<String> nodesVersions = getCachedNodesVersions();
             final String os = readOsFromNodesInfo(adminClient());
 
+            logger.info("initializing client, node versions [{}], hosts {}, os [{}]", nodesVersions, hosts, os);
+
             var semanticNodeVersions = nodesVersions.stream()
                 .map(ESRestTestCase::parseLegacyVersion)
                 .flatMap(Optional::stream)
@@ -199,32 +198,15 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         ClientYamlTestClient clientYamlTestClient,
         final Set<String> nodesVersions,
         final TestFeatureService testFeatureService,
-        final Set<String> osList
-    ) {
-        return createRestTestExecutionContext(
-            clientYamlTestCandidate,
-            clientYamlTestClient,
-            getEsVersion(nodesVersions),
-            testFeatureService::clusterHasFeature,
-            osList.iterator().next()
-        );
-    }
-
-    @Deprecated
-    protected ClientYamlTestExecutionContext createRestTestExecutionContext(
-        ClientYamlTestCandidate clientYamlTestCandidate,
-        ClientYamlTestClient clientYamlTestClient,
-        final Version esVersion,
-        final Predicate<String> clusterFeaturesPredicate,
-        final String os
+        final Set<String> osSet
     ) {
         return new ClientYamlTestExecutionContext(
             clientYamlTestCandidate,
             clientYamlTestClient,
             randomizeContentType(),
-            esVersion,
-            clusterFeaturesPredicate,
-            os
+            nodesVersions,
+            testFeatureService,
+            osSet
         );
     }
 
@@ -464,37 +446,24 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         }
 
         // skip test if the whole suite (yaml file) is disabled
-        assumeFalse(
-            testCandidate.getSetupSection().getSkipSection().getSkipMessage(testCandidate.getSuitePath()),
-            testCandidate.getSetupSection().getSkipSection().skip(restTestExecutionContext.esVersion())
-        );
-        // skip test if the whole suite (yaml file) is disabled
-        assumeFalse(
-            testCandidate.getTeardownSection().getSkipSection().getSkipMessage(testCandidate.getSuitePath()),
-            testCandidate.getTeardownSection().getSkipSection().skip(restTestExecutionContext.esVersion())
-        );
+        testCandidate.getSetupSection().getPrerequisiteSection().evaluate(restTestExecutionContext, testCandidate.getSuitePath());
+        testCandidate.getTeardownSection().getPrerequisiteSection().evaluate(restTestExecutionContext, testCandidate.getSuitePath());
         // skip test if test section is disabled
-        assumeFalse(
-            testCandidate.getTestSection().getSkipSection().getSkipMessage(testCandidate.getTestPath()),
-            testCandidate.getTestSection().getSkipSection().skip(restTestExecutionContext.esVersion())
-        );
-        // skip test if os is excluded
-        assumeFalse(
-            testCandidate.getTestSection().getSkipSection().getSkipMessage(testCandidate.getTestPath()),
-            testCandidate.getTestSection().getSkipSection().skip(restTestExecutionContext.os())
-        );
+        testCandidate.getTestSection().getPrerequisiteSection().evaluate(restTestExecutionContext, testCandidate.getTestPath());
 
         // let's check that there is something to run, otherwise there might be a problem with the test section
-        if (testCandidate.getTestSection().getExecutableSections().size() == 0) {
+        if (testCandidate.getTestSection().getExecutableSections().isEmpty()) {
             throw new IllegalArgumentException("No executable sections loaded for [" + testCandidate.getTestPath() + "]");
         }
 
         assumeFalse(
             "[" + testCandidate.getTestPath() + "] skipped, reason: in fips 140 mode",
-            inFipsJvm() && testCandidate.getTestSection().getSkipSection().getFeatures().contains("fips_140")
+            inFipsJvm() && testCandidate.getTestSection().getPrerequisiteSection().hasYamlRunnerFeature("fips_140")
         );
 
-        final Settings globalTemplateSettings = getGlobalTemplateSettings(testCandidate.getTestSection().getSkipSection().getFeatures());
+        final Settings globalTemplateSettings = getGlobalTemplateSettings(
+            testCandidate.getTestSection().getPrerequisiteSection().hasYamlRunnerFeature("default_shards")
+        );
         if (globalTemplateSettings.isEmpty() == false && ESRestTestCase.has(ProductFeature.LEGACY_TEMPLATES)) {
 
             final XContentBuilder template = jsonBuilder();
@@ -543,8 +512,17 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         }
     }
 
+    @Deprecated
     protected Settings getGlobalTemplateSettings(List<String> features) {
         if (features.contains("default_shards")) {
+            return Settings.EMPTY;
+        } else {
+            return globalTemplateIndexSettings;
+        }
+    }
+
+    protected Settings getGlobalTemplateSettings(boolean defaultShardsFeature) {
+        if (defaultShardsFeature) {
             return Settings.EMPTY;
         } else {
             return globalTemplateIndexSettings;

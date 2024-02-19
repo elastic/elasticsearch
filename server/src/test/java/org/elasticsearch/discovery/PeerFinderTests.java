@@ -542,7 +542,7 @@ public class PeerFinderTests extends ESTestCase {
                 }
 
                 @Override
-                public Executor executor(ThreadPool threadPool) {
+                public Executor executor() {
                     return TransportResponseHandler.TRANSPORT_WORKER;
                 }
 
@@ -881,6 +881,48 @@ public class PeerFinderTests extends ESTestCase {
             }
             appender.assertAllExpectationsMatched();
         }
+    }
+
+    @TestLogging(reason = "testing logging at WARN level", value = "org.elasticsearch.discovery:WARN")
+    public void testEventuallyLogsIfReturnedMasterIsUnreachable() {
+        final DiscoveryNode otherNode = newDiscoveryNode("node-from-hosts-list");
+        providedAddresses.add(otherNode.getAddress());
+        transportAddressConnector.addReachableNode(otherNode);
+
+        peerFinder.activate(lastAcceptedNodes);
+        final long endTime = deterministicTaskQueue.getCurrentTimeMillis() + VERBOSITY_INCREASE_TIMEOUT_SETTING.get(Settings.EMPTY).millis()
+            + PeerFinder.DISCOVERY_FIND_PEERS_INTERVAL_SETTING.get(Settings.EMPTY).millis();
+
+        runAllRunnableTasks();
+
+        assertFoundPeers(otherNode);
+        final DiscoveryNode unreachableMaster = newDiscoveryNode("unreachable-master");
+        transportAddressConnector.unreachableAddresses.add(unreachableMaster.getAddress());
+
+        MockLogAppender.assertThatLogger(() -> {
+            while (deterministicTaskQueue.getCurrentTimeMillis() <= endTime) {
+                deterministicTaskQueue.advanceTime();
+                runAllRunnableTasks();
+                respondToRequests(node -> {
+                    assertThat(node, is(otherNode));
+                    return new PeersResponse(Optional.of(unreachableMaster), emptyList(), randomNonNegativeLong());
+                });
+            }
+        },
+            PeerFinder.class,
+            new MockLogAppender.SeenEventExpectation(
+                "discovery result",
+                "org.elasticsearch.discovery.PeerFinder",
+                Level.WARN,
+                "address ["
+                    + unreachableMaster.getAddress()
+                    + "]* [current master according to *node-from-hosts-list*ClusterFormationFailureHelper*discovery-troubleshooting.html*"
+            )
+        );
+
+        assertFoundPeers(otherNode);
+        assertThat(peerFinder.discoveredMasterNode, nullValue());
+        assertFalse(peerFinder.discoveredMasterTerm.isPresent());
     }
 
     public void testReconnectsToDisconnectedNodes() {

@@ -11,15 +11,14 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.elasticsearch.xpack.ql.util.NumericUtils;
 
-import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
@@ -39,18 +38,7 @@ public class ToGeoPointTests extends AbstractFunctionTestCase {
         final Function<String, String> evaluatorName = s -> "ToGeoPoint" + s + "Evaluator[field=" + attribute + "]";
         final List<TestCaseSupplier> suppliers = new ArrayList<>();
 
-        TestCaseSupplier.forUnaryGeoPoint(suppliers, attribute, EsqlDataTypes.GEO_POINT, l -> l, List.of());
-        TestCaseSupplier.forUnaryLong(suppliers, attribute, EsqlDataTypes.GEO_POINT, l -> l, Long.MIN_VALUE, Long.MAX_VALUE, List.of());
-        TestCaseSupplier.forUnaryUnsignedLong(
-            suppliers,
-            attribute,
-            EsqlDataTypes.GEO_POINT,
-            NumericUtils::asLongUnsigned,
-            BigInteger.ZERO,
-            UNSIGNED_LONG_MAX,
-            List.of()
-        );
-
+        TestCaseSupplier.forUnaryGeoPoint(suppliers, attribute, EsqlDataTypes.GEO_POINT, v -> v, List.of());
         // random strings that don't look like a geo point
         TestCaseSupplier.forUnaryStrings(
             suppliers,
@@ -58,7 +46,7 @@ public class ToGeoPointTests extends AbstractFunctionTestCase {
             EsqlDataTypes.GEO_POINT,
             bytesRef -> null,
             bytesRef -> {
-                var exception = expectThrows(Exception.class, () -> GEO.stringAsPoint(bytesRef.utf8ToString()));
+                var exception = expectThrows(Exception.class, () -> GEO.wktToWkb(bytesRef.utf8ToString()));
                 return List.of(
                     "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
                     "Line -1:-1: " + exception
@@ -72,12 +60,12 @@ public class ToGeoPointTests extends AbstractFunctionTestCase {
             List.of(
                 new TestCaseSupplier.TypedDataSupplier(
                     "<geo point as string>",
-                    () -> new BytesRef(GEO.pointAsString(randomGeoPoint())),
+                    () -> new BytesRef(GEO.asWkt(GeometryTestUtils.randomPoint())),
                     DataTypes.KEYWORD
                 )
             ),
             EsqlDataTypes.GEO_POINT,
-            bytesRef -> GEO.pointAsLong(GEO.stringAsPoint(((BytesRef) bytesRef).utf8ToString())),
+            bytesRef -> GEO.wktToWkb(((BytesRef) bytesRef).utf8ToString()),
             List.of()
         );
 

@@ -568,12 +568,12 @@ NOTE: `similarity` is the true <<dense-vector-similarity, similarity>> before it
 
 For each configured <<dense-vector-similarity, similarity>>, here is the corresponding inverted `_score` function. This is so if you are wanting to filter from a `_score` perspective, you can do this minor transformation to correctly reject irrelevant results.
 --
- - `l2_norm`: `sqrt((1 / _score) - 1)`
- - `cosine`: `(2 * _score) - 1`
- - `dot_product`: `(2 * _score) - 1`
- - `max_inner_product`:
-    - `_score < 1`: `1 - (1 / _score)`
-    - `_score >= 1`: `_score - 1`
+* `l2_norm`: `sqrt((1 / _score) - 1)`
+* `cosine`: `(2 * _score) - 1`
+* `dot_product`: `(2 * _score) - 1`
+* `max_inner_product`:
+** `_score < 1`: `1 - (1 / _score)`
+** `_score >= 1`: `_score - 1`
 --
 
 Here is an example. In this example we search for the given `query_vector` for `k` nearest neighbors. However, with

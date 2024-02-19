@@ -169,7 +169,7 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
                     .put(DataStreamAutoShardingService.DATA_STREAMS_AUTO_SHARDING_ENABLED, true)
                     .putList(
                         DataStreamAutoShardingService.DATA_STREAMS_AUTO_SHARDING_EXCLUDES_SETTING.getKey(),
-                        List.of(dataStreamName + "*")
+                        List.of("foo", dataStreamName + "*")
                     )
                     .build(),
                 clusterService,

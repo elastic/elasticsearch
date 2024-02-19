@@ -30,25 +30,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 
 @ServerlessScope(Scope.PUBLIC)
 public final class RestUpdateApiKeyAction extends ApiKeyBaseRestHandler {
-
-    @SuppressWarnings("unchecked")
-    static final ConstructingObjectParser<Payload, Void> PARSER = new ConstructingObjectParser<>(
-        "update_api_key_request_payload",
-        a -> new Payload(
-            (List<RoleDescriptor>) a[0],
-            (Map<String, Object>) a[1],
-            TimeValue.parseTimeValue((String) a[2], null, "expiration")
-        )
-    );
-
-    static {
-        PARSER.declareNamedObjects(optionalConstructorArg(), (p, c, n) -> {
-            p.nextToken();
-            return RoleDescriptor.parse(n, p, false);
-        }, new ParseField("role_descriptors"));
-        PARSER.declareObject(optionalConstructorArg(), (p, c) -> p.map(), new ParseField("metadata"));
-        PARSER.declareString(optionalConstructorArg(), new ParseField("expiration"));
-    }
+    private final RequestTranslator requestTranslator = new RequestTranslator.Default();
 
     public RestUpdateApiKeyAction(final Settings settings, final XPackLicenseState licenseState) {
         super(settings, licenseState);
@@ -66,17 +48,47 @@ public final class RestUpdateApiKeyAction extends ApiKeyBaseRestHandler {
 
     @Override
     protected RestChannelConsumer innerPrepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        // Note that we use `ids` here even though we only support a single id. This is because this route shares a path prefix with
-        // `RestClearApiKeyCacheAction` and our current REST implementation requires that path params have the same wildcard if their paths
-        // share a prefix
-        final var apiKeyId = request.param("ids");
-        final var payload = request.hasContent() == false ? new Payload(null, null, null) : PARSER.parse(request.contentParser(), null);
-        return channel -> client.execute(
-            UpdateApiKeyAction.INSTANCE,
-            new UpdateApiKeyRequest(apiKeyId, payload.roleDescriptors, payload.metadata, payload.expiration),
-            new RestToXContentListener<>(channel)
-        );
+        final var updateApiKeyRequest = requestTranslator.translate(request);
+        return channel -> client.execute(UpdateApiKeyAction.INSTANCE, updateApiKeyRequest, new RestToXContentListener<>(channel));
     }
 
-    record Payload(List<RoleDescriptor> roleDescriptors, Map<String, Object> metadata, TimeValue expiration) {}
+    public interface RequestTranslator {
+        UpdateApiKeyRequest translate(RestRequest request) throws IOException;
+
+        class Default implements RequestTranslator {
+            @SuppressWarnings("unchecked")
+            static final ConstructingObjectParser<Payload, Void> PARSER = new ConstructingObjectParser<>(
+                "update_api_key_request_payload",
+                a -> new Payload(
+                    (List<RoleDescriptor>) a[0],
+                    (Map<String, Object>) a[1],
+                    TimeValue.parseTimeValue((String) a[2], null, "expiration")
+                )
+            );
+
+            static {
+                PARSER.declareNamedObjects(optionalConstructorArg(), (p, c, n) -> {
+                    p.nextToken();
+                    return RoleDescriptor.parse(n, p, false);
+                }, new ParseField("role_descriptors"));
+                PARSER.declareObject(optionalConstructorArg(), (p, c) -> p.map(), new ParseField("metadata"));
+                PARSER.declareString(optionalConstructorArg(), new ParseField("expiration"));
+            }
+
+            @Override
+            public UpdateApiKeyRequest translate(RestRequest request) throws IOException {
+                // Note that we use `ids` here even though we only support a single id. This is because this route shares a path prefix with
+                // `RestClearApiKeyCacheAction` and our current REST implementation requires that path params have the same wildcard if
+                // their paths
+                // share a prefix
+                final var apiKeyId = request.param("ids");
+                final var payload = request.hasContent() == false
+                    ? new Payload(null, null, null)
+                    : PARSER.parse(request.contentParser(), null);
+                return new UpdateApiKeyRequest(apiKeyId, payload.roleDescriptors, payload.metadata, payload.expiration);
+            }
+
+            private record Payload(List<RoleDescriptor> roleDescriptors, Map<String, Object> metadata, TimeValue expiration) {}
+        }
+    }
 }

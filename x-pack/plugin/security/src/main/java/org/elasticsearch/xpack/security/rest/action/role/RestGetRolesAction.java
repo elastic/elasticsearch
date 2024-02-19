@@ -54,8 +54,7 @@ public class RestGetRolesAction extends NativeRoleBaseRestHandler {
     @Override
     public RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
         final String[] roles = request.paramAsStringArray("name", Strings.EMPTY_ARRAY);
-        final boolean restrictRequest = request.hasParam(RestRequest.RESPONSE_RESTRICTED);
-        assert false == restrictRequest || DiscoveryNode.isStateless(settings);
+        final boolean restrictRequest = isPathRestricted(request);
         return channel -> new GetRolesRequestBuilder(client).names(roles)
             .nativeOnly(restrictRequest)
             .execute(new RestBuilderListener<>(channel) {
@@ -85,12 +84,17 @@ public class RestGetRolesAction extends NativeRoleBaseRestHandler {
         // Note: For non-restricted requests this action handles both reserved roles and native
         // roles, and should still be available even if native role management is disabled.
         // For restricted requests it should only be available if native role management is enabled
-        final boolean restrictPath = request.hasParam(RestRequest.RESPONSE_RESTRICTED);
-        assert false == restrictPath || DiscoveryNode.isStateless(settings);
+        final boolean restrictPath = isPathRestricted(request);
         if (false == restrictPath) {
             return null;
         } else {
             return super.innerCheckFeatureAvailable(request);
         }
+    }
+
+    private boolean isPathRestricted(RestRequest request) {
+        final boolean restrictRequest = request.hasParam(RestRequest.PATH_RESTRICTED);
+        assert false == restrictRequest || DiscoveryNode.isStateless(settings);
+        return restrictRequest;
     }
 }

@@ -477,7 +477,7 @@ public class AuthorizationService {
                     resolvedIndicesListener.onResponse(resolvedIndices);
                     return;
                 }
-                final ResolvedIndices resolvedIndices = IndicesAndAliasesResolver.tryResolveWithoutWildcards(action, request);
+                final ResolvedIndices resolvedIndices = indicesAndAliasesResolver.tryResolveWithoutWildcards(action, request);
                 if (resolvedIndices != null) {
                     resolvedIndicesListener.onResponse(resolvedIndices);
                 } else {
@@ -870,8 +870,8 @@ public class AuthorizationService {
         }, listener::onFailure));
     }
 
-    private static String resolveIndexNameDateMath(BulkItemRequest bulkItemRequest) {
-        final ResolvedIndices resolvedIndices = IndicesAndAliasesResolver.resolveIndicesAndAliasesWithoutWildcards(
+    private String resolveIndexNameDateMath(BulkItemRequest bulkItemRequest) {
+        final ResolvedIndices resolvedIndices = indicesAndAliasesResolver.resolveIndicesAndAliasesWithoutWildcards(
             getAction(bulkItemRequest),
             bulkItemRequest.request()
         );

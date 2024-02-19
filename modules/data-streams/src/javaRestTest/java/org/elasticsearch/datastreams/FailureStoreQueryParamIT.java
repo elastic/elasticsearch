@@ -195,7 +195,7 @@ public class FailureStoreQueryParamIT extends DisabledSecurityDataStreamTestCase
                 """);
             ResponseException responseException = expectThrows(ResponseException.class, () -> client().performRequest(mappingRequest));
             Map<String, Object> response = entityAsMap(responseException.getResponse());
-            assertThat(((Map<String, Object>) response.get("error")).get("reason"), is("failure_index"));
+            assertThat(((Map<String, Object>) response.get("error")).get("reason"), is("failure index not supported"));
         }
     }
 

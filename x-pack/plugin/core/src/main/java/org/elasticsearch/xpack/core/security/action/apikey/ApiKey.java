@@ -16,6 +16,7 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 
@@ -200,6 +201,13 @@ public final class ApiKey implements ToXContentObject {
 
     public @Nullable String getRealmType() {
         return realmType;
+    }
+
+    public @Nullable RealmConfig.RealmIdentifier getRealmIdentifier() {
+        if (realm != null && realmType != null) {
+            return new RealmConfig.RealmIdentifier(realmType, realm);
+        }
+        return null;
     }
 
     public Map<String, Object> getMetadata() {

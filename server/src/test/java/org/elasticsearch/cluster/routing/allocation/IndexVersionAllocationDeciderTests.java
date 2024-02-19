@@ -352,10 +352,10 @@ public class IndexVersionAllocationDeciderTests extends ESAllocationTestCase {
                 IndexRoutingTable.builder(shard1.getIndex())
                     .addIndexShard(
                         new IndexShardRoutingTable.Builder(shard1).addShard(
-                                shardRoutingBuilder(shard1.getIndexName(), shard1.getId(), newNode.getId(), true, ShardRoutingState.STARTED)
-                                    .withAllocationId(allocationId1P)
-                                    .build()
-                            )
+                            shardRoutingBuilder(shard1.getIndexName(), shard1.getId(), newNode.getId(), true, ShardRoutingState.STARTED)
+                                .withAllocationId(allocationId1P)
+                                .build()
+                        )
                             .addShard(
                                 shardRoutingBuilder(
                                     shard1.getIndexName(),
@@ -371,10 +371,10 @@ public class IndexVersionAllocationDeciderTests extends ESAllocationTestCase {
                 IndexRoutingTable.builder(shard2.getIndex())
                     .addIndexShard(
                         new IndexShardRoutingTable.Builder(shard2).addShard(
-                                shardRoutingBuilder(shard2.getIndexName(), shard2.getId(), newNode.getId(), true, ShardRoutingState.STARTED)
-                                    .withAllocationId(allocationId2P)
-                                    .build()
-                            )
+                            shardRoutingBuilder(shard2.getIndexName(), shard2.getId(), newNode.getId(), true, ShardRoutingState.STARTED)
+                                .withAllocationId(allocationId2P)
+                                .build()
+                        )
                             .addShard(
                                 shardRoutingBuilder(
                                     shard2.getIndexName(),

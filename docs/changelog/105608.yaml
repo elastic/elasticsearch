@@ -1,0 +1,5 @@
+pr: 105608
+summary: Drop dead code from get-snapshots request & response
+area: Snapshot/Restore
+type: tech debt
+issues: []

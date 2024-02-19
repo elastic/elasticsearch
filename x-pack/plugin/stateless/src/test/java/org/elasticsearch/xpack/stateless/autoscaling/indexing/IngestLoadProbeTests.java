@@ -124,9 +124,9 @@ public class IngestLoadProbeTests extends ESTestCase {
             statsPerExecutor::get
         );
 
-        statsPerExecutor.put(Names.WRITE, new ExecutorStats(3.0, timeValueMillis(200).nanos(), 0, between(0, 10)));
-        statsPerExecutor.put(Names.SYSTEM_WRITE, new ExecutorStats(2.0, timeValueMillis(70).nanos(), 0, between(0, 10)));
-        statsPerExecutor.put(Names.SYSTEM_CRITICAL_WRITE, new ExecutorStats(1.0, timeValueMillis(25).nanos(), 0, between(0, 10)));
+        statsPerExecutor.put(Names.WRITE, new ExecutorStats(3.0, timeValueMillis(200).nanos(), 0, between(1, 10)));
+        statsPerExecutor.put(Names.SYSTEM_WRITE, new ExecutorStats(2.0, timeValueMillis(70).nanos(), 0, between(1, 10)));
+        statsPerExecutor.put(Names.SYSTEM_CRITICAL_WRITE, new ExecutorStats(1.0, timeValueMillis(25).nanos(), 0, between(1, 10)));
         assertThat(ingestLoadProbe.getIngestionLoad(), closeTo(6.0, 1e-3));
 
         statsPerExecutor.clear();

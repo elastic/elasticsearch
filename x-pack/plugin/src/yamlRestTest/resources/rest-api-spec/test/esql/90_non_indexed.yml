@@ -2,7 +2,7 @@ setup:
   - skip:
       version: " - 8.11.99"
       reason: "extracting non-indexed fields available in 8.12+"
-      features: allowed_warnings
+      features: allowed_warnings_regex
   - do:
       indices.create:
         index: test
@@ -95,9 +95,10 @@ setup:
 ---
 fetch:
   - do:
-      allowed_warnings:
-        - "Field [ip_noidx] cannot be retrieved, it is unsupported or not indexed; returning null"
-        - "No limit defined, adding default limit of [1000]"
+      allowed_warnings_regex:
+        - "Field \\[ip_noidx\\] cannot be retrieved, it is unsupported or not indexed; returning null"
+        - "No limit defined, adding default limit of \\[.*\\]"
+
       esql.query:
         body:
           query: 'from test'

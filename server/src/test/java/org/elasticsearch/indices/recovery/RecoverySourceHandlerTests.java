@@ -56,6 +56,7 @@ import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.mapper.TimeSeriesRoutingIdFieldMapper;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.RetentionLease;
 import org.elasticsearch.index.seqno.RetentionLeases;
@@ -517,7 +518,7 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
 
         @Override
         public Engine.Index createIndexOp(int docIdent) {
-            SourceToParse source = new SourceToParse(null, new BytesArray(Strings.format("""
+            SourceToParse source = new SourceToParse(TimeSeriesRoutingIdFieldMapper.encode(0), new BytesArray(Strings.format("""
                 {
                     "@timestamp": %s,
                     "dim": "dim"

@@ -48,11 +48,7 @@ import static org.elasticsearch.core.TimeValue.parseTimeValue;
 
 public class RestRequest implements ToXContent.Params, Traceable {
 
-    @Deprecated()
-    // TODO remove once Serverless is updated
-    public static final String RESPONSE_RESTRICTED = "responseRestricted";
-    // TODO rename to `pathRestricted` once Serverless is updated
-    public static final String PATH_RESTRICTED = "responseRestricted";
+    public static final String PATH_RESTRICTED = "pathRestricted";
     // tchar pattern as defined by RFC7230 section 3.2.6
     private static final Pattern TCHAR_PATTERN = Pattern.compile("[a-zA-Z0-9!#$%&'*+\\-.\\^_`|~]+");
 
@@ -628,13 +624,7 @@ public class RestRequest implements ToXContent.Params, Traceable {
         // this parameter is intended be consumed via ToXContent.Params.param(..), not this.params(..) so don't require it is consumed here
         consumedParams.add(PATH_RESTRICTED);
     }
-
-    @Deprecated()
-    // TODO remove once Serverless is updated
-    public void markResponseRestricted(String restriction) {
-        markPathRestricted(restriction);
-    }
-
+    
     @Override
     public String getSpanId() {
         return "rest-" + getRequestId();

@@ -54,6 +54,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.Semaphore;
@@ -266,7 +267,13 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         // connection attempts to node0 block indefinitely
         final CyclicBarrier connectionBarrier = new CyclicBarrier(2);
         try {
-            nodeConnectionBlocks.put(node0, () -> connectionBarrier.await(10, TimeUnit.SECONDS));
+            nodeConnectionBlocks.put(node0, () -> {
+                try {
+                    connectionBarrier.await(10, TimeUnit.SECONDS);
+                } catch (BrokenBarrierException e) {
+                    logger.warn("Broken barrier", e);
+                }
+            });
             transportService.disconnectFromNode(node0);
 
             // can still connect to another node without blocking

@@ -7,11 +7,6 @@
 
 package org.elasticsearch.xpack.core.security.action.apikey;
 
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
@@ -44,9 +39,7 @@ import static org.elasticsearch.xpack.core.security.action.apikey.CrossClusterAp
 /**
  * API key information
  */
-public final class ApiKey implements ToXContentObject, Writeable {
-
-    public static final TransportVersion CROSS_CLUSTER_KEY_VERSION = TransportVersions.V_8_9_X;
+public final class ApiKey implements ToXContentObject {
 
     public enum Type {
         /**
@@ -162,47 +155,6 @@ public final class ApiKey implements ToXContentObject, Writeable {
         // This assertion will need to be changed (or removed) when derived keys are properly supported
         assert limitedBy == null || limitedBy.roleDescriptorsList().size() == 1 : "can only have one set of limited-by role descriptors";
         this.limitedBy = limitedBy;
-    }
-
-    public ApiKey(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_5_0)) {
-            this.name = in.readOptionalString();
-        } else {
-            this.name = in.readString();
-        }
-        this.id = in.readString();
-        if (in.getTransportVersion().onOrAfter(CROSS_CLUSTER_KEY_VERSION)) {
-            this.type = in.readEnum(Type.class);
-        } else {
-            // This default is safe because
-            // 1. ApiKey objects never transfer between nodes
-            // 2. Creating cross-cluster API keys mandates minimal node version that understands the API key type
-            this.type = Type.REST;
-        }
-        this.creation = in.readInstant();
-        this.expiration = in.readOptionalInstant();
-        this.invalidated = in.readBoolean();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            this.invalidation = in.readOptionalInstant();
-        } else {
-            this.invalidation = null;
-        }
-
-        this.username = in.readString();
-        this.realm = in.readString();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
-            this.metadata = in.readGenericMap();
-        } else {
-            this.metadata = Map.of();
-        }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_5_0)) {
-            final List<RoleDescriptor> roleDescriptors = in.readOptionalCollectionAsList(RoleDescriptor::new);
-            this.roleDescriptors = roleDescriptors != null ? List.copyOf(roleDescriptors) : null;
-            this.limitedBy = in.readOptionalWriteable(RoleDescriptorsIntersection::new);
-        } else {
-            this.roleDescriptors = null;
-            this.limitedBy = null;
-        }
     }
 
     public String getId() {
@@ -321,34 +273,6 @@ public final class ApiKey implements ToXContentObject, Writeable {
             builder.endArray();
         }
         builder.endObject();
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_5_0)) {
-            out.writeOptionalString(name);
-        } else {
-            out.writeString(name);
-        }
-        out.writeString(id);
-        if (out.getTransportVersion().onOrAfter(CROSS_CLUSTER_KEY_VERSION)) {
-            out.writeEnum(type);
-        }
-        out.writeInstant(creation);
-        out.writeOptionalInstant(expiration);
-        out.writeBoolean(invalidated);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            out.writeOptionalInstant(invalidation);
-        }
-        out.writeString(username);
-        out.writeString(realm);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
-            out.writeGenericMap(metadata);
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_5_0)) {
-            out.writeOptionalCollection(roleDescriptors);
-            out.writeOptionalWriteable(limitedBy);
-        }
     }
 
     @Override

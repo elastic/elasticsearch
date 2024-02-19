@@ -253,6 +253,9 @@ public class TransportResolveClusterAction extends HandledTransportAction<Resolv
         if (e instanceof ConnectTransportException || e instanceof NoSuchRemoteClusterException) {
             return true;
         }
+        if (e instanceof IllegalStateException && e.getMessage().contains("Unable to open any connections")) {
+            return true;
+        }
         Throwable ill = ExceptionsHelper.unwrap(e, IllegalArgumentException.class);
         if (ill != null && ill.getMessage().contains("unknown host")) {
             return true;

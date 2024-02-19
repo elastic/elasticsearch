@@ -59,6 +59,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -111,6 +112,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executor;
@@ -4017,14 +4019,18 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 repositoryName
             );
             if (request.partial() == false) {
-                Set<String> missing = new HashSet<>();
+                Set<String> missing = new TreeSet<>(); // sorted for more usable message
                 for (Map.Entry<ShardId, ShardSnapshotStatus> entry : shards.entrySet()) {
                     if (entry.getValue().state() == ShardState.MISSING) {
                         missing.add(entry.getKey().getIndex().getName());
                     }
                 }
                 if (missing.isEmpty() == false) {
-                    throw new SnapshotException(snapshot, "Indices don't have primary shards " + missing);
+                    throw new SnapshotException(snapshot, Strings.format("""
+                        the following indices have unassigned primary shards \
+                        and cannot be included in a snapshot unless [partial] is set to [true]: %s; \
+                        for help with troubleshooting unassigned shards see %s
+                        """, missing, ReferenceDocs.UNASSIGNED_SHARDS));
                 }
             }
             final var newEntry = SnapshotsInProgress.startedEntry(

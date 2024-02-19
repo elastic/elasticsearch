@@ -624,7 +624,7 @@ public class RestRequest implements ToXContent.Params, Traceable {
         // this parameter is intended be consumed via ToXContent.Params.param(..), not this.params(..) so don't require it is consumed here
         consumedParams.add(PATH_RESTRICTED);
     }
-    
+
     @Override
     public String getSpanId() {
         return "rest-" + getRequestId();

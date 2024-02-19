@@ -180,24 +180,6 @@ public class RemoteClusterSecurityRCS2PainlessExecuteIT extends AbstractRemoteCl
             assertThat(responseBody, equalTo("{\"result\":[\"test\"]}"));
         }
         {
-            // // TEST CASE 2: Query remote cluster for index1 - should fail since no permissions granted for remote clusters yet
-            // Request painlessExecuteRemote = createPainlessExecuteRequest("my_remote_cluster:index1");
-            // Exception exc = expectThrows(Exception.class, () -> performRequestWithRemoteSearchUser(painlessExecuteRemote));
-            // assertThat(exc, notNullValue());
-            // assertThat(exc.getMessage(), containsString("Connection is closed")); // TODO: is this the expected exception?
-
-            // assertThat(exc.getResponse().getStatusLine().getStatusCode(), is(403));
-            // String errorResponseBody = EntityUtils.toString(exc.getResponse().getEntity());
-            // assertThat(err orResponseBody, containsString("unauthorized for user [remote_search_user]"));
-            // assertThat(errorResponseBody, containsString("on indices [secretindex]"));
-            // assertThat(errorResponseBody, containsString("\"type\":\"security_exception\""));
-            //
-            // Response response = performRequestWithRemoteSearchUser(painlessExecuteRemote);
-            // String responseBody = EntityUtils.toString(response.getEntity());
-            // assertOK(response);
-            // assertThat(responseBody, equalTo("{\"result\":[\"test\"]}"));
-        }
-        {
             // update role to have permissions to remote index* pattern
             var updateRoleRequest = new Request("PUT", "/_security/role/" + REMOTE_SEARCH_ROLE);
             updateRoleRequest.setJsonEntity("""
@@ -220,7 +202,7 @@ public class RemoteClusterSecurityRCS2PainlessExecuteIT extends AbstractRemoteCl
             assertOK(adminClient().performRequest(updateRoleRequest));
         }
         {
-            // TEST CASE 3: Query remote cluster for secretindex - should fail since no perms granted for it
+            // TEST CASE 2: Query remote cluster for secretindex - should fail since no perms granted for it
             Request painlessExecuteRemote = createPainlessExecuteRequest("my_remote_cluster:secretindex");
             ResponseException exc = expectThrows(ResponseException.class, () -> performRequestWithRemoteSearchUser(painlessExecuteRemote));
             String errorResponseBody = EntityUtils.toString(exc.getResponse().getEntity());
@@ -230,7 +212,7 @@ public class RemoteClusterSecurityRCS2PainlessExecuteIT extends AbstractRemoteCl
             assertThat(errorResponseBody, containsString("\"type\":\"security_exception\""));
         }
         {
-            // TEST CASE 4: Query remote cluster for index1 - should succeed since read and cross-cluster-read perms granted
+            // TEST CASE 3: Query remote cluster for index1 - should succeed since read and cross-cluster-read perms granted
             Request painlessExecuteRemote = createPainlessExecuteRequest("my_remote_cluster:index1");
             Response response = performRequestWithRemoteSearchUser(painlessExecuteRemote);
             String responseBody = EntityUtils.toString(response.getEntity());
@@ -238,7 +220,7 @@ public class RemoteClusterSecurityRCS2PainlessExecuteIT extends AbstractRemoteCl
             assertThat(responseBody, equalTo("{\"result\":[\"test\"]}"));
         }
         {
-            // TEST CASE 5: Query local cluster for not_present index - should fail with 403 since role does not have perms for this index
+            // TEST CASE 4: Query local cluster for not_present index - should fail with 403 since role does not have perms for this index
             Request painlessExecuteLocal = createPainlessExecuteRequest("index_not_present");
             ResponseException exc = expectThrows(ResponseException.class, () -> performRequestWithRemoteSearchUser(painlessExecuteLocal));
             assertThat(exc.getResponse().getStatusLine().getStatusCode(), is(403));
@@ -248,7 +230,7 @@ public class RemoteClusterSecurityRCS2PainlessExecuteIT extends AbstractRemoteCl
             assertThat(errorResponseBody, containsString("\"type\":\"security_exception\""));
         }
         {
-            // TEST CASE 6: Query local cluster for my_local_123 index - role has perms for this pattern, but index does not exist, so 404
+            // TEST CASE 5: Query local cluster for my_local_123 index - role has perms for this pattern, but index does not exist, so 404
             Request painlessExecuteLocal = createPainlessExecuteRequest("my_local_123");
             ResponseException exc = expectThrows(ResponseException.class, () -> performRequestWithRemoteSearchUser(painlessExecuteLocal));
             assertThat(exc.getResponse().getStatusLine().getStatusCode(), is(404));
@@ -256,7 +238,7 @@ public class RemoteClusterSecurityRCS2PainlessExecuteIT extends AbstractRemoteCl
             assertThat(errorResponseBody, containsString("\"type\":\"index_not_found_exception\""));
         }
         {
-            // TEST CASE 7: Query local cluster for my_local* index - painless/execute does not allow wildcards, so fails with 400
+            // TEST CASE 6: Query local cluster for my_local* index - painless/execute does not allow wildcards, so fails with 400
             Request painlessExecuteLocal = createPainlessExecuteRequest("my_local*");
             ResponseException exc = expectThrows(ResponseException.class, () -> performRequestWithRemoteSearchUser(painlessExecuteLocal));
             assertThat(exc.getResponse().getStatusLine().getStatusCode(), is(400));
@@ -265,7 +247,7 @@ public class RemoteClusterSecurityRCS2PainlessExecuteIT extends AbstractRemoteCl
             assertThat(errorResponseBody, containsString("\"type\":\"illegal_argument_exception\""));
         }
         {
-            // TEST CASE 8: Query remote cluster for cluster that does not exist, and user does not have perms for that pattern - 403 ???
+            // TEST CASE 7: Query remote cluster for cluster that does not exist, and user does not have perms for that pattern - 403 ???
             Request painlessExecuteRemote = createPainlessExecuteRequest("my_remote_cluster:abc123");
             ResponseException exc = expectThrows(ResponseException.class, () -> performRequestWithRemoteSearchUser(painlessExecuteRemote));
             assertThat(exc.getResponse().getStatusLine().getStatusCode(), is(403));
@@ -275,7 +257,7 @@ public class RemoteClusterSecurityRCS2PainlessExecuteIT extends AbstractRemoteCl
             assertThat(errorResponseBody, containsString("\"type\":\"security_exception\""));
         }
         {
-            // TEST CASE 9: Query remote cluster for cluster that does not exist, but has permissions for the index pattern - 404
+            // TEST CASE 8: Query remote cluster for cluster that does not exist, but has permissions for the index pattern - 404
             Request painlessExecuteRemote = createPainlessExecuteRequest("my_remote_cluster:index123");
             ResponseException exc = expectThrows(ResponseException.class, () -> performRequestWithRemoteSearchUser(painlessExecuteRemote));
             assertThat(exc.getResponse().getStatusLine().getStatusCode(), is(404));
@@ -283,7 +265,7 @@ public class RemoteClusterSecurityRCS2PainlessExecuteIT extends AbstractRemoteCl
             assertThat(errorResponseBody, containsString("\"type\":\"index_not_found_exception\""));
         }
         {
-            // TEST CASE 10: Query remote cluster with wildcard in index - painless/execute does not allow wildcards, so fails with 400
+            // TEST CASE 9: Query remote cluster with wildcard in index - painless/execute does not allow wildcards, so fails with 400
             Request painlessExecuteRemote = createPainlessExecuteRequest("my_remote_cluster:index*");
             ResponseException exc = expectThrows(ResponseException.class, () -> performRequestWithRemoteSearchUser(painlessExecuteRemote));
             assertThat(exc.getResponse().getStatusLine().getStatusCode(), is(400));

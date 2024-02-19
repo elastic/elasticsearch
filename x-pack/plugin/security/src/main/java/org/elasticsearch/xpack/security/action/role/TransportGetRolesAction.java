@@ -78,7 +78,7 @@ public class TransportGetRolesAction extends TransportAction<GetRolesRequest, Ge
         }
 
         if (specificRolesRequested && rolesToSearchFor.isEmpty()) {
-            // specific reservedRoles were requested but they were built in only, no need to hit the store
+            // specific roles were requested, but they were built in only, no need to hit the store
             listener.onResponse(new GetRolesResponse(reservedRoles.toArray(new RoleDescriptor[0])));
         } else {
             getNativeRoles(rolesToSearchFor, reservedRoles, listener);

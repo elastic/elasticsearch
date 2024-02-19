@@ -1912,7 +1912,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             177,
             TransportVersions.INGEST_GRAPH_STRUCTURE_EXCEPTION
         ),
-        FAILURE_INDEX_EXCEPTION(
+        FAILURE_INDEX_NOT_SUPPORTED_EXCEPTION(
             FailureIndexNotSupportedException.class,
             FailureIndexNotSupportedException::new,
             178,

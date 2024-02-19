@@ -71,6 +71,14 @@ final class OutboundHandler {
         this.slowLogThresholdMs = slowLogThreshold.getMillis();
     }
 
+    /**
+     * Send a raw message over the given channel.
+     *
+     * @param listener completed when the message has been sent, on the network thread (unless the network thread has shut down). Take care
+     *                 if calling back into the network layer from this listener without dispatching to a new thread since if we do that
+     *                 too many times in a row it can cause a stack overflow. When in doubt, dispatch any follow-up work onto a separate
+     *                 thread.
+     */
     void sendBytes(TcpChannel channel, BytesReference bytes, ActionListener<Void> listener) {
         internalSend(channel, bytes, null, listener);
     }

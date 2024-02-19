@@ -408,7 +408,12 @@ public class RBACEngine implements AuthorizationEngine {
     }
 
     private static boolean allowsRemoteIndices(TransportRequest transportRequest) {
-        return transportRequest instanceof IndicesRequest.Replaceable replaceable && replaceable.allowsRemoteIndices();
+        // TODO this may need to change. See https://github.com/elastic/elasticsearch/issues/105598
+        if (transportRequest instanceof IndicesRequest.SingleIndexNoWildcards single) {
+            return single.allowsRemoteIndices();
+        } else {
+            return transportRequest instanceof IndicesRequest.Replaceable replaceable && replaceable.allowsRemoteIndices();
+        }
     }
 
     private static boolean isChildActionAuthorizedByParentOnLocalNode(RequestInfo requestInfo, AuthorizationInfo authorizationInfo) {

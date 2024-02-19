@@ -89,15 +89,11 @@ public class TransportGetRolesAction extends TransportAction<GetRolesRequest, Ge
         getNativeRoles(rolesToSearchFor, new ArrayList<>(), listener);
     }
 
-    private void getNativeRoles(
-        Set<String> rolesToSearchFor,
-        List<RoleDescriptor> reservedRoles,
-        ActionListener<GetRolesResponse> listener
-    ) {
+    private void getNativeRoles(Set<String> rolesToSearchFor, List<RoleDescriptor> foundRoles, ActionListener<GetRolesResponse> listener) {
         nativeRolesStore.getRoleDescriptors(rolesToSearchFor, ActionListener.wrap((retrievalResult) -> {
             if (retrievalResult.isSuccess()) {
-                reservedRoles.addAll(retrievalResult.getDescriptors());
-                listener.onResponse(new GetRolesResponse(reservedRoles.toArray(new RoleDescriptor[0])));
+                foundRoles.addAll(retrievalResult.getDescriptors());
+                listener.onResponse(new GetRolesResponse(foundRoles.toArray(new RoleDescriptor[0])));
             } else {
                 listener.onFailure(retrievalResult.getFailure());
             }

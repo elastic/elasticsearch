@@ -24,10 +24,10 @@ API can make the cluster read-write again.
 
 [discrete]
 [[cluster-shard-limit]]
-==== Cluster shard limit
+==== Cluster shard limits
 
-There is a soft limit on the number of shards in a cluster, based on the number
-of nodes in the cluster. This is intended to prevent a runaway process from
+There is a limit on the number of shards in a cluster, based on the number of
+nodes in the cluster. This is intended to prevent a runaway process from
 creating too many shards which can harm performance and in extreme cases may
 destabilize your cluster.
 

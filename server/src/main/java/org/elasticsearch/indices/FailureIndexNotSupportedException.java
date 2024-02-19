@@ -18,14 +18,14 @@ import java.io.IOException;
 /**
  * Exception indicating that one or more requested indices are failure indices.
  */
-public final class FailureIndexException extends ElasticsearchException {
+public final class FailureIndexNotSupportedException extends ElasticsearchException {
 
-    public FailureIndexException(Index index) {
-        super("failure_index");
+    public FailureIndexNotSupportedException(Index index) {
+        super("failure index not supported");
         setIndex(index);
     }
 
-    public FailureIndexException(StreamInput in) throws IOException {
+    public FailureIndexNotSupportedException(StreamInput in) throws IOException {
         super(in);
     }
 

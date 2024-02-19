@@ -30,7 +30,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
-import org.elasticsearch.indices.FailureIndexException;
+import org.elasticsearch.indices.FailureIndexNotSupportedException;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.indices.SystemIndices;
@@ -451,7 +451,7 @@ public class IndexNameExpressionResolver {
             Index failureStoreWriteIndex = dataStream.getFailureStoreWriteIndex();
             if (failureStoreWriteIndex != null && addIndex(failureStoreWriteIndex, null, context)) {
                 if (context.options.allowFailureIndices() == false) {
-                    throw new FailureIndexException(failureStoreWriteIndex);
+                    throw new FailureIndexNotSupportedException(failureStoreWriteIndex);
                 }
                 concreteIndicesResult.add(failureStoreWriteIndex);
             }
@@ -582,7 +582,7 @@ public class IndexNameExpressionResolver {
                             if (options.ignoreUnavailable()) {
                                 return false;
                             } else {
-                                throw new FailureIndexException(index);
+                                throw new FailureIndexNotSupportedException(index);
                             }
                         }
                     }

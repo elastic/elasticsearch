@@ -44,7 +44,11 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeSt
  * @param wildcardOptions, applies only to wildcard expressions and defines how the wildcards will be expanded and if it will
  *                        be acceptable to have expressions that results to no indices.
  * @param gatekeeperOptions, applies to all the resolved indices and defines if throttled will be included and if certain type of
- *                        aliases or indices are allowed, or they will throw an error.
+ *                        aliases or indices are allowed, or they will throw an error. It acts as a gatekeeper when an action
+ *                        does not support certain options.
+ * @param failureStoreOptions, applies to all indices already matched and controls the type of indices that will be returned. Currently,
+ *                             there are two types, data stream failure indices (only certain data streams have them) and data stream
+ *                             backing indices or stand-alone indices.
  */
 public record IndicesOptions(
     ConcreteTargetOptions concreteTargetOptions,

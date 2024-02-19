@@ -29,7 +29,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.indices.FailureIndexException;
+import org.elasticsearch.indices.FailureIndexNotSupportedException;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.indices.SystemIndexDescriptor;
@@ -2765,12 +2765,12 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                 .failureStoreOptions(IndicesOptions.FailureStoreOptions.builder().includeRegularIndices(true).includeFailureIndices(true))
                 .gatekeeperOptions(IndicesOptions.GatekeeperOptions.builder().allowFailureIndices(false).build())
                 .build();
-            FailureIndexException failureIndexException = expectThrows(
-                FailureIndexException.class,
+            FailureIndexNotSupportedException failureIndexNotSupportedException = expectThrows(
+                FailureIndexNotSupportedException.class,
                 () -> indexNameExpressionResolver.concreteIndices(state, indicesOptions, true, "my-data-stream")
             );
             assertThat(
-                failureIndexException.getIndex().getName(),
+                failureIndexNotSupportedException.getIndex().getName(),
                 equalTo(DataStream.getDefaultFailureStoreName(dataStreamName, 1, epochMillis))
             );
         }

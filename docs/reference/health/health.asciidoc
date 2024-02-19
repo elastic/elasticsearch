@@ -357,12 +357,12 @@ watermark threshold>>.
     them are displayed in this field. If no corrupted repositories are found, this detail is omitted.
 
 `unknown_repositories`::
-    (Optional, int) The number of repositories on the system that have been determined to be unknown. If there are
-    no corrupted repositories detected, this detail is omitted.
+    (Optional, int) The number of repositories that have been determined to be unknown by at least one node.
+    If there are no unknown repositories detected, this detail is omitted.
 
 `invalid_repositories`::
-    (Optional, int) The number of repositories on the system that have been determined to be invalid. If there are
-    no corrupted repositories detected, this detail is omitted.
+    (Optional, int) The number of repositories that have been determined to be invalid by at least one node.
+    If there are no invalid repositories detected, this detail is omitted.
 
 [[health-api-response-details-ilm]]
 ===== ilm

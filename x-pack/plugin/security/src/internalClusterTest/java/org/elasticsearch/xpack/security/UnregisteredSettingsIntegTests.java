@@ -26,6 +26,17 @@ public class UnregisteredSettingsIntegTests extends SecurityIntegTestCase {
             .putList("xpack.security.reserved_roles.include", "superuser");
 
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> internalCluster().startNode(builder));
-        assertThat(e.getMessage(), containsString("unknown setting"));
+        assertThat(e.getMessage(), containsString("unknown setting [xpack.security.reserved_roles.include]"));
+    }
+
+    public void testSamlExcludeRolesSettingNotRegistered() throws Exception {
+        internalCluster().setBootstrapMasterNodeIndex(0);
+
+        Settings.Builder builder = Settings.builder()
+            .put(randomBoolean() ? masterNode() : dataOnlyNode())
+            .putList("xpack.security.authc.realms.saml.saml1.exclude_roles", "superuser");
+
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> internalCluster().startNode(builder));
+        assertThat(e.getMessage(), containsString("unknown setting [xpack.security.authc.realms.saml.saml1.exclude_roles]"));
     }
 }

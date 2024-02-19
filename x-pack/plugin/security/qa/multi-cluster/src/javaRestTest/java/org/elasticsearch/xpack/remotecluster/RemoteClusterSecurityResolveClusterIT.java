@@ -175,7 +175,6 @@ public class RemoteClusterSecurityResolveClusterIT extends AbstractRemoteCluster
             Response response = performRequestWithRemoteSearchUser(starResolveRequest);
             assertOK(response);
             Map<String, Object> responseMap = responseAsMap(response);
-            System.err.println(">> XXX CASE1 remoteClusterResponse: " + responseMap);
             assertLocalMatching(responseMap);
 
             Map<String, ?> remoteClusterResponse = (Map<String, ?>) responseMap.get("my_remote_cluster");

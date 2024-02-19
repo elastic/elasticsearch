@@ -284,13 +284,6 @@ public class EsqlBaseParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> im
    * <p>The default implementation returns the result of calling
    * {@link #visitChildren} on {@code ctx}.</p>
    */
-  @Override public T visitIdPattern(EsqlBaseParser.IdPatternContext ctx) { return visitChildren(ctx); }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation returns the result of calling
-   * {@link #visitChildren} on {@code ctx}.</p>
-   */
   @Override public T visitNullLiteral(EsqlBaseParser.NullLiteralContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}

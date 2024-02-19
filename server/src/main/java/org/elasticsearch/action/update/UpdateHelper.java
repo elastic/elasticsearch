@@ -269,7 +269,7 @@ public class UpdateHelper {
                     .waitForActiveShards(request.waitForActiveShards())
                     .timeout(request.timeout())
                     .setRefreshPolicy(request.getRefreshPolicy())
-                    .setNormalisedBytesParsed(0L);// an indicator that this request should not be reported
+                    .noParsedBytesToReport();
                 return new Result(indexRequest, DocWriteResponse.Result.UPDATED, updatedSourceAsMap, updateSourceContentType);
             }
             case DELETE -> {

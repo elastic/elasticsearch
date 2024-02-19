@@ -408,7 +408,7 @@ public class RBACEngine implements AuthorizationEngine {
     }
 
     private static boolean allowsRemoteIndices(TransportRequest transportRequest) {
-        /// MP TODO: best way to handle this?
+        // TODO this may need to change. See https://github.com/elastic/elasticsearch/issues/105598
         if (transportRequest instanceof IndicesRequest.SingleIndexNoWildcards single) {
             return single.allowsRemoteIndices();
         } else {

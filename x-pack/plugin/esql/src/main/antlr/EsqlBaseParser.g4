@@ -231,7 +231,7 @@ string
     ;
 
 comparisonOperator
-    : EQ | CIEQ | NEQ | LT | LTE | GT | GTE
+    : EQ | NEQ | LT | LTE | GT | GTE
     ;
 
 explainCommand

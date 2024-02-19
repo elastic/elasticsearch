@@ -191,7 +191,7 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
         SPLIT_THRESHOLD = (int) (NettyAllocator.suggestedMaxAllocationSize() * 0.99);
     }
 
-    private void doWrite(ChannelHandlerContext ctx, Netty4HttpResponse readyResponse, ChannelPromise promise) throws IOException {
+    private void doWrite(ChannelHandlerContext ctx, Netty4HttpResponse readyResponse, ChannelPromise promise) {
         assert currentChunkedWrite == null : "unexpected existing write [" + currentChunkedWrite + "]";
         assert readyResponse != null : "cannot write null response";
         assert readyResponse.getSequence() == writeSequence;

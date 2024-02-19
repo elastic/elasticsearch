@@ -31,6 +31,7 @@ import org.elasticsearch.health.node.tracker.HealthTracker;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -125,6 +126,14 @@ public class LocalHealthMonitorTests extends ESTestCase {
             featureService,
             List.of(mockHealthTracker)
         );
+    }
+
+    @After
+    public void tearDown() throws Exception {
+        super.tearDown();
+
+        // Kill monitoring process running in the background after each test.
+        localHealthMonitor.setEnabled(false);
     }
 
     @SuppressWarnings("unchecked")
@@ -239,6 +248,36 @@ public class LocalHealthMonitorTests extends ESTestCase {
 
         localHealthMonitor.setEnabled(true);
         assertBusy(() -> assertThat(mockHealthTracker.getLastReportedValue(), equalTo(nextHealthStatus)));
+    }
+
+    /**
+     * This test verifies that the local health monitor is able to deal with more the more complex situation where it is forced to restart
+     * (due to a health node change) while there is an in-flight request to the previous health node.
+     */
+    public void testResetDuringInFlightRequest() throws Exception {
+        ClusterState previous = ClusterStateCreationUtils.state(node, node, node, new DiscoveryNode[] { node, frozenNode })
+            .copyAndUpdate(b -> b.putCustom(HealthMetadata.TYPE, healthMetadata));
+        ClusterState current = ClusterStateCreationUtils.state(node, frozenNode, node, new DiscoveryNode[] { node, frozenNode })
+            .copyAndUpdate(b -> b.putCustom(HealthMetadata.TYPE, healthMetadata));
+        when(clusterService.state()).thenReturn(previous);
+
+        var requestCounter = new AtomicInteger();
+        doAnswer(invocation -> {
+            DiskHealthInfo diskHealthInfo = ((UpdateHealthInfoCacheAction.Request) invocation.getArgument(1)).getDiskHealthInfo();
+            assertThat(diskHealthInfo, equalTo(GREEN));
+            var currentValue = requestCounter.incrementAndGet();
+            if (currentValue == 1) {
+                when(clusterService.state()).thenReturn(current);
+                localHealthMonitor.clusterChanged(new ClusterChangedEvent("health-node-switch", current, previous));
+            }
+            ActionListener<AcknowledgedResponse> listener = invocation.getArgument(2);
+            listener.onResponse(null);
+            return null;
+        }).when(client).execute(any(), any(), any());
+
+        localHealthMonitor.setMonitorInterval(TimeValue.timeValueMillis(10));
+        localHealthMonitor.clusterChanged(new ClusterChangedEvent("start-up", previous, ClusterState.EMPTY_STATE));
+        assertBusy(() -> assertThat(requestCounter.get(), equalTo(2)));
     }
 
     private static class MockHealthTracker extends HealthTracker<DiskHealthInfo> {

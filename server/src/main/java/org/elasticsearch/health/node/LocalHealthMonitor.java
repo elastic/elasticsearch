@@ -77,6 +77,10 @@ public class LocalHealthMonitor implements ClusterStateListener {
     // Using a volatile reference to ensure that there is a single instance of monitoring running at all times.
     // No need for extra synchronization because all the writes are executed on the cluster applier thread.
     private volatile Monitoring monitoring;
+    // This variable keeps track of whether there's an in-flight request. We keep this variable here rather than the Monitoring class,
+    // as we'll create new instances of that class when we're (re)starting this local health monitoring process.
+    // This variable allows us to ensure that there's always, at most, 1 request in-flight, at any given moment.
+    private final AtomicReference<Boolean> inFlightRequest = new AtomicReference<>(false);
 
     private LocalHealthMonitor(
         Settings settings,
@@ -152,7 +156,15 @@ public class LocalHealthMonitor implements ClusterStateListener {
     private void startMonitoringIfNecessary() {
         if (prerequisitesFulfilled && enabled) {
             if (isMonitorRunning() == false) {
-                monitoring = Monitoring.start(monitorInterval, threadPool, lastSeenHealthNode, healthTrackers, clusterService, client);
+                monitoring = Monitoring.start(
+                    monitorInterval,
+                    threadPool,
+                    lastSeenHealthNode,
+                    healthTrackers,
+                    clusterService,
+                    client,
+                    inFlightRequest
+                );
                 logger.debug("Local health monitoring started {}", monitoring);
             } else {
                 logger.trace("Local health monitoring already started {}, skipping", monitoring);
@@ -227,6 +239,12 @@ public class LocalHealthMonitor implements ClusterStateListener {
      * This class is responsible for running the health monitoring. It evaluates and checks the health info of this node
      * in the configured intervals. The first run happens upon initialization. If there is an exception, it will log it
      * and continue to schedule the next run.
+     * Usually, there will only be one instance of this class alive. However, when we're restarting
+     * the monitoring process (e.g. due to a health node change, see {@link LocalHealthMonitor#clusterChanged}), there will likely (shortly)
+     * be two instances alive at the same time. To avoid any concurrency issues, we're ensuring that there's always only one in-flight
+     * request and if a {@link Monitoring} instance is cancelled while a request is in-flight, we'll prevent it from updating the state
+     * of the {@link HealthTracker}s (and it'll be up to the next/new {@link Monitoring} instance to send a new request and update the
+     * {@link HealthTracker}s' state).
      */
     static class Monitoring implements Runnable, Scheduler.Cancellable {
 
@@ -239,6 +257,7 @@ public class LocalHealthMonitor implements ClusterStateListener {
         private final AtomicReference<String> lastSeenHealthNode;
         private final List<HealthTracker<?>> healthTrackers;
 
+        private final AtomicReference<Boolean> inFlightRequest;
         private volatile boolean cancelled = false;
         private volatile Scheduler.ScheduledCancellable scheduledRun;
 
@@ -249,7 +268,8 @@ public class LocalHealthMonitor implements ClusterStateListener {
             AtomicReference<String> lastSeenHealthNode,
             List<HealthTracker<?>> healthTrackers,
             ClusterService clusterService,
-            Client client
+            Client client,
+            AtomicReference<Boolean> inFlightRequest
         ) {
             this.interval = interval;
             this.executor = executor;
@@ -258,6 +278,7 @@ public class LocalHealthMonitor implements ClusterStateListener {
             this.clusterService = clusterService;
             this.healthTrackers = healthTrackers;
             this.client = client;
+            this.inFlightRequest = inFlightRequest;
         }
 
         /**
@@ -269,7 +290,8 @@ public class LocalHealthMonitor implements ClusterStateListener {
             AtomicReference<String> lastSeenHealthNode,
             List<HealthTracker<?>> healthTrackers,
             ClusterService clusterService,
-            Client client
+            Client client,
+            AtomicReference<Boolean> inFlightRequest
         ) {
             Monitoring monitoring = new Monitoring(
                 interval,
@@ -278,7 +300,8 @@ public class LocalHealthMonitor implements ClusterStateListener {
                 lastSeenHealthNode,
                 healthTrackers,
                 clusterService,
-                client
+                client,
+                inFlightRequest
             );
             monitoring.scheduledRun = threadPool.schedule(monitoring, TimeValue.ZERO, monitoring.executor);
             return monitoring;
@@ -320,6 +343,13 @@ public class LocalHealthMonitor implements ClusterStateListener {
             }
             boolean nextRunScheduled = false;
             Runnable scheduleNextRun = new RunOnce(this::scheduleNextRunIfNecessary);
+            // Before we do anything, we're first going to make sure there is no in-flight request at this moment.
+            // If that's the case, we'll acquire the "lock", which prevents any other thread/instance from sending any requests.
+            if (inFlightRequest.compareAndSet(false, true) == false) {
+                logger.debug("Not allowed to send health info update request due to in-flight request, will try again.");
+                scheduleNextRun.run();
+                return;
+            }
             try {
                 List<HealthTracker.HealthProgress<?>> healthProgresses = getHealthProgresses();
                 if (healthProgresses.isEmpty()) {
@@ -336,18 +366,27 @@ public class LocalHealthMonitor implements ClusterStateListener {
                     if (Objects.equals(healthNodeId, lastSeenHealthNode.get()) == false) {
                         return;
                     }
-                    healthProgresses.forEach(HealthTracker.HealthProgress::recordProgressIfRelevant);
+                    // Only record health progress if this monitoring instance hasn't been cancelled in the meantime.
+                    // This avoids any unwanted writes to the HealthTrackers' states after a new monitoring instance has possibly
+                    // already started.
+                    if (cancelled == false) {
+                        healthProgresses.forEach(HealthTracker.HealthProgress::recordProgressIfRelevant);
+                    }
+                    inFlightRequest.set(false);
                 }, e -> {
                     if (e.getCause() instanceof NodeNotConnectedException || e.getCause() instanceof HealthNodeNotDiscoveredException) {
                         logger.debug("Failed to connect to the health node [{}], will try again.", e.getCause().getMessage());
                     } else {
                         logger.debug(() -> format("Failed to send health info to health node, will try again."), e);
                     }
+                    inFlightRequest.set(false);
                 });
                 client.execute(UpdateHealthInfoCacheAction.INSTANCE, builder.build(), ActionListener.runAfter(listener, scheduleNextRun));
                 nextRunScheduled = true;
             } catch (Exception e) {
                 logger.warn(() -> format("Failed to run scheduled health monitoring on thread pool [%s]", executor), e);
+                // Make sure to release the "lock" in case something goes wrong, so we can try again in the next iteration.
+                inFlightRequest.set(false);
             } finally {
                 // If the next run isn't scheduled because for example the health info hasn't changed, we schedule it here.
                 if (nextRunScheduled == false) {

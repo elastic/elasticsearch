@@ -1,0 +1,6 @@
+pr: 105315
+summary: Always show `composed_of` field for composable index templates
+area: Indices APIs
+type: bug
+issues:
+ - 104627

@@ -13,9 +13,10 @@ import io.netty.channel.Channel;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.http.HttpServerChannel;
-import org.elasticsearch.transport.netty4.Netty4TcpChannel;
 
 import java.net.InetSocketAddress;
+
+import static org.elasticsearch.transport.netty4.Netty4Utils.addListener;
 
 public class Netty4HttpServerChannel implements HttpServerChannel {
 
@@ -24,7 +25,7 @@ public class Netty4HttpServerChannel implements HttpServerChannel {
 
     Netty4HttpServerChannel(Channel channel) {
         this.channel = channel;
-        Netty4TcpChannel.addListener(this.channel.closeFuture(), closeContext);
+        addListener(this.channel.closeFuture(), closeContext);
     }
 
     @Override

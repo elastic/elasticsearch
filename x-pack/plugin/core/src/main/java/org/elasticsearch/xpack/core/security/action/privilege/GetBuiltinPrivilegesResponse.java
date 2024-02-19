@@ -17,20 +17,19 @@ import java.util.Collections;
 import java.util.Objects;
 
 /**
- * Response containing one or more application privileges retrieved from the security index
+ * Response containing built-in (cluster/index) privileges
  */
 public final class GetBuiltinPrivilegesResponse extends ActionResponse {
 
     private final String[] clusterPrivileges;
     private final String[] indexPrivileges;
 
-    public GetBuiltinPrivilegesResponse(String[] clusterPrivileges, String[] indexPrivileges) {
-        this.clusterPrivileges = Objects.requireNonNull(clusterPrivileges, "Cluster privileges cannot be null");
-        this.indexPrivileges = Objects.requireNonNull(indexPrivileges, "Index privileges cannot be null");
-    }
-
     public GetBuiltinPrivilegesResponse(Collection<String> clusterPrivileges, Collection<String> indexPrivileges) {
-        this(clusterPrivileges.toArray(Strings.EMPTY_ARRAY), indexPrivileges.toArray(Strings.EMPTY_ARRAY));
+        this.clusterPrivileges = Objects.requireNonNull(
+            clusterPrivileges.toArray(Strings.EMPTY_ARRAY),
+            "Cluster privileges cannot be null"
+        );
+        this.indexPrivileges = Objects.requireNonNull(indexPrivileges.toArray(Strings.EMPTY_ARRAY), "Index privileges cannot be null");
     }
 
     public GetBuiltinPrivilegesResponse() {

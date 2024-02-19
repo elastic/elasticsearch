@@ -54,6 +54,7 @@ import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -891,6 +892,24 @@ public class ApiKeyServiceTests extends ESTestCase {
         @Nullable List<RoleDescriptor> keyRoles,
         ApiKey.Type type
     ) throws IOException {
+        var apiKeyDoc = newApiKeyDocument(key, user, authUser, invalidated, expiry, keyRoles, type);
+        SecurityMocks.mockGetRequest(
+            client,
+            id,
+            BytesReference.bytes(XContentBuilder.builder(XContentType.JSON.xContent()).map(apiKeyDoc.v1()))
+        );
+        return apiKeyDoc.v2();
+    }
+
+    private static Tuple<Map<String, Object>, Map<String, Object>> newApiKeyDocument(
+        String key,
+        User user,
+        @Nullable User authUser,
+        boolean invalidated,
+        Duration expiry,
+        @Nullable List<RoleDescriptor> keyRoles,
+        ApiKey.Type type
+    ) throws IOException {
         final Authentication authentication;
         if (authUser != null) {
             authentication = AuthenticationTestHelper.builder()
@@ -906,7 +925,7 @@ public class ApiKeyServiceTests extends ESTestCase {
                 .realmRef(new RealmRef("realm1", "native", "node01"))
                 .build(false);
         }
-        final Map<String, Object> metadata = ApiKeyTests.randomMetadata();
+        Map<String, Object> metadataMap = ApiKeyTests.randomMetadata();
         XContentBuilder docSource = ApiKeyService.newDocument(
             getFastStoredHashAlgoForTests().hash(new SecureString(key.toCharArray())),
             "test",
@@ -917,15 +936,13 @@ public class ApiKeyServiceTests extends ESTestCase {
             keyRoles,
             type,
             Version.CURRENT,
-            metadata
+            metadataMap
         );
+        Map<String, Object> keyMap = XContentHelper.convertToMap(BytesReference.bytes(docSource), true, XContentType.JSON).v2();
         if (invalidated) {
-            Map<String, Object> map = XContentHelper.convertToMap(BytesReference.bytes(docSource), true, XContentType.JSON).v2();
-            map.put("api_key_invalidated", true);
-            docSource = XContentBuilder.builder(XContentType.JSON.xContent()).map(map);
+            keyMap.put("api_key_invalidated", true);
         }
-        SecurityMocks.mockGetRequest(client, id, BytesReference.bytes(docSource));
-        return metadata;
+        return new Tuple<>(keyMap, metadataMap);
     }
 
     private AuthenticationResult<User> tryAuthenticate(ApiKeyService service, String id, String key, ApiKey.Type type) throws Exception {

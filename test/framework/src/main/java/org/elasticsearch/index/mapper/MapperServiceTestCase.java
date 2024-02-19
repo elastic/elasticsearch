@@ -58,7 +58,7 @@ import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.internal.DocumentParsingObserver;
+import org.elasticsearch.plugins.internal.DocumentSizeObserver;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -219,8 +219,7 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
                 throw new UnsupportedOperationException();
             },
             indexSettings.getMode().buildIdFieldMapper(idFieldDataEnabled),
-            this::compileScript,
-            () -> DocumentParsingObserver.EMPTY_INSTANCE
+            this::compileScript
         );
     }
 
@@ -284,7 +283,14 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
         XContentBuilder builder = JsonXContent.contentBuilder().startObject();
         build.accept(builder);
         builder.endObject();
-        return new SourceToParse(id, BytesReference.bytes(builder), XContentType.JSON, routing, dynamicTemplates, false);
+        return new SourceToParse(
+            id,
+            BytesReference.bytes(builder),
+            XContentType.JSON,
+            routing,
+            dynamicTemplates,
+            DocumentSizeObserver.EMPTY_INSTANCE
+        );
     }
 
     /**
@@ -709,7 +715,16 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
         try (Directory roundTripDirectory = newDirectory()) {
             RandomIndexWriter roundTripIw = new RandomIndexWriter(random(), roundTripDirectory);
             roundTripIw.addDocument(
-                mapper.parse(new SourceToParse("1", new BytesArray(syntheticSource), XContentType.JSON, null, Map.of(), false)).rootDoc()
+                mapper.parse(
+                    new SourceToParse(
+                        "1",
+                        new BytesArray(syntheticSource),
+                        XContentType.JSON,
+                        null,
+                        Map.of(),
+                        DocumentSizeObserver.EMPTY_INSTANCE
+                    )
+                ).rootDoc()
             );
             roundTripIw.close();
             try (DirectoryReader roundTripReader = DirectoryReader.open(roundTripDirectory)) {

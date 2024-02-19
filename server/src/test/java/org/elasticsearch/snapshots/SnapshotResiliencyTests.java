@@ -8,6 +8,7 @@
 
 package org.elasticsearch.snapshots;
 
+import org.apache.logging.log4j.Level;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -140,6 +141,7 @@ import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.gateway.TransportNodesListGatewayStartedShards;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
@@ -185,6 +187,7 @@ import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.transport.DisruptableMockTransport;
@@ -232,6 +235,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.iterableWithSize;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -1391,7 +1395,6 @@ public class SnapshotResiliencyTests extends ESTestCase {
 
         final var indices = IntStream.range(0, between(1, 4)).mapToObj(i -> "index-" + i).sorted().toList();
         final var repoName = "repo";
-        final var originalSnapshotName = "original-snapshot";
 
         var testListener = SubscribableListener
 
@@ -1423,11 +1426,11 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 }
             })
 
-            // Take a full snapshot for use as the source for future clones
+            // Take the snapshot to check the reaction to having unassigned shards
             .<Void>andThen(
                 (l, ignored) -> client().admin()
                     .cluster()
-                    .prepareCreateSnapshot(repoName, originalSnapshotName)
+                    .prepareCreateSnapshot(repoName, "test-snapshot")
                     .setWaitForCompletion(randomBoolean())
                     .execute(new ActionListener<>() {
                         @Override
@@ -1451,9 +1454,172 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     })
             );
 
-        deterministicTaskQueue.runAllRunnableTasks();
-        assertTrue("executed all runnable tasks but test steps are still incomplete", testListener.isDone());
-        safeAwait(testListener); // shouldn't throw
+        MockLogAppender.assertThatLogger(() -> {
+            deterministicTaskQueue.runAllRunnableTasks();
+            assertTrue("executed all runnable tasks but test steps are still incomplete", testListener.isDone());
+            safeAwait(testListener); // shouldn't throw
+        },
+            SnapshotsService.class,
+            new MockLogAppender.SeenEventExpectation(
+                "INFO log",
+                SnapshotsService.class.getCanonicalName(),
+                Level.INFO,
+                "*failed to create snapshot*the following indices have unassigned primary shards*"
+            )
+        );
+    }
+
+    public void testSnapshotNameAlreadyInUseExceptionLogging() {
+        setupTestCluster(1, 1);
+
+        final var repoName = "repo";
+        final var snapshotName = "test-snapshot";
+
+        final var testListener = createRepoAndIndex(repoName, "index", between(1, 2))
+            // take snapshot once
+            .<CreateSnapshotResponse>andThen(
+                (l, ignored) -> client().admin()
+                    .cluster()
+                    .prepareCreateSnapshot(repoName, snapshotName)
+                    .setWaitForCompletion(true)
+                    .execute(l)
+            )
+            // take snapshot again
+            .<CreateSnapshotResponse>andThen(
+                (l, ignored) -> client().admin()
+                    .cluster()
+                    .prepareCreateSnapshot(repoName, snapshotName)
+                    .setWaitForCompletion(randomBoolean())
+                    .execute(new ActionListener<>() {
+                        @Override
+                        public void onResponse(CreateSnapshotResponse createSnapshotResponse) {
+                            fail("snapshot should not have started");
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            assertThat(ExceptionsHelper.unwrapCause(e), instanceOf(SnapshotNameAlreadyInUseException.class));
+                            l.onResponse(null);
+                        }
+                    })
+            );
+
+        MockLogAppender.assertThatLogger(() -> {
+            deterministicTaskQueue.runAllRunnableTasks();
+            assertTrue("executed all runnable tasks but test steps are still incomplete", testListener.isDone());
+            safeAwait(testListener); // shouldn't throw
+        },
+            SnapshotsService.class,
+            new MockLogAppender.SeenEventExpectation(
+                "INFO log",
+                SnapshotsService.class.getCanonicalName(),
+                Level.INFO,
+                Strings.format("*failed to create snapshot*Invalid snapshot name [%s]*", snapshotName)
+            )
+        );
+    }
+
+    public void testIndexNotFoundExceptionLogging() {
+        setupTestCluster(1, 0); // no need for data nodes here
+
+        final var repoName = "repo";
+        final var indexName = "does-not-exist";
+
+        final var testListener = SubscribableListener
+            // create repo
+            .<AcknowledgedResponse>newForked(
+                l -> client().admin()
+                    .cluster()
+                    .preparePutRepository(repoName)
+                    .setType(FsRepository.TYPE)
+                    .setSettings(Settings.builder().put("location", randomAlphaOfLength(10)))
+                    .execute(l)
+            )
+            // take snapshot of index that does not exist
+            .<CreateSnapshotResponse>andThen(
+                (l, ignored) -> client().admin()
+                    .cluster()
+                    .prepareCreateSnapshot(repoName, "test-snapshot")
+                    .setIndices(indexName)
+                    .setWaitForCompletion(randomBoolean())
+                    .execute(new ActionListener<>() {
+                        @Override
+                        public void onResponse(CreateSnapshotResponse createSnapshotResponse) {
+                            fail("snapshot should not have started");
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            assertThat(ExceptionsHelper.unwrapCause(e), instanceOf(IndexNotFoundException.class));
+                            l.onResponse(null);
+                        }
+                    })
+            );
+
+        MockLogAppender.assertThatLogger(() -> {
+            deterministicTaskQueue.runAllRunnableTasks();
+            assertTrue("executed all runnable tasks but test steps are still incomplete", testListener.isDone());
+            safeAwait(testListener); // shouldn't throw
+        },
+            SnapshotsService.class,
+            new MockLogAppender.SeenEventExpectation(
+                "INFO log",
+                SnapshotsService.class.getCanonicalName(),
+                Level.INFO,
+                Strings.format("failed to create snapshot: no such index [%s]", indexName)
+            )
+        );
+    }
+
+    public void testIllegalArgumentExceptionLogging() {
+        setupTestCluster(1, 0); // no need for data nodes here
+
+        final var repoName = "repo";
+
+        final var testListener = SubscribableListener
+            // create repo
+            .<AcknowledgedResponse>newForked(
+                l -> client().admin()
+                    .cluster()
+                    .preparePutRepository(repoName)
+                    .setType(FsRepository.TYPE)
+                    .setSettings(Settings.builder().put("location", randomAlphaOfLength(10)))
+                    .execute(l)
+            )
+            // take snapshot of index that does not exist
+            .<CreateSnapshotResponse>andThen(
+                (l, ignored) -> client().admin()
+                    .cluster()
+                    .prepareCreateSnapshot(repoName, "test-snapshot")
+                    .setFeatureStates("none", "none")
+                    .setWaitForCompletion(randomBoolean())
+                    .execute(new ActionListener<>() {
+                        @Override
+                        public void onResponse(CreateSnapshotResponse createSnapshotResponse) {
+                            fail("snapshot should not have started");
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            assertThat(ExceptionsHelper.unwrapCause(e), instanceOf(IllegalArgumentException.class));
+                            l.onResponse(null);
+                        }
+                    })
+            );
+
+        MockLogAppender.assertThatLogger(() -> {
+            deterministicTaskQueue.runAllRunnableTasks();
+            assertTrue("executed all runnable tasks but test steps are still incomplete", testListener.isDone());
+            safeAwait(testListener); // shouldn't throw
+        },
+            SnapshotsService.class,
+            new MockLogAppender.SeenEventExpectation(
+                "INFO log",
+                SnapshotsService.class.getCanonicalName(),
+                Level.INFO,
+                Strings.format("*failed to create snapshot*other feature states were requested: [none, none]", "")
+            )
+        );
     }
 
     private RepositoryData getRepositoryData(Repository repository) {

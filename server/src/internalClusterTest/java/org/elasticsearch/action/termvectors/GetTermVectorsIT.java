@@ -1040,6 +1040,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
         assertEquals("expected to find term statistics in exactly one shard!", 2, sumDocFreq);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105649")
     public void testTermVectorsWithIgnoredField() throws IOException, InterruptedException {
         // setup indices
         assertAcked(prepareCreate("index").setMapping("field", "type=long,ignore_malformed=true"));

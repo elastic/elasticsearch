@@ -179,7 +179,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             for (int i = 0; i < dims; i++) {
                 queryVector[i] = randomFloat();
             }
-            Query query = field.createExactKnnQuery(queryVector);
+            Query query = field.createExactKnnQuery(DenseVectorFieldMapper.VectorData.fromFloat(queryVector));
             assertTrue(query instanceof BooleanQuery);
             BooleanQuery booleanQuery = (BooleanQuery) query;
             boolean foundFunction = false;
@@ -202,12 +202,10 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
                 Collections.emptyMap()
             );
             byte[] queryVector = new byte[dims];
-            float[] floatQueryVector = new float[dims];
             for (int i = 0; i < dims; i++) {
                 queryVector[i] = randomByte();
-                floatQueryVector[i] = queryVector[i];
             }
-            Query query = field.createExactKnnQuery(floatQueryVector);
+            Query query = field.createExactKnnQuery(DenseVectorFieldMapper.VectorData.fromByte(queryVector));
             assertTrue(query instanceof BooleanQuery);
             BooleanQuery booleanQuery = (BooleanQuery) query;
             boolean foundFunction = false;

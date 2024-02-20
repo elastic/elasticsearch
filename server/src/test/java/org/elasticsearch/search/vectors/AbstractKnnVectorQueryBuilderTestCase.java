@@ -43,9 +43,11 @@ import static org.hamcrest.Matchers.instanceOf;
 abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCase<KnnVectorQueryBuilder> {
     private static final String VECTOR_FIELD = "vector";
     private static final String VECTOR_ALIAS_FIELD = "vector_alias";
-    private static final int VECTOR_DIMENSION = 3;
+    static final int VECTOR_DIMENSION = 3;
 
     abstract DenseVectorFieldMapper.ElementType elementType();
+
+    abstract KnnVectorQueryBuilder createKnnVectorQueryBuilder(String fieldName, int numCands, Float similarity);
 
     @Override
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
@@ -75,12 +77,9 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
     @Override
     protected KnnVectorQueryBuilder doCreateTestQueryBuilder() {
         String fieldName = randomBoolean() ? VECTOR_FIELD : VECTOR_ALIAS_FIELD;
-        float[] vector = new float[VECTOR_DIMENSION];
-        for (int i = 0; i < vector.length; i++) {
-            vector[i] = elementType().equals(DenseVectorFieldMapper.ElementType.BYTE) ? randomByte() : randomFloat();
-        }
         int numCands = randomIntBetween(DEFAULT_SIZE, 1000);
-        KnnVectorQueryBuilder queryBuilder = new KnnVectorQueryBuilder(fieldName, vector, numCands, randomBoolean() ? null : randomFloat());
+        KnnVectorQueryBuilder queryBuilder = createKnnVectorQueryBuilder(fieldName, numCands, randomBoolean() ? null : randomFloat());
+
         if (randomBoolean()) {
             List<QueryBuilder> filters = new ArrayList<>();
             int numFilters = randomIntBetween(1, 5);
@@ -120,11 +119,16 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
         Query knnVectorQueryBuilt = switch (elementType()) {
             case BYTE -> new ESKnnByteVectorQuery(
                 VECTOR_FIELD,
-                getByteQueryVector(queryBuilder.queryVector()),
+                queryBuilder.queryVector().asByteVector(),
                 queryBuilder.numCands(),
                 filterQuery
             );
-            case FLOAT -> new ESKnnFloatVectorQuery(VECTOR_FIELD, queryBuilder.queryVector(), queryBuilder.numCands(), filterQuery);
+            case FLOAT -> new ESKnnFloatVectorQuery(
+                VECTOR_FIELD,
+                queryBuilder.queryVector().asFloatVector(),
+                queryBuilder.numCands(),
+                filterQuery
+            );
         };
         if (query instanceof VectorSimilarityQuery vectorSimilarityQuery) {
             query = vectorSimilarityQuery.getInnerKnnQuery();
@@ -244,13 +248,5 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
                 assertEquals(bwcQuery.hashCode(), deserializedQuery.hashCode());
             }
         }
-    }
-
-    private static byte[] getByteQueryVector(float[] queryVector) {
-        byte[] byteQueryVector = new byte[queryVector.length];
-        for (int i = 0; i < queryVector.length; i++) {
-            byteQueryVector[i] = (byte) queryVector[i];
-        }
-        return byteQueryVector;
     }
 }

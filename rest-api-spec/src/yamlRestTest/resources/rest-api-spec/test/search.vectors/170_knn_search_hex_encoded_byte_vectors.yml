@@ -1,7 +1,7 @@
 setup:
   - skip:
-      version: ' - 8.12.99'
-      reason: 'hex encoding for byte vectors was added in 8.13'
+      version: ' - 8.13.99'
+      reason: 'hex encoding for byte vectors was added in 8.14'
 
   - do:
       indices.create:
@@ -50,24 +50,27 @@ setup:
         body:
           my_vector_byte: "40f6e2"
 
-  # [-128, 127, 10] - is encoded as '807f0a'
   - do:
-      catch: /Failed to parse object./
       index:
         index: knn_hex_vector_index
         id: "4"
-        body:
-          my_vector_float: "807f0a"
-
-  - do:
-      index:
-        index: knn_hex_vector_index
-        id: "5"
         body:
           my_vector_float: [10.5, -10, 1024]
 
   - do:
       indices.refresh: {}
+
+---
+"Fail to index hex-encoded vector on float field":
+
+  # [-128, 127, 10] - is encoded as '807f0a'
+  - do:
+      catch: /Failed to parse object./
+      index:
+        index: knn_hex_vector_index
+        id: "5"
+        body:
+          my_vector_float: "807f0a"
 
 ---
 "Knn search with hex string for float field" :
@@ -87,7 +90,7 @@ setup:
             k: 10
 
   - match: { hits.total.value: 1 }
-  - match: { hits.hits.0._id: "5" }
+  - match: { hits.hits.0._id: "4" }
 
 ---
 "Knn search with hex string for byte field" :

@@ -147,7 +147,14 @@ public class ConnectorTests extends ESTestCase {
                         "advanced_snippet":{
                            "created_at":"2023-11-09T15:13:08.231Z",
                            "updated_at":"2023-11-09T15:13:08.231Z",
-                           "value":{}
+                           "value":[
+                             {
+                                 "tables": [
+                                     "some_table"
+                                 ],
+                                 "query": "SELECT id, st_geohash(coordinates) FROM my_db.some_table;"
+                             }
+                           ]
                         },
                         "rules":[
                            {
@@ -171,7 +178,14 @@ public class ConnectorTests extends ESTestCase {
                         "advanced_snippet":{
                            "created_at":"2023-11-09T15:13:08.231Z",
                            "updated_at":"2023-11-09T15:13:08.231Z",
-                           "value":{}
+                           "value":[
+                             {
+                                 "tables": [
+                                     "some_table"
+                                 ],
+                                 "query": "SELECT id, st_geohash(coordinates) FROM my_db.some_table;"
+                             }
+                           ]
                         },
                         "rules":[
                            {

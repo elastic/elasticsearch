@@ -412,8 +412,7 @@ public final class TextFieldMapper extends FieldMapper {
              * or a multi-field). This way search will continue to work on old indices and new indices
              * will use the expected full name.
              */
-            String fullName;
-            fullName = indexCreatedVersion.before(IndexVersions.V_7_2_1) ? name() : context.buildFullName(name());
+            String fullName = indexCreatedVersion.before(IndexVersions.V_7_2_1) ? name() : context.buildFullName(name());
             // Copy the index options of the main field to allow phrase queries on
             // the prefix field.
             FieldType pft = new FieldType(fieldType);

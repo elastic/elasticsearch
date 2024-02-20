@@ -10,9 +10,10 @@ package org.elasticsearch.gradle.internal.release;
 
 import com.github.javaparser.StaticJavaParser;
 import com.github.javaparser.ast.CompilationUnit;
-import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
+import com.github.javaparser.ast.body.TypeDeclaration;
 import com.github.javaparser.ast.expr.NameExpr;
 import com.github.javaparser.printer.lexicalpreservation.LexicalPreservingPrinter;
+import com.google.common.annotations.VisibleForTesting;
 
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.api.tasks.options.Option;
@@ -62,8 +63,9 @@ public class SetCompatibleVersionsTask extends AbstractVersionsTask {
         }
     }
 
+    @VisibleForTesting
     static Optional<CompilationUnit> setMinimumCcsTransportVersion(CompilationUnit unit, int transportVersion) {
-        ClassOrInterfaceDeclaration transportVersions = unit.getClassByName("TransportVersions").get();
+        TypeDeclaration<?> transportVersions = unit.getType(0);
 
         String tvConstantName = transportVersions.getFields().stream().filter(f -> {
             var i = findSingleIntegerExpr(f);

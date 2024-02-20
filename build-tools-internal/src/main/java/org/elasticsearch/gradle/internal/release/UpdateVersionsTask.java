@@ -11,8 +11,8 @@ package org.elasticsearch.gradle.internal.release;
 import com.github.javaparser.StaticJavaParser;
 import com.github.javaparser.ast.CompilationUnit;
 import com.github.javaparser.ast.NodeList;
-import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
 import com.github.javaparser.ast.body.FieldDeclaration;
+import com.github.javaparser.ast.body.TypeDeclaration;
 import com.github.javaparser.ast.body.VariableDeclarator;
 import com.github.javaparser.ast.expr.NameExpr;
 import com.github.javaparser.printer.lexicalpreservation.LexicalPreservingPrinter;
@@ -51,6 +51,8 @@ public class UpdateVersionsTask extends AbstractVersionsTask {
     @Nullable
     private Version removeVersion;
 
+    private boolean incrementVersionIds;
+
     @Inject
     public UpdateVersionsTask(BuildLayout layout) {
         super(layout);
@@ -69,6 +71,11 @@ public class UpdateVersionsTask extends AbstractVersionsTask {
     @Option(option = "remove-version", description = "Specifies the version to remove")
     public void removeVersion(String version) {
         this.removeVersion = Version.fromString(version);
+    }
+
+    @Option(option = "increment-version-ids", description = "Increment other version ids in the project")
+    public void incrementVersionIds(boolean increment) {
+        this.incrementVersionIds = true;
     }
 
     static String toVersionField(Version version) {
@@ -96,6 +103,28 @@ public class UpdateVersionsTask extends AbstractVersionsTask {
             throw new IllegalArgumentException("Same version specified to add and remove");
         }
 
+        updateVersionJava();
+
+        if (incrementVersionIds) {
+            Path transportVersionJava = rootDir.resolve(TRANSPORT_VERSIONS_FILE_PATH);
+            CompilationUnit tvFile = LexicalPreservingPrinter.setup(StaticJavaParser.parse(transportVersionJava));
+            LOGGER.lifecycle("Adding new version constant to [{}]", transportVersionJava);
+            var modifiedTv = addVersionId(tvFile, addVersion);
+            if (modifiedTv.isPresent()) {
+                writeOutNewContents(transportVersionJava, modifiedTv.get());
+            }
+
+            Path indexVersionJava = rootDir.resolve(INDEX_VERSIONS_FILE_PATH);
+            CompilationUnit ivFile = LexicalPreservingPrinter.setup(StaticJavaParser.parse(indexVersionJava));
+            LOGGER.lifecycle("Adding new version constant to [{}]", indexVersionJava);
+            var modifiedIv = addVersionId(ivFile, addVersion);
+            if (modifiedIv.isPresent()) {
+                writeOutNewContents(indexVersionJava, modifiedIv.get());
+            }
+        }
+    }
+
+    private void updateVersionJava() throws IOException {
         Path versionJava = rootDir.resolve(VERSION_FILE_PATH);
         CompilationUnit file = LexicalPreservingPrinter.setup(StaticJavaParser.parse(versionJava));
 
@@ -124,7 +153,7 @@ public class UpdateVersionsTask extends AbstractVersionsTask {
     static Optional<CompilationUnit> addVersionConstant(CompilationUnit versionJava, Version version, boolean updateCurrent) {
         String newFieldName = toVersionField(version);
 
-        ClassOrInterfaceDeclaration versionClass = versionJava.getClassByName("Version").get();
+        TypeDeclaration<?> versionClass = versionJava.getType(0);
         if (versionClass.getFieldByName(newFieldName).isPresent()) {
             LOGGER.lifecycle("New version constant [{}] already present, skipping", newFieldName);
             return Optional.empty();
@@ -146,7 +175,7 @@ public class UpdateVersionsTask extends AbstractVersionsTask {
         FieldDeclaration newVersion = createNewVersionConstant(
             previousVersion.getValue(),
             newFieldName,
-            String.format("%d_%02d_%02d_99", version.getMajor(), version.getMinor(), version.getRevision())
+            String.format("new Version(%d_%02d_%02d_99)", version.getMajor(), version.getMinor(), version.getRevision())
         );
         versionClass.getMembers().addAfter(newVersion, previousVersion.getValue());
 
@@ -163,11 +192,7 @@ public class UpdateVersionsTask extends AbstractVersionsTask {
     private static FieldDeclaration createNewVersionConstant(FieldDeclaration lastVersion, String newName, String newExpr) {
         return new FieldDeclaration(
             new NodeList<>(lastVersion.getModifiers()),
-            new VariableDeclarator(
-                lastVersion.getCommonType(),
-                newName,
-                StaticJavaParser.parseExpression(String.format("new Version(%s)", newExpr))
-            )
+            new VariableDeclarator(lastVersion.getCommonType(), newName, StaticJavaParser.parseExpression(newExpr))
         );
     }
 
@@ -175,7 +200,7 @@ public class UpdateVersionsTask extends AbstractVersionsTask {
     static Optional<CompilationUnit> removeVersionConstant(CompilationUnit versionJava, Version version) {
         String removeFieldName = toVersionField(version);
 
-        ClassOrInterfaceDeclaration versionClass = versionJava.getClassByName("Version").get();
+        TypeDeclaration<?> versionClass = versionJava.getType(0);
         var declaration = versionClass.getFieldByName(removeFieldName);
         if (declaration.isEmpty()) {
             LOGGER.lifecycle("Version constant [{}] not found, skipping", removeFieldName);
@@ -197,5 +222,42 @@ public class UpdateVersionsTask extends AbstractVersionsTask {
         declaration.get().remove();
 
         return Optional.of(versionJava);
+    }
+
+    private static final int VERSION_ADDITION = 1000;
+
+    @VisibleForTesting
+    static Optional<CompilationUnit> addVersionId(CompilationUnit java, Version releaseVersion) {
+        TypeDeclaration<?> type = java.getType(0);
+
+        String newVersionField = "RELEASE_" + releaseVersion.toString().replace('.', '_');
+        if (type.getFieldByName(newVersionField).isPresent()) {
+            LOGGER.lifecycle("New version constant [{}] already present, skipping", newVersionField);
+            return Optional.empty();
+        }
+
+        // find the most recent version id
+        Map.Entry<Integer, FieldDeclaration> versions = type.getFields()
+            .stream()
+            .map(f -> Map.entry(f, findSingleIntegerExpr(f)))
+            .filter(e -> e.getValue().isPresent())
+            .map(e -> Map.entry(e.getValue().getAsInt(), e.getKey()))
+            .max(Map.Entry.comparingByKey())
+            .orElseThrow(() -> new IllegalStateException("Could not find any version constants"));
+
+        int newVersionId = versions.getKey() + VERSION_ADDITION - (versions.getKey() % VERSION_ADDITION);
+        // transform the id into the text format M_NNN_SS_P
+        StringBuilder versionIdText = new StringBuilder(Integer.toString(newVersionId));
+        int len = versionIdText.length();
+        versionIdText.insert(len - 1, '_').insert(len - 3, '_').insert(len - 6, '_');
+
+        FieldDeclaration newVersion = createNewVersionConstant(
+            versions.getValue(),
+            newVersionField,
+            String.format("def(%s)", versionIdText)
+        );
+        type.getMembers().addAfter(newVersion, versions.getValue());
+
+        return Optional.of(java);
     }
 }

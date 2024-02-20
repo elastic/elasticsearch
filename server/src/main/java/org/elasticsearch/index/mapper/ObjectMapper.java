@@ -320,11 +320,7 @@ public class ObjectMapper extends Mapper {
                     }
                     Mapper.Builder fieldBuilder;
                     if (objBuilder.subobjects.value() == false) {
-                        if (type.equals(ObjectMapper.CONTENT_TYPE)) {
-                            fieldBuilder = typeParser.parse(fieldName, propNode, parserContext);
-                        } else {
-                            fieldBuilder = typeParser.parse(fieldName, propNode, parserContext);
-                        }
+                        fieldBuilder = typeParser.parse(fieldName, propNode, parserContext);
                     } else {
                         String[] fieldNameParts = fieldName.split("\\.");
                         if (fieldNameParts.length == 0) {

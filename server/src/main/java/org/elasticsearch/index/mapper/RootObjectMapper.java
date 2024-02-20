@@ -114,7 +114,7 @@ public class RootObjectMapper extends ObjectMapper {
             Map<String, Mapper> mappers = buildMappers(context.createChildContext(null, dynamic));
             mappers.putAll(getAliasMappers(mappers, context));
             return new RootObjectMapper(
-                name,
+                name(),
                 enabled,
                 subobjects,
                 dynamic,

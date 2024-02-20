@@ -177,12 +177,12 @@ public class ObjectMapper extends Mapper {
         @Override
         public ObjectMapper build(MapperBuilderContext context) {
             return new ObjectMapper(
-                name,
-                context.buildFullName(name),
+                name(),
+                context.buildFullName(name()),
                 enabled,
                 subobjects,
                 dynamic,
-                buildMappers(context.createChildContext(name, dynamic))
+                buildMappers(context.createChildContext(name(), dynamic))
             );
         }
     }
@@ -635,7 +635,7 @@ public class ObjectMapper extends Mapper {
         for (Mapper mapper : mappers.values()) {
             if (mapper instanceof FieldMapper fieldMapper) {
                 FieldMapper.Builder fieldBuilder = fieldMapper.getMergeBuilder();
-                fieldBuilder.name = path.pathAsText(mapper.simpleName());
+                fieldBuilder.setName(path.pathAsText(mapper.simpleName()));
                 flattenedMappers.add(fieldBuilder.build(context));
             } else if (mapper instanceof ObjectMapper objectMapper) {
                 objectMapper.flatten(context, flattenedMappers, path);

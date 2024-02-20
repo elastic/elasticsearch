@@ -9,8 +9,15 @@ package org.elasticsearch.xpack.esql.planner;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThan;
+import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.InsensitiveEquals;
+import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.LessThan;
+import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.LessThanOrEqual;
+import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NullEquals;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
@@ -18,13 +25,6 @@ import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.TypedAttribute;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThan;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThanOrEqual;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThan;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThanOrEqual;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NotEquals;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NullEquals;
 import org.elasticsearch.xpack.ql.planner.ExpressionTranslator;
 import org.elasticsearch.xpack.ql.planner.ExpressionTranslators;
 import org.elasticsearch.xpack.ql.planner.TranslatorHandler;
@@ -135,21 +135,19 @@ public final class EsqlExpressionTranslators {
             boolean isDateLiteralComparison,
             ZoneId zoneId
         ) {
-            if (bc instanceof org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThan) {
+            if (bc instanceof GreaterThan) {
                 return new RangeQuery(source, name, value, false, null, false, format, zoneId);
             }
-            if (bc instanceof org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThanOrEqual) {
+            if (bc instanceof GreaterThanOrEqual) {
                 return new RangeQuery(source, name, value, true, null, false, format, zoneId);
             }
-            if (bc instanceof org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.LessThan) {
+            if (bc instanceof LessThan) {
                 return new RangeQuery(source, name, null, false, value, false, format, zoneId);
             }
-            if (bc instanceof org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.LessThanOrEqual) {
+            if (bc instanceof LessThanOrEqual) {
                 return new RangeQuery(source, name, null, false, value, true, format, zoneId);
             }
-            if (bc instanceof org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals
-                || bc instanceof org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NullEquals
-                || bc instanceof org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.NotEquals) {
+            if (bc instanceof Equals || bc instanceof NullEquals || bc instanceof NotEquals) {
                 name = pushableAttributeName(attribute);
 
                 Query query;

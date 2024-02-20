@@ -27,9 +27,7 @@ import java.util.StringJoiner;
 
 import static org.elasticsearch.threadpool.ThreadPool.Names.GENERIC;
 
-public class TransportFindMessageStructureAction extends HandledTransportAction<
-    FindMessageStructureAction.Request,
-    FindStructureResponse> {
+public class TransportFindMessageStructureAction extends HandledTransportAction<FindMessageStructureAction.Request, FindStructureResponse> {
 
     private final ThreadPool threadPool;
 

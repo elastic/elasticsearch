@@ -2045,6 +2045,7 @@ public class Security extends Plugin
         loadSingletonExtensionAndSetOnce(loader, operatorOnlyRegistry, OperatorOnlyRegistry.class);
         loadSingletonExtensionAndSetOnce(loader, putRoleRequestBuilderFactory, PutRoleRequestBuilderFactory.class);
         loadSingletonExtensionAndSetOnce(loader, getBuiltinPrivilegesResponseTranslator, GetBuiltinPrivilegesResponseTranslator.class);
+        loadSingletonExtensionAndSetOnce(loader, updateApiKeyRequestTranslator, UpdateApiKeyRequest.RequestTranslator.class);
     }
 
     private <T> void loadSingletonExtensionAndSetOnce(ExtensionLoader loader, SetOnce<T> setOnce, Class<T> clazz) {

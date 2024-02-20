@@ -127,7 +127,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             NamedAnalyzer indexAnalyzer = analyzers.getIndexAnalyzer();
             TextSearchInfo tsi = new TextSearchInfo(Defaults.FIELD_TYPE, null, searchAnalyzer, searchQuoteAnalyzer);
             MatchOnlyTextFieldType ft = new MatchOnlyTextFieldType(
-                context.buildFullName(name),
+                context.buildFullName(name()),
                 tsi,
                 indexAnalyzer,
                 context.isSourceSynthetic(),
@@ -140,7 +140,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         public MatchOnlyTextFieldMapper build(MapperBuilderContext context) {
             MatchOnlyTextFieldType tft = buildFieldType(context);
             MultiFields multiFields = multiFieldsBuilder.build(this, context);
-            return new MatchOnlyTextFieldMapper(name, Defaults.FIELD_TYPE, tft, multiFields, copyTo, context.isSourceSynthetic(), this);
+            return new MatchOnlyTextFieldMapper(name(), Defaults.FIELD_TYPE, tft, multiFields, copyTo, context.isSourceSynthetic(), this);
         }
     }
 

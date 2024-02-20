@@ -17,6 +17,7 @@
 
 package co.elastic.elasticsearch.stateless;
 
+import co.elastic.elasticsearch.stateless.action.TransportGetVirtualBatchedCompoundCommitChunkAction;
 import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
 import co.elastic.elasticsearch.stateless.allocation.StatelessAllocationDecider;
 import co.elastic.elasticsearch.stateless.allocation.StatelessExistingShardsAllocator;
@@ -222,9 +223,14 @@ public class Stateless extends Plugin
     public static final String TRANSLOG_THREAD_POOL_SETTING = "stateless." + TRANSLOG_THREAD_POOL + "_thread_pool";
     public static final String SHARD_WRITE_THREAD_POOL = BlobStoreRepository.STATELESS_SHARD_WRITE_THREAD_NAME;
     public static final String SHARD_WRITE_THREAD_POOL_SETTING = "stateless." + SHARD_WRITE_THREAD_POOL + "_thread_pool";
+    public static final String GET_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL = "stateless_get_vbcc_chunk";
+    public static final String GET_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL_SETTING = "stateless."
+        + GET_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL
+        + "_thread_pool";
 
     public static final Set<DiscoveryNodeRole> STATELESS_ROLES = Set.of(DiscoveryNodeRole.INDEX_ROLE, DiscoveryNodeRole.SEARCH_ROLE);
 
+    private final SetOnce<Client> client = new SetOnce<>();
     private final SetOnce<StatelessCommitService> commitService = new SetOnce<>();
     private final SetOnce<ClosedShardService> closedShardService = new SetOnce<>();
     private final SetOnce<ObjectStoreService> objectStoreService = new SetOnce<>();
@@ -293,6 +299,10 @@ public class Stateless extends Plugin
             new ActionHandler<>(CLEAR_BLOB_CACHE_ACTION, TransportClearBlobCacheAction.class),
             new ActionHandler<>(GET_BLOB_STORE_STATS_ACTION, TransportGetBlobStoreStatsAction.class),
             new ActionHandler<>(TransportNewCommitNotificationAction.TYPE, TransportNewCommitNotificationAction.class),
+            new ActionHandler<>(
+                TransportGetVirtualBatchedCompoundCommitChunkAction.TYPE,
+                TransportGetVirtualBatchedCompoundCommitChunkAction.class
+            ),
             new ActionHandler<>(StatelessPrimaryRelocationAction.TYPE, TransportStatelessPrimaryRelocationAction.class),
             new ActionHandler<>(TransportRegisterCommitForRecoveryAction.TYPE, TransportRegisterCommitForRecoveryAction.class),
             new ActionHandler<>(TransportSendRecoveryCommitRegistrationAction.TYPE, TransportSendRecoveryCommitRegistrationAction.class),
@@ -349,6 +359,7 @@ public class Stateless extends Plugin
     @Override
     public Collection<Object> createComponents(PluginServices services) {
         Client client = services.client();
+        setAndGet(this.client, client);
         ClusterService clusterService = services.clusterService();
         ThreadPool threadPool = services.threadPool();
         Environment environment = services.environment();
@@ -541,6 +552,8 @@ public class Stateless extends Plugin
         final int translogMaxThreads;
         final int shardWriteCoreThreads;
         final int shardWriteMaxThreads;
+        final int getVirtualBatchedCompoundCommitChunkCoreThreads;
+        final int getVirtualBatchedCompoundCommitChunkMaxThreads;
 
         if (hasIndexRole) {
             shardReadMaxThreads = Math.min(processors * 4, 10);
@@ -548,12 +561,16 @@ public class Stateless extends Plugin
             translogMaxThreads = Math.min(processors * 2, 8);
             shardWriteCoreThreads = 2;
             shardWriteMaxThreads = Math.min(processors * 4, 10);
+            getVirtualBatchedCompoundCommitChunkCoreThreads = 1;
+            getVirtualBatchedCompoundCommitChunkMaxThreads = Math.min(processors, 4);
         } else {
             shardReadMaxThreads = Math.min(processors * 4, 28);
             translogCoreThreads = 0;
             translogMaxThreads = 1;
             shardWriteCoreThreads = 0;
             shardWriteMaxThreads = 1;
+            getVirtualBatchedCompoundCommitChunkCoreThreads = 0;
+            getVirtualBatchedCompoundCommitChunkMaxThreads = 1;
         }
 
         return new ExecutorBuilder<?>[] {
@@ -580,6 +597,14 @@ public class Stateless extends Plugin
                 TimeValue.timeValueSeconds(30L),
                 true,
                 SHARD_WRITE_THREAD_POOL_SETTING
+            ),
+            new ScalingExecutorBuilder(
+                GET_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL,
+                getVirtualBatchedCompoundCommitChunkCoreThreads,
+                getVirtualBatchedCompoundCommitChunkMaxThreads,
+                TimeValue.timeValueSeconds(30L),
+                true,
+                GET_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL_SETTING
             ) };
     }
 
@@ -829,7 +854,7 @@ public class Stateless extends Plugin
                     commitService.get().closedLocalReadersForGeneration(newConfig.getShardId())
                 );
             } else {
-                return new SearchEngine(config, getClosedShardService());
+                return new SearchEngine(config, client.get(), getClosedShardService());
             }
         });
     }

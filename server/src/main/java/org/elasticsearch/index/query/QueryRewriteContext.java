@@ -37,6 +37,7 @@ import java.util.function.BiConsumer;
 import java.util.function.BooleanSupplier;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 /**
  * Context object used to rewrite {@link QueryBuilder} instances into simplified version.
@@ -59,6 +60,7 @@ public class QueryRewriteContext {
     protected boolean allowUnmappedFields;
     protected boolean mapUnmappedFieldAsString;
     protected Predicate<String> allowedFields;
+    private final Map<String, Set<String>> modelsForFields;
 
     public QueryRewriteContext(
         final XContentParserConfiguration parserConfiguration,
@@ -74,7 +76,8 @@ public class QueryRewriteContext {
         final NamedWriteableRegistry namedWriteableRegistry,
         final ValuesSourceRegistry valuesSourceRegistry,
         final BooleanSupplier allowExpensiveQueries,
-        final ScriptCompiler scriptService
+        final ScriptCompiler scriptService,
+        final Map<String, Set<String>> modelsForFields
     ) {
 
         this.parserConfiguration = parserConfiguration;
@@ -92,6 +95,9 @@ public class QueryRewriteContext {
         this.valuesSourceRegistry = valuesSourceRegistry;
         this.allowExpensiveQueries = allowExpensiveQueries;
         this.scriptService = scriptService;
+        this.modelsForFields = modelsForFields != null ?
+            modelsForFields.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> Set.copyOf(e.getValue()))) :
+            Collections.emptyMap();
     }
 
     public QueryRewriteContext(final XContentParserConfiguration parserConfiguration, final Client client, final LongSupplier nowInMillis) {
@@ -109,7 +115,33 @@ public class QueryRewriteContext {
             null,
             null,
             null,
+            null,
             null
+        );
+    }
+
+    public QueryRewriteContext(
+        final XContentParserConfiguration parserConfiguration,
+        final Client client,
+        final LongSupplier nowInMillis,
+        final Map<String, Set<String>> modelsForFields
+    ) {
+        this(
+            parserConfiguration,
+            client,
+            nowInMillis,
+            null,
+            MappingLookup.EMPTY,
+            Collections.emptyMap(),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            modelsForFields
         );
     }
 
@@ -344,5 +376,10 @@ public class QueryRewriteContext {
         return runtimeMappings.isEmpty()
             ? allFromMapping
             : () -> Iterators.concat(allFromMapping.iterator(), runtimeMappings.keySet().iterator());
+    }
+
+    public Set<String> getModelsForField(String fieldName) {
+        Set<String> models = modelsForFields.get(fieldName);
+        return models != null ? models : Collections.emptySet();
     }
 }

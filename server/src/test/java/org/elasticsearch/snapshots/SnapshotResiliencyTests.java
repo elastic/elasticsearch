@@ -1430,7 +1430,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             .<Void>andThen(
                 (l, ignored) -> client().admin()
                     .cluster()
-                    .prepareCreateSnapshot(repoName, "test-snapshot")
+                    .prepareCreateSnapshot(repoName, randomIdentifier())
                     .setWaitForCompletion(randomBoolean())
                     .execute(new ActionListener<>() {
                         @Override
@@ -1590,7 +1590,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             .<CreateSnapshotResponse>andThen(
                 (l, ignored) -> client().admin()
                     .cluster()
-                    .prepareCreateSnapshot(repoName, "test-snapshot")
+                    .prepareCreateSnapshot(repoName, randomIdentifier())
                     .setFeatureStates("none", "none")
                     .setWaitForCompletion(randomBoolean())
                     .execute(new ActionListener<>() {

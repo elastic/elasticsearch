@@ -42,6 +42,7 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.UUIDs;
@@ -273,7 +274,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
     }
 
     protected SearchEngine newSearchEngineFromIndexEngine(final EngineConfig searchConfig) {
-        return new SearchEngine(searchConfig, new ClosedShardService()) {
+        return new SearchEngine(searchConfig, mock(Client.class), new ClosedShardService()) {
             @Override
             public void close() throws IOException {
                 try {
@@ -342,7 +343,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             null,
             false
         );
-        return new SearchEngine(searchConfig, new ClosedShardService()) {
+        return new SearchEngine(searchConfig, mock(Client.class), new ClosedShardService()) {
             @Override
             public void close() throws IOException {
                 try {

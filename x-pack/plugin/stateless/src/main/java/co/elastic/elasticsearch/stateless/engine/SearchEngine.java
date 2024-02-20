@@ -17,6 +17,8 @@
 
 package co.elastic.elasticsearch.stateless.engine;
 
+import co.elastic.elasticsearch.stateless.action.GetVirtualBatchedCompoundCommitChunkRequest;
+import co.elastic.elasticsearch.stateless.action.TransportGetVirtualBatchedCompoundCommitChunkAction;
 import co.elastic.elasticsearch.stateless.commits.ClosedShardService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
@@ -31,6 +33,8 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.ThreadedActionListener;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -63,6 +67,7 @@ import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.OptionalLong;
 import java.util.Set;
 import java.util.TreeSet;
@@ -97,6 +102,7 @@ public class SearchEngine extends Engine {
     private final AtomicInteger pendingCommitNotifications = new AtomicInteger();
     private final ReferenceManager<ElasticsearchDirectoryReader> readerManager;
     private final SearchDirectory directory;
+    private final Client client;
 
     private volatile SegmentInfos segmentInfos;
     private volatile PrimaryTermAndGeneration currentPrimaryTermGeneration;
@@ -105,9 +111,10 @@ public class SearchEngine extends Engine {
 
     private final Map<DirectoryReader, OpenReaderInfo> openReaders = new ConcurrentHashMap<>();
 
-    public SearchEngine(EngineConfig config, ClosedShardService closedShardService) {
+    public SearchEngine(EngineConfig config, Client client, ClosedShardService closedShardService) {
         super(config);
         assert config.isPromotableToPrimary() == false;
+        this.client = Objects.requireNonNull(client);
         this.closedShardService = closedShardService;
 
         ElasticsearchDirectoryReader directoryReader = null;
@@ -862,4 +869,20 @@ public class SearchEngine extends Engine {
         }
     }
 
+    public void getVirtualBatchedCompoundCommitChunk(
+        final long virtualBatchedCompoundCommitId,
+        final long offset,
+        final int length,
+        final ActionListener<ReleasableBytesReference> listener
+    ) {
+        // TODO handle some errors such as IndexNotFoundException (primary shard relocated in the meantime) by retrying on the latest vBCC
+        GetVirtualBatchedCompoundCommitChunkRequest request = new GetVirtualBatchedCompoundCommitChunkRequest(
+            shardId,
+            currentPrimaryTermGeneration.primaryTerm(),
+            virtualBatchedCompoundCommitId,
+            offset,
+            length
+        );
+        client.execute(TransportGetVirtualBatchedCompoundCommitChunkAction.TYPE, request, listener.map(r -> r.getData()));
+    }
 }

@@ -58,7 +58,7 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
             String modelId,
             TaskType taskType,
             Map<String, Object> config,
-            Set<String> platfromArchitectures,
+            Set<String> platformArchitectures,
             ActionListener<Model> parsedModelListener
         ) {
             var serviceSettingsMap = (Map<String, Object>) config.remove(ModelConfigurations.SERVICE_SETTINGS);
@@ -133,6 +133,11 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
             }
             return List.of(new ChunkedSparseEmbeddingResults(chunks));
         }
+
+        protected ServiceSettings getServiceSettingsFromMap(Map<String, Object> serviceSettingsMap) {
+            return TestServiceSettings.fromMap(serviceSettingsMap);
+        }
+
     }
 
     public record TestServiceSettings(String model, String hiddenField, boolean shouldReturnHiddenField) implements ServiceSettings {

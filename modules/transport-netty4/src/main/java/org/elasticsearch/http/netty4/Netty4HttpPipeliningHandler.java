@@ -329,13 +329,7 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
         try {
             bytes = body.encodeChunk(Netty4WriteThrottlingHandler.MAX_BYTES_PER_WRITE, serverTransport.recycler());
         } catch (Exception e) {
-            logger.error(Strings.format("caught exception while encoding response chunk, closing connection %s", ctx.channel()), e);
-            assert currentChunkedWrite == chunkedWrite;
-            currentChunkedWrite = null;
-            combiner.add(ctx.channel().close());
-            combiner.add(ctx.newFailedFuture(e));
-            combiner.finish(chunkedWrite.onDone());
-            return true;
+            return handleChunkingFailure(ctx, chunkedWrite, e);
         }
         final ByteBuf content = Netty4Utils.toByteBuf(bytes);
         final boolean done = body.isDone();
@@ -343,6 +337,16 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
         f.addListener(ignored -> bytes.close());
         combiner.add(f);
         return done;
+    }
+
+    private boolean handleChunkingFailure(ChannelHandlerContext ctx, ChunkedWrite chunkedWrite, Exception e) {
+        logger.error(Strings.format("caught exception while encoding response chunk, closing connection %s", ctx.channel()), e);
+        assert currentChunkedWrite == chunkedWrite;
+        currentChunkedWrite = null;
+        chunkedWrite.combiner().add(ctx.channel().close());
+        chunkedWrite.combiner().add(ctx.newFailedFuture(e));
+        chunkedWrite.combiner().finish(chunkedWrite.onDone());
+        return true;
     }
 
     private void failQueuedWrites(ChannelHandlerContext ctx) {

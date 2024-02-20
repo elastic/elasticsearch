@@ -14,7 +14,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.textstructure.action.FindMessagesStructureAction;
+import org.elasticsearch.xpack.core.textstructure.action.FindMessageStructureAction;
 import org.elasticsearch.xpack.core.textstructure.action.FindStructureResponse;
 import org.elasticsearch.xpack.textstructure.structurefinder.TextStructureFinder;
 import org.elasticsearch.xpack.textstructure.structurefinder.TextStructureFinderManager;
@@ -27,26 +27,26 @@ import java.util.StringJoiner;
 
 import static org.elasticsearch.threadpool.ThreadPool.Names.GENERIC;
 
-public class TransportFindMessagesStructureAction extends HandledTransportAction<
-    FindMessagesStructureAction.Request,
+public class TransportFindMessageStructureAction extends HandledTransportAction<
+    FindMessageStructureAction.Request,
     FindStructureResponse> {
 
     private final ThreadPool threadPool;
 
     @Inject
-    public TransportFindMessagesStructureAction(TransportService transportService, ActionFilters actionFilters, ThreadPool threadPool) {
+    public TransportFindMessageStructureAction(TransportService transportService, ActionFilters actionFilters, ThreadPool threadPool) {
         super(
-            FindMessagesStructureAction.NAME,
+            FindMessageStructureAction.NAME,
             transportService,
             actionFilters,
-            FindMessagesStructureAction.Request::new,
+            FindMessageStructureAction.Request::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.threadPool = threadPool;
     }
 
     @Override
-    protected void doExecute(Task task, FindMessagesStructureAction.Request request, ActionListener<FindStructureResponse> listener) {
+    protected void doExecute(Task task, FindMessageStructureAction.Request request, ActionListener<FindStructureResponse> listener) {
         StringJoiner sample = new StringJoiner("\n");
         request.getMessages().forEach(sample::add);
         threadPool.executor(GENERIC).execute(() -> {
@@ -58,7 +58,7 @@ public class TransportFindMessagesStructureAction extends HandledTransportAction
         });
     }
 
-    private FindStructureResponse buildTextStructureResponse(String sample, FindMessagesStructureAction.Request request) throws Exception {
+    private FindStructureResponse buildTextStructureResponse(String sample, FindMessageStructureAction.Request request) throws Exception {
         TextStructureFinderManager structureFinderManager = new TextStructureFinderManager(threadPool.scheduler());
         try (TimeoutChecker timeoutChecker = new TimeoutChecker("structure analysis", request.getTimeout(), threadPool.scheduler())) {
             TextStructureFinder textStructureFinder = structureFinderManager.makeBestStructureFinder(

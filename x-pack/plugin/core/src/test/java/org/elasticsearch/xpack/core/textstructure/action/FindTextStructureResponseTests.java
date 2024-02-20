@@ -10,7 +10,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.textstructure.structurefinder.TextStructureTests;
 
-public class FindTextStructureActionResponseTests extends AbstractWireSerializingTestCase<FindStructureResponse> {
+public class FindTextStructureResponseTests extends AbstractWireSerializingTestCase<FindStructureResponse> {
 
     @Override
     protected FindStructureResponse createTestInstance() {
@@ -18,8 +18,12 @@ public class FindTextStructureActionResponseTests extends AbstractWireSerializin
     }
 
     @Override
-    protected FindStructureResponse mutateInstance(FindStructureResponse instance) {
-        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    protected FindStructureResponse mutateInstance(FindStructureResponse response) {
+        FindStructureResponse newResponse = null;
+        while (response.equals(newResponse) == false) {
+            newResponse = createTestInstance();
+        }
+        return newResponse;
     }
 
     @Override

@@ -13,7 +13,7 @@ import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.textstructure.action.FindMessagesStructureAction;
+import org.elasticsearch.xpack.core.textstructure.action.FindMessageStructureAction;
 import org.elasticsearch.xpack.core.textstructure.structurefinder.TextStructure;
 
 import java.io.IOException;
@@ -21,15 +21,16 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
+import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.xpack.textstructure.TextStructurePlugin.BASE_PATH;
 
 @ServerlessScope(Scope.INTERNAL)
-public class RestFindMessagesStructureAction extends BaseRestHandler {
+public class RestFindMessageStructureAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(Route.builder(POST, BASE_PATH + "find_message_structure").build());
+        return List.of(new Route(GET, BASE_PATH + "find_message_structure"), new Route(POST, BASE_PATH + "find_message_structure"));
     }
 
     @Override
@@ -39,12 +40,12 @@ public class RestFindMessagesStructureAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        FindMessagesStructureAction.Request request;
+        FindMessageStructureAction.Request request;
         try (XContentParser parser = restRequest.contentOrSourceParamParser()) {
-            request = FindMessagesStructureAction.Request.parseRequest(parser);
+            request = FindMessageStructureAction.Request.parseRequest(parser);
         }
         RestFindStructureArgumentsParser.parse(restRequest, request);
-        return channel -> client.execute(FindMessagesStructureAction.INSTANCE, request, new RestToXContentListener<>(channel));
+        return channel -> client.execute(FindMessageStructureAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 
     @Override

@@ -19,6 +19,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
+import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.xpack.textstructure.TextStructurePlugin.BASE_PATH;
 
@@ -27,7 +28,7 @@ public class RestFindFieldStructureAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(Route.builder(POST, BASE_PATH + "find_field_structure").build());
+        return List.of(new Route(GET, BASE_PATH + "find_field_structure"), new Route(POST, BASE_PATH + "find_field_structure"));
     }
 
     @Override

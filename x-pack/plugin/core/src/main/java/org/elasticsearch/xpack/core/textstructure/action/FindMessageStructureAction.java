@@ -20,12 +20,12 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class FindMessagesStructureAction extends ActionType<FindStructureResponse> {
+public class FindMessageStructureAction extends ActionType<FindStructureResponse> {
 
-    public static final FindMessagesStructureAction INSTANCE = new FindMessagesStructureAction();
-    public static final String NAME = "cluster:monitor/text_structure/find_messages_structure";
+    public static final FindMessageStructureAction INSTANCE = new FindMessageStructureAction();
+    public static final String NAME = "cluster:monitor/text_structure/find_message_structure";
 
-    private FindMessagesStructureAction() {
+    private FindMessageStructureAction() {
         super(NAME);
     }
 
@@ -38,7 +38,7 @@ public class FindMessagesStructureAction extends ActionType<FindStructureRespons
         private static final ObjectParser<Request, Void> PARSER = createParser();
 
         private static ObjectParser<Request, Void> createParser() {
-            ObjectParser<Request, Void> parser = new ObjectParser<>("text_structure/find_messages_structure", false, Request::new);
+            ObjectParser<Request, Void> parser = new ObjectParser<>("text_structure/find_message_structure", false, Request::new);
             parser.declareStringArray(Request::setMessages, MESSAGES);
             return parser;
         }

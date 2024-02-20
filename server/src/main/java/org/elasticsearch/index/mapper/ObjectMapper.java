@@ -700,7 +700,7 @@ public class ObjectMapper extends Mapper {
     protected void serializeMappers(XContentBuilder builder, Params params) throws IOException {
         // sort the mappers so we get consistent serialization format
         Mapper[] sortedMappers = mappers.values().toArray(Mapper[]::new);
-        Arrays.sort(sortedMappers, Comparator.comparing(Mapper::simpleName));
+        Arrays.sort(sortedMappers, Comparator.comparing(Mapper::name));
 
         int count = 0;
         for (Mapper mapper : sortedMappers) {

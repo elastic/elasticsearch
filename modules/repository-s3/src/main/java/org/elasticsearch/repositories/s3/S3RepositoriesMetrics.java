@@ -21,16 +21,15 @@ public record S3RepositoriesMetrics(
 
     public static S3RepositoriesMetrics NOOP = new S3RepositoriesMetrics(RepositoriesMetrics.NOOP);
 
-    public static final String METRIC_RETRY_STARTED_TOTAL = "es.repositories.s3.input_stream.retry.started.total";
-    public static final String METRIC_RETRY_COMPLETED_TOTAL = "es.repositories.s3.input_stream.retry.completed.total";
+    public static final String METRIC_RETRY_EVENT_TOTAL = "es.repositories.s3.input_stream.retry.event.total";
+    public static final String METRIC_RETRY_SUCCESS_TOTAL = "es.repositories.s3.input_stream.retry.success.total";
     public static final String METRIC_RETRY_ATTEMPTS_HISTOGRAM = "es.repositories.s3.input_stream.retry.attempts.histogram";
 
     public S3RepositoriesMetrics(RepositoriesMetrics common) {
         this(
             common,
-            common.meterRegistry().registerLongCounter(METRIC_RETRY_STARTED_TOTAL, "s3 input stream retry started count", "unit"),
-            common.meterRegistry()
-                .registerLongCounter(METRIC_RETRY_COMPLETED_TOTAL, "s3 input stream retry successfully completed count", "unit"),
+            common.meterRegistry().registerLongCounter(METRIC_RETRY_EVENT_TOTAL, "s3 input stream retry event count", "unit"),
+            common.meterRegistry().registerLongCounter(METRIC_RETRY_SUCCESS_TOTAL, "s3 input stream retry success count", "unit"),
             common.meterRegistry()
                 .registerLongHistogram(METRIC_RETRY_ATTEMPTS_HISTOGRAM, "s3 input stream retry attempts histogram", "unit")
         );

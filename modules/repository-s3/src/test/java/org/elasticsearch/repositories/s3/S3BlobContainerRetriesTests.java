@@ -765,6 +765,9 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
             }
         });
         assertThat(numberOfReads.get(), equalTo(1));
+        assertThat(getRetryStartedMeasurements(), empty());
+        assertThat(getRetryCompletedMeasurements(), empty());
+        assertThat(getRetryHistogramMeasurements(), empty());
     }
 
     @Override
@@ -837,14 +840,14 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
     private List<Measurement> getRetryStartedMeasurements() {
         return Measurement.combine(
             recordingMeterRegistry.getRecorder()
-                .getMeasurements(InstrumentType.LONG_COUNTER, S3RepositoriesMetrics.METRIC_RETRY_STARTED_TOTAL)
+                .getMeasurements(InstrumentType.LONG_COUNTER, S3RepositoriesMetrics.METRIC_RETRY_EVENT_TOTAL)
         );
     }
 
     private List<Measurement> getRetryCompletedMeasurements() {
         return Measurement.combine(
             recordingMeterRegistry.getRecorder()
-                .getMeasurements(InstrumentType.LONG_COUNTER, S3RepositoriesMetrics.METRIC_RETRY_COMPLETED_TOTAL)
+                .getMeasurements(InstrumentType.LONG_COUNTER, S3RepositoriesMetrics.METRIC_RETRY_SUCCESS_TOTAL)
         );
     }
 

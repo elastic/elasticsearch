@@ -165,18 +165,18 @@ final class PerThreadIDVersionAndSeqNoLookup {
                 }
                 return docID;
             }
-        }
-        if (searchFallback && id.length > 20) {
-            // There's no inverted index available, decode the id and perform a lookup using the timestamp and the tsid.
-            long timestamp = ByteUtils.readLongBE(id.bytes, 4);
-            BytesRef tsid = new BytesRef(id.bytes, 12, id.length - 12);
+            if (searchFallback && id.length > 20) {
+                // There's no inverted index available, decode the id and perform a lookup using the timestamp and the tsid.
+                long timestamp = ByteUtils.readLongBE(id.bytes, 4);
+                BytesRef tsid = new BytesRef(id.bytes, 12, id.length - 12);
 
-            IndexSearcher searcher = new IndexSearcher(context.reader());
-            BooleanQuery.Builder booleanQuery = new BooleanQuery.Builder();
-            booleanQuery.add(SortedSetDocValuesField.newSlowExactQuery("_tsid", tsid), BooleanClause.Occur.FILTER);
-            booleanQuery.add(LongPoint.newRangeQuery("@timestamp", timestamp, timestamp), BooleanClause.Occur.FILTER);
-            TopDocs topDocs = searcher.search(booleanQuery.build(), 1);
-            return (topDocs.scoreDocs.length > 0) ? topDocs.scoreDocs[0].doc : DocIdSetIterator.NO_MORE_DOCS;
+                IndexSearcher searcher = new IndexSearcher(context.reader());
+                BooleanQuery.Builder booleanQuery = new BooleanQuery.Builder();
+                booleanQuery.add(SortedSetDocValuesField.newSlowExactQuery("_tsid", tsid), BooleanClause.Occur.FILTER);
+                booleanQuery.add(LongPoint.newRangeQuery("@timestamp", timestamp, timestamp), BooleanClause.Occur.FILTER);
+                TopDocs topDocs = searcher.search(booleanQuery.build(), 1);
+                return (topDocs.scoreDocs.length > 0) ? topDocs.scoreDocs[0].doc : DocIdSetIterator.NO_MORE_DOCS;
+            }
         }
         return DocIdSetIterator.NO_MORE_DOCS;
     }

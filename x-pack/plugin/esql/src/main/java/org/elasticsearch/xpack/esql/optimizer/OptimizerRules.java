@@ -29,12 +29,17 @@ import org.elasticsearch.xpack.esql.plan.physical.RegexExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.RowExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.ql.common.Failures;
+import org.elasticsearch.xpack.ql.expression.Alias;
+import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.AttributeSet;
 import org.elasticsearch.xpack.ql.expression.Expressions;
+import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.plan.QueryPlan;
 import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
+
+import java.util.List;
 
 import static org.elasticsearch.xpack.ql.common.Failure.fail;
 
@@ -83,7 +88,17 @@ class OptimizerRules {
                 return new AttributeSet(mvExpand.expanded());
             }
             if (logicalPlan instanceof Enrich enrich) {
-                return new AttributeSet(Expressions.asAttributes(enrich.enrichFields()));
+                List<NamedExpression> enrichFields = enrich.enrichFields();
+                AttributeSet generates = new AttributeSet(Expressions.asAttributes(enrichFields));
+                // In case of aliases we generate both the alias and its target.
+                // E.g. in ENRICH policy ON field WITH alias = enrich_field
+                // we generate both `alias` and `enrich_field`.
+                for (NamedExpression enrichField : enrichFields) {
+                    if (enrichField instanceof Alias alias && alias.child() instanceof Attribute attr) {
+                        generates.add(attr);
+                    }
+                }
+                return generates;
             }
 
             return AttributeSet.EMPTY;

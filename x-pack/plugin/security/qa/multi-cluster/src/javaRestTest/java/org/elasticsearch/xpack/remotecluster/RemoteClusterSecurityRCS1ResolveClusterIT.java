@@ -33,16 +33,9 @@ import static org.hamcrest.Matchers.nullValue;
 public class RemoteClusterSecurityRCS1ResolveClusterIT extends AbstractRemoteClusterSecurityTestCase {
 
     static {
-        fulfillingCluster = ElasticsearchCluster.local()
-            .name("fulfilling-cluster")
-            .nodes(3)
-            .apply(commonClusterConfig)
-            .build();
+        fulfillingCluster = ElasticsearchCluster.local().name("fulfilling-cluster").nodes(3).apply(commonClusterConfig).build();
 
-        queryCluster = ElasticsearchCluster.local()
-            .name("query-cluster")
-            .apply(commonClusterConfig)
-            .build();
+        queryCluster = ElasticsearchCluster.local().name("query-cluster").apply(commonClusterConfig).build();
     }
 
     @ClassRule

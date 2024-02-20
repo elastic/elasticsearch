@@ -896,7 +896,16 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
      *
      * Ordering the evals before the orderBys has the advantage that it's always possible to order the plans like this.
      * E.g., in the example above it would not be possible to put the eval after the two orderBys.
-     * TODO update javadoc
+     *
+     * In case one of the eval's fields would shadow the orderBy's attributes, we rename the attribute first.
+     *
+     * E.g.
+     *
+     * ... | sort a | eval a = b + 1 | ...
+     *
+     * becomes
+     *
+     * ... | eval $$a = a | eval a = b + 1 | sort $$a | drop $$a
      */
     protected static class PushDownEval extends OptimizerRules.OptimizerRule<Eval> {
 
@@ -905,7 +914,6 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             LogicalPlan child = eval.child();
 
             if (child instanceof OrderBy orderBy) {
-                // TODO: should we generally use qualified names?
                 Set<String> evalFieldNames = eval.fields().stream().map(NamedExpression::name).collect(Collectors.toSet());
 
                 // Look for attributes in the OrderBy's expressions and create aliases with temporary names for them.

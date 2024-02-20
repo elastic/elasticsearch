@@ -253,6 +253,59 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
         }
     }
 
+    public void testEffectiveRetention() {
+        // No retention in the data stream lifecycle
+        {
+            DataStreamLifecycle noRetentionLifecycle = DataStreamLifecycle.newBuilder().downsampling(randomDownsampling()).build();
+            TimeValue maxRetention = TimeValue.timeValueDays(randomIntBetween(50, 100));
+            TimeValue defaultRetention = TimeValue.timeValueDays(randomIntBetween(1, 50));
+            assertThat(noRetentionLifecycle.getEffectiveDataRetention(DataStreamGlobalRetention.EMPTY), nullValue());
+            assertThat(
+                noRetentionLifecycle.getEffectiveDataRetention(new DataStreamGlobalRetention(null, maxRetention)),
+                equalTo(maxRetention)
+            );
+            assertThat(
+                noRetentionLifecycle.getEffectiveDataRetention(new DataStreamGlobalRetention(defaultRetention, null)),
+                equalTo(defaultRetention)
+            );
+            assertThat(
+                noRetentionLifecycle.getEffectiveDataRetention(new DataStreamGlobalRetention(defaultRetention, maxRetention)),
+                equalTo(defaultRetention)
+            );
+        }
+
+        // With retention in the data stream lifecycle
+        {
+            TimeValue dataStreamRetention = TimeValue.timeValueDays(randomIntBetween(5, 100));
+            DataStreamLifecycle lifecycleRetention = DataStreamLifecycle.newBuilder()
+                .dataRetention(dataStreamRetention)
+                .downsampling(randomDownsampling())
+                .build();
+            TimeValue maxRetention = TimeValue.timeValueDays(randomIntBetween(50, 100));
+            TimeValue defaultRetention = TimeValue.timeValueDays(randomIntBetween(1, 50));
+            assertThat(lifecycleRetention.getEffectiveDataRetention(DataStreamGlobalRetention.EMPTY), equalTo(dataStreamRetention));
+            assertThat(
+                lifecycleRetention.getEffectiveDataRetention(
+                    new DataStreamGlobalRetention(TimeValue.timeValueDays(randomIntBetween(50, 100)), null)
+                ),
+                equalTo(dataStreamRetention)
+            );
+            assertThat(
+                lifecycleRetention.getEffectiveDataRetention(
+                    new DataStreamGlobalRetention(TimeValue.timeValueDays(randomIntBetween(1, 5)), dataStreamRetention)
+                ),
+                equalTo(dataStreamRetention)
+            );
+            TimeValue maxRetentionLessThanDataStream = TimeValue.timeValueDays(dataStreamRetention.days() - 1);
+            assertThat(
+                lifecycleRetention.getEffectiveDataRetention(
+                    new DataStreamGlobalRetention(randomBoolean() ? null : TimeValue.timeValueDays(10), maxRetentionLessThanDataStream)
+                ),
+                equalTo(maxRetentionLessThanDataStream)
+            );
+        }
+    }
+
     @Nullable
     public static DataStreamLifecycle randomLifecycle() {
         return DataStreamLifecycle.newBuilder()

@@ -134,7 +134,26 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
      */
     @Nullable
     public TimeValue getEffectiveDataRetention() {
-        return dataRetention == null ? null : dataRetention.value;
+        // Temporary until the feature is fully implemented
+        return getEffectiveDataRetention(DataStreamGlobalRetention.EMPTY);
+    }
+
+    /**
+     * The least amount of time data should be kept by elasticsearch.
+     * @return the time period or null, null represents that data should never be deleted.
+     */
+    @Nullable
+    public TimeValue getEffectiveDataRetention(DataStreamGlobalRetention globalRetention) {
+        if (dataRetention == null || dataRetention.value == null) {
+            return globalRetention.getDefaultRetention() == null
+                ? globalRetention.getMaxRetention()
+                : globalRetention.getDefaultRetention();
+        }
+        if (globalRetention.getMaxRetention() != null && globalRetention.getMaxRetention().getMillis() < dataRetention.value.getMillis()) {
+            return globalRetention.getMaxRetention();
+        } else {
+            return dataRetention.value;
+        }
     }
 
     /**

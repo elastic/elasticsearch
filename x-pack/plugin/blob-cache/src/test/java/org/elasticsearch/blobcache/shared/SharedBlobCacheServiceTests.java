@@ -1144,7 +1144,6 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             .put(NODE_NAME_SETTING.getKey(), "node")
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSize).getStringRep())
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(cacheSize).getStringRep())
-            .put(SharedBlobCacheService.USE_FULL_REGION_SIZE.getKey(), true)
             .put("path.home", createTempDir())
             .build();
         final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
@@ -1157,7 +1156,13 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 ThreadPool.Names.GENERIC,
                 ThreadPool.Names.GENERIC,
                 BlobCacheMetrics.NOOP
-            )
+            ) {
+                @Override
+                protected int computeCacheFileRegionSize(long fileLength, int region) {
+                    // use full region
+                    return super.getRegionSize();
+                }
+            }
         ) {
             final var cacheKey = generateCacheKey();
             final var blobLength = randomLongBetween(1L, cacheSize);

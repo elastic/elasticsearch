@@ -35,7 +35,7 @@ public class BlobCacheUtils {
     /**
      * Rounds the length up so that it is aligned on the next page size (defined by SharedBytes.PAGE_SIZE). For example
      */
-    public static long toPageAlignedBytes(long length) {
+    public static long toPageAlignedSize(long length) {
         int remainder = (int) length % SharedBytes.PAGE_SIZE;
         if (remainder > 0L) {
             return length + (SharedBytes.PAGE_SIZE - remainder);

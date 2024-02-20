@@ -253,14 +253,6 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         Setting.Property.NodeScope
     );
 
-    public static final Setting<Boolean> USE_FULL_REGION_SIZE = Setting.boolSetting(
-        SHARED_CACHE_SETTINGS_PREFIX + "use_full_region_size",
-        false,
-        Setting.Property.NodeScope
-    );
-
-    private final Boolean useFullRegionSize;
-
     // used in tests
     void computeDecay() {
         if (cache instanceof LFUCache lfuCache) {
@@ -390,7 +382,6 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
 
         this.blobCacheMetrics = blobCacheMetrics;
         this.evictIncrementer = blobCacheMetrics.getEvictedCountNonZeroFrequency()::increment;
-        this.useFullRegionSize = USE_FULL_REGION_SIZE.get(settings);
     }
 
     public static long calculateCacheSize(Settings settings, long totalFsSize) {
@@ -444,16 +435,14 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         );
     }
 
-    // package private for tests
-    int computeCacheFileRegionSize(long fileLength, int region) {
-        if (useFullRegionSize) {
-            return getRegionSize();
-        }
-        // the size of the region is computed from the file length
-        return getRegionSize(fileLength, region);
-    }
-
-    private int getRegionSize(long fileLength, int region) {
+    /**
+     * Compute the size of a cache file region.
+     *
+     * @param fileLength the length of the file/blob to cache
+     * @param region the region number
+     * @return a size in bytes of the cache file region
+     */
+    protected int computeCacheFileRegionSize(long fileLength, int region) {
         assert fileLength > 0;
         final int maxRegion = getEndingRegion(fileLength);
         assert region >= 0 && region <= maxRegion : region + " - " + maxRegion;

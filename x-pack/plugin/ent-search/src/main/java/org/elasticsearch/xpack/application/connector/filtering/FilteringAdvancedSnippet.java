@@ -15,12 +15,12 @@ import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.application.connector.ConnectorUtils;
 
 import java.io.IOException;
 import java.time.Instant;
-import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
@@ -34,18 +34,14 @@ public class FilteringAdvancedSnippet implements Writeable, ToXContentObject {
 
     private final Instant advancedSnippetCreatedAt;
     private final Instant advancedSnippetUpdatedAt;
-    private final Map<String, Object> advancedSnippetValue;
+    private final Object advancedSnippetValue;
 
     /**
      * @param advancedSnippetCreatedAt The creation timestamp of the advanced snippet.
      * @param advancedSnippetUpdatedAt The update timestamp of the advanced snippet.
      * @param advancedSnippetValue     The value of the advanced snippet.
      */
-    private FilteringAdvancedSnippet(
-        Instant advancedSnippetCreatedAt,
-        Instant advancedSnippetUpdatedAt,
-        Map<String, Object> advancedSnippetValue
-    ) {
+    private FilteringAdvancedSnippet(Instant advancedSnippetCreatedAt, Instant advancedSnippetUpdatedAt, Object advancedSnippetValue) {
         this.advancedSnippetCreatedAt = advancedSnippetCreatedAt;
         this.advancedSnippetUpdatedAt = advancedSnippetUpdatedAt;
         this.advancedSnippetValue = advancedSnippetValue;
@@ -54,7 +50,7 @@ public class FilteringAdvancedSnippet implements Writeable, ToXContentObject {
     public FilteringAdvancedSnippet(StreamInput in) throws IOException {
         this.advancedSnippetCreatedAt = in.readInstant();
         this.advancedSnippetUpdatedAt = in.readInstant();
-        this.advancedSnippetValue = in.readMap(StreamInput::readString, StreamInput::readGenericValue);
+        this.advancedSnippetValue = in.readGenericValue();
     }
 
     private static final ParseField CREATED_AT_FIELD = new ParseField("created_at");
@@ -67,7 +63,7 @@ public class FilteringAdvancedSnippet implements Writeable, ToXContentObject {
         true,
         args -> new Builder().setAdvancedSnippetCreatedAt((Instant) args[0])
             .setAdvancedSnippetUpdatedAt((Instant) args[1])
-            .setAdvancedSnippetValue((Map<String, Object>) args[2])
+            .setAdvancedSnippetValue(args[2])
             .build()
     );
 
@@ -84,7 +80,14 @@ public class FilteringAdvancedSnippet implements Writeable, ToXContentObject {
             UPDATED_AT_FIELD,
             ObjectParser.ValueType.STRING
         );
-        PARSER.declareField(constructorArg(), (p, c) -> p.map(), VALUE_FIELD, ObjectParser.ValueType.OBJECT);
+        PARSER.declareField(constructorArg(), (p, c) -> {
+            if (p.currentToken() == XContentParser.Token.START_ARRAY) {
+                return p.list();
+            } else if (p.currentToken() == XContentParser.Token.START_OBJECT) {
+                return p.map();
+            }
+            throw new XContentParseException("Unsupported token [" + p.currentToken() + "]. Expected an array or an object.");
+        }, VALUE_FIELD, ObjectParser.ValueType.OBJECT_ARRAY);
     }
 
     @Override
@@ -107,7 +110,7 @@ public class FilteringAdvancedSnippet implements Writeable, ToXContentObject {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeInstant(advancedSnippetCreatedAt);
         out.writeInstant(advancedSnippetUpdatedAt);
-        out.writeMap(advancedSnippetValue, StreamOutput::writeString, StreamOutput::writeGenericValue);
+        out.writeGenericValue(advancedSnippetValue);
     }
 
     @Override
@@ -129,7 +132,7 @@ public class FilteringAdvancedSnippet implements Writeable, ToXContentObject {
 
         private Instant advancedSnippetCreatedAt;
         private Instant advancedSnippetUpdatedAt;
-        private Map<String, Object> advancedSnippetValue;
+        private Object advancedSnippetValue;
 
         public Builder setAdvancedSnippetCreatedAt(Instant advancedSnippetCreatedAt) {
             this.advancedSnippetCreatedAt = advancedSnippetCreatedAt;
@@ -141,7 +144,7 @@ public class FilteringAdvancedSnippet implements Writeable, ToXContentObject {
             return this;
         }
 
-        public Builder setAdvancedSnippetValue(Map<String, Object> advancedSnippetValue) {
+        public Builder setAdvancedSnippetValue(Object advancedSnippetValue) {
             this.advancedSnippetValue = advancedSnippetValue;
             return this;
         }

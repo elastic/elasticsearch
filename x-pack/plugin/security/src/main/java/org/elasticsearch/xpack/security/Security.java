@@ -126,6 +126,7 @@ import org.elasticsearch.xpack.core.security.action.apikey.GrantApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.UpdateApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.UpdateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.UpdateCrossClusterApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.enrollment.KibanaEnrollmentAction;
 import org.elasticsearch.xpack.core.security.action.enrollment.NodeEnrollmentAction;
@@ -562,6 +563,7 @@ public class Security extends Plugin
     private final SetOnce<OperatorOnlyRegistry> operatorOnlyRegistry = new SetOnce<>();
     private final SetOnce<PutRoleRequestBuilderFactory> putRoleRequestBuilderFactory = new SetOnce<>();
     private final SetOnce<GetBuiltinPrivilegesResponseTranslator> getBuiltinPrivilegesResponseTranslator = new SetOnce<>();
+    private final SetOnce<UpdateApiKeyRequest.RequestTranslator> updateApiKeyRequestTranslator = new SetOnce<>();
     private final SetOnce<FileRolesStore> fileRolesStore = new SetOnce<>();
     private final SetOnce<OperatorPrivileges.OperatorPrivilegesService> operatorPrivilegesService = new SetOnce<>();
     private final SetOnce<ReservedRoleMappingAction> reservedRoleMappingAction = new SetOnce<>();
@@ -824,6 +826,10 @@ public class Security extends Plugin
 
         if (getBuiltinPrivilegesResponseTranslator.get() == null) {
             getBuiltinPrivilegesResponseTranslator.set(new GetBuiltinPrivilegesResponseTranslator.Default());
+        }
+
+        if (updateApiKeyRequestTranslator.get() == null) {
+            updateApiKeyRequestTranslator.set(new UpdateApiKeyRequest.RequestTranslator.Default());
         }
 
         final Map<String, List<BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>>>> customRoleProviders = new LinkedHashMap<>();
@@ -1458,7 +1464,7 @@ public class Security extends Plugin
             new RestDeletePrivilegesAction(settings, getLicenseState()),
             new RestCreateApiKeyAction(settings, getLicenseState()),
             new RestCreateCrossClusterApiKeyAction(settings, getLicenseState()),
-            new RestUpdateApiKeyAction(settings, getLicenseState()),
+            new RestUpdateApiKeyAction(settings, getLicenseState(), updateApiKeyRequestTranslator.get()),
             new RestBulkUpdateApiKeyAction(settings, getLicenseState()),
             new RestUpdateCrossClusterApiKeyAction(settings, getLicenseState()),
             new RestGrantApiKeyAction(settings, getLicenseState()),

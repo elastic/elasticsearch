@@ -34,7 +34,7 @@ public class RestUpdateApiKeyActionTests extends RestActionTestCase {
         final Settings settings = Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), true).build();
         final XPackLicenseState licenseState = mock(XPackLicenseState.class);
         requestHolder = new AtomicReference<>();
-        restAction = new RestUpdateApiKeyAction(settings, licenseState);
+        restAction = new RestUpdateApiKeyAction(settings, licenseState, new UpdateApiKeyRequest.RequestTranslator.Default());
         controller().registerHandler(restAction);
         verifyingClient.setExecuteVerifier(((actionType, actionRequest) -> {
             assertThat(actionRequest, instanceOf(UpdateApiKeyRequest.class));

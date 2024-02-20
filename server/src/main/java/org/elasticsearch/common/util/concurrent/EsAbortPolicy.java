@@ -13,20 +13,27 @@ import java.util.concurrent.ThreadPoolExecutor;
 public class EsAbortPolicy extends EsRejectedExecutionHandler {
 
     @Override
-    public void rejectedExecution(Runnable task, ThreadPoolExecutor executor) {
-        if (executor.isShutdown() == false && task instanceof AbstractRunnable r && r.isForceExecution()) {
-            if (executor.getQueue() instanceof SizeBlockingQueue<Runnable> sizeBlockingQueue) {
-                try {
-                    sizeBlockingQueue.forcePut(task);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    throw new IllegalStateException("forced execution, but got interrupted", e);
+    public void rejectedExecution(Runnable r, ThreadPoolExecutor executor) {
+        if (executor.isShutdown() == false && r instanceof AbstractRunnable abstractRunnable) {
+            if (abstractRunnable.isForceExecution()) {
+                if (executor.getQueue() instanceof SizeBlockingQueue<Runnable> sizeBlockingQueue) {
+                    try {
+                        sizeBlockingQueue.forcePut(r);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        throw new IllegalStateException("forced execution, but got interrupted", e);
+                    }
+                    // we need to check again the executor state as it might have been concurrently shut down; in this case
+                    // the executor's workers are shutting down and might have already picked up the task for execution.
+                    if (executor.isShutdown() == false || sizeBlockingQueue.remove(r) == false) {
+                        return;
+                    }
+                } else {
+                    throw new IllegalStateException("expected but did not find SizeBlockingQueue: " + executor);
                 }
-            } else {
-                throw new IllegalStateException("expected but did not find SizeBlockingQueue: " + executor);
             }
         }
         incrementRejections();
-        throw newRejectedException(task, executor, executor.isShutdown());
+        throw newRejectedException(r, executor, executor.isShutdown());
     }
 }

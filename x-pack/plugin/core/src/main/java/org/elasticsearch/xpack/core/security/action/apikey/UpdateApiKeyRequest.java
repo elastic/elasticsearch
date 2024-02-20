@@ -17,6 +17,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
@@ -54,8 +55,7 @@ public final class UpdateApiKeyRequest extends BaseSingleUpdateApiKeyRequest {
                 try {
                     return RoleDescriptor.parse(n, p, false);
                 } catch (IOException e) {
-                    // TODO
-                    throw new RuntimeException(e);
+                    throw new UncheckedIOException(e);
                 }
             });
 

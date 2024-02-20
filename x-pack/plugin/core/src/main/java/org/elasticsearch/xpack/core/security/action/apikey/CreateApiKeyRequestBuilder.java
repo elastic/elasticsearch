@@ -20,8 +20,10 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiFunction;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -31,28 +33,37 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  */
 public class CreateApiKeyRequestBuilder extends ActionRequestBuilder<CreateApiKeyRequest, CreateApiKeyResponse> {
 
+    private static final ConstructingObjectParser<CreateApiKeyRequest, Void> PARSER = initParser((n, p) -> {
+        try {
+            return RoleDescriptor.parse(n, p, false);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    });
+
     @SuppressWarnings("unchecked")
-    static final ConstructingObjectParser<CreateApiKeyRequest, Void> PARSER = new ConstructingObjectParser<>(
-        "api_key_request",
-        false,
-        (args, v) -> {
-            return new CreateApiKeyRequest(
+    protected static ConstructingObjectParser<CreateApiKeyRequest, Void> initParser(
+        BiFunction<String, XContentParser, RoleDescriptor> roleDescriptorParser
+    ) {
+        ConstructingObjectParser<CreateApiKeyRequest, Void> parser = new ConstructingObjectParser<>(
+            "api_key_request",
+            false,
+            (args, v) -> new CreateApiKeyRequest(
                 (String) args[0],
                 (List<RoleDescriptor>) args[1],
                 TimeValue.parseTimeValue((String) args[2], null, "expiration"),
                 (Map<String, Object>) args[3]
-            );
-        }
-    );
+            )
+        );
 
-    static {
-        PARSER.declareString(constructorArg(), new ParseField("name"));
-        PARSER.declareNamedObjects(optionalConstructorArg(), (p, c, n) -> {
+        parser.declareString(constructorArg(), new ParseField("name"));
+        parser.declareNamedObjects(optionalConstructorArg(), (p, c, n) -> {
             p.nextToken();
-            return RoleDescriptor.parse(n, p, false);
+            return roleDescriptorParser.apply(n, p);
         }, new ParseField("role_descriptors"));
-        PARSER.declareString(optionalConstructorArg(), new ParseField("expiration"));
-        PARSER.declareObject(optionalConstructorArg(), (p, c) -> p.map(), new ParseField("metadata"));
+        parser.declareString(optionalConstructorArg(), new ParseField("expiration"));
+        parser.declareObject(optionalConstructorArg(), (p, c) -> p.map(), new ParseField("metadata"));
+        return parser;
     }
 
     public CreateApiKeyRequestBuilder(ElasticsearchClient client) {

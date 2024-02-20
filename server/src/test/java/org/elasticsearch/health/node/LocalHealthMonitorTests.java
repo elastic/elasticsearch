@@ -27,6 +27,7 @@ import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.health.HealthFeatures;
 import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.health.metadata.HealthMetadata;
+import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.health.node.tracker.HealthTracker;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -36,6 +37,7 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -45,12 +47,15 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class LocalHealthMonitorTests extends ESTestCase {
 
     private static final DiskHealthInfo GREEN = new DiskHealthInfo(HealthStatus.GREEN, null);
+    private static final DiskHealthInfo YELLOW = new DiskHealthInfo(HealthStatus.YELLOW, null);
+    private static final DiskHealthInfo RED = new DiskHealthInfo(HealthStatus.RED, null);
     private static ThreadPool threadPool;
     private ClusterService clusterService;
     private DiscoveryNode node;
@@ -263,7 +268,7 @@ public class LocalHealthMonitorTests extends ESTestCase {
 
         var requestCounter = new AtomicInteger();
         doAnswer(invocation -> {
-            DiskHealthInfo diskHealthInfo = ((UpdateHealthInfoCacheAction.Request) invocation.getArgument(1)).getDiskHealthInfo();
+            var diskHealthInfo = ((UpdateHealthInfoCacheAction.Request) invocation.getArgument(1)).getDiskHealthInfo();
             assertThat(diskHealthInfo, equalTo(GREEN));
             var currentValue = requestCounter.incrementAndGet();
             if (currentValue == 1) {
@@ -280,8 +285,102 @@ public class LocalHealthMonitorTests extends ESTestCase {
         assertBusy(() -> assertThat(requestCounter.get(), equalTo(2)));
     }
 
+    /**
+     * The aim of this test is to rapidly fire off a series of state changes and make sure that the health node in the last cluster
+     * state actually gets the health info.
+     */
+    public void testRapidStateChanges() throws Exception {
+        ClusterState state = ClusterStateCreationUtils.state(node, node, node, new DiscoveryNode[] { node, frozenNode })
+            .copyAndUpdate(b -> b.putCustom(HealthMetadata.TYPE, healthMetadata));
+        doReturn(state).when(clusterService).state();
+
+        // Keep track of the "current" health node.
+        var currentHealthNode = new AtomicReference<>(node);
+        // Keep a list of all the health nodes that have received a request.
+        var updatedHealthNodes = new ArrayList<DiscoveryNode>();
+        doAnswer(invocation -> {
+            var diskHealthInfo = ((UpdateHealthInfoCacheAction.Request) invocation.getArgument(1)).getDiskHealthInfo();
+            assertThat(diskHealthInfo, equalTo(GREEN));
+            ActionListener<AcknowledgedResponse> listener = invocation.getArgument(2);
+            listener.onResponse(null);
+            updatedHealthNodes.add(currentHealthNode.get());
+            return null;
+        }).when(client).execute(any(), any(), any());
+
+        localHealthMonitor.setMonitorInterval(TimeValue.timeValueMillis(0));
+        localHealthMonitor.clusterChanged(new ClusterChangedEvent("start-up", state, ClusterState.EMPTY_STATE));
+
+        int count = randomIntBetween(10, 20);
+        for (int i = 0; i < count; i++) {
+            var previous = state;
+            state = mutateState(previous);
+            currentHealthNode.set(HealthNode.findHealthNode(state));
+            localHealthMonitor.clusterChanged(new ClusterChangedEvent("switch", state, previous));
+        }
+
+        var lastHealthNode = DiscoveryNodeUtils.create("health-node", "health-node");
+        var previous = state;
+        state = ClusterStateCreationUtils.state(
+            node,
+            previous.nodes().getMasterNode(),
+            lastHealthNode,
+            new DiscoveryNode[] { node, frozenNode, lastHealthNode }
+        ).copyAndUpdate(b -> b.putCustom(HealthMetadata.TYPE, healthMetadata));
+        currentHealthNode.set(lastHealthNode);
+        localHealthMonitor.clusterChanged(new ClusterChangedEvent("switch", state, previous));
+
+        assertBusy(() -> assertTrue(updatedHealthNodes.contains(lastHealthNode)));
+    }
+
+    private ClusterState mutateState(ClusterState previous) {
+        var masterNode = previous.nodes().getMasterNode();
+        var healthNode = HealthNode.findHealthNode(previous);
+        switch (randomInt(1)) {
+            case 0 -> masterNode = randomValueOtherThan(masterNode, () -> randomFrom(node, frozenNode));
+            case 1 -> healthNode = randomValueOtherThan(healthNode, () -> randomFrom(node, frozenNode));
+        }
+        return ClusterStateCreationUtils.state(node, masterNode, healthNode, new DiscoveryNode[] { node, frozenNode })
+            .copyAndUpdate(b -> b.putCustom(HealthMetadata.TYPE, healthMetadata));
+    }
+
+    /**
+     * The aim of this test is to change the health of the health tracker several times and make sure that every change is sent to the
+     * health node (especially the last change).
+     */
+    public void testChangingHealth() throws Exception {
+        // Keep a list of disk health info's that we've seen.
+        var sentHealthInfos = new ArrayList<DiskHealthInfo>();
+        doAnswer(invocation -> {
+            var diskHealthInfo = ((UpdateHealthInfoCacheAction.Request) invocation.getArgument(1)).getDiskHealthInfo();
+            ActionListener<AcknowledgedResponse> listener = invocation.getArgument(2);
+            listener.onResponse(null);
+            sentHealthInfos.add(diskHealthInfo);
+            return null;
+        }).when(client).execute(any(), any(), any());
+
+        localHealthMonitor.setMonitorInterval(TimeValue.timeValueMillis(0));
+        localHealthMonitor.clusterChanged(new ClusterChangedEvent("initialize", clusterState, ClusterState.EMPTY_STATE));
+        // Make sure the initial health value has been registered.
+        assertBusy(() -> assertFalse(sentHealthInfos.isEmpty()));
+
+        var previousHealthInfo = mockHealthTracker.healthInfo;
+        var healthChanges = new AtomicInteger(1);
+        int count = randomIntBetween(10, 20);
+        for (int i = 0; i < count; i++) {
+            var newHealthInfo = randomFrom(GREEN, YELLOW);
+            mockHealthTracker.setHealthInfo(newHealthInfo);
+            // Check whether the health node has changed. If so, we're going to wait for it to be sent to the health node.
+            healthChanges.addAndGet(newHealthInfo.equals(previousHealthInfo) ? 0 : 1);
+            assertBusy(() -> assertEquals(healthChanges.get(), sentHealthInfos.size()));
+            previousHealthInfo = newHealthInfo;
+        }
+
+        mockHealthTracker.setHealthInfo(RED);
+        assertBusy(() -> assertTrue(sentHealthInfos.contains(RED)));
+    }
+
     private static class MockHealthTracker extends HealthTracker<DiskHealthInfo> {
-        private DiskHealthInfo healthInfo = GREEN;
+        private volatile DiskHealthInfo healthInfo = GREEN;
 
         @Override
         public DiskHealthInfo checkCurrentHealth() {

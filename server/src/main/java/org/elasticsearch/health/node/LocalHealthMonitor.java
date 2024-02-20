@@ -156,15 +156,7 @@ public class LocalHealthMonitor implements ClusterStateListener {
     private void startMonitoringIfNecessary() {
         if (prerequisitesFulfilled && enabled) {
             if (isMonitorRunning() == false) {
-                monitoring = Monitoring.start(
-                    monitorInterval,
-                    threadPool,
-                    lastSeenHealthNode,
-                    healthTrackers,
-                    clusterService,
-                    client,
-                    inFlightRequest
-                );
+                monitoring = Monitoring.start(monitorInterval, threadPool, healthTrackers, clusterService, client, inFlightRequest);
                 logger.debug("Local health monitoring started {}", monitoring);
             } else {
                 logger.trace("Local health monitoring already started {}, skipping", monitoring);
@@ -187,8 +179,6 @@ public class LocalHealthMonitor implements ClusterStateListener {
             // On health node or on master node changes, the health node might be reset so the reported
             // health info gets reset to null, to ensure it will be resent.
             lastSeenHealthNode.set(currentHealthNode == null ? null : currentHealthNode.getId());
-            // Reset the reference of each HealthTracker.
-            healthTrackers.forEach(HealthTracker::reset);
             if (logger.isDebugEnabled()) {
                 String reason;
                 if (healthNodeChanged && masterNodeChanged) {
@@ -212,6 +202,8 @@ public class LocalHealthMonitor implements ClusterStateListener {
             && currentMasterNode != null;
         if (prerequisitesFulfilled == false || healthNodeChanged || masterNodeChanged) {
             stopMonitoring();
+            // Reset the reference of each HealthTracker.
+            healthTrackers.forEach(HealthTracker::reset);
         }
         if (prerequisitesFulfilled) {
             startMonitoringIfNecessary();
@@ -254,7 +246,6 @@ public class LocalHealthMonitor implements ClusterStateListener {
         private final ClusterService clusterService;
         private final Client client;
 
-        private final AtomicReference<String> lastSeenHealthNode;
         private final List<HealthTracker<?>> healthTrackers;
 
         private final AtomicReference<Boolean> inFlightRequest;
@@ -265,7 +256,6 @@ public class LocalHealthMonitor implements ClusterStateListener {
             TimeValue interval,
             Scheduler scheduler,
             Executor executor,
-            AtomicReference<String> lastSeenHealthNode,
             List<HealthTracker<?>> healthTrackers,
             ClusterService clusterService,
             Client client,
@@ -274,7 +264,6 @@ public class LocalHealthMonitor implements ClusterStateListener {
             this.interval = interval;
             this.executor = executor;
             this.scheduler = scheduler;
-            this.lastSeenHealthNode = lastSeenHealthNode;
             this.clusterService = clusterService;
             this.healthTrackers = healthTrackers;
             this.client = client;
@@ -287,7 +276,6 @@ public class LocalHealthMonitor implements ClusterStateListener {
         static Monitoring start(
             TimeValue interval,
             ThreadPool threadPool,
-            AtomicReference<String> lastSeenHealthNode,
             List<HealthTracker<?>> healthTrackers,
             ClusterService clusterService,
             Client client,
@@ -297,7 +285,6 @@ public class LocalHealthMonitor implements ClusterStateListener {
                 interval,
                 threadPool,
                 threadPool.executor(ThreadPool.Names.MANAGEMENT),
-                lastSeenHealthNode,
                 healthTrackers,
                 clusterService,
                 client,
@@ -354,18 +341,14 @@ public class LocalHealthMonitor implements ClusterStateListener {
                 List<HealthTracker.HealthProgress<?>> healthProgresses = getHealthProgresses();
                 if (healthProgresses.isEmpty()) {
                     // Next run will still be scheduled in the `finally` block.
+                    inFlightRequest.set(false);
                     return;
                 }
                 // Create builder and add the current value of each (changed) health tracker to the request.
                 var builder = new UpdateHealthInfoCacheAction.Request.Builder().nodeId(clusterService.localNode().getId());
                 healthProgresses.forEach(changedHealthInfo -> changedHealthInfo.updateRequestBuilder(builder));
 
-                var healthNodeId = lastSeenHealthNode.get();
                 var listener = ActionListener.<AcknowledgedResponse>wrap(response -> {
-                    // Don't update the latest health info if the health node has changed while this request was being processed.
-                    if (Objects.equals(healthNodeId, lastSeenHealthNode.get()) == false) {
-                        return;
-                    }
                     // Only record health progress if this monitoring instance hasn't been cancelled in the meantime.
                     // This avoids any unwanted writes to the HealthTrackers' states after a new monitoring instance has possibly
                     // already started.

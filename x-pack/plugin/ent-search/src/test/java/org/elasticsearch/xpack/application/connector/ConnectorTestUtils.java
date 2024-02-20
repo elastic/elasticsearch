@@ -48,6 +48,9 @@ import static org.elasticsearch.test.ESTestCase.randomLong;
 import static org.elasticsearch.test.ESTestCase.randomLongBetween;
 
 public final class ConnectorTestUtils {
+
+    public static final String NULL_STRING = null;
+
     public static PutConnectorAction.Request getRandomPutConnectorActionRequest() {
         return new PutConnectorAction.Request(
             randomAlphaOfLengthBetween(5, 15),
@@ -240,8 +243,16 @@ public final class ConnectorTestUtils {
 
     public static Map<String, ConnectorConfiguration> getRandomConnectorConfiguration() {
         Map<String, ConnectorConfiguration> configMap = new HashMap<>();
-        for (int i = 0; i < 3; i++) {
+        for (int i = 0; i < 5; i++) {
             configMap.put(randomAlphaOfLength(10), getRandomConnectorConfigurationField());
+        }
+        return configMap;
+    }
+
+    public static Map<String, Object> getRandomConnectorConfigurationValues() {
+        Map<String, Object> configMap = new HashMap<>();
+        for (int i = 0; i < 5; i++) {
+            configMap.put(randomAlphaOfLength(10), randomFrom(randomAlphaOfLengthBetween(3, 10), randomInt(), randomBoolean()));
         }
         return configMap;
     }

@@ -76,6 +76,9 @@
         },
         "tags": {
           "type": "keyword"
+        },
+        "service.name": {
+          "type": "keyword"
         }
       }
     }

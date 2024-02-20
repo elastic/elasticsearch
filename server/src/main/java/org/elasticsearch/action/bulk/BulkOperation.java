@@ -10,6 +10,7 @@ package org.elasticsearch.action.bulk;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -35,6 +36,8 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexClosedException;
+import org.elasticsearch.inference.InferenceServiceRegistry;
+import org.elasticsearch.inference.ModelRegistry;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -44,6 +47,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiConsumer;
 import java.util.function.LongSupplier;
 
 import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.EXCLUDED_DATA_STREAMS_KEY;
@@ -69,6 +73,8 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
     private final LongSupplier relativeTimeProvider;
     private IndexNameExpressionResolver indexNameExpressionResolver;
     private NodeClient client;
+    private final InferenceServiceRegistry inferenceServiceRegistry;
+    private final ModelRegistry modelRegistry;
 
     BulkOperation(
         Task task,
@@ -82,6 +88,8 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         IndexNameExpressionResolver indexNameExpressionResolver,
         LongSupplier relativeTimeProvider,
         long startTimeNanos,
+        ModelRegistry modelRegistry,
+        InferenceServiceRegistry inferenceServiceRegistry,
         ActionListener<BulkResponse> listener
     ) {
         super(listener);
@@ -97,6 +105,8 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         this.relativeTimeProvider = relativeTimeProvider;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.client = client;
+        this.inferenceServiceRegistry = inferenceServiceRegistry;
+        this.modelRegistry = modelRegistry;
         this.observer = new ClusterStateObserver(clusterService, bulkRequest.timeout(), logger, threadPool.getThreadContext());
     }
 
@@ -189,7 +199,30 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
             return;
         }
 
-        String nodeId = clusterService.localNode().getId();
+        BulkShardRequestInferenceProvider.getInstance(
+            inferenceServiceRegistry,
+            modelRegistry,
+            clusterState,
+            requestsByShard.keySet(),
+            new ActionListener<BulkShardRequestInferenceProvider>() {
+                @Override
+                public void onResponse(BulkShardRequestInferenceProvider bulkShardRequestInferenceProvider) {
+                    processRequestsByShards(requestsByShard, clusterState, bulkShardRequestInferenceProvider);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    throw new ElasticsearchException("Error loading inference models", e);
+                }
+            }
+        );
+    }
+
+    void processRequestsByShards(
+        Map<ShardId, List<BulkItemRequest>> requestsByShard,
+        ClusterState clusterState,
+        BulkShardRequestInferenceProvider bulkShardRequestInferenceProvider
+    ) {
         Runnable onBulkItemsComplete = () -> {
             listener.onResponse(
                 new BulkResponse(responses.toArray(new BulkItemResponse[responses.length()]), buildTookInMillis(startTimeNanos))
@@ -197,29 +230,68 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
             // Allow memory for bulk shard request items to be reclaimed before all items have been completed
             bulkRequest = null;
         };
-
         try (RefCountingRunnable bulkItemRequestCompleteRefCount = new RefCountingRunnable(onBulkItemsComplete)) {
             for (Map.Entry<ShardId, List<BulkItemRequest>> entry : requestsByShard.entrySet()) {
                 final ShardId shardId = entry.getKey();
                 final List<BulkItemRequest> requests = entry.getValue();
+                BulkShardRequest bulkShardRequest = createBulkShardRequest(clusterState, shardId, requests);
 
-                BulkShardRequest bulkShardRequest = new BulkShardRequest(
-                    shardId,
-                    bulkRequest.getRefreshPolicy(),
-                    requests.toArray(new BulkItemRequest[0])
-                );
-                bulkShardRequest.waitForActiveShards(bulkRequest.waitForActiveShards());
-                bulkShardRequest.timeout(bulkRequest.timeout());
-                bulkShardRequest.routedBasedOnClusterVersion(clusterState.version());
-                if (task != null) {
-                    bulkShardRequest.setParentTask(nodeId, task.getId());
-                }
-                executeBulkShardRequest(bulkShardRequest, bulkItemRequestCompleteRefCount.acquire());
+                Releasable ref = bulkItemRequestCompleteRefCount.acquire();
+                final BiConsumer<BulkItemRequest, Exception> bulkItemFailedListener = (itemReq, e) -> markBulkItemRequestFailed(itemReq, e);
+                bulkShardRequestInferenceProvider.processBulkShardRequest(bulkShardRequest, new ActionListener<>() {
+                    @Override
+                    public void onResponse(BulkShardRequest inferenceBulkShardRequest) {
+                        executeBulkShardRequest(
+                            inferenceBulkShardRequest,
+                            ActionListener.releaseAfter(ActionListener.noop(), ref),
+                            bulkItemFailedListener
+                        );
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        throw new ElasticsearchException("Error performing inference", e);
+                    }
+                }, bulkItemFailedListener);
             }
         }
     }
 
-    private void executeBulkShardRequest(BulkShardRequest bulkShardRequest, Releasable releaseOnFinish) {
+    private BulkShardRequest createBulkShardRequest(ClusterState clusterState, ShardId shardId, List<BulkItemRequest> requests) {
+        BulkShardRequest bulkShardRequest = new BulkShardRequest(
+            shardId,
+            bulkRequest.getRefreshPolicy(),
+            requests.toArray(new BulkItemRequest[0])
+        );
+        bulkShardRequest.waitForActiveShards(bulkRequest.waitForActiveShards());
+        bulkShardRequest.timeout(bulkRequest.timeout());
+        bulkShardRequest.routedBasedOnClusterVersion(clusterState.version());
+        if (task != null) {
+            bulkShardRequest.setParentTask(clusterService.localNode().getId(), task.getId());
+        }
+        return bulkShardRequest;
+    }
+
+    // When an item fails, store the failure in the responses array
+    private void markBulkItemRequestFailed(BulkItemRequest itemRequest, Exception e) {
+        final String indexName = itemRequest.index();
+
+        DocWriteRequest<?> docWriteRequest = itemRequest.request();
+        BulkItemResponse.Failure failure = new BulkItemResponse.Failure(indexName, docWriteRequest.id(), e);
+        responses.set(itemRequest.id(), BulkItemResponse.failure(itemRequest.id(), docWriteRequest.opType(), failure));
+    }
+
+    private void executeBulkShardRequest(
+        BulkShardRequest bulkShardRequest,
+        ActionListener<BulkShardRequest> listener,
+        BiConsumer<BulkItemRequest, Exception> bulkItemErrorListener
+    ) {
+        if (bulkShardRequest.items().length == 0) {
+            // No requests to execute due to previous errors, terminate early
+            listener.onResponse(bulkShardRequest);
+            return;
+        }
+
         client.executeLocally(TransportShardBulkAction.TYPE, bulkShardRequest, new ActionListener<>() {
             @Override
             public void onResponse(BulkShardResponse bulkShardResponse) {
@@ -230,19 +302,17 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                     }
                     responses.set(bulkItemResponse.getItemId(), bulkItemResponse);
                 }
-                releaseOnFinish.close();
+                listener.onResponse(bulkShardRequest);
             }
 
             @Override
             public void onFailure(Exception e) {
                 // create failures for all relevant requests
-                for (BulkItemRequest request : bulkShardRequest.items()) {
-                    final String indexName = request.index();
-                    DocWriteRequest<?> docWriteRequest = request.request();
-                    BulkItemResponse.Failure failure = new BulkItemResponse.Failure(indexName, docWriteRequest.id(), e);
-                    responses.set(request.id(), BulkItemResponse.failure(request.id(), docWriteRequest.opType(), failure));
+                BulkItemRequest[] items = bulkShardRequest.items();
+                for (BulkItemRequest item : items) {
+                    bulkItemErrorListener.accept(item, e);
                 }
-                releaseOnFinish.close();
+                listener.onFailure(e);
             }
         });
     }

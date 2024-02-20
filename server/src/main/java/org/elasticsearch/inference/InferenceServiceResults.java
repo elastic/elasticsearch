@@ -29,12 +29,15 @@ public interface InferenceServiceResults extends NamedWriteable, ToXContentFragm
 
     /**
      * Transform the result to match the format required for versions prior to
-     * {@link org.elasticsearch.TransportVersions#INFERENCE_SERVICE_RESULTS_ADDED}
+     * {@link org.elasticsearch.TransportVersions#V_8_12_0}
      */
     List<? extends InferenceResults> transformToLegacyFormat();
 
     /**
-     * Convert the result to a map to aid with test assertions
+     * Retrieves a map representation of the results. It should be equivalent to parsing the
+     * XContent representation of the results.
+     *
+     * @return the results as a map
      */
     Map<String, Object> asMap();
 }

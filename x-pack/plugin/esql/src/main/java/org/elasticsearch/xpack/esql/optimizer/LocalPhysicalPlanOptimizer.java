@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.optimizer;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.InsensitiveBinaryComparison;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.NotEquals;
@@ -31,8 +32,6 @@ import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 import org.elasticsearch.xpack.esql.planner.AbstractPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.EsqlTranslatorHandler;
-import org.elasticsearch.xpack.esql.planner.PhysicalVerificationException;
-import org.elasticsearch.xpack.esql.planner.PhysicalVerifier;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.elasticsearch.xpack.ql.common.Failure;
 import org.elasticsearch.xpack.ql.expression.Alias;
@@ -83,7 +82,7 @@ import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.TransformDirec
 public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPlan, LocalPhysicalOptimizerContext> {
     public static final EsqlTranslatorHandler TRANSLATOR_HANDLER = new EsqlTranslatorHandler();
 
-    private final PhysicalVerifier verifier = new PhysicalVerifier();
+    private final PhysicalVerifier verifier = PhysicalVerifier.INSTANCE;
 
     public LocalPhysicalPlanOptimizer(LocalPhysicalOptimizerContext context) {
         super(context);
@@ -96,7 +95,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
     PhysicalPlan verify(PhysicalPlan plan) {
         Collection<Failure> failures = verifier.verify(plan);
         if (failures.isEmpty() == false) {
-            throw new PhysicalVerificationException(failures);
+            throw new VerificationException(failures);
         }
         return plan;
     }
@@ -472,12 +471,16 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
                 }
                 if (exec instanceof FieldExtractExec fieldExtractExec) {
                     // Tell the field extractor that it should extract the field from doc-values instead of source values
+                    var attributesToExtract = fieldExtractExec.attributesToExtract();
+                    Set<Attribute> docValuesAttributes = new HashSet<>();
                     for (Attribute found : foundAttributes) {
-                        if (fieldExtractExec.attributesToExtract().contains(found)) {
-                            fieldExtractExec = fieldExtractExec.preferDocValues(found);
+                        if (attributesToExtract.contains(found)) {
+                            docValuesAttributes.add(found);
                         }
                     }
-                    exec = fieldExtractExec;
+                    if (docValuesAttributes.size() > 0) {
+                        exec = new FieldExtractExec(exec.source(), exec.child(), attributesToExtract, docValuesAttributes);
+                    }
                 }
                 return exec;
             });

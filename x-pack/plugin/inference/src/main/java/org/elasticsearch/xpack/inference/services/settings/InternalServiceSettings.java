@@ -11,6 +11,7 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 
@@ -81,6 +82,11 @@ public abstract class InternalServiceSettings implements ServiceSettings {
         builder.field(MODEL_ID, getModelId());
         builder.endObject();
         return builder;
+    }
+
+    @Override
+    public ToXContentObject getFilteredXContentObject() {
+        return this;
     }
 
     @Override

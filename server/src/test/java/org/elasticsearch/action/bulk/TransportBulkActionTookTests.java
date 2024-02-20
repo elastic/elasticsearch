@@ -139,13 +139,13 @@ public class TransportBulkActionTookTests extends ESTestCase {
                     Task task,
                     BulkRequest bulkRequest,
                     long startTimeNanos,
-                    ActionListener<BulkResponse> listener,
                     String executorName,
                     AtomicArray<BulkItemResponse> responses,
-                    Map<String, IndexNotFoundException> indicesThatCannotBeCreated
+                    Map<String, IndexNotFoundException> indicesThatCannotBeCreated,
+                    ActionListener<BulkResponse> listener
                 ) {
                     expected.set(1000000);
-                    super.executeBulk(task, bulkRequest, startTimeNanos, listener, executorName, responses, indicesThatCannotBeCreated);
+                    super.executeBulk(task, bulkRequest, startTimeNanos, executorName, responses, indicesThatCannotBeCreated, listener);
                 }
             };
         } else {
@@ -164,14 +164,14 @@ public class TransportBulkActionTookTests extends ESTestCase {
                     Task task,
                     BulkRequest bulkRequest,
                     long startTimeNanos,
-                    ActionListener<BulkResponse> listener,
                     String executorName,
                     AtomicArray<BulkItemResponse> responses,
-                    Map<String, IndexNotFoundException> indicesThatCannotBeCreated
+                    Map<String, IndexNotFoundException> indicesThatCannotBeCreated,
+                    ActionListener<BulkResponse> listener
                 ) {
                     long elapsed = spinForAtLeastOneMillisecond();
                     expected.set(elapsed);
-                    super.executeBulk(task, bulkRequest, startTimeNanos, listener, executorName, responses, indicesThatCannotBeCreated);
+                    super.executeBulk(task, bulkRequest, startTimeNanos, executorName, responses, indicesThatCannotBeCreated, listener);
                 }
             };
         }
@@ -253,7 +253,9 @@ public class TransportBulkActionTookTests extends ESTestCase {
                 indexNameExpressionResolver,
                 new IndexingPressure(Settings.EMPTY),
                 EmptySystemIndices.INSTANCE,
-                relativeTimeProvider
+                relativeTimeProvider,
+                null,
+                null
             );
         }
     }

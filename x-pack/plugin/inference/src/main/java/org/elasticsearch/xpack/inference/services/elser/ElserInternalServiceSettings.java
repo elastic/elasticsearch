@@ -69,20 +69,8 @@ public class ElserInternalServiceSettings extends InternalServiceSettings {
         super(
             in.readVInt(),
             in.readVInt(),
-            transportVersionIsCompatibleWithElserModelVersion(in.getTransportVersion())
-                ? in.readString()
-                : ElserInternalService.ELSER_V2_MODEL
+            in.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X) ? in.readString() : ElserInternalService.ELSER_V2_MODEL
         );
-    }
-
-    static boolean transportVersionIsCompatibleWithElserModelVersion(TransportVersion transportVersion) {
-        var nextNonPatchVersion = TransportVersions.PLUGIN_DESCRIPTOR_OPTIONAL_CLASSNAME;
-
-        if (transportVersion.onOrAfter(TransportVersions.ELSER_SERVICE_MODEL_VERSION_ADDED)) {
-            return true;
-        } else {
-            return transportVersion.onOrAfter(TransportVersions.V_8_11_X) && transportVersion.before(nextNonPatchVersion);
-        }
     }
 
     @Override
@@ -99,7 +87,7 @@ public class ElserInternalServiceSettings extends InternalServiceSettings {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(getNumAllocations());
         out.writeVInt(getNumThreads());
-        if (transportVersionIsCompatibleWithElserModelVersion(out.getTransportVersion())) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
             out.writeString(getModelId());
         }
     }
@@ -118,5 +106,4 @@ public class ElserInternalServiceSettings extends InternalServiceSettings {
             && getNumThreads() == that.getNumThreads()
             && Objects.equals(getModelId(), that.getModelId());
     }
-
 }

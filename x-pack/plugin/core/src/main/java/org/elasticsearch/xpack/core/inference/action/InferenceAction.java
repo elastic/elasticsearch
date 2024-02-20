@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -56,6 +57,12 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             PARSER.declareStringArray(Request.Builder::setInput, INPUT);
             PARSER.declareObject(Request.Builder::setTaskSettings, (p, c) -> p.mapOrdered(), TASK_SETTINGS);
         }
+
+        private static final EnumSet<InputType> validEnumsBeforeUnspecifiedAdded = EnumSet.of(InputType.INGEST, InputType.SEARCH);
+        private static final EnumSet<InputType> validEnumsBeforeClassificationClusteringAdded = EnumSet.range(
+            InputType.INGEST,
+            InputType.UNSPECIFIED
+        );
 
         public static Request parseRequest(String inferenceEntityId, TaskType taskType, XContentParser parser) {
             Request.Builder builder = PARSER.apply(parser, null);
@@ -90,7 +97,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             super(in);
             this.taskType = TaskType.fromStream(in);
             this.inferenceEntityId = in.readString();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_MULTIPLE_INPUTS)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
                 this.input = in.readStringCollectionAsList();
             } else {
                 this.input = List.of(in.readString());
@@ -143,7 +150,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             super.writeTo(out);
             taskType.writeTo(out);
             out.writeString(inferenceEntityId);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_MULTIPLE_INPUTS)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
                 out.writeStringCollection(input);
             } else {
                 out.writeString(input.get(0));
@@ -152,16 +159,20 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             // in version ML_INFERENCE_REQUEST_INPUT_TYPE_ADDED the input type enum was added, so we only want to write the enum if we're
             // at that version or later
             if (out.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_REQUEST_INPUT_TYPE_ADDED)) {
-                out.writeEnum(getInputTypeToWrite(out.getTransportVersion()));
+                out.writeEnum(getInputTypeToWrite(inputType, out.getTransportVersion()));
             }
         }
 
-        private InputType getInputTypeToWrite(TransportVersion version) {
-            // in version ML_INFERENCE_REQUEST_INPUT_TYPE_UNSPECIFIED_ADDED the UNSPECIFIED value was added, so if we're before that
-            // version other nodes won't know about it, so set it to INGEST instead
-            if (version.before(TransportVersions.ML_INFERENCE_REQUEST_INPUT_TYPE_UNSPECIFIED_ADDED) && inputType == InputType.UNSPECIFIED) {
+        // default for easier testing
+        static InputType getInputTypeToWrite(InputType inputType, TransportVersion version) {
+            if (version.before(TransportVersions.ML_INFERENCE_REQUEST_INPUT_TYPE_UNSPECIFIED_ADDED)
+                && validEnumsBeforeUnspecifiedAdded.contains(inputType) == false) {
                 return InputType.INGEST;
-            }
+            } else if (version.before(TransportVersions.ML_INFERENCE_REQUEST_INPUT_TYPE_CLASS_CLUSTER_ADDED)
+                && validEnumsBeforeClassificationClusteringAdded.contains(inputType) == false) {
+                    return InputType.UNSPECIFIED;
+                }
+
             return inputType;
         }
 
@@ -233,12 +244,8 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_SERVICE_RESULTS_ADDED)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
                 results = in.readNamedWriteable(InferenceServiceResults.class);
-            } else if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_MULTIPLE_INPUTS)) {
-                // This could be List<InferenceResults> aka List<TextEmbeddingResults> from ml plugin for
-                // hugging face elser and elser or the legacy format for openai
-                results = transformToServiceResults(in.readNamedWriteableCollectionAsList(InferenceResults.class));
             } else {
                 // It should only be InferenceResults aka TextEmbeddingResults from ml plugin for
                 // hugging face elser and elser
@@ -299,11 +306,8 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_SERVICE_RESULTS_ADDED)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
                 out.writeNamedWriteable(results);
-            } else if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_MULTIPLE_INPUTS)) {
-                // This includes the legacy openai response format of List<TextEmbedding> and hugging face elser and elser
-                out.writeNamedWriteableCollection(results.transformToLegacyFormat());
             } else {
                 out.writeNamedWriteable(results.transformToLegacyFormat().get(0));
             }

@@ -544,7 +544,6 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
          * @param aliases        List containing any matching aliases
          * @param dataStreams    List containing any matching data streams
          */
-        // visible for testing
         static void resolveIndices(
             String[] names,
             IndicesOptions indicesOptions,
@@ -655,6 +654,5 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             SYSTEM,
             FROZEN
         }
-
     }
 }

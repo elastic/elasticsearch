@@ -13,6 +13,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
 import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.LeafReader;
@@ -143,6 +144,7 @@ import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
 import org.elasticsearch.plugins.IndexStorePlugin;
+import org.elasticsearch.plugins.internal.DocumentSizeObserver;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.rest.RestStatus;
@@ -223,6 +225,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final ReplicationTracker replicationTracker;
     private final IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier;
     private final Engine.IndexCommitListener indexCommitListener;
+    private FieldInfos fieldInfos;
+    // sys prop to disable the field has value feature, defaults to true (enabled) if set to false (disabled) the
+    // field caps always returns empty fields ignoring the value of the query param `field_caps_empty_fields_filter`.
+    private final boolean enableFieldHasValue = Booleans.parseBoolean(
+        System.getProperty("es.field_caps_empty_fields_filter", Boolean.TRUE.toString())
+    );
 
     protected volatile ShardRouting shardRouting;
     protected volatile IndexShardState state;
@@ -281,6 +289,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final AtomicLong lastSearcherAccess = new AtomicLong();
     private final AtomicReference<Translog.Location> pendingRefreshLocation = new AtomicReference<>();
     private final RefreshPendingLocationListener refreshPendingLocationListener;
+    private final RefreshFieldHasValueListener refreshFieldHasValueListener;
     private volatile boolean useRetentionLeasesInPeerRecovery;
     private final LongSupplier relativeTimeInNanosSupplier;
     private volatile long startedRelativeTimeInNanos;
@@ -396,8 +405,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         persistMetadata(path, indexSettings, shardRouting, null, logger);
         this.useRetentionLeasesInPeerRecovery = replicationTracker.hasAllPeerRecoveryRetentionLeases();
         this.refreshPendingLocationListener = new RefreshPendingLocationListener();
+        this.refreshFieldHasValueListener = new RefreshFieldHasValueListener();
         this.relativeTimeInNanosSupplier = relativeTimeInNanosSupplier;
         this.indexCommitListener = indexCommitListener;
+        this.fieldInfos = FieldInfos.EMPTY;
     }
 
     public ThreadPool getThreadPool() {
@@ -983,8 +994,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             verifyNotClosed(e);
             return new Engine.IndexResult(e, version, opPrimaryTerm, seqNo, sourceToParse.id());
         }
-
         return index(engine, operation);
+    }
+
+    public void setFieldInfos(FieldInfos fieldInfos) {
+        this.fieldInfos = fieldInfos;
+    }
+
+    public FieldInfos getFieldInfos() {
+        return fieldInfos;
     }
 
     public static Engine.Index prepareIndex(
@@ -1212,15 +1230,33 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public Engine.GetResult get(Engine.Get get) {
-        return innerGet(get, false);
+        return innerGet(get, false, this::wrapSearcher);
+    }
+
+    /**
+     * Invokes the consumer with a {@link MultiEngineGet} that can perform multiple engine gets without wrapping searchers multiple times.
+     * Callers must not pass the provided {@link MultiEngineGet} to other threads.
+     */
+    public void mget(Consumer<MultiEngineGet> mgetter) {
+        final MultiEngineGet mget = new MultiEngineGet(this::wrapSearcher) {
+            @Override
+            public GetResult get(Engine.Get get) {
+                return innerGet(get, false, this::wrapSearchSearchWithCache);
+            }
+        };
+        try {
+            mgetter.accept(mget);
+        } finally {
+            mget.releaseCachedSearcher();
+        }
     }
 
     public Engine.GetResult getFromTranslog(Engine.Get get) {
         assert get.realtime();
-        return innerGet(get, true);
+        return innerGet(get, true, this::wrapSearcher);
     }
 
-    private Engine.GetResult innerGet(Engine.Get get, boolean translogOnly) {
+    private Engine.GetResult innerGet(Engine.Get get, boolean translogOnly, Function<Engine.Searcher, Engine.Searcher> searcherWrapper) {
         readAllowed();
         MappingLookup mappingLookup = mapperService.mappingLookup();
         if (mappingLookup.hasMappings() == false) {
@@ -1230,9 +1266,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             throw new IllegalStateException("get operations not allowed on a legacy index");
         }
         if (translogOnly) {
-            return getEngine().getFromTranslog(get, mappingLookup, mapperService.documentParser(), this::wrapSearcher);
+            return getEngine().getFromTranslog(get, mappingLookup, mapperService.documentParser(), searcherWrapper);
         }
-        return getEngine().get(get, mappingLookup, mapperService.documentParser(), this::wrapSearcher);
+        return getEngine().get(get, mappingLookup, mapperService.documentParser(), searcherWrapper);
     }
 
     /**
@@ -1921,7 +1957,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         XContentHelper.xContentType(index.source()),
                         index.routing(),
                         Map.of(),
-                        false
+                        DocumentSizeObserver.EMPTY_INSTANCE
                     )
                 );
             }
@@ -3415,7 +3451,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             cachingPolicy,
             translogConfig,
             IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING.get(indexSettings.getSettings()),
-            List.of(refreshListeners, refreshPendingLocationListener),
+            List.of(refreshListeners, refreshPendingLocationListener, refreshFieldHasValueListener),
             Collections.singletonList(new RefreshMetricUpdater(refreshMetric)),
             indexSort,
             circuitBreakerService,
@@ -3965,6 +4001,22 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         return pendingLocation;
                     }
                 });
+            }
+        }
+    }
+
+    private class RefreshFieldHasValueListener implements ReferenceManager.RefreshListener {
+        @Override
+        public void beforeRefresh() {}
+
+        @Override
+        public void afterRefresh(boolean didRefresh) {
+            if (enableFieldHasValue) {
+                try (Engine.Searcher hasValueSearcher = getEngine().acquireSearcher("field_has_value")) {
+                    setFieldInfos(FieldInfos.getMergedFieldInfos(hasValueSearcher.getIndexReader()));
+                } catch (AlreadyClosedException ignore) {
+                    // engine is closed - no updated FieldInfos is fine
+                }
             }
         }
     }

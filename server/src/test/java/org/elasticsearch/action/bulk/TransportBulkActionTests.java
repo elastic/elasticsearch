@@ -98,7 +98,9 @@ public class TransportBulkActionTests extends ESTestCase {
                 new ActionFilters(Collections.emptySet()),
                 new Resolver(),
                 new IndexingPressure(Settings.EMPTY),
-                EmptySystemIndices.INSTANCE
+                EmptySystemIndices.INSTANCE,
+                null,
+                null
             );
         }
 

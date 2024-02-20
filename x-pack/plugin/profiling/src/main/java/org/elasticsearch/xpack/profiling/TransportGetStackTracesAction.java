@@ -33,7 +33,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.countedterms.CountedTermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.sampler.random.RandomSamplerAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
@@ -148,10 +148,10 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
         licenseChecker.requireSupportedLicense();
         GetStackTracesResponseBuilder responseBuilder = new GetStackTracesResponseBuilder(request);
         Client client = new ParentTaskAssigningClient(this.nodeClient, transportService.getLocalNode(), submitTask);
-        if (request.getIndices() == null) {
-            searchProfilingEvents(submitTask, client, request, submitListener, responseBuilder);
-        } else {
+        if (request.isUserProvidedIndices()) {
             searchGenericEvents(submitTask, client, request, submitListener, responseBuilder);
+        } else {
+            searchProfilingEvents(submitTask, client, request, submitListener, responseBuilder);
         }
     }
 
@@ -242,7 +242,11 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
                     request.getIndices(),
                     responseBuilder.getSamplingRate()
                 );
-                searchGenericEventGroupedByStackTrace(submitTask, client, request, submitListener, responseBuilder);
+                if (sampleCount > 0) {
+                    searchGenericEventGroupedByStackTrace(submitTask, client, request, submitListener, responseBuilder);
+                } else {
+                    submitListener.onResponse(responseBuilder.build());
+                }
             }, submitListener::onFailure));
     }
 
@@ -273,14 +277,14 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
             .execute(handleEventsGroupedByStackTrace(submitTask, client, responseBuilder, submitListener, searchResponse -> {
                 long totalSamples = 0;
                 SingleBucketAggregation sample = searchResponse.getAggregations().get("sample");
-                StringTerms stacktraces = sample.getAggregations().get("group_by");
+                Terms stacktraces = sample.getAggregations().get("group_by");
 
                 // When we retrieve host data for generic events, we need to adapt the handler similar to searchEventGroupedByStackTrace().
                 List<HostEventCount> hostEventCounts = new ArrayList<>(stacktraces.getBuckets().size());
 
                 // aggregation
                 Map<String, TraceEvent> stackTraceEvents = new TreeMap<>();
-                for (StringTerms.Bucket stacktraceBucket : stacktraces.getBuckets()) {
+                for (Terms.Bucket stacktraceBucket : stacktraces.getBuckets()) {
                     long count = stacktraceBucket.getDocCount();
                     totalSamples += count;
 
@@ -346,7 +350,7 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
                 long totalCount = getAggValueAsLong(searchResponse, "total_count");
 
                 Resampler resampler = new Resampler(request, responseBuilder.getSamplingRate(), totalCount);
-                StringTerms hosts = searchResponse.getAggregations().get("group_by");
+                Terms hosts = searchResponse.getAggregations().get("group_by");
 
                 // Sort items lexicographically to access Lucene's term dictionary more efficiently when issuing an mget request.
                 // The term dictionary is lexicographically sorted and using the same order reduces the number of page faults
@@ -354,11 +358,11 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
                 long totalFinalCount = 0;
                 List<HostEventCount> hostEventCounts = new ArrayList<>(MAX_TRACE_EVENTS_RESULT_SIZE);
                 Map<String, TraceEvent> stackTraceEvents = new TreeMap<>();
-                for (StringTerms.Bucket hostBucket : hosts.getBuckets()) {
+                for (Terms.Bucket hostBucket : hosts.getBuckets()) {
                     String hostid = hostBucket.getKeyAsString();
 
-                    StringTerms stacktraces = hostBucket.getAggregations().get("group_by");
-                    for (StringTerms.Bucket stacktraceBucket : stacktraces.getBuckets()) {
+                    Terms stacktraces = hostBucket.getAggregations().get("group_by");
+                    for (Terms.Bucket stacktraceBucket : stacktraces.getBuckets()) {
                         Sum count = stacktraceBucket.getAggregations().get("count");
                         int finalCount = resampler.adjustSampleCount((int) count.value());
                         if (finalCount <= 0) {
@@ -604,6 +608,7 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
                 hostMetadata,
                 responseBuilder.getRequestedDuration(),
                 responseBuilder.getAWSCostFactor(),
+                responseBuilder.getAzureCostFactor(),
                 responseBuilder.getCustomCostPerCoreHour()
             );
             Map<String, TraceEvent> events = responseBuilder.getStackTraceEvents();

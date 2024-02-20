@@ -283,7 +283,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
                 threadPool,
                 clusterService,
                 settingsModule.getSettings(),
-                getTransformExtension().getTransformInternalIndexAdditionalSettings(),
+                getTransformExtension(),
                 expressionResolver
             )
         );

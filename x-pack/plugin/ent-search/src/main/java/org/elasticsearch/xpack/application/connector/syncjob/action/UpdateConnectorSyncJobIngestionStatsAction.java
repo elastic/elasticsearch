@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.application.connector.syncjob.action;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.common.Strings;
@@ -40,12 +39,12 @@ import static org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyn
 
 public class UpdateConnectorSyncJobIngestionStatsAction {
 
-    public static final String NAME = "cluster:admin/xpack/connector/sync_job/update_stats";
+    public static final String NAME = "indices:data/write/xpack/connector/sync_job/update_stats";
     public static final ActionType<ConnectorUpdateActionResponse> INSTANCE = new ActionType<>(NAME);
 
     private UpdateConnectorSyncJobIngestionStatsAction() {/* no instances */}
 
-    public static class Request extends ActionRequest implements ToXContentObject {
+    public static class Request extends ConnectorSyncJobActionRequest implements ToXContentObject {
         public static final ParseField CONNECTOR_SYNC_JOB_ID_FIELD = new ParseField("connector_sync_job_id");
         public static final String DELETED_DOCUMENT_COUNT_NEGATIVE_ERROR_MESSAGE = "[deleted_document_count] cannot be negative.";
         public static final String INDEXED_DOCUMENT_COUNT_NEGATIVE_ERROR_MESSAGE = "[indexed_document_count] cannot be negative.";

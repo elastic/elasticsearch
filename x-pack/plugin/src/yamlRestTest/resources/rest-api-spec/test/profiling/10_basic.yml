@@ -197,7 +197,7 @@ teardown:
         body: >
           {
             "sample_size": 20000,
-            "indices": "test-events",
+            "indices": ["test-event*"],
             "stacktrace_ids_field": "events",
             "requested_duration": 86400,
             "query": {

@@ -8,23 +8,16 @@
 package org.elasticsearch.xpack.core.security.action.apikey;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
-import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
-import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
 
 import java.io.IOException;
 import java.time.Instant;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -32,57 +25,9 @@ import static org.elasticsearch.xpack.core.security.action.apikey.CrossClusterAp
 import static org.elasticsearch.xpack.core.security.action.apikey.CrossClusterApiKeyRoleDescriptorBuilder.CCS_AND_CCR_CLUSTER_PRIVILEGE_NAMES;
 import static org.elasticsearch.xpack.core.security.action.apikey.CrossClusterApiKeyRoleDescriptorBuilder.CCS_INDICES_PRIVILEGE_NAMES;
 import static org.elasticsearch.xpack.core.security.action.apikey.CrossClusterApiKeyRoleDescriptorBuilder.ROLE_DESCRIPTOR_NAME;
-import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests.randomCrossClusterAccessRoleDescriptor;
-import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests.randomUniquelyNamedRoleDescriptors;
 import static org.hamcrest.Matchers.equalTo;
 
 public class GetApiKeyResponseTests extends ESTestCase {
-
-    public void testSerialization() throws IOException {
-        boolean withApiKeyName = randomBoolean();
-        boolean withExpiration = randomBoolean();
-        final ApiKey.Type type = randomFrom(ApiKey.Type.values());
-        ApiKey apiKeyInfo = createApiKeyInfo(
-            (withApiKeyName) ? randomAlphaOfLength(4) : null,
-            randomAlphaOfLength(5),
-            type,
-            Instant.now(),
-            (withExpiration) ? Instant.now() : null,
-            false,
-            null,
-            randomAlphaOfLength(4),
-            randomAlphaOfLength(5),
-            randomBoolean() ? null : Map.of(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8)),
-            type == ApiKey.Type.CROSS_CLUSTER
-                ? List.of(randomCrossClusterAccessRoleDescriptor())
-                : randomFrom(randomUniquelyNamedRoleDescriptors(0, 3), null),
-            type == ApiKey.Type.CROSS_CLUSTER ? null : randomUniquelyNamedRoleDescriptors(1, 3)
-        );
-        GetApiKeyResponse response = new GetApiKeyResponse(Collections.singletonList(apiKeyInfo));
-
-        final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(
-            List.of(
-                new NamedWriteableRegistry.Entry(
-                    ConfigurableClusterPrivilege.class,
-                    ConfigurableClusterPrivileges.ManageApplicationPrivileges.WRITEABLE_NAME,
-                    ConfigurableClusterPrivileges.ManageApplicationPrivileges::createFrom
-                ),
-                new NamedWriteableRegistry.Entry(
-                    ConfigurableClusterPrivilege.class,
-                    ConfigurableClusterPrivileges.WriteProfileDataPrivileges.WRITEABLE_NAME,
-                    ConfigurableClusterPrivileges.WriteProfileDataPrivileges::createFrom
-                )
-            )
-        );
-
-        try (BytesStreamOutput output = new BytesStreamOutput()) {
-            response.writeTo(output);
-            try (StreamInput input = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
-                GetApiKeyResponse serialized = new GetApiKeyResponse(input);
-                assertThat(serialized.getApiKeyInfos(), equalTo(response.getApiKeyInfos()));
-            }
-        }
-    }
 
     public void testToXContent() throws IOException {
         final List<RoleDescriptor> roleDescriptors = List.of(

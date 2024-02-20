@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformStoredDoc;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskParams;
 import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
 import org.elasticsearch.xpack.transform.Transform;
+import org.elasticsearch.xpack.transform.TransformExtension;
 import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.SeqNoPrimaryTermAndIndex;
@@ -75,7 +76,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
     private final ClusterService clusterService;
     private final IndexNameExpressionResolver resolver;
     private final TransformAuditor auditor;
-    private final Settings transformInternalIndexAdditionalSettings;
+    private final TransformExtension transformExtension;
     private volatile int numFailureRetries;
 
     public TransformPersistentTasksExecutor(
@@ -84,10 +85,10 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         ThreadPool threadPool,
         ClusterService clusterService,
         Settings settings,
-        Settings transformInternalIndexAdditionalSettings,
+        TransformExtension transformExtension,
         IndexNameExpressionResolver resolver
     ) {
-        super(TransformField.TASK_NAME, ThreadPool.Names.GENERIC);
+        super(TransformField.TASK_NAME, threadPool.generic());
         this.client = client;
         this.transformServices = transformServices;
         this.threadPool = threadPool;
@@ -96,7 +97,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         this.auditor = transformServices.getAuditor();
         this.numFailureRetries = Transform.NUM_FAILURE_RETRIES_SETTING.get(settings);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(Transform.NUM_FAILURE_RETRIES_SETTING, this::setNumFailureRetries);
-        this.transformInternalIndexAdditionalSettings = transformInternalIndexAdditionalSettings;
+        this.transformExtension = transformExtension;
     }
 
     @Override
@@ -192,6 +193,9 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         // We want the rest of the state to be populated in the task when it is loaded on the node so that users can force start it again
         // later if they want.
         final ClientTransformIndexerBuilder indexerBuilder = new ClientTransformIndexerBuilder().setClient(parentTaskClient)
+            .setClusterService(clusterService)
+            .setIndexNameExpressionResolver(resolver)
+            .setTransformExtension(transformExtension)
             .setTransformServices(transformServices);
 
         final SetOnce<TransformState> stateHolder = new SetOnce<>();
@@ -348,7 +352,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         TransformInternalIndex.createLatestVersionedIndexIfRequired(
             clusterService,
             parentTaskClient,
-            transformInternalIndexAdditionalSettings,
+            transformExtension.getTransformInternalIndexAdditionalSettings(),
             templateCheckListener
         );
     }

@@ -252,4 +252,11 @@ public class PlannerUtils {
         new NoopCircuitBreaker("noop-esql-breaker"),
         BigArrays.NON_RECYCLING_INSTANCE
     );
+
+    /**
+     * Returns DOC_VALUES if the given boolean is set.
+     */
+    public static MappedFieldType.FieldExtractPreference extractPreference(boolean hasPreference) {
+        return hasPreference ? MappedFieldType.FieldExtractPreference.DOC_VALUES : MappedFieldType.FieldExtractPreference.NONE;
+    }
 }

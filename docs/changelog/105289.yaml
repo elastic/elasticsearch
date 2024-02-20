@@ -1,0 +1,5 @@
+pr: 105289
+summary: "[Connector API] Change required privileges to indices:data/read(write)"
+area: Application
+type: enhancement
+issues: []

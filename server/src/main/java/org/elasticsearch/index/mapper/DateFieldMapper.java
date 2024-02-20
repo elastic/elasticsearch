@@ -306,7 +306,7 @@ public final class DateFieldMapper extends FieldMapper {
             return factory == null
                 ? null
                 : (lookup, ctx, doc, consumer) -> factory.newFactory(
-                name(),
+                    name(),
                     script.get().getParams(),
                     lookup,
                     buildFormatter(),

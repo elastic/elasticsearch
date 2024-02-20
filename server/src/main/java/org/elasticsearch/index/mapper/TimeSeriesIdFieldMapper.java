@@ -19,6 +19,7 @@ import org.elasticsearch.common.hash.Murmur3Hasher;
 import org.elasticsearch.common.hash.MurmurHash3;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.core.Nullable;
@@ -208,6 +209,12 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
             }
         }
 
+        private static final int MAX_HASH_LEN_BYTES = 2;
+
+        static {
+            assert MAX_HASH_LEN_BYTES == StreamOutput.putVInt(new byte[2], tsidHashLen(MAX_DIMENSIONS), 0);
+        }
+
         /**
          * Here we build the hash of the tsid using a similarity function so that we have a result
          * with the following pattern:
@@ -219,11 +226,13 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
          * The idea is to be able to place 'similar' time series close to each other. Two time series
          * are considered 'similar' if they share the same dimensions (names and values).
          */
-        public BytesReference buildTsidHash() throws IOException {
+        public BytesReference buildTsidHash() {
             // NOTE: hash all dimension field names
             int numberOfDimensions = Math.min(MAX_DIMENSIONS, dimensions.size());
-            int tsidHashIndex = 0;
-            byte[] tsidHash = new byte[16 + 16 + 4 * numberOfDimensions];
+            int len = tsidHashLen(numberOfDimensions);
+            // either one or two bytes are occupied by the vint since we're bounded by #MAX_DIMENSIONS
+            byte[] tsidHash = new byte[MAX_HASH_LEN_BYTES + len];
+            int tsidHashIndex = StreamOutput.putVInt(tsidHash, len, 0);
 
             tsidHasher.reset();
             for (final Dimension dimension : dimensions) {
@@ -258,11 +267,11 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
             }
             tsidHashIndex = writeHash128(tsidHasher.digestHash(), tsidHash, tsidHashIndex);
 
-            assert tsidHashIndex == tsidHash.length;
-            try (BytesStreamOutput out = new BytesStreamOutput(tsidHash.length)) {
-                out.writeBytesRef(new BytesRef(tsidHash, 0, tsidHash.length));
-                return out.bytes();
-            }
+            return new BytesArray(tsidHash, 0, tsidHashIndex);
+        }
+
+        private static int tsidHashLen(int numberOfDimensions) {
+            return 16 + 16 + 4 * numberOfDimensions;
         }
 
         private int writeHash128(final MurmurHash3.Hash128 hash128, byte[] buffer, int tsidHashIndex) {

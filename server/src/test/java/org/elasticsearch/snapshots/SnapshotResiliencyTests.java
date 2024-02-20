@@ -1586,7 +1586,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     .setSettings(Settings.builder().put("location", randomAlphaOfLength(10)))
                     .execute(l)
             )
-            // take snapshot of index that does not exist
+            // attempt to take snapshot with illegal config ('none' is allowed as a feature state iff it's the only one in the list)
             .<CreateSnapshotResponse>andThen(
                 (l, ignored) -> client().admin()
                     .cluster()

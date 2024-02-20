@@ -392,9 +392,8 @@ public class ObjectMapper extends Mapper {
         } else {
             this.mappers = Map.copyOf(mappers);
         }
-        if (subobjects.value() == false && this.mappers.values().stream().anyMatch(m -> m instanceof ObjectMapper)) {
-            throw new IllegalStateException("When subobjects is false, mappers must not contain an ObjectMapper");
-        }
+        assert subobjects.value() || this.mappers.values().stream().noneMatch(m -> m instanceof ObjectMapper)
+            : "When subobjects is false, mappers must not contain an ObjectMapper";
     }
 
     /**

@@ -86,7 +86,7 @@ public class FilteringAdvancedSnippet implements Writeable, ToXContentObject {
             } else if (p.currentToken() == XContentParser.Token.START_OBJECT) {
                 return p.map();
             }
-            throw new XContentParseException("Unsupported token [" + p.currentToken() + "]");
+            throw new XContentParseException("Unsupported token [" + p.currentToken() + "]. Expected an array or an object.");
         }, VALUE_FIELD, ObjectParser.ValueType.OBJECT_ARRAY);
     }
 

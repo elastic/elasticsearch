@@ -13,25 +13,20 @@ import java.util.concurrent.ThreadPoolExecutor;
 public class EsAbortPolicy extends EsRejectedExecutionHandler {
 
     @Override
-    public void rejectedExecution(Runnable r, ThreadPoolExecutor executor) {
-        if (r instanceof AbstractRunnable abstractRunnable) {
-            if (abstractRunnable.isForceExecution()) {
-                if (executor.getQueue() instanceof SizeBlockingQueue<Runnable> sizeBlockingQueue) {
-                    try {
-                        sizeBlockingQueue.forcePut(r);
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                        throw new IllegalStateException("forced execution, but got interrupted", e);
-                    }
-                    if ((executor.isShutdown() && sizeBlockingQueue.remove(r)) == false) {
-                        return;
-                    } // else fall through and reject the task since the executor is shut down
-                } else {
-                    throw new IllegalStateException("expected but did not find SizeBlockingQueue: " + executor);
+    public void rejectedExecution(Runnable task, ThreadPoolExecutor executor) {
+        if (executor.isShutdown() == false && task instanceof AbstractRunnable r && r.isForceExecution()) {
+            if (executor.getQueue() instanceof SizeBlockingQueue<Runnable> sizeBlockingQueue) {
+                try {
+                    sizeBlockingQueue.forcePut(task);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException("forced execution, but got interrupted", e);
                 }
+            } else {
+                throw new IllegalStateException("expected but did not find SizeBlockingQueue: " + executor);
             }
         }
         incrementRejections();
-        throw newRejectedException(r, executor, executor.isShutdown());
+        throw newRejectedException(task, executor, executor.isShutdown());
     }
 }

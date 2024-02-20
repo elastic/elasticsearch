@@ -452,7 +452,11 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 }
             }
         });
-        Rewriteable.rewriteAndFetch(original, searchService.getRewriteContext(timeProvider::absoluteStartMillis), rewriteListener);
+        Rewriteable.rewriteAndFetch(
+            original,
+            searchService.getRewriteContext(timeProvider::absoluteStartMillis, original),
+            rewriteListener
+        );
     }
 
     static void adjustSearchType(SearchRequest searchRequest, boolean singleShard) {

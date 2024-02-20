@@ -6,6 +6,9 @@
     },
     "stability":"stable",
     "visibility":"public",
+    "headers":{
+      "accept": ["application/json"]
+    },
     "url":{
       "paths":[
         {

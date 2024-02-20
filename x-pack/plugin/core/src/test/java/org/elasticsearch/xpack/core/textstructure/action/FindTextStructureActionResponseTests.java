@@ -10,20 +10,20 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.textstructure.structurefinder.TextStructureTests;
 
-public class FindTextStructureActionResponseTests extends AbstractWireSerializingTestCase<FindStructureAction.Response> {
+public class FindTextStructureActionResponseTests extends AbstractWireSerializingTestCase<FindStructureResponse> {
 
     @Override
-    protected FindStructureAction.Response createTestInstance() {
-        return new FindStructureAction.Response(TextStructureTests.createTestFileStructure());
+    protected FindStructureResponse createTestInstance() {
+        return new FindStructureResponse(TextStructureTests.createTestFileStructure());
     }
 
     @Override
-    protected FindStructureAction.Response mutateInstance(FindStructureAction.Response instance) {
+    protected FindStructureResponse mutateInstance(FindStructureResponse instance) {
         return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override
-    protected Writeable.Reader<FindStructureAction.Response> instanceReader() {
-        return FindStructureAction.Response::new;
+    protected Writeable.Reader<FindStructureResponse> instanceReader() {
+        return FindStructureResponse::new;
     }
 }

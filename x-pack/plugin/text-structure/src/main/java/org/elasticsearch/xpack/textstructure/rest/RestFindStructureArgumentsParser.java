@@ -13,27 +13,13 @@ import org.elasticsearch.xpack.core.textstructure.action.AbstractFindStructureRe
 import org.elasticsearch.xpack.core.textstructure.action.FindStructureAction;
 import org.elasticsearch.xpack.textstructure.structurefinder.TextStructureFinderManager;
 
-import java.lang.reflect.InvocationTargetException;
 import java.util.concurrent.TimeUnit;
 
-public class RestFindStructureRequestParser<Request extends AbstractFindStructureRequest> {
+public class RestFindStructureArgumentsParser<Request extends AbstractFindStructureRequest> {
 
     private static final TimeValue DEFAULT_TIMEOUT = new TimeValue(25, TimeUnit.SECONDS);
 
-    private final Class<Request> requestClass;
-
-    RestFindStructureRequestParser(Class<Request> requestClass) {
-        this.requestClass = requestClass;
-    }
-
-    Request parse(RestRequest restRequest) {
-        Request request;
-        try {
-            request = requestClass.getConstructor().newInstance();
-        } catch (InstantiationException | IllegalAccessException | NoSuchMethodException | InvocationTargetException e) {
-            throw new RuntimeException(e);
-        }
-
+    static void parse(RestRequest restRequest, AbstractFindStructureRequest request) {
         request.setLinesToSample(
             restRequest.paramAsInt(
                 FindStructureAction.Request.LINES_TO_SAMPLE.getPreferredName(),
@@ -64,6 +50,5 @@ public class RestFindStructureRequestParser<Request extends AbstractFindStructur
         request.setEcsCompatibility(restRequest.param(FindStructureAction.Request.ECS_COMPATIBILITY.getPreferredName()));
         request.setTimestampFormat(restRequest.param(FindStructureAction.Request.TIMESTAMP_FORMAT.getPreferredName()));
         request.setTimestampField(restRequest.param(FindStructureAction.Request.TIMESTAMP_FIELD.getPreferredName()));
-        return request;
     }
 }

@@ -37,9 +37,8 @@ public class RestFindFieldStructureAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
-        FindFieldStructureAction.Request request = new RestFindStructureRequestParser<>(FindFieldStructureAction.Request.class).parse(
-            restRequest
-        );
+        FindFieldStructureAction.Request request = new FindFieldStructureAction.Request();
+        RestFindStructureArgumentsParser.parse(restRequest, request);
         request.setIndex(restRequest.param(FindFieldStructureAction.Request.INDEX.getPreferredName()));
         request.setField(restRequest.param(FindFieldStructureAction.Request.FIELD.getPreferredName()));
         return channel -> client.execute(FindFieldStructureAction.INSTANCE, request, new RestToXContentListener<>(channel));

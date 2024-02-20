@@ -519,7 +519,6 @@ public class Setting<T> implements ToXContentObject {
      * @return true if the setting including fallback settings is present in the given settings instance, otherwise false
      */
     public boolean existsOrFallbackExists(final Settings settings) {
-        // FIXME should this include (as was previously) or exclude (like exist) SecureSettings?
         return exists(settings) || (fallbackSetting != null && fallbackSetting.existsOrFallbackExists(settings));
     }
 

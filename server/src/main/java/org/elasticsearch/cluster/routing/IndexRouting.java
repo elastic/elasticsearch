@@ -59,7 +59,7 @@ public abstract class IndexRouting {
     }
 
     protected final String indexName;
-    protected final int routingNumShards;
+    private final int routingNumShards;
     private final int routingFactor;
 
     private IndexRouting(IndexMetadata metadata) {
@@ -109,11 +109,29 @@ public abstract class IndexRouting {
     public abstract void collectSearchShards(String routing, IntConsumer consumer);
 
     /**
-     * Convert a hash generated from an {@code (id, routing}) pair into a
-     * shard id.
+     * Convert a hash generated from an {@code (id, routing}) pair into a shard id.
+     * This needs to be updated in tandem with calculateRoutingHash below, see also
+     * {@link IndexMetadata#getRoutingFactor(int, int)}.
      */
     protected final int hashToShardId(int hash) {
         return Math.floorMod(hash, routingNumShards) / routingFactor;
+    }
+
+    /**
+     * Returns a routing hash that can be used to route a request to the same shard.
+     */
+    public static int calculateRoutingHash(int shardId, int routingFactor) {
+        /* This is the inverse of the function above. It also works in case of shrinking, e.g.
+         *  - Say an index is shrunk from 8 to 2 shards. routingNumShards stays the same, routingFactor value is 4x.
+         *  - Shard with shardID 5 gets mapped to shardId 1 after shrinking.
+         *  - The calculation becomes:
+         *           new shardId = (((old shardId) * (old routingFactor)) % routingNumShards) / (new routingFactor)
+         *                        = (old shardId) / 4 = 5 / 4 = 1
+         *
+         * Note that the ids generated after shrinking will include the updated values for shardId and routingFactor,
+         * so they'll get mapped to the right shard as usual.
+         */
+        return shardId * routingFactor;
     }
 
     /**
@@ -404,8 +422,7 @@ public abstract class IndexRouting {
             if (idBytes.length < 4) {
                 throw new ResourceNotFoundException("invalid id [{}] for index [{}] in time series mode", id, indexName);
             }
-            int shardId = ByteUtils.readIntLE(idBytes, 0);
-            return Math.floorMod(shardId, routingNumShards);
+            return hashToShardId(ByteUtils.readIntLE(idBytes, 0));
         }
 
         @Override

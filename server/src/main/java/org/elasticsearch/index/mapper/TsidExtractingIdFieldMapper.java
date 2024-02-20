@@ -19,6 +19,7 @@ import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 
+import java.util.Base64;
 import java.util.Locale;
 
 /**
@@ -55,7 +56,7 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
         String id;
         if (routingBuilder != null) {
             byte[] suffix = new byte[16];
-            String id = createId(context.hasDynamicMappers() == false, routingBuilder, tsid, timestamp, suffix);
+            id = createId(context.hasDynamicMappers() == false, routingBuilder, tsid, timestamp, suffix);
             /*
              * Make sure that _id from extracting the tsid matches that _id
              * from extracting the _source. This should be true for all valid
@@ -70,7 +71,7 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
                 || context.getDynamicRuntimeFields().isEmpty() == false
                 || id.equals(indexRouting.createId(context.sourceToParse().getXContentType(), context.sourceToParse().source(), suffix));
         } else {
-            id = createId(context.getShardId(), tsid, timestamp);
+            id = createId(context.getShardId(), context.indexSettings().getIndexMetadata().getRoutingFactor(), tsid, timestamp);
         }
         if (context.sourceToParse().id() != null && false == context.sourceToParse().id().equals(id)) {
             throw new IllegalArgumentException(
@@ -89,15 +90,11 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
         context.doc().add(new StringField(NAME, uidEncoded, Field.Store.YES));
     }
 
-    public static String createId(int shardId, BytesRef tsid, long timestamp) {
-        Hash128 hash = new Hash128();
-        MurmurHash3.hash128(tsid.bytes, tsid.offset, tsid.length, SEED, hash);
-
-        byte[] bytes = new byte[20];
-        ByteUtils.writeIntLE(shardId, bytes, 0);
-        ByteUtils.writeLongLE(hash.h1, bytes, 4);
-        ByteUtils.writeLongBE(timestamp, bytes, 12);   // Big Ending shrinks the inverted index by ~37%
-
+    public static String createId(int shardId, int routingFactor, BytesRef tsid, long timestamp) {
+        byte[] bytes = new byte[12 + tsid.length];
+        ByteUtils.writeIntLE(IndexRouting.calculateRoutingHash(shardId, routingFactor), bytes, 0);
+        ByteUtils.writeLongBE(timestamp, bytes, 4);   // Big Ending shrinks the inverted index by ~37%
+        System.arraycopy(tsid.bytes, 0, bytes, 12, tsid.length);
         return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
     }
 

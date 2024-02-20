@@ -86,7 +86,7 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
         items.add(
             new TestCase(
                 "2022-01-01T01:00:00Z",
-                "BwAAAKjcFfi45iV3AAABfhMmioA",
+                "BwAAAAAAAX4TJoqAJJSLNivCxv3hDTQtWd6qGUwGlT_5e6_NYGOZWULpmMG9IAlZlA",
                 "JJSLNivCxv3hDTQtWd6qGUwGlT_5e6_NYGOZWULpmMG9IAlZlA",
                 "2022-01-01T01:00:00.000Z",
                 b -> {
@@ -98,7 +98,7 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
         items.add(
             new TestCase(
                 "2022-01-01T01:00:01Z",
-                "BwAAAKjcFfi45iV3AAABfhMmjmg",
+                "BwAAAAAAAX4TJo5oJJSLNivCxv3hDTQtWd6qGUwGlT_5e6_NYGOZWULpmMG9IAlZlA",
                 "JJSLNivCxv3hDTQtWd6qGUwGlT_5e6_NYGOZWULpmMG9IAlZlA",
                 "2022-01-01T01:00:01.000Z",
                 b -> {
@@ -110,7 +110,7 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
         items.add(
             new TestCase(
                 "1970-01-01T00:00:00Z",
-                "BwAAAKjcFfi45iV3AAAAAAAAAAA",
+                "BwAAAAAAAAAAAAAAJJSLNivCxv3hDTQtWd6qGUwGlT_5e6_NYGOZWULpmMG9IAlZlA",
                 "JJSLNivCxv3hDTQtWd6qGUwGlT_5e6_NYGOZWULpmMG9IAlZlA",
                 "1970-01-01T00:00:00.000Z",
                 b -> {
@@ -122,7 +122,7 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
         items.add(
             new TestCase(
                 "-9998-01-01T00:00:00Z",
-                "BwAAAKjcFfi45iV3__6oggRgGAA",
+                "BwAAAP_-qIIEYBgAJJSLNivCxv3hDTQtWd6qGUwGlT_5e6_NYGOZWULpmMG9IAlZlA",
                 "JJSLNivCxv3hDTQtWd6qGUwGlT_5e6_NYGOZWULpmMG9IAlZlA",
                 "-9998-01-01T00:00:00.000Z",
                 b -> {
@@ -134,7 +134,7 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
         items.add(
             new TestCase(
                 "9998-01-01T00:00:00Z",
-                "BwAAAKjcFfi45iV3AADmaSK9hAA",
+                "BwAAAAAA5mkivYQAJJSLNivCxv3hDTQtWd6qGUwGlT_5e6_NYGOZWULpmMG9IAlZlA",
                 "JJSLNivCxv3hDTQtWd6qGUwGlT_5e6_NYGOZWULpmMG9IAlZlA",
                 "9998-01-01T00:00:00.000Z",
                 b -> {
@@ -148,7 +148,7 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
         items.add(
             new TestCase(
                 "r1",
-                "BwAAAKjcFfi45iV3AAABfhMmioA",
+                "BwAAAAAAAX4TJoqAJJSLNivCxv3hDTQtWd6qGUwGlT_5e6_NYGOZWULpmMG9IAlZlA",
                 "JJSLNivCxv3hDTQtWd6qGUwGlT_5e6_NYGOZWULpmMG9IAlZlA",
                 "2022-01-01T01:00:00.000Z",
                 b -> {
@@ -184,7 +184,7 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
         items.add(
             new TestCase(
                 "r2",
-                "BwAAAB0iuE1-sOQpAAABfhMmioA",
+                "BwAAAAAAAX4TJoqAJNY_frTR9GmCbhXgK4Y8W44GlT_5e6_NYGOZWULpmMG9IAlZlA",
                 "JNY_frTR9GmCbhXgK4Y8W44GlT_5e6_NYGOZWULpmMG9IAlZlA",
                 "2022-01-01T01:00:00.000Z",
                 b -> {
@@ -196,7 +196,7 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
         items.add(
             new TestCase(
                 "o.r3",
-                "BwAAAC1h1gf2J5a8AAABfhMmioA",
+                "BwAAAAAAAX4TJoqAJEyfZsJIp3UNyfWG-4SjKFIGlT_5e6_NYGOZWULpmMG9IAlZlA",
                 "JEyfZsJIp3UNyfWG-4SjKFIGlT_5e6_NYGOZWULpmMG9IAlZlA",
                 "2022-01-01T01:00:00.000Z",
                 b -> {
@@ -213,7 +213,7 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
         items.add(
             new TestCase(
                 "k1=dog",
-                "BwAAACrEiVgZlSsYAAABfhMmioA",
+                "BwAAAAAAAX4TJoqAKJQKpjU9U63jhh-eNJ1f8bipyU08BpU_-ZJxnTYtoe9Lsg-QvzL-qOY",
                 "KJQKpjU9U63jhh-eNJ1f8bipyU08BpU_-ZJxnTYtoe9Lsg-QvzL-qOY",
                 "2022-01-01T01:00:00.000Z",
                 b -> {
@@ -226,7 +226,7 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
         items.add(
             new TestCase(
                 "k1=pumpkin",
-                "BwAAAG8GX8-0QcFxAAABfhMmioA",
+                "BwAAAAAAAX4TJoqAKJQKpjU9U63jhh-eNJ1f8bibzw1JBpU_-VsHjSz5HC1yy_swPEM1iGo",
                 "KJQKpjU9U63jhh-eNJ1f8bibzw1JBpU_-VsHjSz5HC1yy_swPEM1iGo",
                 "2022-01-01T01:00:00.000Z",
                 b -> {
@@ -239,7 +239,7 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
         items.add(
             new TestCase(
                 "k1=empty string",
-                "BwAAAMna58i6D-Q6AAABfhMmioA",
+                "BwAAAAAAAX4TJoqAKJQKpjU9U63jhh-eNJ1f8bhaCD7uBpU_-SWGG0Uv9tZ1mLO2gi9rC1I",
                 "KJQKpjU9U63jhh-eNJ1f8bhaCD7uBpU_-SWGG0Uv9tZ1mLO2gi9rC1I",
                 "2022-01-01T01:00:00.000Z",
                 b -> {
@@ -252,7 +252,7 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
         items.add(
             new TestCase(
                 "k2",
-                "BwAAAFqlzAuv-06kAAABfhMmioA",
+                "BwAAAAAAAX4TJoqAKB9H-tGrL_UzqMcqXcgBtzypyU08BpU_-ZJxnTYtoe9Lsg-QvzL-qOY",
                 "KB9H-tGrL_UzqMcqXcgBtzypyU08BpU_-ZJxnTYtoe9Lsg-QvzL-qOY",
                 "2022-01-01T01:00:00.000Z",
                 b -> {
@@ -265,7 +265,7 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
         items.add(
             new TestCase(
                 "o.k3",
-                "BwAAAC_VhridAKDUAAABfhMmioA",
+                "BwAAAAAAAX4TJoqAKGXATwN7ISd1_EycFRJ9h6qpyU08BpU_-ZJxnTYtoe9Lsg-QvzL-qOY",
                 "KGXATwN7ISd1_EycFRJ9h6qpyU08BpU_-ZJxnTYtoe9Lsg-QvzL-qOY",
                 "2022-01-01T01:00:00.000Z",
                 b -> {
@@ -278,7 +278,7 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
         items.add(
             new TestCase(
                 "o.r3",
-                "BwAAAEwfL7x__2oPAAABfhMmioA",
+                "BwAAAAAAAX4TJoqAKJaYZVZz8plfkEvvPBpi1EWpyU08BpU_-ZJxnTYtoe9Lsg-QvzL-qOY",
                 "KJaYZVZz8plfkEvvPBpi1EWpyU08BpU_-ZJxnTYtoe9Lsg-QvzL-qOY",
                 "2022-01-01T01:00:00.000Z",
                 b -> {
@@ -309,7 +309,7 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
         items.add(
             new TestCase(
                 "L1=1",
-                "BwAAAPIe53BtV9PCAAABfhMmioA",
+                "BwAAAAAAAX4TJoqAKI4kVxcCLIMM2_VQGD575d-tm41vBpU_-TUExUU_bL3Puq_EBgIaLac",
                 "KI4kVxcCLIMM2_VQGD575d-tm41vBpU_-TUExUU_bL3Puq_EBgIaLac",
                 "2022-01-01T01:00:00.000Z",
                 b -> {
@@ -322,7 +322,7 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
         items.add(
             new TestCase(
                 "L1=min",
-                "BwAAAAhu7hy1RoXRAAABfhMmioA",
+                "BwAAAAAAAX4TJoqAKI4kVxcCLIMM2_VQGD575d8caJ3TBpU_-cLpg-VnCBnhYk33HZBle6E",
                 "KI4kVxcCLIMM2_VQGD575d8caJ3TBpU_-cLpg-VnCBnhYk33HZBle6E",
                 "2022-01-01T01:00:00.000Z",
                 b -> {
@@ -335,7 +335,7 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
         items.add(
             new TestCase(
                 "L2=1234",
-                "BwAAAATrNu7TTpc-AAABfhMmioA",
+                "BwAAAAAAAX4TJoqAKI_1WxF60L0IczG5ftUCWdndcGtgBpU_-QfM2BaR0DMagIfw3TDu_mA",
                 "KI_1WxF60L0IczG5ftUCWdndcGtgBpU_-QfM2BaR0DMagIfw3TDu_mA",
                 "2022-01-01T01:00:00.000Z",
                 b -> {
@@ -348,7 +348,7 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
         items.add(
             new TestCase(
                 "o.L3=max",
-                "BwAAAGBQI6THHqxoAAABfhMmioA",
+                "BwAAAAAAAX4TJoqAKN4a6QzKhzc3nwzNLuZkV51xxTOVBpU_-erUU1qSW4eJ0kP0RmAB9TE",
                 "KN4a6QzKhzc3nwzNLuZkV51xxTOVBpU_-erUU1qSW4eJ0kP0RmAB9TE",
                 "2022-01-01T01:00:00.000Z",
                 b -> {
@@ -379,7 +379,7 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
         items.add(
             new TestCase(
                 "i1=1",
-                "BwAAAEMS_RWRoHYjAAABfhMmioA",
+                "BwAAAAAAAX4TJoqAKLGFpvAV8QkWSmX54kXFMgitm41vBpU_-TUExUU_bL3Puq_EBgIaLac",
                 "KLGFpvAV8QkWSmX54kXFMgitm41vBpU_-TUExUU_bL3Puq_EBgIaLac",
                 "2022-01-01T01:00:00.000Z",
                 b -> {
@@ -392,7 +392,7 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
         items.add(
             new TestCase(
                 "i1=min",
-                "BwAAAKdlQM5ILoA1AAABfhMmioA",
+                "BwAAAAAAAX4TJoqAKLGFpvAV8QkWSmX54kXFMgjV8hFQBpU_-WG2MicRGWwJdBKWq2F4qy4",
                 "KLGFpvAV8QkWSmX54kXFMgjV8hFQBpU_-WG2MicRGWwJdBKWq2F4qy4",
                 "2022-01-01T01:00:00.000Z",
                 b -> {
@@ -405,7 +405,7 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
         items.add(
             new TestCase(
                 "i2=1234",
-                "BwAAALhxfB6J0kBFAAABfhMmioA",
+                "BwAAAAAAAX4TJoqAKJc4-5eN1uAlYuAknQQLUlxavn2sBpU_-UEXBjgaH1uYcbayrOhdgpc",
                 "KJc4-5eN1uAlYuAknQQLUlxavn2sBpU_-UEXBjgaH1uYcbayrOhdgpc",
                 "2022-01-01T01:00:00.000Z",
                 b -> {
@@ -418,7 +418,7 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
         items.add(
             new TestCase(
                 "o.i3=max",
-                "BwAAAOlxKf19CbfdAAABfhMmioA",
+                "BwAAAAAAAX4TJoqAKKqnzPNBe8ObksSo8rNaIFPZPCcBBpU_-Rhd_U6Jn2pjQz2zpmBuJb4",
                 "KKqnzPNBe8ObksSo8rNaIFPZPCcBBpU_-Rhd_U6Jn2pjQz2zpmBuJb4",
                 "2022-01-01T01:00:00.000Z",
                 b -> {
@@ -449,7 +449,7 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
         items.add(
             new TestCase(
                 "s1=1",
-                "BwAAAI_y-8kD_BFeAAABfhMmioA",
+                "BwAAAAAAAX4TJoqAKFi_JDbvzWyAawmh8IEXedwGlT_5rZuNb-1ruHTTZhtsXRZpZRwWFoc",
                 "KFi_JDbvzWyAawmh8IEXedwGlT_5rZuNb-1ruHTTZhtsXRZpZRwWFoc",
                 "2022-01-01T01:00:00.000Z",
                 b -> {
@@ -462,7 +462,7 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
         items.add(
             new TestCase(
                 "s1=min",
-                "BwAAAGV8VNVnmPVNAAABfhMmioA",
+                "BwAAAAAAAX4TJoqAKFi_JDbvzWyAawmh8IEXedwGlT_5JgBZj9BSCms2_jgeFFhsmDlNFdM",
                 "KFi_JDbvzWyAawmh8IEXedwGlT_5JgBZj9BSCms2_jgeFFhsmDlNFdM",
                 "2022-01-01T01:00:00.000Z",
                 b -> {
@@ -475,7 +475,7 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
         items.add(
             new TestCase(
                 "s2=1234",
-                "BwAAAFO8mUr-J5CpAAABfhMmioA",
+                "BwAAAAAAAX4TJoqAKKEQ2p3CkpMH61hNk_SuvI0GlT_53XBrYP5TPdmCR-vREPnt20e9f9w",
                 "KKEQ2p3CkpMH61hNk_SuvI0GlT_53XBrYP5TPdmCR-vREPnt20e9f9w",
                 "2022-01-01T01:00:00.000Z",
                 b -> {
@@ -488,7 +488,7 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
         items.add(
             new TestCase(
                 "o.s3=max",
-                "BwAAAAKh6K11zWeuAAABfhMmioA",
+                "BwAAAAAAAX4TJoqAKKVMoT_-GS95fvIBtR7XK9oGlT_5Dme9-H3sen0WZ7leJpCj7-vXau4",
                 "KKVMoT_-GS95fvIBtR7XK9oGlT_5Dme9-H3sen0WZ7leJpCj7-vXau4",
                 "2022-01-01T01:00:00.000Z",
                 b -> {
@@ -519,7 +519,7 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
         items.add(
             new TestCase(
                 "b1=1",
-                "BwAAANKxqgT5JDQfAAABfhMmioA",
+                "BwAAAAAAAX4TJoqAKGPAUhTjWOsRfDmYp3SUELatm41vBpU_-TUExUU_bL3Puq_EBgIaLac",
                 "KGPAUhTjWOsRfDmYp3SUELatm41vBpU_-TUExUU_bL3Puq_EBgIaLac",
                 "2022-01-01T01:00:00.000Z",
                 b -> {
@@ -532,7 +532,7 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
         items.add(
             new TestCase(
                 "b1=min",
-                "BwAAAN_PD--DgUvoAAABfhMmioA",
+                "BwAAAAAAAX4TJoqAKGPAUhTjWOsRfDmYp3SUELYoK6qHBpU_-d8HkZFJ3aL2ZV1lgHAjT1g",
                 "KGPAUhTjWOsRfDmYp3SUELYoK6qHBpU_-d8HkZFJ3aL2ZV1lgHAjT1g",
                 "2022-01-01T01:00:00.000Z",
                 b -> {
@@ -545,7 +545,7 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
         items.add(
             new TestCase(
                 "b2=12",
-                "BwAAAKqX5QjiuhsEAAABfhMmioA",
+                "BwAAAAAAAX4TJoqAKA58oUMzXeX1V5rh51Ste0K5K9vPBpU_-Wn8JQplO-x3CgoslYO5Vks",
                 "KA58oUMzXeX1V5rh51Ste0K5K9vPBpU_-Wn8JQplO-x3CgoslYO5Vks",
                 "2022-01-01T01:00:00.000Z",
                 b -> {
@@ -558,7 +558,7 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
         items.add(
             new TestCase(
                 "o.s3=max",
-                "BwAAAMJ4YtN_21XHAAABfhMmioA",
+                "BwAAAAAAAX4TJoqAKIwZH-StJBobjk9tCV-0OgjKmuwGBpU_-Sd-SdnoH3sbfKLgse-briE",
                 "KIwZH-StJBobjk9tCV-0OgjKmuwGBpU_-Sd-SdnoH3sbfKLgse-briE",
                 "2022-01-01T01:00:00.000Z",
                 b -> {
@@ -589,7 +589,7 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
         items.add(
             new TestCase(
                 "ip1=192.168.0.1",
-                "BwAAAD5km9raIz_rAAABfhMmioA",
+                "BwAAAAAAAX4TJoqAKNj6cLPRNEkqdjfOPIbg0wULrOlWBpU_-efWDsz6B6AnnwbZ7GeeocE",
                 "KNj6cLPRNEkqdjfOPIbg0wULrOlWBpU_-efWDsz6B6AnnwbZ7GeeocE",
                 "2022-01-01T01:00:00.000Z",
                 b -> {
@@ -606,7 +606,7 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
         items.add(
             new TestCase(
                 "ip1=12.12.45.254",
-                "BwAAAAWfEH_e_6wIAAABfhMmioA",
+                "BwAAAAAAAX4TJoqAKNj6cLPRNEkqdjfOPIbg0wVhJ08TBpU_-bANzLhvKPczlle7Pq0z8Qw",
                 "KNj6cLPRNEkqdjfOPIbg0wVhJ08TBpU_-bANzLhvKPczlle7Pq0z8Qw",
                 "2022-01-01T01:00:00.000Z",
                 b -> {
@@ -623,7 +623,7 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
         items.add(
             new TestCase(
                 "ip2=FE80:CD00:0000:0CDE:1257:0000:211E:729C",
-                "BwAAAGrrLHr1O4iQAAABfhMmioA",
+                "BwAAAAAAAX4TJoqAKNDo3zGxO9HfN9XYJwKw2Z20h-WsBpU_-f4dSOLGSRlL1hoY2mgERuo",
                 "KNDo3zGxO9HfN9XYJwKw2Z20h-WsBpU_-f4dSOLGSRlL1hoY2mgERuo",
                 "2022-01-01T01:00:00.000Z",
                 b -> {
@@ -636,7 +636,7 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
         items.add(
             new TestCase(
                 "o.ip3=2001:db8:85a3:8d3:1319:8a2e:370:7348",
-                "BwAAAK7d-9aKOS1MAAABfhMmioA",
+                "BwAAAAAAAX4TJoqAKLXDcBBWJAjgJvjSdF_EJwraAQUzBpU_-ba6HZsIyKnGcbmc3KRLlmI",
                 "KLXDcBBWJAjgJvjSdF_EJwraAQUzBpU_-ba6HZsIyKnGcbmc3KRLlmI",
                 "2022-01-01T01:00:00.000Z",
                 b -> {
@@ -667,7 +667,7 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
         items.add(
             new TestCase(
                 "huge",
-                "BwAAAPdECvXBSl3xAAABfhMmioA",
+                "BwAAAAAAAX4TJoqALIe18i0rRU_Bt9vB82F46LaS9mrUkvZq1K_2Gi7UEFMhFwNXrLA_H8TLpUr4",
                 "LIe18i0rRU_Bt9vB82F46LaS9mrUkvZq1K_2Gi7UEFMhFwNXrLA_H8TLpUr4",
                 "2022-01-01T01:00:00.000Z",
                 b -> {

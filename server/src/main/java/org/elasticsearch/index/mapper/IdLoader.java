@@ -36,8 +36,13 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
     /**
      * @return returns an {@link IdLoader} instance that syn synthesizes _id from routing, _tsid and @timestamp fields.
      */
-    static IdLoader createTsIdLoader(IndexRouting.ExtractFromSource indexRouting, List<String> routingPaths, int shardId) {
-        return new TsIdLoader(indexRouting, routingPaths, shardId);
+    static IdLoader createTsIdLoader(
+        IndexRouting.ExtractFromSource indexRouting,
+        List<String> routingPaths,
+        int shardId,
+        int routingFactor
+    ) {
+        return new TsIdLoader(indexRouting, routingPaths, shardId, routingFactor);
     }
 
     Leaf leaf(LeafStoredFieldLoader loader, LeafReader reader, int[] docIdsInLeaf) throws IOException;
@@ -60,11 +65,13 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
         private final IndexRouting.ExtractFromSource indexRouting;
         private final List<String> routingPaths;
         private final int shardId;
+        private final int routingFactor;
 
-        TsIdLoader(IndexRouting.ExtractFromSource indexRouting, List<String> routingPaths, int shardId) {
+        TsIdLoader(IndexRouting.ExtractFromSource indexRouting, List<String> routingPaths, int shardId, int routingFactor) {
             this.routingPaths = routingPaths;
             this.indexRouting = indexRouting;
             this.shardId = shardId;
+            this.routingFactor = routingFactor;
         }
 
         public IdLoader.Leaf leaf(LeafStoredFieldLoader loader, LeafReader reader, int[] docIdsInLeaf) throws IOException {
@@ -109,7 +116,7 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
                     var routingBuilder = builders[i];
                     ids[i] = TsidExtractingIdFieldMapper.createId(false, routingBuilder, tsid, timestamp, new byte[16]);
                 } else {
-                    ids[i] = TsidExtractingIdFieldMapper.createId(shardId, tsid, timestamp);
+                    ids[i] = TsidExtractingIdFieldMapper.createId(shardId, routingFactor, tsid, timestamp);
                 }
             }
             return new TsIdLeaf(docIdsInLeaf, ids);

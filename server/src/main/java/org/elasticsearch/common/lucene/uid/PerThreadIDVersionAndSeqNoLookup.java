@@ -9,6 +9,7 @@
 package org.elasticsearch.common.lucene.uid;
 
 import org.apache.lucene.document.LongPoint;
+import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
@@ -16,13 +17,18 @@ import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndSeqNo;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndVersion;
+import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
 
@@ -120,7 +126,7 @@ final class PerThreadIDVersionAndSeqNoLookup {
     public DocIdAndVersion lookupVersion(BytesRef id, boolean loadSeqNo, LeafReaderContext context) throws IOException {
         assert readerKey == null || context.reader().getCoreCacheHelper().getKey().equals(readerKey)
             : "context's reader is not the same as the reader class was initialized on.";
-        int docID = getDocID(id, context);
+        int docID = getDocID(id, context, true);
 
         if (docID != DocIdSetIterator.NO_MORE_DOCS) {
             final long seqNo;
@@ -143,23 +149,36 @@ final class PerThreadIDVersionAndSeqNoLookup {
      * returns the internal lucene doc id for the given id bytes.
      * {@link DocIdSetIterator#NO_MORE_DOCS} is returned if not found
      * */
-    private int getDocID(BytesRef id, LeafReaderContext context) throws IOException {
+    private int getDocID(BytesRef id, LeafReaderContext context, boolean searchFallback) throws IOException {
         // termsEnum can possibly be null here if this leaf contains only no-ops.
-        if (termsEnum != null && termsEnum.seekExact(id)) {
-            final Bits liveDocs = context.reader().getLiveDocs();
-            int docID = DocIdSetIterator.NO_MORE_DOCS;
-            // there may be more than one matching docID, in the case of nested docs, so we want the last one:
-            docsEnum = termsEnum.postings(docsEnum, 0);
-            for (int d = docsEnum.nextDoc(); d != DocIdSetIterator.NO_MORE_DOCS; d = docsEnum.nextDoc()) {
-                if (liveDocs != null && liveDocs.get(d) == false) {
-                    continue;
+        if (termsEnum != null) {
+            if (termsEnum.seekExact(id)) {
+                final Bits liveDocs = context.reader().getLiveDocs();
+                int docID = DocIdSetIterator.NO_MORE_DOCS;
+                // there may be more than one matching docID, in the case of nested docs, so we want the last one:
+                docsEnum = termsEnum.postings(docsEnum, 0);
+                for (int d = docsEnum.nextDoc(); d != DocIdSetIterator.NO_MORE_DOCS; d = docsEnum.nextDoc()) {
+                    if (liveDocs != null && liveDocs.get(d) == false) {
+                        continue;
+                    }
+                    docID = d;
                 }
-                docID = d;
+                return docID;
             }
-            return docID;
-        } else {
-            return DocIdSetIterator.NO_MORE_DOCS;
         }
+        if (searchFallback && id.length > 20) {
+            // There's no inverted index available, decode the id and perform a lookup using the timestamp and the tsid.
+            long timestamp = ByteUtils.readLongBE(id.bytes, 4);
+            BytesRef tsid = new BytesRef(id.bytes, 12, id.length - 12);
+
+            IndexSearcher searcher = new IndexSearcher(context.reader());
+            BooleanQuery.Builder booleanQuery = new BooleanQuery.Builder();
+            booleanQuery.add(SortedSetDocValuesField.newSlowExactQuery("_tsid", tsid), BooleanClause.Occur.FILTER);
+            booleanQuery.add(LongPoint.newRangeQuery("@timestamp", timestamp, timestamp), BooleanClause.Occur.FILTER);
+            TopDocs topDocs = searcher.search(booleanQuery.build(), 1);
+            return (topDocs.scoreDocs.length > 0) ? topDocs.scoreDocs[0].doc : DocIdSetIterator.NO_MORE_DOCS;
+        }
+        return DocIdSetIterator.NO_MORE_DOCS;
     }
 
     private static long readNumericDocValues(LeafReader reader, String field, int docId) throws IOException {
@@ -175,7 +194,7 @@ final class PerThreadIDVersionAndSeqNoLookup {
     DocIdAndSeqNo lookupSeqNo(BytesRef id, LeafReaderContext context) throws IOException {
         assert readerKey == null || context.reader().getCoreCacheHelper().getKey().equals(readerKey)
             : "context's reader is not the same as the reader class was initialized on.";
-        final int docID = getDocID(id, context);
+        final int docID = getDocID(id, context, false);
         if (docID != DocIdSetIterator.NO_MORE_DOCS) {
             final long seqNo = readNumericDocValues(context.reader(), SeqNoFieldMapper.NAME, docID);
             return new DocIdAndSeqNo(docID, seqNo, context);

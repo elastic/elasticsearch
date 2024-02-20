@@ -900,7 +900,12 @@ final class DefaultSearchContext extends SearchContext {
                 indexRouting = (IndexRouting.ExtractFromSource) indexService.getIndexSettings().getIndexRouting();
                 routingPaths = indexService.getMetadata().getRoutingPaths();
             }
-            return IdLoader.createTsIdLoader(indexRouting, routingPaths, request.shardId().id());
+            return IdLoader.createTsIdLoader(
+                indexRouting,
+                routingPaths,
+                request.shardId().id(),
+                indexService.getMetadata().getRoutingFactor()
+            );
         } else {
             return IdLoader.fromLeafStoredFieldLoader();
         }

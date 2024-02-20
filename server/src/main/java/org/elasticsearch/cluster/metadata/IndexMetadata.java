@@ -2848,14 +2848,14 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     }
 
     /**
-     * Returns the routing factor for and shrunk index with the given number of target shards.
+     * Returns the routing factor for a shrunk index with the given number of target shards.
      * This factor is used in the hash function in
      * {@link IndexRouting#indexShard} to guarantee consistent
      * hashing / routing of documents even if the number of shards changed (ie. a shrunk index).
      *
      * @param sourceNumberOfShards the total number of shards in the source index
      * @param targetNumberOfShards the total number of shards in the target index
-     * @return the routing factor for and shrunk index with the given number of target shards.
+     * @return the routing factor for a shrunk index with the given number of target shards.
      * @throws IllegalArgumentException if the number of source shards is less than the number of target shards or if the source shards
      * are not divisible by the number of target shards.
      */

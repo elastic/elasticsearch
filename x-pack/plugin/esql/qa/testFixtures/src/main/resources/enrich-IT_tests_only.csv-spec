@@ -141,3 +141,17 @@ row a = ["1", "2"] | enrich languages_policy on a with a_lang = language_name;
 a:keyword   | a_lang:keyword
 ["1", "2"]  | ["English", "French"] 
 ;
+
+
+overwriteNameUsedInSort
+from employees
+| sort emp_no
+| eval x = to_string(languages)
+| enrich languages_policy on x with emp_no = language_name
+| keep emp_no
+| limit 1
+;
+
+emp_no:keyword
+French
+;

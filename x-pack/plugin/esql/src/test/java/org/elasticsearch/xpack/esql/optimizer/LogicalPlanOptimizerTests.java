@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mod;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Neg;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
@@ -57,6 +58,7 @@ import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
+import org.elasticsearch.xpack.ql.expression.AttributeSet;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
@@ -3266,7 +3268,18 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(e.getMessage(), containsString(" optimized incorrectly due to missing references [salary"));
     }
 
-    public void testAsdf() throws Exception {
+    /**
+     * Pushing down EVAL must not accidentally shadow attributes required by SORT.
+     *
+     * Expects
+     * EsqlProject[[emp_no{r}#7, salary{r}#11]]
+     * \_TopN[[Order[$$emp_no$13*(emp_no+sala>$0{r}#24 + $$salary$13*(emp_no+sala>$1{r}#25 * 13[INTEGER],ASC,LAST], Order[NE
+     * G($$salary$13*(emp_no+sala>$1{r}#25),DESC,FIRST]],3[INTEGER]]
+     *   \_Eval[[emp_no{f}#14 AS $$emp_no$13*(emp_no+sala>$0, salary{f}#19 AS $$salary$13*(emp_no+sala>$1, emp_no{f}#14 * 3[IN
+     * TEGER] AS emp_no, emp_no{r}#7 * -2[INTEGER] - salary{f}#19 AS salary]]
+     *     \_EsRelation[test][_meta_field{f}#20, emp_no{f}#14, first_name{f}#15, ..]
+     */
+    public void testPushdownEvalOverwrittenName() throws Exception {
         var plan = optimizedPlan("""
             from test
             | SORT 13*(emp_no+salary) ASC, -salary DESC
@@ -3275,7 +3288,33 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             | KEEP emp_no, salary
             """);
 
-        var limit = as(plan, Limit.class);
+        var project = as(plan, EsqlProject.class);
+
+        var topN = as(project.child(), TopN.class);
+        assertThat(topN.order().size(), is(2));
+
+        var firstOrder = as(topN.order().get(0), Order.class);
+        var mul = as(firstOrder.child(), Mul.class);
+        var add = as(mul.left(), Add.class);
+        var renamed_emp_no = as(add.left(), ReferenceAttribute.class);
+        var renamed_salary = as(add.right(), ReferenceAttribute.class);
+        assertThat(renamed_emp_no.toString(), startsWith("$$emp_no$13*(emp_no+sala>$0{r}"));
+        assertThat(renamed_salary.toString(), startsWith("$$salary$13*(emp_no+sala>$1{r}"));
+
+        var secondOrder = as(topN.order().get(1), Order.class);
+        var neg = as(secondOrder.child(), Neg.class);
+        var renamed_salary2 = as(neg.field(), ReferenceAttribute.class);
+        assert (renamed_salary2.semanticEquals(renamed_salary) && renamed_salary2.equals(renamed_salary));
+
+        var eval = as(topN.child(), Eval.class);
+        AttributeSet attributesCreatedInEval = new AttributeSet();
+        for (Alias field : eval.fields()) {
+            attributesCreatedInEval.add(field.toAttribute());
+        }
+        assert (attributesCreatedInEval.contains(renamed_emp_no));
+        assert (attributesCreatedInEval.contains(renamed_salary));
+
+        assertThat(eval.child(), instanceOf(EsRelation.class));
     }
 
     private LogicalPlan optimizedPlan(String query) {

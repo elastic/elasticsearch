@@ -169,15 +169,15 @@ public class EsqlIndexResolver {
             return DateEsField.dateEsField(name, new HashMap<>(), aggregatable);
         }
         if (type == UNSUPPORTED) {
-            return unsupported(first);
+            return unsupported(name, first);
         }
 
         return new EsField(name, type, new HashMap<>(), aggregatable, isAlias);
     }
 
-    private UnsupportedEsField unsupported(IndexFieldCapabilities fc) {
+    private UnsupportedEsField unsupported(String name, IndexFieldCapabilities fc) {
         String originalType = fc.metricType() == TimeSeriesParams.MetricType.COUNTER ? "counter" : fc.type();
-        return new UnsupportedEsField(fc.name(), originalType);
+        return new UnsupportedEsField(name, originalType);
     }
 
     private EsField conflictingTypes(String name, FieldCapabilitiesResponse fieldCapsResponse) {
@@ -187,9 +187,9 @@ public class EsqlIndexResolver {
             if (fc != null) {
                 DataType type = typeRegistry.fromEs(fc.type(), fc.metricType());
                 if (type == UNSUPPORTED) {
-                    return unsupported(fc);
+                    return unsupported(name, fc);
                 }
-                typesToIndices.computeIfAbsent(type.name(), _key -> new TreeSet<>()).add(ir.getIndexName());
+                typesToIndices.computeIfAbsent(type.esType(), _key -> new TreeSet<>()).add(ir.getIndexName());
             }
         }
         StringBuilder errorMessage = new StringBuilder();

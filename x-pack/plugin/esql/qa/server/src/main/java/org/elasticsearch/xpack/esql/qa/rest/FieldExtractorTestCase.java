@@ -663,7 +663,7 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
             () -> runEsqlSync(new RestEsqlTestCase.RequestObjectBuilder().query("FROM test* | SORT f | LIMIT 3"))
         );
         String err = EntityUtils.toString(e.getResponse().getEntity());
-        assertThat(err, containsString("mapped as [2] incompatible types: [KEYWORD] in [test1], [LONG] in [test2]"));
+        assertThat(err, containsString("mapped as [2] incompatible types: [keyword] in [test1], [long] in [test2]"));
     }
 
     /**
@@ -743,7 +743,7 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
             () -> runEsqlSync(new RestEsqlTestCase.RequestObjectBuilder().query("FROM test* | SORT file, file.raw | LIMIT 3"))
         );
         String err = EntityUtils.toString(e.getResponse().getEntity());
-        assertThat(err, containsString("mapped as [2] incompatible types: [KEYWORD] in [test1], [OBJECT] in [test2]"));
+        assertThat(err, containsString("mapped as [2] incompatible types: [keyword] in [test1], [object] in [test2]"));
 
         Map<String, Object> result = runEsqlSync(new RestEsqlTestCase.RequestObjectBuilder().query("FROM test* | SORT file.raw | LIMIT 2"));
         assertMap(

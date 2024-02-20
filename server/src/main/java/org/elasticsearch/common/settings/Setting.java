@@ -2098,7 +2098,7 @@ public class Setting<T> implements ToXContentObject {
         boolean match(String key);
 
         /**
-         * Returns true if and only if this key is present in the given settings instance (not considering secure settings).
+         * Returns true if and only if this key is present in the given settings instance (ignoring given exclusions).
          * @param keys keys to check
          * @param exclusions exclusions to ignore
          */

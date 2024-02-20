@@ -145,7 +145,7 @@ full_name:keyword | emp_no:keyword | b:keyword
 Bezalel Simmel    | Bezalel        | Simmel 
 ;
 
-overwriteNameAfterSort#[skip:-8.12.99]
+overwriteNameAfterSort#[skip:-8.13.0]
 FROM employees
 | MV_EXPAND job_positions
 | SORT emp_no ASC

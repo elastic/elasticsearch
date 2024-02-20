@@ -368,7 +368,7 @@ avg_height_feet:double
 // end::evalUnnamedColumnStats-result[]
 ;
 
-overwriteNameAfterSort#[skip:-8.12.99]
+overwriteNameAfterSort#[skip:-8.13.0]
 FROM employees
 | SORT emp_no ASC
 | eval emp_no = -emp_no

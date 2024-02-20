@@ -123,8 +123,8 @@ Note that auto-flattening will not work when certain <<mapping-params, mapping p
 on object mappings that are defined under an object configured with `subobjects: false`:
 
 * The <<enabled, `enabled`>> mapping parameter must not be `false`.
-* The <<dynamic, `dynamic`>> mapping parameter must not contradict the implicit or explicit value of the parent.
-* The <<subobjects, `subobjects`>> mapping parameter mot not be set to `true` explicitly.
+* The <<dynamic, `dynamic`>> mapping parameter must not contradict the implicit or explicit value of the parent. For example, when `dynamic` is set to `false` in the root of the mapping, object mappers that set `dynamic` to `true` can't be auto-flattened.
+* The <<subobjects, `subobjects`>> mapping parameter must not be set to `true` explicitly.
 
 [source,console]
 --------------------------------------------------

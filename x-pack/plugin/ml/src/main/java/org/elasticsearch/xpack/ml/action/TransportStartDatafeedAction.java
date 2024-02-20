@@ -473,8 +473,12 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         private final DatafeedRunner datafeedRunner;
         private final IndexNameExpressionResolver resolver;
 
-        public StartDatafeedPersistentTasksExecutor(DatafeedRunner datafeedRunner, IndexNameExpressionResolver resolver) {
-            super(MlTasks.DATAFEED_TASK_NAME, MachineLearning.UTILITY_THREAD_POOL_NAME);
+        public StartDatafeedPersistentTasksExecutor(
+            DatafeedRunner datafeedRunner,
+            IndexNameExpressionResolver resolver,
+            ThreadPool threadPool
+        ) {
+            super(MlTasks.DATAFEED_TASK_NAME, threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME));
             this.datafeedRunner = datafeedRunner;
             this.resolver = resolver;
         }

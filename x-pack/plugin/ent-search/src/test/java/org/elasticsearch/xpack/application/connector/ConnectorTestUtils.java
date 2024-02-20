@@ -48,6 +48,9 @@ import static org.elasticsearch.test.ESTestCase.randomLong;
 import static org.elasticsearch.test.ESTestCase.randomLongBetween;
 
 public final class ConnectorTestUtils {
+
+    public static final String NULL_STRING = null;
+
     public static PutConnectorAction.Request getRandomPutConnectorActionRequest() {
         return new PutConnectorAction.Request(
             randomAlphaOfLengthBetween(5, 15),

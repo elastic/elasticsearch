@@ -183,7 +183,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         );
     }
 
-    private KnnSearchBuilder(
+    public KnnSearchBuilder(
         String field,
         VectorData queryVector,
         QueryVectorBuilder queryVectorBuilder,

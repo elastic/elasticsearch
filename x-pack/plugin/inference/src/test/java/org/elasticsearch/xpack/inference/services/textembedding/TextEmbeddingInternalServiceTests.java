@@ -12,22 +12,38 @@ package org.elasticsearch.xpack.inference.services.textembedding;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.inference.ChunkedInferenceServiceResults;
+import org.elasticsearch.inference.ChunkingOptions;
+import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceServiceExtension;
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.inference.results.ChunkedTextEmbeddingResults;
+import org.elasticsearch.xpack.core.ml.action.InferTrainedModelDeploymentAction;
+import org.elasticsearch.xpack.core.ml.inference.results.ChunkedTextEmbeddingResultsTests;
 import org.elasticsearch.xpack.inference.services.settings.InternalServiceSettings;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.same;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class TextEmbeddingInternalServiceTests extends ESTestCase {
 
@@ -323,6 +339,68 @@ public class TextEmbeddingInternalServiceTests extends ESTestCase {
             );
             expectThrows(IllegalArgumentException.class, () -> service.parsePersistedConfig(randomInferenceEntityId, taskType, settings));
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testChunkInfer() {
+        var mlTrainedModelResults = new ArrayList<InferenceResults>();
+        mlTrainedModelResults.add(ChunkedTextEmbeddingResultsTests.createRandomResults());
+        mlTrainedModelResults.add(ChunkedTextEmbeddingResultsTests.createRandomResults());
+        var response = new InferTrainedModelDeploymentAction.Response(mlTrainedModelResults);
+
+        ThreadPool threadpool = new TestThreadPool("test");
+        Client client = mock(Client.class);
+        when(client.threadPool()).thenReturn(threadpool);
+        doAnswer(invocationOnMock -> {
+            var listener = (ActionListener<InferTrainedModelDeploymentAction.Response>) invocationOnMock.getArguments()[2];
+            listener.onResponse(response);
+            return null;
+        }).when(client)
+            .execute(
+                same(InferTrainedModelDeploymentAction.INSTANCE),
+                any(InferTrainedModelDeploymentAction.Request.class),
+                any(ActionListener.class)
+            );
+
+        var model = new MultilingualE5SmallModel(
+            "foo",
+            TaskType.TEXT_EMBEDDING,
+            "e5",
+            new MultilingualE5SmallInternalServiceSettings(1, 1, "cross-platform")
+        );
+        var service = createService(client);
+
+        var gotResults = new AtomicBoolean();
+        var resultsListener = ActionListener.<List<ChunkedInferenceServiceResults>>wrap(chunkedResponse -> {
+            assertThat(chunkedResponse, hasSize(2));
+            assertThat(chunkedResponse.get(0), instanceOf(ChunkedTextEmbeddingResults.class));
+            var result1 = (ChunkedTextEmbeddingResults) chunkedResponse.get(0);
+            assertEquals(
+                ((org.elasticsearch.xpack.core.ml.inference.results.ChunkedTextEmbeddingResults) mlTrainedModelResults.get(0)).getChunks(),
+                result1.getChunks()
+            );
+            assertThat(chunkedResponse.get(1), instanceOf(ChunkedTextEmbeddingResults.class));
+            var result2 = (ChunkedTextEmbeddingResults) chunkedResponse.get(1);
+            assertEquals(
+                ((org.elasticsearch.xpack.core.ml.inference.results.ChunkedTextEmbeddingResults) mlTrainedModelResults.get(1)).getChunks(),
+                result2.getChunks()
+            );
+            gotResults.set(true);
+        }, ESTestCase::fail);
+
+        service.chunkedInfer(
+            model,
+            List.of("foo", "bar"),
+            Map.of(),
+            InputType.SEARCH,
+            new ChunkingOptions(null, null),
+            ActionListener.runAfter(resultsListener, () -> terminate(threadpool))
+        );
+
+        if (gotResults.get() == false) {
+            terminate(threadpool);
+        }
+        assertTrue("Listener not called", gotResults.get());
     }
 
     private TextEmbeddingInternalService createService(Client client) {

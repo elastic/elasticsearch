@@ -47,7 +47,7 @@ public class DataStreamLifecyclePermissionsRestIT extends ESRestTestCase {
         .setting("xpack.security.http.ssl.enabled", "false")
         .user("test_admin", PASSWORD, "superuser", false)
         .user("test_data_stream_lifecycle", PASSWORD, "manage_data_stream_lifecycle", false)
-        .user("test_non_privileged", PASSWORD, "not_privileged", false)
+        .user("test_non_privileged", PASSWORD, "under_privilged", false)
         .rolesFile(Resource.fromClasspath("roles.yml"))
         .build();
 
@@ -88,13 +88,13 @@ public class DataStreamLifecyclePermissionsRestIT extends ESRestTestCase {
     }
 
     private Settings restPrivilegedClientSettings() {
-        // Note: This user is assigned the role "not_privileged". That role is defined in roles.yml.
+        // Note: This user is assigned the role "under_privilged". That role is defined in roles.yml.
         String token = basicAuthHeaderValue("test_data_stream_lifecycle", new SecureString(PASSWORD.toCharArray()));
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
     private Settings restUnprivilegedClientSettings() {
-        // Note: This user is assigned the role "not_privileged". That role is defined in roles.yml.
+        // Note: This user is assigned the role "under_privilged". That role is defined in roles.yml.
         String token = basicAuthHeaderValue("test_non_privileged", new SecureString(PASSWORD.toCharArray()));
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }

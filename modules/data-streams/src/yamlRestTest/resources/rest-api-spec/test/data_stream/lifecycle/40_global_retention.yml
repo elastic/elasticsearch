@@ -1,0 +1,61 @@
+setup:
+  - skip:
+      features: allowed_warnings
+      version: " - 8.13.99"
+      reason: "Global retention was added in 8.14"
+  - do:
+      allowed_warnings:
+        - "index template [my-lifecycle] has index patterns [my-data-stream-1] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-lifecycle] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-lifecycle
+        body:
+          index_patterns: [my-data-stream-1]
+          template:
+            settings:
+              index.number_of_replicas: 0
+            lifecycle: {}
+          data_stream: {}
+
+  - do:
+      indices.create_data_stream:
+        name: my-data-stream-1
+---
+"Add global retention":
+  - do:
+      data_streams.put_global_retention:
+        body:
+          default_retention: "7d"
+          max_retention: "90d"
+  - is_true: acknowledged
+  - is_false: dry_run
+  - match: {affected_data_streams.0.name: "my-data-stream-1"}
+  - match: {affected_data_streams.0.previous_effective_retention: "infinite"}
+  - match: {affected_data_streams.0.new_effective_retention: "7d"}
+
+  - do:
+      data_streams.get_global_retention: { }
+  - match: { default_retention: "7d" }
+  - match: { max_retention: "90d" }
+
+---
+"Dry run global retention":
+  - do:
+      indices.put_data_lifecycle:
+        name: "*"
+        body: >
+          {
+            "data_retention": "30d"
+          }
+  - is_true: acknowledged
+
+  - do:
+      data_streams.put_global_retention:
+        dry_run: true
+        body:
+          default_retention: "1d"
+          max_retention: "3d"
+  - is_false: acknowledged
+  - is_true: dry_run
+  - match: {affected_data_streams.0.name: "my-data-stream-1"}
+  - match: {affected_data_streams.0.previous_effective_retention: "30d"}
+  - match: {affected_data_streams.0.new_effective_retention: "3d"}

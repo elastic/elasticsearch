@@ -1,0 +1,29 @@
+{
+  "data_streams.get_global_retention":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/data-streams-get-global-retention.html",
+      "description":"Returns global retention configuration that applies to all data streams managed by the data stream lifecycle."
+    },
+    "stability":"experimental",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_data_stream/_global_retention",
+          "methods":[
+            "GET"
+          ]
+        }
+      ]
+    },
+    "params":{
+      "local":{
+        "type":"boolean",
+        "description":"Return the global retention retrieved from the node that received the request."
+      }
+    }
+  }
+}

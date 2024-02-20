@@ -532,8 +532,8 @@ public abstract class StreamInput extends InputStream {
             return null; // not enough bytes to read chars
         }
         for (int pos = start; pos < end; pos++) {
-            if ((bytes[pos] & 0xf0) > 0x70) {
-                // not an ISO_8859_1 char, fall back to reading a UTF-8 string
+            if ((bytes[pos] & 0x80) != 0) {
+                // not an ASCII char, fall back to reading a UTF-8 string
                 return tryReadUtf8StringFromBytes(bytes, start, limit, pos, end - pos);
             }
         }

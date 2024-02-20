@@ -26,7 +26,7 @@ import java.util.Objects;
 public class GetInferenceModelAction extends ActionType<GetInferenceModelAction.Response> {
 
     public static final GetInferenceModelAction INSTANCE = new GetInferenceModelAction();
-    public static final String NAME = "cluster:admin/xpack/inference/get";
+    public static final String NAME = "cluster:monitor/xpack/inference/get";
 
     public GetInferenceModelAction() {
         super(NAME);
@@ -114,7 +114,7 @@ public class GetInferenceModelAction extends ActionType<GetInferenceModelAction.
             builder.startArray("models");
             for (var model : models) {
                 if (model != null) {
-                    model.toXContent(builder, params);
+                    model.toFilteredXContent(builder, params);
                 }
             }
             builder.endArray();

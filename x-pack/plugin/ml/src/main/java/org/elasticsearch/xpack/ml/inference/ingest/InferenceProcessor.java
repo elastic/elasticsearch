@@ -381,8 +381,8 @@ public class InferenceProcessor extends AbstractProcessor {
 
         @Override
         public void accept(ClusterState state) {
-            minNodeVersion = MlConfigVersion.getMinMlConfigVersion(state.nodes());
             try {
+                minNodeVersion = MlConfigVersion.getMinMlConfigVersion(state.nodes());
                 currentInferenceProcessors = InferenceProcessorInfoExtractor.countInferenceProcessors(state);
             } catch (Exception ex) {
                 // We cannot throw any exception here. It might break other pipelines.

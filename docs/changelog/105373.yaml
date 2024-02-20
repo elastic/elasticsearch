@@ -1,0 +1,5 @@
+pr: 105373
+summary: "Fix parsing of flattened fields within subobjects: false"
+area: Mapping
+type: bug
+issues: []

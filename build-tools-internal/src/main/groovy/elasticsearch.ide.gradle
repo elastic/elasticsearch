@@ -7,6 +7,7 @@
  */
 
 import org.elasticsearch.gradle.util.Pair
+import org.elasticsearch.gradle.util.GradleUtils
 import org.elasticsearch.gradle.internal.info.BuildParams
 import org.jetbrains.gradle.ext.JUnit
 
@@ -109,16 +110,25 @@ if (providers.systemProperty('idea.active').getOrNull() == 'true') {
     }
   }
 
+  // aggregate task so dependency artifacts below can can use one task name
+  tasks.register("generateProviderImpls").configure {
+    group = 'ide'
+    description = 'Builds all embedded provider impls'
+
+    dependsOn subprojects
+      .collect { GradleUtils.findByName(it.tasks, 'generateProviderImpls') }
+      .findAll { it != null }
+  }
+
   tasks.register('buildDependencyArtifacts') {
     group = 'ide'
     description = 'Builds artifacts needed as dependency for IDE modules'
-    dependsOn([':client:rest-high-level:shadowJar',
-      ':plugins:repository-hdfs:hadoop-client-api:shadowJar',
-      ':libs:elasticsearch-x-content:generateImplProviderImpl',
+    dependsOn([':plugins:repository-hdfs:hadoop-client-api:shadowJar',
       ':x-pack:plugin:esql:compute:ann:jar',
       ':x-pack:plugin:esql:compute:gen:jar',
       ':server:generateModulesList',
-      ':server:generatePluginsList'].collect { elasticsearchProject.right()?.task(it) ?: it })
+      ':server:generatePluginsList',
+      ':generateProviderImpls'].collect { elasticsearchProject.right()?.task(it) ?: it })
   }
 
   idea {

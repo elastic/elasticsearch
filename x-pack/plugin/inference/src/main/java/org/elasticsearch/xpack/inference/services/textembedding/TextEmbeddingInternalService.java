@@ -37,7 +37,6 @@ import org.elasticsearch.xpack.core.ml.action.StopTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfigUpdate;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TokenizationConfigUpdate;
 import org.elasticsearch.xpack.inference.services.settings.InternalServiceSettings;
 
@@ -252,7 +251,7 @@ public class TextEmbeddingInternalService implements InferenceService {
 
         var configUpdate = chunkingOptions.settingsArePresent()
             ? new TokenizationConfigUpdate(chunkingOptions.windowSize(), chunkingOptions.span())
-            : TextExpansionConfigUpdate.EMPTY_UPDATE;
+            : TextEmbeddingConfigUpdate.EMPTY_INSTANCE;
 
         var request = InferTrainedModelDeploymentAction.Request.forTextInput(
             model.getConfigurations().getInferenceEntityId(),

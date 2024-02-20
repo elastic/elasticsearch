@@ -312,7 +312,10 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
         final String apiKeyId = createApiKeyResponse.getId();
         final String base64ApiKeyKeyValue = Base64.getEncoder()
             .encodeToString((apiKeyId + ":" + createApiKeyResponse.getKey().toString()).getBytes(StandardCharsets.UTF_8));
-        assertThat(securityClient.getApiKey(apiKeyId).getUsername(), equalTo("user2"));
+        ApiKey apiKey = securityClient.getApiKey(apiKeyId);
+        assertThat(apiKey.getUsername(), equalTo("user2"));
+        assertThat(apiKey.getRealm(), equalTo("index"));
+        assertThat(apiKey.getRealmType(), equalTo("native"));
         final Client clientWithGrantedKey = client().filterWithHeader(Map.of("Authorization", "ApiKey " + base64ApiKeyKeyValue));
         // The API key has privileges (inherited from user2) to check cluster health
         clientWithGrantedKey.execute(TransportClusterHealthAction.TYPE, new ClusterHealthRequest()).actionGet();
@@ -618,6 +621,7 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
         assertThat(getApiKeyInfo.getMetadata(), anEmptyMap());
         assertThat(getApiKeyInfo.getUsername(), equalTo("test_user"));
         assertThat(getApiKeyInfo.getRealm(), equalTo("file"));
+        assertThat(getApiKeyInfo.getRealmType(), equalTo("file"));
 
         // Check the API key attributes with Query API
         final QueryApiKeyRequest queryApiKeyRequest = new QueryApiKeyRequest(
@@ -638,6 +642,7 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
         assertThat(queryApiKeyInfo.getMetadata(), anEmptyMap());
         assertThat(queryApiKeyInfo.getUsername(), equalTo("test_user"));
         assertThat(queryApiKeyInfo.getRealm(), equalTo("file"));
+        assertThat(queryApiKeyInfo.getRealmType(), equalTo("file"));
     }
 
     public void testUpdateCrossClusterApiKey() throws IOException {
@@ -672,6 +677,7 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
         assertThat(getApiKeyInfo.getMetadata(), anEmptyMap());
         assertThat(getApiKeyInfo.getUsername(), equalTo("test_user"));
         assertThat(getApiKeyInfo.getRealm(), equalTo("file"));
+        assertThat(getApiKeyInfo.getRealmType(), equalTo("file"));
 
         final CrossClusterApiKeyRoleDescriptorBuilder roleDescriptorBuilder;
         final boolean shouldUpdateAccess = randomBoolean();
@@ -745,6 +751,7 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
         assertThat(queryApiKeyInfo.getMetadata(), equalTo(updateMetadata == null ? Map.of() : updateMetadata));
         assertThat(queryApiKeyInfo.getUsername(), equalTo("test_user"));
         assertThat(queryApiKeyInfo.getRealm(), equalTo("file"));
+        assertThat(queryApiKeyInfo.getRealmType(), equalTo("file"));
     }
 
     // Cross-cluster API keys cannot be created by an API key even if it has manage_security privilege

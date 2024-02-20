@@ -25,7 +25,6 @@ import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.junit.annotations.TestLogging;
-import org.junit.Ignore;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -551,14 +550,6 @@ public class SettingTests extends ESTestCase {
         } catch (IllegalArgumentException ex) {
             assertEquals(ex.getMessage(), "illegal value can't update [foo.bar.] from [{}] to [{\"1.value\":\"1\",\"2.value\":\"2\"}]");
         }
-    }
-
-    @Ignore("No deprecations logged for group settings")
-    public void testGroupSettingDeprecated() {
-        Setting<Settings> setting = Setting.groupSetting("foo.deprecated.", Property.DeprecatedWarning, Property.NodeScope);
-
-        setting.get(Settings.builder().put("foo.deprecated.1.value", "1").build());
-        assertSettingDeprecationsAndWarnings(new Setting<?>[] { setting });
     }
 
     public void testGroupKeyExists() {

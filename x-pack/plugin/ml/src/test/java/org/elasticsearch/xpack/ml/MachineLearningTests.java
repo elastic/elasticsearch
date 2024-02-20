@@ -7,14 +7,17 @@
 package org.elasticsearch.xpack.ml;
 
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.monitor.os.OsStats;
 import org.elasticsearch.test.ESTestCase;
@@ -24,6 +27,7 @@ import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.SetUpgradeModeAction;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.util.Collections;
 import java.util.Map;
 
@@ -225,6 +229,51 @@ public class MachineLearningTests extends ESTestCase {
             new OsStats.Cgroup("a", 1, "b", 2, 3, new OsStats.Cgroup.CpuStat(4, 5, 6), "c", "7516192768", "4796416")
         );
         assertEquals(7_516_192_768L, MachineLearning.machineMemoryFromStats(stats));
+    }
+
+    public void testIsMlNode_given812MlNode() {
+        DiscoveryNode mlNode812 = new DiscoveryNode(
+            "name",
+            "id",
+            "ephemeralId",
+            "hostName",
+            "hostAddress",
+            new TransportAddress(InetAddress.getLoopbackAddress(), randomIntBetween(1024, 65535)),
+            Collections.emptyMap(),
+            Collections.singleton(MachineLearning.ML_ROLE),
+            Version.fromString("8.12.0")
+        );
+        assertTrue(MachineLearning.isMlNode(mlNode812));
+    }
+
+    public void testIsMlNode_given717MlNode() {
+        DiscoveryNode mlNode717 = new DiscoveryNode(
+            "name",
+            "id",
+            "ephemeralId",
+            "hostName",
+            "hostAddress",
+            new TransportAddress(InetAddress.getLoopbackAddress(), randomIntBetween(1024, 65535)),
+            Collections.singletonMap(MachineLearning.MAX_OPEN_JOBS_NODE_ATTR, "512"),
+            Collections.singleton(MachineLearning.ML_ROLE),
+            Version.V_7_17_0
+        );
+        assertTrue(MachineLearning.isMlNode(mlNode717));
+    }
+
+    public void testIsMlNode_given70MlNode() {
+        DiscoveryNode mlNode70 = new DiscoveryNode(
+            "name",
+            "id",
+            "ephemeralId",
+            "hostName",
+            "hostAddress",
+            new TransportAddress(InetAddress.getLoopbackAddress(), randomIntBetween(1024, 65535)),
+            Collections.singletonMap(MachineLearning.MAX_OPEN_JOBS_NODE_ATTR, "512"),
+            Collections.emptySet(),
+            Version.V_7_0_0
+        );
+        assertTrue(MachineLearning.isMlNode(mlNode70));
     }
 
     private MachineLearning createMachineLearning(Settings settings) {

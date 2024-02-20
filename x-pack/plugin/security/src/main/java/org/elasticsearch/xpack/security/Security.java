@@ -120,6 +120,7 @@ import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheAction;
 import org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationAction;
 import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequestBuilderFactory;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClusterApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.GrantApiKeyAction;
@@ -562,6 +563,7 @@ public class Security extends Plugin
     private final SetOnce<ScriptService> scriptServiceReference = new SetOnce<>();
     private final SetOnce<OperatorOnlyRegistry> operatorOnlyRegistry = new SetOnce<>();
     private final SetOnce<PutRoleRequestBuilderFactory> putRoleRequestBuilderFactory = new SetOnce<>();
+    private final SetOnce<CreateApiKeyRequestBuilderFactory> createApiKeyRequestBuilderFactory = new SetOnce<>();
     private final SetOnce<GetBuiltinPrivilegesResponseTranslator> getBuiltinPrivilegesResponseTranslator = new SetOnce<>();
     private final SetOnce<UpdateApiKeyRequest.RequestTranslator> updateApiKeyRequestTranslator = new SetOnce<>();
     private final SetOnce<FileRolesStore> fileRolesStore = new SetOnce<>();
@@ -823,11 +825,12 @@ public class Security extends Plugin
         if (putRoleRequestBuilderFactory.get() == null) {
             putRoleRequestBuilderFactory.set(new PutRoleRequestBuilderFactory.Default());
         }
-
+        if (createApiKeyRequestBuilderFactory.get() == null) {
+            createApiKeyRequestBuilderFactory.set(new CreateApiKeyRequestBuilderFactory.Default());
+        }
         if (getBuiltinPrivilegesResponseTranslator.get() == null) {
             getBuiltinPrivilegesResponseTranslator.set(new GetBuiltinPrivilegesResponseTranslator.Default());
         }
-
         if (updateApiKeyRequestTranslator.get() == null) {
             updateApiKeyRequestTranslator.set(new UpdateApiKeyRequest.RequestTranslator.Default());
         }
@@ -1462,7 +1465,7 @@ public class Security extends Plugin
             new RestGetPrivilegesAction(settings, getLicenseState()),
             new RestPutPrivilegesAction(settings, getLicenseState()),
             new RestDeletePrivilegesAction(settings, getLicenseState()),
-            new RestCreateApiKeyAction(settings, getLicenseState()),
+            new RestCreateApiKeyAction(settings, getLicenseState(), createApiKeyRequestBuilderFactory.get()),
             new RestCreateCrossClusterApiKeyAction(settings, getLicenseState()),
             new RestUpdateApiKeyAction(settings, getLicenseState(), updateApiKeyRequestTranslator.get()),
             new RestBulkUpdateApiKeyAction(settings, getLicenseState()),
@@ -2046,6 +2049,7 @@ public class Security extends Plugin
         loadSingletonExtensionAndSetOnce(loader, putRoleRequestBuilderFactory, PutRoleRequestBuilderFactory.class);
         loadSingletonExtensionAndSetOnce(loader, getBuiltinPrivilegesResponseTranslator, GetBuiltinPrivilegesResponseTranslator.class);
         loadSingletonExtensionAndSetOnce(loader, updateApiKeyRequestTranslator, UpdateApiKeyRequest.RequestTranslator.class);
+        loadSingletonExtensionAndSetOnce(loader, createApiKeyRequestBuilderFactory, CreateApiKeyRequestBuilderFactory.class);
     }
 
     private <T> void loadSingletonExtensionAndSetOnce(ExtensionLoader loader, SetOnce<T> setOnce, Class<T> clazz) {

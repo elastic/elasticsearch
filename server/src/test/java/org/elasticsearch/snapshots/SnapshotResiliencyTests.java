@@ -1539,7 +1539,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             .<CreateSnapshotResponse>andThen(
                 (l, ignored) -> client().admin()
                     .cluster()
-                    .prepareCreateSnapshot(repoName, "test-snapshot")
+                    .prepareCreateSnapshot(repoName, randomIdentifier())
                     .setIndices(indexName)
                     .setWaitForCompletion(randomBoolean())
                     .execute(new ActionListener<>() {

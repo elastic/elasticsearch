@@ -6,15 +6,11 @@
     },
     "stability":"stable",
     "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"],
-      "content_type": ["application/x-ndjson"]
-    },
     "url":{
       "paths":[
         {
           "path":"/_text_structure/find_field_structure",
-          "methods":["GET", "POST"]
+          "methods":["GET"]
         }
       ]
     },

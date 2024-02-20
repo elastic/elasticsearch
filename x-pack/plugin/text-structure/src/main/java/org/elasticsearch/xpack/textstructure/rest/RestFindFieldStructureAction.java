@@ -20,7 +20,6 @@ import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
-import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.xpack.textstructure.TextStructurePlugin.BASE_PATH;
 
 @ServerlessScope(Scope.INTERNAL)
@@ -28,7 +27,7 @@ public class RestFindFieldStructureAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(GET, BASE_PATH + "find_field_structure"), new Route(POST, BASE_PATH + "find_field_structure"));
+        return List.of(new Route(GET, BASE_PATH + "find_field_structure"));
     }
 
     @Override

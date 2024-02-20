@@ -25,6 +25,7 @@ import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.junit.Ignore;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -552,6 +553,21 @@ public class SettingTests extends ESTestCase {
         }
     }
 
+    @Ignore("No deprecations logged for group settings")
+    public void testGroupSettingDeprecated() {
+        Setting<Settings> setting = Setting.groupSetting("foo.deprecated.", Property.DeprecatedWarning, Property.NodeScope);
+
+        setting.get(Settings.builder().put("foo.deprecated.1.value", "1").build());
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { setting });
+    }
+
+    public void testGroupKeyExists() {
+        Setting<Settings> setting = Setting.groupSetting("foo.deprecated.", Property.NodeScope);
+
+        assertFalse(setting.exists(Settings.EMPTY));
+        assertTrue(setting.exists(Settings.builder().put("foo.deprecated.1.value", "1").build()));
+    }
+
     public void testFilteredGroups() {
         AtomicReference<Settings> ref = new AtomicReference<>(null);
         Setting<Settings> setting = Setting.groupSetting("foo.bar.", Property.Filtered, Property.Dynamic);
@@ -659,6 +675,22 @@ public class SettingTests extends ESTestCase {
 
     }
 
+    public void testListKeyExists() {
+        final Setting<List<String>> listSetting = Setting.listSetting(
+            "foo",
+            Collections.singletonList("bar"),
+            Function.identity(),
+            Property.NodeScope
+        );
+        Settings settings = Settings.builder().put("foo", "bar1,bar2").build();
+        assertFalse(listSetting.exists(Settings.EMPTY));
+        assertTrue(listSetting.exists(settings));
+
+        settings = Settings.builder().put("foo.0", "foo1").put("foo.1", "foo2").build();
+        assertFalse(listSetting.exists(Settings.EMPTY));
+        assertTrue(listSetting.exists(settings));
+    }
+
     public void testListSettingsDeprecated() {
         final Setting<List<String>> deprecatedListSetting = Setting.listSetting(
             "foo.deprecated",
@@ -673,9 +705,19 @@ public class SettingTests extends ESTestCase {
             Function.identity(),
             Property.NodeScope
         );
-        final Settings settings = Settings.builder()
+        Settings settings = Settings.builder()
             .put("foo.deprecated", "foo.deprecated1,foo.deprecated2")
-            .put("foo.deprecated", "foo.non_deprecated1,foo.non_deprecated2")
+            .put("foo.non_deprecated", "foo.non_deprecated1,foo.non_deprecated2")
+            .build();
+        deprecatedListSetting.get(settings);
+        nonDeprecatedListSetting.get(settings);
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { deprecatedListSetting });
+
+        settings = Settings.builder()
+            .put("foo.deprecated.0", "foo.deprecated1")
+            .put("foo.deprecated.1", "foo.deprecated2")
+            .put("foo.non_deprecated.0", "foo.non_deprecated1")
+            .put("foo.non_deprecated.1", "foo.non_deprecated2")
             .build();
         deprecatedListSetting.get(settings);
         nonDeprecatedListSetting.get(settings);
@@ -879,6 +921,21 @@ public class SettingTests extends ESTestCase {
         assertFalse(listAffixSetting.match("foo.bar"));
         assertFalse(listAffixSetting.match("foo.baz"));
         assertFalse(listAffixSetting.match("foo"));
+    }
+
+    public void testAffixKeyExists() {
+        Setting<Boolean> setting = Setting.affixKeySetting("foo.", "enable", (key) -> Setting.boolSetting(key, false, Property.NodeScope));
+
+        assertFalse(setting.exists(Settings.EMPTY));
+        assertTrue(setting.exists(Settings.builder().put("foo.test.enable", "true").build()));
+    }
+
+    public void testAffixKeyExistsWithSecure() {
+        Setting<Boolean> setting = Setting.affixKeySetting("foo.", "enable", (key) -> Setting.boolSetting(key, false, Property.NodeScope));
+
+        final MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("foo.test.enabled", "true");
+        assertFalse(setting.exists(Settings.builder().setSecureSettings(secureSettings).build()));
     }
 
     public void testAffixSettingNamespaces() {

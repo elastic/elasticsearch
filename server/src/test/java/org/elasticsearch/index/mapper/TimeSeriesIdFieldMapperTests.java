@@ -694,7 +694,7 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
         // with _id
         {
             MapperService mapper = createMapperService(IndexVersion.current(), indexSettings, () -> false);
-            SourceToParse source = new SourceToParse("itaMgKqjeKVKQJobAAABdrs-cAA", new BytesArray("""
+            SourceToParse source = new SourceToParse("no-such-tsid", new BytesArray("""
                 {
                     "@timestamp": 1609459200000,
                     "dim": "6a841a21",
@@ -720,7 +720,7 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
                 failure.getMessage(),
                 equalTo(
                     "[5:1] failed to parse: _id must be unset or set to [AAAAAMpxfIC8Wpr0AAABdrs-cAA]"
-                        + " but was [itaMgKqjeKVKQJobAAABdrs-cAA] because [index] is in time_series mode"
+                        + " but was [no-such-tsid] because [index] is in time_series mode"
                 )
             );
         }

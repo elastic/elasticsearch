@@ -64,7 +64,6 @@ public class CrossClusterShardTests extends ESSingleNodeTestCase {
         ClusterSearchShardsAction.NAME
     );
 
-
     Set<Class<?>> CHECKED_ABSTRACT_CLASSES = Set.of(
         // This abstract class implements the interface so we can assume all of its subtypes do so properly as well.
         TransportSingleShardAction.class
@@ -155,13 +154,12 @@ public class CrossClusterShardTests extends ESSingleNodeTestCase {
             classHeirarchy.add(clazz);
             clazz = clazz.getSuperclass();
         }
-        boolean hasCheckedSuperclass = classHeirarchy.stream()
-            .anyMatch(clz -> CHECKED_ABSTRACT_CLASSES.contains(clz));
-        boolean shardInClassName = classHeirarchy.stream()
-            .anyMatch(clz -> clz.getName().toLowerCase(Locale.ROOT).contains("shard"));
-        return hasCheckedSuperclass == false && (shardInClassName
-            || transportAction.actionName.toLowerCase(Locale.ROOT).contains("shard")
-            || transportAction.actionName.toLowerCase(Locale.ROOT).contains("[s]"));
+        boolean hasCheckedSuperclass = classHeirarchy.stream().anyMatch(clz -> CHECKED_ABSTRACT_CLASSES.contains(clz));
+        boolean shardInClassName = classHeirarchy.stream().anyMatch(clz -> clz.getName().toLowerCase(Locale.ROOT).contains("shard"));
+        return hasCheckedSuperclass == false
+            && (shardInClassName
+                || transportAction.actionName.toLowerCase(Locale.ROOT).contains("shard")
+                || transportAction.actionName.toLowerCase(Locale.ROOT).contains("[s]"));
     }
 
 }

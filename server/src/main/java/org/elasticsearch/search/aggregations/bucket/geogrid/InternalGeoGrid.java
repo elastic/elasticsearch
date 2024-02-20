@@ -91,11 +91,10 @@ public abstract class InternalGeoGrid<B extends InternalGeoGridBucket> extends I
                 @SuppressWarnings("unchecked")
                 final InternalGeoGrid<B> grid = (InternalGeoGrid<B>) aggregation;
                 for (InternalGeoGridBucket bucket : grid.getBuckets()) {
-                    final long hash = bucket.hashAsLong();
-                    MultiBucketAggregatorsReducer reducer = bucketsReducer.get(hash);
+                    MultiBucketAggregatorsReducer reducer = bucketsReducer.get(bucket.hashAsLong());
                     if (reducer == null) {
                         reducer = new MultiBucketAggregatorsReducer(reduceContext, size);
-                        bucketsReducer.put(hash, reducer);
+                        bucketsReducer.put(bucket.hashAsLong(), reducer);
                     }
                     reducer.accept(bucket);
                 }
@@ -104,7 +103,7 @@ public abstract class InternalGeoGrid<B extends InternalGeoGridBucket> extends I
             @Override
             public InternalAggregation get() {
                 final int size = Math.toIntExact(
-                    reduceContext.isFinalReduce() == false ? buckets.size() : Math.min(requiredSize, buckets.size())
+                    reduceContext.isFinalReduce() == false ? bucketsReducer.size() : Math.min(requiredSize, bucketsReducer.size())
                 );
                 final BucketPriorityQueue<InternalGeoGridBucket> ordered = new BucketPriorityQueue<>(size);
                 bucketsReducer.iterator().forEachRemaining(entry -> {

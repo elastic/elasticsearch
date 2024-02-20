@@ -185,7 +185,7 @@ public final class EsqlTestUtils {
 
     public static List<String> withDefaultLimitWarning(List<String> warnings) {
         List<String> result = warnings == null ? new ArrayList<>() : new ArrayList<>(warnings);
-        result.add("No limit defined, adding default limit of");
+        result.add("No limit defined, adding default limit of [1000]");
         return result;
     }
 

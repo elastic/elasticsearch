@@ -89,6 +89,7 @@ public final class ApiKey implements ToXContentObject {
     private final Instant invalidation;
     private final String username;
     private final String realm;
+    @Nullable
     private final String realmType;
     private final Map<String, Object> metadata;
     @Nullable

@@ -1604,6 +1604,7 @@ public class MapperServiceTests extends MapperServiceTestCase {
 
         CompressedXContent mapping2 = new CompressedXContent("""
             {
+              "subobjects": false,
               "properties": {
                 "parent": {
                   "dynamic": "true",
@@ -1676,7 +1677,7 @@ public class MapperServiceTests extends MapperServiceTestCase {
             }""");
     }
 
-    public void testExpand() throws IOException {
+    public void testExpandDottedNotationToObjectMappers() throws IOException {
         CompressedXContent mapping1 = new CompressedXContent("""
             {
               "properties": {

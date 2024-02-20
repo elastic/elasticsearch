@@ -118,6 +118,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.FakeThreadPoolMasterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.cluster.version.CompatibilityVersionsUtils;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
@@ -224,11 +225,12 @@ import static org.elasticsearch.action.support.ActionTestUtils.assertNoFailureLi
 import static org.elasticsearch.env.Environment.PATH_HOME_SETTING;
 import static org.elasticsearch.monitor.StatusInfo.Status.HEALTHY;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.iterableWithSize;
@@ -433,9 +435,15 @@ public class SnapshotResiliencyTests extends ESTestCase {
             }
         }, e -> {
             if (partial == false) {
-                final SnapshotException unwrapped = (SnapshotException) ExceptionsHelper.unwrap(e, SnapshotException.class);
-                assertNotNull(unwrapped);
-                assertThat(unwrapped.getMessage(), endsWith("Indices don't have primary shards [test]"));
+                assertThat(
+                    asInstanceOf(SnapshotException.class, ExceptionsHelper.unwrap(e, SnapshotException.class)).getMessage(),
+                    allOf(
+                        containsString("the following indices have unassigned primary shards"),
+                        containsString("unless [partial] is set to [true]"),
+                        containsString("[test]"),
+                        containsString(ReferenceDocs.UNASSIGNED_SHARDS.toString())
+                    )
+                );
                 snapshotNeverStarted.set(true);
             } else {
                 throw new AssertionError(e);
@@ -1378,6 +1386,76 @@ public class SnapshotResiliencyTests extends ESTestCase {
         safeAwait(testListener); // shouldn't throw
     }
 
+    public void testFullSnapshotUnassignedShards() {
+        setupTestCluster(1, 0); // no data nodes, we want unassigned shards
+
+        final var indices = IntStream.range(0, between(1, 4)).mapToObj(i -> "index-" + i).sorted().toList();
+        final var repoName = "repo";
+        final var originalSnapshotName = "original-snapshot";
+
+        var testListener = SubscribableListener
+
+            // Create the repo and indices
+            .<Void>newForked(stepListener -> {
+                try (var listeners = new RefCountingListener(stepListener)) {
+                    client().admin()
+                        .cluster()
+                        .preparePutRepository(repoName)
+                        .setType(FsRepository.TYPE)
+                        .setSettings(Settings.builder().put("location", randomAlphaOfLength(10)))
+                        .execute(listeners.acquire(createRepoResponse -> {}));
+
+                    for (final var index : indices) {
+                        deterministicTaskQueue.scheduleNow(
+                            // wrapped in another scheduleNow() to randomize creation order
+                            ActionRunnable.<CreateIndexResponse>wrap(
+                                listeners.acquire(createIndexResponse -> {}),
+                                l -> client().admin()
+                                    .indices()
+                                    .create(
+                                        new CreateIndexRequest(index).waitForActiveShards(ActiveShardCount.NONE)
+                                            .settings(defaultIndexSettings(1)),
+                                        l
+                                    )
+                            )
+                        );
+                    }
+                }
+            })
+
+            // Take a full snapshot for use as the source for future clones
+            .<Void>andThen(
+                (l, ignored) -> client().admin()
+                    .cluster()
+                    .prepareCreateSnapshot(repoName, originalSnapshotName)
+                    .setWaitForCompletion(randomBoolean())
+                    .execute(new ActionListener<>() {
+                        @Override
+                        public void onResponse(CreateSnapshotResponse createSnapshotResponse) {
+                            fail("snapshot should not have started");
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            assertThat(
+                                asInstanceOf(SnapshotException.class, e).getMessage(),
+                                allOf(
+                                    containsString("the following indices have unassigned primary shards"),
+                                    containsString("unless [partial] is set to [true]"),
+                                    containsString(indices.toString() /* NB sorted */),
+                                    containsString(ReferenceDocs.UNASSIGNED_SHARDS.toString())
+                                )
+                            );
+                            l.onResponse(null);
+                        }
+                    })
+            );
+
+        deterministicTaskQueue.runAllRunnableTasks();
+        assertTrue("executed all runnable tasks but test steps are still incomplete", testListener.isDone());
+        safeAwait(testListener); // shouldn't throw
+    }
+
     private RepositoryData getRepositoryData(Repository repository) {
         final PlainActionFuture<RepositoryData> res = new PlainActionFuture<>();
         repository.getRepositoryData(deterministicTaskQueue::scheduleNow, res);
@@ -2122,7 +2200,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     threadPool,
                     shardStateAction,
                     mappingUpdatedAction,
-                    new UpdateHelper(scriptService),
+                    new UpdateHelper(scriptService, DocumentParsingProvider.EMPTY_INSTANCE),
                     actionFilters,
                     indexingMemoryLimits,
                     EmptySystemIndices.INSTANCE,

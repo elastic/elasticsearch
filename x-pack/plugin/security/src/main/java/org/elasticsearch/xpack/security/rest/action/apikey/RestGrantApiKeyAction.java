@@ -11,7 +11,6 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
@@ -20,19 +19,17 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.security.action.Grant;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.apikey.GrantApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.GrantApiKeyRequest;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
+import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 
@@ -46,31 +43,19 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 @ServerlessScope(Scope.INTERNAL)
 public final class RestGrantApiKeyAction extends ApiKeyBaseRestHandler implements RestRequestFilter {
 
-    private static final ConstructingObjectParser<Grant.ClientAuthentication, Void> CLIENT_AUTHENTICATION_PARSER =
-        new ConstructingObjectParser<>("client_authentication", a -> new Grant.ClientAuthentication((String) a[0], (SecureString) a[1]));
-    static {
-        CLIENT_AUTHENTICATION_PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField("scheme"));
-        CLIENT_AUTHENTICATION_PARSER.declareField(
-            ConstructingObjectParser.constructorArg(),
-            RestGrantApiKeyAction::getSecureString,
-            new ParseField("value"),
-            ObjectParser.ValueType.STRING
-        );
-    }
-
     static final ObjectParser<GrantApiKeyRequest, Void> PARSER = new ObjectParser<>("grant_api_key_request", GrantApiKeyRequest::new);
     static {
         PARSER.declareString((req, str) -> req.getGrant().setType(str), new ParseField("grant_type"));
         PARSER.declareString((req, str) -> req.getGrant().setUsername(str), new ParseField("username"));
         PARSER.declareField(
             (req, secStr) -> req.getGrant().setPassword(secStr),
-            RestGrantApiKeyAction::getSecureString,
+            SecurityBaseRestHandler::getSecureString,
             new ParseField("password"),
             ObjectParser.ValueType.STRING
         );
         PARSER.declareField(
             (req, secStr) -> req.getGrant().setAccessToken(secStr),
-            RestGrantApiKeyAction::getSecureString,
+            SecurityBaseRestHandler::getSecureString,
             new ParseField("access_token"),
             ObjectParser.ValueType.STRING
         );
@@ -84,12 +69,6 @@ public final class RestGrantApiKeyAction extends ApiKeyBaseRestHandler implement
             (req, api) -> req.setApiKeyRequest(api),
             (parser, ignore) -> CreateApiKeyRequestBuilder.parse(parser),
             new ParseField("api_key")
-        );
-    }
-
-    private static SecureString getSecureString(XContentParser parser) throws IOException {
-        return new SecureString(
-            Arrays.copyOfRange(parser.textCharacters(), parser.textOffset(), parser.textOffset() + parser.textLength())
         );
     }
 
@@ -138,10 +117,8 @@ public final class RestGrantApiKeyAction extends ApiKeyBaseRestHandler implement
         }
     }
 
-    private static final Set<String> FILTERED_FIELDS = Set.of("password", "access_token", "client_authentication.value");
-
     @Override
     public Set<String> getFilteredFields() {
-        return FILTERED_FIELDS;
+        return Set.of("password", "access_token", "client_authentication.value");
     }
 }

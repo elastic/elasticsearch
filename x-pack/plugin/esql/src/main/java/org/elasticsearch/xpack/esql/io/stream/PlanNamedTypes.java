@@ -88,6 +88,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Tan;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Tanh;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Tau;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.AbstractMultivalueFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAppend;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAvg;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvConcat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCount;
@@ -412,6 +413,7 @@ public final class PlanNamedTypes {
             of(AggregateFunction.class, SpatialCentroid.class, PlanNamedTypes::writeAggFunction, PlanNamedTypes::readAggFunction),
             of(AggregateFunction.class, Sum.class, PlanNamedTypes::writeAggFunction, PlanNamedTypes::readAggFunction),
             // Multivalue functions
+            of(ScalarFunction.class, MvAppend.class, PlanNamedTypes::writeMvAppend, PlanNamedTypes::readMvAppend),
             of(ScalarFunction.class, MvAvg.class, PlanNamedTypes::writeMvFunction, PlanNamedTypes::readMvFunction),
             of(ScalarFunction.class, MvCount.class, PlanNamedTypes::writeMvFunction, PlanNamedTypes::readMvFunction),
             of(ScalarFunction.class, MvConcat.class, PlanNamedTypes::writeMvConcat, PlanNamedTypes::readMvConcat),
@@ -1876,5 +1878,17 @@ public final class PlanNamedTypes {
         out.writeExpression(fields.get(0));
         out.writeExpression(fields.get(1));
         out.writeOptionalWriteable(fields.size() == 3 ? o -> out.writeExpression(fields.get(2)) : null);
+    }
+
+    static MvAppend readMvAppend(PlanStreamInput in) throws IOException {
+        return new MvAppend(in.readSource(), in.readExpression(), in.readExpression());
+    }
+
+    static void writeMvAppend(PlanStreamOutput out, MvAppend fn) throws IOException {
+        out.writeNoSource();
+        List<Expression> fields = fn.children();
+        assert fields.size() == 2;
+        out.writeExpression(fields.get(0));
+        out.writeExpression(fields.get(1));
     }
 }

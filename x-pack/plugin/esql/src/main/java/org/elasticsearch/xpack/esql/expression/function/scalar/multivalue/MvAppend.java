@@ -1,0 +1,289 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
+
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.planner.PlannerUtils;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.TypeResolutions;
+import org.elasticsearch.xpack.ql.expression.function.OptionalArgument;
+import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
+import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
+import org.elasticsearch.xpack.ql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataType;
+
+import java.util.Arrays;
+import java.util.List;
+import java.util.Objects;
+import java.util.function.Function;
+
+import static org.elasticsearch.xpack.ql.type.DataTypes.NULL;
+
+/**
+ * Appends values to a multi-value
+ */
+public class MvAppend extends ScalarFunction implements OptionalArgument, EvaluatorMapper {
+    private final Expression field1, field2;
+    private DataType dataType;
+
+    @FunctionInfo(
+        returnType = {
+            "boolean",
+            "cartesian_point",
+            "cartesian_shape",
+            "date",
+            "double",
+            "geo_point",
+            "geo_shape",
+            "integer",
+            "ip",
+            "keyword",
+            "long",
+            "text",
+            "unsigned_long",
+            "version" },
+        description = "Appends values to create a multi-value."
+    )
+    public MvAppend(Source source, Expression field1, Expression field2) {
+        super(source, Arrays.asList(field1, field2));
+        this.field1 = field1;
+        this.field2 = field2;
+    }
+
+    @Override
+    protected TypeResolution resolveType() {
+        if (childrenResolved() == false) {
+            return new TypeResolution("Unresolved children");
+        }
+        for (int position = 0; position < children().size(); position++) {
+            if (dataType == null || dataType == NULL) {
+                dataType = children().get(position).dataType();
+                continue;
+            }
+            TypeResolution resolution = TypeResolutions.isType(
+                children().get(position),
+                t -> t == dataType,
+                sourceText(),
+                TypeResolutions.ParamOrdinal.fromIndex(position),
+                dataType.typeName()
+            );
+            if (resolution.unresolved()) {
+                return resolution;
+            }
+        }
+        return TypeResolution.TYPE_RESOLVED;
+    }
+
+    @Override
+    public boolean foldable() {
+        return field1.foldable() && field2.foldable();
+    }
+
+    @Override
+    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(
+        Function<Expression, EvalOperator.ExpressionEvaluator.Factory> toEvaluator
+    ) {
+        return switch (PlannerUtils.toSortableElementType(dataType)) {
+            case BOOLEAN -> new MvAppendBooleanEvaluator.Factory(
+                source(),
+                toEvaluator.apply(field1),
+                toEvaluator.apply(field2)
+            );
+            case BYTES_REF -> new MvAppendBytesRefEvaluator.Factory(
+                source(),
+                toEvaluator.apply(field1),
+                toEvaluator.apply(field2)
+            );
+            case DOUBLE -> new MvAppendDoubleEvaluator.Factory(
+                source(),
+                toEvaluator.apply(field1),
+                toEvaluator.apply(field2)
+            );
+            case INT -> new MvAppendIntEvaluator.Factory(
+                source(),
+                toEvaluator.apply(field1),
+                toEvaluator.apply(field2)
+            );
+            case LONG -> new MvAppendLongEvaluator.Factory(
+                source(),
+                toEvaluator.apply(field1),
+                toEvaluator.apply(field2)
+            );
+            case NULL -> EvalOperator.CONSTANT_NULL_FACTORY;
+            default -> throw EsqlIllegalArgumentException.illegalDataType(dataType);
+        };
+    }
+
+    @Override
+    public Object fold() {
+        return EvaluatorMapper.super.fold();
+    }
+
+    @Override
+    public Expression replaceChildren(List<Expression> newChildren) {
+        return new MvAppend(source(), newChildren.get(0), newChildren.get(1));
+    }
+
+    @Override
+    protected NodeInfo<? extends Expression> info() {
+        return NodeInfo.create(this, MvAppend::new, field1, field2);
+    }
+
+    @Override
+    public DataType dataType() {
+        if (dataType == null) {
+            resolveType();
+        }
+        return dataType;
+    }
+
+    @Override
+    public ScriptTemplate asScript() {
+        throw new UnsupportedOperationException("functions do not support scripting");
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(field1, field2);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null || obj.getClass() != getClass()) {
+            return false;
+        }
+        MvAppend other = (MvAppend) obj;
+        return Objects.equals(other.field1, field1) && Objects.equals(other.field2, field2);
+    }
+
+    static int calculateOffset(int oldOffset, int fieldValueCount) {
+        return oldOffset < 0 ? oldOffset + fieldValueCount : oldOffset;
+    }
+
+    @Evaluator(extraName = "Int")
+    static void process(IntBlock.Builder builder, int position, IntBlock field1, IntBlock field2) {
+        int count1 = field1.getValueCount(position);
+        int first1 = field1.getFirstValueIndex(position);
+        int count2 = field2.getValueCount(position);
+        int first2 = field2.getFirstValueIndex(position);
+        if (count1 == 0 && count2 == 0) {
+            builder.appendNull();
+        } else if (count1 + count2 == 1) {
+            builder.appendInt(count1 == 1 ? field1.getInt(first1) : field2.getInt(first2));
+        } else {
+            builder.beginPositionEntry();
+            for (int i = 0; i < count1; i++) {
+                builder.appendInt(field1.getInt(first1 + i));
+            }
+            for (int i = 0; i < count2; i++) {
+                builder.appendInt(field2.getInt(first2 + i));
+            }
+            builder.endPositionEntry();
+        }
+    }
+
+    @Evaluator(extraName = "Boolean")
+    static void process(BooleanBlock.Builder builder, int position, BooleanBlock field1, BooleanBlock field2) {
+        int count1 = field1.getValueCount(position);
+        int first1 = field1.getFirstValueIndex(position);
+        int count2 = field2.getValueCount(position);
+        int first2 = field2.getFirstValueIndex(position);
+        if (count1 == 0 && count2 == 0) {
+            builder.appendNull();
+        } else if (count1 + count2 == 1) {
+            builder.appendBoolean(count1 == 1 ? field1.getBoolean(first1) : field2.getBoolean(first2));
+        } else {
+            builder.beginPositionEntry();
+            for (int i = 0; i < count1; i++) {
+                builder.appendBoolean(field1.getBoolean(first1 + i));
+            }
+            for (int i = 0; i < count2; i++) {
+                builder.appendBoolean(field2.getBoolean(first2 + i));
+            }
+            builder.endPositionEntry();
+        }
+    }
+
+    @Evaluator(extraName = "Long")
+    static void process(LongBlock.Builder builder, int position, LongBlock field1, LongBlock field2) {
+        int count1 = field1.getValueCount(position);
+        int first1 = field1.getFirstValueIndex(position);
+        int count2 = field2.getValueCount(position);
+        int first2 = field2.getFirstValueIndex(position);
+        if (count1 == 0 && count2 == 0) {
+            builder.appendNull();
+        } else if (count1 + count2 == 1) {
+            builder.appendLong(count1 == 1 ? field1.getLong(first1) : field2.getLong(first2));
+        } else {
+            builder.beginPositionEntry();
+            for (int i = 0; i < count1; i++) {
+                builder.appendLong(field1.getLong(first1 + i));
+            }
+            for (int i = 0; i < count2; i++) {
+                builder.appendLong(field2.getLong(first2 + i));
+            }
+            builder.endPositionEntry();
+        }
+    }
+
+    @Evaluator(extraName = "Double")
+    static void process(DoubleBlock.Builder builder, int position, DoubleBlock field1, DoubleBlock field2) {
+        int count1 = field1.getValueCount(position);
+        int first1 = field1.getFirstValueIndex(position);
+        int count2 = field2.getValueCount(position);
+        int first2 = field2.getFirstValueIndex(position);
+        if (count1 == 0 && count2 == 0) {
+            builder.appendNull();
+        } else if (count1 + count2 == 1) {
+            builder.appendDouble(count1 == 1 ? field1.getDouble(first1) : field2.getDouble(first2));
+        } else {
+            builder.beginPositionEntry();
+            for (int i = 0; i < count1; i++) {
+                builder.appendDouble(field1.getDouble(first1 + i));
+            }
+            for (int i = 0; i < count2; i++) {
+                builder.appendDouble(field2.getDouble(first2 + i));
+            }
+            builder.endPositionEntry();
+        }
+    }
+
+    @Evaluator(extraName = "BytesRef")
+    static void process(BytesRefBlock.Builder builder, int position, BytesRefBlock field1, BytesRefBlock field2) {
+        int count1 = field1.getValueCount(position);
+        int first1 = field1.getFirstValueIndex(position);
+        int count2 = field2.getValueCount(position);
+        int first2 = field2.getFirstValueIndex(position);
+        if (count1 == 0 && count2 == 0) {
+            builder.appendNull();
+        } else if (count1 + count2 == 1) {
+            builder.appendBytesRef(count1 == 1 ? field1.getBytesRef(first1, new BytesRef()) : field2.getBytesRef(first2, new BytesRef()));
+        } else {
+            builder.beginPositionEntry();
+            BytesRef spare = new BytesRef();
+            for (int i = 0; i < count1; i++) {
+                builder.appendBytesRef(field1.getBytesRef(first1 + i, spare));
+            }
+            for (int i = 0; i < count2; i++) {
+                builder.appendBytesRef(field2.getBytesRef(first2 + i, spare));
+            }
+            builder.endPositionEntry();
+        }
+    }
+}

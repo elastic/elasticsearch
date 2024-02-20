@@ -64,8 +64,8 @@ public class BinaryFieldMapper extends FieldMapper {
         @Override
         public BinaryFieldMapper build(MapperBuilderContext context) {
             return new BinaryFieldMapper(
-                name,
-                new BinaryFieldType(context.buildFullName(name), stored.getValue(), hasDocValues.getValue(), meta.getValue()),
+                name(),
+                new BinaryFieldType(context.buildFullName(name()), stored.getValue(), hasDocValues.getValue(), meta.getValue()),
                 multiFieldsBuilder.build(this, context),
                 copyTo,
                 this

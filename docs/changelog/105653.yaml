@@ -1,0 +1,5 @@
+pr: 105653
+summary: Detect 8.x ML nodes correctly
+area: Machine Learning
+type: bug
+issues: []

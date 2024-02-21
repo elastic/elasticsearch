@@ -14,6 +14,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.internal.DefaultBuildVersion;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.elasticsearch.test.VersionUtils;
@@ -91,7 +92,7 @@ public class NodeMetadataTests extends ESTestCase {
         final NodeMetadata nodeMetadata = NodeMetadata.FORMAT.loadLatestState(logger, xContentRegistry(), tempDir);
         assertThat(nodeMetadata.nodeId(), equalTo("y6VUVMSaStO4Tz-B5BxcOw"));
         // TODO[wrb]: BuildVersion.EMPTY?
-        assertThat(nodeMetadata.nodeVersion().toVersion(), equalTo(Version.V_EMPTY));
+        assertThat(nodeMetadata.nodeVersion(), equalTo(DefaultBuildVersion.EMPTY));
     }
 
     public void testUpgradesLegitimateVersions() {

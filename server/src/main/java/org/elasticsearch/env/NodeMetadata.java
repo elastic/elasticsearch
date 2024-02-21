@@ -15,6 +15,7 @@ import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.internal.DefaultBuildVersion;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -112,9 +113,9 @@ public final class NodeMetadata {
         return oldestIndexVersion;
     }
 
+    @UpdateForV9 // do not allow an empty node version in V9
     public void verifyUpgradeToCurrentVersion() {
-        // TODO[wrb]: add @UpgradeForV9 and rework assertion for BuildVersion
-        assert (nodeVersion.toVersion().equals(Version.V_EMPTY) == false) || (Version.CURRENT.major <= Version.V_7_0_0.major + 1)
+        assert (nodeVersion.equals(DefaultBuildVersion.EMPTY) == false) || (Version.CURRENT.major <= Version.V_7_0_0.major + 1)
             : "version is required in the node metadata from v9 onwards";
 
         if (nodeVersion.isCompatibleWithCurrent() == false) {

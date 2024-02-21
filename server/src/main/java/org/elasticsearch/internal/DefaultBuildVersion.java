@@ -20,6 +20,7 @@ import java.util.Objects;
 public class DefaultBuildVersion implements BuildVersion {
 
     public static BuildVersion CURRENT = new DefaultBuildVersion(Version.CURRENT.id());
+    public static BuildVersion EMPTY = new DefaultBuildVersion(0);
 
     // TODO[wrb]: hold on to a Version field
     private final int versionId;

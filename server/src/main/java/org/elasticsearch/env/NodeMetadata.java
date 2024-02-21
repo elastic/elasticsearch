@@ -43,21 +43,20 @@ public final class NodeMetadata {
 
     private final IndexVersion oldestIndexVersion;
 
-    // TODO[wrb]: Convert constructor to use BuildVersion
     private NodeMetadata(
         final String nodeId,
-        final Version nodeVersion,
-        final Version previousNodeVersion,
+        final BuildVersion buildVersion,
+        final BuildVersion previousBuildVersion,
         final IndexVersion oldestIndexVersion
     ) {
         this.nodeId = Objects.requireNonNull(nodeId);
-        this.nodeVersion = Objects.requireNonNull(BuildVersion.fromVersion(nodeVersion));
-        this.previousNodeVersion = Objects.requireNonNull(BuildVersion.fromVersion(previousNodeVersion));
+        this.nodeVersion = Objects.requireNonNull(buildVersion);
+        this.previousNodeVersion = Objects.requireNonNull(previousBuildVersion);
         this.oldestIndexVersion = Objects.requireNonNull(oldestIndexVersion);
     }
 
-    public NodeMetadata(final String nodeId, final Version nodeVersion, final IndexVersion oldestIndexVersion) {
-        this(nodeId, nodeVersion, nodeVersion, oldestIndexVersion);
+    public NodeMetadata(final String nodeId, final BuildVersion buildVersion, final IndexVersion oldestIndexVersion) {
+        this(nodeId, buildVersion, buildVersion, oldestIndexVersion);
     }
 
     @Override
@@ -145,7 +144,7 @@ public final class NodeMetadata {
 
         return nodeVersion.equals(BuildVersion.current())
             ? this
-            : new NodeMetadata(nodeId, Version.CURRENT, nodeVersion.toVersion(), oldestIndexVersion);
+            : new NodeMetadata(nodeId, BuildVersion.current(), BuildVersion.fromVersion(nodeVersion.toVersion()), oldestIndexVersion);
     }
 
     private static class Builder {
@@ -184,7 +183,12 @@ public final class NodeMetadata {
                 oldestIndexVersion = this.oldestIndexVersion;
             }
 
-            return new NodeMetadata(nodeId, nodeVersion, previousNodeVersion, oldestIndexVersion);
+            return new NodeMetadata(
+                nodeId,
+                BuildVersion.fromVersion(nodeVersion),
+                BuildVersion.fromVersion(previousNodeVersion),
+                oldestIndexVersion
+            );
         }
     }
 

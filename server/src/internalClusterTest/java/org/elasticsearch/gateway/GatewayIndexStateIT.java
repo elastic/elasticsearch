@@ -9,7 +9,6 @@
 package org.elasticsearch.gateway;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
@@ -38,6 +37,7 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.ShardLimitValidator;
+import org.elasticsearch.internal.BuildVersion;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
@@ -564,7 +564,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
                     .putCustom(IndexGraveyard.TYPE, IndexGraveyard.builder().addTombstone(metadata.index("test").getIndex()).build())
                     .build()
             );
-            NodeMetadata.FORMAT.writeAndCleanup(new NodeMetadata(nodeId, Version.CURRENT, metadata.oldestIndexVersion()), paths);
+            NodeMetadata.FORMAT.writeAndCleanup(new NodeMetadata(nodeId, BuildVersion.current(), metadata.oldestIndexVersion()), paths);
         });
 
         ensureGreen();

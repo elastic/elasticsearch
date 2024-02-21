@@ -14,7 +14,6 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata;
@@ -37,6 +36,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.env.NodeMetadata;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.internal.BuildVersion;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.ClusterCoordinationPlugin;
 import org.elasticsearch.plugins.MetadataUpgrader;
@@ -222,7 +222,11 @@ public class GatewayMetaState implements Closeable {
             }
             // write legacy node metadata to prevent accidental downgrades from spawning empty cluster state
             NodeMetadata.FORMAT.writeAndCleanup(
-                new NodeMetadata(persistedClusterStateService.getNodeId(), Version.CURRENT, clusterState.metadata().oldestIndexVersion()),
+                new NodeMetadata(
+                    persistedClusterStateService.getNodeId(),
+                    BuildVersion.current(),
+                    clusterState.metadata().oldestIndexVersion()
+                ),
                 persistedClusterStateService.getDataPaths()
             );
             success = true;
@@ -260,7 +264,11 @@ public class GatewayMetaState implements Closeable {
             metaStateService.deleteAll();
             // write legacy node metadata to prevent downgrades from spawning empty cluster state
             NodeMetadata.FORMAT.writeAndCleanup(
-                new NodeMetadata(persistedClusterStateService.getNodeId(), Version.CURRENT, clusterState.metadata().oldestIndexVersion()),
+                new NodeMetadata(
+                    persistedClusterStateService.getNodeId(),
+                    BuildVersion.current(),
+                    clusterState.metadata().oldestIndexVersion()
+                ),
                 persistedClusterStateService.getDataPaths()
             );
         }

@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.search.scriptrank;
+package org.elasticsearch.search.rank.script;
 
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;

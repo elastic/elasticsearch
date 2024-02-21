@@ -18,7 +18,6 @@ import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.profile.ProfileResult;
-import org.elasticsearch.search.scriptrank.RankHitData;
 import org.elasticsearch.transport.LeakTracker;
 
 import java.io.IOException;

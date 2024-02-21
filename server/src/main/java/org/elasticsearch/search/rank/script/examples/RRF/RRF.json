@@ -16,5 +16,5 @@
     }
   },
   "_source": false,
-  "fields":["kw","v"]
+  "fields":["keyword_field","vector_field"]
 }

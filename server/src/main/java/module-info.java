@@ -429,5 +429,5 @@ module org.elasticsearch.server {
             org.elasticsearch.shardhealth,
             org.elasticsearch.serverless.shardhealth,
             org.elasticsearch.serverless.apifiltering;
-    exports org.elasticsearch.search.scriptrank;
+    exports org.elasticsearch.search.rank.script;
 }

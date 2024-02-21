@@ -6,11 +6,6 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.search.scriptrank;
+package org.elasticsearch.search.rank.script;
 
-import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
-import org.elasticsearch.xcontent.ToXContent;
-
-public interface RankHitData extends VersionedNamedWriteable, ToXContent {
-
-}
+public record RankKey(int doc, int shardIndex) {}

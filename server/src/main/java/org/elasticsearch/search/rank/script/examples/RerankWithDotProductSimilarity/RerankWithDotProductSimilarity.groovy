@@ -1,9 +1,3 @@
-package org.elasticsearch.search.scriptrank.examples.RerankWithDotProductSimilarity
-
-import org.apache.lucene.search.ScoreDoc
-import org.apache.lucene.util.VectorUtil
-import org.elasticsearch.search.scriptrank.ScriptRankDoc
-
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
@@ -11,6 +5,14 @@ import org.elasticsearch.search.scriptrank.ScriptRankDoc
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
+
+package org.elasticsearch.search.rank.script.examples.RerankWithDotProductSimilarity
+
+import org.apache.lucene.search.ScoreDoc
+import org.apache.lucene.util.VectorUtil
+import org.elasticsearch.search.rank.script.ScriptRankDoc
+
+
 def output = [];
 float[] queryVector = new float[params.queryVector.size()];
 for (int i = 0; i < queryVector.length; ++i) {

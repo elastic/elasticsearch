@@ -1,0 +1,136 @@
+---
+setup:
+  - skip:
+      version: ' - 8.13.0'
+      reason: 'script rank added in 8.13'
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_shards: 3
+            number_of_replicas: 0
+          mappings:
+            properties:
+              keyword_field:
+                type: keyword
+              vector_field:
+                type: dense_vector
+                dims: 2
+                similarity: l2_norm
+              text_field:
+                type: text
+              content_embedding_field:
+                type: sparse_vector
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body: |
+          { "index" : { "_index" : "demo", "_id" : "1" } }
+          { "kw" : "one", "v": [1, 2], "t": "In this blog, we want to share the investments that Elastic® is making to simplify your experience as you build AI applications. We know that developers have to stay nimble in today fast-evolving AI environment. Yet, common challenges make building generative AI applications needlessly rigid and complicated." }
+          { "index" : { "_index" : "demo", "_id" : "2" } }
+          { "kw" : "two", "v": [6, 2], "t": "On December 8, 2023, the European Union made a significant step in digital governance by introducing the first set of comprehensive artificial intelligence (AI) regulations. This legislation, poised for a European Parliament vote by early 2024, is first out of the gate in regulating AI. As organizations look to comply with this act and the additional regulations likely to come on its heels, one thing is for sure: The ability to have access and insight into all data will be essential. And the stakes have never been higher." }
+          { "index" : { "_index" : "demo", "_id" : "3" } }
+          { "kw" : "three", "v": [12, 3], "t": "How do you quickly identify the top-k matches of a disjunctive query using an inverted index? This is the problem that the WAND1 and MAXSCORE2 algorithms try to solve. These two algorithms are based on the same idea: taking advantage of the maximum impact score the maximum contribution of a particular term to the overall score for each term, so as to skip hits whose score cannot possibly compare greater than the score of the current k-th top hit (referred to as minimum competitive score below). " }
+          { "index" : { "_index" : "demo", "_id" : "4" } }
+          { "kw" : "four", "v": [-5, 4], "t": "Apache Lucene development has always been vibrant, but the last few months have seen an especially high number of optimizations to query evaluation. There isnt one optimization that can be singled out, its rather a combination of many improvements around mechanical sympathy and improved algorithms." }
+          { "index" : { "_index" : "demo", "_id" : "5" } }
+          { "kw" : "five", "v": [5, -5], "t": "What is especially interesting here is that these optimizations do not only benefit some very specific cases, they translate into actual speedups in Lucenes nightly benchmarks, which aim at tracking the performance of queries that are representative of the real world. Just hover on annotations to see where a speedup or slowdown sometimes! is coming from." }
+          { "index" : { "_index" : "demo", "_id" : "6" } }
+          { "kw" : "one", "v": [-12, 6], "t": "In case you are curious about these changes, here are resources that describe some of the optimizations that we applied:" }
+          { "index" : { "_index" : "demo", "_id" : "7" } }
+          { "kw" : "two", "v": [-7, -7], "t": "Multiply and add is a common operation that computes the product of two numbers and adds that product with a third number. These types of operations are performed over and over during vector similarity computations." }
+          { "index" : { "_index" : "demo", "_id" : "8" } }
+          { "kw" : "three", "v": [1, 8], "t": "Fused multiply-add (FMA) is a single operation that performs both the multiply and add operations in one - the multiplication and addition are said to be fused together. FMA is typically faster than a separate multiplication and addition because most CPUs model it as a single instruction." }
+          { "index" : { "_index" : "demo", "_id" : "9" } }
+          { "kw" : "four", "v": [9, 4], "t": "FMA also produces more accurate results. Separate multiply and add operations on floating-point numbers have two rounds; one for the multiplication, and one for the addition, since they are separate instructions that need to produce separate results. That is effectively," }
+          { "index" : { "_index" : "demo", "_id" : "10" } }
+          { "kw" : "five", "v": [-10, 2], "t": "So what has actually changed? In Lucene we have replaced the separate multiply and add operations with a single FMA operation. The scalar variants now use Math::fma, while the Panama vectorized variants use FloatVector::fma." }
+          { "index" : { "_index" : "demo", "_id" : "11" } }
+          { "kw" : "one", "v": [-11, -6], "t": "All quantization techniques are considered lossy transformations of the raw data. Meaning some information is lost for the sake of space. For an in depth explanation of scalar quantization" }
+          { "index" : { "_index" : "demo", "_id" : "12" } }
+          { "kw" : "two", "v": [12, 25], "t": "Those used to working with Elasticsearch may be familiar with these concepts already, but here is a quick overview of the distribution of documents for search" }
+          { "index" : { "_index" : "demo", "_id" : "13" } }
+          { "kw" : "three", "v": [1, 6], "t": "A Lucene index consists of multiple read-only segments." }
+          { "index" : { "_index" : "demo", "_id" : "14" } }
+          { "kw" : "four", "v": [147, 14], "t": "During indexing, documents are buffered and periodically flushed into a read-only segment." }
+          { "index" : { "_index" : "demo", "_id" : "15" } }
+          { "kw" : "five", "v": [1, 2], "t": "When certain conditions are met, these segments can be merged in the background into a larger segment." }
+          { "index" : { "_index" : "demo", "_id" : "16" } }
+          { "kw" : "one", "v": [4, 7], "t": "All of this is configurable and has its own set of complexities. " }
+          { "index" : { "_index" : "demo", "_id" : "17" } }
+          { "kw" : "two", "v": [-9, 17], "t": "But, when we talk about segments and merging, we are talking about read-only Lucene segments and the automatic periodic merging of these segments. " }
+          { "index" : { "_index" : "demo", "_id" : "18" } }
+          { "kw" : "three", "v": [5, 18], "t": "Every segment in Lucene stores the following: the individual vectors, the HNSW graph indices, the quantized vectors, and the calculated quantiles." }
+          { "index" : { "_index" : "demo", "_id" : "19" } }
+          { "kw" : "four", "v": [19, -4], "t": "For brevity sake, we will focus on how Lucene stores quantized and raw vectors. " }
+          { "index" : { "_index" : "demo", "_id" : "20" } }
+          { "kw" : "five", "v": [13, 20], "t": "For every segment, we keep track of the raw vectors in the vec file, quantized vectors and a single corrective multiplier float" }
+
+---
+"RRF using single knn and single BM25 with a scripted metric aggregation":
+
+  - do:
+      search:
+        index: test
+        body:
+          track_total_hits: true
+          fields: [ "keyword_field","vector_field" ]
+          retriever:
+            script_rank:
+              retrievers: [
+                {
+                  "standard": { "query": { "term": { "kw": { "value": "three" } } } }
+                },
+                {
+                  "knn": { "field": "v", "query_vector": [ 8, 8 ], "k": 5, "num_candidates": 10 }
+                }
+              ]
+              window_size: 10
+              script:
+                source: >-
+                  def results = [:];
+                  for (def retrieverResult : ctx.retrievers) {
+                      int index = retrieverResult.size();
+                      for (ScriptRankDoc scriptRankDoc : retrieverResult) {
+                          ScoreDoc scoreDoc = scriptRankDoc.scoreDoc();
+                          results.compute(
+                                  new RankKey(scoreDoc.doc, scoreDoc.shardIndex),
+                                  (key, value) -> {
+                                      def v = value;
+                                      if (v == null) {
+                                          v = new ScoreDoc(scoreDoc.doc, 0f, scoreDoc.shardIndex);
+                                      }
+                                      v.score += 1.0f / (60 + index);
+                                      return v;
+                                  }
+                          );
+                          --index;
+                      }
+                  }
+                  def output = new ArrayList(results.values());
+                  output.sort((ScoreDoc sd1, ScoreDoc sd2) -> { return sd1.score < sd2.score ? 1 : -1; });
+                  return output;
+                  
+
+#  - match: { hits.hits.0._id: "5" }
+#  - match: { hits.hits.0._rank: 1 }
+#
+#  - match: { hits.hits.1._id: "6" }
+#  - match: { hits.hits.1._rank: 2 }
+#
+#  - match: { hits.hits.2._id: "4" }
+#  - match: { hits.hits.2._rank: 3 }
+#
+#  - match: { hits.hits.3._id: "7" }
+#  - match: { hits.hits.3._rank: 4 }
+#
+#  - match: { hits.hits.4._id: "3" }
+#  - match: { hits.hits.4._rank: 5 }
+#
+#  - close_to: { aggregations.sums.value.asc_total: { value: 25.0, error: 0.001 } }
+#  - match: { aggregations.sums.value.text_total: 25 }
+

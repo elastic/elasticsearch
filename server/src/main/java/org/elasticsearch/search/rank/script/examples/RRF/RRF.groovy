@@ -6,12 +6,15 @@
  * Side Public License, v 1.
  */
 
+package org.elasticsearch.search.rank.script.examples.RRF
+
+
 import org.apache.lucene.search.ScoreDoc
-import org.elasticsearch.search.scriptrank.RankKey
-import org.elasticsearch.search.scriptrank.ScriptRankDoc
+import org.elasticsearch.search.rank.script.RankKey
+import org.elasticsearch.search.rank.script.ScriptRankDoc
 
 def results = [:];
-for (def retrieverResult : inputs) {
+for (def retrieverResult : ctx.retrievers) {
     int index = retrieverResult.size();
     for (ScriptRankDoc scriptRankDoc : retrieverResult) {
         ScoreDoc scoreDoc = scriptRankDoc.scoreDoc();

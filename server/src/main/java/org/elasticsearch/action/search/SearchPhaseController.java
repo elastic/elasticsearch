@@ -48,7 +48,7 @@ import org.elasticsearch.search.profile.SearchProfileResultsBuilder;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rank.RankCoordinatorContext;
 import org.elasticsearch.search.rank.RankDoc;
-import org.elasticsearch.search.scriptrank.ScriptRankCoordinatorContext;
+import org.elasticsearch.search.rank.script.ScriptRankCoordinatorContext;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.Suggest.Suggestion;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;

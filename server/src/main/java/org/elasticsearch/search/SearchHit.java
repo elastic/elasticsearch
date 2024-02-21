@@ -38,7 +38,7 @@ import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.search.fetch.subphase.LookupField;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.search.lookup.Source;
-import org.elasticsearch.search.scriptrank.RankHitData;
+import org.elasticsearch.search.rank.script.RankHitData;
 import org.elasticsearch.transport.LeakTracker;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.ConstructingObjectParser;

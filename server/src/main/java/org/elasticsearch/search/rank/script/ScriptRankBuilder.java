@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.search.scriptrank;
+package org.elasticsearch.search.rank.script;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
@@ -20,7 +20,6 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
-import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.rank.RankBuilder;
 import org.elasticsearch.search.rank.RankCoordinatorContext;
 import org.elasticsearch.search.rank.RankShardContext;

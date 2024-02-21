@@ -12,7 +12,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.IntervalFilterScript;
 import org.elasticsearch.plugins.ScriptPlugin;
-import org.elasticsearch.search.scriptrank.RankScript;
+import org.elasticsearch.search.rank.script.RankScript;
 
 import java.util.Collections;
 import java.util.HashMap;

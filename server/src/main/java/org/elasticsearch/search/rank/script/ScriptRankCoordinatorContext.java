@@ -6,16 +6,14 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.search.scriptrank;
+package org.elasticsearch.search.rank.script;
 
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.action.search.SearchPhaseController;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
-import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rank.RankCoordinatorContext;

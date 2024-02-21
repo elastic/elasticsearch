@@ -19,6 +19,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -30,6 +31,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 public final class GetApiKeyResponse extends ActionResponse implements ToXContentObject {
 
     private final ApiKey[] foundApiKeysInfo;
+    private final Map<String, String> profileUidLookup;
 
     public GetApiKeyResponse(Collection<ApiKey> foundApiKeysInfo) {
         Objects.requireNonNull(foundApiKeysInfo, "found_api_keys_info must be provided");

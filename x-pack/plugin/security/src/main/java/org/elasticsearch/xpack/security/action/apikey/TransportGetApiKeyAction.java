@@ -7,35 +7,59 @@
 
 package org.elasticsearch.xpack.security.action.apikey;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.node.Node;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.SecurityContext;
+import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.authc.Subject;
+import org.elasticsearch.xpack.core.security.authc.esnative.ClientReservedRealm;
+import org.elasticsearch.xpack.core.security.user.AnonymousUser;
+import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
+import org.elasticsearch.xpack.security.authc.Realms;
+import org.elasticsearch.xpack.security.profile.ProfileService;
+
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.stream.Collectors;
 
 public final class TransportGetApiKeyAction extends TransportAction<GetApiKeyRequest, GetApiKeyResponse> {
 
     private final ApiKeyService apiKeyService;
     private final SecurityContext securityContext;
+    private final Map<RealmConfig.RealmIdentifier, Authentication.RealmRef> realmsRefMap;
+    private final ProfileService profileService;
 
     @Inject
     public TransportGetApiKeyAction(
         TransportService transportService,
         ActionFilters actionFilters,
         ApiKeyService apiKeyService,
-        SecurityContext context
+        SecurityContext context,
+        Realms realms,
+        ProfileService profileService
     ) {
         super(GetApiKeyAction.NAME, actionFilters, transportService.getTaskManager());
         this.apiKeyService = apiKeyService;
         this.securityContext = context;
+        this.realmsRefMap = realms.getRealmRefs();
+        this.profileService = profileService;
     }
 
     @Override
@@ -56,8 +80,59 @@ public final class TransportGetApiKeyAction extends TransportAction<GetApiKeyReq
             username = authentication.getEffectiveSubject().getUser().principal();
             realms = ApiKeyService.getOwnersRealmNames(authentication);
         }
+        apiKeyService.getApiKeys(
+            realms,
+            username,
+            apiKeyName,
+            apiKeyIds,
+            request.withLimitedBy(),
+            request.activeOnly(),
+            ActionListener.wrap(apiKeyInfos -> {
+                apiKeyInfos.stream().map(ApiKey::getRealmIdentifier)
+            }, listener::onFailure)
+        );
+    }
 
-        apiKeyService.getApiKeys(realms, username, apiKeyName, apiKeyIds, request.withLimitedBy(), request.activeOnly(), listener);
+    private List<Subject> getApiKeyCreatorSubjects(Collection<ApiKey> apiKeyInfos) {
+        apiKeyInfos.stream().map(apiKeyInfo -> {
+            User user = new User(apiKeyInfo.getUsername(), Strings.EMPTY_ARRAY);
+            Subject subject = new Subject(user, realmsRefMap.get(apiKeyInfo.getRealmIdentifier()));
+
+        })
+    }
+
+    private void resolveProfileUids(List<User> users, ActionListener<Map<String, String>> listener) {
+        final List<Subject> subjects = users.stream().map(user -> {
+            if (user instanceof AnonymousUser) {
+                return new Subject(user, Authentication.RealmRef.newAnonymousRealmRef(Node.NODE_NAME_SETTING.get(settings)));
+            } else if (ClientReservedRealm.isReserved(user.principal(), settings)) {
+                return new Subject(user, reservedRealm.realmRef());
+            } else {
+                return new Subject(user, nativeRealmRef);
+            }
+        }).toList();
+
+        profileService.searchProfilesForSubjects(subjects, ActionListener.wrap(resultsAndErrors -> {
+            if (resultsAndErrors == null) {
+                // profile index does not exist
+                listener.onResponse(null);
+            } else if (resultsAndErrors.errors().isEmpty()) {
+                assert users.size() == resultsAndErrors.results().size();
+                final Map<String, String> profileUidLookup = resultsAndErrors.results()
+                        .stream()
+                        .filter(t -> Objects.nonNull(t.v2()))
+                        .map(t -> new Tuple<>(t.v1().getUser().principal(), t.v2().uid()))
+                        .collect(Collectors.toUnmodifiableMap(Tuple::v1, Tuple::v2));
+                listener.onResponse(profileUidLookup);
+            } else {
+                final ElasticsearchStatusException exception = new ElasticsearchStatusException(
+                        "failed to retrieve profile for users. please retry without fetching profile uid (with_profile_uid=false)",
+                        RestStatus.INTERNAL_SERVER_ERROR
+                );
+                resultsAndErrors.errors().values().forEach(exception::addSuppressed);
+                listener.onFailure(exception);
+            }
+        }, listener::onFailure));
     }
 
 }

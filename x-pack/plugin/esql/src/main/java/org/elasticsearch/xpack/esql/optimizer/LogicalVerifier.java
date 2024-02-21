@@ -24,8 +24,6 @@ public final class LogicalVerifier {
         Failures failures = new Failures();
 
         plan.forEachUp(p -> {
-            // dependency check
-            // FIXME: re-enable
             DEPENDENCY_CHECK.checkPlan(p, failures);
 
             if (failures.hasFailures() == false) {

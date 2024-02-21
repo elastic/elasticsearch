@@ -145,14 +145,9 @@ full_name:keyword | emp_no:keyword | b:keyword
 Bezalel Simmel    | Bezalel        | Simmel 
 ;
 
+
 overwriteNameAfterSort#[skip:-8.13.0]
-FROM employees
-| MV_EXPAND job_positions
-| SORT emp_no ASC
-| DISSECT first_name "Ge%{emp_no}gi"
-| LIMIT 1
-| RENAME emp_no as first_name_fragment
-| KEEP first_name_fragment
+from employees | sort emp_no ASC | dissect first_name "Ge%{emp_no}gi" | limit 1 | rename emp_no as first_name_fragment | keep first_name_fragment
 ;
 
 first_name_fragment:keyword

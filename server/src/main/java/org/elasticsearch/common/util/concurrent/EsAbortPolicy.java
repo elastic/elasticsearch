@@ -23,7 +23,7 @@ public class EsAbortPolicy extends EsRejectedExecutionHandler {
                         Thread.currentThread().interrupt();
                         throw new IllegalStateException("forced execution, but got interrupted", e);
                     }
-                    if (executor.isShutdown() == false || sizeBlockingQueue.remove(r) == false) {
+                    if ((executor.isShutdown() && sizeBlockingQueue.remove(r)) == false) {
                         return;
                     } // else fall through and reject the task since the executor is shut down
                 } else {

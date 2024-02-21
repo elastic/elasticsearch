@@ -2,14 +2,14 @@
 teardown:
   - do:
       ingest.delete_pipeline:
-        id: "1"
+        id: "uri-parts-pipeline"
         ignore: 404
 
 ---
 "Test URI parts Processor":
   - do:
       ingest.put_pipeline:
-        id: "1"
+        id: "uri-parts-pipeline"
         body:  >
           {
             "processors": [
@@ -26,7 +26,7 @@ teardown:
       index:
         index: test
         id: "1"
-        pipeline: "1"
+        pipeline: "uri-parts-pipeline"
         body: {
           my_uri: "https://user:pw@testing.google.com:8080/foo/bar.txt?foo1=bar1&foo2=bar2#anchorVal"
         }

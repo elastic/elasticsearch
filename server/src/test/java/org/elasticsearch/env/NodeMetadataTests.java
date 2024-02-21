@@ -8,12 +8,12 @@
 package org.elasticsearch.env;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.BuildVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
-import org.elasticsearch.BuildVersion;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.elasticsearch.test.VersionUtils;

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.security;
 
+import org.elasticsearch.BuildVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -15,7 +16,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.NodeMetadata;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.BuildVersion;
 import org.elasticsearch.license.ClusterStateLicenseService;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicensesMetadata;

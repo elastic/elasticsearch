@@ -33,10 +33,10 @@ public interface BuildExtension {
     }
 
     default BuildVersion currentBuildVersion() {
-        return new BuildVersion.DefaultBuildVersion(Version.CURRENT.id());
+        return new DefaultBuildVersion(Version.CURRENT.id());
     }
 
     default BuildVersion readBuildVersion(StreamInput in) throws IOException {
-        return new BuildVersion.DefaultBuildVersion(in.readInt());
+        return new DefaultBuildVersion(in.readInt());
     }
 }

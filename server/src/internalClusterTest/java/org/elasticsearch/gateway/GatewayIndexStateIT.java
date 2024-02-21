@@ -8,6 +8,7 @@
 
 package org.elasticsearch.gateway;
 
+import org.elasticsearch.BuildVersion;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
@@ -37,7 +38,6 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.ShardLimitValidator;
-import org.elasticsearch.BuildVersion;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;

@@ -303,6 +303,14 @@ Accept: application/vnd.elasticsearch+json; compatible-with=7
 ----------------------------------------------------------------------
 
 [discrete]
+[[api-push-back]]
+=== `TOO_MANY_REQUESTS (429)` status code push back
+
+Elasticsearch may respond with a `TOO_MANY_REQUESTS (429)` status code, indicating that it is too busy right now to
+handle the request. When this happens, you should consider to retry the operation after a short delay, preferably
+with randomized exponential back-off.
+
+[discrete]
 [[api-url-access-control]]
 === URL-based access control
 

@@ -12,6 +12,8 @@ Use the following APIs to perform security activities.
 * <<security-api-has-privileges>>
 * <<security-api-ssl>>
 * <<security-api-get-builtin-privileges>>
+* <<security-api-get-settings>>
+* <<security-api-update-settings>>
 * <<security-api-get-user-privileges>>
 
 [discrete]

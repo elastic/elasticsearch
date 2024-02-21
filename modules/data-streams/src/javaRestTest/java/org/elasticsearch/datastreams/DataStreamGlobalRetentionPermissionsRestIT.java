@@ -110,6 +110,7 @@ public class DataStreamGlobalRetentionPermissionsRestIT extends ESRestTestCase {
             Map<String, Object> response = entityAsMap(client.performRequest(new Request("GET", "/_data_stream/_global_retention")));
             assertThat(response.get("default_retention"), equalTo("1d"));
             assertThat(response.get("max_retention"), equalTo("7d"));
+            assertAcknowledged(client.performRequest(new Request("DELETE", "/_data_stream/_global_retention")));
         }
     }
 
@@ -137,6 +138,15 @@ public class DataStreamGlobalRetentionPermissionsRestIT extends ESRestTestCase {
                 containsString(
                     "action [cluster:admin/data_stream/global_retention/put] is unauthorized for user [test_monitor_global_retention]"
                 )
+            );
+            responseException = expectThrows(
+                ResponseException.class,
+                () -> client.performRequest(new Request("DELETE", "/_data_stream/_global_retention"))
+            );
+            assertThat(responseException.getResponse().getStatusLine().getStatusCode(), is(403));
+            assertThat(
+                responseException.getMessage(),
+                containsString("action [cluster:admin/data_stream/global_retention/delete] is unauthorized for user [test_monitor_global_retention]")
             );
             Map<String, Object> response = entityAsMap(client.performRequest(new Request("GET", "/_data_stream/_global_retention")));
             assertThat(response.get("default_retention"), equalTo("1d"));
@@ -177,6 +187,15 @@ public class DataStreamGlobalRetentionPermissionsRestIT extends ESRestTestCase {
             assertThat(
                 responseException.getMessage(),
                 containsString("action [cluster:admin/data_stream/global_retention/put] is unauthorized for user [test_no_privilege]")
+            );
+            responseException = expectThrows(
+                ResponseException.class,
+                () -> client.performRequest(new Request("DELETE", "/_data_stream/_global_retention"))
+            );
+            assertThat(responseException.getResponse().getStatusLine().getStatusCode(), is(403));
+            assertThat(
+                responseException.getMessage(),
+                containsString("action [cluster:admin/data_stream/global_retention/delete] is unauthorized for user [test_no_privilege]")
             );
             responseException = expectThrows(
                 ResponseException.class,

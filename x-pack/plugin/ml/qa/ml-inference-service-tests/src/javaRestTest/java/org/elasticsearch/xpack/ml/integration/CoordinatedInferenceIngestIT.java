@@ -59,10 +59,10 @@ public class CoordinatedInferenceIngestIT extends InferenceBaseRestTest {
             assertThat(simulatedDocs, hasSize(2));
             assertEquals(inferenceServiceModelId, MapHelper.dig("doc._source.ml.model_id", simulatedDocs.get(0)));
             var sparseEmbedding = (Map<String, Double>) MapHelper.dig("doc._source.ml.body", simulatedDocs.get(0));
-            assertEquals(Double.valueOf(1.0), sparseEmbedding.get("1"));
+            assertEquals(Double.valueOf(2.0), sparseEmbedding.get("feature_1"));
             assertEquals(inferenceServiceModelId, MapHelper.dig("doc._source.ml.model_id", simulatedDocs.get(1)));
             sparseEmbedding = (Map<String, Double>) MapHelper.dig("doc._source.ml.body", simulatedDocs.get(1));
-            assertEquals(Double.valueOf(1.0), sparseEmbedding.get("1"));
+            assertEquals(Double.valueOf(2.0), sparseEmbedding.get("feature_1"));
         }
 
         {

@@ -1,4 +1,4 @@
-"Field structure finder with JSON messages":
+setup:
   - do:
       indices.create:
         index: airlines
@@ -20,6 +20,8 @@
           - index:
               _index: airlines
           - message: "{\"airline\": \"AAL\", \"responsetime\": 134.2046, \"sourcetype\": \"text-structure-test\", \"time\": 1403481800}"
+---
+"Field structure finder with JSON messages":
   - do:
       text_structure.find_field_structure:
         index: airlines

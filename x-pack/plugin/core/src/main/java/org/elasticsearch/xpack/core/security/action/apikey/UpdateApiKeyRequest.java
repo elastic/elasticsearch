@@ -93,7 +93,7 @@ public final class UpdateApiKeyRequest extends BaseSingleUpdateApiKeyRequest {
                 return new UpdateApiKeyRequest(apiKeyId, payload.roleDescriptors, payload.metadata, payload.expiration);
             }
 
-            public record Payload(List<RoleDescriptor> roleDescriptors, Map<String, Object> metadata, TimeValue expiration) {}
+            protected record Payload(List<RoleDescriptor> roleDescriptors, Map<String, Object> metadata, TimeValue expiration) {}
         }
     }
 }

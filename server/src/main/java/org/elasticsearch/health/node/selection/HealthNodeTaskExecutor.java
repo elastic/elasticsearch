@@ -23,6 +23,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.health.HealthFeatures;
+import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTaskState;
@@ -165,6 +166,10 @@ public final class HealthNodeTaskExecutor extends PersistentTasksExecutor<Health
                     TASK_NAME,
                     new HealthNodeTaskParams(),
                     ActionListener.wrap(r -> logger.debug("Created the health node task"), e -> {
+                        if (e instanceof NodeClosedException) {
+                            logger.debug("Failed to create health node task because node is shutting down", e);
+                            return;
+                        }
                         Throwable t = e instanceof RemoteTransportException ? e.getCause() : e;
                         if (t instanceof ResourceAlreadyExistsException == false) {
                             logger.error("Failed to create the health node task", e);

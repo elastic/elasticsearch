@@ -64,7 +64,7 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
             return typeName;
         }
 
-        public static boolean isTypeNameValid(String typeName) {
+        public static boolean isFieldTypeAllowed(String typeName) {
             for (AllowedFieldType fieldType : values()) {
                 if (fieldType.getTypeName().equals(typeName)) {
                     return true;

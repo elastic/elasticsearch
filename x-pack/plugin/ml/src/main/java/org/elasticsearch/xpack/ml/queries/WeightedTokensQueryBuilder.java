@@ -155,7 +155,7 @@ public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTok
         }
 
         final String fieldTypeName = ft.typeName();
-        if (AllowedFieldType.isTypeNameValid(fieldTypeName) == false) {
+        if (AllowedFieldType.isFieldTypeAllowed(fieldTypeName) == false) {
             throw new ElasticsearchParseException("[" + fieldTypeName + "]" + " is not an appropriate field type for text expansion query");
         }
 

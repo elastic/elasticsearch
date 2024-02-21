@@ -112,7 +112,7 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
     private final TermsAggregator.BucketCountThresholds bucketCountThresholds;
 
     private boolean showTermDocCountError = false;
-    private boolean excludeDeletedDocs = true; // TODO: change this back to default of false
+    private boolean excludeDeletedDocs = false;
 
     public TermsAggregationBuilder(String name) {
         super(name);

@@ -41,6 +41,8 @@ import org.elasticsearch.datastreams.action.ModifyDataStreamsTransportAction;
 import org.elasticsearch.datastreams.action.PromoteDataStreamTransportAction;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleErrorStore;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
+import org.elasticsearch.datastreams.lifecycle.UpdateDataStreamGlobalRetentionService;
+import org.elasticsearch.datastreams.lifecycle.action.DeleteDataStreamGlobalRetentionAction;
 import org.elasticsearch.datastreams.lifecycle.action.DeleteDataStreamLifecycleAction;
 import org.elasticsearch.datastreams.lifecycle.action.ExplainDataStreamLifecycleAction;
 import org.elasticsearch.datastreams.lifecycle.action.GetDataStreamGlobalRetentionAction;
@@ -56,6 +58,7 @@ import org.elasticsearch.datastreams.lifecycle.action.TransportPutDataStreamLife
 import org.elasticsearch.datastreams.lifecycle.health.DataStreamLifecycleHealthIndicatorService;
 import org.elasticsearch.datastreams.lifecycle.health.DataStreamLifecycleHealthInfoPublisher;
 import org.elasticsearch.datastreams.lifecycle.rest.RestDataStreamLifecycleStatsAction;
+import org.elasticsearch.datastreams.lifecycle.rest.RestDeleteDataStreamGlobalRetentionAction;
 import org.elasticsearch.datastreams.lifecycle.rest.RestDeleteDataStreamLifecycleAction;
 import org.elasticsearch.datastreams.lifecycle.rest.RestExplainDataStreamLifecycleAction;
 import org.elasticsearch.datastreams.lifecycle.rest.RestGetDataStreamGlobalRetentionAction;
@@ -139,6 +142,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlu
     private final SetOnce<DataStreamLifecycleService> dataLifecycleInitialisationService = new SetOnce<>();
     private final SetOnce<DataStreamLifecycleHealthInfoPublisher> dataStreamLifecycleErrorsPublisher = new SetOnce<>();
     private final SetOnce<DataStreamLifecycleHealthIndicatorService> dataStreamLifecycleHealthIndicatorService = new SetOnce<>();
+    private final SetOnce<UpdateDataStreamGlobalRetentionService> dataStreamGlobalRetentionService = new SetOnce<>();
     private final Settings settings;
 
     public DataStreamsPlugin(Settings settings) {
@@ -212,10 +216,12 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlu
         );
         dataLifecycleInitialisationService.get().init();
         dataStreamLifecycleHealthIndicatorService.set(new DataStreamLifecycleHealthIndicatorService());
+        dataStreamGlobalRetentionService.set(new UpdateDataStreamGlobalRetentionService(services.clusterService()));
 
         components.add(errorStoreInitialisationService.get());
         components.add(dataLifecycleInitialisationService.get());
         components.add(dataStreamLifecycleErrorsPublisher.get());
+        components.add(dataStreamGlobalRetentionService.get());
         return components;
     }
 
@@ -244,6 +250,12 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlu
             new ActionHandler<>(
                 GetDataStreamGlobalRetentionAction.INSTANCE,
                 GetDataStreamGlobalRetentionAction.TransportGetDataStreamGlobalSettingsAction.class
+            )
+        );
+        actions.add(
+            new ActionHandler<>(
+                DeleteDataStreamGlobalRetentionAction.INSTANCE,
+                DeleteDataStreamGlobalRetentionAction.TransportDeleteDataStreamGlobalRetentionAction.class
             )
         );
         return actions;
@@ -280,6 +292,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlu
         handlers.add(new RestDataStreamLifecycleStatsAction());
         handlers.add(new RestPutDataStreamGlobalRetentionAction());
         handlers.add(new RestGetDataStreamGlobalRetentionAction());
+        handlers.add(new RestDeleteDataStreamGlobalRetentionAction());
         return handlers;
     }
 

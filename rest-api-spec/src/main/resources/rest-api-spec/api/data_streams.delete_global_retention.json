@@ -1,8 +1,8 @@
 {
-  "data_streams.put_global_retention":{
+  "data_streams.delete_global_retention":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/data-streams-put-global-retention.html",
-      "description":"Updates the global retention configuration that applies to all data streams managed by the data stream lifecycle."
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/data-streams-delete-global-retention.html",
+      "description":"Deletes the global retention configuration that applies to all data streams managed by the data stream lifecycle."
     },
     "stability":"experimental",
     "visibility":"public",
@@ -15,7 +15,7 @@
         {
           "path":"/_data_stream/_global_retention",
           "methods":[
-            "PUT"
+            "DELETE"
           ]
         }
       ]
@@ -30,10 +30,6 @@
         "type":"time",
         "description":"Specify timeout for connection to master"
       }
-    },
-    "body":{
-      "description":"The global retention configuration including optional values for default and max retention",
-      "required":true
     }
   }
 }

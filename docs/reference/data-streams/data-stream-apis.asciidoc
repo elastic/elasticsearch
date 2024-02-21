@@ -25,7 +25,13 @@ preview:[]
 preview:[]
 * <<data-streams-explain-lifecycle,Explain data stream lifecycle>>
 preview:[]
-* <<data-streams-get-lifecycle-stats, Get data stream lifecycle stats>>
+* <<data-streams-get-lifecycle-stats,Get data stream lifecycle stats>>
+preview:[]
+* <<data-streams-put-global-retention,Update the global retention settings for data stream lifecycle managed data streams>>
+preview:[]
+* <<data-streams-get-global-retention,Get the global retention settings for data stream lifecycle managed data streams>>
+preview:[]
+* <<data-streams-delete-global-retention,Delete the global retention settings for data stream lifecycle managed data streams>>
 preview:[]
 
 The following API is available for <<tsds,time series data streams>>:

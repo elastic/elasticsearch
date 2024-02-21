@@ -20,7 +20,7 @@ setup:
       indices.create_data_stream:
         name: my-data-stream-1
 ---
-"Add global retention":
+"CRUD global retention":
   - do:
       data_streams.put_global_retention:
         body:
@@ -37,6 +37,18 @@ setup:
   - match: { default_retention: "7d" }
   - match: { max_retention: "90d" }
 
+  - do:
+      data_streams.delete_global_retention: { }
+  - is_true: acknowledged
+  - is_false: dry_run
+  - match: { affected_data_streams.0.name: "my-data-stream-1" }
+  - match: { affected_data_streams.0.previous_effective_retention: "7d" }
+  - match: { affected_data_streams.0.new_effective_retention: "infinite" }
+
+  - do:
+      data_streams.get_global_retention: { }
+  - is_false: default_retention
+  - is_false: max_retention
 ---
 "Dry run global retention":
   - do:

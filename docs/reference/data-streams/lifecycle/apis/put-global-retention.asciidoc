@@ -1,0 +1,116 @@
+[[data-streams-put-global-retention]]
+=== Updates the global retention of data streams
+++++
+<titleabbrev>Updates Data Stream Global Retention</titleabbrev>
+++++
+
+preview::[]
+
+Updates the global retention settings that apply on every data stream managed by data stream lifecycle.
+
+[[put-global-retention-api-prereqs]]
+==== {api-prereq-title}
+
+** If the {es} {security-features} are enabled, you must have the `manage_data_stream_global_retention` <<privileges-list-cluster,cluster privilege>> to use this API.
+
+[[data-streams-put-global-retention-request]]
+==== {api-request-title}
+
+`PUT _data_stream/_global_retention`
+
+[[data-streams-put-global-retention-desc]]
+==== {api-description-title}
+
+Updates the global retention settings that applied on data streams managed by data stream lifecycle.
+
+[role="child_attributes"]
+[[put-global-retention-api-query-parms]]
+==== {api-query-parms-title}
+
+`dry_run`::
+(Boolean) Signals that the request should determine the effect of the provided configuration without updating the
+global retention settings. The default value is `false`, which means the configuration provided will be applied.
+
+[[put-global-retention-api-request-body]]
+==== {api-request-body-title}
+
+`default_retention`::
+(Optional, string)
+The default retention that will apply to any data stream managed by data stream lifecycle that does not have a retention
+defined on the data stream level.
+
+`max_retention`::
+(Optional, string)
+The max retention that will apply to all data stream managed by data stream lifecycle. The max retention will override the
+retention of a data stream which retention exceeds the max retention.
+
+[[put-global-retention-api-response-body]]
+==== {api-response-body-title}
+
+`acknowledged`::
+(boolean)
+True, if the global retention has been updated to the provided values. False, if it fails or if it was a dry run.
+
+`lazy`::
+(boolean)
+True, if this was a dry run, false otherwise.
+
+`affected_data_streams`::
+(array of objects)
+Contains information about the data streams affected by the change.
++
+.Properties of objects in `affected_data_streams`
+[%collapsible%open]
+====
+`name`::
+(string)
+Name of the data stream.
+`previous_effective_retention`::
+(string)
+The retention that was effective before the change of this request. `Infinite` if there was no retention applicable.
+`new_effective_retention`::
+(string)
+The retention that is or would be effective after this request. `Infinite` if there is no retention applicable.
+====
+
+[[data-streams-put-global-retention-example]]
+==== {api-examples-title}
+
+////
+
+[source,console]
+--------------------------------------------------
+DELETE _data_stream/_global_retention
+--------------------------------------------------
+// TEARDOWN
+
+////
+
+Let's update the global retention:
+[source,console]
+--------------------------------------------------
+PUT _data_stream/_global_retention
+{
+  "default_retention": "7d",
+  "max_retention": "90d"
+}
+--------------------------------------------------
+// TEST[setup:my_data_stream]
+// TEST[teardown:data_stream_cleanup]
+
+The response will look like the following:
+
+[source,console-result]
+--------------------------------------------------
+{
+  "acknowledged": true,
+  "dry_run": false,
+  "affected_data_streams": [
+    {
+      "name": "my_data_stream",
+      "previous_effective_retention": "infinite",
+      "new_effective_retention": "7d"
+    }
+  ]
+}
+--------------------------------------------------

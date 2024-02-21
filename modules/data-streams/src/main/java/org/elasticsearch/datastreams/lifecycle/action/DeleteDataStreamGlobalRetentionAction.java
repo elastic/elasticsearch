@@ -23,16 +23,11 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.lifecycle.UpdateDataStreamGlobalRetentionService;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.ObjectParser;
-import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
@@ -41,47 +36,19 @@ import java.util.Objects;
 /**
  * Sets the global retention for data streams (if it's not a dry run) and it returns the affected data streams.
  */
-public class PutDataStreamGlobalRetentionAction {
+public class DeleteDataStreamGlobalRetentionAction {
 
     public static final ActionType<UpdateDataStreamGlobalRetentionResponse> INSTANCE = new ActionType<>(
-        "cluster:admin/data_stream/global_retention/put"
+        "cluster:admin/data_stream/global_retention/delete"
     );
 
-    private PutDataStreamGlobalRetentionAction() {/* no instances */}
+    private DeleteDataStreamGlobalRetentionAction() {/* no instances */}
 
     public static final class Request extends MasterNodeRequest<Request> {
-
-        public static final ConstructingObjectParser<PutDataStreamGlobalRetentionAction.Request, Void> PARSER =
-            new ConstructingObjectParser<>(
-                "put_data_stream_global_retention_request",
-                args -> new PutDataStreamGlobalRetentionAction.Request((TimeValue) args[0], (TimeValue) args[1])
-            );
-
-        static {
-            PARSER.declareField(
-                ConstructingObjectParser.optionalConstructorArg(),
-                (p, c) -> TimeValue.parseTimeValue(p.textOrNull(), DataStreamGlobalRetention.DEFAULT_RETENTION_FIELD.getPreferredName()),
-                DataStreamGlobalRetention.DEFAULT_RETENTION_FIELD,
-                ObjectParser.ValueType.STRING_OR_NULL
-            );
-            PARSER.declareField(
-                ConstructingObjectParser.optionalConstructorArg(),
-                (p, c) -> TimeValue.parseTimeValue(p.textOrNull(), DataStreamGlobalRetention.MAX_RETENTION_FIELD.getPreferredName()),
-                DataStreamGlobalRetention.MAX_RETENTION_FIELD,
-                ObjectParser.ValueType.STRING_OR_NULL
-            );
-        }
-
-        private final DataStreamGlobalRetention globalRetention;
         private boolean dryRun = false;
-
-        public static PutDataStreamGlobalRetentionAction.Request parseRequest(XContentParser parser) {
-            return PARSER.apply(parser, null);
-        }
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            globalRetention = DataStreamGlobalRetention.read(in);
             dryRun = in.readBoolean();
         }
 
@@ -93,17 +60,10 @@ public class PutDataStreamGlobalRetentionAction {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            globalRetention.writeTo(out);
             out.writeBoolean(dryRun);
         }
 
-        public Request(@Nullable TimeValue defaultRetention, @Nullable TimeValue maxRetention) {
-            this.globalRetention = new DataStreamGlobalRetention(defaultRetention, maxRetention);
-        }
-
-        public DataStreamGlobalRetention getGlobalRetention() {
-            return globalRetention;
-        }
+        public Request() {}
 
         public boolean dryRun() {
             return dryRun;
@@ -113,13 +73,13 @@ public class PutDataStreamGlobalRetentionAction {
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            PutDataStreamGlobalRetentionAction.Request request = (PutDataStreamGlobalRetentionAction.Request) o;
-            return Objects.equals(globalRetention, request.globalRetention) && dryRun == request.dryRun;
+            DeleteDataStreamGlobalRetentionAction.Request request = (DeleteDataStreamGlobalRetentionAction.Request) o;
+            return dryRun == request.dryRun;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(globalRetention, dryRun);
+            return Objects.hash(dryRun);
         }
 
         public void dryRun(boolean dryRun) {
@@ -127,7 +87,7 @@ public class PutDataStreamGlobalRetentionAction {
         }
     }
 
-    public static class TransportPutDataStreamGlobalRetentionAction extends TransportMasterNodeAction<
+    public static class TransportDeleteDataStreamGlobalRetentionAction extends TransportMasterNodeAction<
         Request,
         UpdateDataStreamGlobalRetentionResponse> {
 
@@ -135,7 +95,7 @@ public class PutDataStreamGlobalRetentionAction {
         private final UpdateDataStreamGlobalRetentionService globalRetentionService;
 
         @Inject
-        public TransportPutDataStreamGlobalRetentionAction(
+        public TransportDeleteDataStreamGlobalRetentionAction(
             TransportService transportService,
             ClusterService clusterService,
             ThreadPool threadPool,
@@ -170,11 +130,11 @@ public class PutDataStreamGlobalRetentionAction {
                 listener.onResponse(new UpdateDataStreamGlobalRetentionResponse(false, request.dryRun()));
             }
             List<UpdateDataStreamGlobalRetentionResponse.AffectedDataStream> affectedDataStreams = globalRetentionService
-                .determineAffectedDataStreams(request.globalRetention, state);
+                .determineAffectedDataStreams(null, state);
             if (request.dryRun()) {
                 listener.onResponse(new UpdateDataStreamGlobalRetentionResponse(false, true, affectedDataStreams));
             } else {
-                globalRetentionService.updateGlobalRetention(request, affectedDataStreams, listener);
+                globalRetentionService.removeGlobalRetention(request, affectedDataStreams, listener);
             }
         }
 

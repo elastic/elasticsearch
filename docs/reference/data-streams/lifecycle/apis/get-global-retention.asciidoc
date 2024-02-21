@@ -1,0 +1,89 @@
+[[data-streams-get-global-retention]]
+=== Get the global retention of data streams
+++++
+<titleabbrev>Get Data Stream Global Retention</titleabbrev>
+++++
+
+preview::[]
+
+Gets the global retention settings that apply on every data streams managed by data stream lifecycle.
+
+[[get-global-retention-api-prereqs]]
+==== {api-prereq-title}
+
+** If the {es} {security-features} are enabled, you must have the `monitor_data_stream_global_retention` or
+`manage_data_stream_global_retention` <<privileges-list-cluster,cluster privilege>> to use this API.
+
+[[data-streams-get-global-retention-request]]
+==== {api-request-title}
+
+`GET _data_stream/_global_retention`
+
+[[data-streams-get-global-retention-desc]]
+==== {api-description-title}
+
+Gets the global retention settings that applied on data streams managed by data stream lifecycle.
+
+[role="child_attributes"]
+[[get-global-retention-api-query-parms]]
+==== {api-query-parms-title}
+
+`local`::
+(Boolean) Specifies whether to retrieve local information. The default value
+is `false`, which means the information is retrieved from the master node.
+
+[[get-global-retention-api-response-body]]
+==== {api-response-body-title}
+
+`default_retention`::
+(Optional, string)
+The default retention that will apply to any data stream managed by data stream lifecycle that does not have a retention
+defined on the data stream level.
+
+`max_retention`::
+(Optional, string)
+The max retention that will apply to all data stream managed by data stream lifecycle. The max retention will override the
+retention of a data stream which retention exceeds the max retention.
+
+
+[[data-streams-get-global-retention-example]]
+==== {api-examples-title}
+
+////
+
+[source,console]
+--------------------------------------------------
+PUT _data_stream/_global_retention
+{
+  "default_retention": "7d",
+  "max_retention": "90d"
+}
+--------------------------------------------------
+// TESTSETUP
+
+[source,console]
+--------------------------------------------------
+DELETE _data_stream/_global_retention
+--------------------------------------------------
+// TEARDOWN
+
+////
+
+Let's retrieve the global retention:
+
+[source,console]
+--------------------------------------------------
+GET _data_stream/_global_retention
+--------------------------------------------------
+
+The response will look like the following:
+
+[source,console-result]
+--------------------------------------------------
+{
+  "default_retention": "7d",    <1>
+  "max_retention": "90d"        <2>
+}
+--------------------------------------------------
+<1> 7 days retention will be applied to any data stream does not have retention set in their lifecycle.
+<2> 90 days retention will be applied to all data streams that have retention that exceeds the 90 days.

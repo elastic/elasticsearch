@@ -18,6 +18,7 @@ import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatorFactory;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
@@ -332,6 +333,35 @@ public class AggregatorFactories {
                 }
             }
             return false;
+        }
+
+        /**
+         * Return true if any of the builders is a terms aggregation
+         */
+        // TODO: does this need to be recursive for nested aggs? ... or is it enough to check the top level?
+        public boolean hasZeroMinDocTermsAggregation() {
+            for (AggregationBuilder builder : aggregationBuilders) {
+                if (builder instanceof TermsAggregationBuilder termsBuilder) {
+                    if (termsBuilder.minDocCount() == 0) {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        /**
+         * Force all terms aggregations to exclude deleted docs.
+         */
+        // TODO: does this need to be recursive for nested aggs? ... or is it enough to check the top level?
+        public void forceTermsAggsToExcludedDeletedDocs() {
+            assert hasZeroMinDocTermsAggregation(); // this method should only be called if there is a zero min_doc_count terms agg
+            for (AggregationBuilder builder : aggregationBuilders) {
+                if (builder instanceof TermsAggregationBuilder termsBuilder) {
+                    termsBuilder.executionHint(TermsAggregatorFactory.ExecutionMode.MAP.name().toLowerCase(Locale.ROOT));
+                    termsBuilder.excludeDeletedDocs(true);
+                }
+            }
         }
 
         /**

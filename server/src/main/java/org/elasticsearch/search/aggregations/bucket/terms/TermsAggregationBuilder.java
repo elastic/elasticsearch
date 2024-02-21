@@ -461,7 +461,8 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
             executionHint,
             includeExclude,
             order,
-            showTermDocCountError
+            showTermDocCountError,
+            excludeDeletedDocs
         );
     }
 
@@ -476,7 +477,8 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
             && Objects.equals(executionHint, other.executionHint)
             && Objects.equals(includeExclude, other.includeExclude)
             && Objects.equals(order, other.order)
-            && Objects.equals(showTermDocCountError, other.showTermDocCountError);
+            && Objects.equals(showTermDocCountError, other.showTermDocCountError)
+            && Objects.equals(excludeDeletedDocs, other.excludeDeletedDocs);
     }
 
     @Override

@@ -140,11 +140,14 @@ public class UriPartsProcessor extends AbstractProcessor {
         }
         if (path != null) {
             uriParts.put("path", path);
+            // To avoid any issues with extracting the extension from a path that contains a dot, we explicitly extract the extension
+            // from the last segment in the path.
             var lastSegmentIndex = path.lastIndexOf('/');
             if (lastSegmentIndex >= 0) {
                 var lastSegment = path.substring(lastSegmentIndex);
                 int periodIndex = lastSegment.lastIndexOf('.');
-                if (periodIndex >= 0 && periodIndex < lastSegment.length() - 1) {
+                if (periodIndex >= 0) {
+                    // Don't include the dot in the extension field.
                     uriParts.put("extension", lastSegment.substring(periodIndex + 1));
                 }
             }

@@ -52,6 +52,7 @@ public class PersistentTasksService {
     /**
      * Notifies the master node to create new persistent task and to assign it to a node.
      */
+    @Deprecated(forRemoval = true)
     public <Params extends PersistentTaskParams> void sendStartRequest(
         final String taskId,
         final String taskName,
@@ -86,23 +87,6 @@ public class PersistentTasksService {
      * At most one of {@code failure} and {@code localAbortReason} may be
      * provided. When both {@code failure} and {@code localAbortReason} are
      * {@code null}, the persistent task is considered as successfully completed.
-     */
-    public void sendCompletionRequest(
-        final String taskId,
-        final long taskAllocationId,
-        final @Nullable Exception taskFailure,
-        final @Nullable String localAbortReason,
-        final ActionListener<PersistentTask<?>> listener
-    ) {
-        sendCompletionRequest(taskId, taskAllocationId, taskFailure, localAbortReason, null, listener);
-    }
-
-    /**
-     * Notifies the master node about the completion of a persistent task.
-     * <p>
-     * At most one of {@code failure} and {@code localAbortReason} may be
-     * provided. When both {@code failure} and {@code localAbortReason} are
-     * {@code null}, the persistent task is considered as successfully completed.
      * Accepts operation timeout as optional parameter
      */
     public void sendCompletionRequest(
@@ -123,13 +107,6 @@ public class PersistentTasksService {
             request.masterNodeTimeout(timeout);
         }
         execute(request, CompletionPersistentTaskAction.INSTANCE, listener);
-    }
-
-    /**
-     * Cancels a locally running task using the Task Manager API
-     */
-    void sendCancelRequest(final long taskId, final String reason, final ActionListener<ListTasksResponse> listener) {
-        sendCancelRequest(taskId, reason, null, listener);
     }
 
     /**
@@ -158,21 +135,6 @@ public class PersistentTasksService {
      * Notifies the master node that the state of a persistent task has changed.
      * <p>
      * Persistent task implementers shouldn't call this method directly and use
-     * {@link AllocatedPersistentTask#updatePersistentTaskState} instead
-     */
-    void sendUpdateStateRequest(
-        final String taskId,
-        final long taskAllocationID,
-        final PersistentTaskState taskState,
-        final ActionListener<PersistentTask<?>> listener
-    ) {
-        sendUpdateStateRequest(taskId, taskAllocationID, taskState, null, listener);
-    }
-
-    /**
-     * Notifies the master node that the state of a persistent task has changed.
-     * <p>
-     * Persistent task implementers shouldn't call this method directly and use
      * {@link AllocatedPersistentTask#updatePersistentTaskState} instead.
      * Accepts operation timeout as optional parameter
      */
@@ -192,13 +154,6 @@ public class PersistentTasksService {
             request.masterNodeTimeout(timeout);
         }
         execute(request, UpdatePersistentTaskStatusAction.INSTANCE, listener);
-    }
-
-    /**
-     * Notifies the master node to remove a persistent task from the cluster state
-     */
-    public void sendRemoveRequest(final String taskId, final ActionListener<PersistentTask<?>> listener) {
-        sendRemoveRequest(taskId, null, listener);
     }
 
     /**

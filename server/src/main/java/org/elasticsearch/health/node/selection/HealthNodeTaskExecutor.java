@@ -164,6 +164,7 @@ public final class HealthNodeTaskExecutor extends PersistentTasksExecutor<Health
                     TASK_NAME,
                     TASK_NAME,
                     new HealthNodeTaskParams(),
+                    null,
                     ActionListener.wrap(r -> logger.debug("Created the health node task"), e -> {
                         Throwable t = e instanceof RemoteTransportException ? e.getCause() : e;
                         if (t instanceof ResourceAlreadyExistsException == false) {

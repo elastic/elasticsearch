@@ -22,6 +22,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.Assignment;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import org.elasticsearch.persistent.TestPersistentTasksPlugin.TestParams;
@@ -258,7 +259,12 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
         when(client.settings()).thenReturn(Settings.EMPTY);
         PersistentTasksService persistentTasksService = new PersistentTasksService(null, null, client) {
             @Override
-            void sendCancelRequest(final long taskId, final String reason, final ActionListener<ListTasksResponse> listener) {
+            void sendCancelRequest(
+                final long taskId,
+                final String reason,
+                final TimeValue timeout,
+                final ActionListener<ListTasksResponse> listener
+            ) {
                 capturedTaskId.set(taskId);
                 capturedListener.set(listener);
             }
@@ -269,6 +275,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
                 final long taskAllocationId,
                 final Exception taskFailure,
                 final String localAbortReason,
+                final TimeValue timeout,
                 final ActionListener<PersistentTask<?>> listener
             ) {
                 fail("Shouldn't be called during Cluster State cancellation");
@@ -348,7 +355,12 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
         when(client.settings()).thenReturn(Settings.EMPTY);
         PersistentTasksService persistentTasksService = new PersistentTasksService(null, null, client) {
             @Override
-            void sendCancelRequest(final long taskId, final String reason, final ActionListener<ListTasksResponse> listener) {
+            void sendCancelRequest(
+                final long taskId,
+                final String reason,
+                final TimeValue timeout,
+                final ActionListener<ListTasksResponse> listener
+            ) {
                 fail("Shouldn't be called during local abort");
             }
 
@@ -358,6 +370,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
                 final long taskAllocationId,
                 final Exception taskFailure,
                 final String localAbortReason,
+                final TimeValue timeout,
                 final ActionListener<PersistentTask<?>> listener
             ) {
                 assertThat(taskId, not(nullValue()));

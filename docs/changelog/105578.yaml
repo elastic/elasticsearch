@@ -1,5 +1,13 @@
 pr: 105578
 summary: Upgrade to Lucene 9.10.0
 area: Search
-type: enhancement
-issues: []
+type: feature
+issues:
+  - 104556
+highlight:
+  title: "New Lucene 9.10 release"
+  body: |-
+    - https://github.com/apache/lucene/pull/13090: Prevent humongous allocations in ScalarQuantizer when building quantiles.
+    - https://github.com/apache/lucene/pull/12962: Speedup concurrent multi-segment HNWS graph search
+    - https://github.com/apache/lucene/pull/13033: PointRangeQuery now exits earlier on segments whose values don't intersect with the query range. When a PointRangeQuery is a required clause of a boolean query, this helps save work on other required clauses of the same boolean query.
+    - https://github.com/apache/lucene/pull/13026: Propagate minimum competitive score in ReqOptSumScorer.

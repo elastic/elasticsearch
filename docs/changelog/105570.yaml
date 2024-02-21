@@ -1,5 +1,0 @@
-pr: 105570
-summary: Add setting to shared cache service to always use full regions
-area: Snapshot/Restore
-type: enhancement
-issues: []

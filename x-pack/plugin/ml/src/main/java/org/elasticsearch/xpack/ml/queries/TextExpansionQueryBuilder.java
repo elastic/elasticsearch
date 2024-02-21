@@ -78,7 +78,8 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
             for (AllowedFieldType fieldType : values()) {
                 result.append(fieldType.getTypeName()).append(", ");
             }
-            // Remove the trailing ", " if there are values
+            
+            // Remove the trailing ", "
             if (result.length() > 0) {
                 result.setLength(result.length() - 2);
             }

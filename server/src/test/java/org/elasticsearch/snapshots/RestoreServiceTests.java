@@ -8,6 +8,7 @@
 
 package org.elasticsearch.snapshots;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -206,6 +207,7 @@ public class RestoreServiceTests extends ESTestCase {
             List.of(),
             randomAlphaOfLengthBetween(10, 100),
             IndexVersion.current(),
+            Build.current().version(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
             shards,

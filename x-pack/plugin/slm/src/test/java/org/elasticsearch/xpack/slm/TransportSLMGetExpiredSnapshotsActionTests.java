@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.slm;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.ActionFilters;
@@ -98,6 +99,7 @@ public class TransportSLMGetExpiredSnapshotsActionTests extends ESTestCase {
             List.of(),
             null,
             IndexVersion.current(),
+            Build.current().version(),
             2L,
             2L,
             0,

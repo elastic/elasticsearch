@@ -7,6 +7,8 @@
  */
 package org.elasticsearch.snapshots;
 
+import org.elasticsearch.Build;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.cluster.SnapshotsInProgress;
@@ -72,6 +74,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
     private static final String FAILED = "failed";
     private static final String SUCCESSFUL = "successful";
     private static final String VERSION_ID = "version_id";
+    private static final String BUILD_VERSION = "build_version";
     private static final String VERSION = "version";
     private static final String NAME = "name";
     private static final String TOTAL_SHARDS = "total_shards";
@@ -102,6 +105,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
         private Boolean includeGlobalState = null;
         private Map<String, Object> userMetadata = null;
         private int version = -1;
+        private String buildVersion = Build.current().version();
         private List<SnapshotShardFailure> shardFailures = null;
 
         private void setSnapshotName(String snapshotName) {
@@ -164,6 +168,10 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
             this.version = version;
         }
 
+        private void setBuildVersion(String buildVersion) {
+            this.buildVersion = buildVersion;
+        }
+
         private void setShardFailures(List<SnapshotShardFailure> shardFailures) {
             this.shardFailures = shardFailures;
         }
@@ -204,6 +212,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
                 featureStates,
                 reason,
                 version,
+                buildVersion,
                 startTime,
                 endTime,
                 totalShards,
@@ -274,6 +283,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
         SNAPSHOT_INFO_PARSER.declareBoolean(SnapshotInfoBuilder::setIncludeGlobalState, new ParseField(INCLUDE_GLOBAL_STATE));
         SNAPSHOT_INFO_PARSER.declareObject(SnapshotInfoBuilder::setUserMetadata, (p, c) -> p.map(), new ParseField(USER_METADATA));
         SNAPSHOT_INFO_PARSER.declareInt(SnapshotInfoBuilder::setVersion, new ParseField(VERSION_ID));
+        SNAPSHOT_INFO_PARSER.declareString(SnapshotInfoBuilder::setBuildVersion, new ParseField(BUILD_VERSION));
         SNAPSHOT_INFO_PARSER.declareObjectArray(
             SnapshotInfoBuilder::setShardFailures,
             SnapshotShardFailure.SNAPSHOT_SHARD_FAILURE_PARSER,
@@ -315,6 +325,9 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
     @Nullable
     private final IndexVersion version;
 
+    @Nullable
+    private final String buildVersion;
+
     private final List<SnapshotShardFailure> shardFailures;
 
     private final Map<String, IndexSnapshotDetails> indexSnapshotDetails;
@@ -331,6 +344,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
             indices,
             dataStreams,
             featureStates,
+            null,
             null,
             null,
             0L,
@@ -351,6 +365,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
         List<String> dataStreams,
         List<SnapshotFeatureInfo> featureStates,
         IndexVersion version,
+        String buildVersion,
         SnapshotState state
     ) {
         this(
@@ -360,6 +375,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
             featureStates,
             null,
             version,
+            buildVersion,
             0L,
             0L,
             0,
@@ -390,6 +406,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
             entry.featureStates(),
             null,
             IndexVersion.current(),
+            Build.current().version(),
             entry.startTime(),
             0L,
             totalShards,
@@ -423,6 +440,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
             featureStates,
             reason,
             IndexVersion.current(),
+            Build.current().version(),
             startTime,
             endTime,
             totalShards,
@@ -442,6 +460,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
         List<SnapshotFeatureInfo> featureStates,
         String reason,
         IndexVersion version,
+        String buildVersion,
         long startTime,
         long endTime,
         int totalShards,
@@ -458,6 +477,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
         this.featureStates = List.copyOf(featureStates);
         this.state = state;
         this.reason = reason;
+        this.buildVersion = buildVersion;
         this.version = version;
         this.startTime = startTime;
         this.endTime = endTime;
@@ -480,6 +500,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
             featureStates,
             reason,
             version,
+            buildVersion,
             startTime,
             endTime,
             totalShards,
@@ -511,6 +532,10 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
         final int successfulShards = in.readVInt();
         final List<SnapshotShardFailure> shardFailures = in.readCollectionAsImmutableList(SnapshotShardFailure::new);
         final IndexVersion version = in.readBoolean() ? IndexVersion.readVersion(in) : null;
+        final String buildVersion = in.getTransportVersion().onOrAfter(TransportVersions.SNAPSHOT_BUILD_VERSION_ADDED)
+            ? in.readOptionalString()
+            : version != null ? version.toReleaseVersion()
+            : null;
         final Boolean includeGlobalState = in.readOptionalBoolean();
         final Map<String, Object> userMetadata = in.readGenericMap();
         final List<String> dataStreams = in.readStringCollectionAsImmutableList();
@@ -523,6 +548,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
             featureStates,
             reason,
             version,
+            buildVersion,
             startTime,
             endTime,
             totalShards,
@@ -723,6 +749,8 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
             + includeGlobalState
             + ", version="
             + version
+            + ", buildVersion="
+            + buildVersion
             + ", shardFailures="
             + shardFailures
             + ", featureStates="
@@ -770,7 +798,9 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
 
         if (version != null) {
             builder.field(VERSION_ID, version.id());
-            builder.field(VERSION, version.toString());
+        }
+        if (buildVersion != null) {
+            builder.field(VERSION, buildVersion);
         }
 
         if (params.paramAsBoolean(INDEX_NAMES_XCONTENT_PARAM, true)) {
@@ -849,6 +879,8 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
         builder.field(UUID, snapshotId.getUUID());
         assert version != null : "version must always be known when writing a snapshot metadata blob";
         builder.field(VERSION_ID, version.id());
+        assert buildVersion != null : "build version must always be known when writing a snapshot metadata blob";
+        builder.field(BUILD_VERSION, buildVersion);
         builder.startArray(INDICES);
         for (String index : indices) {
             builder.value(index);
@@ -904,6 +936,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
         String name = null;
         String uuid = null;
         IndexVersion version = IndexVersion.current();
+        String buildVersion = null;
         SnapshotState state = SnapshotState.IN_PROGRESS;
         String reason = null;
         List<String> indices = Collections.emptyList();
@@ -956,6 +989,9 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
                 case VERSION_ID:
                     version = IndexVersion.fromId(parser.intValue());
                     break;
+                case BUILD_VERSION:
+                    buildVersion = parser.text();
+                    break;
                 case INCLUDE_GLOBAL_STATE:
                     includeGlobalState = parser.booleanValue();
                     break;
@@ -994,6 +1030,12 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
             // the old format where there wasn't a UUID
             uuid = name;
         }
+
+        // fix up build version if we need to
+        if (buildVersion == null) {
+            buildVersion = version.toReleaseVersion();
+        }
+
         return new SnapshotInfo(
             new Snapshot(repoName, new SnapshotId(name, uuid)),
             indices,
@@ -1001,6 +1043,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
             featureStates,
             reason,
             version,
+            buildVersion,
             startTime,
             endTime,
             totalShards,
@@ -1038,6 +1081,9 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
             IndexVersion.writeVersion(version, out);
         } else {
             out.writeBoolean(false);
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.SNAPSHOT_BUILD_VERSION_ADDED)) {
+            out.writeOptionalString(buildVersion);
         }
         out.writeOptionalBoolean(includeGlobalState);
         out.writeGenericMap(userMetadata);

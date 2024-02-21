@@ -538,6 +538,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
             Collections.emptyList(),
             "failed on purpose",
             SnapshotsService.OLD_SNAPSHOT_FORMAT,
+            Version.V_7_5_0.toString(),
             0L,
             0L,
             0,

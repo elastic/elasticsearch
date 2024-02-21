@@ -192,12 +192,14 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                 new ThreadedActionListener<>(threadPool.executor(ThreadPool.Names.SNAPSHOT_META), context.map(response -> {
                     Metadata responseMetadata = response.metadata();
                     Map<String, IndexMetadata> indicesMap = responseMetadata.indices();
+                    IndexVersion version = response.getNodes().getMaxDataNodeCompatibleIndexVersion();
                     return new SnapshotInfo(
                         new Snapshot(this.metadata.name(), SNAPSHOT_ID),
                         List.copyOf(indicesMap.keySet()),
                         List.copyOf(responseMetadata.dataStreams().keySet()),
                         List.of(),
-                        response.getNodes().getMaxDataNodeCompatibleIndexVersion(),
+                        version,
+                        version.toReleaseVersion(),
                         SnapshotState.SUCCESS
                     );
                 }))

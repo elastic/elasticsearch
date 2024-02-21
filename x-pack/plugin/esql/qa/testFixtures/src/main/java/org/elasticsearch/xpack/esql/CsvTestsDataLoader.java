@@ -40,6 +40,7 @@ import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Scanner;
 import java.util.Set;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
@@ -48,6 +49,7 @@ import static org.elasticsearch.xpack.esql.CsvTestUtils.ESCAPED_COMMA_SEQUENCE;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.multiValuesAwareCsvToStringArray;
 
 public class CsvTestsDataLoader {
+    private static final int BULK_INDEX_SIZE = 500;
     private static final TestsDataset EMPLOYEES = new TestsDataset("employees", "mapping-default.json", "employees.csv");
     private static final TestsDataset HOSTS = new TestsDataset("hosts", "mapping-hosts.json", "hosts.csv");
     private static final TestsDataset APPS = new TestsDataset("apps", "mapping-apps.json", "apps.csv");
@@ -243,144 +245,158 @@ public class CsvTestsDataLoader {
         CheckedBiFunction<XContent, InputStream, XContentParser, IOException> p,
         Logger logger
     ) throws IOException {
+        Request request;
+        try (BufferedReader reader = org.elasticsearch.xpack.ql.TestUtils.reader(resource)) {
+            List<String> columns = new ArrayList<>(); // list of column names. If one column name contains dot, it is a subfield and its
+                                                      // value will be null
+            List<Integer> subFieldsIndices = new ArrayList<>(); // list containing the index of a subfield in "columns" String[]
+            int currentLine = 1;
+            Scanner scanner = new Scanner(reader);
+
+            while (scanner.hasNext()) {
+                request = bulkLoadCsvData(scanner, indexName, currentLine, BULK_INDEX_SIZE, columns, subFieldsIndices);
+                currentLine += BULK_INDEX_SIZE;
+
+                Response response = client.performRequest(request);
+                if (response.getStatusLine().getStatusCode() == 200) {
+                    HttpEntity entity = response.getEntity();
+                    try (InputStream content = entity.getContent()) {
+                        XContentType xContentType = XContentType.fromMediaType(entity.getContentType().getValue());
+                        Map<String, Object> result = XContentHelper.convertToMap(xContentType.xContent(), content, false);
+                        Object errors = result.get("errors");
+                        if (Boolean.FALSE.equals(errors)) {
+                            logger.info("Data loading of [{}] OK", indexName);
+                        } else {
+                            throw new IOException("Data loading of [" + indexName + "] failed with errors: " + errors);
+                        }
+                    }
+                } else {
+                    throw new IOException("Data loading of [" + indexName + "] failed with status: " + response.getStatusLine());
+                }
+            }
+        }
+    }
+
+    private static Request bulkLoadCsvData(
+        Scanner scanner,
+        String indexName,
+        int startLineNumber,
+        int maxLines,
+        List<String> columns,
+        List<Integer> subFieldsIndices
+    ) throws IOException {
         // The indexName is optional for a bulk request, but we use it for routing in MultiClusterSpecIT.
         Request request = new Request("POST", "/" + indexName + "/_bulk");
         StringBuilder builder = new StringBuilder();
-        try (BufferedReader reader = org.elasticsearch.xpack.ql.TestUtils.reader(resource)) {
-            String line;
-            int lineNumber = 1;
-            String[] columns = null; // list of column names. If one column name contains dot, it is a subfield and its value will be null
-            List<Integer> subFieldsIndices = new ArrayList<>(); // list containing the index of a subfield in "columns" String[]
 
-            while ((line = reader.readLine()) != null) {
-                line = line.trim();
-                // ignore comments
-                if (line.isEmpty() == false && line.startsWith("//") == false) {
-                    String[] entries = multiValuesAwareCsvToStringArray(line, lineNumber);
-                    // the schema row
-                    if (columns == null) {
-                        columns = new String[entries.length];
-                        for (int i = 0; i < entries.length; i++) {
-                            int split = entries[i].indexOf(':');
-                            String name, typeName;
+        String line;
+        int lineNumber = startLineNumber;
 
-                            if (split < 0) {
-                                throw new IllegalArgumentException(
-                                    "A type is always expected in the schema definition; found " + entries[i]
-                                );
-                            } else {
-                                name = entries[i].substring(0, split).trim();
-                                if (name.contains(".") == false) {
-                                    typeName = entries[i].substring(split + 1).trim();
-                                    if (typeName.isEmpty()) {
-                                        throw new IllegalArgumentException(
-                                            "A type is always expected in the schema definition; found " + entries[i]
-                                        );
-                                    }
-                                } else {// if it's a subfield, ignore it in the _bulk request
-                                    name = null;
-                                    subFieldsIndices.add(i);
-                                }
-                            }
-                            columns[i] = name;
-                        }
-                    }
-                    // data rows
-                    else {
-                        if (entries.length != columns.length) {
-                            throw new IllegalArgumentException(
-                                format(
-                                    null,
-                                    "Error line [{}]: Incorrect number of entries; expected [{}] but found [{}]",
-                                    lineNumber,
-                                    columns.length,
-                                    entries.length
-                                )
-                            );
-                        }
-                        StringBuilder row = new StringBuilder();
-                        String idField = null;
-                        for (int i = 0; i < entries.length; i++) {
-                            // ignore values that belong to subfields and don't add them to the bulk request
-                            if (subFieldsIndices.contains(i) == false) {
-                                if ("".equals(entries[i])) {
-                                    // Value is null, skip
-                                    continue;
-                                }
-                                if ("_id".equals(columns[i])) {
-                                    // Value is an _id
-                                    idField = entries[i];
-                                    continue;
-                                }
-                                try {
-                                    // add a comma after the previous value, only when there was actually a value before
-                                    if (i > 0 && row.length() > 0) {
-                                        row.append(",");
-                                    }
-                                    // split on comma ignoring escaped commas
-                                    String[] multiValues = entries[i].split(COMMA_ESCAPING_REGEX);
-                                    if (multiValues.length > 0) {// multi-value
-                                        StringBuilder rowStringValue = new StringBuilder("[");
-                                        for (String s : multiValues) {
-                                            if (entries[i].startsWith("\"") == false || entries[i].endsWith("\"") == false) {
-                                                rowStringValue.append("\"" + s + "\",");
-                                            } else {
-                                                rowStringValue.append(s + ",");
-                                            }
-                                        }
-                                        // remove the last comma and put a closing bracket instead
-                                        rowStringValue.replace(rowStringValue.length() - 1, rowStringValue.length(), "]");
-                                        entries[i] = rowStringValue.toString();
-                                    } else {
-                                        if (entries[i].startsWith("\"") == false || entries[i].endsWith("\"") == false) {
-                                            entries[i] = "\"" + entries[i] + "\"";
-                                        }
-                                    }
-                                    // replace any escaped commas with single comma
-                                    entries[i] = entries[i].replace(ESCAPED_COMMA_SEQUENCE, ",");
-                                    row.append("\"" + columns[i] + "\":" + entries[i]);
-                                } catch (Exception e) {
+        while (lineNumber - startLineNumber < maxLines && scanner.hasNext()) {
+            line = scanner.nextLine().trim();
+            // ignore comments
+            if (line.isEmpty() == false && line.startsWith("//") == false) {
+                String[] entries = multiValuesAwareCsvToStringArray(line, lineNumber);
+                // the schema row
+                if (columns.isEmpty()) {
+                    for (int i = 0; i < entries.length; i++) {
+                        int split = entries[i].indexOf(':');
+                        String name, typeName;
+
+                        if (split < 0) {
+                            throw new IllegalArgumentException("A type is always expected in the schema definition; found " + entries[i]);
+                        } else {
+                            name = entries[i].substring(0, split).trim();
+                            if (name.contains(".") == false) {
+                                typeName = entries[i].substring(split + 1).trim();
+                                if (typeName.isEmpty()) {
                                     throw new IllegalArgumentException(
-                                        format(
-                                            null,
-                                            "Error line [{}]: Cannot parse entry [{}] with value [{}]",
-                                            lineNumber,
-                                            i + 1,
-                                            entries[i]
-                                        ),
-                                        e
+                                        "A type is always expected in the schema definition; found " + entries[i]
                                     );
                                 }
+                            } else {// if it's a subfield, ignore it in the _bulk request
+                                name = null;
+                                subFieldsIndices.add(i);
                             }
                         }
-                        String idPart = idField != null ? "\", \"_id\": \"" + idField : "";
-                        builder.append("{\"index\": {\"_index\":\"" + indexName + idPart + "\"}}\n");
-                        builder.append("{" + row + "}\n");
+                        columns.add(name);
                     }
                 }
-                lineNumber++;
+                // data rows
+                else {
+                    if (entries.length != columns.size()) {
+                        throw new IllegalArgumentException(
+                            format(
+                                null,
+                                "Error line [{}]: Incorrect number of entries; expected [{}] but found [{}]",
+                                lineNumber,
+                                columns.size(),
+                                entries.length
+                            )
+                        );
+                    }
+                    StringBuilder row = new StringBuilder();
+                    String idField = null;
+                    for (int i = 0; i < entries.length; i++) {
+                        // ignore values that belong to subfields and don't add them to the bulk request
+                        if (subFieldsIndices.contains(i) == false) {
+                            if ("".equals(entries[i])) {
+                                // Value is null, skip
+                                continue;
+                            }
+                            if ("_id".equals(columns.get(i))) {
+                                // Value is an _id
+                                idField = entries[i];
+                                continue;
+                            }
+                            try {
+                                // add a comma after the previous value, only when there was actually a value before
+                                if (i > 0 && row.length() > 0) {
+                                    row.append(",");
+                                }
+                                // split on comma ignoring escaped commas
+                                String[] multiValues = entries[i].split(COMMA_ESCAPING_REGEX);
+                                if (multiValues.length > 0) {// multi-value
+                                    StringBuilder rowStringValue = new StringBuilder("[");
+                                    for (String s : multiValues) {
+                                        if (entries[i].startsWith("\"") == false || entries[i].endsWith("\"") == false) {
+                                            rowStringValue.append("\"" + s + "\",");
+                                        } else {
+                                            rowStringValue.append(s + ",");
+                                        }
+                                    }
+                                    // remove the last comma and put a closing bracket instead
+                                    rowStringValue.replace(rowStringValue.length() - 1, rowStringValue.length(), "]");
+                                    entries[i] = rowStringValue.toString();
+                                } else {
+                                    if (entries[i].startsWith("\"") == false || entries[i].endsWith("\"") == false) {
+                                        entries[i] = "\"" + entries[i] + "\"";
+                                    }
+                                }
+                                // replace any escaped commas with single comma
+                                entries[i] = entries[i].replace(ESCAPED_COMMA_SEQUENCE, ",");
+                                row.append("\"" + columns.get(i) + "\":" + entries[i]);
+                            } catch (Exception e) {
+                                throw new IllegalArgumentException(
+                                    format(null, "Error line [{}]: Cannot parse entry [{}] with value [{}]", lineNumber, i + 1, entries[i]),
+                                    e
+                                );
+                            }
+                        }
+                    }
+                    String idPart = idField != null ? "\", \"_id\": \"" + idField : "";
+                    builder.append("{\"index\": {\"_index\":\"" + indexName + idPart + "\"}}\n");
+                    builder.append("{" + row + "}\n");
+                }
             }
-            builder.append("\n");
+            lineNumber++;
         }
+        builder.append("\n");
 
         request.setJsonEntity(builder.toString());
         request.addParameter("refresh", "false"); // will be _forcemerge'd next
-        Response response = client.performRequest(request);
-        if (response.getStatusLine().getStatusCode() == 200) {
-            HttpEntity entity = response.getEntity();
-            try (InputStream content = entity.getContent()) {
-                XContentType xContentType = XContentType.fromMediaType(entity.getContentType().getValue());
-                Map<String, Object> result = XContentHelper.convertToMap(xContentType.xContent(), content, false);
-                Object errors = result.get("errors");
-                if (Boolean.FALSE.equals(errors)) {
-                    logger.info("Data loading of [{}] OK", indexName);
-                } else {
-                    throw new IOException("Data loading of [" + indexName + "] failed with errors: " + errors);
-                }
-            }
-        } else {
-            throw new IOException("Data loading of [" + indexName + "] failed with status: " + response.getStatusLine());
-        }
+
+        return request;
     }
 
     private static void forceMerge(RestClient client, Set<String> indices, Logger logger) throws IOException {

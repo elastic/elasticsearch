@@ -3272,14 +3272,14 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     /**
      * Pushing down EVAL/GROK/DISSECT/ENRICH must not accidentally shadow attributes required by SORT.
      *
-     * For DISSECT, expects the following; the others are similar.
+     * For DISSECT expects the following; the others are similar.
      *
      * EsqlProject[[emp_no{r}#29, salary{r}#30]]
-     * \_TopN[[Order[$$emp_no$13*(emp_no+sala>$0{r}#44 + $$salary$13*(emp_no+sala>$1{r}#45 * 13[INTEGER],ASC,LAST], Order[NE
-     * G($$salary$13*(emp_no+sala>$1{r}#45),DESC,FIRST]],3[INTEGER]]
+     * \_TopN[[Order[$$emp_no$temp_name$34{r}#44 + $$salary$temp_name$39{r}#45 * 13[INTEGER],ASC,LAST], Order[NEG($$salary$t
+     * emp_name$39{r}#45),DESC,FIRST]],3[INTEGER]]
      *   \_Dissect[first_name{f}#35,Parser[pattern=%{emp_no} %{salary}, appendSeparator=, parser=org.elasticsearch.dissect.Dissect
-     * Parser@64192edc],[emp_no{r}#29, salary{r}#30]]
-     *     \_Eval[[emp_no{f}#34 AS $$emp_no$13*(emp_no+sala>$0, salary{f}#39 AS $$salary$13*(emp_no+sala>$1]]
+     * Parser@39042612],[emp_no{r}#29, salary{r}#30]]
+     *     \_Eval[[emp_no{f}#34 AS $$emp_no$temp_name$34, salary{f}#39 AS $$salary$temp_name$39]]
      *       \_EsRelation[test][_meta_field{f}#40, emp_no{f}#34, first_name{f}#35, ..]
      */
     public void testPushdownWithOverwrittenName() throws Exception {

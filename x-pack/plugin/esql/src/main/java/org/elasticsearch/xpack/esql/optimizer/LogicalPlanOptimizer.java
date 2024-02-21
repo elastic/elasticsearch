@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.optimizer;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
@@ -45,8 +44,6 @@ import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunctio
 import org.elasticsearch.xpack.ql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
-import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNotNull;
-import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.RegexMatch;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanFunctionEqualsElimination;
@@ -76,7 +73,6 @@ import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -1561,35 +1557,13 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         }
     }
 
-    // a IS NULL AND a IS NOT NULL -> FALSE
-    public static class PropagateNullable extends OptimizerRules.OptimizerExpressionRule<And> {
-
-        public PropagateNullable() {
-            super(TransformDirection.DOWN);
+    public static class PropagateNullable extends OptimizerRules.PropagateNullable {
+        protected Expression rule(And and) {
+            return super.rule(and);
         }
 
-        @Override
-        protected Expression rule(And and) {
-            List<Expression> splits = Predicates.splitAnd(and);
-
-            Set<Expression> nullExpressions = new LinkedHashSet<>();
-            Set<Expression> notNullExpressions = new LinkedHashSet<>();
-
-            // first find isNull/isNotNull
-            for (Expression ex : splits) {
-                if (ex instanceof IsNull isn) {
-                    nullExpressions.add(isn.field());
-                } else if (ex instanceof IsNotNull isnn) {
-                    notNullExpressions.add(isnn.field());
-                }
-            }
-
-            // check for is isNull and isNotNull --> FALSE
-            if (Sets.haveNonEmptyIntersection(nullExpressions, notNullExpressions)) {
-                return Literal.of(and, Boolean.FALSE);
-            }
-
-            return and;
+        protected Expression nullify(Expression exp, Expression nullExp) {
+            return Literal.of(exp, null);
         }
     }
 }

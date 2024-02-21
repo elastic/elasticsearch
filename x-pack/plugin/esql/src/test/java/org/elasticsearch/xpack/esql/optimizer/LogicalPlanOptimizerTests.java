@@ -21,6 +21,8 @@ import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equa
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.LessThan;
+import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.LessThanOrEqual;
+import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.regex.RLike;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.Order;
@@ -65,9 +67,11 @@ import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.Nullability;
 import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.ql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.RLikePattern;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.ql.index.EsIndex;
@@ -103,9 +107,21 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.localSource;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.NO_FIELDS;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_POINT;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_SHAPE;
 import static org.elasticsearch.xpack.ql.TestUtils.relation;
+import static org.elasticsearch.xpack.ql.expression.Literal.FALSE;
+import static org.elasticsearch.xpack.ql.expression.Literal.NULL;
+import static org.elasticsearch.xpack.ql.expression.Literal.TRUE;
 import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
+import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
+import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
 import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
+import static org.elasticsearch.xpack.ql.type.DataTypes.IP;
+import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
+import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
+import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
+import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.ql.type.DataTypes.VERSION;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -3309,7 +3325,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     }
 
     // TODO: move these from org.elasticsearch.xpack.ql.optimizer.OptimizerRulesTests to org.elasticsearch.xpack.ql.TestUtils
-    private static FieldAttribute getFieldAttribute(String name) {
+    public static FieldAttribute getFieldAttribute(String name) {
         return getFieldAttribute(name, INTEGER);
     }
 
@@ -3328,5 +3344,177 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     @Override
     protected List<String> filteredWarnings() {
         return withDefaultLimitWarning(super.filteredWarnings());
+    }
+
+    // Null folding
+    public void testNullFoldingIsNull() {
+        FoldNull foldNull = new FoldNull();
+        assertEquals(true, foldNull.rule(new IsNull(EMPTY, NULL)).fold());
+        assertEquals(false, foldNull.rule(new IsNull(EMPTY, TRUE)).fold());
+    }
+
+    public void testGenericNullableExpression() {
+        FoldNull rule = new FoldNull();
+        // arithmetic
+        assertNullLiteral(rule.rule(new Add(EMPTY, getFieldAttribute("a"), NULL)));
+        // comparison
+        assertNullLiteral(rule.rule(greaterThanOf(getFieldAttribute("a"), NULL)));
+        // regex
+        assertNullLiteral(rule.rule(new RLike(EMPTY, NULL, new RLikePattern("123"))));
+    }
+
+    public void testNullFoldingDoesNotApplyOnLogicalExpressions() {
+        FoldNull rule = new FoldNull();
+
+        Or or = new Or(EMPTY, NULL, TRUE);
+        assertEquals(or, rule.rule(or));
+        or = new Or(EMPTY, NULL, NULL);
+        assertEquals(or, rule.rule(or));
+
+        And and = new And(EMPTY, NULL, TRUE);
+        assertEquals(and, rule.rule(and));
+        and = new And(EMPTY, NULL, NULL);
+        assertEquals(and, rule.rule(and));
+    }
+
+    public void testNullFoldableDoesNotApplyToIsNullAndNotNull() {
+        FoldNull rule = new FoldNull();
+
+        DataType numericType = randomFrom(INTEGER, LONG, DOUBLE);
+        DataType genericType = randomFrom(INTEGER, LONG, DOUBLE, UNSIGNED_LONG, KEYWORD, TEXT, GEO_POINT, GEO_SHAPE, VERSION, IP);
+        List<Expression> items = List.of(
+            new Add(EMPTY, getFieldAttribute("a", numericType), getFieldAttribute("b", numericType)),
+            new Add(EMPTY, new Literal(EMPTY, 1, INTEGER), new Literal(EMPTY, List.of(1, 2, 3), INTEGER)),
+            new Sub(EMPTY, getFieldAttribute("a", numericType), getFieldAttribute("b", numericType)),
+            new Sub(EMPTY, new Literal(EMPTY, 1, INTEGER), new Literal(EMPTY, List.of(1, 2, 3), INTEGER)),
+            new Mul(EMPTY, getFieldAttribute("a", numericType), getFieldAttribute("b", numericType)),
+            new Mul(EMPTY, new Literal(EMPTY, 1, INTEGER), new Literal(EMPTY, List.of(1, 2, 3), INTEGER)),
+            new Div(EMPTY, getFieldAttribute("a", numericType), getFieldAttribute("b", numericType)),
+            new Div(EMPTY, new Literal(EMPTY, 1, INTEGER), new Literal(EMPTY, List.of(1, 2, 3), INTEGER)),
+
+            new GreaterThan(EMPTY, getFieldAttribute("a", numericType), getFieldAttribute("b", numericType), randomZone()),
+            new GreaterThan(EMPTY, new Literal(EMPTY, 1, INTEGER), new Literal(EMPTY, List.of(1, 2, 3), INTEGER), randomZone()),
+            new GreaterThanOrEqual(EMPTY, getFieldAttribute("a", numericType), getFieldAttribute("b", numericType), randomZone()),
+            new GreaterThanOrEqual(EMPTY, new Literal(EMPTY, 1, INTEGER), new Literal(EMPTY, List.of(1, 2, 3), INTEGER), randomZone()),
+            new LessThan(EMPTY, getFieldAttribute("a", numericType), getFieldAttribute("b", numericType), randomZone()),
+            new LessThan(EMPTY, new Literal(EMPTY, 1, INTEGER), new Literal(EMPTY, List.of(1, 2, 3), INTEGER), randomZone()),
+            new LessThanOrEqual(EMPTY, getFieldAttribute("a", numericType), getFieldAttribute("b", numericType), randomZone()),
+            new LessThanOrEqual(EMPTY, new Literal(EMPTY, 1, INTEGER), new Literal(EMPTY, List.of(1, 2, 3), INTEGER), randomZone()),
+            new NotEquals(EMPTY, getFieldAttribute("a", numericType), getFieldAttribute("b", numericType), randomZone()),
+            new NotEquals(EMPTY, new Literal(EMPTY, 1, INTEGER), new Literal(EMPTY, List.of(1, 2, 3), INTEGER), randomZone()),
+
+            new Equals(EMPTY, getFieldAttribute("a", genericType), getFieldAttribute("b", genericType)),
+            new Equals(EMPTY, new Literal(EMPTY, 1, INTEGER), new Literal(EMPTY, List.of(1, 2, 3), INTEGER))
+        );
+        for (Expression item : items) {
+            Expression isNull = new IsNull(EMPTY, item);
+            Expression transformed = rule.rule(isNull);
+            assertEquals(isNull, transformed);
+
+            IsNotNull isNotNull = new IsNotNull(EMPTY, item);
+            transformed = rule.rule(isNotNull);
+            assertEquals(isNotNull, transformed);
+        }
+
+    }
+
+    //
+    // Propagate nullability (IS NULL / IS NOT NULL)
+    //
+
+    // a IS NULL AND a IS NOT NULL => false
+    public void testIsNullAndNotNull() throws Exception {
+        FieldAttribute fa = getFieldAttribute("a");
+
+        And and = new And(EMPTY, new IsNull(EMPTY, fa), new IsNotNull(EMPTY, fa));
+        assertEquals(FALSE, new LogicalPlanOptimizer.PropagateNullable().rule(and));
+    }
+
+    // a IS NULL AND b IS NOT NULL AND c IS NULL AND d IS NOT NULL AND e IS NULL AND a IS NOT NULL => false
+    public void testIsNullAndNotNullMultiField() throws Exception {
+        FieldAttribute fa = getFieldAttribute("a");
+
+        And andOne = new And(EMPTY, new IsNull(EMPTY, fa), new IsNotNull(EMPTY, getFieldAttribute("a")));
+        And andTwo = new And(EMPTY, new IsNull(EMPTY, getFieldAttribute("a")), new IsNotNull(EMPTY, getFieldAttribute("a")));
+        And andThree = new And(EMPTY, new IsNull(EMPTY, getFieldAttribute("a")), new IsNotNull(EMPTY, fa));
+
+        And and = new And(EMPTY, andOne, new And(EMPTY, andThree, andTwo));
+
+        assertEquals(FALSE, new LogicalPlanOptimizer.PropagateNullable().rule(and));
+    }
+
+    // a IS NULL AND a > 1 => a IS NULL AND false
+    public void testIsNullAndComparison() throws Exception {
+        FieldAttribute fa = getFieldAttribute("a");
+        IsNull isNull = new IsNull(EMPTY, fa);
+
+        And and = new And(EMPTY, isNull, greaterThanOf(fa, ONE));
+        assertEquals(new And(EMPTY, isNull, nullOf(BOOLEAN)), new LogicalPlanOptimizer.PropagateNullable().rule(and));
+    }
+
+    // a IS NULL AND b < 1 AND c < 1 AND a < 1 => a IS NULL AND b < 1 AND c < 1 => a IS NULL AND b < 1 AND c < 1
+    public void testIsNullAndMultipleComparison() throws Exception {
+        FieldAttribute fa = getFieldAttribute("a");
+        IsNull isNull = new IsNull(EMPTY, fa);
+
+        And nestedAnd = new And(EMPTY, lessThanOf(getFieldAttribute("b"), ONE), lessThanOf(getFieldAttribute("c"), ONE));
+        And and = new And(EMPTY, isNull, nestedAnd);
+        And top = new And(EMPTY, and, lessThanOf(fa, ONE));
+
+        Expression optimized = new LogicalPlanOptimizer.PropagateNullable().rule(top);
+        Expression expected = new And(EMPTY, and, nullOf(BOOLEAN));
+        assertEquals(Predicates.splitAnd(expected), Predicates.splitAnd(optimized));
+    }
+
+    // ((a+1)/2) > 1 AND a + 2 AND a IS NULL AND b < 3 => NULL AND NULL AND a IS NULL AND b < 3
+    public void testIsNullAndDeeplyNestedExpression() throws Exception {
+        FieldAttribute fa = getFieldAttribute("a");
+        IsNull isNull = new IsNull(EMPTY, fa);
+
+        Expression nullified = new And(
+            EMPTY,
+            greaterThanOf(new Div(EMPTY, new Add(EMPTY, fa, ONE), TWO), ONE),
+            greaterThanOf(new Add(EMPTY, fa, TWO), ONE)
+        );
+        Expression kept = new And(EMPTY, isNull, lessThanOf(getFieldAttribute("b"), THREE));
+        And and = new And(EMPTY, nullified, kept);
+
+        Expression optimized = new LogicalPlanOptimizer.PropagateNullable().rule(and);
+        Expression expected = new And(EMPTY, new And(EMPTY, nullOf(BOOLEAN), nullOf(BOOLEAN)), kept);
+
+        assertEquals(Predicates.splitAnd(expected), Predicates.splitAnd(optimized));
+    }
+
+    // a IS NULL OR a IS NOT NULL => no change
+    // a IS NULL OR a > 1 => no change
+    public void testIsNullInDisjunction() throws Exception {
+        FieldAttribute fa = getFieldAttribute("a");
+
+        Or or = new Or(EMPTY, new IsNull(EMPTY, fa), new IsNotNull(EMPTY, fa));
+        Filter dummy = new Filter(EMPTY, relation(), or);
+        LogicalPlan transformed = new LogicalPlanOptimizer.PropagateNullable().apply(dummy);
+        assertSame(dummy, transformed);
+        assertEquals(or, ((Filter) transformed).condition());
+
+        or = new Or(EMPTY, new IsNull(EMPTY, fa), greaterThanOf(fa, ONE));
+        dummy = new Filter(EMPTY, relation(), or);
+        transformed = new LogicalPlanOptimizer.PropagateNullable().apply(dummy);
+        assertSame(dummy, transformed);
+        assertEquals(or, ((Filter) transformed).condition());
+    }
+
+    // a + 1 AND (a IS NULL OR a > 3) => no change
+    public void testIsNullDisjunction() throws Exception {
+        FieldAttribute fa = getFieldAttribute("a");
+        IsNull isNull = new IsNull(EMPTY, fa);
+
+        Or or = new Or(EMPTY, isNull, greaterThanOf(fa, THREE));
+        And and = new And(EMPTY, new Add(EMPTY, fa, ONE), or);
+
+        assertEquals(and, new LogicalPlanOptimizer.PropagateNullable().rule(and));
+    }
+
+    private Literal nullOf(DataType dataType) {
+        return new Literal(Source.EMPTY, null, dataType);
     }
 }

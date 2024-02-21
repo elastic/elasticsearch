@@ -23,12 +23,16 @@ public interface BuildVersion extends Writeable, ToXContentFragment {
     boolean isFutureVersion();
 
     // temporary
+    // TODO[wrb]: remove from PersistedClusterStateService
+    // TODO[wrb]: remove from security bootstrap checks
     @Deprecated
     default Version toVersion() {
         return null;
     }
 
     // temporary
+    // TODO[wrb]: remove from PersistedClusterStateService
+    // TODO[wrb]: remove from security bootstrap checks
     @Deprecated
     static BuildVersion fromVersion(Version version) {
         return new DefaultBuildVersion(version.id());

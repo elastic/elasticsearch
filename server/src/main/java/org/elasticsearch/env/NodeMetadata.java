@@ -141,7 +141,7 @@ public final class NodeMetadata {
 
         return nodeVersion.equals(BuildVersion.current())
             ? this
-            : new NodeMetadata(nodeId, BuildVersion.current(), BuildVersion.fromVersion(nodeVersion.toVersion()), oldestIndexVersion);
+            : new NodeMetadata(nodeId, BuildVersion.current(), nodeVersion, oldestIndexVersion);
     }
 
     private static class Builder {

@@ -62,8 +62,8 @@ public class NestedObjectMapper extends ObjectMapper {
                     this.includeInRoot = Explicit.IMPLICIT_FALSE;
                 }
             }
-            NestedMapperBuilderContext nestedContext = new NestedMapperBuilderContext(context.buildFullName(name), parentIncludedInRoot);
-            final String fullPath = context.buildFullName(name);
+            NestedMapperBuilderContext nestedContext = new NestedMapperBuilderContext(context.buildFullName(name()), parentIncludedInRoot);
+            final String fullPath = context.buildFullName(name());
             final String nestedTypePath;
             if (indexCreatedVersion.before(IndexVersions.V_8_0_0)) {
                 nestedTypePath = "__" + fullPath;
@@ -71,7 +71,7 @@ public class NestedObjectMapper extends ObjectMapper {
                 nestedTypePath = fullPath;
             }
             return new NestedObjectMapper(
-                name,
+                name(),
                 fullPath,
                 buildMappers(nestedContext),
                 enabled,

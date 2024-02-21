@@ -1551,6 +1551,7 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("Unknown column [x5], did you mean any of [x1, x2, x3]?"));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/103599")
     public void testInsensitiveEqualsWrongType() {
         var e = expectThrows(VerificationException.class, () -> analyze("""
             from test

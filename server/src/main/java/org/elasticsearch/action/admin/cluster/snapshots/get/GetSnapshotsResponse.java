@@ -17,14 +17,10 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.snapshots.SnapshotInfo;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -34,37 +30,6 @@ import java.util.Objects;
  * Get snapshots response
  */
 public class GetSnapshotsResponse extends ActionResponse implements ChunkedToXContentObject {
-
-    private static final int UNKNOWN_COUNT = -1;
-
-    @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<GetSnapshotsResponse, Void> GET_SNAPSHOT_PARSER = new ConstructingObjectParser<>(
-        GetSnapshotsResponse.class.getName(),
-        true,
-        (args) -> new GetSnapshotsResponse(
-            (List<SnapshotInfo>) args[0],
-            (Map<String, ElasticsearchException>) args[1],
-            (String) args[2],
-            args[3] == null ? UNKNOWN_COUNT : (int) args[3],
-            args[4] == null ? UNKNOWN_COUNT : (int) args[4]
-        )
-    );
-
-    static {
-        GET_SNAPSHOT_PARSER.declareObjectArray(
-            ConstructingObjectParser.constructorArg(),
-            (p, c) -> SnapshotInfo.SNAPSHOT_INFO_PARSER.apply(p, c).build(),
-            new ParseField("snapshots")
-        );
-        GET_SNAPSHOT_PARSER.declareObject(
-            ConstructingObjectParser.optionalConstructorArg(),
-            (p, c) -> p.map(HashMap::new, ElasticsearchException::fromXContent),
-            new ParseField("failures")
-        );
-        GET_SNAPSHOT_PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), new ParseField("next"));
-        GET_SNAPSHOT_PARSER.declareIntOrNull(ConstructingObjectParser.optionalConstructorArg(), UNKNOWN_COUNT, new ParseField("total"));
-        GET_SNAPSHOT_PARSER.declareIntOrNull(ConstructingObjectParser.optionalConstructorArg(), UNKNOWN_COUNT, new ParseField("remaining"));
-    }
 
     private final List<SnapshotInfo> snapshots;
 
@@ -93,21 +58,10 @@ public class GetSnapshotsResponse extends ActionResponse implements ChunkedToXCo
 
     public GetSnapshotsResponse(StreamInput in) throws IOException {
         this.snapshots = in.readCollectionAsImmutableList(SnapshotInfo::readFrom);
-        if (in.getTransportVersion().onOrAfter(GetSnapshotsRequest.MULTIPLE_REPOSITORIES_SUPPORT_ADDED)) {
-            final Map<String, ElasticsearchException> failedResponses = in.readMap(StreamInput::readException);
-            this.failures = Collections.unmodifiableMap(failedResponses);
-            this.next = in.readOptionalString();
-        } else {
-            this.failures = Collections.emptyMap();
-            this.next = null;
-        }
-        if (in.getTransportVersion().onOrAfter(GetSnapshotsRequest.NUMERIC_PAGINATION_VERSION)) {
-            this.total = in.readVInt();
-            this.remaining = in.readVInt();
-        } else {
-            this.total = UNKNOWN_COUNT;
-            this.remaining = UNKNOWN_COUNT;
-        }
+        this.failures = Collections.unmodifiableMap(in.readMap(StreamInput::readException));
+        this.next = in.readOptionalString();
+        this.total = in.readVInt();
+        this.remaining = in.readVInt();
     }
 
     /**
@@ -149,19 +103,10 @@ public class GetSnapshotsResponse extends ActionResponse implements ChunkedToXCo
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeCollection(snapshots);
-        if (out.getTransportVersion().onOrAfter(GetSnapshotsRequest.MULTIPLE_REPOSITORIES_SUPPORT_ADDED)) {
-            out.writeMap(failures, StreamOutput::writeException);
-            out.writeOptionalString(next);
-        } else {
-            if (failures.isEmpty() == false) {
-                assert false : "transport action should have thrown directly for old version but saw " + failures;
-                throw failures.values().iterator().next();
-            }
-        }
-        if (out.getTransportVersion().onOrAfter(GetSnapshotsRequest.NUMERIC_PAGINATION_VERSION)) {
-            out.writeVInt(total);
-            out.writeVInt(remaining);
-        }
+        out.writeMap(failures, StreamOutput::writeException);
+        out.writeOptionalString(next);
+        out.writeVInt(total);
+        out.writeVInt(remaining);
     }
 
     @Override
@@ -196,10 +141,6 @@ public class GetSnapshotsResponse extends ActionResponse implements ChunkedToXCo
             b.endObject();
             return b;
         }));
-    }
-
-    public static GetSnapshotsResponse fromXContent(XContentParser parser) throws IOException {
-        return GET_SNAPSHOT_PARSER.parse(parser, null);
     }
 
     @Override

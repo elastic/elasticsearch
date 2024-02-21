@@ -39,7 +39,7 @@ public class DocumentSizeObserverIT extends ESIntegTestCase {
             new IndexRequest(TEST_INDEX_NAME).id("1").source(jsonBuilder().startObject().field("test", "I am sam i am").endObject())
         ).actionGet();
         assertTrue(hasWrappedParser);
-        // there are more assertions in a TestDocumentParsingSupplierPlugin
+        // there are more assertions in a TestDocumentParsingProviderPlugin
 
         hasWrappedParser = false;
         // the format of the request does not matter
@@ -47,7 +47,7 @@ public class DocumentSizeObserverIT extends ESIntegTestCase {
             new IndexRequest(TEST_INDEX_NAME).id("2").source(cborBuilder().startObject().field("test", "I am sam i am").endObject())
         ).actionGet();
         assertTrue(hasWrappedParser);
-        // there are more assertions in a TestDocumentParsingSupplierPlugin
+        // there are more assertions in a TestDocumentParsingProviderPlugin
 
         hasWrappedParser = false;
         // white spaces does not matter
@@ -59,7 +59,7 @@ public class DocumentSizeObserverIT extends ESIntegTestCase {
             }
             """, XContentType.JSON)).actionGet();
         assertTrue(hasWrappedParser);
-        // there are more assertions in a TestDocumentParsingSupplierPlugin
+        // there are more assertions in a TestDocumentParsingProviderPlugin
     }
 
     @Override
@@ -72,7 +72,7 @@ public class DocumentSizeObserverIT extends ESIntegTestCase {
         public TestDocumentParsingProviderPlugin() {}
 
         @Override
-        public DocumentParsingProvider getDocumentParsingSupplier() {
+        public DocumentParsingProvider getDocumentParsingProvider() {
             return new DocumentParsingProvider() {
 
                 @Override

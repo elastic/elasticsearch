@@ -103,4 +103,9 @@ public class MultilingualE5SmallInternalServiceSettings extends TextEmbeddingInt
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
     }
+
+    @Override
+    public Integer dimensions() {
+        return 384;
+    }
 }

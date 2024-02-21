@@ -479,6 +479,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
                 long taskAllocationId,
                 Exception taskFailure,
                 String localAbortReason,
+                TimeValue timeout,
                 ActionListener<PersistentTask<?>> listener
             ) {
                 assertThat(taskFailure, instanceOf(RuntimeException.class));

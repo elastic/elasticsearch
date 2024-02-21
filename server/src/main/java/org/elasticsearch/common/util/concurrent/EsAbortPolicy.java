@@ -14,7 +14,7 @@ public class EsAbortPolicy extends EsRejectedExecutionHandler {
 
     @Override
     public void rejectedExecution(Runnable r, ThreadPoolExecutor executor) {
-        if (r instanceof AbstractRunnable abstractRunnable) {
+        if (executor.isShutdown() == false && r instanceof AbstractRunnable abstractRunnable) {
             if (abstractRunnable.isForceExecution()) {
                 if (executor.getQueue() instanceof SizeBlockingQueue<Runnable> sizeBlockingQueue) {
                     try {

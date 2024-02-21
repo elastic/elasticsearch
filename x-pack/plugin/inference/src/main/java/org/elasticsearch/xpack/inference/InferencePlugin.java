@@ -23,6 +23,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceRegistry;
@@ -33,6 +34,7 @@ import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.InferenceRegistryPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
@@ -58,6 +60,7 @@ import org.elasticsearch.xpack.inference.external.http.sender.RequestExecutorSer
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextInferenceResultFieldMapper;
+import org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder;
 import org.elasticsearch.xpack.inference.registry.ModelRegistryImpl;
 import org.elasticsearch.xpack.inference.rest.RestDeleteInferenceModelAction;
 import org.elasticsearch.xpack.inference.rest.RestGetInferenceModelAction;
@@ -86,7 +89,8 @@ public class InferencePlugin extends Plugin
         ExtensiblePlugin,
         SystemIndexPlugin,
         InferenceRegistryPlugin,
-        MapperPlugin {
+        MapperPlugin,
+        SearchPlugin {
 
     /**
      * When this setting is true the verification check that
@@ -299,5 +303,14 @@ public class InferencePlugin extends Plugin
     @Override
     public Map<String, MetadataFieldMapper.TypeParser> getMetadataMappers() {
         return Map.of(SemanticTextInferenceResultFieldMapper.NAME, SemanticTextInferenceResultFieldMapper.PARSER);
+    }
+
+    @Override
+    public List<QuerySpec<?>> getQueries() {
+        return List.of(new QuerySpec<QueryBuilder>(
+            SemanticQueryBuilder.NAME,
+            SemanticQueryBuilder::new,
+            SemanticQueryBuilder::fromXContent
+        ));
     }
 }

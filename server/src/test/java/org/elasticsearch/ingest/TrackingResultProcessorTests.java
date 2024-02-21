@@ -682,7 +682,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
          */
         IngestService ingestService = createIngestService();
         PipelineProcessor.Factory factory = new PipelineProcessor.Factory(ingestService);
-        int pipelineCount = randomIntBetween(2, 150);
+        int pipelineCount = randomIntBetween(2, IngestDocument.MAX_PIPELINES);
         for (int i = 0; i < pipelineCount - 1; i++) {
             String pipelineId = "pipeline" + i;
             String nextPipelineId = "pipeline" + (i + 1);
@@ -726,6 +726,58 @@ public class TrackingResultProcessorTests extends ESTestCase {
             assertThat(result.getType(), equalTo(pipelineProcessor.getType()));
         }
         assertThat(resultList.get(resultList.size() - 1).getType(), equalTo(countCallsProcessor.getType()));
+    }
+
+    public void testActualPipelineProcessorNestedTooManyPipelines() throws Exception {
+        /*
+         * This test creates a pipeline made up of many nested pipeline processors, ending in a processor that counts both how many times
+         * it is called for a given document (by updating a field on that document) and how many times it is called overall.
+         */
+        IngestService ingestService = createIngestService();
+        PipelineProcessor.Factory factory = new PipelineProcessor.Factory(ingestService);
+        int pipelineCount = randomIntBetween(IngestDocument.MAX_PIPELINES + 1, 500);
+        for (int i = 0; i < pipelineCount - 1; i++) {
+            String pipelineId = "pipeline" + i;
+            String nextPipelineId = "pipeline" + (i + 1);
+            Map<String, Object> nextPipelineConfig = new HashMap<>();
+            nextPipelineConfig.put("name", nextPipelineId);
+            Pipeline pipeline = new Pipeline(
+                pipelineId,
+                null,
+                null,
+                null,
+                new CompoundProcessor(factory.create(Map.of(), null, null, nextPipelineConfig))
+            );
+            when(ingestService.getPipeline(pipelineId)).thenReturn(pipeline);
+        }
+
+        // The last pipeline calls the CountCallsProcessor rather than yet another pipeline processor:
+        String lastPipelineId = "pipeline" + (pipelineCount - 1);
+        CountCallsProcessor countCallsProcessor = new CountCallsProcessor();
+        Pipeline lastPipeline = new Pipeline(lastPipelineId, null, null, null, new CompoundProcessor(countCallsProcessor));
+        when(ingestService.getPipeline(lastPipelineId)).thenReturn(lastPipeline);
+
+        String firstPipelineId = "pipeline0";
+        Map<String, Object> firstPipelineConfig = new HashMap<>();
+        firstPipelineConfig.put("name", firstPipelineId);
+        PipelineProcessor pipelineProcessor = factory.create(Map.of(), null, null, firstPipelineConfig);
+        CompoundProcessor actualProcessor = new CompoundProcessor(pipelineProcessor);
+
+        CompoundProcessor trackingProcessor = decorate(actualProcessor, null, resultList);
+
+        IngestDocument[] documentHolder = new IngestDocument[1];
+        Exception[] exceptionHolder = new Exception[1];
+        trackingProcessor.execute(ingestDocument, (result, e) -> {
+            documentHolder[0] = result;
+            exceptionHolder[0] = e;
+        });
+        IngestDocument document = documentHolder[0];
+        Exception exception = exceptionHolder[0];
+        assertNull(document);
+        assertNotNull(exception);
+        assertThat(exception.getMessage(), containsString("Too many nested pipelines"));
+        // We expect that the last processor was never called:
+        assertThat(countCallsProcessor.getTotalCount(), equalTo(0));
     }
 
     public void testActualPipelineProcessorRepeatedInvocation() throws Exception {

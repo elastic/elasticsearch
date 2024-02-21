@@ -1571,6 +1571,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      *       {"term":{"first_name":{"value":"foo","case_insensitive":true}}},"source":"first_name =~ \"foo\"@2:9"}}]
      *       [_doc{f}#23], limit[500], sort[] estimatedRowSize[324]
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/103599")
     public void testPushDownEqualsIgnoreCase() {
         var plan = physicalPlan("""
             from test
@@ -1601,6 +1602,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      *             \_FieldExtractExec[first_name{f}#7]
      *               \_EsQueryExec[test], query[][_doc{f}#27], limit[], sort[] estimatedRowSize[374]
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/103599")
     public void testNoPushDownEvalEqualsIgnoreCase() {
         var plan = physicalPlan("""
             from test

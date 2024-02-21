@@ -8,6 +8,7 @@
 
 package org.elasticsearch.datastreams.lifecycle;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -17,6 +18,9 @@ import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.datastreams.lifecycle.action.DeleteDataStreamGlobalRetentionAction;
+import org.elasticsearch.datastreams.lifecycle.action.PutDataStreamGlobalRetentionAction;
+import org.elasticsearch.datastreams.lifecycle.action.UpdateDataStreamGlobalRetentionResponse;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
@@ -29,6 +33,7 @@ import org.junit.BeforeClass;
 
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
@@ -52,7 +57,7 @@ public class UpdateDataStreamGlobalRetentionServiceTests extends ESTestCase {
     }
 
     @After
-    public void closeClusterService() throws Exception {
+    public void closeClusterService() {
         clusterService.close();
     }
 
@@ -75,7 +80,7 @@ public class UpdateDataStreamGlobalRetentionServiceTests extends ESTestCase {
         // Removing from a cluster state with global retention
         {
             ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
-                .putCustom(DataStreamGlobalRetention.TYPE, randomGlobalRetention())
+                .putCustom(DataStreamGlobalRetention.TYPE, randomNonEmptyGlobalRetention())
                 .build();
             DataStreamGlobalRetention updatedRetention = DataStreamGlobalRetention.getFromClusterState(
                 service.updateGlobalRetention(clusterState, null)
@@ -89,13 +94,13 @@ public class UpdateDataStreamGlobalRetentionServiceTests extends ESTestCase {
 
         // Updating retention
         {
-            var initialRetention = randomGlobalRetention();
+            var initialRetention = randomNonEmptyGlobalRetention();
             ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
                 .putCustom(DataStreamGlobalRetention.TYPE, initialRetention)
                 .build();
             var expectedRetention = randomValueOtherThan(
                 initialRetention,
-                UpdateDataStreamGlobalRetentionServiceTests::randomGlobalRetention
+                UpdateDataStreamGlobalRetentionServiceTests::randomNonEmptyGlobalRetention
             );
             var updatedRetention = DataStreamGlobalRetention.getFromClusterState(
                 service.updateGlobalRetention(clusterState, expectedRetention)
@@ -157,7 +162,7 @@ public class UpdateDataStreamGlobalRetentionServiceTests extends ESTestCase {
         }
         // No difference in global retention
         {
-            var globalRetention = randomGlobalRetention();
+            var globalRetention = randomNonEmptyGlobalRetention();
             var clusterStateWithRetention = ClusterState.builder(clusterState)
                 .putCustom(DataStreamGlobalRetention.TYPE, globalRetention)
                 .build();
@@ -190,10 +195,64 @@ public class UpdateDataStreamGlobalRetentionServiceTests extends ESTestCase {
         }
     }
 
-    private static DataStreamGlobalRetention randomGlobalRetention() {
+    public void testUpdateAndAcknowledgeListener() throws Exception {
+        AtomicInteger listenerOnRespondCount = new AtomicInteger();
+        List<UpdateDataStreamGlobalRetentionResponse.AffectedDataStream> affectedDataStreams = randomList(
+            5,
+            () -> new UpdateDataStreamGlobalRetentionResponse.AffectedDataStream(randomAlphaOfLength(10), null, null)
+        );
+        ActionListener<UpdateDataStreamGlobalRetentionResponse> listener = new ActionListener<>() {
+            @Override
+            public void onResponse(UpdateDataStreamGlobalRetentionResponse response) {
+                assertThat(response.isAcknowledged(), is(true));
+                assertThat(response.isDryRun(), is(false));
+                assertThat(response.getAffectedDataStreams(), equalTo(affectedDataStreams));
+                listenerOnRespondCount.incrementAndGet();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                fail(e);
+            }
+        };
+        DataStreamGlobalRetention globalRetention = randomNonEmptyGlobalRetention();
+        service.updateGlobalRetention(
+            new PutDataStreamGlobalRetentionAction.Request(globalRetention.getDefaultRetention(), globalRetention.getMaxRetention()),
+            affectedDataStreams,
+            listener
+        );
+        assertBusy(() -> assertThat(listenerOnRespondCount.get(), is(1)));
+    }
+
+    public void testRemoveAndAcknowledgeListener() throws Exception {
+        AtomicInteger listenerOnRespondCount = new AtomicInteger();
+        List<UpdateDataStreamGlobalRetentionResponse.AffectedDataStream> affectedDataStreams = randomList(
+            5,
+            () -> new UpdateDataStreamGlobalRetentionResponse.AffectedDataStream(randomAlphaOfLength(10), null, null)
+        );
+        ActionListener<UpdateDataStreamGlobalRetentionResponse> listener = new ActionListener<>() {
+            @Override
+            public void onResponse(UpdateDataStreamGlobalRetentionResponse response) {
+                assertThat(response.isAcknowledged(), is(true));
+                assertThat(response.isDryRun(), is(false));
+                assertThat(response.getAffectedDataStreams(), equalTo(affectedDataStreams));
+                listenerOnRespondCount.incrementAndGet();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                fail(e);
+            }
+        };
+        service.removeGlobalRetention(new DeleteDataStreamGlobalRetentionAction.Request(), affectedDataStreams, listener);
+        assertBusy(() -> assertThat(listenerOnRespondCount.get(), is(1)));
+    }
+
+    private static DataStreamGlobalRetention randomNonEmptyGlobalRetention() {
+        boolean withDefault = randomBoolean();
         return new DataStreamGlobalRetention(
-            randomBoolean() ? null : TimeValue.timeValueDays(randomIntBetween(1, 1000)),
-            randomBoolean() ? null : TimeValue.timeValueDays(randomIntBetween(1000, 2000))
+            randomBoolean() ? TimeValue.timeValueDays(randomIntBetween(1, 1000)) : null,
+            withDefault == false || randomBoolean() ? TimeValue.timeValueDays(randomIntBetween(1000, 2000)) : null
         );
     }
 }

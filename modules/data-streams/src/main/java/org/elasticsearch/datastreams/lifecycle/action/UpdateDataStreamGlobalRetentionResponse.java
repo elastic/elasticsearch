@@ -111,4 +111,16 @@ public final class UpdateDataStreamGlobalRetentionResponse extends ActionRespons
             return builder;
         }
     }
+
+    public boolean isAcknowledged() {
+        return acknowledged;
+    }
+
+    public boolean isDryRun() {
+        return dryRun;
+    }
+
+    public List<AffectedDataStream> getAffectedDataStreams() {
+        return affectedDataStreams;
+    }
 }

@@ -221,9 +221,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
         @Override
         public DenseVectorFieldMapper build(MapperBuilderContext context) {
             return new DenseVectorFieldMapper(
-                name,
+                name(),
                 new DenseVectorFieldType(
-                    context.buildFullName(name),
+                    context.buildFullName(name()),
                     indexVersionCreated,
                     elementType.getValue(),
                     dims.getValue(),

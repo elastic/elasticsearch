@@ -425,7 +425,7 @@ public final class PainlessScriptEngine implements ScriptEngine {
             // Except regexes enabled - this is a node level setting and can't be changed in the request.
             compilerSettings.setRegexesEnabled(defaultCompilerSettings.areRegexesEnabled());
 
-            compilerSettings.setRegexLimitFactor(defaultCompilerSettings.getRegexLimitFactor());
+            compilerSettings.setRegexLimitFactor(defaultCompilerSettings.getAppliedRegexLimitFactor());
 
             Map<String, String> copy = new HashMap<>(params);
 

@@ -166,6 +166,7 @@ public class ObjectMapper extends Mapper {
                     mapper = existing.merge(mapper, MapperMergeContext.from(mapperBuilderContext, Long.MAX_VALUE));
                 }
                 if (subobjects.value() == false && mapper instanceof ObjectMapper objectMapper) {
+                    // We're parsing a mapping that has set `subobjects: false` but has defined sub-objects
                     objectMapper.asFlattenedFieldMappers(mapperBuilderContext).forEach(m -> mappers.put(m.simpleName(), m));
                 } else {
                     mappers.put(mapper.simpleName(), mapper);
@@ -554,18 +555,20 @@ public class ObjectMapper extends Mapper {
             boolean subobjects
         ) {
             Map<String, Mapper> mergedMappers = new HashMap<>();
-            for (Mapper existingMapper : existing.mappers.values()) {
-                if (subobjects == false && existingMapper instanceof ObjectMapper objectMapper) {
+            for (Mapper childOfExistingMapper : existing.mappers.values()) {
+                if (subobjects == false && childOfExistingMapper instanceof ObjectMapper objectMapper) {
+                    // An existing mapping with sub-objects is merged with a mapping that has set `subobjects: false`
                     objectMapper.asFlattenedFieldMappers(objectMergeContext.getMapperBuilderContext())
                         .forEach(m -> mergedMappers.put(m.simpleName(), m));
                 } else {
-                    putMergedMapper(mergedMappers, existingMapper);
+                    putMergedMapper(mergedMappers, childOfExistingMapper);
                 }
             }
             for (Mapper mergeWithMapper : mergeWithObject) {
                 Mapper mergeIntoMapper = mergedMappers.get(mergeWithMapper.simpleName());
                 if (mergeIntoMapper == null) {
                     if (subobjects == false && mergeWithMapper instanceof ObjectMapper objectMapper) {
+                        // An existing mapping that has set `subobjects: false` is merged with a mapping with sub-objects
                         objectMapper.asFlattenedFieldMappers(objectMergeContext.getMapperBuilderContext())
                             .stream()
                             .filter(m -> objectMergeContext.decrementFieldBudgetIfPossible(m.getTotalFieldsCount()))

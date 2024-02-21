@@ -1707,10 +1707,12 @@ public class MapperServiceTests extends MapperServiceTestCase {
 
     private void assertMergeEquals(List<CompressedXContent> mappingSources, String expected) throws IOException {
         final MapperService mapperServiceBulk = createMapperService(mapping(b -> {}));
+        // simulates multiple component templates being merged in a composable index template
         mapperServiceBulk.merge("_doc", mappingSources, MergeReason.INDEX_TEMPLATE);
         assertEquals(expected, Strings.toString(mapperServiceBulk.documentMapper().mapping(), true, true));
 
         MapperService mapperServiceSequential = createMapperService(mapping(b -> {}));
+        // simulates a series of mapping updates
         mappingSources.forEach(m -> mapperServiceSequential.merge("_doc", m, MergeReason.INDEX_TEMPLATE));
         assertEquals(expected, Strings.toString(mapperServiceSequential.documentMapper().mapping(), true, true));
     }

@@ -60,7 +60,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.internal.BuildVersion;
+import org.elasticsearch.BuildVersion;
 import org.elasticsearch.test.CorruptionUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;

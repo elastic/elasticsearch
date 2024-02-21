@@ -9,6 +9,7 @@
 package org.elasticsearch.internal;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.BuildVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 

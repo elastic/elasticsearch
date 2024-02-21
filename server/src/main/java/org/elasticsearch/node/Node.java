@@ -59,7 +59,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.store.IndicesStore;
-import org.elasticsearch.internal.BuildVersion;
+import org.elasticsearch.BuildVersion;
 import org.elasticsearch.monitor.fs.FsHealthService;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.metrics.NodeMetrics;

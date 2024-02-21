@@ -19,7 +19,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.PersistedClusterStateService;
-import org.elasticsearch.internal.BuildVersion;
+import org.elasticsearch.BuildVersion;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;

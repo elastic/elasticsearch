@@ -37,7 +37,7 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.ShardLimitValidator;
-import org.elasticsearch.internal.BuildVersion;
+import org.elasticsearch.BuildVersion;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;

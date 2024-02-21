@@ -36,7 +36,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.env.NodeMetadata;
 import org.elasticsearch.index.IndexVersions;
-import org.elasticsearch.internal.BuildVersion;
+import org.elasticsearch.BuildVersion;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.ClusterCoordinationPlugin;
 import org.elasticsearch.plugins.MetadataUpgrader;

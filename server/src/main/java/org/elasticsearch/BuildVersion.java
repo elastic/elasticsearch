@@ -6,11 +6,11 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.internal;
+package org.elasticsearch;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.internal.BuildExtension;
 import org.elasticsearch.plugins.ExtensionLoader;
 
 import java.io.IOException;

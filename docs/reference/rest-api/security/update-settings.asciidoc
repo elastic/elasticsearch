@@ -5,10 +5,30 @@
 <titleabbrev>Update Security settings</titleabbrev>
 ++++
 
+Updates the settings of the security internal indices.
+
+
 [[security-api-update-settings-prereqs]]
 ==== {api-prereq-title}
 
 * To use this API, you must have at least the `manage_security` cluster privilege.
+
+
+[[security-api-update-settings-request-body]]
+==== {api-request-body-title}
+
+`security`::
+(Optional, object) Settings to be used for the index used for most security 
+configuration, including Native realm users and roles configured via the API.
+
+`security-tokens`::
+(Optional, object) Settings to be used for the index used to store 
+<<security-api-get-token,tokens>>.
+
+`security`::
+(Optional, object) Settings to be used for the index used to store 
+<<security-api-activate-user-profile, profile>> information.
+
 
 [[security-api-update-settings-desc]]
 ==== {api-description-title}
@@ -18,6 +38,10 @@ be modified. This includes:
 
 - `index.auto_expand_replicas`
 - `index.number_of_replicas`
+
+
+[[security-api-update-settings-example]]
+==== {api-examples-title}
 
 An example of modifying the Security settings:
 
@@ -43,18 +67,3 @@ The configured settings can be retrieved using the
 is not in use on the system, but settings are provided for it, the request will 
 be rejected - this API does not yet support configuring the settings for these 
 indices before they are in use.
-
-
-==== {api-request-body-title}
-
-`security`::
-(Optional, object) Settings to be used for the index used for most security 
-configuration, including Native realm users and roles configured via the API.
-
-`security-tokens`::
-(Optional, object) Settings to be used for the index used to store 
-<<security-api-get-token,tokens>>.
-
-`security`::
-(Optional, object) Settings to be used for the index used to store 
-<<security-api-activate-user-profile, profile>> information.

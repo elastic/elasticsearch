@@ -98,7 +98,12 @@ public class EsqlIndexResolver {
             // TODO we're careful to make isAlias match IndexResolver - but do we use it?
             EsField field = firstUnsupportedParent == null
                 ? createField(fieldCapsResponse, name, fullName, fieldsCaps.get(fullName), isAlias)
-                : new UnsupportedEsField(fullName, firstUnsupportedParent.getOriginalType(), firstUnsupportedParent.getName(), new HashMap<>());
+                : new UnsupportedEsField(
+                    fullName,
+                    firstUnsupportedParent.getOriginalType(),
+                    firstUnsupportedParent.getName(),
+                    new HashMap<>()
+                );
             fields.put(name, field);
         }
 

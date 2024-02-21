@@ -51,7 +51,7 @@ retention of a data stream which retention exceeds the max retention.
 (boolean)
 True, if the global retention has been updated to the provided values. False, if it fails or if it was a dry run.
 
-`lazy`::
+`dry_run`::
 (boolean)
 True, if this was a dry run, false otherwise.
 
@@ -77,13 +77,30 @@ The retention that is or would be effective after this request. `Infinite` if th
 ==== {api-examples-title}
 
 ////
-
 [source,console]
---------------------------------------------------
-DELETE _data_stream/_global_retention
---------------------------------------------------
-// TEARDOWN
+----
+PUT /_index_template/template
+{
+  "index_patterns": ["my-data-stream*"],
+  "template": {
+    "lifecycle": {}
+  },
+  "data_stream": { }
+}
 
+PUT /_data_stream/my-data-stream
+----
+// TESTSETUP
+////
+
+////
+[source,console]
+----
+DELETE /_data_stream/my-data-stream*
+DELETE /_index_template/template
+DELETE /_data_stream/_global_retention
+----
+// TEARDOWN
 ////
 
 Let's update the global retention:
@@ -95,8 +112,6 @@ PUT _data_stream/_global_retention
   "max_retention": "90d"
 }
 --------------------------------------------------
-// TEST[setup:my_data_stream]
-// TEST[teardown:data_stream_cleanup]
 
 The response will look like the following:
 
@@ -107,7 +122,7 @@ The response will look like the following:
   "dry_run": false,
   "affected_data_streams": [
     {
-      "name": "my_data_stream",
+      "name": "my-data-stream",
       "previous_effective_retention": "infinite",
       "new_effective_retention": "7d"
     }

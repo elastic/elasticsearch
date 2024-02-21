@@ -20,6 +20,9 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
+/**
+ * Removes the data stream global retention configuration
+ */
 @ServerlessScope(Scope.PUBLIC)
 public class RestDeleteDataStreamGlobalRetentionAction extends BaseRestHandler {
 

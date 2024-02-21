@@ -21,6 +21,10 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
+/**
+ * Updates the default_retention and the max_retention of the data stream global retention configuration. It
+ * does not accept an empty payload.
+ */
 @ServerlessScope(Scope.PUBLIC)
 public class RestPutDataStreamGlobalRetentionAction extends BaseRestHandler {
 

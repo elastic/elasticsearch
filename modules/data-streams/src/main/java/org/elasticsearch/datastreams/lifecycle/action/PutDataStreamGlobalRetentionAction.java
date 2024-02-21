@@ -89,8 +89,9 @@ public class PutDataStreamGlobalRetentionAction {
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = null;
             if (globalRetention.equals(DataStreamGlobalRetention.EMPTY)) {
-                validationException = ValidateActions.addValidationError(
-                    "At least one of 'default_retention' or 'max_retention' should be defined.",
+                return ValidateActions.addValidationError(
+                    "At least one of 'default_retention' or 'max_retention' should be defined."
+                        + " If you want to remove the configuration please use the DELETE method",
                     validationException
                 );
             }

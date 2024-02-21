@@ -369,8 +369,11 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             .collect(
                 Collectors.toMap(
                     DocWriteRequest::index,
-                    request -> new ReducedRequestInfo(request.isRequireAlias(), request.isRequireDataStream()),
-                    ReducedRequestInfo::merge
+                    request -> ReducedRequestInfo.of(request.isRequireAlias(), request.isRequireDataStream()),
+                    (existing, updated) -> ReducedRequestInfo.of(
+                        existing.isRequireAlias || updated.isRequireAlias,
+                        existing.isRequireDataStream || updated.isRequireDataStream
+                    )
                 )
             );
 
@@ -617,13 +620,29 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         return TimeUnit.NANOSECONDS.toMillis(relativeTime() - startTimeNanos);
     }
 
-    private record ReducedRequestInfo(boolean isRequireAlias, boolean isRequireDataStream) {
-        private ReducedRequestInfo merge(ReducedRequestInfo other) {
-            return new ReducedRequestInfo(
-                this.isRequireAlias || other.isRequireAlias,
-                this.isRequireDataStream || other.isRequireDataStream
-            );
+    private enum ReducedRequestInfo {
+
+        REQUIRE_ALIAS_AND_DATA_STREAM(true, true),
+        REQUIRE_ALIAS_NOT_DATA_STREAM(true, false),
+
+        REQUIRE_DATA_STREAM_NOT_ALIAS(false, true),
+        REQUIRE_NOTHING(false, false);
+
+        private final boolean isRequireAlias;
+        private final boolean isRequireDataStream;
+
+        ReducedRequestInfo(boolean isRequireAlias, boolean isRequireDataStream) {
+            this.isRequireAlias = isRequireAlias;
+            this.isRequireDataStream = isRequireDataStream;
         }
+
+        static ReducedRequestInfo of(boolean isRequireAlias, boolean isRequireDataStream) {
+            if (isRequireAlias) {
+                return isRequireDataStream ? REQUIRE_ALIAS_AND_DATA_STREAM : REQUIRE_ALIAS_NOT_DATA_STREAM;
+            }
+            return isRequireDataStream ? REQUIRE_DATA_STREAM_NOT_ALIAS : REQUIRE_NOTHING;
+        }
+
     }
 
     void executeBulk(

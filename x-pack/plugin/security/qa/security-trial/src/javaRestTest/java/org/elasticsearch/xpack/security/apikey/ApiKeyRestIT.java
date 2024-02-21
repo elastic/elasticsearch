@@ -300,6 +300,8 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
 
         ApiKey apiKey = getApiKey((String) responseBody.get("id"));
         assertThat(apiKey.getUsername(), equalTo(END_USER));
+        assertThat(apiKey.getRealm(), equalTo("default_native"));
+        assertThat(apiKey.getRealmType(), equalTo("native"));
     }
 
     public void testGrantApiKeyForOtherUserWithAccessToken() throws IOException {
@@ -329,6 +331,8 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
 
         ApiKey apiKey = getApiKey((String) responseBody.get("id"));
         assertThat(apiKey.getUsername(), equalTo(END_USER));
+        assertThat(apiKey.getRealm(), equalTo("default_native"));
+        assertThat(apiKey.getRealmType(), equalTo("native"));
 
         Instant minExpiry = before.plus(2, ChronoUnit.HOURS);
         Instant maxExpiry = after.plus(2, ChronoUnit.HOURS);

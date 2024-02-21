@@ -435,7 +435,14 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         );
     }
 
-    private int getRegionSize(long fileLength, int region) {
+    /**
+     * Compute the size of a cache file region.
+     *
+     * @param fileLength the length of the file/blob to cache
+     * @param region the region number
+     * @return a size in bytes of the cache file region
+     */
+    protected int computeCacheFileRegionSize(long fileLength, int region) {
         assert fileLength > 0;
         final int maxRegion = getEndingRegion(fileLength);
         assert region >= 0 && region <= maxRegion : region + " - " + maxRegion;
@@ -1209,7 +1216,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             // if we did not find an entry
             var entry = keyMapping.get(regionKey);
             if (entry == null) {
-                final int effectiveRegionSize = getRegionSize(fileLength, region);
+                final int effectiveRegionSize = computeCacheFileRegionSize(fileLength, region);
                 entry = keyMapping.computeIfAbsent(regionKey, key -> new LFUCacheEntry(new CacheFileRegion(key, effectiveRegionSize), now));
             }
             // io is volatile, double locking is fine, as long as we assign it last.

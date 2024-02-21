@@ -108,7 +108,8 @@ public class UpdateDataStreamGlobalRetentionService {
         return affectedDataStreams;
     }
 
-    private ClusterState updateGlobalRetention(ClusterState clusterState, @Nullable DataStreamGlobalRetention retentionFromRequest) {
+    // Visible for testing
+    ClusterState updateGlobalRetention(ClusterState clusterState, @Nullable DataStreamGlobalRetention retentionFromRequest) {
         final var initialRetention = DataStreamGlobalRetention.getFromClusterState(clusterState);
         // Avoid storing empty retention in the cluster state
         final var newRetention = DataStreamGlobalRetention.EMPTY.equals(retentionFromRequest) ? null : retentionFromRequest;

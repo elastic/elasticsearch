@@ -14,12 +14,25 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.plugins.ExtensionLoader;
 
 import java.io.IOException;
+import java.util.Objects;
 import java.util.ServiceLoader;
 
 public interface BuildVersion extends Writeable {
     boolean isCompatibleWithCurrent();
 
     boolean isFutureVersion();
+
+    // temporary
+    @Deprecated
+    default Version toVersion() {
+        return null;
+    }
+
+    // temporary
+    @Deprecated
+    static BuildVersion fromVersion(Version version) {
+        return new DefaultBuildVersion(version.id());
+    }
 
     static BuildVersion current() {
         return ExtensionLoader.loadSingleton(ServiceLoader.load(BuildExtension.class))
@@ -29,6 +42,7 @@ public interface BuildVersion extends Writeable {
 
     class DefaultBuildVersion implements BuildVersion {
 
+        // TODO[wrb]: hold on to a Version field
         private final int versionId;
 
         DefaultBuildVersion(int versionId) {
@@ -42,12 +56,35 @@ public interface BuildVersion extends Writeable {
 
         @Override
         public boolean isCompatibleWithCurrent() {
-            return Version.CURRENT.isCompatible(Version.fromId(versionId));
+            return Version.CURRENT.minimumCompatibilityVersion().onOrBefore(Version.fromId(versionId));
         }
 
         @Override
         public boolean isFutureVersion() {
             return Version.CURRENT.before(Version.fromId(versionId));
+        }
+
+        @Override
+        public Version toVersion() {
+            return Version.fromId(this.versionId);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            DefaultBuildVersion that = (DefaultBuildVersion) o;
+            return versionId == that.versionId;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(versionId);
+        }
+
+        @Override
+        public String toString() {
+            return Version.fromId(versionId).toString();
         }
     }
 }

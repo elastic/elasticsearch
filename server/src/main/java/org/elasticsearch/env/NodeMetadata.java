@@ -14,6 +14,7 @@ import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.internal.BuildVersion;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -36,12 +37,13 @@ public final class NodeMetadata {
 
     private final String nodeId;
 
-    private final Version nodeVersion;
+    private final BuildVersion nodeVersion;
 
-    private final Version previousNodeVersion;
+    private final BuildVersion previousNodeVersion;
 
     private final IndexVersion oldestIndexVersion;
 
+    // TODO[wrb]: Convert constructor to use BuildVersion
     private NodeMetadata(
         final String nodeId,
         final Version nodeVersion,
@@ -49,8 +51,8 @@ public final class NodeMetadata {
         final IndexVersion oldestIndexVersion
     ) {
         this.nodeId = Objects.requireNonNull(nodeId);
-        this.nodeVersion = Objects.requireNonNull(nodeVersion);
-        this.previousNodeVersion = Objects.requireNonNull(previousNodeVersion);
+        this.nodeVersion = Objects.requireNonNull(BuildVersion.fromVersion(nodeVersion));
+        this.previousNodeVersion = Objects.requireNonNull(BuildVersion.fromVersion(previousNodeVersion));
         this.oldestIndexVersion = Objects.requireNonNull(oldestIndexVersion);
     }
 
@@ -93,8 +95,9 @@ public final class NodeMetadata {
         return nodeId;
     }
 
+    // TODO[wrb]: return a BuildVersion
     public Version nodeVersion() {
-        return nodeVersion;
+        return nodeVersion.toVersion();
     }
 
     /**
@@ -103,8 +106,9 @@ public final class NodeMetadata {
      * the current version of the node ({@link NodeMetadata#upgradeToCurrentVersion()} before storing the node metadata again on disk.
      * In doing so, {@code previousNodeVersion} refers to the previously last known version that this node was started on.
      */
+    // TODO[wrb]: Return a BuildVersion
     public Version previousNodeVersion() {
-        return previousNodeVersion;
+        return previousNodeVersion.toVersion();
     }
 
     public IndexVersion oldestIndexVersion() {
@@ -112,10 +116,11 @@ public final class NodeMetadata {
     }
 
     public void verifyUpgradeToCurrentVersion() {
-        assert (nodeVersion.equals(Version.V_EMPTY) == false) || (Version.CURRENT.major <= Version.V_7_0_0.major + 1)
+        // TODO[wrb]: add @UpgradeForV9 and rework assertion for BuildVersion
+        assert (nodeVersion.toVersion().equals(Version.V_EMPTY) == false) || (Version.CURRENT.major <= Version.V_7_0_0.major + 1)
             : "version is required in the node metadata from v9 onwards";
 
-        if (nodeVersion.before(Version.CURRENT.minimumCompatibilityVersion())) {
+        if (nodeVersion.isCompatibleWithCurrent() == false) {
             throw new IllegalStateException(
                 "cannot upgrade a node from version ["
                     + nodeVersion
@@ -128,7 +133,7 @@ public final class NodeMetadata {
             );
         }
 
-        if (nodeVersion.after(Version.CURRENT)) {
+        if (nodeVersion.isFutureVersion()) {
             throw new IllegalStateException(
                 "cannot downgrade a node from version [" + nodeVersion + "] to version [" + Build.current().version() + "]"
             );
@@ -138,7 +143,9 @@ public final class NodeMetadata {
     public NodeMetadata upgradeToCurrentVersion() {
         verifyUpgradeToCurrentVersion();
 
-        return nodeVersion.equals(Version.CURRENT) ? this : new NodeMetadata(nodeId, Version.CURRENT, nodeVersion, oldestIndexVersion);
+        return nodeVersion.equals(BuildVersion.current())
+            ? this
+            : new NodeMetadata(nodeId, Version.CURRENT, nodeVersion.toVersion(), oldestIndexVersion);
     }
 
     private static class Builder {
@@ -207,7 +214,8 @@ public final class NodeMetadata {
         @Override
         public void toXContent(XContentBuilder builder, NodeMetadata nodeMetadata) throws IOException {
             builder.field(NODE_ID_KEY, nodeMetadata.nodeId);
-            builder.field(NODE_VERSION_KEY, nodeMetadata.nodeVersion.id);
+            // TODO[wrb]: Simplest way to serialize?
+            builder.field(NODE_VERSION_KEY, nodeMetadata.nodeVersion.toVersion().id());
             builder.field(OLDEST_INDEX_VERSION_KEY, nodeMetadata.oldestIndexVersion.id());
         }
 

@@ -72,6 +72,18 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
             }
             return false;
         }
+
+        public static String getAllowedFieldTypesAsString() {
+            StringBuilder result = new StringBuilder();
+            for (AllowedFieldType fieldType : values()) {
+                result.append(fieldType.getTypeName()).append(", ");
+            }
+            // Remove the trailing ", " if there are values
+            if (result.length() > 0) {
+                result.setLength(result.length() - 2);
+            }
+            return result.toString();
+        }
     }
 
     public TextExpansionQueryBuilder(String fieldName, String modelText, String modelId) {

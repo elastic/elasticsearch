@@ -306,8 +306,9 @@ Accept: application/vnd.elasticsearch+json; compatible-with=7
 [[api-push-back]]
 === `TOO_MANY_REQUESTS (429)` status code push back
 
-All {es} APIs may respond with the HTTP `429 Too Many Requests` status code, indicating that the cluster is too busy right now to
-handle the request. When this happens, consider retrying after a short delay. If the retry also receives a `429 Too Many Requests` response, extend the delay by backing off exponentially before each subsequent retry.
+All {es} APIs may respond with the HTTP `429 Too Many Requests` status code, indicating that the cluster is too busy
+right now to handle the request. When this happens, consider retrying after a short delay. If the retry also receives
+a `429 Too Many Requests` response, extend the delay by backing off exponentially before each subsequent retry.
 
 [discrete]
 [[api-url-access-control]]

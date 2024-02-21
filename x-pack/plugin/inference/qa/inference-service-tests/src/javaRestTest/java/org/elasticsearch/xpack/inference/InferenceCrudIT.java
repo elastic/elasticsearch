@@ -25,10 +25,10 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
     @SuppressWarnings("unchecked")
     public void testGet() throws IOException {
         for (int i = 0; i < 5; i++) {
-            putModel("se_model_" + i, mockServiceModelConfig(), TaskType.SPARSE_EMBEDDING);
+            putModel("se_model_" + i, mockSparseServiceModelConfig(), TaskType.SPARSE_EMBEDDING);
         }
         for (int i = 0; i < 4; i++) {
-            putModel("te_model_" + i, mockServiceModelConfig(), TaskType.TEXT_EMBEDDING);
+            putModel("te_model_" + i, mockSparseServiceModelConfig(), TaskType.TEXT_EMBEDDING);
         }
 
         var getAllModels = (List<Map<String, Object>>) getAllModels().get("models");
@@ -59,7 +59,7 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
     }
 
     public void testGetModelWithWrongTaskType() throws IOException {
-        putModel("sparse_embedding_model", mockServiceModelConfig(), TaskType.SPARSE_EMBEDDING);
+        putModel("sparse_embedding_model", mockSparseServiceModelConfig(), TaskType.SPARSE_EMBEDDING);
         var e = expectThrows(ResponseException.class, () -> getModels("sparse_embedding_model", TaskType.TEXT_EMBEDDING));
         assertThat(
             e.getMessage(),
@@ -68,7 +68,7 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
     }
 
     public void testDeleteModelWithWrongTaskType() throws IOException {
-        putModel("sparse_embedding_model", mockServiceModelConfig(), TaskType.SPARSE_EMBEDDING);
+        putModel("sparse_embedding_model", mockSparseServiceModelConfig(), TaskType.SPARSE_EMBEDDING);
         var e = expectThrows(ResponseException.class, () -> deleteModel("sparse_embedding_model", TaskType.TEXT_EMBEDDING));
         assertThat(
             e.getMessage(),
@@ -79,7 +79,7 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
     @SuppressWarnings("unchecked")
     public void testGetModelWithAnyTaskType() throws IOException {
         String inferenceEntityId = "sparse_embedding_model";
-        putModel(inferenceEntityId, mockServiceModelConfig(), TaskType.SPARSE_EMBEDDING);
+        putModel(inferenceEntityId, mockSparseServiceModelConfig(), TaskType.SPARSE_EMBEDDING);
         var singleModel = (List<Map<String, Object>>) getModels(inferenceEntityId, TaskType.ANY).get("models");
         assertEquals(inferenceEntityId, singleModel.get(0).get("model_id"));
         assertEquals(TaskType.SPARSE_EMBEDDING.toString(), singleModel.get(0).get("task_type"));
@@ -88,7 +88,7 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
     @SuppressWarnings("unchecked")
     public void testApisWithoutTaskType() throws IOException {
         String modelId = "no_task_type_in_url";
-        putModel(modelId, mockServiceModelConfig(TaskType.SPARSE_EMBEDDING));
+        putModel(modelId, mockSparseServiceModelConfig(TaskType.SPARSE_EMBEDDING));
         var singleModel = (List<Map<String, Object>>) getModel(modelId).get("models");
         assertEquals(modelId, singleModel.get(0).get("model_id"));
         assertEquals(TaskType.SPARSE_EMBEDDING.toString(), singleModel.get(0).get("task_type"));

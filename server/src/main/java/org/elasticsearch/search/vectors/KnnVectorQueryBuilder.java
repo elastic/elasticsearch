@@ -37,7 +37,6 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;
@@ -59,9 +58,6 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
     public static final ParseField QUERY_VECTOR_FIELD = new ParseField("query_vector");
     public static final ParseField VECTOR_SIMILARITY_FIELD = new ParseField("similarity");
     public static final ParseField FILTER_FIELD = new ParseField("filter");
-    private static final MapParams QUERY_VECTOR_PARAMS = new MapParams(
-        Map.of(VectorData.XCONTENT_PARAM_NAME, QUERY_VECTOR_FIELD.getPreferredName())
-    );
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<KnnVectorQueryBuilder, Void> PARSER = new ConstructingObjectParser<>(
@@ -225,7 +221,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
         builder.field(FIELD_FIELD.getPreferredName(), fieldName);
-        queryVector.toXContent(builder, QUERY_VECTOR_PARAMS);
+        builder.field(QUERY_VECTOR_FIELD.getPreferredName(), queryVector);
         if (numCands != null) {
             builder.field(NUM_CANDS_FIELD.getPreferredName(), numCands);
         }

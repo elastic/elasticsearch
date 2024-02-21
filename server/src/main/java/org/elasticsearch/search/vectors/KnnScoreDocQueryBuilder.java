@@ -25,7 +25,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -35,7 +34,6 @@ import java.util.Objects;
  */
 public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQueryBuilder> {
     public static final String NAME = "knn_score_doc";
-    private static final MapParams QUERY_VECTOR_PARAMS = new MapParams(Map.of(VectorData.XCONTENT_PARAM_NAME, "query"));
     private final ScoreDoc[] scoreDocs;
     private final String fieldName;
     private final VectorData queryVector;
@@ -129,7 +127,7 @@ public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQue
             builder.field("field", fieldName);
         }
         if (queryVector != null) {
-            queryVector.toXContent(builder, QUERY_VECTOR_PARAMS);
+            builder.field("query", queryVector);
         }
         boostAndQueryNameToXContent(builder);
         builder.endObject();

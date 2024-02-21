@@ -22,7 +22,6 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -31,7 +30,6 @@ import java.util.Objects;
  */
 public class ExactKnnQueryBuilder extends AbstractQueryBuilder<ExactKnnQueryBuilder> {
     public static final String NAME = "exact_knn";
-    private static final MapParams QUERY_VECTOR_PARAMS = new MapParams(Map.of(VectorData.XCONTENT_PARAM_NAME, "query"));
     private final String field;
     private final VectorData query;
 
@@ -92,7 +90,7 @@ public class ExactKnnQueryBuilder extends AbstractQueryBuilder<ExactKnnQueryBuil
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
-        query.toXContent(builder, QUERY_VECTOR_PARAMS);
+        builder.field("query", query);
         builder.field("field", field);
         boostAndQueryNameToXContent(builder);
         builder.endObject();

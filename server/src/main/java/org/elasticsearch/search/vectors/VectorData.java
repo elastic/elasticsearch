@@ -28,9 +28,6 @@ import static org.elasticsearch.common.Strings.format;
 
 public record VectorData(float[] floatVector, byte[] byteVector) implements Writeable, ToXContentFragment {
 
-    public static final String XCONTENT_PARAM_NAME = "field";
-    private static final String DEFAULT_XCONTENT_NAME = "vector";
-
     private VectorData(float[] floatVector) {
         this(floatVector, null);
     }
@@ -90,11 +87,17 @@ public record VectorData(float[] floatVector, byte[] byteVector) implements Writ
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startArray();
         if (floatVector != null) {
-            builder.array(params.param(XCONTENT_PARAM_NAME, DEFAULT_XCONTENT_NAME), floatVector);
+            for (float v : floatVector) {
+                builder.value(v);
+            }
         } else {
-            builder.array(params.param(XCONTENT_PARAM_NAME, DEFAULT_XCONTENT_NAME), byteVector);
+            for (byte b : byteVector) {
+                builder.value(b);
+            }
         }
+        builder.endArray();
         return builder;
     }
 
@@ -157,12 +160,10 @@ public record VectorData(float[] floatVector, byte[] byteVector) implements Writ
     }
 
     public static VectorData fromFloats(float[] vec) {
-        if (vec == null) return null;
-        return new VectorData(vec);
+        return vec == null ? null : new VectorData(vec);
     }
 
     public static VectorData fromBytes(byte[] vec) {
-        if (vec == null) return null;
-        return new VectorData(vec);
+        return vec == null ? null : new VectorData(vec);
     }
 }

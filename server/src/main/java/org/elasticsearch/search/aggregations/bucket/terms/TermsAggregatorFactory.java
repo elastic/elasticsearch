@@ -214,7 +214,8 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 subAggCollectMode,
                 longFilter,
                 cardinality,
-                metadata
+                metadata,
+                excludeDeletedDocs
             );
         };
     }

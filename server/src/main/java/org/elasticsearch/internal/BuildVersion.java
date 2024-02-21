@@ -18,6 +18,7 @@ import java.util.Objects;
 import java.util.ServiceLoader;
 
 public interface BuildVersion extends Writeable {
+    // TODO[wrb]: rename to isBeforeMinimumCompatible or something
     boolean isCompatibleWithCurrent();
 
     boolean isFutureVersion();

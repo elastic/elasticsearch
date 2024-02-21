@@ -94,9 +94,8 @@ public final class NodeMetadata {
         return nodeId;
     }
 
-    // TODO[wrb]: return a BuildVersion
-    public Version nodeVersion() {
-        return nodeVersion.toVersion();
+    public BuildVersion buildVersion() {
+        return nodeVersion;
     }
 
     /**

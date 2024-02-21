@@ -63,6 +63,8 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
     private SemanticQueryBuilder(SemanticQueryBuilder other, SetOnce<InferenceServiceResults> inferenceResultsSupplier) {
         this.fieldName = other.fieldName;
         this.query = other.query;
+        this.boost = other.boost;
+        this.queryName = other.queryName;
         this.inferenceResultsSupplier = inferenceResultsSupplier;
     }
 
@@ -135,6 +137,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
     @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
         // TODO: Implement
+        // TODO: Pass boost to generated query
         return null;
     }
 

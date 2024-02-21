@@ -107,46 +107,46 @@ public class UpdateDataStreamGlobalRetentionServiceTests extends ESTestCase {
     public void testDetermineAffectedDataStreams() {
         Metadata.Builder builder = Metadata.builder();
         DataStream dataStreamWithoutLifecycle = DataStreamTestHelper.newInstance(
-                "ds-no-lifecycle",
-                List.of(new Index(randomAlphaOfLength(10), randomAlphaOfLength(10))),
-                1,
-                null,
-                false,
-                null,
-                List.of()
+            "ds-no-lifecycle",
+            List.of(new Index(randomAlphaOfLength(10), randomAlphaOfLength(10))),
+            1,
+            null,
+            false,
+            null,
+            List.of()
         );
         builder.put(dataStreamWithoutLifecycle);
         String dataStreamNoRetention = "ds-no-retention";
         DataStream dataStreamWithLifecycleNoRetention = DataStreamTestHelper.newInstance(
-                dataStreamNoRetention,
-                List.of(new Index(randomAlphaOfLength(10), randomAlphaOfLength(10))),
-                1,
-                null,
-                false,
-                DataStreamLifecycle.DEFAULT,
-                List.of()
+            dataStreamNoRetention,
+            List.of(new Index(randomAlphaOfLength(10), randomAlphaOfLength(10))),
+            1,
+            null,
+            false,
+            DataStreamLifecycle.DEFAULT,
+            List.of()
         );
 
         builder.put(dataStreamWithLifecycleNoRetention);
         DataStream dataStreamWithLifecycleShortRetention = DataStreamTestHelper.newInstance(
-                "ds-no-short-retention",
-                List.of(new Index(randomAlphaOfLength(10), randomAlphaOfLength(10))),
-                1,
-                null,
-                false,
-                DataStreamLifecycle.newBuilder().dataRetention(TimeValue.timeValueDays(7)).build(),
-                List.of()
+            "ds-no-short-retention",
+            List.of(new Index(randomAlphaOfLength(10), randomAlphaOfLength(10))),
+            1,
+            null,
+            false,
+            DataStreamLifecycle.newBuilder().dataRetention(TimeValue.timeValueDays(7)).build(),
+            List.of()
         );
         builder.put(dataStreamWithLifecycleShortRetention);
         String dataStreamLongRetention = "ds-long-retention";
         DataStream dataStreamWithLifecycleLongRetention = DataStreamTestHelper.newInstance(
-                dataStreamLongRetention,
-                List.of(new Index(randomAlphaOfLength(10), randomAlphaOfLength(10))),
-                1,
-                null,
-                false,
-                DataStreamLifecycle.newBuilder().dataRetention(TimeValue.timeValueDays(365)).build(),
-                List.of()
+            dataStreamLongRetention,
+            List.of(new Index(randomAlphaOfLength(10), randomAlphaOfLength(10))),
+            1,
+            null,
+            false,
+            DataStreamLifecycle.newBuilder().dataRetention(TimeValue.timeValueDays(365)).build(),
+            List.of()
         );
         builder.put(dataStreamWithLifecycleLongRetention);
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(builder).build();
@@ -158,7 +158,9 @@ public class UpdateDataStreamGlobalRetentionServiceTests extends ESTestCase {
         // No difference in global retention
         {
             var globalRetention = randomGlobalRetention();
-            var clusterStateWithRetention = ClusterState.builder(clusterState).putCustom(DataStreamGlobalRetention.TYPE, globalRetention).build();
+            var clusterStateWithRetention = ClusterState.builder(clusterState)
+                .putCustom(DataStreamGlobalRetention.TYPE, globalRetention)
+                .build();
             var affectedDataStreams = service.determineAffectedDataStreams(globalRetention, clusterStateWithRetention);
             assertThat(affectedDataStreams.isEmpty(), is(true));
         }

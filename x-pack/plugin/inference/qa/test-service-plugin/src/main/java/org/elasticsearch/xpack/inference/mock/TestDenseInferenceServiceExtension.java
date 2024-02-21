@@ -140,6 +140,10 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
             }
             return results;
         }
+
+        protected ServiceSettings getServiceSettingsFromMap(Map<String, Object> serviceSettingsMap) {
+            return TestServiceSettings.fromMap(serviceSettingsMap);
+        }
     }
 
     public record TestServiceSettings(String model, Integer dimensions, SimilarityMeasure similarity) implements ServiceSettings {
@@ -214,6 +218,7 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
                 return builder;
             };
         }
+
     }
 
 }

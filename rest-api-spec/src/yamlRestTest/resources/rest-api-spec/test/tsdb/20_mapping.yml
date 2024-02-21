@@ -241,8 +241,8 @@ runtime field matching routing path:
 ---
 "dynamic: runtime matches routing_path":
   - skip:
-      version: " - 8.7.99"
-      reason: routing_path error message updated in 8.8.0
+      version: " - 8.13.99"
+      reason: routing_path error message updated in 8.8.0 and has_dynamic_mapping condition fixed in 8.14.0
 
   - do:
       indices.create:
@@ -272,7 +272,7 @@ runtime field matching routing path:
         index: test
         body:
           - '{"index": {}}'
-          - '{"@timestamp": "2021-04-28T18:50:04.467Z", "dim_kw": "dim", "dim": {"foo": "a"}}'
+          - '{"@timestamp": "2021-04-28T18:50:04.467Z", "dim_kw": "dim", "dim": {"foo": "a"}, "extra_field": 100}'
   - match: {items.0.index.error.reason: "All fields that match routing_path must be keywords with [time_series_dimension: true] or flattened fields with a list of dimensions in [time_series_dimensions] and without the [script] parameter. [dim.foo] was a runtime [keyword]."}
 
 ---

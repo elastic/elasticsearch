@@ -23,7 +23,10 @@ setup:
                 advanced_snippet:
                   created_at: "2023-05-25T12:30:00.000Z"
                   updated_at: "2023-05-25T12:30:00.000Z"
-                  value: {}
+                  value:
+                    - tables:
+                        - some_table
+                      query: 'SELECT id, st_geohash(coordinates) FROM my_db.some_table;'
                 rules:
                   - created_at: "2023-05-25T12:30:00.000Z"
                     field: _
@@ -41,7 +44,13 @@ setup:
                 advanced_snippet:
                   created_at: "2023-05-25T12:30:00.000Z"
                   updated_at: "2023-05-25T12:30:00.000Z"
-                  value: {}
+                  value:
+                    - tables:
+                        - some_table
+                      query: 'SELECT id, st_geohash(coordinates) FROM my_db.some_table;'
+                    - tables:
+                        - another_table
+                      query: 'SELECT id, st_geohash(coordinates) FROM my_db.another_table;'
                 rules:
                   - created_at: "2023-05-25T12:30:00.000Z"
                     field: _

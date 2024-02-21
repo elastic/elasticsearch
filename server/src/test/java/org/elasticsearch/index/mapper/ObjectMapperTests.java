@@ -595,8 +595,9 @@ public class ObjectMapperTests extends MapperServiceTestCase {
             () -> objectMapper.asFlattenedFieldMappers(rootContext)
         );
         assertEquals(
-            "cannot flatten object [parent.child] because the value of [dynamic] (FALSE) is not compatible with the value from its "
-                + "parent context (TRUE)",
+            "Object mapper [parent.child] was found in a context where subobjects is set to false. " +
+            "Auto-flattening [parent.child] failed because the value of [dynamic] (FALSE) is not compatible with " +
+            "the value from its parent context (TRUE)",
             exception.getMessage()
         );
     }
@@ -609,7 +610,11 @@ public class ObjectMapperTests extends MapperServiceTestCase {
             IllegalArgumentException.class,
             () -> objectMapper.asFlattenedFieldMappers(rootContext)
         );
-        assertEquals("cannot flatten object [parent] because the value of [enabled] is [false]", exception.getMessage());
+        assertEquals(
+            "Object mapper [parent] was found in a context where subobjects is set to false. "
+                + "Auto-flattening [parent] failed because the value of [enabled] is [false]",
+            exception.getMessage()
+        );
     }
 
     public void testFlattenExplicitSubobjectsTrue() {
@@ -620,6 +625,10 @@ public class ObjectMapperTests extends MapperServiceTestCase {
             IllegalArgumentException.class,
             () -> objectMapper.asFlattenedFieldMappers(rootContext)
         );
-        assertEquals("cannot flatten object [parent] because the value of [subobjects] is [true]", exception.getMessage());
+        assertEquals(
+            "Object mapper [parent] was found in a context where subobjects is set to false. "
+                + "Auto-flattening [parent] failed because the value of [subobjects] is [true]",
+            exception.getMessage()
+        );
     }
 }

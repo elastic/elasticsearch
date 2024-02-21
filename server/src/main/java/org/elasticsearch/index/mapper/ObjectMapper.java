@@ -649,10 +649,9 @@ public class ObjectMapper extends Mapper {
 
     private void ensureFlattenable(MapperBuilderContext context, ContentPath path) {
         if (dynamic != null && context.getDynamic() != dynamic) {
-            throw new IllegalArgumentException(
-                "cannot flatten object ["
-                    + path.pathAsText(simpleName())
-                    + "] because the value of [dynamic] ("
+            throwAutoFlatteningException(
+                path,
+                "the value of [dynamic] ("
                     + dynamic
                     + ") is not compatible with the value from its parent context ("
                     + context.getDynamic()
@@ -660,15 +659,23 @@ public class ObjectMapper extends Mapper {
             );
         }
         if (isEnabled() == false) {
-            throw new IllegalArgumentException(
-                "cannot flatten object [" + path.pathAsText(simpleName()) + "] because the value of [enabled] is [false]"
-            );
+            throwAutoFlatteningException(path, "the value of [enabled] is [false]");
         }
         if (subobjects.explicit() && subobjects()) {
-            throw new IllegalArgumentException(
-                "cannot flatten object [" + path.pathAsText(simpleName()) + "] because the value of [subobjects] is [true]"
-            );
+            throwAutoFlatteningException(path, "the value of [subobjects] is [true]");
         }
+    }
+
+    private void throwAutoFlatteningException(ContentPath path, String reason) {
+        throw new IllegalArgumentException(
+            "Object mapper ["
+                + path.pathAsText(simpleName())
+                + "] was found in a context where subobjects is set to false. "
+                + "Auto-flattening ["
+                + path.pathAsText(simpleName())
+                + "] failed because "
+                + reason
+        );
     }
 
     @Override

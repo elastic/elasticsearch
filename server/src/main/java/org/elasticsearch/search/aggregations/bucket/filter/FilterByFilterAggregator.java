@@ -296,17 +296,20 @@ public class FilterByFilterAggregator extends FiltersAggregator {
 
             @Override
             public void collect(int docId) throws IOException {
-                collectBucket(subCollector, docId, filterOrd);
+                collectExistingBucket(subCollector, docId, filterOrd);
             }
 
             @Override
-            public void setScorer(Scorable scorer) throws IOException {}
+            public void setScorer(Scorable scorer) {}
         }
         MatchCollector collector = new MatchCollector();
+        // create the buckets so we can call collectExistingBucket
+        grow(filters().size() + 1);
         filters().get(0).collect(aggCtx.getLeafReaderContext(), collector, live);
         for (int filterOrd = 1; filterOrd < filters().size(); filterOrd++) {
             collector.subCollector = collectableSubAggregators.getLeafCollector(aggCtx);
             collector.filterOrd = filterOrd;
+
             filters().get(filterOrd).collect(aggCtx.getLeafReaderContext(), collector, live);
         }
     }

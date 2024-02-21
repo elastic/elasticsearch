@@ -82,10 +82,10 @@ public class OverrideNodeVersionCommand extends ElasticsearchNodeCommand {
 
         confirm(
             terminal,
-            (nodeMetadata.buildVersion().isCompatibleWithCurrent() == false ? TOO_OLD_MESSAGE : TOO_NEW_MESSAGE).replace(
+            (nodeMetadata.nodeVersion().isCompatibleWithCurrent() == false ? TOO_OLD_MESSAGE : TOO_NEW_MESSAGE).replace(
                 "V_OLD",
-                nodeMetadata.buildVersion().toString()
-            ).replace("V_NEW", nodeMetadata.buildVersion().toString()).replace("V_CUR", Version.CURRENT.toString())
+                nodeMetadata.nodeVersion().toString()
+            ).replace("V_NEW", nodeMetadata.nodeVersion().toString()).replace("V_CUR", Version.CURRENT.toString())
         );
 
         PersistedClusterStateService.overrideVersion(Version.CURRENT, paths);

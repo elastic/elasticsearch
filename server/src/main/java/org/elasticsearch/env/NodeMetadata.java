@@ -94,7 +94,7 @@ public final class NodeMetadata {
         return nodeId;
     }
 
-    public BuildVersion buildVersion() {
+    public BuildVersion nodeVersion() {
         return nodeVersion;
     }
 
@@ -104,7 +104,7 @@ public final class NodeMetadata {
      * the current version of the node ({@link NodeMetadata#upgradeToCurrentVersion()} before storing the node metadata again on disk.
      * In doing so, {@code previousNodeVersion} refers to the previously last known version that this node was started on.
      */
-    public BuildVersion previousBuildVersion() {
+    public BuildVersion previousNodeVersion() {
         return previousNodeVersion;
     }
 

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services;
 
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -61,7 +60,7 @@ public class SenderServiceTests extends ESTestCase {
         var factory = mock(HttpRequestSenderFactory.class);
         when(factory.createSender(anyString())).thenReturn(sender);
 
-        try (var service = new TestSenderService(new SetOnce<>(factory), new SetOnce<>(createWithEmptySettings(threadPool)))) {
+        try (var service = new TestSenderService(factory, createWithEmptySettings(threadPool))) {
             PlainActionFuture<Boolean> listener = new PlainActionFuture<>();
             service.start(mock(Model.class), listener);
 
@@ -81,7 +80,7 @@ public class SenderServiceTests extends ESTestCase {
         var factory = mock(HttpRequestSenderFactory.class);
         when(factory.createSender(anyString())).thenReturn(sender);
 
-        try (var service = new TestSenderService(new SetOnce<>(factory), new SetOnce<>(createWithEmptySettings(threadPool)))) {
+        try (var service = new TestSenderService(factory, createWithEmptySettings(threadPool))) {
             PlainActionFuture<Boolean> listener = new PlainActionFuture<>();
             service.start(mock(Model.class), listener);
             listener.actionGet(TIMEOUT);
@@ -99,7 +98,7 @@ public class SenderServiceTests extends ESTestCase {
     }
 
     private static final class TestSenderService extends SenderService {
-        TestSenderService(SetOnce<HttpRequestSenderFactory> factory, SetOnce<ServiceComponents> serviceComponents) {
+        TestSenderService(HttpRequestSenderFactory factory, ServiceComponents serviceComponents) {
             super(factory, serviceComponents);
         }
 

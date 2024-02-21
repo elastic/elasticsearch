@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.cohere;
 
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
@@ -43,7 +42,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNot
 public class CohereService extends SenderService {
     public static final String NAME = "cohere";
 
-    public CohereService(SetOnce<HttpRequestSenderFactory> factory, SetOnce<ServiceComponents> serviceComponents) {
+    public CohereService(HttpRequestSenderFactory factory, ServiceComponents serviceComponents) {
         super(factory, serviceComponents);
     }
 

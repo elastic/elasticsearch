@@ -27,9 +27,12 @@ restResources {
 
 testClusters.configureEach {
   testDistribution = 'DEFAULT'
-  setting 'cluster.deprecation_indexing.enabled', 'true'
   setting 'xpack.security.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'trial'
+  setting 'cluster.deprecation_indexing.enabled', 'true'
+  setting 'cluster.deprecation_indexing.flush_interval', '1ms'
+  setting 'logger.org.elasticsearch.xpack.deprecation','TRACE'
+  setting 'logger.org.elasticsearch.xpack.deprecation.logging','TRACE'
 }
 
 // Test clusters run with security disabled

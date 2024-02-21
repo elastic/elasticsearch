@@ -549,6 +549,8 @@ public abstract class StreamInput extends InputStream {
             }
         }
         skip(chars); // skip the number of chars (equals bytes) on the stream input
+        // We already validated the top bit is never set (so there's no negatives).
+        // Using ISO_8859_1 over US_ASCII safes another scan to check just that and is equivalent otherwise.
         return new String(bytes, start, chars, ISO_8859_1);
     }
 

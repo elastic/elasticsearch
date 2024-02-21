@@ -113,6 +113,8 @@ import org.elasticsearch.transport.TestTransportChannel;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportSettings;
+import org.elasticsearch.xpack.shutdown.PutShutdownNodeAction;
+import org.elasticsearch.xpack.shutdown.ShutdownPlugin;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -144,6 +146,7 @@ import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_C
 import static org.elasticsearch.cluster.coordination.LeaderChecker.LEADER_CHECK_INTERVAL_SETTING;
 import static org.elasticsearch.cluster.coordination.LeaderChecker.LEADER_CHECK_RETRY_COUNT_SETTING;
 import static org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService.HEARTBEAT_FREQUENCY;
+import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Type.SIGTERM;
 import static org.elasticsearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY;
 import static org.elasticsearch.discovery.PeerFinder.DISCOVERY_FIND_PEERS_INTERVAL_SETTING;
@@ -169,7 +172,10 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return CollectionUtils.concatLists(List.of(MockRepository.Plugin.class, InternalSettingsPlugin.class), super.nodePlugins());
+        return CollectionUtils.concatLists(
+            List.of(MockRepository.Plugin.class, InternalSettingsPlugin.class, ShutdownPlugin.class),
+            super.nodePlugins()
+        );
     }
 
     @Override
@@ -1428,8 +1434,7 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         ensureGreen();
         assertThat(repository.getFailureCount(), greaterThan(0L));
         assertNodeHasNoCurrentRecoveries(searchNodeB);
-        final String searchNodeBId = internalCluster().getInstance(ClusterService.class, searchNodeB).localNode().getId();
-        assertThat(findSearchShard(resolveIndex(indexName), 0).routingEntry().currentNodeId(), equalTo(searchNodeBId));
+        assertThat(findSearchShard(resolveIndex(indexName), 0).routingEntry().currentNodeId(), equalTo(getNodeId(searchNodeB)));
         assertHitCount(client(searchNodeB).prepareSearch(indexName).setPreference("_local"), numDocs);
     }
 
@@ -1503,7 +1508,7 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         assertThat(findIndexShard(resolveIndex(indexName), 0).docStats().getCount(), equalTo((long) numDocs));
     }
 
-    public void testRelocateIndexingShardWillNotReadFromTranslog() {
+    public void testRelocateIndexingShardDoesNotReadFromTranslog() throws Exception {
         final String indexNodeA = startIndexNode();
         ensureStableCluster(2);
         final String indexName = "test";
@@ -1520,9 +1525,6 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
 
         ObjectStoreService objectStoreService = internalCluster().getInstance(ObjectStoreService.class, indexNodeB);
         MockRepository repository = ObjectStoreTestUtils.getObjectStoreMockRepository(objectStoreService);
-        repository.setRandomControlIOExceptionRate(1.0);
-        repository.setRandomDataFileIOExceptionRate(1.0);
-        repository.setMaximumNumberOfFailures(1);
 
         logger.info("--> accessing translog would fail relocation");
         repository.setRandomControlIOExceptionRate(1.0);
@@ -1530,13 +1532,25 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         repository.setMaximumNumberOfFailures(Long.MAX_VALUE);
         repository.setRandomIOExceptionPattern(".*translog.*");
 
-        logger.info("--> move primary shard from: {} to: {}", indexNodeA, indexNodeB);
-        clusterAdmin().prepareReroute().add(new MoveAllocationCommand(indexName, 0, indexNodeA, indexNodeB)).execute().actionGet();
+        logger.info("--> Replacing {} with {}", indexNodeA, indexNodeB);
+        assertThat(findIndexShard(resolveIndex(indexName), 0).routingEntry().currentNodeId(), equalTo(getNodeId(indexNodeA)));
+        var timeout = TimeValue.timeValueSeconds(30);
+        clusterAdmin().execute(
+            PutShutdownNodeAction.INSTANCE,
+            new PutShutdownNodeAction.Request(getNodeId(indexNodeA), SIGTERM, "node sigterm", null, null, timeout)
+        ).actionGet(TimeValue.timeValueSeconds(10));
 
-        ensureGreen();
+        ensureGreen(timeout);
+        internalCluster().stopNode(indexNodeA);
+
         assertThat(repository.getFailureCount(), equalTo(0L));
         assertNodeHasNoCurrentRecoveries(indexNodeB);
+        assertThat(findIndexShard(resolveIndex(indexName), 0).routingEntry().currentNodeId(), equalTo(getNodeId(indexNodeB)));
         assertThat(findIndexShard(resolveIndex(indexName), 0).docStats().getCount(), equalTo((long) numDocs));
+    }
+
+    private String getNodeId(String nodeName) {
+        return internalCluster().getInstance(ClusterService.class, nodeName).localNode().getId();
     }
 
     public void testWaitForClusterStateToBeAppliedOnSourceNodeInPrimaryRelocation() throws Exception {

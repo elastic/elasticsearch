@@ -21,19 +21,24 @@ public class TestInferenceServicePlugin extends Plugin {
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         return List.of(
             new NamedWriteableRegistry.Entry(
-                ServiceSettings.class,
-                TestInferenceServiceExtension.TestServiceSettings.NAME,
-                TestInferenceServiceExtension.TestServiceSettings::new
-            ),
-            new NamedWriteableRegistry.Entry(
                 TaskSettings.class,
-                TestInferenceServiceExtension.TestTaskSettings.NAME,
-                TestInferenceServiceExtension.TestTaskSettings::new
+                AbstractTestInferenceService.TestTaskSettings.NAME,
+                AbstractTestInferenceService.TestTaskSettings::new
             ),
             new NamedWriteableRegistry.Entry(
                 SecretSettings.class,
-                TestInferenceServiceExtension.TestSecretSettings.NAME,
-                TestInferenceServiceExtension.TestSecretSettings::new
+                AbstractTestInferenceService.TestSecretSettings.NAME,
+                AbstractTestInferenceService.TestSecretSettings::new
+            ),
+            new NamedWriteableRegistry.Entry(
+                ServiceSettings.class,
+                TestDenseInferenceServiceExtension.TestServiceSettings.NAME,
+                TestDenseInferenceServiceExtension.TestServiceSettings::new
+            ),
+            new NamedWriteableRegistry.Entry(
+                ServiceSettings.class,
+                TestSparseInferenceServiceExtension.TestServiceSettings.NAME,
+                TestSparseInferenceServiceExtension.TestServiceSettings::new
             )
         );
     }

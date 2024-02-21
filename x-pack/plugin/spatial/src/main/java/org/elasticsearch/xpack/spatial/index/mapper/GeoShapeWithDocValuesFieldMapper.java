@@ -173,7 +173,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
             GeometryFieldScript.Factory factory = scriptCompiler.compile(this.script.get(), GeometryFieldScript.CONTEXT);
             return factory == null
                 ? null
-                : (lookup, ctx, doc, consumer) -> factory.newFactory(name, script.get().getParams(), lookup, OnScriptError.FAIL)
+                : (lookup, ctx, doc, consumer) -> factory.newFactory(name(), script.get().getParams(), lookup, OnScriptError.FAIL)
                     .newInstance(ctx)
                     .runForDoc(doc, consumer);
         }
@@ -194,7 +194,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
             );
             GeoShapeParser parser = new GeoShapeParser(geometryParser, orientation.get().value());
             GeoShapeWithDocValuesFieldType ft = new GeoShapeWithDocValuesFieldType(
-                context.buildFullName(name),
+                context.buildFullName(name()),
                 indexed.get(),
                 hasDocValues.get(),
                 stored.get(),
@@ -206,7 +206,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
             );
             if (script.get() == null) {
                 return new GeoShapeWithDocValuesFieldMapper(
-                    name,
+                    name(),
                     ft,
                     multiFieldsBuilder.build(this, context),
                     copyTo,
@@ -216,7 +216,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
                 );
             }
             return new GeoShapeWithDocValuesFieldMapper(
-                name,
+                name(),
                 ft,
                 multiFieldsBuilder.build(this, context),
                 copyTo,

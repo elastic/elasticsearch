@@ -125,7 +125,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
     ) {
         this.indexPatterns = indexPatterns;
         this.template = template;
-        this.componentTemplates = componentTemplates;
+        this.componentTemplates = componentTemplates == null ? List.of() : componentTemplates;
         this.priority = priority;
         this.version = version;
         this.metadata = metadata;

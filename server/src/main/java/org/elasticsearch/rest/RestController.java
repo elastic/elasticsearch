@@ -885,6 +885,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
         void addChunkLength(long chunkLength) {
             assert chunkLength >= 0L : chunkLength;
             assert Transports.assertTransportThread(); // always called on the transport worker, no need for sync
+            assert get() != null : "already closed";
             responseLength += chunkLength;
         }
     }

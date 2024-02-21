@@ -18,6 +18,7 @@ import io.netty.channel.ChannelOption;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
+import io.netty.handler.codec.PrematureChannelClosureException;
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
 import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.FullHttpResponse;
@@ -31,8 +32,8 @@ import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.codec.http.HttpVersion;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
@@ -185,10 +186,9 @@ class Netty4HttpClient implements Closeable {
 
         @Override
         protected void initChannel(SocketChannel ch) {
-            final int maxContentLength = new ByteSizeValue(100, ByteSizeUnit.MB).bytesAsInt();
             ch.pipeline().addLast(new HttpClientCodec());
             ch.pipeline().addLast(new HttpContentDecompressor());
-            ch.pipeline().addLast(new HttpObjectAggregator(maxContentLength));
+            ch.pipeline().addLast(new HttpObjectAggregator(ByteSizeUnit.MB.toIntBytes(100)));
             ch.pipeline().addLast(new SimpleChannelInboundHandler<HttpObject>() {
                 @Override
                 protected void channelRead0(ChannelHandlerContext ctx, HttpObject msg) {
@@ -201,9 +201,25 @@ class Netty4HttpClient implements Closeable {
                 }
 
                 @Override
-                public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
-                    super.exceptionCaught(ctx, cause);
-                    latch.countDown();
+                public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
+                    if (cause instanceof PrematureChannelClosureException) {
+                        // no more requests coming, so fast-forward the latch
+                        fastForward();
+                    } else {
+                        ExceptionsHelper.maybeDieOnAnotherThread(new AssertionError(cause));
+                    }
+                }
+
+                @Override
+                public void channelInactive(ChannelHandlerContext ctx) throws Exception {
+                    fastForward();
+                    super.channelInactive(ctx);
+                }
+
+                private void fastForward() {
+                    while (latch.getCount() > 0) {
+                        latch.countDown();
+                    }
                 }
             });
         }

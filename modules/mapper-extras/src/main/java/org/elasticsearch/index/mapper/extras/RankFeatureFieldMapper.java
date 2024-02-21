@@ -92,9 +92,9 @@ public class RankFeatureFieldMapper extends FieldMapper {
         @Override
         public RankFeatureFieldMapper build(MapperBuilderContext context) {
             return new RankFeatureFieldMapper(
-                name,
+                name(),
                 new RankFeatureFieldType(
-                    context.buildFullName(name),
+                    context.buildFullName(name()),
                     meta.getValue(),
                     positiveScoreImpact.getValue(),
                     nullValue.getValue()

@@ -12,10 +12,11 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.internal.BuildExtension;
 import org.elasticsearch.internal.DefaultBuildVersion;
 import org.elasticsearch.plugins.ExtensionLoader;
+import org.elasticsearch.xcontent.ToXContentFragment;
 
 import java.util.ServiceLoader;
 
-public interface BuildVersion extends Writeable {
+public interface BuildVersion extends Writeable, ToXContentFragment {
     // TODO[wrb]: rename to isBeforeMinimumCompatible or something
     boolean isCompatibleWithCurrent();
 

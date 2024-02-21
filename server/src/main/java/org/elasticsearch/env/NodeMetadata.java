@@ -216,8 +216,7 @@ public final class NodeMetadata {
         @Override
         public void toXContent(XContentBuilder builder, NodeMetadata nodeMetadata) throws IOException {
             builder.field(NODE_ID_KEY, nodeMetadata.nodeId);
-            // TODO[wrb]: Simplest way to serialize?
-            builder.field(NODE_VERSION_KEY, nodeMetadata.nodeVersion.toVersion().id());
+            builder.field(NODE_VERSION_KEY, nodeMetadata.nodeVersion);
             builder.field(OLDEST_INDEX_VERSION_KEY, nodeMetadata.oldestIndexVersion.id());
         }
 

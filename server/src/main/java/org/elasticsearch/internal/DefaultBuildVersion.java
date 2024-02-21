@@ -11,6 +11,7 @@ package org.elasticsearch.internal;
 import org.elasticsearch.BuildVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -63,5 +64,10 @@ public class DefaultBuildVersion implements BuildVersion {
     @Override
     public String toString() {
         return Version.fromId(versionId).toString();
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        return builder.value(versionId);
     }
 }

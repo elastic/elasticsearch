@@ -309,7 +309,6 @@ public class FilterByFilterAggregator extends FiltersAggregator {
         for (int filterOrd = 1; filterOrd < filters().size(); filterOrd++) {
             collector.subCollector = collectableSubAggregators.getLeafCollector(aggCtx);
             collector.filterOrd = filterOrd;
-
             filters().get(filterOrd).collect(aggCtx.getLeafReaderContext(), collector, live);
         }
     }

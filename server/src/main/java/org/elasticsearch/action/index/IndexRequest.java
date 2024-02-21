@@ -59,14 +59,14 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
 /**
  * Index request to index a typed JSON document into a specific index and make it searchable.
- *
+ * <p>
  * The index requires the {@link #index()}, {@link #id(String)} and
  * {@link #source(byte[], XContentType)} to be set.
- *
+ * <p>
  * The source (content to index) can be set in its bytes form using ({@link #source(byte[], XContentType)}),
  * its string form ({@link #source(String, XContentType)}) or using a {@link org.elasticsearch.xcontent.XContentBuilder}
  * ({@link #source(org.elasticsearch.xcontent.XContentBuilder)}).
- *
+ * <p>
  * If the {@link #id(String)} is not set, it will be automatically generated.
  *
  * @see IndexResponse
@@ -453,7 +453,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
     /**
      * Sets the document source to index.
-     *
+     * <p>
      * Note, its preferable to either set it using {@link #source(org.elasticsearch.xcontent.XContentBuilder)}
      * or using the {@link #source(byte[], XContentType)}.
      */
@@ -632,7 +632,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     /**
      * only perform this indexing request if the document was last modification was assigned the given
      * sequence number. Must be used in combination with {@link #setIfPrimaryTerm(long)}
-     *
+     * <p>
      * If the document last modification was assigned a different sequence number a
      * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
      */
@@ -647,7 +647,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     /**
      * only performs this indexing request if the document was last modification was assigned the given
      * primary term. Must be used in combination with {@link #setIfSeqNo(long)}
-     *
+     * <p>
      * If the document last modification was assigned a different term a
      * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
      */
@@ -670,7 +670,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
     /**
      * If set, only perform this indexing request if the document was last modification was assigned this primary term.
-     *
+     * <p>
      * If the document last modification was assigned a different term a
      * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
      */
@@ -933,16 +933,36 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         this.rawTimestamp = rawTimestamp;
     }
 
+    /**
+     * Returns a number of bytes observed when parsing a document in earlier stages of ingestion (like update/ingest service)
+     * Defaults to -1 when a document size was not observed in earlier stages.
+     * @return a number of bytes observed
+     */
     public long getNormalisedBytesParsed() {
         return normalisedBytesParsed;
     }
 
-    public void setNormalisedBytesParsed(long normalisedBytesParsed) {
+    /**
+     * Sets number of bytes observed by a <code>DocumentSizeObserver</code>
+     * @return an index request
+     */
+    public IndexRequest setNormalisedBytesParsed(long normalisedBytesParsed) {
         this.normalisedBytesParsed = normalisedBytesParsed;
+        return this;
+    }
+
+    /**
+     * when observing document size while parsing, this method indicates that this request should not be recorded.
+     * @return an index request
+     */
+    public IndexRequest noParsedBytesToReport() {
+        this.normalisedBytesParsed = 0;
+        return this;
     }
 
     /**
      * Adds the pipeline to the list of executed pipelines, if listExecutedPipelines is true
+     *
      * @param pipeline
      */
     public void addPipeline(String pipeline) {
@@ -957,6 +977,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     /**
      * This returns the list of pipelines executed on the document for this request. If listExecutedPipelines is false, the response will be
      * null, even if pipelines were executed. If listExecutedPipelines is true but no pipelines were executed, the list will be empty.
+     *
      * @return
      */
     @Nullable

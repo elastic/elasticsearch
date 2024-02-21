@@ -78,7 +78,6 @@ public class DeprecationIndexingAppender extends AbstractAppender {
             .opType(DocWriteRequest.OpType.CREATE);
 
         this.requestConsumer.accept(request);
-        logger.trace(() -> "sent");
     }
 
     /**

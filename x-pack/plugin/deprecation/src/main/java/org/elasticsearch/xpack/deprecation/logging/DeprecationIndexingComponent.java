@@ -207,11 +207,11 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent imp
              * in-flight-bytes limit has been exceeded. This means that we don't have to worry about bounding pendingRequestsBuffer.
              */
             if (flushEnabled.get()) {
-                logger.trace(() -> "Flush is enabled, sending a bulk request");
+                logger.trace("Flush is enabled, sending a bulk request");
                 client.bulk(bulkRequest, actionListener);
                 flushBuffer(); // just in case something was missed after the first flush
             } else {
-                logger.trace(() -> "Flush is disabled, scheduling a bulk request");
+                logger.trace("Flush is disabled, scheduling a bulk request");
 
                 // this is an unbounded queue, so the entry will always be accepted
                 pendingRequestsBuffer.offer(() -> client.bulk(bulkRequest, actionListener));

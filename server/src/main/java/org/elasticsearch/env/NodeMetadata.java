@@ -10,11 +10,11 @@ package org.elasticsearch.env;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.BuildVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.internal.DefaultBuildVersion;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -147,8 +147,8 @@ public final class NodeMetadata {
 
     private static class Builder {
         String nodeId;
-        Version nodeVersion;
-        Version previousNodeVersion;
+        BuildVersion nodeVersion;
+        BuildVersion previousNodeVersion;
         IndexVersion oldestIndexVersion;
 
         public void setNodeId(String nodeId) {
@@ -156,20 +156,20 @@ public final class NodeMetadata {
         }
 
         public void setNodeVersionId(int nodeVersionId) {
-            this.nodeVersion = Version.fromId(nodeVersionId);
+            this.nodeVersion = new DefaultBuildVersion(nodeVersionId);
         }
 
         public void setOldestIndexVersion(int oldestIndexVersion) {
             this.oldestIndexVersion = IndexVersion.fromId(oldestIndexVersion);
         }
 
-        private Version getVersionOrFallbackToEmpty() {
-            return Objects.requireNonNullElse(this.nodeVersion, Version.V_EMPTY);
+        private BuildVersion getVersionOrFallbackToEmpty() {
+            return Objects.requireNonNullElse(this.nodeVersion, DefaultBuildVersion.EMPTY);
         }
 
         public NodeMetadata build() {
             @UpdateForV9 // version is required in the node metadata from v9 onwards
-            final Version nodeVersion = getVersionOrFallbackToEmpty();
+            final BuildVersion nodeVersion = getVersionOrFallbackToEmpty();
             final IndexVersion oldestIndexVersion;
 
             if (this.previousNodeVersion == null) {
@@ -183,8 +183,8 @@ public final class NodeMetadata {
 
             return new NodeMetadata(
                 nodeId,
-                BuildVersion.fromVersion(nodeVersion),
-                BuildVersion.fromVersion(previousNodeVersion),
+                nodeVersion,
+                previousNodeVersion,
                 oldestIndexVersion
             );
         }

@@ -21,7 +21,7 @@ public final class ModelState {
      */
     public static final String TYPE = "model_state";
 
-    private static final Pattern V_5_4_DOC_ID_SUFFIX_REGEX = Pattern.compile("\\d{10}#\\d+");
+    private static final Pattern V_5_4_DOC_ID_SUFFIX_REGEX = Pattern.compile("^\\d{10}#\\d+$");
 
     public static String documentId(String jobId, String snapshotId, int docNum) {
         return jobId + "_" + TYPE + "_" + snapshotId + "#" + docNum;

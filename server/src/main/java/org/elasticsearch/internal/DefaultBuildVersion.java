@@ -18,6 +18,8 @@ import java.util.Objects;
 // TODO[wrb]: make package-private
 public class DefaultBuildVersion implements BuildVersion {
 
+    public static BuildVersion CURRENT = new DefaultBuildVersion(Version.CURRENT.id());
+
     // TODO[wrb]: hold on to a Version field
     private final int versionId;
 

@@ -36,7 +36,7 @@ public interface BuildVersion extends Writeable {
     static BuildVersion current() {
         return ExtensionLoader.loadSingleton(ServiceLoader.load(BuildExtension.class))
             .map(BuildExtension::currentBuildVersion)
-            .orElse(new DefaultBuildVersion(Version.CURRENT.id()));
+            .orElse(DefaultBuildVersion.CURRENT);
     }
 
 }

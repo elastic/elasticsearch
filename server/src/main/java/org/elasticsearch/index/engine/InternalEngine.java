@@ -1021,7 +1021,8 @@ public class InternalEngine extends Engine {
                     docIdAndVersion = VersionsAndSeqNoResolver.timeSeriesLoadDocIdAndVersion(
                         searcher.getIndexReader(),
                         op.uid(),
-                        loadSeqNo
+                        loadSeqNo,
+                        false
                     );
                 }
             }

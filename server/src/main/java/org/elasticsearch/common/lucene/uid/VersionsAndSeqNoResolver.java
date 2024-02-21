@@ -136,7 +136,8 @@ public final class VersionsAndSeqNoResolver {
      * <li>a doc ID and a version otherwise
      * </ul>
      */
-    public static DocIdAndVersion timeSeriesLoadDocIdAndVersion(IndexReader reader, Term term, boolean loadSeqNo) throws IOException {
+    public static DocIdAndVersion timeSeriesLoadDocIdAndVersion(IndexReader reader, Term term, boolean loadSeqNo, boolean searchFallback)
+        throws IOException {
         PerThreadIDVersionAndSeqNoLookup[] lookups = getLookupState(reader, term.field(), false);
         List<LeafReaderContext> leaves = reader.leaves();
         // iterate backwards to optimize for the frequently updated documents
@@ -144,7 +145,7 @@ public final class VersionsAndSeqNoResolver {
         for (int i = leaves.size() - 1; i >= 0; i--) {
             final LeafReaderContext leaf = leaves.get(i);
             PerThreadIDVersionAndSeqNoLookup lookup = lookups[leaf.ord];
-            DocIdAndVersion result = lookup.lookupVersion(term.bytes(), loadSeqNo, leaf);
+            DocIdAndVersion result = lookup.lookupVersion(term.bytes(), loadSeqNo, leaf, searchFallback);
             if (result != null) {
                 return result;
             }
@@ -188,7 +189,7 @@ public final class VersionsAndSeqNoResolver {
             if (timestamp > lookup.maxTimestamp) {
                 return null;
             }
-            DocIdAndVersion result = lookup.lookupVersion(uid.bytes(), loadSeqNo, leaf);
+            DocIdAndVersion result = lookup.lookupVersion(uid.bytes(), loadSeqNo, leaf, false);
             if (result != null) {
                 return result;
             }
@@ -202,7 +203,7 @@ public final class VersionsAndSeqNoResolver {
         for (int i = leaves.size() - 1; i >= 0; i--) {
             final LeafReaderContext leaf = leaves.get(i);
             PerThreadIDVersionAndSeqNoLookup lookup = new PerThreadIDVersionAndSeqNoLookup(leaf.reader(), term.field(), false, false);
-            DocIdAndVersion result = lookup.lookupVersion(term.bytes(), loadSeqNo, leaf);
+            DocIdAndVersion result = lookup.lookupVersion(term.bytes(), loadSeqNo, leaf, false);
             if (result != null) {
                 return result;
             }

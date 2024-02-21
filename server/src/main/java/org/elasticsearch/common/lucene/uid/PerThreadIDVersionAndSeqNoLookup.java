@@ -123,10 +123,11 @@ final class PerThreadIDVersionAndSeqNoLookup {
      * using the same cache key. Otherwise we'd have to disable caching
      * entirely for these readers.
      */
-    public DocIdAndVersion lookupVersion(BytesRef id, boolean loadSeqNo, LeafReaderContext context) throws IOException {
+    public DocIdAndVersion lookupVersion(BytesRef id, boolean loadSeqNo, LeafReaderContext context, boolean searchFallback)
+        throws IOException {
         assert readerKey == null || context.reader().getCoreCacheHelper().getKey().equals(readerKey)
             : "context's reader is not the same as the reader class was initialized on.";
-        int docID = getDocID(id, context, true);
+        int docID = getDocID(id, context, searchFallback);
 
         if (docID != DocIdSetIterator.NO_MORE_DOCS) {
             final long seqNo;

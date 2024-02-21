@@ -15,12 +15,12 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.is;
 
-public class MockInferenceServiceIT extends InferenceBaseRestTest {
+public class MockSparseInferenceServiceIT extends InferenceBaseRestTest {
 
     @SuppressWarnings("unchecked")
     public void testMockService() throws IOException {
         String inferenceEntityId = "test-mock";
-        var putModel = putModel(inferenceEntityId, mockServiceModelConfig(), TaskType.SPARSE_EMBEDDING);
+        var putModel = putModel(inferenceEntityId, mockSparseServiceModelConfig(), TaskType.SPARSE_EMBEDDING);
         var getModels = getModels(inferenceEntityId, TaskType.SPARSE_EMBEDDING);
         var model = ((List<Map<String, Object>>) getModels.get("models")).get(0);
 
@@ -37,7 +37,7 @@ public class MockInferenceServiceIT extends InferenceBaseRestTest {
 
     public void testMockServiceWithMultipleInputs() throws IOException {
         String inferenceEntityId = "test-mock-with-multi-inputs";
-        putModel(inferenceEntityId, mockServiceModelConfig(), TaskType.SPARSE_EMBEDDING);
+        putModel(inferenceEntityId, mockSparseServiceModelConfig(), TaskType.SPARSE_EMBEDDING);
 
         // The response is randomly generated, the input can be anything
         var inference = inferOnMockService(
@@ -52,7 +52,7 @@ public class MockInferenceServiceIT extends InferenceBaseRestTest {
     @SuppressWarnings("unchecked")
     public void testMockService_DoesNotReturnSecretsInGetResponse() throws IOException {
         String inferenceEntityId = "test-mock";
-        var putModel = putModel(inferenceEntityId, mockServiceModelConfig(), TaskType.SPARSE_EMBEDDING);
+        var putModel = putModel(inferenceEntityId, mockSparseServiceModelConfig(), TaskType.SPARSE_EMBEDDING);
         var getModels = getModels(inferenceEntityId, TaskType.SPARSE_EMBEDDING);
         var model = ((List<Map<String, Object>>) getModels.get("models")).get(0);
 
@@ -68,7 +68,7 @@ public class MockInferenceServiceIT extends InferenceBaseRestTest {
     @SuppressWarnings("unchecked")
     public void testMockService_DoesNotReturnHiddenField_InModelResponses() throws IOException {
         String inferenceEntityId = "test-mock";
-        var putModel = putModel(inferenceEntityId, mockServiceModelConfig(), TaskType.SPARSE_EMBEDDING);
+        var putModel = putModel(inferenceEntityId, mockSparseServiceModelConfig(), TaskType.SPARSE_EMBEDDING);
         var getModels = getModels(inferenceEntityId, TaskType.SPARSE_EMBEDDING);
         var model = ((List<Map<String, Object>>) getModels.get("models")).get(0);
 
@@ -87,7 +87,7 @@ public class MockInferenceServiceIT extends InferenceBaseRestTest {
     @SuppressWarnings("unchecked")
     public void testMockService_DoesReturnHiddenField_InModelResponses() throws IOException {
         String inferenceEntityId = "test-mock";
-        var putModel = putModel(inferenceEntityId, mockServiceModelConfig(null, true), TaskType.SPARSE_EMBEDDING);
+        var putModel = putModel(inferenceEntityId, mockSparseServiceModelConfig(null, true), TaskType.SPARSE_EMBEDDING);
         var getModels = getModels(inferenceEntityId, TaskType.SPARSE_EMBEDDING);
         var model = ((List<Map<String, Object>>) getModels.get("models")).get(0);
 

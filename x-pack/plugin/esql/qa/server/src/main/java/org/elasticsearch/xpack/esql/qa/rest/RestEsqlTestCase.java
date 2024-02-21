@@ -817,7 +817,10 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     }
 
     private static Set<String> mutedWarnings() {
-        return Set.of("No limit defined, adding default limit of [500]");
+        return Set.of(
+            "No limit defined, adding default limit of [1000]",
+            "No limit defined, adding default limit of [500]" // this is for bwc tests, the limit in v 8.12.x is 500
+        );
     }
 
     private static void bulkLoadTestData(int count) throws IOException {

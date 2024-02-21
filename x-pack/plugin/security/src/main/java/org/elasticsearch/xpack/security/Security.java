@@ -135,6 +135,7 @@ import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectPrepareAut
 import org.elasticsearch.xpack.core.security.action.privilege.ClearPrivilegesCacheAction;
 import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.privilege.GetBuiltinPrivilegesAction;
+import org.elasticsearch.xpack.core.security.action.privilege.GetBuiltinPrivilegesResponseTranslator;
 import org.elasticsearch.xpack.core.security.action.privilege.GetPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.privilege.PutPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.profile.ActivateProfileAction;
@@ -560,6 +561,7 @@ public class Security extends Plugin
     private final SetOnce<ScriptService> scriptServiceReference = new SetOnce<>();
     private final SetOnce<OperatorOnlyRegistry> operatorOnlyRegistry = new SetOnce<>();
     private final SetOnce<PutRoleRequestBuilderFactory> putRoleRequestBuilderFactory = new SetOnce<>();
+    private final SetOnce<GetBuiltinPrivilegesResponseTranslator> getBuiltinPrivilegesResponseTranslator = new SetOnce<>();
     private final SetOnce<FileRolesStore> fileRolesStore = new SetOnce<>();
     private final SetOnce<OperatorPrivileges.OperatorPrivilegesService> operatorPrivilegesService = new SetOnce<>();
     private final SetOnce<ReservedRoleMappingAction> reservedRoleMappingAction = new SetOnce<>();
@@ -818,6 +820,10 @@ public class Security extends Plugin
         // Need to set to default if it wasn't set by an extension
         if (putRoleRequestBuilderFactory.get() == null) {
             putRoleRequestBuilderFactory.set(new PutRoleRequestBuilderFactory.Default());
+        }
+
+        if (getBuiltinPrivilegesResponseTranslator.get() == null) {
+            getBuiltinPrivilegesResponseTranslator.set(new GetBuiltinPrivilegesResponseTranslator.Default());
         }
 
         final Map<String, List<BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>>>> customRoleProviders = new LinkedHashMap<>();
@@ -1446,7 +1452,7 @@ public class Security extends Plugin
             new RestOpenIdConnectPrepareAuthenticationAction(settings, getLicenseState()),
             new RestOpenIdConnectAuthenticateAction(settings, getLicenseState()),
             new RestOpenIdConnectLogoutAction(settings, getLicenseState()),
-            new RestGetBuiltinPrivilegesAction(settings, getLicenseState()),
+            new RestGetBuiltinPrivilegesAction(settings, getLicenseState(), getBuiltinPrivilegesResponseTranslator.get()),
             new RestGetPrivilegesAction(settings, getLicenseState()),
             new RestPutPrivilegesAction(settings, getLicenseState()),
             new RestDeletePrivilegesAction(settings, getLicenseState()),
@@ -2030,33 +2036,21 @@ public class Security extends Plugin
     @Override
     public void loadExtensions(ExtensionLoader loader) {
         securityExtensions.addAll(loader.loadExtensions(SecurityExtension.class));
+        loadSingletonExtensionAndSetOnce(loader, operatorOnlyRegistry, OperatorOnlyRegistry.class);
+        loadSingletonExtensionAndSetOnce(loader, putRoleRequestBuilderFactory, PutRoleRequestBuilderFactory.class);
+        loadSingletonExtensionAndSetOnce(loader, getBuiltinPrivilegesResponseTranslator, GetBuiltinPrivilegesResponseTranslator.class);
+    }
 
-        // operator registry SPI
-        List<OperatorOnlyRegistry> operatorOnlyRegistries = loader.loadExtensions(OperatorOnlyRegistry.class);
-        if (operatorOnlyRegistries.size() > 1) {
-            throw new IllegalStateException(OperatorOnlyRegistry.class + " may not have multiple implementations");
-        } else if (operatorOnlyRegistries.size() == 1) {
-            OperatorOnlyRegistry operatorOnlyRegistry = operatorOnlyRegistries.get(0);
-            this.operatorOnlyRegistry.set(operatorOnlyRegistry);
-            logger.debug(
-                "Loaded implementation [{}] for interface OperatorOnlyRegistry",
-                operatorOnlyRegistry.getClass().getCanonicalName()
-            );
-        }
-
-        List<PutRoleRequestBuilderFactory> builderFactories = loader.loadExtensions(PutRoleRequestBuilderFactory.class);
-        if (builderFactories.size() > 1) {
-            throw new IllegalStateException(PutRoleRequestBuilderFactory.class + " may not have multiple implementations");
-        } else if (builderFactories.size() == 1) {
-            PutRoleRequestBuilderFactory builderFactory = builderFactories.get(0);
-            this.putRoleRequestBuilderFactory.set(builderFactory);
-            logger.debug(
-                "Loaded implementation [{}] for interface [{}]",
-                builderFactory.getClass().getCanonicalName(),
-                PutRoleRequestBuilderFactory.class
-            );
+    private <T> void loadSingletonExtensionAndSetOnce(ExtensionLoader loader, SetOnce<T> setOnce, Class<T> clazz) {
+        final List<T> loaded = loader.loadExtensions(clazz);
+        if (loaded.size() > 1) {
+            throw new IllegalStateException(clazz + " may not have multiple implementations");
+        } else if (loaded.size() == 1) {
+            final T singleLoaded = loaded.get(0);
+            setOnce.set(singleLoaded);
+            logger.debug("Loaded implementation [{}] for interface [{}]", singleLoaded.getClass().getCanonicalName(), clazz);
         } else {
-            logger.debug("Will fall back on default implementation for interface [{}]", PutRoleRequestBuilderFactory.class);
+            logger.debug("Will fall back on default implementation for interface [{}]", clazz);
         }
     }
 

@@ -164,7 +164,7 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
 
         // Remove the persistent task
         PlainActionFuture<PersistentTask<?>> removeFuture = new PlainActionFuture<>();
-        persistentTasksService.sendRemoveRequest(taskId, removeFuture);
+        persistentTasksService.sendRemoveRequest(taskId, null, removeFuture);
         assertEquals(removeFuture.get().getId(), taskId);
     }
 
@@ -196,7 +196,7 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
 
         // Remove the persistent task
         PlainActionFuture<PersistentTask<?>> removeFuture = new PlainActionFuture<>();
-        persistentTasksService.sendRemoveRequest(taskId, removeFuture);
+        persistentTasksService.sendRemoveRequest(taskId, null, removeFuture);
         assertEquals(removeFuture.get().getId(), taskId);
     }
 

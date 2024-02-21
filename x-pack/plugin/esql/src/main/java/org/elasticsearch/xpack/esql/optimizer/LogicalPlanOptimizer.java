@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.optimizer;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
@@ -37,14 +38,17 @@ import org.elasticsearch.xpack.ql.expression.ExpressionSet;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
+import org.elasticsearch.xpack.ql.expression.Nullability;
 import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.Predicates;
+import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
+import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.RegexMatch;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules;
-import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BinaryComparisonSimplification;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanFunctionEqualsElimination;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.ConstantFolding;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.LiteralsOnTheRight;
@@ -72,6 +76,7 @@ import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -81,9 +86,7 @@ import static java.util.Arrays.asList;
 import static java.util.Collections.singleton;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputExpressions;
 import static org.elasticsearch.xpack.ql.expression.Expressions.asAttributes;
-import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.FoldNull;
 import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PropagateEquals;
-import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PropagateNullable;
 import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.TransformDirection;
 
 public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan, LogicalOptimizerContext> {
@@ -124,7 +127,6 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             // boolean
             new BooleanSimplification(),
             new LiteralsOnTheRight(),
-            new BinaryComparisonSimplification(),
             // needs to occur before BinaryComparison combinations (see class)
             new PropagateEquals(),
             new PropagateNullable(),
@@ -1535,6 +1537,59 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
                 newAggs.add(newAgg);
             }
             return changed.get() ? new Aggregate(aggregate.source(), aggregate.child(), aggregate.groupings(), newAggs) : aggregate;
+        }
+    }
+
+    public static class FoldNull extends OptimizerRules.OptimizerExpressionRule<Expression> {
+
+        public FoldNull() {
+            super(TransformDirection.UP);
+        }
+
+        @Override
+        protected Expression rule(Expression e) {
+            if (e instanceof In in) {
+                if (Expressions.isNull(in.value())) {
+                    return Literal.of(in, null);
+                }
+            } else if (e instanceof Alias == false
+                && e.nullable() == Nullability.TRUE
+                && Expressions.anyMatch(e.children(), Expressions::isNull)) {
+                    return Literal.of(e, null);
+                }
+            return e;
+        }
+    }
+
+    // a IS NULL AND a IS NOT NULL -> FALSE
+    public static class PropagateNullable extends OptimizerRules.OptimizerExpressionRule<And> {
+
+        public PropagateNullable() {
+            super(TransformDirection.DOWN);
+        }
+
+        @Override
+        protected Expression rule(And and) {
+            List<Expression> splits = Predicates.splitAnd(and);
+
+            Set<Expression> nullExpressions = new LinkedHashSet<>();
+            Set<Expression> notNullExpressions = new LinkedHashSet<>();
+
+            // first find isNull/isNotNull
+            for (Expression ex : splits) {
+                if (ex instanceof IsNull isn) {
+                    nullExpressions.add(isn.field());
+                } else if (ex instanceof IsNotNull isnn) {
+                    notNullExpressions.add(isnn.field());
+                }
+            }
+
+            // check for is isNull and isNotNull --> FALSE
+            if (Sets.haveNonEmptyIntersection(nullExpressions, notNullExpressions)) {
+                return Literal.of(and, Boolean.FALSE);
+            }
+
+            return and;
         }
     }
 }

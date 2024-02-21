@@ -3266,6 +3266,23 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(e.getMessage(), containsString(" optimized incorrectly due to missing references [salary"));
     }
 
+    // https://github.com/elastic/elasticsearch/issues/104995
+    public void testNoWrongIsNotNullPruning() {
+        var plan = optimizedPlan("""
+              ROW a = 5, b = [ 1, 2 ]
+              | EVAL sum = a + b
+              | LIMIT 1
+              | WHERE sum IS NOT NULL
+            """);
+
+        var local = as(plan, LocalRelation.class);
+        assertThat(local.supplier(), equalTo(LocalSupplier.EMPTY));
+        assertWarnings(
+            "Line 2:16: evaluation of [a + b] failed, treating result as null. Only first 20 failures recorded.",
+            "Line 2:16: java.lang.IllegalArgumentException: single-value function encountered multi-value"
+        );
+    }
+
     private LogicalPlan optimizedPlan(String query) {
         return plan(query);
     }

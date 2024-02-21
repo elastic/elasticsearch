@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
+import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.aggregation.QuantileStates;
 import org.elasticsearch.test.ESTestCase;
@@ -3269,52 +3270,80 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     }
 
     /**
-     * Pushing down EVAL must not accidentally shadow attributes required by SORT.
+     * Pushing down EVAL/GROK/DISSECT/ENRICH must not accidentally shadow attributes required by SORT.
      *
-     * Expects
-     * EsqlProject[[emp_no{r}#7, salary{r}#11]]
-     * \_TopN[[Order[$$emp_no$13*(emp_no+sala>$0{r}#24 + $$salary$13*(emp_no+sala>$1{r}#25 * 13[INTEGER],ASC,LAST], Order[NE
-     * G($$salary$13*(emp_no+sala>$1{r}#25),DESC,FIRST]],3[INTEGER]]
-     *   \_Eval[[emp_no{f}#14 AS $$emp_no$13*(emp_no+sala>$0, salary{f}#19 AS $$salary$13*(emp_no+sala>$1, emp_no{f}#14 * 3[IN
-     * TEGER] AS emp_no, emp_no{r}#7 * -2[INTEGER] - salary{f}#19 AS salary]]
-     *     \_EsRelation[test][_meta_field{f}#20, emp_no{f}#14, first_name{f}#15, ..]
+     * For DISSECT, expects the following; the others are similar.
+     *
+     * EsqlProject[[emp_no{r}#29, salary{r}#30]]
+     * \_TopN[[Order[$$emp_no$13*(emp_no+sala>$0{r}#44 + $$salary$13*(emp_no+sala>$1{r}#45 * 13[INTEGER],ASC,LAST], Order[NE
+     * G($$salary$13*(emp_no+sala>$1{r}#45),DESC,FIRST]],3[INTEGER]]
+     *   \_Dissect[first_name{f}#35,Parser[pattern=%{emp_no} %{salary}, appendSeparator=, parser=org.elasticsearch.dissect.Dissect
+     * Parser@64192edc],[emp_no{r}#29, salary{r}#30]]
+     *     \_Eval[[emp_no{f}#34 AS $$emp_no$13*(emp_no+sala>$0, salary{f}#39 AS $$salary$13*(emp_no+sala>$1]]
+     *       \_EsRelation[test][_meta_field{f}#40, emp_no{f}#34, first_name{f}#35, ..]
      */
-    public void testPushdownEvalOverwrittenName() throws Exception {
-        var plan = optimizedPlan("""
-            from test
-            | SORT 13*(emp_no+salary) ASC, -salary DESC
-            | eval emp_no = 3*emp_no, salary = -2*emp_no-salary
-            | LIMIT 3
-            | KEEP emp_no, salary
-            """);
+    public void testPushdownWithOverwrittenName() throws Exception {
+        List<String> overwritingCommands = List.of(
+            "EVAL emp_no = 3*emp_no, salary = -2*emp_no-salary",
+            "DISSECT first_name \"%{emp_no} %{salary}\"",
+            "GROK first_name \"%{WORD:emp_no} %{WORD:salary}\"",
+            "ENRICH languages_idx ON first_name WITH emp_no = language_code, salary = language_code"
+        );
 
-        var project = as(plan, EsqlProject.class);
+        for (String overwritingCommand : overwritingCommands) {
+            var plan = optimizedPlan(LoggerMessageFormat.format(null, """
+                FROM test
+                | SORT 13*(emp_no+salary) ASC, -salary DESC
+                | {}
+                | LIMIT 3
+                | KEEP emp_no, salary
+                """, overwritingCommand));
 
-        var topN = as(project.child(), TopN.class);
-        assertThat(topN.order().size(), is(2));
+            var project = as(plan, EsqlProject.class);
 
-        var firstOrder = as(topN.order().get(0), Order.class);
-        var mul = as(firstOrder.child(), Mul.class);
-        var add = as(mul.left(), Add.class);
-        var renamed_emp_no = as(add.left(), ReferenceAttribute.class);
-        var renamed_salary = as(add.right(), ReferenceAttribute.class);
-        assertThat(renamed_emp_no.toString(), startsWith("$$emp_no$13*(emp_no+sala>$0{r}"));
-        assertThat(renamed_salary.toString(), startsWith("$$salary$13*(emp_no+sala>$1{r}"));
+            var topN = as(project.child(), TopN.class);
+            assertThat(topN.order().size(), is(2));
 
-        var secondOrder = as(topN.order().get(1), Order.class);
-        var neg = as(secondOrder.child(), Neg.class);
-        var renamed_salary2 = as(neg.field(), ReferenceAttribute.class);
-        assert (renamed_salary2.semanticEquals(renamed_salary) && renamed_salary2.equals(renamed_salary));
+            var firstOrderExpr = as(topN.order().get(0), Order.class);
+            var mul = as(firstOrderExpr.child(), Mul.class);
+            var add = as(mul.left(), Add.class);
+            var renamed_emp_no = as(add.left(), ReferenceAttribute.class);
+            var renamed_salary = as(add.right(), ReferenceAttribute.class);
+            assertThat(renamed_emp_no.toString(), startsWith("$$emp_no$13*(emp_no+sala>$0{r}"));
+            assertThat(renamed_salary.toString(), startsWith("$$salary$13*(emp_no+sala>$1{r}"));
 
-        var eval = as(topN.child(), Eval.class);
-        AttributeSet attributesCreatedInEval = new AttributeSet();
-        for (Alias field : eval.fields()) {
-            attributesCreatedInEval.add(field.toAttribute());
+            var secondOrderExpr = as(topN.order().get(1), Order.class);
+            var neg = as(secondOrderExpr.child(), Neg.class);
+            var renamed_salary2 = as(neg.field(), ReferenceAttribute.class);
+            assert (renamed_salary2.semanticEquals(renamed_salary) && renamed_salary2.equals(renamed_salary));
+
+            Eval evalThatRenames = null;
+            if (overwritingCommand.startsWith("EVAL")) {
+                // Multiple EVALs should be merged, so there's only one.
+                evalThatRenames = as(topN.child(), Eval.class);
+            }
+            if (overwritingCommand.startsWith("DISSECT")) {
+                var dissect = as(topN.child(), Dissect.class);
+                evalThatRenames = as(dissect.child(), Eval.class);
+            }
+            if (overwritingCommand.startsWith("GROK")) {
+                var grok = as(topN.child(), Grok.class);
+                evalThatRenames = as(grok.child(), Eval.class);
+            }
+            if (overwritingCommand.startsWith("ENRICH")) {
+                var enrich = as(topN.child(), Enrich.class);
+                evalThatRenames = as(enrich.child(), Eval.class);
+            }
+
+            AttributeSet attributesCreatedInEval = new AttributeSet();
+            for (Alias field : evalThatRenames.fields()) {
+                attributesCreatedInEval.add(field.toAttribute());
+            }
+            assert (attributesCreatedInEval.contains(renamed_emp_no));
+            assert (attributesCreatedInEval.contains(renamed_salary));
+
+            assertThat(evalThatRenames.child(), instanceOf(EsRelation.class));
         }
-        assert (attributesCreatedInEval.contains(renamed_emp_no));
-        assert (attributesCreatedInEval.contains(renamed_salary));
-
-        assertThat(eval.child(), instanceOf(EsRelation.class));
     }
 
     private LogicalPlan optimizedPlan(String query) {

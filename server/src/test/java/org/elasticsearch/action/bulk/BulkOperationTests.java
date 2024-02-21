@@ -556,7 +556,7 @@ public class BulkOperationTests extends ESTestCase {
             for (int i = 0; i < texts.size(); i++) {
                 inferenceResults.add(createInferenceResults());
             }
-            doReturn(inferenceResults).when(inferenceServiceResults).transformToLegacyFormat();
+            doReturn(inferenceResults).when(inferenceServiceResults).transformToCoordinationFormat();
 
             listener.onResponse(inferenceServiceResults);
             return null;

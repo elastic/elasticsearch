@@ -21,7 +21,7 @@ public class InferenceRestIT extends ESClientYamlSuiteTestCase {
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .setting("xpack.security.enabled", "false")
         .setting("xpack.security.http.ssl.enabled", "false")
-        .plugin("org.elasticsearch.xpack.inference.mock.TestInferenceServicePlugin")
+        .plugin("inference-service-test")
         .distribution(DistributionType.DEFAULT)
         .build();
 

@@ -27,7 +27,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.lifecycle.UpdateDataStreamGlobalRetentionService;
-import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -139,7 +138,6 @@ public class PutDataStreamGlobalRetentionAction {
         Request,
         UpdateDataStreamGlobalRetentionResponse> {
 
-        private final FeatureService featureService;
         private final UpdateDataStreamGlobalRetentionService globalRetentionService;
 
         @Inject
@@ -149,7 +147,6 @@ public class PutDataStreamGlobalRetentionAction {
             ThreadPool threadPool,
             ActionFilters actionFilters,
             IndexNameExpressionResolver indexNameExpressionResolver,
-            FeatureService featureService,
             UpdateDataStreamGlobalRetentionService globalRetentionService
         ) {
             super(
@@ -163,7 +160,6 @@ public class PutDataStreamGlobalRetentionAction {
                 UpdateDataStreamGlobalRetentionResponse::new,
                 threadPool.executor(ThreadPool.Names.MANAGEMENT)
             );
-            this.featureService = featureService;
             this.globalRetentionService = globalRetentionService;
         }
 
@@ -174,9 +170,6 @@ public class PutDataStreamGlobalRetentionAction {
             ClusterState state,
             ActionListener<UpdateDataStreamGlobalRetentionResponse> listener
         ) throws Exception {
-            if (featureService.clusterHasFeature(state, DataStreamGlobalRetention.DATA_STREAM_GLOBAL_RETENTION) == false) {
-                listener.onResponse(new UpdateDataStreamGlobalRetentionResponse(false, request.dryRun()));
-            }
             List<UpdateDataStreamGlobalRetentionResponse.AffectedDataStream> affectedDataStreams = globalRetentionService
                 .determineAffectedDataStreams(request.globalRetention, state);
             if (request.dryRun()) {

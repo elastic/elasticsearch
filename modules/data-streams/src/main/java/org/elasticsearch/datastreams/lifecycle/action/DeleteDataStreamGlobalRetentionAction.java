@@ -17,14 +17,12 @@ import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.datastreams.lifecycle.UpdateDataStreamGlobalRetentionService;
-import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -91,7 +89,6 @@ public class DeleteDataStreamGlobalRetentionAction {
         Request,
         UpdateDataStreamGlobalRetentionResponse> {
 
-        private final FeatureService featureService;
         private final UpdateDataStreamGlobalRetentionService globalRetentionService;
 
         @Inject
@@ -101,7 +98,6 @@ public class DeleteDataStreamGlobalRetentionAction {
             ThreadPool threadPool,
             ActionFilters actionFilters,
             IndexNameExpressionResolver indexNameExpressionResolver,
-            FeatureService featureService,
             UpdateDataStreamGlobalRetentionService globalRetentionService
         ) {
             super(
@@ -115,7 +111,6 @@ public class DeleteDataStreamGlobalRetentionAction {
                 UpdateDataStreamGlobalRetentionResponse::new,
                 threadPool.executor(ThreadPool.Names.MANAGEMENT)
             );
-            this.featureService = featureService;
             this.globalRetentionService = globalRetentionService;
         }
 
@@ -126,9 +121,6 @@ public class DeleteDataStreamGlobalRetentionAction {
             ClusterState state,
             ActionListener<UpdateDataStreamGlobalRetentionResponse> listener
         ) throws Exception {
-            if (featureService.clusterHasFeature(state, DataStreamGlobalRetention.DATA_STREAM_GLOBAL_RETENTION) == false) {
-                listener.onResponse(new UpdateDataStreamGlobalRetentionResponse(false, request.dryRun()));
-            }
             List<UpdateDataStreamGlobalRetentionResponse.AffectedDataStream> affectedDataStreams = globalRetentionService
                 .determineAffectedDataStreams(null, state);
             if (request.dryRun()) {

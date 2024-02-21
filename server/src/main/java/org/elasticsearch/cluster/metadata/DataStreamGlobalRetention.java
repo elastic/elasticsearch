@@ -18,7 +18,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -35,8 +34,6 @@ import java.util.Objects;
 public final class DataStreamGlobalRetention extends AbstractNamedDiffable<ClusterState.Custom> implements ClusterState.Custom {
 
     public static final String TYPE = "data-stream-global-retention";
-
-    public static final NodeFeature DATA_STREAM_GLOBAL_RETENTION = new NodeFeature("data_streams.global_retention");
 
     public static final ParseField DEFAULT_RETENTION_FIELD = new ParseField("default_retention");
     public static final ParseField MAX_RETENTION_FIELD = new ParseField("max_retention");

@@ -146,7 +146,9 @@ public class DataStreamGlobalRetentionPermissionsRestIT extends ESRestTestCase {
             assertThat(responseException.getResponse().getStatusLine().getStatusCode(), is(403));
             assertThat(
                 responseException.getMessage(),
-                containsString("action [cluster:admin/data_stream/global_retention/delete] is unauthorized for user [test_monitor_global_retention]")
+                containsString(
+                    "action [cluster:admin/data_stream/global_retention/delete] is unauthorized for user [test_monitor_global_retention]"
+                )
             );
             Map<String, Object> response = entityAsMap(client.performRequest(new Request("GET", "/_data_stream/_global_retention")));
             assertThat(response.get("default_retention"), equalTo("1d"));

@@ -186,7 +186,6 @@ public class RemoteClusterSecurityRCS2PainlessExecuteIT extends AbstractRemoteCl
             assertThat(exc.getResponse().getStatusLine().getStatusCode(), is(403));
             String errorResponseBody = EntityUtils.toString(exc.getResponse().getEntity());
             assertThat(errorResponseBody, containsString("unauthorized for user [remote_search_user]"));
-            assertThat(errorResponseBody, containsString("on indices [index1]"));
             assertThat(errorResponseBody, containsString("\"type\":\"security_exception\""));
         }
         {

@@ -92,7 +92,6 @@ class AuthorizationDenialMessages {
         String action,
         String clusterAlias
     ) {
-        assert isIndexAction(action);
         String userText = successfulAuthenticationDescription(authentication, authorizationInfo);
         String remoteClusterText = remoteClusterText(clusterAlias);
         return actionIsUnauthorizedMessage(action, remoteClusterText, userText)

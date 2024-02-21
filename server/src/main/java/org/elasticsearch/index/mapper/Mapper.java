@@ -31,7 +31,7 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
         }
 
         // TODO rename this to leafName?
-        public String name() {
+        public final String name() {
             return this.name;
         }
 

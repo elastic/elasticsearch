@@ -304,20 +304,3 @@ setup:
               source_text:
                 model_id: text_expansion_model
                 model_text: "octopus comforter smells"
-
----
-"Test text-expansion that displays error for non-existent queried field":
-  - skip:
-      version: " - 8.13.99"
-      reason: "validation for non-existent queried field introduced in 8.14.0"
-
-  - do:
-      catch: /\[non_existent_field\] is not a mapped field/
-      search:
-        index: index-with-rank-features
-        body:
-          query:
-            text_expansion:
-              non_existent_field:
-                model_id: text_expansion_model
-                model_text: "octopus comforter smells"

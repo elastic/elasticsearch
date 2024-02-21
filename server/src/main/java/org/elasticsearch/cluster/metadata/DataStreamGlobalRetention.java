@@ -110,18 +110,9 @@ public final class DataStreamGlobalRetention extends AbstractNamedDiffable<Clust
     }
 
     /**
-     * Returns the metadata found in the cluster state or an empty global retention if it's null.
+     * Returns the metadata found in the cluster state or null.
      */
     public static DataStreamGlobalRetention getFromClusterState(ClusterState clusterState) {
-        DataStreamGlobalRetention globalRetention = clusterState.custom(DataStreamGlobalRetention.TYPE);
-        return globalRetention != null ? globalRetention : EMPTY;
-    }
-
-    /**
-     * Returns the metadata found in the cluster state, or null otherwise.
-     */
-    @Nullable
-    public static DataStreamGlobalRetention getFromClusterStateOrNull(ClusterState clusterState) {
         return clusterState.custom(DataStreamGlobalRetention.TYPE);
     }
 

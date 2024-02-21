@@ -11,6 +11,7 @@ package org.elasticsearch.datastreams.lifecycle.action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -87,7 +88,14 @@ public class PutDataStreamGlobalRetentionAction {
 
         @Override
         public ActionRequestValidationException validate() {
-            return null;
+            ActionRequestValidationException validationException = null;
+            if (globalRetention.equals(DataStreamGlobalRetention.EMPTY)) {
+                validationException = ValidateActions.addValidationError(
+                    "At least one of 'default_retention' or 'max_retention' should be defined.",
+                    validationException
+                );
+            }
+            return validationException;
         }
 
         @Override

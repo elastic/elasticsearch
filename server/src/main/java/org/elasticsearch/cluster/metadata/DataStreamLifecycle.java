@@ -135,7 +135,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
     @Nullable
     public TimeValue getEffectiveDataRetention() {
         // Temporary until the feature is fully implemented
-        return getEffectiveDataRetention(DataStreamGlobalRetention.EMPTY);
+        return getEffectiveDataRetention(null);
     }
 
     /**
@@ -143,16 +143,20 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
      * @return the time period or null, null represents that data should never be deleted.
      */
     @Nullable
-    public TimeValue getEffectiveDataRetention(DataStreamGlobalRetention globalRetention) {
-        if (dataRetention == null || dataRetention.value == null) {
-            return globalRetention.getDefaultRetention() == null
-                ? globalRetention.getMaxRetention()
-                : globalRetention.getDefaultRetention();
+    public TimeValue getEffectiveDataRetention(@Nullable DataStreamGlobalRetention globalRetention) {
+        var dataStreamRetention = dataRetention == null ? null : dataRetention.value;
+        if (globalRetention == null) {
+            return dataStreamRetention;
         }
-        if (globalRetention.getMaxRetention() != null && globalRetention.getMaxRetention().getMillis() < dataRetention.value.getMillis()) {
+        if (dataStreamRetention == null) {
+            return globalRetention.getDefaultRetention() != null
+                ? globalRetention.getDefaultRetention()
+                : globalRetention.getMaxRetention();
+        }
+        if (globalRetention.getMaxRetention() != null && globalRetention.getMaxRetention().getMillis() < dataStreamRetention.getMillis()) {
             return globalRetention.getMaxRetention();
         } else {
-            return dataRetention.value;
+            return dataStreamRetention;
         }
     }
 

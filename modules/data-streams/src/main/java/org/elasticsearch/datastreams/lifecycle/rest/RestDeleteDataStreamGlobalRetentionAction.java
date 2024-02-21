@@ -25,7 +25,7 @@ public class RestDeleteDataStreamGlobalRetentionAction extends BaseRestHandler {
 
     @Override
     public String getName() {
-        return "put_data_stream_global_retention_action";
+        return "delete_data_stream_global_retention_action";
     }
 
     @Override

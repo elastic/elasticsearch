@@ -259,7 +259,7 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
             DataStreamLifecycle noRetentionLifecycle = DataStreamLifecycle.newBuilder().downsampling(randomDownsampling()).build();
             TimeValue maxRetention = TimeValue.timeValueDays(randomIntBetween(50, 100));
             TimeValue defaultRetention = TimeValue.timeValueDays(randomIntBetween(1, 50));
-            assertThat(noRetentionLifecycle.getEffectiveDataRetention(DataStreamGlobalRetention.EMPTY), nullValue());
+            assertThat(noRetentionLifecycle.getEffectiveDataRetention(null), nullValue());
             assertThat(
                 noRetentionLifecycle.getEffectiveDataRetention(new DataStreamGlobalRetention(null, maxRetention)),
                 equalTo(maxRetention)
@@ -281,18 +281,17 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
                 .dataRetention(dataStreamRetention)
                 .downsampling(randomDownsampling())
                 .build();
-            TimeValue maxRetention = TimeValue.timeValueDays(randomIntBetween(50, 100));
             TimeValue defaultRetention = TimeValue.timeValueDays(randomIntBetween(1, 50));
-            assertThat(lifecycleRetention.getEffectiveDataRetention(DataStreamGlobalRetention.EMPTY), equalTo(dataStreamRetention));
+            assertThat(lifecycleRetention.getEffectiveDataRetention(null), equalTo(dataStreamRetention));
             assertThat(
                 lifecycleRetention.getEffectiveDataRetention(
-                    new DataStreamGlobalRetention(TimeValue.timeValueDays(randomIntBetween(50, 100)), null)
+                    new DataStreamGlobalRetention(defaultRetention, null)
                 ),
                 equalTo(dataStreamRetention)
             );
             assertThat(
                 lifecycleRetention.getEffectiveDataRetention(
-                    new DataStreamGlobalRetention(TimeValue.timeValueDays(randomIntBetween(1, 5)), dataStreamRetention)
+                    new DataStreamGlobalRetention(defaultRetention, dataStreamRetention)
                 ),
                 equalTo(dataStreamRetention)
             );

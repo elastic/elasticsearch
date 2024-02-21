@@ -81,11 +81,11 @@ public class UpdateDataStreamGlobalRetentionService {
     }
 
     public List<UpdateDataStreamGlobalRetentionResponse.AffectedDataStream> determineAffectedDataStreams(
-        DataStreamGlobalRetention newGlobalRetention,
+        @Nullable DataStreamGlobalRetention newGlobalRetention,
         ClusterState clusterState
     ) {
         var previousGlobalRetention = DataStreamGlobalRetention.getFromClusterState(clusterState);
-        if (newGlobalRetention.equals(previousGlobalRetention)) {
+        if (Objects.equals(newGlobalRetention, previousGlobalRetention)) {
             return List.of();
         }
         List<UpdateDataStreamGlobalRetentionResponse.AffectedDataStream> affectedDataStreams = new ArrayList<>();
@@ -109,7 +109,7 @@ public class UpdateDataStreamGlobalRetentionService {
     }
 
     private ClusterState updateGlobalRetention(ClusterState clusterState, @Nullable DataStreamGlobalRetention retentionFromRequest) {
-        final var initialRetention = DataStreamGlobalRetention.getFromClusterStateOrNull(clusterState);
+        final var initialRetention = DataStreamGlobalRetention.getFromClusterState(clusterState);
         // Avoid storing empty retention in the cluster state
         final var newRetention = DataStreamGlobalRetention.EMPTY.equals(retentionFromRequest) ? null : retentionFromRequest;
         if (Objects.equals(newRetention, initialRetention)) {

@@ -145,7 +145,8 @@ public class GetDataStreamGlobalRetentionAction {
 
         @Override
         protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
-            listener.onResponse(new Response(DataStreamGlobalRetention.getFromClusterState(state)));
+            DataStreamGlobalRetention globalRetention = DataStreamGlobalRetention.getFromClusterState(state);
+            listener.onResponse(new Response(globalRetention == null ? DataStreamGlobalRetention.EMPTY : globalRetention));
         }
 
         @Override

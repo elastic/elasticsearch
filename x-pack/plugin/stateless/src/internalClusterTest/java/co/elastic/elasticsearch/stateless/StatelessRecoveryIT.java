@@ -692,8 +692,7 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         String commitFile = blobNameFromGeneration(Lucene.readSegmentInfos(indexShard.store().directory()).getGeneration());
         assertThat(commitFile, blobContainerForCommit.blobExists(operationPurpose, commitFile), is(true));
         StatelessCompoundCommit commit = StatelessCompoundCommit.readFromStore(
-            new InputStreamStreamInput(blobContainerForCommit.readBlob(operationPurpose, commitFile)),
-            blobContainerForCommit.listBlobs(operationPurpose).get(commitFile).length()
+            new InputStreamStreamInput(blobContainerForCommit.readBlob(operationPurpose, commitFile))
         );
 
         long initialRecoveryCommitStartingFile = commit.translogRecoveryStartFile();
@@ -708,8 +707,7 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         commitFile = blobNameFromGeneration(Lucene.readSegmentInfos(indexShard.store().directory()).getGeneration());
         assertThat(commitFile, blobContainerForCommit.blobExists(operationPurpose, commitFile), is(true));
         commit = StatelessCompoundCommit.readFromStore(
-            new InputStreamStreamInput(blobContainerForCommit.readBlob(operationPurpose, commitFile)),
-            blobContainerForCommit.listBlobs(operationPurpose).get(commitFile).length()
+            new InputStreamStreamInput(blobContainerForCommit.readBlob(operationPurpose, commitFile))
         );
 
         // Recovery file has advanced because of flush

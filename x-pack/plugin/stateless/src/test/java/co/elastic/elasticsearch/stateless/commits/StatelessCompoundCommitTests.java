@@ -142,7 +142,7 @@ public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCas
                 writer.addInternalFile(tuple.v1(), tuple.v2());
             }
             PositionTrackingOutputStreamStreamOutput positionTracking = new PositionTrackingOutputStreamStreamOutput(output);
-            writer.writeHeader(positionTracking, StatelessCompoundCommit.CURRENT_VERSION);
+            writer.writeHeaderToStore(positionTracking, StatelessCompoundCommit.CURRENT_VERSION);
             long headerSize = positionTracking.position();
 
             long commitFileLength = internalFiles.stream().mapToLong(Tuple::v2).sum() + headerSize;
@@ -170,7 +170,7 @@ public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCas
             );
 
             try (StreamInput in = output.bytes().streamInput()) {
-                StatelessCompoundCommit compoundCommit = StatelessCompoundCommit.readFromStore(in, commitFileLength);
+                StatelessCompoundCommit compoundCommit = StatelessCompoundCommit.readFromStore(in);
                 assertEqualInstances(withInternalFiles, compoundCommit);
             }
         }
@@ -193,7 +193,7 @@ public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCas
             }
 
             PositionTrackingOutputStreamStreamOutput positionTracking = new PositionTrackingOutputStreamStreamOutput(output);
-            writer.writeHeader(
+            writer.writeHeaderToStore(
                 positionTracking,
                 randomFrom(StatelessCompoundCommit.VERSION_WITH_COMMIT_FILES, StatelessCompoundCommit.VERSION_WITH_BLOB_LENGTH)
             );
@@ -211,10 +211,7 @@ public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCas
             );
 
             try (StreamInput in = output.bytes().streamInput()) {
-                StatelessCompoundCommit compoundCommit = StatelessCompoundCommit.readFromStore(
-                    in,
-                    output.bytes().length() + writer.getInternalFilesLength()
-                );
+                StatelessCompoundCommit compoundCommit = StatelessCompoundCommit.readFromStore(in);
                 assertEqualInstances(withOldBlobLengths, compoundCommit);
             }
         }
@@ -234,14 +231,14 @@ public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCas
             for (Map.Entry<String, BlobLocation> entry : testInstance.commitFiles().entrySet()) {
                 writer.addReferencedBlobFile(entry.getKey(), entry.getValue());
             }
-            writer.writeHeader(new PositionTrackingOutputStreamStreamOutput(output), StatelessCompoundCommit.CURRENT_VERSION);
+            writer.writeHeaderToStore(new PositionTrackingOutputStreamStreamOutput(output), StatelessCompoundCommit.CURRENT_VERSION);
             // flip one byte anywhere
             byte[] bytes = BytesReference.toBytes(output.bytes());
             int i = randomIntBetween(0, bytes.length - 1);
             bytes[i] = (byte) ~bytes[i];
             try (StreamInput in = new ByteArrayStreamInput(bytes)) {
                 try {
-                    StatelessCompoundCommit.readFromStore(in, bytes.length + writer.getInternalFilesLength());
+                    StatelessCompoundCommit.readFromStore(in);
                     assert false : "Should have thrown";
                 } catch (IOException e) {
                     assertThat(e.getMessage(), containsString("Failed to read shard commit"));

@@ -525,7 +525,7 @@ public final class NodeEnvironment implements Closeable {
 
         if (metadata.oldestIndexVersion().isLegacyIndexVersion()) {
 
-            String bestDowngradeVersion = getBestDowngradeVersion(metadata.previousNodeVersion().toString());
+            String bestDowngradeVersion = getBestDowngradeVersion(metadata.previousBuildVersion().toString());
             throw new IllegalStateException(
                 "Cannot start this node because it holds metadata for indices with version ["
                     + metadata.oldestIndexVersion()

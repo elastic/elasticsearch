@@ -104,9 +104,8 @@ public final class NodeMetadata {
      * the current version of the node ({@link NodeMetadata#upgradeToCurrentVersion()} before storing the node metadata again on disk.
      * In doing so, {@code previousNodeVersion} refers to the previously last known version that this node was started on.
      */
-    // TODO[wrb]: Return a BuildVersion
-    public Version previousNodeVersion() {
-        return previousNodeVersion.toVersion();
+    public BuildVersion previousBuildVersion() {
+        return previousNodeVersion;
     }
 
     public IndexVersion oldestIndexVersion() {

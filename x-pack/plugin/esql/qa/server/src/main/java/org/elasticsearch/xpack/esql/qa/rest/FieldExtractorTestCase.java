@@ -663,7 +663,12 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
             () -> runEsqlSync(new RestEsqlTestCase.RequestObjectBuilder().query("FROM test* | SORT f | LIMIT 3"))
         );
         String err = EntityUtils.toString(e.getResponse().getEntity());
-        assertThat(err, containsString("mapped as [2] incompatible types: [keyword] in [test1], [long] in [test2]"));
+        assertThat(
+            err.replace("\n ", ""),  // yaml adds newline we don't want to match
+            containsString(
+                "Cannot use field [f] due to ambiguities being mapped as [2] incompatible types: [keyword] in [test1], [long] in [test2]"
+            )
+        );
     }
 
     /**
@@ -743,7 +748,13 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
             () -> runEsqlSync(new RestEsqlTestCase.RequestObjectBuilder().query("FROM test* | SORT file, file.raw | LIMIT 3"))
         );
         String err = EntityUtils.toString(e.getResponse().getEntity());
-        assertThat(err, containsString("mapped as [2] incompatible types: [keyword] in [test1], [object] in [test2]"));
+        assertThat(
+            err.replace("\n ", ""),  // yaml adds newline we don't want to match
+            containsString(
+                "Cannot use field [file] due to ambiguities"
+                    + " being mapped as [2] incompatible types: [keyword] in [test1], [object] in [test2]"
+            )
+        );
 
         Map<String, Object> result = runEsqlSync(new RestEsqlTestCase.RequestObjectBuilder().query("FROM test* | SORT file.raw | LIMIT 2"));
         assertMap(
@@ -892,6 +903,72 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
             matchesMap().entry("columns", List.of(columnInfo("emp_no", "integer")))
                 .entry("values", List.of(matchesList().item(1), matchesList().item(2)))
         );
+    }
+
+    /**
+     * Two indices, one with:
+     * <pre>
+     * "foo": {
+     *   "type": "object",
+     *   "properties": {
+     *     "emp_no": {
+     *       "type": "integer"
+     *     }
+     * }
+     * </pre>
+     * and the other with
+     * <pre>
+     * "foo": {
+     *   "type": "object",
+     *   "properties": {
+     *     "emp_no": {
+     *       "type": "keyword"
+     *     }
+     * }
+     * </pre>.
+     */
+    public void testTypeConflictInObject() throws IOException {
+        createIndex("test1", empNoInObject("integer"));
+        index("test1", """
+            {"foo": {"emp_no": 1}}""");
+        createIndex("test2", empNoInObject("keyword"));
+        index("test2", """
+            {"foo": {"emp_no": "cat"}}""");
+
+        Map<String, Object> result = runEsqlSync(new RestEsqlTestCase.RequestObjectBuilder().query("FROM test* | LIMIT 3"));
+        assertMap(result, matchesMap().entry("columns", List.of(columnInfo("foo.emp_no", "unsupported"))).extraOk());
+
+        ResponseException e = expectThrows(
+            ResponseException.class,
+            () -> runEsqlSync(new RestEsqlTestCase.RequestObjectBuilder().query("FROM test* | SORT foo.emp_no | LIMIT 3"))
+        );
+        String err = EntityUtils.toString(e.getResponse().getEntity());
+        assertThat(
+            err.replace("\n", ""), // yaml adds newlines which we don't match
+            containsString(
+                "Cannot use field [foo.emp_no] due to ambiguities being "
+                    + "mapped as [2] incompatible types: [integer] in [test1], [keyword] in [test2]"
+            )
+        );
+    }
+
+    private CheckedConsumer<XContentBuilder, IOException> empNoInObject(String empNoType) {
+        return index -> {
+            index.startObject("properties");
+            {
+                index.startObject("foo");
+                {
+                    index.field("type", "object");
+                    index.startObject("properties");
+                    {
+                        index.startObject("emp_no").field("type", empNoType).endObject();
+                    }
+                    index.endObject();
+                }
+                index.endObject();
+            }
+            index.endObject();
+        };
     }
 
     private enum SourceMode {

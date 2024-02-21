@@ -97,8 +97,8 @@ public class EsqlIndexResolver {
             }
             // TODO we're careful to make isAlias match IndexResolver - but do we use it?
             EsField field = firstUnsupportedParent == null
-                ? createField(fieldCapsResponse, name, fieldsCaps.get(fullName), isAlias)
-                : new UnsupportedEsField(name, firstUnsupportedParent.getOriginalType(), firstUnsupportedParent.getName(), new HashMap<>());
+                ? createField(fieldCapsResponse, name, fullName, fieldsCaps.get(fullName), isAlias)
+                : new UnsupportedEsField(fullName, firstUnsupportedParent.getOriginalType(), firstUnsupportedParent.getName(), new HashMap<>());
             fields.put(name, field);
         }
 
@@ -131,6 +131,7 @@ public class EsqlIndexResolver {
     private EsField createField(
         FieldCapabilitiesResponse fieldCapsResponse,
         String name,
+        String fullName,
         List<IndexFieldCapabilities> fcs,
         boolean isAlias
     ) {
@@ -141,12 +142,12 @@ public class EsqlIndexResolver {
         if (rest.isEmpty() == false) {
             for (IndexFieldCapabilities fc : rest) {
                 if (first.metricType() != fc.metricType()) {
-                    return conflictingMetricTypes(first.name(), fieldCapsResponse);
+                    return conflictingMetricTypes(name, fullName, fieldCapsResponse);
                 }
             }
             for (IndexFieldCapabilities fc : rest) {
                 if (type != typeRegistry.fromEs(fc.type(), fc.metricType())) {
-                    return conflictingTypes(first.name(), fieldCapsResponse);
+                    return conflictingTypes(name, fullName, fieldCapsResponse);
                 }
             }
             for (IndexFieldCapabilities fc : rest) {
@@ -180,10 +181,10 @@ public class EsqlIndexResolver {
         return new UnsupportedEsField(name, originalType);
     }
 
-    private EsField conflictingTypes(String name, FieldCapabilitiesResponse fieldCapsResponse) {
+    private EsField conflictingTypes(String name, String fullName, FieldCapabilitiesResponse fieldCapsResponse) {
         Map<String, Set<String>> typesToIndices = new TreeMap<>();
         for (FieldCapabilitiesIndexResponse ir : fieldCapsResponse.getIndexResponses()) {
-            IndexFieldCapabilities fc = ir.get().get(name);
+            IndexFieldCapabilities fc = ir.get().get(fullName);
             if (fc != null) {
                 DataType type = typeRegistry.fromEs(fc.type(), fc.metricType());
                 if (type == UNSUPPORTED) {
@@ -211,10 +212,10 @@ public class EsqlIndexResolver {
         return new InvalidMappedField(name, errorMessage.toString());
     }
 
-    private EsField conflictingMetricTypes(String name, FieldCapabilitiesResponse fieldCapsResponse) {
+    private EsField conflictingMetricTypes(String name, String fullName, FieldCapabilitiesResponse fieldCapsResponse) {
         TreeSet<String> indices = new TreeSet<>();
         for (FieldCapabilitiesIndexResponse ir : fieldCapsResponse.getIndexResponses()) {
-            IndexFieldCapabilities fc = ir.get().get(name);
+            IndexFieldCapabilities fc = ir.get().get(fullName);
             if (fc != null) {
                 indices.add(ir.getIndexName());
             }

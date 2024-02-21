@@ -40,6 +40,7 @@ import org.elasticsearch.transport.netty4.NettyAllocator;
 
 import java.io.Closeable;
 import java.net.SocketAddress;
+import java.net.SocketException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -190,7 +191,7 @@ class Netty4HttpClient implements Closeable {
 
                 @Override
                 public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
-                    if (cause instanceof PrematureChannelClosureException) {
+                    if (cause instanceof PrematureChannelClosureException || cause instanceof SocketException) {
                         // no more requests coming, so fast-forward the latch
                         fastForward();
                     } else {

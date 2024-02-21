@@ -70,7 +70,6 @@ public class EarlyDeprecationIndexingIT extends ESRestTestCase {
                 )
             );
         }, 30, TimeUnit.SECONDS);
-        fail();
     }
 
     private Response getIndexSettings() throws Exception {

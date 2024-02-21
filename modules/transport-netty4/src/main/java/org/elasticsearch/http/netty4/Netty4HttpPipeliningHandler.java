@@ -261,10 +261,11 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
             // failure during chunked response serialization, we're closing the channel
             return;
         }
-        assert currentChunkedWrite.responseBody().isDone();
         final var finishingWrite = currentChunkedWrite;
-        final var endOfResponse = finishingWrite.responseBody().isEndOfResponse();
         currentChunkedWrite = null;
+        final var finishingWriteBody = finishingWrite.responseBody();
+        assert finishingWriteBody.isDone();
+        final var endOfResponse = finishingWriteBody.isEndOfResponse();
         if (endOfResponse) {
             writeSequence++;
             finishingWrite.combiner().finish(finishingWrite.onDone());
@@ -277,12 +278,7 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
                         new Netty4ChunkedHttpContinuation(writeSequence, continuation, finishingWrite.combiner()),
                         finishingWrite.onDone() // pass the terminal listener/promise along the line
                     );
-                    if (channel.eventLoop().isShuttingDown()) {
-                        channel.eventLoop().terminationFuture().addListener(ignored -> finishingWrite.onDone().trySuccess());
-                        // The event loop is shutting down, and https://github.com/netty/netty/issues/8007 means that we cannot know if the
-                        // preceding writeAndFlush made it onto its queue before shutdown or whether it will just vanish without a trace, so
-                        // to avoid a leak we must double-check that the final listener is completed once the event loop is terminated.
-                    }
+                    checkShutdown();
                 }
 
                 @Override
@@ -295,8 +291,24 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
                         finishingWrite.combiner().add(channel.newFailedFuture(e));
                         finishingWrite.combiner().finish(finishingWrite.onDone());
                     });
+                    checkShutdown();
                 }
-            }), finishingWrite.responseBody()::getContinuation);
+
+                private void checkShutdown() {
+                    if (channel.eventLoop().isShuttingDown()) {
+                        // The event loop is shutting down, and https://github.com/netty/netty/issues/8007 means that we cannot know if the
+                        // preceding activity made it onto its queue before shutdown or whether it will just vanish without a trace, so
+                        // to avoid a leak we must double-check that the final listener is completed once the event loop is terminated.
+                        // Note that the final listener came from Netty4Utils#safeWriteAndFlush so its executor is an ImmediateEventExecutor
+                        // which means this completion is not subject to the same issue, it still works even if the event loop has already
+                        // terminated.
+                        channel.eventLoop()
+                            .terminationFuture()
+                            .addListener(ignored -> finishingWrite.onDone().tryFailure(new ClosedChannelException()));
+                    }
+                }
+
+            }), finishingWriteBody::getContinuation);
         }
     }
 

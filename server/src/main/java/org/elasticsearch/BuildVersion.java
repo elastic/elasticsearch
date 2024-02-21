@@ -34,10 +34,21 @@ public interface BuildVersion extends Writeable, ToXContentFragment {
         return new DefaultBuildVersion(version.id());
     }
 
+    static BuildVersion fromVersionId(int versionId) {
+        return ExtensionLoader.loadSingleton(ServiceLoader.load(BuildExtension.class))
+            .map(ext -> ext.fromVersionId(versionId))
+            .orElse(new DefaultBuildVersion(versionId));
+    }
+
     static BuildVersion current() {
         return ExtensionLoader.loadSingleton(ServiceLoader.load(BuildExtension.class))
             .map(BuildExtension::currentBuildVersion)
             .orElse(DefaultBuildVersion.CURRENT);
     }
 
+    static BuildVersion empty() {
+        return ExtensionLoader.loadSingleton(ServiceLoader.load(BuildExtension.class))
+            .map(ext -> ext.fromVersionId(0))
+            .orElse(DefaultBuildVersion.EMPTY);
+    }
 }

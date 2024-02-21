@@ -14,7 +14,6 @@ import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
-import org.elasticsearch.internal.DefaultBuildVersion;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -115,7 +114,7 @@ public final class NodeMetadata {
     @UpdateForV9
     public void verifyUpgradeToCurrentVersion() {
         // Enable the following assertion for V9:
-        // assert (nodeVersion.equals(DefaultBuildVersion.EMPTY) == false) : "version is required in the node metadata from v9 onwards";
+        // assert (nodeVersion.equals(BuildVersion.empty()) == false) : "version is required in the node metadata from v9 onwards";
 
         if (nodeVersion.isCompatibleWithCurrent() == false) {
             throw new IllegalStateException(
@@ -155,18 +154,16 @@ public final class NodeMetadata {
             this.nodeId = nodeId;
         }
 
-        // TODO[wrb]: I'm not satisfied with this. Can we use BuildExtension#readBuildVersion instead?
         public void setNodeVersionId(int nodeVersionId) {
-            this.nodeVersion = new DefaultBuildVersion(nodeVersionId);
+            this.nodeVersion = BuildVersion.fromVersionId(nodeVersionId);
         }
 
         public void setOldestIndexVersion(int oldestIndexVersion) {
             this.oldestIndexVersion = IndexVersion.fromId(oldestIndexVersion);
         }
 
-        // TODO[wrb]: Move "empty" to a static method on BuildVersion
         private BuildVersion getVersionOrFallbackToEmpty() {
-            return Objects.requireNonNullElse(this.nodeVersion, DefaultBuildVersion.EMPTY);
+            return Objects.requireNonNullElse(this.nodeVersion, BuildVersion.empty());
         }
 
         public NodeMetadata build() {

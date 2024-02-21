@@ -31,11 +31,18 @@ public interface BuildExtension {
         return true;
     }
 
+    // TODO[wrb]: Remove default implementation once downstream BuildExtensions are updated
     default BuildVersion currentBuildVersion() {
         return DefaultBuildVersion.CURRENT;
     }
 
+    // TODO[wrb]: Remove default implementation once downstream BuildExtensions are updated
     default BuildVersion readBuildVersion(StreamInput in) throws IOException {
         return new DefaultBuildVersion(in.readInt());
+    }
+
+    // TODO[wrb]: Remove default implementation once downstream BuildExtensions are updated
+    default BuildVersion fromVersionId(int versionId) {
+        return new DefaultBuildVersion(versionId);
     }
 }

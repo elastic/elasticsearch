@@ -908,7 +908,6 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
      * ... | eval $$a = a | eval a = b + 1 | sort $$a | drop $$a
      */
     protected static class PushDownEval extends OptimizerRules.OptimizerRule<Eval> {
-
         @Override
         protected LogicalPlan rule(Eval eval) {
             LogicalPlan child = eval.child();

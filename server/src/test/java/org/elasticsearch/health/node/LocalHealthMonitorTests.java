@@ -27,7 +27,6 @@ import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.health.HealthFeatures;
 import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.health.metadata.HealthMetadata;
-import org.elasticsearch.health.node.selection.HealthNodeExecutorTests;
 import org.elasticsearch.health.node.tracker.HealthTracker;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -63,7 +62,7 @@ public class LocalHealthMonitorTests extends ESTestCase {
 
     @BeforeClass
     public static void setUpThreadPool() {
-        threadPool = new TestThreadPool(HealthNodeExecutorTests.class.getSimpleName());
+        threadPool = new TestThreadPool(LocalHealthMonitorTests.class.getSimpleName());
     }
 
     @AfterClass

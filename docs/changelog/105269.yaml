@@ -1,0 +1,5 @@
+pr: 105269
+summary: Reserve bytes before serializing page
+area: ES|QL
+type: enhancement
+issues: []

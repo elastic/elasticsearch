@@ -17,7 +17,6 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.plugins.PersistentTaskPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -65,8 +64,6 @@ public class PersistentTaskInitializationFailureIT extends ESIntegTestCase {
     }
 
     public static class FailingInitializationPersistentTasksPlugin extends Plugin implements PersistentTaskPlugin {
-        public FailingInitializationPersistentTasksPlugin(Settings settings) {}
-
         @Override
         public List<PersistentTasksExecutor<?>> getPersistentTasksExecutor(
             ClusterService clusterService,
@@ -132,10 +129,9 @@ public class PersistentTaskInitializationFailureIT extends ESIntegTestCase {
 
     static class FailingInitializationPersistentTaskExecutor extends PersistentTasksExecutor<FailingInitializationTaskParams> {
         static final String TASK_NAME = "cluster:admin/persistent/test_init_failure";
-        static final String EXECUTOR_NAME = "failing_executor";
 
         FailingInitializationPersistentTaskExecutor() {
-            super(TASK_NAME, EXECUTOR_NAME);
+            super(TASK_NAME, r -> fail("execution is unexpected"));
         }
 
         @Override

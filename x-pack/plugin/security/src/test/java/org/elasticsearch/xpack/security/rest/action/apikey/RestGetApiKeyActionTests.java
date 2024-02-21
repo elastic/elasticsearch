@@ -117,6 +117,7 @@ public class RestGetApiKeyActionTests extends ESTestCase {
                     null,
                     "user-x",
                     "realm-1",
+                    "realm-type-1",
                     metadata,
                     roleDescriptors,
                     limitedByRoleDescriptors
@@ -176,6 +177,7 @@ public class RestGetApiKeyActionTests extends ESTestCase {
                         null,
                         "user-x",
                         "realm-1",
+                        "realm-type-1",
                         metadata,
                         roleDescriptors,
                         limitedByRoleDescriptors
@@ -226,6 +228,7 @@ public class RestGetApiKeyActionTests extends ESTestCase {
             null,
             "user-x",
             "realm-1",
+            "realm-type-1",
             ApiKeyTests.randomMetadata(),
             type == ApiKey.Type.CROSS_CLUSTER
                 ? List.of(randomCrossClusterAccessRoleDescriptor())
@@ -242,6 +245,7 @@ public class RestGetApiKeyActionTests extends ESTestCase {
             null,
             "user-y",
             "realm-1",
+            "realm-type-1",
             ApiKeyTests.randomMetadata(),
             type == ApiKey.Type.CROSS_CLUSTER
                 ? List.of(randomCrossClusterAccessRoleDescriptor())

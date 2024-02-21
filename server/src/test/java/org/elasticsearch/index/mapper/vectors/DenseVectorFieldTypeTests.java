@@ -25,6 +25,7 @@ import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DenseVectorFieldType;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.VectorSimilarity;
+import org.elasticsearch.search.vectors.VectorData;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -179,7 +180,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             for (int i = 0; i < dims; i++) {
                 queryVector[i] = randomFloat();
             }
-            Query query = field.createExactKnnQuery(DenseVectorFieldMapper.VectorData.fromFloat(queryVector));
+            Query query = field.createExactKnnQuery(VectorData.fromFloats(queryVector));
             assertTrue(query instanceof BooleanQuery);
             BooleanQuery booleanQuery = (BooleanQuery) query;
             boolean foundFunction = false;
@@ -205,7 +206,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             for (int i = 0; i < dims; i++) {
                 queryVector[i] = randomByte();
             }
-            Query query = field.createExactKnnQuery(DenseVectorFieldMapper.VectorData.fromByte(queryVector));
+            Query query = field.createExactKnnQuery(VectorData.fromBytes(queryVector));
             assertTrue(query instanceof BooleanQuery);
             BooleanQuery booleanQuery = (BooleanQuery) query;
             boolean foundFunction = false;

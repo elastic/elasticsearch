@@ -16,7 +16,6 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -26,6 +25,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -35,9 +35,10 @@ import java.util.Objects;
  */
 public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQueryBuilder> {
     public static final String NAME = "knn_score_doc";
+    private static final MapParams QUERY_VECTOR_PARAMS = new MapParams(Map.of(VectorData.XCONTENT_PARAM_NAME, "query"));
     private final ScoreDoc[] scoreDocs;
     private final String fieldName;
-    private final DenseVectorFieldMapper.VectorData queryVector;
+    private final VectorData queryVector;
 
     /**
      * Creates a query builder.
@@ -46,7 +47,7 @@ public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQue
      *                  sorted in order of ascending doc IDs.
      */
     public KnnScoreDocQueryBuilder(ScoreDoc[] scoreDocs, String fieldName, float[] queryVector) {
-        this(scoreDocs, fieldName, DenseVectorFieldMapper.VectorData.fromFloat(queryVector));
+        this(scoreDocs, fieldName, VectorData.fromFloats(queryVector));
     }
 
     /**
@@ -55,7 +56,7 @@ public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQue
      * @param scoreDocs the docs and scores this query should match. The array must be
      *                  sorted in order of ascending doc IDs.
      */
-    public KnnScoreDocQueryBuilder(ScoreDoc[] scoreDocs, String fieldName, DenseVectorFieldMapper.VectorData queryVector) {
+    public KnnScoreDocQueryBuilder(ScoreDoc[] scoreDocs, String fieldName, VectorData queryVector) {
         this.scoreDocs = scoreDocs;
         this.fieldName = fieldName;
         this.queryVector = queryVector;
@@ -68,12 +69,9 @@ public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQue
             this.fieldName = in.readOptionalString();
             if (in.readBoolean()) {
                 if (in.getTransportVersion().onOrAfter(TransportVersions.KNN_EXPLICIT_BYTE_QUERY_VECTOR_PARSING)) {
-                    boolean isFloat = in.readBoolean();
-                    this.queryVector = isFloat
-                        ? DenseVectorFieldMapper.VectorData.fromFloat(in.readFloatArray())
-                        : DenseVectorFieldMapper.VectorData.fromByte(in.readByteArray());
+                    this.queryVector = in.readOptionalWriteable(VectorData::new);
                 } else {
-                    this.queryVector = DenseVectorFieldMapper.VectorData.parseFloat(in.readFloatArray());
+                    this.queryVector = VectorData.fromFloats(in.readFloatArray());
                 }
             } else {
                 this.queryVector = null;
@@ -97,7 +95,7 @@ public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQue
         return fieldName;
     }
 
-    DenseVectorFieldMapper.VectorData queryVector() {
+    VectorData queryVector() {
         return queryVector;
     }
 
@@ -109,15 +107,9 @@ public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQue
             if (queryVector != null) {
                 out.writeBoolean(true);
                 if (out.getTransportVersion().onOrAfter(TransportVersions.KNN_EXPLICIT_BYTE_QUERY_VECTOR_PARSING)) {
-                    if (queryVector.isFloatVector()) {
-                        out.writeBoolean(true);
-                        out.writeFloatArray(queryVector.asFloatVector());
-                    } else {
-                        out.writeBoolean(false);
-                        out.writeByteArray(queryVector.asByteVector());
-                    }
+                    out.writeOptionalWriteable(queryVector);
                 } else {
-                    out.writeFloatArray(queryVector.asFloatVector());
+                    out.writeFloatArray(queryVector.asFloatVector(false));
                 }
             } else {
                 out.writeBoolean(false);
@@ -137,7 +129,7 @@ public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQue
             builder.field("field", fieldName);
         }
         if (queryVector != null) {
-            builder.field("query", queryVector.asFloatVector());
+            queryVector.toXContent(builder, QUERY_VECTOR_PARAMS);
         }
         boostAndQueryNameToXContent(builder);
         builder.endObject();

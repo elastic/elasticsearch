@@ -28,15 +28,14 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.TransportVersions.V_8_11_X;
 import static org.elasticsearch.common.Strings.format;
-import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.VectorData;
 import static org.elasticsearch.index.query.AbstractQueryBuilder.DEFAULT_BOOST;
 import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;
-import static org.elasticsearch.search.vectors.KnnVectorQueryBuilder.parseQueryVector;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
@@ -56,6 +55,10 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
     public static final ParseField FILTER_FIELD = new ParseField("filter");
     public static final ParseField BOOST_FIELD = AbstractQueryBuilder.BOOST_FIELD;
     public static final ParseField INNER_HITS_FIELD = new ParseField("inner_hits");
+    private static final MapParams QUERY_VECTOR_PARAMS = new MapParams(
+        Map.of(VectorData.XCONTENT_PARAM_NAME, QUERY_VECTOR_FIELD.getPreferredName())
+    );
+
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<KnnSearchBuilder.Builder, Void> PARSER = new ConstructingObjectParser<>("knn", args -> {
         // TODO optimize parsing for when BYTE values are provided
@@ -71,7 +74,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         PARSER.declareString(constructorArg(), FIELD_FIELD);
         PARSER.declareField(
             optionalConstructorArg(),
-            (p, c) -> parseQueryVector(p),
+            (p, c) -> VectorData.parseXContent(p),
             QUERY_VECTOR_FIELD,
             ObjectParser.ValueType.OBJECT_ARRAY_STRING_OR_NUMBER
         );
@@ -125,26 +128,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
     public KnnSearchBuilder(String field, float[] queryVector, int k, int numCands, Float similarity) {
         this(
             field,
-            Objects.requireNonNull(VectorData.fromFloat(queryVector), format("[%s] cannot be null", QUERY_VECTOR_FIELD)),
-            null,
-            k,
-            numCands,
-            similarity
-        );
-    }
-
-    /**
-     * Defines a kNN search.
-     *
-     * @param field       the name of the vector field to search against
-     * @param queryVector the query vector
-     * @param k           the final number of nearest neighbors to return as top hits
-     * @param numCands    the number of nearest neighbor candidates to consider per shard
-     */
-    public KnnSearchBuilder(String field, byte[] queryVector, int k, int numCands, Float similarity) {
-        this(
-            field,
-            Objects.requireNonNull(VectorData.fromByte(queryVector), format("[%s] cannot be null", QUERY_VECTOR_FIELD)),
+            Objects.requireNonNull(VectorData.fromFloats(queryVector), format("[%s] cannot be null", QUERY_VECTOR_FIELD)),
             null,
             k,
             numCands,
@@ -203,7 +187,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         Float similarity
     ) {
         this.field = field;
-        this.queryVector = VectorData.fromFloat(new float[0]);
+        this.queryVector = VectorData.fromFloats(new float[0]);
         this.queryVectorBuilder = null;
         this.k = k;
         this.numCands = numCands;
@@ -253,7 +237,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
             );
         }
         this.field = field;
-        this.queryVector = queryVector == null ? VectorData.fromFloat(new float[0]) : queryVector;
+        this.queryVector = queryVector == null ? VectorData.fromFloats(new float[0]) : queryVector;
         this.queryVectorBuilder = queryVectorBuilder;
         this.k = k;
         this.numCands = numCandidates;
@@ -269,14 +253,9 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         this.k = in.readVInt();
         this.numCands = in.readVInt();
         if (in.getTransportVersion().onOrAfter(TransportVersions.KNN_EXPLICIT_BYTE_QUERY_VECTOR_PARSING)) {
-            boolean isFloat = in.readBoolean();
-            if (isFloat) {
-                this.queryVector = VectorData.fromFloat(in.readFloatArray());
-            } else {
-                this.queryVector = VectorData.fromByte(in.readByteArray());
-            }
+            this.queryVector = in.readOptionalWriteable(VectorData::new);
         } else {
-            this.queryVector = VectorData.parseFloat(in.readFloatArray());
+            this.queryVector = VectorData.fromFloats(in.readFloatArray());
         }
         this.filterQueries = in.readNamedWriteableCollectionAsList(QueryBuilder.class);
         this.boost = in.readFloat();
@@ -444,7 +423,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
             builder.field(queryVectorBuilder.getWriteableName(), queryVectorBuilder);
             builder.endObject();
         } else {
-            builder.array(QUERY_VECTOR_FIELD.getPreferredName(), queryVector.asFloatVector());
+            queryVector.toXContent(builder, QUERY_VECTOR_PARAMS);
         }
         if (similarity != null) {
             builder.field(VECTOR_SIMILARITY.getPreferredName(), similarity);
@@ -478,15 +457,9 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         out.writeVInt(k);
         out.writeVInt(numCands);
         if (out.getTransportVersion().onOrAfter(TransportVersions.KNN_EXPLICIT_BYTE_QUERY_VECTOR_PARSING)) {
-            boolean isFloat = queryVector.isFloatVector();
-            out.writeBoolean(isFloat);
-            if (isFloat) {
-                out.writeFloatArray(queryVector.asFloatVector());
-            } else {
-                out.writeByteArray(queryVector.asByteVector());
-            }
+            out.writeOptionalWriteable(queryVector);
         } else {
-            out.writeFloatArray(queryVector.asFloatVector());
+            out.writeFloatArray(queryVector.asFloatVector(false));
         }
         out.writeNamedWriteableCollection(filterQueries);
         out.writeFloat(boost);

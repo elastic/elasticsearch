@@ -75,10 +75,9 @@ setup:
 ---
 "Knn search with hex string for float field" :
   # [64, 10, -30] - is encoded as '400ae2'
-  # this will be properly decoded but only because:
-  # (i) the provided input is compatible as the values are within [Byte.MIN_VALUE, Byte.MAX_VALUE] range
-  # (ii) we do not differentiate between byte and float fields when initially parsing a query
+  # this will fail for a float field
   - do:
+      catch: /cannot convert to float, as we're explicitly using a byte vector/
       search:
         index: knn_hex_vector_index
         body:
@@ -88,9 +87,6 @@ setup:
             query_vector: "400ae2"
             num_candidates: 100
             k: 10
-
-  - match: { hits.total.value: 1 }
-  - match: { hits.hits.0._id: "4" }
 
 ---
 "Knn search with hex string for byte field" :

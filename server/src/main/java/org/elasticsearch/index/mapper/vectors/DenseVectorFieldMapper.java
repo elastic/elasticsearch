@@ -70,6 +70,7 @@ import org.elasticsearch.search.vectors.ESDiversifyingChildrenByteKnnVectorQuery
 import org.elasticsearch.search.vectors.ESDiversifyingChildrenFloatKnnVectorQuery;
 import org.elasticsearch.search.vectors.ESKnnByteVectorQuery;
 import org.elasticsearch.search.vectors.ESKnnFloatVectorQuery;
+import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.search.vectors.VectorSimilarityQuery;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -117,102 +118,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
     interface VectorByteDataConsumer {
         void accept(byte value, int index);
-    }
-
-    public static class VectorData {
-
-        private final float[] floatVector;
-        private final byte[] byteVector;
-
-        private VectorData(float[] floatVector) {
-            this.floatVector = Objects.requireNonNull(floatVector, "the provided float vector cannot be null");
-            this.byteVector = null;
-        }
-
-        private VectorData(byte[] byteVector) {
-            this.floatVector = null;
-            this.byteVector = Objects.requireNonNull(byteVector, "the provided byte vector cannot be null");
-        }
-
-        public boolean isFloatVector() {
-            return floatVector != null;
-        }
-
-        public boolean isByteVector() {
-            return byteVector != null;
-        }
-
-        public byte[] asByteVector() {
-            if (isByteVector()) {
-                return byteVector;
-            } else if (isFloatVector()) {
-                ElementType.BYTE.checkVectorBounds(floatVector);
-                byte[] vec = new byte[floatVector.length];
-                for (int i = 0; i < floatVector.length; i++) {
-                    vec[i] = (byte) floatVector[i];
-                }
-                return vec;
-            }
-            return new byte[0];
-        }
-
-        public float[] asFloatVector() {
-            if (isFloatVector()) {
-                return floatVector;
-            } else if (isByteVector()) {
-                float[] vec = new float[byteVector.length];
-                for (int i = 0; i < byteVector.length; i++) {
-                    vec[i] = byteVector[i];
-                }
-                return vec;
-            }
-            return new float[0];
-        }
-
-        public static VectorData fromFloat(float[] vec) {
-            if (vec == null) return null;
-            return new VectorData(vec);
-        }
-
-        public static VectorData fromByte(byte[] vec) {
-            if (vec == null) return null;
-            return new VectorData(vec);
-        }
-
-        public static VectorData parseFloat(float[] vec) {
-            if (vec == null) return null;
-            byte[] byteVector = new byte[vec.length];
-            boolean validByte = true;
-            for (int i = 0; i < vec.length; i++) {
-                if (vec[i] % 1 != 0 || (vec[i] < Byte.MIN_VALUE || vec[i] > Byte.MAX_VALUE)) {
-                    validByte = false;
-                    break;
-                }
-                byteVector[i] = (byte) vec[i];
-            }
-            if (validByte) {
-                return VectorData.fromByte(byteVector);
-            } else {
-                return VectorData.fromFloat(vec);
-            }
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            if (this == obj) {
-                return true;
-            }
-            if (obj == null || getClass() != obj.getClass()) {
-                return false;
-            }
-            VectorData other = (VectorData) obj;
-            return Arrays.equals(floatVector, other.floatVector) && Arrays.equals(byteVector, other.byteVector);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(Arrays.hashCode(floatVector), Arrays.hashCode(byteVector));
-        }
     }
 
     private static DenseVectorFieldMapper toType(FieldMapper in) {
@@ -1386,7 +1291,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         Query createKnnQuery(float[] queryVector, int numCands, Query filter, Float similarityThreshold, BitSetProducer parentFilter) {
-            return createKnnQuery(VectorData.parseFloat(queryVector), numCands, filter, similarityThreshold, parentFilter);
+            return createKnnQuery(VectorData.fromFloats(queryVector), numCands, filter, similarityThreshold, parentFilter);
         }
 
         public Query createKnnQuery(

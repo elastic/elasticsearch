@@ -22,6 +22,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -30,8 +31,9 @@ import java.util.Objects;
  */
 public class ExactKnnQueryBuilder extends AbstractQueryBuilder<ExactKnnQueryBuilder> {
     public static final String NAME = "exact_knn";
+    private static final MapParams QUERY_VECTOR_PARAMS = new MapParams(Map.of(VectorData.XCONTENT_PARAM_NAME, "query"));
     private final String field;
-    private final DenseVectorFieldMapper.VectorData query;
+    private final VectorData query;
 
     /**
      * Creates a query builder.
@@ -40,7 +42,7 @@ public class ExactKnnQueryBuilder extends AbstractQueryBuilder<ExactKnnQueryBuil
      * @param field    the field that was used for the kNN query
      */
     public ExactKnnQueryBuilder(float[] query, String field) {
-        this(DenseVectorFieldMapper.VectorData.fromFloat(query), field);
+        this(VectorData.fromFloats(query), field);
     }
 
     /**
@@ -49,7 +51,7 @@ public class ExactKnnQueryBuilder extends AbstractQueryBuilder<ExactKnnQueryBuil
      * @param query    the query vector
      * @param field    the field that was used for the kNN query
      */
-    public ExactKnnQueryBuilder(DenseVectorFieldMapper.VectorData query, String field) {
+    public ExactKnnQueryBuilder(VectorData query, String field) {
         this.query = query;
         this.field = field;
     }
@@ -57,14 +59,9 @@ public class ExactKnnQueryBuilder extends AbstractQueryBuilder<ExactKnnQueryBuil
     public ExactKnnQueryBuilder(StreamInput in) throws IOException {
         super(in);
         if (in.getTransportVersion().onOrAfter(TransportVersions.KNN_EXPLICIT_BYTE_QUERY_VECTOR_PARSING)) {
-            boolean isFloat = in.readBoolean();
-            if (isFloat) {
-                this.query = DenseVectorFieldMapper.VectorData.fromFloat(in.readFloatArray());
-            } else {
-                this.query = DenseVectorFieldMapper.VectorData.fromByte(in.readByteArray());
-            }
+            this.query = in.readOptionalWriteable(VectorData::new);
         } else {
-            this.query = DenseVectorFieldMapper.VectorData.parseFloat(in.readFloatArray());
+            this.query = VectorData.fromFloats(in.readFloatArray());
         }
         this.field = in.readString();
     }
@@ -73,7 +70,7 @@ public class ExactKnnQueryBuilder extends AbstractQueryBuilder<ExactKnnQueryBuil
         return field;
     }
 
-    DenseVectorFieldMapper.VectorData getQuery() {
+    VectorData getQuery() {
         return query;
     }
 
@@ -85,15 +82,9 @@ public class ExactKnnQueryBuilder extends AbstractQueryBuilder<ExactKnnQueryBuil
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         if (out.getTransportVersion().onOrAfter(TransportVersions.KNN_EXPLICIT_BYTE_QUERY_VECTOR_PARSING)) {
-            boolean isFloat = query.isFloatVector();
-            out.writeBoolean(isFloat);
-            if (isFloat) {
-                out.writeFloatArray(query.asFloatVector());
-            } else {
-                out.writeByteArray(query.asByteVector());
-            }
+            out.writeOptionalWriteable(query);
         } else {
-            out.writeFloatArray(query.asFloatVector());
+            out.writeFloatArray(query.asFloatVector(false));
         }
         out.writeString(field);
     }
@@ -101,7 +92,7 @@ public class ExactKnnQueryBuilder extends AbstractQueryBuilder<ExactKnnQueryBuil
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
-        builder.field("query", query.asFloatVector());
+        query.toXContent(builder, QUERY_VECTOR_PARAMS);
         builder.field("field", field);
         boostAndQueryNameToXContent(builder);
         builder.endObject();

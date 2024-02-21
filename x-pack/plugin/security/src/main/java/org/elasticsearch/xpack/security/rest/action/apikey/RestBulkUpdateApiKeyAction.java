@@ -27,9 +27,13 @@ public final class RestBulkUpdateApiKeyAction extends ApiKeyBaseRestHandler {
 
     private final BulkUpdateApiKeyRequest.RequestTranslator requestTranslator;
 
-    public RestBulkUpdateApiKeyAction(final Settings settings, final XPackLicenseState licenseState) {
+    public RestBulkUpdateApiKeyAction(
+        final Settings settings,
+        final XPackLicenseState licenseState,
+        final BulkUpdateApiKeyRequest.RequestTranslator requestTranslator
+    ) {
         super(settings, licenseState);
-        this.requestTranslator = new BulkUpdateApiKeyRequest.RequestTranslator.Default();
+        this.requestTranslator = requestTranslator;
     }
 
     @Override

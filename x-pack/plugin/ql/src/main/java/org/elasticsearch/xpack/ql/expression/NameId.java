@@ -47,4 +47,8 @@ public class NameId {
     public String toString() {
         return Long.toString(id);
     }
+
+    public long toLong() {
+        return id;
+    }
 }

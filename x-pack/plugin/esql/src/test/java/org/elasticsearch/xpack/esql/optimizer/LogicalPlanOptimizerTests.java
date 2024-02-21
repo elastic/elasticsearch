@@ -3309,40 +3309,40 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             var add = as(mul.left(), Add.class);
             var renamed_emp_no = as(add.left(), ReferenceAttribute.class);
             var renamed_salary = as(add.right(), ReferenceAttribute.class);
-            assertThat(renamed_emp_no.toString(), startsWith("$$emp_no$13*(emp_no+sala>$0{r}"));
-            assertThat(renamed_salary.toString(), startsWith("$$salary$13*(emp_no+sala>$1{r}"));
+            assertThat(renamed_emp_no.toString(), startsWith("$$emp_no$temp_name"));
+            assertThat(renamed_salary.toString(), startsWith("$$salary$temp_name"));
 
             var secondOrderExpr = as(topN.order().get(1), Order.class);
             var neg = as(secondOrderExpr.child(), Neg.class);
             var renamed_salary2 = as(neg.field(), ReferenceAttribute.class);
             assert (renamed_salary2.semanticEquals(renamed_salary) && renamed_salary2.equals(renamed_salary));
 
-            Eval evalThatRenames = null;
+            Eval renamingEval = null;
             if (overwritingCommand.startsWith("EVAL")) {
                 // Multiple EVALs should be merged, so there's only one.
-                evalThatRenames = as(topN.child(), Eval.class);
+                renamingEval = as(topN.child(), Eval.class);
             }
             if (overwritingCommand.startsWith("DISSECT")) {
                 var dissect = as(topN.child(), Dissect.class);
-                evalThatRenames = as(dissect.child(), Eval.class);
+                renamingEval = as(dissect.child(), Eval.class);
             }
             if (overwritingCommand.startsWith("GROK")) {
                 var grok = as(topN.child(), Grok.class);
-                evalThatRenames = as(grok.child(), Eval.class);
+                renamingEval = as(grok.child(), Eval.class);
             }
             if (overwritingCommand.startsWith("ENRICH")) {
                 var enrich = as(topN.child(), Enrich.class);
-                evalThatRenames = as(enrich.child(), Eval.class);
+                renamingEval = as(enrich.child(), Eval.class);
             }
 
             AttributeSet attributesCreatedInEval = new AttributeSet();
-            for (Alias field : evalThatRenames.fields()) {
+            for (Alias field : renamingEval.fields()) {
                 attributesCreatedInEval.add(field.toAttribute());
             }
             assert (attributesCreatedInEval.contains(renamed_emp_no));
             assert (attributesCreatedInEval.contains(renamed_salary));
 
-            assertThat(evalThatRenames.child(), instanceOf(EsRelation.class));
+            assertThat(renamingEval.child(), instanceOf(EsRelation.class));
         }
     }
 

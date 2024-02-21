@@ -261,7 +261,11 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         static String temporaryName(Expression inner, Expression outer, int suffix) {
             String in = toString(inner);
             String out = toString(outer);
-            return "$$" + in + "$" + out + "$" + suffix;
+            return rawTemporaryName(in, out, suffix);
+        }
+
+        static String rawTemporaryName(String inner, String outer, int suffix) {
+            return "$$" + inner + "$" + outer + "$" + suffix;
         }
 
         static int TO_STRING_LIMIT = 16;
@@ -854,20 +858,16 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
     ) {
         AttributeMap<Alias> aliasesForReplacedAttributes = new AttributeMap<>();
         List<Expression> rewrittenExpressions = new ArrayList<>();
-        Holder<Integer> shadowedAttrs = new Holder<>(0);
 
         for (Expression expr : expressions) {
             rewrittenExpressions.add(expr.transformUp(Attribute.class, attr -> {
                 if (attributeNamesToRename.contains(attr.name())) {
                     Alias existingAlias = aliasesForReplacedAttributes.get(attr);
                     if (existingAlias == null) {
-                        Alias tempNameForShadowedAttr = new Alias(
-                            Source.EMPTY,
-                            SubstituteSurrogates.temporaryName(attr, expr, shadowedAttrs.get()),
-                            attr
-                        );
+                        String tempName = SubstituteSurrogates.rawTemporaryName(attr.name(), "temp_name", (int) attr.id().toLong());
+
+                        Alias tempNameForShadowedAttr = new Alias(Source.EMPTY, tempName, attr);
                         aliasesForReplacedAttributes.put(attr, tempNameForShadowedAttr);
-                        shadowedAttrs.set(shadowedAttrs.get() + 1);
 
                         return tempNameForShadowedAttr.toAttribute();
                     } else {

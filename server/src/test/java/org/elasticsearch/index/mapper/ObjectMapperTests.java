@@ -580,7 +580,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
                 new KeywordFieldMapper.Builder("keyword2", IndexVersion.current())
             )
         ).add(new KeywordFieldMapper.Builder("keyword1", IndexVersion.current())).build(rootContext);
-        List<String> fields = objectMapper.getFlattenedFieldMappers(rootContext).stream().map(FieldMapper::name).toList();
+        List<String> fields = objectMapper.asFlattenedFieldMappers(rootContext).stream().map(FieldMapper::name).toList();
         assertThat(fields, containsInAnyOrder("parent.keyword1", "parent.child.keyword2"));
     }
 
@@ -590,7 +590,10 @@ public class ObjectMapperTests extends MapperServiceTestCase {
             new ObjectMapper.Builder("child", Explicit.IMPLICIT_TRUE).dynamic(Dynamic.FALSE)
         ).build(rootContext);
 
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> objectMapper.getFlattenedFieldMappers(rootContext));
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> objectMapper.asFlattenedFieldMappers(rootContext)
+        );
         assertEquals(
             "cannot flatten object [parent.child] because the value of [dynamic] (FALSE) is not compatible with the value from its "
                 + "parent context (TRUE)",
@@ -602,7 +605,10 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         MapperBuilderContext rootContext = MapperBuilderContext.root(false, false);
         ObjectMapper objectMapper = new ObjectMapper.Builder("parent", Explicit.IMPLICIT_TRUE).enabled(false).build(rootContext);
 
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> objectMapper.getFlattenedFieldMappers(rootContext));
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> objectMapper.asFlattenedFieldMappers(rootContext)
+        );
         assertEquals("cannot flatten object [parent] because the value of [enabled] is [false]", exception.getMessage());
     }
 
@@ -610,7 +616,10 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         MapperBuilderContext rootContext = MapperBuilderContext.root(false, false);
         ObjectMapper objectMapper = new ObjectMapper.Builder("parent", Explicit.EXPLICIT_TRUE).build(rootContext);
 
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> objectMapper.getFlattenedFieldMappers(rootContext));
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> objectMapper.asFlattenedFieldMappers(rootContext)
+        );
         assertEquals("cannot flatten object [parent] because the value of [subobjects] is [true]", exception.getMessage());
     }
 }

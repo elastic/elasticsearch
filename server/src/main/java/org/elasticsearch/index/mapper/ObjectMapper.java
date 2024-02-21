@@ -166,7 +166,7 @@ public class ObjectMapper extends Mapper {
                     mapper = existing.merge(mapper, MapperMergeContext.from(mapperBuilderContext, Long.MAX_VALUE));
                 }
                 if (subobjects.value() == false && mapper instanceof ObjectMapper objectMapper) {
-                    objectMapper.getFlattenedFieldMappers(mapperBuilderContext).forEach(m -> mappers.put(m.simpleName(), m));
+                    objectMapper.asFlattenedFieldMappers(mapperBuilderContext).forEach(m -> mappers.put(m.simpleName(), m));
                 } else {
                     mappers.put(mapper.simpleName(), mapper);
                 }
@@ -556,7 +556,8 @@ public class ObjectMapper extends Mapper {
             Map<String, Mapper> mergedMappers = new HashMap<>();
             for (Mapper existingMapper : existing.mappers.values()) {
                 if (subobjects == false && existingMapper instanceof ObjectMapper objectMapper) {
-                    objectMapper.getFlattenedFieldMappers(objectMergeContext.getMapperBuilderContext()).forEach(m -> mergedMappers.put(m.simpleName(), m));
+                    objectMapper.asFlattenedFieldMappers(objectMergeContext.getMapperBuilderContext())
+                        .forEach(m -> mergedMappers.put(m.simpleName(), m));
                 } else {
                     putMergedMapper(mergedMappers, existingMapper);
                 }
@@ -565,7 +566,7 @@ public class ObjectMapper extends Mapper {
                 Mapper mergeIntoMapper = mergedMappers.get(mergeWithMapper.simpleName());
                 if (mergeIntoMapper == null) {
                     if (subobjects == false && mergeWithMapper instanceof ObjectMapper objectMapper) {
-                        objectMapper.getFlattenedFieldMappers(objectMergeContext.getMapperBuilderContext())
+                        objectMapper.asFlattenedFieldMappers(objectMergeContext.getMapperBuilderContext())
                             .stream()
                             .filter(m -> objectMergeContext.decrementFieldBudgetIfPossible(m.getTotalFieldsCount()))
                             .forEach(m -> putMergedMapper(mergedMappers, m));
@@ -621,14 +622,14 @@ public class ObjectMapper extends Mapper {
      *
      * @throws IllegalArgumentException if the mapper cannot be flattened
      */
-    List<FieldMapper> getFlattenedFieldMappers(MapperBuilderContext context) {
+    List<FieldMapper> asFlattenedFieldMappers(MapperBuilderContext context) {
         List<FieldMapper> flattenedMappers = new ArrayList<>();
         ContentPath path = new ContentPath();
-        getFlattenedFieldMappers(context, flattenedMappers, path);
+        asFlattenedFieldMappers(context, flattenedMappers, path);
         return flattenedMappers;
     }
 
-    private void getFlattenedFieldMappers(MapperBuilderContext context, List<FieldMapper> flattenedMappers, ContentPath path) {
+    private void asFlattenedFieldMappers(MapperBuilderContext context, List<FieldMapper> flattenedMappers, ContentPath path) {
         ensureFlattenable(context, path);
         path.add(simpleName());
         for (Mapper mapper : mappers.values()) {
@@ -637,7 +638,7 @@ public class ObjectMapper extends Mapper {
                 fieldBuilder.setName(path.pathAsText(mapper.simpleName()));
                 flattenedMappers.add(fieldBuilder.build(context));
             } else if (mapper instanceof ObjectMapper objectMapper) {
-                objectMapper.getFlattenedFieldMappers(context, flattenedMappers, path);
+                objectMapper.asFlattenedFieldMappers(context, flattenedMappers, path);
             }
         }
         path.remove();

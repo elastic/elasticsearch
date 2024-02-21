@@ -60,6 +60,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static co.elastic.elasticsearch.serverless.constants.ServerlessTransportVersions.COMPOUND_COMMIT_WITH_SIZE;
@@ -172,6 +173,148 @@ public record StatelessCompoundCommit(
             .collect(Collectors.toUnmodifiableSet());
     }
 
+    /**
+     * Writes the StatelessCompoundCommit header to the given StreamOutput and returns the number of bytes written
+     * @return the header size in bytes
+     */
+    static long writeHeader(
+        PositionTrackingOutputStreamStreamOutput positionTracking,
+        ShardId shardId,
+        long generation,
+        long primaryTerm,
+        String nodeEphemeralId,
+        long translogRecoveryStartFile,
+        Map<String, BlobLocation> referencedBlobFiles,
+        List<InternalFile> internalFiles
+    ) throws IOException {
+        return writeHeader(
+            positionTracking,
+            shardId,
+            generation,
+            primaryTerm,
+            nodeEphemeralId,
+            translogRecoveryStartFile,
+            referencedBlobFiles,
+            internalFiles,
+            CURRENT_VERSION
+        );
+    }
+
+    static void writeInternalFilesToStore(OutputStream outputStream, List<InternalFile> internalFiles, Directory directory)
+        throws IOException {
+        for (InternalFile internalFile : internalFiles) {
+            try (ChecksumIndexInput input = directory.openChecksumInput(internalFile.name(), IOContext.READONCE)) {
+                Streams.copy(new InputStreamIndexInput(input, internalFile.length()), outputStream, false);
+            }
+        }
+    }
+
+    private static long writeHeader(
+        PositionTrackingOutputStreamStreamOutput positionTracking,
+        ShardId shardId,
+        long generation,
+        long primaryTerm,
+        String nodeEphemeralId,
+        long translogRecoveryStartFile,
+        Map<String, BlobLocation> referencedBlobFiles,
+        List<InternalFile> internalFiles,
+        int version
+    ) throws IOException {
+        if (version < VERSION_WITH_XCONTENT_ENCODING) {
+            BufferedChecksumStreamOutput out = new BufferedChecksumStreamOutput(positionTracking);
+            CodecUtil.writeHeader(new OutputStreamDataOutput(out), SHARD_COMMIT_CODEC, version);
+            TransportVersion.writeVersion(TransportVersion.current(), out);
+            out.writeWriteable(shardId);
+            out.writeVLong(generation);
+            out.writeVLong(primaryTerm);
+            out.writeString(nodeEphemeralId);
+            out.writeMap(
+                referencedBlobFiles,
+                StreamOutput::writeString,
+                (so, v) -> v.writeToStore(so, version >= VERSION_WITH_BLOB_LENGTH)
+            );
+            out.writeCollection(internalFiles);
+            out.flush();
+            // Add 8 bytes for the header size field and 4 bytes for the checksum
+            var headerSize = positionTracking.position() + 8 + 4;
+            out.writeLong(headerSize);
+            out.writeInt((int) out.getChecksum());
+            out.flush();
+            return headerSize;
+        } else {
+            return writeXContentHeader(
+                shardId,
+                generation,
+                primaryTerm,
+                nodeEphemeralId,
+                translogRecoveryStartFile,
+                referencedBlobFiles,
+                internalFiles,
+                version,
+                positionTracking
+            );
+        }
+    }
+
+    private static long writeXContentHeader(
+        ShardId shardId,
+        long generation,
+        long primaryTerm,
+        String nodeEphemeralId,
+        long translogRecoveryStartFile,
+        Map<String, BlobLocation> referencedBlobFiles,
+        List<InternalFile> internalFiles,
+        int version,
+        PositionTrackingOutputStreamStreamOutput positionTracking
+    ) throws IOException {
+        BufferedChecksumStreamOutput out = new BufferedChecksumStreamOutput(positionTracking);
+        CodecUtil.writeHeader(new OutputStreamDataOutput(out), SHARD_COMMIT_CODEC, version);
+        long codecSize = positionTracking.position();
+
+        var bytesStreamOutput = new BytesStreamOutput();
+        try (var b = new XContentBuilder(XContentType.SMILE.xContent(), bytesStreamOutput)) {
+            b.startObject();
+            {
+                shardIdXContent(shardId, b);
+                b.field("generation", generation);
+                b.field("primary_term", primaryTerm);
+                b.field("node_ephemeral_id", nodeEphemeralId);
+                b.field(IndexEngine.TRANSLOG_RECOVERY_START_FILE, translogRecoveryStartFile);
+                b.startObject("commit_files");
+                {
+                    for (Map.Entry<String, BlobLocation> e : referencedBlobFiles.entrySet()) {
+                        b.field(e.getKey());
+                        e.getValue().toXContent(b, ToXContent.EMPTY_PARAMS);
+                    }
+                }
+                b.endObject();
+                b.startArray("internal_files");
+                {
+                    for (InternalFile f : internalFiles) {
+                        f.toXContent(b, ToXContent.EMPTY_PARAMS);
+                    }
+                }
+                b.endArray();
+            }
+            b.endObject();
+        }
+        // Write the end marker manually, can't customize XContent to use SmileGenerator.Feature#WRITE_END_MARKER
+        bytesStreamOutput.write(XContentType.SMILE.xContent().streamSeparator());
+        bytesStreamOutput.flush();
+
+        BytesReference xContentHeader = bytesStreamOutput.bytes();
+        out.writeInt(xContentHeader.length());
+        out.writeInt((int) out.getChecksum());
+        xContentHeader.writeTo(out);
+        out.writeInt((int) out.getChecksum());
+        out.flush();
+
+        var headerSize = positionTracking.position();
+        assert headerSize >= 0;
+        assert headerSize == codecSize + 4 + 4 + xContentHeader.length() + 4;
+        return headerSize;
+    }
+
     public static class Writer {
 
         private final ShardId shardId;
@@ -212,123 +355,25 @@ public record StatelessCompoundCommit(
             return internalFiles.stream().map(InternalFile::name).collect(Collectors.toList());
         }
 
-        public long getInternalFilesLength() {
-            return internalFiles.stream().mapToLong(InternalFile::length).sum();
-        }
-
-        private record InternalFile(String name, long length) implements Writeable, ToXContentObject {
-
-            private static final ConstructingObjectParser<InternalFile, Void> PARSER = new ConstructingObjectParser<>(
-                "internal_file",
-                true,
-                args -> new InternalFile((String) args[0], (long) args[1])
+        public void writeHeaderToStore(PositionTrackingOutputStreamStreamOutput output, int version) throws IOException {
+            headerSize = writeHeader(
+                output,
+                shardId,
+                generation,
+                primaryTerm,
+                nodeEphemeralId,
+                translogRecoveryStartFile,
+                referencedBlobFiles,
+                internalFiles,
+                version
             );
-            static {
-                PARSER.declareString(constructorArg(), new ParseField("name"));
-                PARSER.declareLong(constructorArg(), new ParseField("length"));
-            }
-
-            private InternalFile(StreamInput streamInput) throws IOException {
-                this(streamInput.readString(), streamInput.readLong());
-            }
-
-            @Override
-            public void writeTo(StreamOutput out) throws IOException {
-                out.writeString(name);
-                out.writeLong(length);
-            }
-
-            @Override
-            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                return builder.startObject().field("name", name).field("length", length).endObject();
-            }
         }
 
         public long writeToStore(OutputStream output, Directory directory) throws IOException {
             var positionTracking = new PositionTrackingOutputStreamStreamOutput(output);
-            writeHeader(positionTracking, CURRENT_VERSION);
-
-            for (InternalFile internalFile : internalFiles) {
-                try (ChecksumIndexInput input = directory.openChecksumInput(internalFile.name(), IOContext.READONCE)) {
-                    Streams.copy(new InputStreamIndexInput(input, internalFile.length()), positionTracking, false);
-                }
-            }
+            writeHeaderToStore(positionTracking, CURRENT_VERSION);
+            writeInternalFilesToStore(positionTracking, internalFiles, directory);
             return positionTracking.position();
-        }
-
-        void writeHeader(PositionTrackingOutputStreamStreamOutput positionTracking, int version) throws IOException {
-            if (version < VERSION_WITH_XCONTENT_ENCODING) {
-                BufferedChecksumStreamOutput out = new BufferedChecksumStreamOutput(positionTracking);
-                CodecUtil.writeHeader(new OutputStreamDataOutput(out), SHARD_COMMIT_CODEC, version);
-                TransportVersion.writeVersion(TransportVersion.current(), out);
-                out.writeWriteable(shardId);
-                out.writeVLong(generation);
-                out.writeVLong(primaryTerm);
-                out.writeString(nodeEphemeralId);
-                out.writeMap(
-                    referencedBlobFiles,
-                    StreamOutput::writeString,
-                    (so, v) -> v.writeToStore(so, version >= VERSION_WITH_BLOB_LENGTH)
-                );
-                out.writeCollection(internalFiles);
-                out.flush();
-                // Add 8 bytes for the header size field and 4 bytes for the checksum
-                headerSize = positionTracking.position() + 8 + 4;
-                out.writeLong(headerSize);
-                out.writeInt((int) out.getChecksum());
-                out.flush();
-            } else {
-                writeXContentHeader(positionTracking, version);
-            }
-        }
-
-        private void writeXContentHeader(PositionTrackingOutputStreamStreamOutput positionTracking, int version) throws IOException {
-            assert positionTracking.position() == 0;
-            BufferedChecksumStreamOutput out = new BufferedChecksumStreamOutput(positionTracking);
-            CodecUtil.writeHeader(new OutputStreamDataOutput(out), SHARD_COMMIT_CODEC, version);
-            long codecSize = positionTracking.position();
-
-            var bytesStreamOutput = new BytesStreamOutput();
-            try (var b = new XContentBuilder(XContentType.SMILE.xContent(), bytesStreamOutput)) {
-                b.startObject();
-                {
-                    shardIdXContent(shardId, b);
-                    b.field("generation", generation);
-                    b.field("primary_term", primaryTerm);
-                    b.field("node_ephemeral_id", nodeEphemeralId);
-                    b.field(IndexEngine.TRANSLOG_RECOVERY_START_FILE, translogRecoveryStartFile);
-                    b.startObject("commit_files");
-                    {
-                        for (Map.Entry<String, BlobLocation> e : referencedBlobFiles.entrySet()) {
-                            b.field(e.getKey());
-                            e.getValue().toXContent(b, ToXContent.EMPTY_PARAMS);
-                        }
-                    }
-                    b.endObject();
-                    b.startArray("internal_files");
-                    {
-                        for (InternalFile f : internalFiles) {
-                            f.toXContent(b, ToXContent.EMPTY_PARAMS);
-                        }
-                    }
-                    b.endArray();
-                }
-                b.endObject();
-            }
-            // Write the end marker manually, can't customize XContent to use SmileGenerator.Feature#WRITE_END_MARKER
-            bytesStreamOutput.write(XContentType.SMILE.xContent().streamSeparator());
-            bytesStreamOutput.flush();
-
-            BytesReference xContentHeader = bytesStreamOutput.bytes();
-            out.writeInt(xContentHeader.length());
-            out.writeInt((int) out.getChecksum());
-            xContentHeader.writeTo(out);
-            out.writeInt((int) out.getChecksum());
-            out.flush();
-
-            headerSize = positionTracking.position();
-            assert headerSize >= 0;
-            assert headerSize == codecSize + 4 + 4 + xContentHeader.length() + 4;
         }
 
         public StatelessCompoundCommit finish(String commitFileName) {
@@ -358,7 +403,21 @@ public record StatelessCompoundCommit(
     static final int VERSION_WITH_XCONTENT_ENCODING = 2;
     static final int CURRENT_VERSION = VERSION_WITH_XCONTENT_ENCODING;
 
-    public static StatelessCompoundCommit readFromStore(StreamInput in, long fileLength) throws IOException {
+    public static StatelessCompoundCommit readFromStore(StreamInput in) throws IOException {
+        return readFromStoreAtOffset(in, 0, StatelessCompoundCommit::blobNameFromGeneration);
+    }
+
+    /**
+     * Reads the compound commit header from the data store at the specified offset within the input stream.
+     * It's expected that the input stream is already positioned at the specified offset.
+     * The {@param offset} parameter is utilized to construct the {@link StatelessCompoundCommit} instance,
+     * referring to the compound commit at the given offset within the {@link BatchedCompoundCommit}.
+     * @param in the input stream to read from
+     * @param offset the offset within the blob where this compound commit header starts
+     * @param blobNameSupplier a function that provides the blob name where this compound commit is stored
+     */
+    public static StatelessCompoundCommit readFromStoreAtOffset(StreamInput in, long offset, Function<Long, String> blobNameSupplier)
+        throws IOException {
         try (BufferedChecksumStreamInput input = new BufferedChecksumStreamInput(in, SHARD_COMMIT_CODEC)) {
             int version = CodecUtil.checkHeader(
                 new InputStreamDataInput(input),
@@ -376,7 +435,7 @@ public record StatelessCompoundCommit(
                     StreamInput::readString,
                     (is) -> BlobLocation.readFromStore(is, version == VERSION_WITH_BLOB_LENGTH)
                 );
-                List<Writer.InternalFile> internalFiles = input.readCollectionAsList(Writer.InternalFile::new);
+                List<InternalFile> internalFiles = input.readCollectionAsList(InternalFile::new);
                 long headerSize = input.readLong();
                 verifyChecksum(input);
                 return statelessCompoundCommit(
@@ -388,7 +447,8 @@ public record StatelessCompoundCommit(
                     referencedBlobLocations,
                     internalFiles,
                     headerSize,
-                    headerSize + internalFiles.stream().mapToLong(Writer.InternalFile::length).sum()
+                    headerSize + internalFiles.stream().mapToLong(InternalFile::length).sum(),
+                    blobNameSupplier
                 );
             } else {
                 assert version == VERSION_WITH_XCONTENT_ENCODING;
@@ -402,7 +462,7 @@ public record StatelessCompoundCommit(
 
                 // codec header + serialized header size + checksum + header content + checksum
                 var headerSize = CodecUtil.headerLength(SHARD_COMMIT_CODEC) + 4 + 4 + xContentLength + 4;
-                return readXContentHeader(new BytesArray(bytes).streamInput(), headerSize);
+                return readXContentHeader(new BytesArray(bytes).streamInput(), headerSize, offset, blobNameSupplier);
             }
         } catch (Exception e) {
             throw new IOException("Failed to read shard commit", e);
@@ -423,7 +483,12 @@ public record StatelessCompoundCommit(
         }
     }
 
-    private static StatelessCompoundCommit readXContentHeader(StreamInput is, long headerSize) throws IOException {
+    private static StatelessCompoundCommit readXContentHeader(
+        StreamInput is,
+        long headerSize,
+        long offset,
+        Function<Long, String> blobNameSupplier
+    ) throws IOException {
         record XContentStatelessCompoundCommit(
             ShardId shardId,
             long generation,
@@ -431,7 +496,7 @@ public record StatelessCompoundCommit(
             long translogRecoveryStartFile,
             String nodeEphemeralId,
             Map<String, BlobLocation> referencedBlobLocations,
-            List<Writer.InternalFile> internalFiles
+            List<InternalFile> internalFiles
         ) {
             @SuppressWarnings("unchecked")
             private static final ConstructingObjectParser<XContentStatelessCompoundCommit, Void> PARSER = new ConstructingObjectParser<>(
@@ -444,7 +509,7 @@ public record StatelessCompoundCommit(
                     args[3] == null ? 0 : (long) args[3],
                     (String) args[4],
                     (Map<String, BlobLocation>) args[5],
-                    (List<Writer.InternalFile>) args[6]
+                    (List<InternalFile>) args[6]
                 )
             );
             static {
@@ -458,14 +523,14 @@ public record StatelessCompoundCommit(
                     (p, c) -> p.map(HashMap::new, BlobLocation::fromXContent),
                     new ParseField("commit_files")
                 );
-                PARSER.declareObjectArray(constructorArg(), Writer.InternalFile.PARSER, new ParseField("internal_files"));
+                PARSER.declareObjectArray(constructorArg(), InternalFile.PARSER, new ParseField("internal_files"));
             }
         }
 
         try (XContentParser parser = XContentType.SMILE.xContent().createParser(XContentParserConfiguration.EMPTY, is)) {
             XContentStatelessCompoundCommit c = XContentStatelessCompoundCommit.PARSER.parse(parser, null);
 
-            long internalFilesLength = c.internalFiles.stream().mapToLong(Writer.InternalFile::length).sum();
+            long internalFilesLength = c.internalFiles.stream().mapToLong(InternalFile::length).sum();
             assert headerSize > 0;
             return statelessCompoundCommit(
                 c.shardId,
@@ -475,8 +540,9 @@ public record StatelessCompoundCommit(
                 c.nodeEphemeralId,
                 c.referencedBlobLocations,
                 c.internalFiles,
-                headerSize,
-                headerSize + internalFilesLength
+                offset + headerSize,
+                headerSize + internalFilesLength,
+                blobNameSupplier
             );
         }
     }
@@ -488,11 +554,12 @@ public record StatelessCompoundCommit(
         long translogRecoveryStartFile,
         String nodeEphemeralId,
         Map<String, BlobLocation> referencedBlobLocations,
-        List<Writer.InternalFile> internalFiles,
+        List<InternalFile> internalFiles,
         long startingOffset,
-        long totalSizeInBytes
+        long sizeInBytes,
+        Function<Long, String> blobNameSupplier
     ) {
-        String commitFileName = blobNameFromGeneration(generation);
+        String commitFileName = blobNameSupplier.apply(generation);
         Map<String, BlobLocation> commitFiles = combineCommitFiles(
             commitFileName,
             primaryTerm,
@@ -506,30 +573,27 @@ public record StatelessCompoundCommit(
             translogRecoveryStartFile,
             nodeEphemeralId,
             Collections.unmodifiableMap(commitFiles),
-            totalSizeInBytes
+            sizeInBytes
         );
     }
 
     // This method combines the pre-existing blob locations with the files internally uploaded in this commit
     // to one map of commit file locations.
     private static Map<String, BlobLocation> combineCommitFiles(
-        String commitFileName,
+        String blobName,
         long primaryTerm,
-        List<Writer.InternalFile> internalFiles,
+        List<InternalFile> internalFiles,
         long startingOffset,
         Map<String, BlobLocation> referencedBlobFiles
     ) {
-        long blobLength = internalFiles.stream().mapToLong(Writer.InternalFile::length).sum() + startingOffset;
+        long blobLength = internalFiles.stream().mapToLong(InternalFile::length).sum() + startingOffset;
 
         var commitFiles = Maps.<String, BlobLocation>newHashMapWithExpectedSize(referencedBlobFiles.size() + internalFiles.size());
         commitFiles.putAll(referencedBlobFiles);
 
         long currentOffset = startingOffset;
-        for (Writer.InternalFile internalFile : internalFiles) {
-            commitFiles.put(
-                internalFile.name(),
-                new BlobLocation(primaryTerm, commitFileName, blobLength, currentOffset, internalFile.length())
-            );
+        for (InternalFile internalFile : internalFiles) {
+            commitFiles.put(internalFile.name(), new BlobLocation(primaryTerm, blobName, blobLength, currentOffset, internalFile.length()));
             currentOffset += internalFile.length();
         }
 
@@ -562,5 +626,42 @@ public record StatelessCompoundCommit(
     public static long parseGenerationFromBlobName(String name) {
         assert startsWithBlobPrefix(name) : name;
         return Long.parseLong(name.substring(name.lastIndexOf('_') + 1));
+    }
+
+    record InternalFile(String name, long length) implements Writeable, ToXContentObject, Comparable<InternalFile> {
+
+        private static final ConstructingObjectParser<InternalFile, Void> PARSER = new ConstructingObjectParser<>(
+            "internal_file",
+            true,
+            args -> new InternalFile((String) args[0], (long) args[1])
+        );
+        static {
+            PARSER.declareString(constructorArg(), new ParseField("name"));
+            PARSER.declareLong(constructorArg(), new ParseField("length"));
+        }
+
+        private InternalFile(StreamInput streamInput) throws IOException {
+            this(streamInput.readString(), streamInput.readLong());
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(name);
+            out.writeLong(length);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return builder.startObject().field("name", name).field("length", length).endObject();
+        }
+
+        @Override
+        public int compareTo(InternalFile o) {
+            int nameCompare = name.compareTo(o.name);
+            if (nameCompare != 0) {
+                return nameCompare;
+            }
+            return Long.compare(length, o.length);
+        }
     }
 }

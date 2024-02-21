@@ -478,8 +478,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
         }
         String commitFileName = blobNameFromGeneration(maxGeneration.getAsLong());
         try (StreamInput streamInput = new InputStreamStreamInput(blobContainer.readBlob(OperationPurpose.INDICES, commitFileName))) {
-            long fileLength = allBlobs.get(commitFileName).length();
-            return StatelessCompoundCommit.readFromStore(streamInput, fileLength);
+            return StatelessCompoundCommit.readFromStore(streamInput);
         }
     }
 
@@ -561,8 +560,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
     public static StatelessCompoundCommit readStatelessCompoundCommit(BlobContainer blobContainer, long generation) throws IOException {
         String commitFileName = blobNameFromGeneration(generation);
         try (StreamInput streamInput = new InputStreamStreamInput(blobContainer.readBlob(OperationPurpose.INDICES, commitFileName))) {
-            long fileLength = blobContainer.listBlobs(OperationPurpose.INDICES).get(commitFileName).length();
-            return StatelessCompoundCommit.readFromStore(streamInput, fileLength);
+            return StatelessCompoundCommit.readFromStore(streamInput);
         }
     }
 

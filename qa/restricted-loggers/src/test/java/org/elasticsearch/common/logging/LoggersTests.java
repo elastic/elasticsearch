@@ -11,10 +11,12 @@ package org.elasticsearch.common.logging;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.common.logging.Loggers.checkRestrictedLoggers;
 import static org.hamcrest.Matchers.contains;
@@ -23,6 +25,19 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
 public class LoggersTests extends ESTestCase {
+
+    public void testClusterUpdateSettingsRequestValidationForLoggers() {
+        assertThat(Loggers.RESTRICTED_LOGGERS, hasSize(greaterThan(0)));
+
+        ClusterUpdateSettingsRequest request = new ClusterUpdateSettingsRequest();
+        for (String logger : Loggers.RESTRICTED_LOGGERS) {
+            var validation = request.persistentSettings(Map.of("logger." + logger, org.elasticsearch.logging.Level.DEBUG)).validate();
+            assertNotNull(validation);
+            assertThat(validation.validationErrors(), contains("Level [DEBUG] is not permitted for logger [" + logger + "]"));
+            // INFO is permitted
+            assertNull(request.persistentSettings(Map.of("logger." + logger, org.elasticsearch.logging.Level.INFO)).validate());
+        }
+    }
 
     public void testCheckRestrictedLoggers() {
         assertThat(Loggers.RESTRICTED_LOGGERS, hasSize(greaterThan(0)));

@@ -43,7 +43,7 @@ public class Loggers {
      * Restricted loggers can't be set to a level less specific than INFO.
      * For some loggers this might be permitted if {@link NetworkTraceFlag#TRACE_ENABLED} is enabled.
      */
-    public static final List<String> RESTRICTED_LOGGERS = NetworkTraceFlag.TRACE_ENABLED
+    static final List<String> RESTRICTED_LOGGERS = NetworkTraceFlag.TRACE_ENABLED
         ? Collections.emptyList()
         : List.of("org.apache.http", "com.amazonaws.request");
 

@@ -68,10 +68,6 @@ public final class MapperMergeContext {
         return newFieldsBudget.decrementIfPossible(fieldSize);
     }
 
-    public ObjectMapper.Dynamic getDynamic() {
-        return mapperBuilderContext.getDynamic();
-    }
-
     /**
      * Keeps track of how many new fields can be added during mapper merge.
      * The field budget is shared across instances of {@link MapperMergeContext} that are created via

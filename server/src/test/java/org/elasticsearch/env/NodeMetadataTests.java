@@ -136,7 +136,7 @@ public class NodeMetadataTests extends ESTestCase {
     public void testDoesNotUpgradeAncientVersion() {
         final IllegalStateException illegalStateException = expectThrows(
             IllegalStateException.class,
-            () -> new NodeMetadata(randomAlphaOfLength(10), BuildVersion.fromVersion(tooOldVersion()), IndexVersion.current())
+            () -> new NodeMetadata(randomAlphaOfLength(10), tooOldBuildVersion(), IndexVersion.current())
                 .upgradeToCurrentVersion()
         );
         assertThat(
@@ -178,5 +178,9 @@ public class NodeMetadataTests extends ESTestCase {
 
     public static Version tooOldVersion() {
         return Version.fromId(between(1, Version.CURRENT.minimumCompatibilityVersion().id - 1));
+    }
+
+    public static BuildVersion tooOldBuildVersion() {
+        return new DefaultBuildVersion(between(1, Version.CURRENT.minimumCompatibilityVersion().id - 1));
     }
 }

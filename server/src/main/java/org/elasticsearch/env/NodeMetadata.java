@@ -155,6 +155,7 @@ public final class NodeMetadata {
             this.nodeId = nodeId;
         }
 
+        // TODO[wrb]: I'm not satisfied with this. Can we use BuildExtension#readBuildVersion instead?
         public void setNodeVersionId(int nodeVersionId) {
             this.nodeVersion = new DefaultBuildVersion(nodeVersionId);
         }
@@ -163,6 +164,7 @@ public final class NodeMetadata {
             this.oldestIndexVersion = IndexVersion.fromId(oldestIndexVersion);
         }
 
+        // TODO[wrb]: Move "empty" to a static method on BuildVersion
         private BuildVersion getVersionOrFallbackToEmpty() {
             return Objects.requireNonNullElse(this.nodeVersion, DefaultBuildVersion.EMPTY);
         }
@@ -181,12 +183,7 @@ public final class NodeMetadata {
                 oldestIndexVersion = this.oldestIndexVersion;
             }
 
-            return new NodeMetadata(
-                nodeId,
-                nodeVersion,
-                previousNodeVersion,
-                oldestIndexVersion
-            );
+            return new NodeMetadata(nodeId, nodeVersion, previousNodeVersion, oldestIndexVersion);
         }
     }
 

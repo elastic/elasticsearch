@@ -378,6 +378,7 @@ public class PersistedClusterStateService {
         if (nodeId == null) {
             return null;
         }
+        // TODO: remove use of Version here (ES-7343)
         return new NodeMetadata(nodeId, BuildVersion.fromVersion(version), oldestIndexVersion);
     }
 

@@ -34,6 +34,7 @@ public class SecurityImplicitBehaviorBootstrapCheck implements BootstrapCheck {
         }
         if (licenseService instanceof ClusterStateLicenseService clusterStateLicenseService) {
             final License license = clusterStateLicenseService.getLicense(context.metadata());
+            // TODO[wrb]: any way to get rid of Version here?
             final Version lastKnownVersion = nodeMetadata.previousNodeVersion().toVersion();
             // pre v7.2.0 nodes have Version.EMPTY and its id is 0, so Version#before handles this successfully
             if (lastKnownVersion.before(Version.V_8_0_0)

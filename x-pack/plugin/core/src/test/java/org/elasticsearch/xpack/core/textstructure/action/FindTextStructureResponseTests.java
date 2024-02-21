@@ -19,10 +19,10 @@ public class FindTextStructureResponseTests extends AbstractWireSerializingTestC
 
     @Override
     protected FindStructureResponse mutateInstance(FindStructureResponse response) {
-        FindStructureResponse newResponse = null;
-        while (response.equals(newResponse) == false) {
+        FindStructureResponse newResponse;
+        do {
             newResponse = createTestInstance();
-        }
+        } while (response.equals(newResponse));
         return newResponse;
     }
 

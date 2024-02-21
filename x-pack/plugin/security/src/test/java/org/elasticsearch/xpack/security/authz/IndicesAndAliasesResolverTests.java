@@ -404,7 +404,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         // aliases with names starting with '-' or '+' can be created up to version 5.x and can be around in 6.x
         ShardSearchRequest request = mock(ShardSearchRequest.class);
         when(request.indices()).thenReturn(new String[] { "-index10", "-index20", "+index30" });
-        List<String> indices = IndicesAndAliasesResolver.resolveIndicesAndAliasesWithoutWildcards(
+        List<String> indices = defaultIndicesResolver.resolveIndicesAndAliasesWithoutWildcards(
             TransportSearchAction.TYPE.name() + "[s]",
             request
         ).getLocal();
@@ -418,7 +418,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         when(request.indices()).thenReturn(new String[] { "index*" });
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            () -> IndicesAndAliasesResolver.resolveIndicesAndAliasesWithoutWildcards(TransportSearchAction.TYPE.name() + "[s]", request)
+            () -> defaultIndicesResolver.resolveIndicesAndAliasesWithoutWildcards(TransportSearchAction.TYPE.name() + "[s]", request)
         );
         assertThat(
             exception,
@@ -443,7 +443,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         }
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            () -> IndicesAndAliasesResolver.resolveIndicesAndAliasesWithoutWildcards(TransportSearchAction.TYPE.name() + "[s]", request)
+            () -> defaultIndicesResolver.resolveIndicesAndAliasesWithoutWildcards(TransportSearchAction.TYPE.name() + "[s]", request)
         );
 
         assertThat(

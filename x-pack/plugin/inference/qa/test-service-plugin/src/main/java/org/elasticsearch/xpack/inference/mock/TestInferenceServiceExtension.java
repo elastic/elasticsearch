@@ -27,6 +27,7 @@ import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.inference.results.ChunkedSparseEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
@@ -151,7 +152,7 @@ public class TestInferenceServiceExtension implements InferenceServiceExtension 
             Map<String, Object> taskSettings,
             InputType inputType,
             ChunkingOptions chunkingOptions,
-            ActionListener<ChunkedInferenceServiceResults> listener
+            ActionListener<List<ChunkedInferenceServiceResults>> listener
         ) {
             switch (model.getConfigurations().getTaskType()) {
                 case ANY, SPARSE_EMBEDDING -> listener.onResponse(makeChunkedResults(input));
@@ -176,7 +177,7 @@ public class TestInferenceServiceExtension implements InferenceServiceExtension 
             return new SparseEmbeddingResults(embeddings);
         }
 
-        private ChunkedSparseEmbeddingResults makeChunkedResults(List<String> input) {
+        private List<ChunkedInferenceServiceResults> makeChunkedResults(List<String> input) {
             var chunks = new ArrayList<ChunkedTextExpansionResults.ChunkedResult>();
             for (int i = 0; i < input.size(); i++) {
                 var tokens = new ArrayList<TextExpansionResults.WeightedToken>();
@@ -185,7 +186,7 @@ public class TestInferenceServiceExtension implements InferenceServiceExtension 
                 }
                 chunks.add(new ChunkedTextExpansionResults.ChunkedResult(input.get(i), tokens));
             }
-            return new ChunkedSparseEmbeddingResults(chunks);
+            return List.of(new ChunkedSparseEmbeddingResults(chunks));
         }
 
         @Override
@@ -226,7 +227,7 @@ public class TestInferenceServiceExtension implements InferenceServiceExtension 
         }
     }
 
-    public record TestServiceSettings(String model) implements ServiceSettings {
+    public record TestServiceSettings(String model, String hiddenField, boolean shouldReturnHiddenField) implements ServiceSettings {
 
         static final String NAME = "test_service_settings";
 
@@ -239,21 +240,32 @@ public class TestInferenceServiceExtension implements InferenceServiceExtension 
                 validationException.addValidationError("missing model");
             }
 
+            String hiddenField = (String) map.remove("hidden_field");
+            Boolean shouldReturnHiddenField = (Boolean) map.remove("should_return_hidden_field");
+
+            if (shouldReturnHiddenField == null) {
+                shouldReturnHiddenField = false;
+            }
+
             if (validationException.validationErrors().isEmpty() == false) {
                 throw validationException;
             }
 
-            return new TestServiceSettings(model);
+            return new TestServiceSettings(model, hiddenField, shouldReturnHiddenField);
         }
 
         public TestServiceSettings(StreamInput in) throws IOException {
-            this(in.readString());
+            this(in.readString(), in.readOptionalString(), in.readBoolean());
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field("model", model);
+            if (hiddenField != null) {
+                builder.field("hidden_field", hiddenField);
+            }
+            builder.field("should_return_hidden_field", shouldReturnHiddenField);
             builder.endObject();
             return builder;
         }
@@ -271,6 +283,21 @@ public class TestInferenceServiceExtension implements InferenceServiceExtension 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(model);
+            out.writeOptionalString(hiddenField);
+            out.writeBoolean(shouldReturnHiddenField);
+        }
+
+        @Override
+        public ToXContentObject getFilteredXContentObject() {
+            return (builder, params) -> {
+                builder.startObject();
+                builder.field("model", model);
+                if (shouldReturnHiddenField && hiddenField != null) {
+                    builder.field("hidden_field", hiddenField);
+                }
+                builder.endObject();
+                return builder;
+            };
         }
     }
 

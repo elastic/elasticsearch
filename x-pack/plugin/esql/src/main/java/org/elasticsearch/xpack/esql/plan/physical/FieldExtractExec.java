@@ -7,46 +7,55 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.NodeUtils;
 import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.util.ArrayList;
-import java.util.HashSet;
+import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
+import static java.util.Collections.emptySet;
+
 public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
     private final List<Attribute> attributesToExtract;
     private final Attribute sourceAttribute;
-    private final Set<Attribute> preferDocValues;
+    // attributes to extract as doc values
+    private final Set<Attribute> docValuesAttributes;
+
+    private List<Attribute> lazyOutput;
 
     public FieldExtractExec(Source source, PhysicalPlan child, List<Attribute> attributesToExtract) {
-        this(source, child, attributesToExtract, new HashSet<>());
+        this(source, child, attributesToExtract, emptySet());
     }
 
-    public FieldExtractExec(Source source, PhysicalPlan child, List<Attribute> attributesToExtract, Set<Attribute> preferDocValues) {
+    public FieldExtractExec(Source source, PhysicalPlan child, List<Attribute> attributesToExtract, Set<Attribute> docValuesAttributes) {
         super(source, child);
         this.attributesToExtract = attributesToExtract;
         this.sourceAttribute = extractSourceAttributesFrom(child);
-        this.preferDocValues = preferDocValues;
+        this.docValuesAttributes = docValuesAttributes;
     }
 
     public static Attribute extractSourceAttributesFrom(PhysicalPlan plan) {
-        return plan.outputSet().stream().filter(EsQueryExec::isSourceAttribute).findFirst().orElse(null);
+        for (Attribute attribute : plan.outputSet()) {
+            if (EsQueryExec.isSourceAttribute(attribute)) {
+                return attribute;
+            }
+        }
+        return null;
     }
 
     @Override
     protected NodeInfo<FieldExtractExec> info() {
-        return NodeInfo.create(this, FieldExtractExec::new, child(), attributesToExtract, preferDocValues);
+        return NodeInfo.create(this, FieldExtractExec::new, child(), attributesToExtract, docValuesAttributes);
     }
 
     @Override
     public UnaryExec replaceChild(PhysicalPlan newChild) {
-        return new FieldExtractExec(source(), newChild, attributesToExtract, preferDocValues);
+        return new FieldExtractExec(source(), newChild, attributesToExtract, docValuesAttributes);
     }
 
     public List<Attribute> attributesToExtract() {
@@ -57,11 +66,24 @@ public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
         return sourceAttribute;
     }
 
+    public Collection<Attribute> docValuesAttributes() {
+        return docValuesAttributes;
+    }
+
+    public boolean hasDocValuesAttribute(Attribute attr) {
+        return docValuesAttributes.contains(attr);
+    }
+
     @Override
     public List<Attribute> output() {
-        List<Attribute> output = new ArrayList<>(child().output());
-        output.addAll(attributesToExtract);
-        return output;
+        if (lazyOutput == null) {
+            List<Attribute> childOutput = child().output();
+            lazyOutput = new ArrayList<>(childOutput.size() + attributesToExtract.size());
+            lazyOutput.addAll(childOutput);
+            lazyOutput.addAll(attributesToExtract);
+        }
+
+        return lazyOutput;
     }
 
     @Override
@@ -72,7 +94,7 @@ public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
 
     @Override
     public int hashCode() {
-        return Objects.hash(attributesToExtract, preferDocValues, child());
+        return Objects.hash(attributesToExtract, docValuesAttributes, child());
     }
 
     @Override
@@ -87,27 +109,13 @@ public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
 
         FieldExtractExec other = (FieldExtractExec) obj;
         return Objects.equals(attributesToExtract, other.attributesToExtract)
-            && Objects.equals(preferDocValues, other.preferDocValues)
+            && Objects.equals(docValuesAttributes, other.docValuesAttributes)
             && Objects.equals(child(), other.child());
     }
 
     @Override
     public String nodeString() {
-        return nodeName() + NodeUtils.limitedToString(attributesToExtract) + NodeUtils.limitedToString(preferDocValues);
+        return nodeName() + NodeUtils.limitedToString(attributesToExtract) + "<" + NodeUtils.limitedToString(docValuesAttributes) + ">";
     }
 
-    public FieldExtractExec preferDocValues(Attribute attr) {
-        Set<Attribute> newForStats = new HashSet<>(preferDocValues);
-        newForStats.add(attr);
-        return new FieldExtractExec(source(), child(), attributesToExtract, newForStats);
-    }
-
-    /**
-     * Returns DOC_VALUES if the given attribute should be preferrentially extracted from doc-values.
-     */
-    public MappedFieldType.FieldExtractPreference extractPreference(Attribute attr) {
-        return preferDocValues.contains(attr)
-            ? MappedFieldType.FieldExtractPreference.DOC_VALUES
-            : MappedFieldType.FieldExtractPreference.NONE;
-    }
 }

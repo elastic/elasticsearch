@@ -17,6 +17,10 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * Serialization class for specifying the settings of a model from semantic_text inference to field mapper.
+ * See {@link org.elasticsearch.action.bulk.BulkShardRequestInferenceProvider}
+ */
 public class ModelSettings {
 
     public static final String NAME = "model_settings";

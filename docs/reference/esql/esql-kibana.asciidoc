@@ -103,7 +103,7 @@ detailed warning, expand the query bar, and click *warnings*.
 === The results table
 
 For the example query, the results table shows 10 rows. Omitting the `LIMIT`
-command, the results table defaults to up to 500 rows. Using `LIMIT`, you can
+command, the results table defaults to up to 1000 rows. Using `LIMIT`, you can
 increase the limit to up to 10,000 rows.
 
 NOTE: the 10,000 row limit only applies to the number of rows that are retrieved

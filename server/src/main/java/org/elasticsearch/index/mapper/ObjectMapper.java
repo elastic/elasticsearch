@@ -172,12 +172,12 @@ public class ObjectMapper extends Mapper {
         @Override
         public ObjectMapper build(MapperBuilderContext context) {
             return new ObjectMapper(
-                name,
-                context.buildFullName(name),
+                name(),
+                context.buildFullName(name()),
                 enabled,
                 subobjects,
                 dynamic,
-                buildMappers(context.createChildContext(name))
+                buildMappers(context.createChildContext(name()))
             );
         }
     }

@@ -595,9 +595,9 @@ public class ObjectMapperTests extends MapperServiceTestCase {
             () -> objectMapper.asFlattenedFieldMappers(rootContext)
         );
         assertEquals(
-            "Object mapper [parent.child] was found in a context where subobjects is set to false. " +
-            "Auto-flattening [parent.child] failed because the value of [dynamic] (FALSE) is not compatible with " +
-            "the value from its parent context (TRUE)",
+            "Object mapper [parent.child] was found in a context where subobjects is set to false. "
+                + "Auto-flattening [parent.child] failed because the value of [dynamic] (FALSE) is not compatible with "
+                + "the value from its parent context (TRUE)",
             exception.getMessage()
         );
     }

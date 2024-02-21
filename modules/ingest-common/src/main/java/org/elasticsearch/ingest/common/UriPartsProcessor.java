@@ -140,9 +140,13 @@ public class UriPartsProcessor extends AbstractProcessor {
         }
         if (path != null) {
             uriParts.put("path", path);
-            if (path.contains(".")) {
-                int periodIndex = path.lastIndexOf('.');
-                uriParts.put("extension", periodIndex < path.length() ? path.substring(periodIndex + 1) : "");
+            var lastSegmentIndex = path.lastIndexOf('/');
+            if (lastSegmentIndex >= 0) {
+                var lastSegment = path.substring(lastSegmentIndex);
+                int periodIndex = lastSegment.lastIndexOf('.');
+                if (periodIndex >= 0 && periodIndex < lastSegment.length() - 1) {
+                    uriParts.put("extension", lastSegment.substring(periodIndex + 1));
+                }
             }
         }
         if (port != -1) {

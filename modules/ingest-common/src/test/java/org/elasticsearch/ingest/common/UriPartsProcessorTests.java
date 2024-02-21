@@ -181,6 +181,20 @@ public class UriPartsProcessorTests extends ESTestCase {
         );
     }
 
+    public void testDotPathWithoutExtension() throws Exception {
+        testUriParsing(
+            "https://www.google.com/path.withdot/filenamewithoutextension",
+            Map.of("scheme", "https", "domain", "www.google.com", "path", "/path.withdot/filenamewithoutextension")
+        );
+    }
+
+    public void testDotPathWithExtension() throws Exception {
+        testUriParsing(
+            "https://www.google.com/path.withdot/filenamewithextension.txt",
+            Map.of("scheme", "https", "domain", "www.google.com", "path", "/path.withdot/filenamewithextension.txt", "extension", "txt")
+        );
+    }
+
     public void testRemoveIfSuccessfulDoesNotRemoveTargetField() throws Exception {
         String field = "field";
         UriPartsProcessor processor = new UriPartsProcessor(null, null, field, field, true, false, false);

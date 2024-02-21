@@ -71,6 +71,7 @@ public enum ReferenceDocs {
     BOOTSTRAP_CHECK_SECURITY_MINIMAL_SETUP,
     CONTACT_SUPPORT,
     UNASSIGNED_SHARDS,
+    UNDESIRED_SHARD_ALLOCATION,
     // this comment keeps the ';' on the next line so every entry above has a trailing ',' which makes the diff for adding new links cleaner
     ;
 

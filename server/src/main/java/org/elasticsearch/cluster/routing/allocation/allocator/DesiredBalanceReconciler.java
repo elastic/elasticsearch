@@ -8,6 +8,7 @@
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.ArrayUtil;
@@ -21,6 +22,7 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -69,9 +71,10 @@ public class DesiredBalanceReconciler {
     );
 
     private final FrequencyCappedAction undesiredAllocationLogInterval;
-    private double undesiredAllocationsLogThreshold;
+    private double undesiredAllocationPercentageLogThreshold;
     private final NodeAllocationOrdering allocationOrdering = new NodeAllocationOrdering();
     private final NodeAllocationOrdering moveOrdering = new NodeAllocationOrdering();
+    private double lastNumberOfUndesiredAllocations = 0;
 
     // stats
     /**
@@ -93,7 +96,7 @@ public class DesiredBalanceReconciler {
         clusterSettings.initializeAndWatch(UNDESIRED_ALLOCATIONS_LOG_INTERVAL_SETTING, this.undesiredAllocationLogInterval::setMinInterval);
         clusterSettings.initializeAndWatch(
             UNDESIRED_ALLOCATIONS_LOG_THRESHOLD_SETTING,
-            value -> this.undesiredAllocationsLogThreshold = value
+            value -> this.undesiredAllocationPercentageLogThreshold = value
         );
 
         unassignedShards = LongGaugeMetric.create(
@@ -561,19 +564,30 @@ public class DesiredBalanceReconciler {
         }
 
         private void maybeLogUndesiredAllocationsWarning(int allAllocations, int undesiredAllocations, int nodeCount) {
-            // more shards than cluster can relocate with one reroute
-            final boolean nonEmptyRelocationBacklog = undesiredAllocations > 2L * nodeCount;
-            final boolean warningThresholdReached = undesiredAllocations > undesiredAllocationsLogThreshold * allAllocations;
-            if (allAllocations > 0 && nonEmptyRelocationBacklog && warningThresholdReached) {
-                undesiredAllocationLogInterval.maybeExecute(
-                    () -> logger.warn(
-                        "[{}] of assigned shards ({}/{}) are not on their desired nodes, which exceeds the warn threshold of [{}]",
+            // There are more shards in undesirable locations than the cluster can relocate with one reroute per shard.
+            final boolean moreThanOneReroutePerNode = undesiredAllocations > 2L * nodeCount;
+            final boolean warningThresholdReached = undesiredAllocations > undesiredAllocationPercentageLogThreshold * allAllocations;
+            if (allAllocations > 0 && moreThanOneReroutePerNode && warningThresholdReached) {
+                undesiredAllocationLogInterval.maybeExecute(() -> {
+                    logger.log(
+                        // The first time a significant imbalance appears, this will log as a warning. But we only want info-level
+                        // logging after that if the undesiredAllocations value moves in a healthy descending direction.
+                        undesiredAllocations > lastNumberOfUndesiredAllocations ? Level.WARN : Level.INFO,
+                        "[{}] of assigned shards ({}/{}) are not on their desired nodes, which exceeds the logging threshold of [{}]."
+                            + " Read [{}] for more information.",
                         Strings.format1Decimals(100.0 * undesiredAllocations / allAllocations, "%"),
                         undesiredAllocations,
                         allAllocations,
-                        Strings.format1Decimals(100.0 * undesiredAllocationsLogThreshold, "%")
-                    )
-                );
+                        Strings.format1Decimals(100.0 * undesiredAllocationPercentageLogThreshold, "%"),
+                        ReferenceDocs.UNDESIRED_SHARD_ALLOCATION
+                    );
+                    // Update this periodically, not every time, so it doesn't fluctuate crazily.
+                    lastNumberOfUndesiredAllocations = undesiredAllocations;
+                });
+            } else {
+                // Eventually we want to clear the lastNumberOfUndesiredAllocations when an imbalance goes away, so we can recognize when it
+                // starts getting high again.
+                lastNumberOfUndesiredAllocations = undesiredAllocations;
             }
         }
 

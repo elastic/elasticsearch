@@ -34,7 +34,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.ml.queries.TextExpansionQueryBuilder.AllowedFieldTypesForTextExpansion;
+import static org.elasticsearch.xpack.ml.queries.TextExpansionQueryBuilder.AllowedFieldType;
 import static org.elasticsearch.xpack.ml.queries.TextExpansionQueryBuilder.PRUNING_CONFIG;
 
 public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTokensQueryBuilder> {
@@ -155,7 +155,7 @@ public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTok
         }
 
         final String fieldTypeName = ft.typeName();
-        if (AllowedFieldTypesForTextExpansion.contains(fieldTypeName) == false) {
+        if (AllowedFieldType.isTypeNameValid(fieldTypeName) == false) {
             throw new ElasticsearchParseException("[" + fieldTypeName + "]" + " is not an appropriate field type for text expansion query");
         }
 

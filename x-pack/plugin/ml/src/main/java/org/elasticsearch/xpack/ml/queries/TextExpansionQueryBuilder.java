@@ -50,13 +50,13 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
     private SetOnce<TextExpansionResults> weightedTokensSupplier;
     private final TokenPruningConfig tokenPruningConfig;
 
-    public enum AllowedFieldTypesForTextExpansion {
+    public enum AllowedFieldType {
         RANK_FEATURES("rank_features"),
         SPARSE_VECTOR("sparse_vector");
 
         private final String typeName;
 
-        AllowedFieldTypesForTextExpansion(String typeName) {
+        AllowedFieldType(String typeName) {
             this.typeName = typeName;
         }
 
@@ -64,8 +64,8 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
             return typeName;
         }
 
-        public static boolean contains(String typeName) {
-            for (AllowedFieldTypesForTextExpansion fieldType : values()) {
+        public static boolean isTypeNameValid(String typeName) {
+            for (AllowedFieldType fieldType : values()) {
                 if (fieldType.getTypeName().equals(typeName)) {
                     return true;
                 }

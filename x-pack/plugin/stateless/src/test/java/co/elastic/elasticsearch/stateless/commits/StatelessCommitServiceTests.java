@@ -1727,11 +1727,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
         for (String commitFile : compoundCommitFiles) {
             BlobContainer blobContainer = testHarness.objectStoreService.getBlobContainer(testHarness.shardId, primaryTerm);
             try (InputStream inputStream = blobContainer.readBlob(randomFrom(OperationPurpose.values()), commitFile)) {
-                long fileLength = blobContainer.listBlobs(randomFrom(OperationPurpose.values())).get(commitFile).length();
-                StatelessCompoundCommit compoundCommit = StatelessCompoundCommit.readFromStore(
-                    new InputStreamStreamInput(inputStream),
-                    fileLength
-                );
+                StatelessCompoundCommit compoundCommit = StatelessCompoundCommit.readFromStore(new InputStreamStreamInput(inputStream));
                 compoundCommit.commitFiles()
                     .entrySet()
                     .stream()

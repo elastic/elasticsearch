@@ -168,7 +168,7 @@ class Netty4HttpClient implements Closeable {
 
     @Override
     public void close() {
-        clientBootstrap.config().group().shutdownGracefully().awaitUninterruptibly();
+        clientBootstrap.config().group().shutdownGracefully(0L, 0L, TimeUnit.SECONDS).awaitUninterruptibly();
     }
 
     /**

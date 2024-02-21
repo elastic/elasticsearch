@@ -92,7 +92,9 @@ import java.util.regex.Pattern;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestResponse.TEXT_CONTENT_TYPE;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class Netty4ChunkedContinuationsIT extends ESNetty4IntegTestCase {
@@ -227,20 +229,39 @@ public class Netty4ChunkedContinuationsIT extends ESNetty4IntegTestCase {
     }
 
     public void testContinuationFailure() throws Exception {
-        // TODO when https://github.com/netty/netty/issues/13816 addressed, verify that we see the failure properly and no later responses
         try (var ignored = withResourceTracker(); var nettyClient = new Netty4HttpClient()) {
+            final var failIndex = between(0, 2);
             final var responses = nettyClient.get(
                 randomFrom(internalCluster().getInstance(HttpServerTransport.class).boundAddress().boundAddresses()).address(),
                 YieldsContinuationsPlugin.ROUTE,
-                YieldsContinuationsPlugin.ROUTE + "?" + YieldsContinuationsPlugin.FAIL_INDEX_PARAM + "=1"
+                YieldsContinuationsPlugin.ROUTE + "?" + YieldsContinuationsPlugin.FAIL_INDEX_PARAM + "=" + failIndex
             );
 
-            assertEquals(expectedBody, Netty4Utils.toBytesReference(responses.get(0).content()).utf8ToString());
-            assertEquals("""
-                batch-0-chunk-0
-                batch-0-chunk-1
-                batch-0-chunk-2
-                """, Netty4Utils.toBytesReference(responses.get(1).content()).utf8ToString());
+            if (failIndex == 0) {
+                assertThat(
+                    responses,
+                    anyOf(
+                        // might get a 500 response if the failure is early enough
+                        hasSize(2),
+                        // might get no response before channel closed
+                        hasSize(1),
+                        // might even close the channel before flushing the previous response
+                        hasSize(0)
+                    )
+                );
+
+                if (responses.size() == 2) {
+                    assertEquals(expectedBody, Netty4Utils.toBytesReference(responses.get(0).content()).utf8ToString());
+                    assertEquals(500, responses.get(1).status().code());
+                }
+            } else {
+                assertThat(responses, hasSize(1));
+            }
+
+            if (responses.size() > 0) {
+                assertEquals(expectedBody, Netty4Utils.toBytesReference(responses.get(0).content()).utf8ToString());
+                assertEquals(200, responses.get(0).status().code());
+            }
         }
     }
 
@@ -329,8 +350,8 @@ public class Netty4ChunkedContinuationsIT extends ESNetty4IntegTestCase {
             }
 
             private ChunkedRestResponseBody getChunkBatch(int batchIndex) {
-                if (batchIndex == failIndex) {
-                    throw new ElasticsearchException("simulated failure");
+                if (batchIndex == failIndex && randomBoolean()) {
+                    throw new ElasticsearchException("simulated failure creating next batch");
                 }
                 return new ChunkedRestResponseBody() {
 
@@ -362,6 +383,9 @@ public class Netty4ChunkedContinuationsIT extends ESNetty4IntegTestCase {
                                 writer.write(lines.next());
                             }
                             final var result = new ReleasableBytesReference(output.bytes(), Releasables.wrap(output, refs::decRef));
+                            if (batchIndex == failIndex) {
+                                throw new ElasticsearchException("simulated failure encoding chunk");
+                            }
                             success = true;
                             return result;
                         } finally {
@@ -436,7 +460,13 @@ public class Netty4ChunkedContinuationsIT extends ESNetty4IntegTestCase {
                             client.execute(TYPE, new Request(failIndex), new RestActionListener<>(channel) {
                                 @Override
                                 protected void processResponse(Response response) {
-                                    channel.sendResponse(RestResponse.chunked(RestStatus.OK, response.getChunkedBody(), refs::decRef));
+                                    try {
+                                        final var responseBody = response.getChunkedBody(); // might fail, so do this before acquiring ref
+                                        refs.mustIncRef();
+                                        channel.sendResponse(RestResponse.chunked(RestStatus.OK, responseBody, refs::decRef));
+                                    } finally {
+                                        refs.decRef();
+                                    }
                                 }
                             });
                         }

@@ -52,6 +52,7 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
     private final ResultStrategy<?, ?> resultStrategy;
     private final BytesKeyedBucketOrds bucketOrds;
     private final IncludeExclude.StringFilter includeExclude;
+    private final boolean excludeDeletedDocs;
 
     public MapStringTermsAggregator(
         String name,
@@ -67,7 +68,8 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
         SubAggCollectionMode collectionMode,
         boolean showTermDocCountError,
         CardinalityUpperBound cardinality,
-        Map<String, Object> metadata
+        Map<String, Object> metadata,
+        boolean excludeDeletedDocs
     ) throws IOException {
         super(name, factories, context, parent, order, format, bucketCountThresholds, collectionMode, showTermDocCountError, metadata);
         this.resultStrategy = resultStrategy.apply(this); // ResultStrategy needs a reference to the Aggregator to do its job.
@@ -75,6 +77,7 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
         bucketOrds = BytesKeyedBucketOrds.build(context.bigArrays(), cardinality);
         // set last because if there is an error during construction the collector gets release outside the constructor.
         this.collectorSource = collectorSource;
+        this.excludeDeletedDocs = excludeDeletedDocs;
     }
 
     @Override

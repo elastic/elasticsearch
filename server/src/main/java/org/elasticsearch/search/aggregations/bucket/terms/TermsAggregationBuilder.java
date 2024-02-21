@@ -112,6 +112,7 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
     private final TermsAggregator.BucketCountThresholds bucketCountThresholds;
 
     private boolean showTermDocCountError = false;
+    private boolean excludeDeletedDocs = true; // TODO: change this back to default of false
 
     public TermsAggregationBuilder(String name) {
         super(name);
@@ -190,6 +191,8 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
         includeExclude = in.readOptionalWriteable(IncludeExclude::new);
         order = InternalOrder.Streams.readOrder(in);
         showTermDocCountError = in.readBoolean();
+        // TODO: protect with transport version
+        excludeDeletedDocs = in.readBoolean();
     }
 
     @Override
@@ -205,6 +208,8 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
         out.writeOptionalWriteable(includeExclude);
         order.writeTo(out);
         out.writeBoolean(showTermDocCountError);
+        // TODO: protect with transport version
+        out.writeBoolean(excludeDeletedDocs);
     }
 
     /**
@@ -386,6 +391,18 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
         return this;
     }
 
+    /**
+     * Set whether deleted documents should be explicitly excluded from the aggregation results
+     */
+    public TermsAggregationBuilder excludeDeletedDocs(boolean excludeDeletedDocs) {
+        this.excludeDeletedDocs = excludeDeletedDocs;
+        return this;
+    }
+
+    public boolean excludeDeletedDocs() {
+        return excludeDeletedDocs;
+    }
+
     @Override
     public BucketCardinality bucketCardinality() {
         return BucketCardinality.MANY;
@@ -412,7 +429,8 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
             parent,
             subFactoriesBuilder,
             metadata,
-            aggregatorSupplier
+            aggregatorSupplier,
+            excludeDeletedDocs
         );
     }
 

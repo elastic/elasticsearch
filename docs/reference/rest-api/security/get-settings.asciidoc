@@ -5,7 +5,7 @@
 <titleabbrev>Get Security settings</titleabbrev>
 ++++
 
-Retrieves settings for the security internal index.
+Retrieves settings for the security internal indices.
 
 [[security-api-get-settings-prereqs]]
 ==== {api-prereq-title}

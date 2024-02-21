@@ -216,7 +216,7 @@ public abstract class StreamOutput extends OutputStream {
         writeBytes(buffer, 0, index);
     }
 
-    private static int putVInt(byte[] buffer, int i, int off) {
+    public static int putVInt(byte[] buffer, int i, int off) {
         if (Integer.numberOfLeadingZeros(i) >= 25) {
             buffer[off] = (byte) i;
             return 1;

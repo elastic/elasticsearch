@@ -64,6 +64,19 @@ public interface IndicesRequest {
     }
 
     /**
+     * For use cases where a Request instance cannot implement Replaceable due to not supporting wildcards
+     * and only supporting a single index at a time, this is an alternative interface that the
+     * security layer checks against to determine if remote indices are allowed for that Request type.
+     *
+     * This may change with https://github.com/elastic/elasticsearch/issues/105598
+     */
+    interface SingleIndexNoWildcards extends IndicesRequest {
+        default boolean allowsRemoteIndices() {
+            return true;
+        }
+    }
+
+    /**
      * This subtype of request is for requests which may travel to remote clusters. These requests may need to provide additional
      * information to the system on top of the indices the action relates to in order to be handled correctly in all cases.
      */

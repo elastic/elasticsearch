@@ -13,16 +13,19 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 
 import java.io.IOException;
 import java.util.List;
@@ -102,12 +105,12 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
 
         Set<String> modelsForField = queryRewriteContext.getModelsForField(fieldName);
         if (modelsForField.isEmpty()) {
-            throw new IllegalArgumentException("field [" + fieldName + "] is not a semantic_text field type");
+            throw new IllegalArgumentException("Field [" + fieldName + "] is not a semantic_text field type");
         }
 
         if (modelsForField.size() > 1) {
             // TODO: Handle multi-index semantic queries
-            throw new IllegalArgumentException("field [" + fieldName + "] has multiple models associated with it");
+            throw new IllegalArgumentException("Field [" + fieldName + "] has multiple models associated with it");
         }
 
         // TODO: How to determine task type?
@@ -136,18 +139,40 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
 
     @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
-        // TODO: Implement
-        // TODO: Pass boost to generated query
-        return null;
+        InferenceServiceResults inferenceServiceResults = inferenceResultsSupplier.get();
+        if (inferenceServiceResults == null) {
+            throw new IllegalArgumentException("Inference results supplier for field [" + fieldName + "] is empty");
+        }
+
+        List<? extends InferenceResults> inferenceResultsList = inferenceServiceResults.transformToCoordinationFormat();
+        if (inferenceResultsList.isEmpty()) {
+            throw new IllegalArgumentException("No inference results retrieved for field [" + fieldName + "]");
+        } else if (inferenceResultsList.size() > 1) {
+            // TODO: How to handle multiple inference results?
+            throw new IllegalArgumentException(inferenceResultsList.size() + " inference results retrieved for field [" + fieldName + "]");
+        }
+
+        InferenceResults inferenceResults = inferenceResultsList.get(0);
+        MappedFieldType fieldType = context.getFieldType(fieldName);
+        if (fieldType instanceof SemanticTextFieldMapper.SemanticTextFieldType == false) {
+            // TODO: Better exception type to throw here?
+            throw new IllegalArgumentException(
+                "Field [" + fieldName + "] is not registered as a " + SemanticTextFieldMapper.CONTENT_TYPE + " field type"
+            );
+        }
+
+        return ((SemanticTextFieldMapper.SemanticTextFieldType) fieldType).semanticQuery(inferenceResults, context, boost, queryName);
     }
 
     @Override
     protected boolean doEquals(SemanticQueryBuilder other) {
-        return Objects.equals(fieldName, other.fieldName) && Objects.equals(query, other.query);
+        return Objects.equals(fieldName, other.fieldName)
+            && Objects.equals(query, other.query)
+            && Objects.equals(inferenceResultsSupplier, other.inferenceResultsSupplier);
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(fieldName, query);
+        return Objects.hash(fieldName, query, inferenceResultsSupplier);
     }
 }

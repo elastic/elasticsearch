@@ -1848,7 +1848,7 @@ public final class OptimizerRules {
             return changed ? resolvedExpressions : emptySet();
         }
 
-        private boolean doResolve(Expression exp, AttributeMap<Expression> aliases, Set<Expression> resolvedExpressions) {
+        protected boolean doResolve(Expression exp, AttributeMap<Expression> aliases, Set<Expression> resolvedExpressions) {
             boolean changed = false;
             // check if the expression can be skipped or is not nullabe
             if (skipExpression(exp) || exp.nullable() == Nullability.FALSE) {

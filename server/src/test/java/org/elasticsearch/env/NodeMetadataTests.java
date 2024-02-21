@@ -93,7 +93,6 @@ public class NodeMetadataTests extends ESTestCase {
         Files.copy(resource, stateDir.resolve(NodeMetadata.FORMAT.getStateFileName(between(0, Integer.MAX_VALUE))));
         final NodeMetadata nodeMetadata = NodeMetadata.FORMAT.loadLatestState(logger, xContentRegistry(), tempDir);
         assertThat(nodeMetadata.nodeId(), equalTo("y6VUVMSaStO4Tz-B5BxcOw"));
-        // TODO[wrb]: BuildVersion.EMPTY?
         assertThat(nodeMetadata.nodeVersion(), equalTo(DefaultBuildVersion.EMPTY));
     }
 

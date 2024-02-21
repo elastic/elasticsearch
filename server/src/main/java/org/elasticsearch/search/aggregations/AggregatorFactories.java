@@ -42,6 +42,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Queue;
 import java.util.Set;
 import java.util.function.ToLongFunction;
 import java.util.regex.Matcher;
@@ -336,29 +337,43 @@ public class AggregatorFactories {
         }
 
         /**
-         * Return true if any of the builders is a terms aggregation
+         * Return true if any of the builders is a terms aggregation with min_doc_count=0
          */
         public boolean hasZeroMinDocTermsAggregation() {
-            for (AggregationBuilder builder : aggregationBuilders) {
-                if (builder instanceof TermsAggregationBuilder termsBuilder) {
+            final Queue<AggregationBuilder> queue = new LinkedList<>(aggregationBuilders);
+            while (queue.isEmpty() == false) {
+                final AggregationBuilder current = queue.poll();
+                if (current == null) {
+                    continue;
+                }
+                if (current instanceof TermsAggregationBuilder termsBuilder) {
                     if (termsBuilder.minDocCount() == 0) {
                         return true;
                     }
                 }
+                queue.addAll(current.getSubAggregations());
             }
             return false;
         }
 
         /**
-         * Force all terms aggregations to use map execution and exclude deleted docs.
+         * Force all min_doc_count=0 terms aggregations to use map execution and exclude deleted docs.
          */
         public void forceTermsAggsToExcludedDeletedDocs() {
             assert hasZeroMinDocTermsAggregation();
-            for (AggregationBuilder builder : aggregationBuilders) {
-                if (builder instanceof TermsAggregationBuilder termsBuilder) {
-                    termsBuilder.executionHint(TermsAggregatorFactory.ExecutionMode.MAP.name().toLowerCase(Locale.ROOT));
-                    termsBuilder.excludeDeletedDocs(true);
+            final Queue<AggregationBuilder> queue = new LinkedList<>(aggregationBuilders);
+            while (queue.isEmpty() == false) {
+                final AggregationBuilder current = queue.poll();
+                if (current == null) {
+                    continue;
                 }
+                if (current instanceof TermsAggregationBuilder termsBuilder) {
+                    if (termsBuilder.minDocCount() == 0) {
+                        termsBuilder.executionHint(TermsAggregatorFactory.ExecutionMode.MAP.name().toLowerCase(Locale.ROOT));
+                        termsBuilder.excludeDeletedDocs(true);
+                    }
+                }
+                queue.addAll(current.getSubAggregations());
             }
         }
 

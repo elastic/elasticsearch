@@ -14,7 +14,15 @@ import org.junit.ClassRule;
 
 public class EsqlSpecIT extends EsqlSpecTestCase {
     @ClassRule
-    public static ElasticsearchCluster cluster = Clusters.testCluster();
+    public static ClusterWithCsvData cluster = new ClusterWithCsvData(
+        ElasticsearchCluster.local()
+            .distribution(DistributionType.DEFAULT)
+            .nodes(2)
+            .setting("xpack.security.enabled", "false")
+            .setting("xpack.license.self_generated.type", "trial")
+            .build(),
+        Settings.builder().build()
+    );
 
     @Override
     protected String getTestRestCluster() {

@@ -10,4 +10,5 @@ dependencies {
   // Requirement for some ESQL-specific utilities
   implementation project(':x-pack:plugin:esql')
   api project(xpackModule('esql:qa:testFixtures'))
+  api project(':test:test-clusters')
 }

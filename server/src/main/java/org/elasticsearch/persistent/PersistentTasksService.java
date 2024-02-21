@@ -58,9 +58,25 @@ public class PersistentTasksService {
         final Params taskParams,
         final ActionListener<PersistentTask<Params>> listener
     ) {
+        sendStartRequest(taskId, taskName, taskParams, null, listener);
+    }
+
+    /**
+     * Notifies the master node to create new persistent task and to assign it to a node. Accepts operation timeout as optional parameter
+     */
+    public <Params extends PersistentTaskParams> void sendStartRequest(
+        final String taskId,
+        final String taskName,
+        final Params taskParams,
+        final @Nullable TimeValue timeout,
+        final ActionListener<PersistentTask<Params>> listener
+    ) {
         @SuppressWarnings("unchecked")
         final ActionListener<PersistentTask<?>> wrappedListener = listener.map(t -> (PersistentTask<Params>) t);
         StartPersistentTaskAction.Request request = new StartPersistentTaskAction.Request(taskId, taskName, taskParams);
+        if (timeout != null) {
+            request.masterNodeTimeout(timeout);
+        }
         execute(request, StartPersistentTaskAction.INSTANCE, wrappedListener);
     }
 
@@ -78,12 +94,34 @@ public class PersistentTasksService {
         final @Nullable String localAbortReason,
         final ActionListener<PersistentTask<?>> listener
     ) {
+        sendCompletionRequest(taskId, taskAllocationId, taskFailure, localAbortReason, null, listener);
+    }
+
+    /**
+     * Notifies the master node about the completion of a persistent task.
+     * <p>
+     * At most one of {@code failure} and {@code localAbortReason} may be
+     * provided. When both {@code failure} and {@code localAbortReason} are
+     * {@code null}, the persistent task is considered as successfully completed.
+     * Accepts operation timeout as optional parameter
+     */
+    public void sendCompletionRequest(
+        final String taskId,
+        final long taskAllocationId,
+        final @Nullable Exception taskFailure,
+        final @Nullable String localAbortReason,
+        final @Nullable TimeValue timeout,
+        final ActionListener<PersistentTask<?>> listener
+    ) {
         CompletionPersistentTaskAction.Request request = new CompletionPersistentTaskAction.Request(
             taskId,
             taskAllocationId,
             taskFailure,
             localAbortReason
         );
+        if (timeout != null) {
+            request.masterNodeTimeout(timeout);
+        }
         execute(request, CompletionPersistentTaskAction.INSTANCE, listener);
     }
 
@@ -91,9 +129,24 @@ public class PersistentTasksService {
      * Cancels a locally running task using the Task Manager API
      */
     void sendCancelRequest(final long taskId, final String reason, final ActionListener<ListTasksResponse> listener) {
+        sendCancelRequest(taskId, reason, null, listener);
+    }
+
+    /**
+     * Cancels a locally running task using the Task Manager API. Accepts operation timeout as optional parameter
+     */
+    void sendCancelRequest(
+        final long taskId,
+        final String reason,
+        final @Nullable TimeValue timeout,
+        final ActionListener<ListTasksResponse> listener
+    ) {
         CancelTasksRequest request = new CancelTasksRequest();
         request.setTargetTaskId(new TaskId(clusterService.localNode().getId(), taskId));
         request.setReason(reason);
+        if (timeout != null) {
+            request.setTimeout(timeout);
+        }
         try {
             client.admin().cluster().cancelTasks(request, listener);
         } catch (Exception e) {
@@ -113,11 +166,31 @@ public class PersistentTasksService {
         final PersistentTaskState taskState,
         final ActionListener<PersistentTask<?>> listener
     ) {
+        sendUpdateStateRequest(taskId, taskAllocationID, taskState, null, listener);
+    }
+
+    /**
+     * Notifies the master node that the state of a persistent task has changed.
+     * <p>
+     * Persistent task implementers shouldn't call this method directly and use
+     * {@link AllocatedPersistentTask#updatePersistentTaskState} instead.
+     * Accepts operation timeout as optional parameter
+     */
+    void sendUpdateStateRequest(
+        final String taskId,
+        final long taskAllocationID,
+        final PersistentTaskState taskState,
+        final @Nullable TimeValue timeout,
+        final ActionListener<PersistentTask<?>> listener
+    ) {
         UpdatePersistentTaskStatusAction.Request request = new UpdatePersistentTaskStatusAction.Request(
             taskId,
             taskAllocationID,
             taskState
         );
+        if (timeout != null) {
+            request.masterNodeTimeout(timeout);
+        }
         execute(request, UpdatePersistentTaskStatusAction.INSTANCE, listener);
     }
 
@@ -125,7 +198,21 @@ public class PersistentTasksService {
      * Notifies the master node to remove a persistent task from the cluster state
      */
     public void sendRemoveRequest(final String taskId, final ActionListener<PersistentTask<?>> listener) {
+        sendRemoveRequest(taskId, null, listener);
+    }
+
+    /**
+     * Notifies the master node to remove a persistent task from the cluster state. Accepts operation timeout as optional parameter
+     */
+    public void sendRemoveRequest(
+        final String taskId,
+        final @Nullable TimeValue timeout,
+        final ActionListener<PersistentTask<?>> listener
+    ) {
         RemovePersistentTaskAction.Request request = new RemovePersistentTaskAction.Request(taskId);
+        if (timeout != null) {
+            request.masterNodeTimeout(timeout);
+        }
         execute(request, RemovePersistentTaskAction.INSTANCE, listener);
     }
 

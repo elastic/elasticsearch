@@ -167,7 +167,9 @@ public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTok
             );
         }
 
-        return (this.tokenPruningConfig == null) ? queryBuilderWithAllTokens(tokens, ft, context) : queryBuilderWithPrunedTokens(tokens, ft, context);
+        return (this.tokenPruningConfig == null)
+            ? queryBuilderWithAllTokens(tokens, ft, context)
+            : queryBuilderWithPrunedTokens(tokens, ft, context);
     }
 
     private Query queryBuilderWithAllTokens(List<WeightedToken> tokens, MappedFieldType ft, SearchExecutionContext context) {
@@ -179,7 +181,8 @@ public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTok
         return qb.setMinimumNumberShouldMatch(1).build();
     }
 
-    private Query queryBuilderWithPrunedTokens(List<WeightedToken> tokens, MappedFieldType ft, SearchExecutionContext context)  throws IOException {
+    private Query queryBuilderWithPrunedTokens(List<WeightedToken> tokens, MappedFieldType ft, SearchExecutionContext context)
+        throws IOException {
         var qb = new BooleanQuery.Builder();
         int fieldDocCount = context.getIndexReader().getDocCount(fieldName);
         float bestWeight = findBestWeightFor(tokens);
@@ -200,9 +203,7 @@ public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTok
     }
 
     private float findBestWeightFor(List<WeightedToken> tokens) {
-        return tokens.stream()
-            .map(WeightedToken::weight)
-            .reduce(0f, Math::max);
+        return tokens.stream().map(WeightedToken::weight).reduce(0f, Math::max);
     }
 
     @Override

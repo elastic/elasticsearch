@@ -138,6 +138,16 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
     }
 
     /**
+     * The least amount of time data the data stream is requesting es to keep the data.
+     * NOTE: this can be overriden by the {@link DataStreamLifecycle#getEffectiveDataRetention()}.
+     * @return the time period or null, null represents that data should never be deleted.
+     */
+    @Nullable
+    public TimeValue getDataStreamRetention() {
+        return dataRetention == null ? null : dataRetention.value;
+    }
+
+    /**
      * The configuration as provided by the user about the least amount of time data should be kept by elasticsearch.
      * This method differentiates between a missing retention and a nullified retention and this is useful for template
      * composition.

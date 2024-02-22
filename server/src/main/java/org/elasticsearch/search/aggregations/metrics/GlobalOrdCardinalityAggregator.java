@@ -65,7 +65,7 @@ public class GlobalOrdCardinalityAggregator extends NumericMetricsAggregator.Sin
 
     // Build at post-collection phase
     @Nullable
-    private HyperLogLogPlusPlusSparse counts;
+    private HyperLogLogPlusPlus counts;
     private ObjectArray<BitArray> visitedOrds;
     private SortedSetDocValues values;
 
@@ -285,7 +285,7 @@ public class GlobalOrdCardinalityAggregator extends NumericMetricsAggregator.Sin
     }
 
     protected void doPostCollection() throws IOException {
-        counts = new HyperLogLogPlusPlusSparse(precision, bigArrays, visitedOrds.size());
+        counts = new HyperLogLogPlusPlus(precision, bigArrays, visitedOrds.size());
         try (LongArray hashes = bigArrays.newLongArray(maxOrd, false)) {
             try (BitArray allVisitedOrds = new BitArray(maxOrd, bigArrays)) {
                 for (long bucket = visitedOrds.size() - 1; bucket >= 0; --bucket) {
@@ -308,7 +308,6 @@ public class GlobalOrdCardinalityAggregator extends NumericMetricsAggregator.Sin
                 try (BitArray bits = visitedOrds.get(bucket)) {
                     if (bits != null) {
                         visitedOrds.set(bucket, null); // remove bitset from array
-                        counts.ensureCapacity(bucket, bits.cardinality());
                         for (long ord = bits.nextSetBit(0); ord < Long.MAX_VALUE; ord = ord + 1 < maxOrd
                             ? bits.nextSetBit(ord + 1)
                             : Long.MAX_VALUE) {

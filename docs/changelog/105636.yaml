@@ -1,0 +1,5 @@
+pr: 105636
+summary: Flip dynamic mapping condition when create tsid
+area: TSDB
+type: bug
+issues: []

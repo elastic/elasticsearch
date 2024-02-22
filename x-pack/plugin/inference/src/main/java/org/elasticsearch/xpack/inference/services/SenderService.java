@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services;
 
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
@@ -25,34 +24,32 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.atomic.AtomicReference;
 
 public abstract class SenderService implements InferenceService {
-    private final SetOnce<HttpRequestSender.Factory> httpRequestSenderFactory;
-    private final SetOnce<ServiceComponents> serviceComponents;
-    private final AtomicReference<Sender> sender = new AtomicReference<>();
-    private final RequestManagerFactory requestManagerFactory;
+    private final Sender sender;
+    private final ServiceComponents serviceComponents;
 
-    public SenderService(SetOnce<HttpRequestSender.Factory> httpRequestSenderFactory, SetOnce<ServiceComponents> serviceComponents) {
+    public SenderService(HttpRequestSender.Factory httpRequestSenderFactory, ServiceComponents serviceComponents) {
         this(httpRequestSenderFactory, serviceComponents, new SingleRequestManager.Factory());
     }
 
     public SenderService(
-        SetOnce<HttpRequestSender.Factory> httpRequestSenderFactory,
-        SetOnce<ServiceComponents> serviceComponents,
+        HttpRequestSender.Factory factory,
+        ServiceComponents serviceComponents,
         RequestManagerFactory requestManagerFactory
     ) {
-        this.httpRequestSenderFactory = Objects.requireNonNull(httpRequestSenderFactory);
+        Objects.requireNonNull(factory);
+        Objects.requireNonNull(requestManagerFactory);
+        sender = factory.createSender(name(), requestManagerFactory);
         this.serviceComponents = Objects.requireNonNull(serviceComponents);
-        this.requestManagerFactory = Objects.requireNonNull(requestManagerFactory);
     }
 
     protected Sender getSender() {
-        return sender.get();
+        return sender;
     }
 
     protected ServiceComponents getServiceComponents() {
-        return serviceComponents.get();
+        return serviceComponents;
     }
 
     @Override
@@ -110,17 +107,11 @@ public abstract class SenderService implements InferenceService {
     }
 
     private void init() {
-        sender.updateAndGet(
-            current -> Objects.requireNonNullElseGet(
-                current,
-                () -> httpRequestSenderFactory.get().createSender(name(), requestManagerFactory)
-            )
-        );
-        sender.get().start();
+        sender.start();
     }
 
     @Override
     public void close() throws IOException {
-        IOUtils.closeWhileHandlingException(sender.get());
+        IOUtils.closeWhileHandlingException(sender);
     }
 }

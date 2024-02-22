@@ -14,11 +14,12 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpResponse;
-import org.elasticsearch.transport.TransportException;
-import org.elasticsearch.transport.netty4.Netty4TcpChannel;
 
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
+
+import static org.elasticsearch.transport.netty4.Netty4Utils.addListener;
+import static org.elasticsearch.transport.netty4.Netty4Utils.safeWriteAndFlush;
 
 public class Netty4HttpChannel implements HttpChannel {
 
@@ -27,18 +28,12 @@ public class Netty4HttpChannel implements HttpChannel {
 
     Netty4HttpChannel(Channel channel) {
         this.channel = channel;
-        Netty4TcpChannel.addListener(this.channel.closeFuture(), closeContext);
+        addListener(this.channel.closeFuture(), closeContext);
     }
 
     @Override
     public void sendResponse(HttpResponse response, ActionListener<Void> listener) {
-        // We need to both guard against double resolving the listener and not resolving it in case of event loop shutdown so we need to
-        // use #notifyOnce here until https://github.com/netty/netty/issues/8007 is resolved.
-        var wrapped = ActionListener.notifyOnce(listener);
-        channel.writeAndFlush(response, Netty4TcpChannel.addPromise(wrapped, channel));
-        if (channel.eventLoop().isShutdown()) {
-            wrapped.onFailure(new TransportException("Cannot send HTTP response, event loop is shutting down."));
-        }
+        safeWriteAndFlush(channel, response, listener);
     }
 
     @Override

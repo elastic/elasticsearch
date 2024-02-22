@@ -105,7 +105,7 @@ distribution_archives {
   linuxTar {
     archiveClassifier = 'linux-x86_64'
     content {
-      archiveFiles(modulesFiles('linux-x86_64'), 'tar', 'linux', 'x64', false)
+      archiveFiles('linux-x86_64', 'tar', 'linux', 'x64')
     }
   }
 }

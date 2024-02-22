@@ -62,6 +62,7 @@ public class IndexShardRoutingTable {
     final int totalSearchShardCount;
 
     IndexShardRoutingTable(ShardId shardId, List<ShardRouting> shards) {
+        assert shards.isEmpty() == false;
         this.shuffler = new RotationShardShuffler(Randomness.get().nextInt());
         this.shardId = shardId;
         this.shards = shards.toArray(ShardRouting[]::new);
@@ -114,7 +115,8 @@ public class IndexShardRoutingTable {
                 allShardsStarted = false;
             }
         }
-        assert primary != null || shards.isEmpty() : shards;
+        assert shards.isEmpty() == false : "cannot have an empty shard routing table";
+        assert primary != null : shards;
         this.primary = primary;
         this.replicas = CollectionUtils.wrapUnmodifiableOrEmptySingleton(replicas);
         this.activeShards = CollectionUtils.wrapUnmodifiableOrEmptySingleton(activeShards);

@@ -107,7 +107,7 @@ public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQue
                 if (out.getTransportVersion().onOrAfter(TransportVersions.KNN_EXPLICIT_BYTE_QUERY_VECTOR_PARSING)) {
                     out.writeOptionalWriteable(queryVector);
                 } else {
-                    out.writeFloatArray(queryVector.asFloatVector(false));
+                    out.writeFloatArray(queryVector.asFloatVector());
                 }
             } else {
                 out.writeBoolean(false);

@@ -73,11 +73,14 @@ setup:
           my_vector_float: "807f0a"
 
 ---
-"Knn search with hex string for float field" :
+"Knn query with hex string for float field" :
   # [64, 10, -30] - is encoded as '400ae2'
-  # this will fail for a float field
+  # this will be properly decoded but only because:
+  # (i) the provided input is compatible as the values are within [Byte.MIN_VALUE, Byte.MAX_VALUE] range
+  # (ii) we do not differentiate between byte and float fields when initially parsing a query even for hex
+  # (iii) we support expansion from byte to float
+
   - do:
-      catch: /cannot convert to float, as we're explicitly using a byte vector/
       search:
         index: knn_hex_vector_index
         body:
@@ -88,8 +91,11 @@ setup:
               query_vector: "400ae2"
               num_candidates: 100
 
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "4" }
+
 ---
-"Knn search with hex string for byte field" :
+"Knn query with hex string for byte field" :
   # [64, 10, -30] - is encoded as '400ae2'
   - do:
       search:
@@ -108,7 +114,7 @@ setup:
   - match: { hits.hits.2._id: "1" }
 
 ---
-"Knn search with hex string for byte field - dimensions mismatch" :
+"Knn query with hex string for byte field - dimensions mismatch" :
   # [64, 10, -30, 10] - is encoded as '400ae20a'
   - do:
       catch: /the query vector has a different dimension \[4\] than the index vectors \[3\]/
@@ -123,7 +129,7 @@ setup:
               num_candidates: 100
 
 ---
-"Knn search with hex string for byte field - cannot decode string" :
+"Knn query with hex string for byte field - cannot decode string" :
   # '40af20a' is garbage :)
   - do:
       catch: /failed to parse field \[query_vector\]/
@@ -138,7 +144,7 @@ setup:
                 num_candidates: 100
 
 ---
-"Knn search with standard byte vector matching against hex-encoded indexed docs" :
+"Knn query with standard byte vector matching against hex-encoded indexed docs" :
   - do:
       search:
         index: knn_hex_vector_index

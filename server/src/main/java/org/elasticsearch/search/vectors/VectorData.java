@@ -58,25 +58,15 @@ public record VectorData(float[] floatVector, byte[] byteVector) implements Writ
         return vec;
     }
 
-    // Explicit byte parsing is only supported when operation on hex-encoded byte vectors
-    // which are defined only for ElementType.BYTE, so we should throw if we request to convert it to float
     public float[] asFloatVector() {
-        return asFloatVector(true);
-    }
-
-    public float[] asFloatVector(boolean failIfByte) {
-        if (byteVector != null) {
-            if (failIfByte) {
-                throw new UnsupportedOperationException("cannot convert to float, as we're explicitly using a byte vector");
-            } else {
-                float[] vec = new float[byteVector.length];
-                for (int i = 0; i < byteVector.length; i++) {
-                    vec[i] = byteVector[i];
-                }
-                return vec;
-            }
+        if (floatVector != null) {
+            return floatVector;
         }
-        return floatVector;
+        float[] vec = new float[byteVector.length];
+        for (int i = 0; i < byteVector.length; i++) {
+            vec[i] = byteVector[i];
+        }
+        return vec;
     }
 
     @Override
@@ -87,17 +77,15 @@ public record VectorData(float[] floatVector, byte[] byteVector) implements Writ
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startArray();
         if (floatVector != null) {
+            builder.startArray();
             for (float v : floatVector) {
                 builder.value(v);
             }
+            builder.endArray();
         } else {
-            for (byte b : byteVector) {
-                builder.value(b);
-            }
+            builder.value(HexFormat.of().formatHex(byteVector));
         }
-        builder.endArray();
         return builder;
     }
 
@@ -155,8 +143,7 @@ public record VectorData(float[] floatVector, byte[] byteVector) implements Writ
     }
 
     private static VectorData parseNumberVector(XContentParser parser) throws IOException {
-        float val = parser.floatValue();
-        return VectorData.fromFloats(new float[] { val });
+        return VectorData.fromFloats(new float[] { parser.floatValue() });
     }
 
     public static VectorData fromFloats(float[] vec) {

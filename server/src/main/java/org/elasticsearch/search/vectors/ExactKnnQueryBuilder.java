@@ -82,7 +82,7 @@ public class ExactKnnQueryBuilder extends AbstractQueryBuilder<ExactKnnQueryBuil
         if (out.getTransportVersion().onOrAfter(TransportVersions.KNN_EXPLICIT_BYTE_QUERY_VECTOR_PARSING)) {
             out.writeOptionalWriteable(query);
         } else {
-            out.writeFloatArray(query.asFloatVector(false));
+            out.writeFloatArray(query.asFloatVector());
         }
         out.writeString(field);
     }

@@ -455,7 +455,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         if (out.getTransportVersion().onOrAfter(TransportVersions.KNN_EXPLICIT_BYTE_QUERY_VECTOR_PARSING)) {
             out.writeOptionalWriteable(queryVector);
         } else {
-            out.writeFloatArray(queryVector.asFloatVector(false));
+            out.writeFloatArray(queryVector.asFloatVector());
         }
         out.writeNamedWriteableCollection(filterQueries);
         out.writeFloat(boost);

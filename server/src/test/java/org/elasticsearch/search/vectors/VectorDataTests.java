@@ -9,14 +9,16 @@
 package org.elasticsearch.search.vectors;
 
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.containsString;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class VectorDataTests extends ESTestCase {
 
@@ -35,20 +37,12 @@ public class VectorDataTests extends ESTestCase {
         assertThat(ex.getMessage(), containsString("please supply exactly either a float or a byte vector"));
     }
 
-    public void testThrowsWhenTryingToConvertByteToFloat() {
-        UnsupportedOperationException ex = expectThrows(UnsupportedOperationException.class, () -> {
-            VectorData vectorData = new VectorData(null, new byte[] { 1, 2, -127 });
-            vectorData.asFloatVector();
-        });
-        assertThat(ex.getMessage(), containsString("cannot convert to float, as we're explicitly using a byte vector"));
-    }
-
     public void testShouldCorrectlyConvertByteToFloatIfExplicitlyRequested() {
         byte[] byteVector = new byte[] { 1, 2, -127 };
         float[] expected = new float[] { 1f, 2f, -127f };
 
         VectorData vectorData = new VectorData(null, byteVector);
-        float[] actual = vectorData.asFloatVector(false);
+        float[] actual = vectorData.asFloatVector();
         assertArrayEquals(expected, actual, DELTA);
     }
 
@@ -78,95 +72,128 @@ public class VectorDataTests extends ESTestCase {
     }
 
     public void testParseHexCorrectly() throws IOException {
-        VectorData expected = new VectorData(null, new byte[] { 64, 10, -30, 10 });
-        XContentParser parserMock = mock(XContentParser.class);
-        when(parserMock.currentToken()).thenReturn(XContentParser.Token.VALUE_STRING);
-        when(parserMock.text()).thenReturn("400ae20a");
-        VectorData parsed = VectorData.parseXContent(parserMock);
-        assertEquals(expected, parsed);
-        UnsupportedOperationException ex = expectThrows(UnsupportedOperationException.class, parsed::asFloatVector);
-        assertThat(ex.getMessage(), containsString("cannot convert to float, as we're explicitly using a byte vector"));
+        byte[] expected = new byte[] { 64, 10, -30, 10 };
+        String toParse = "\"400ae20a\"";
+        try (
+            XContentParser parser = XContentHelper.createParserNotCompressed(
+                XContentParserConfiguration.EMPTY,
+                new BytesArray(toParse),
+                XContentType.JSON
+            )
+        ) {
+            parser.nextToken();
+            VectorData parsed = VectorData.parseXContent(parser);
+            assertArrayEquals(expected, parsed.asByteVector());
+        }
     }
 
     public void testParseFloatArray() throws IOException {
-        VectorData expected = new VectorData(new float[] { 1f, -1f, .1f }, null);
-        XContentParser parserMock = mock(XContentParser.class);
-        when(parserMock.currentToken()).thenReturn(XContentParser.Token.START_ARRAY);
-        when(parserMock.nextToken()).thenReturn(
-            XContentParser.Token.VALUE_NUMBER,
-            XContentParser.Token.VALUE_NUMBER,
-            XContentParser.Token.VALUE_NUMBER,
-            XContentParser.Token.END_ARRAY
-        );
-        when(parserMock.floatValue()).thenReturn(1f, -1f, .1f);
-        VectorData parsed = VectorData.parseXContent(parserMock);
-        assertEquals(expected, parsed);
+        float[] expected = new float[] { 1f, -1f, .1f };
+        String toParse = "[1.0, -1.0, 0.1]";
+        try (
+            XContentParser parser = XContentHelper.createParserNotCompressed(
+                XContentParserConfiguration.EMPTY,
+                new BytesArray(toParse),
+                XContentType.JSON
+            )
+        ) {
+            parser.nextToken();
+            VectorData parsed = VectorData.parseXContent(parser);
+            assertArrayEquals(expected, parsed.asFloatVector(), DELTA);
+        }
     }
 
     public void testParseByteArray() throws IOException {
-        byte[] expectedByteArray = new byte[] { 64, 10, -30, 10 };
-        XContentParser parserMock = mock(XContentParser.class);
-        when(parserMock.currentToken()).thenReturn(XContentParser.Token.START_ARRAY);
-        when(parserMock.nextToken()).thenReturn(
-            XContentParser.Token.VALUE_NUMBER,
-            XContentParser.Token.VALUE_NUMBER,
-            XContentParser.Token.VALUE_NUMBER,
-            XContentParser.Token.VALUE_NUMBER,
-            XContentParser.Token.END_ARRAY
-        );
-        when(parserMock.floatValue()).thenReturn(64f, 10f, -30f, 10f);
-        VectorData parsed = VectorData.parseXContent(parserMock);
-        assertArrayEquals(expectedByteArray, parsed.asByteVector());
+        byte[] expected = new byte[] { 64, 10, -30, 10 };
+        String toParse = "[64,10,-30,10]";
+        try (
+            XContentParser parser = XContentHelper.createParserNotCompressed(
+                XContentParserConfiguration.EMPTY,
+                new BytesArray(toParse),
+                XContentType.JSON
+            )
+        ) {
+            parser.nextToken();
+            VectorData parsed = VectorData.parseXContent(parser);
+            assertArrayEquals(expected, parsed.asByteVector());
+        }
     }
 
     public void testByteThrowsForOutsideRange() throws IOException {
-        XContentParser parserMock = mock(XContentParser.class);
-        when(parserMock.currentToken()).thenReturn(XContentParser.Token.START_ARRAY);
-        when(parserMock.nextToken()).thenReturn(XContentParser.Token.VALUE_NUMBER, XContentParser.Token.END_ARRAY);
-        when(parserMock.floatValue()).thenReturn(1000f);
-        VectorData parsed = VectorData.parseXContent(parserMock);
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, parsed::asByteVector);
-        assertThat(ex.getMessage(), containsString("vectors only support integers between [-128, 127]"));
+        String toParse = "[1000]";
+        try (
+            XContentParser parser = XContentHelper.createParserNotCompressed(
+                XContentParserConfiguration.EMPTY,
+                new BytesArray(toParse),
+                XContentType.JSON
+            )
+        ) {
+            parser.nextToken();
+            VectorData parsed = VectorData.parseXContent(parser);
+            IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, parsed::asByteVector);
+            assertThat(ex.getMessage(), containsString("vectors only support integers between [-128, 127]"));
+        }
     }
 
     public void testAsByteThrowsForDecimals() throws IOException {
-        XContentParser parserMock = mock(XContentParser.class);
-        when(parserMock.currentToken()).thenReturn(XContentParser.Token.START_ARRAY);
-        when(parserMock.nextToken()).thenReturn(XContentParser.Token.VALUE_NUMBER, XContentParser.Token.END_ARRAY);
-        when(parserMock.floatValue()).thenReturn(0.1f);
-        VectorData parsed = VectorData.parseXContent(parserMock);
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, parsed::asByteVector);
-        assertThat(ex.getMessage(), containsString("vectors only support non-decimal values but found decimal value"));
+        String toParse = "[0.1]";
+        try (
+            XContentParser parser = XContentHelper.createParserNotCompressed(
+                XContentParserConfiguration.EMPTY,
+                new BytesArray(toParse),
+                XContentType.JSON
+            )
+        ) {
+            parser.nextToken();
+            VectorData parsed = VectorData.parseXContent(parser);
+            IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, parsed::asByteVector);
+            assertThat(ex.getMessage(), containsString("vectors only support non-decimal values but found decimal value"));
+        }
     }
 
     public void testParseSingleNumber() throws IOException {
-        VectorData expected = new VectorData(new float[] { 0.1f }, null);
-        XContentParser parserMock = mock(XContentParser.class);
-        when(parserMock.currentToken()).thenReturn(XContentParser.Token.VALUE_NUMBER);
-        when(parserMock.floatValue()).thenReturn(0.1f);
-        VectorData parsed = VectorData.parseXContent(parserMock);
-        assertEquals(expected, parsed);
+        float[] expected = new float[] { 0.1f };
+        String toParse = "0.1";
+        try (
+            XContentParser parser = XContentHelper.createParserNotCompressed(
+                XContentParserConfiguration.EMPTY,
+                new BytesArray(toParse),
+                XContentType.JSON
+            )
+        ) {
+            parser.nextToken();
+            VectorData parsed = VectorData.parseXContent(parser);
+            assertArrayEquals(expected, parsed.asFloatVector(), DELTA);
+        }
     }
 
-    public void testParseThrowsForUnknown() {
-        XContentParser parserMock = mock(XContentParser.class);
-        when(parserMock.currentToken()).thenReturn(XContentParser.Token.START_OBJECT);
-        ParsingException ex = expectThrows(ParsingException.class, () -> VectorData.parseXContent(parserMock));
-        assertThat(ex.getMessage(), containsString("Unknown type [" + XContentParser.Token.START_OBJECT + "] for parsing vector"));
+    public void testParseThrowsForUnknown() throws IOException {
+        String unknown = "{\"foo\":\"bar\"}";
+        try (
+            XContentParser parser = XContentHelper.createParser(
+                XContentParserConfiguration.EMPTY,
+                new BytesArray(unknown),
+                XContentType.JSON
+            )
+        ) {
+            parser.nextToken();
+            ParsingException ex = expectThrows(ParsingException.class, () -> VectorData.parseXContent(parser));
+            assertThat(ex.getMessage(), containsString("Unknown type [" + XContentParser.Token.START_OBJECT + "] for parsing vector"));
+        }
     }
 
     public void testFailForUnknownArrayValue() throws IOException {
-        VectorData expected = new VectorData(new float[] { 1f, -1f, .1f }, null);
-        XContentParser parserMock = mock(XContentParser.class);
-        when(parserMock.currentToken()).thenReturn(XContentParser.Token.START_ARRAY);
-        when(parserMock.nextToken()).thenReturn(
-            XContentParser.Token.VALUE_NUMBER,
-            XContentParser.Token.VALUE_BOOLEAN,
-            XContentParser.Token.END_ARRAY
-        );
-        when(parserMock.floatValue()).thenReturn(1f, -1f, .1f);
-        ParsingException ex = expectThrows(ParsingException.class, () -> VectorData.parseXContent(parserMock));
-        assertThat(ex.getMessage(), containsString("Type [" + XContentParser.Token.VALUE_BOOLEAN + "] not supported for query vector"));
-
+        String toParse = "[0.1, true]";
+        try (
+            XContentParser parser = XContentHelper.createParserNotCompressed(
+                XContentParserConfiguration.EMPTY,
+                new BytesArray(toParse),
+                XContentType.JSON
+            )
+        ) {
+            parser.nextToken();
+            ParsingException ex = expectThrows(ParsingException.class, () -> VectorData.parseXContent(parser));
+            assertThat(ex.getMessage(), containsString("Type [" + XContentParser.Token.VALUE_BOOLEAN + "] not supported for query vector"));
+        }
     }
 }

@@ -202,10 +202,10 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         } else {
             if (out.getTransportVersion().before(TransportVersions.V_8_7_0)
                 || out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-                out.writeFloatArray(queryVector.asFloatVector(false));
+                out.writeFloatArray(queryVector.asFloatVector());
             } else {
                 out.writeBoolean(true);
-                out.writeFloatArray(queryVector.asFloatVector(false));
+                out.writeFloatArray(queryVector.asFloatVector());
                 out.writeBoolean(false); // used for byteQueryVector, which was always null
             }
         }

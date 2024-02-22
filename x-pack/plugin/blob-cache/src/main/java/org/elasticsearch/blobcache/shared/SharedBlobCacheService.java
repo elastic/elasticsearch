@@ -402,7 +402,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         return (int) (position / regionSize);
     }
 
-    private int getRegionRelativePosition(long position) {
+    protected int getRegionRelativePosition(long position) {
         return (int) (position % regionSize);
     }
 
@@ -414,7 +414,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         return (long) (region + 1) * regionSize;
     }
 
-    private int getEndingRegion(long position) {
+    protected int getEndingRegion(long position) {
         return getRegion(position - (position % regionSize == 0 ? 1 : 0));
     }
 
@@ -683,6 +683,24 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         }
     }
 
+    protected boolean assertOffsetsWithinFileLength(long offset, long length, long fileLength, int region, long regionLength) {
+        assert offset >= 0L;
+        assert length > 0L;
+        assert fileLength > 0L;
+        assert regionLength > 0L;
+        assert offset + length <= fileLength
+            : "accessing ["
+                + length
+                + "] bytes at offset ["
+                + offset
+                + "] in region ["
+                + region
+                + "] would be beyond file length ["
+                + fileLength
+                + ']';
+        return true;
+    }
+
     /**
      * While this class has incRef and tryIncRef methods, incRefEnsureOpen and tryIncrefEnsureOpen should
      * always be used, ensuring the right ordering between incRef/tryIncRef and ensureOpen
@@ -692,13 +710,16 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
 
         final RegionKey<KeyType> regionKey;
         final SparseFileTracker tracker;
+        final int regionLength;
+        final long fileLength; // used in assertions only
         // io can be null when not init'ed or after evict/take
         volatile SharedBytes.IO io = null;
 
-        CacheFileRegion(RegionKey<KeyType> regionKey, int regionSize) {
+        CacheFileRegion(RegionKey<KeyType> regionKey, long fileLength) {
             this.regionKey = regionKey;
-            assert regionSize > 0;
-            tracker = new SparseFileTracker("file", regionSize);
+            this.regionLength = computeCacheFileRegionSize(fileLength, regionKey.region);
+            this.tracker = new SparseFileTracker("file", regionLength);
+            this.fileLength = Assertions.ENABLED ? fileLength : -1L;
         }
 
         public long physicalStartOffset() {
@@ -784,6 +805,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         boolean tryRead(ByteBuffer buf, long offset) throws IOException {
             SharedBytes.IO ioRef = this.io;
             if (ioRef != null) {
+                assert assertOffsetsWithinFileLength(offset, buf.remaining(), fileLength, regionKey.region, regionLength);
                 int readBytes = ioRef.read(buf, getRegionRelativePosition(offset));
                 if (isEvicted()) {
                     buf.position(buf.position() - readBytes);
@@ -813,6 +835,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             final Executor executor,
             final ActionListener<Boolean> listener
         ) {
+            assert assertOffsetsWithinFileLength(rangeToWrite.start(), rangeToWrite.length(), fileLength, regionKey.region, regionLength);
             Releasable resource = null;
             try {
                 incRefEnsureOpen();
@@ -847,6 +870,8 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             final Executor executor,
             final ActionListener<Integer> listener
         ) {
+            assert assertOffsetsWithinFileLength(rangeToWrite.start(), rangeToWrite.length(), fileLength, regionKey.region, regionLength);
+            assert assertOffsetsWithinFileLength(rangeToRead.start(), rangeToRead.length(), fileLength, regionKey.region, regionLength);
             Releasable resource = null;
             try {
                 incRefEnsureOpen();
@@ -1216,8 +1241,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             // if we did not find an entry
             var entry = keyMapping.get(regionKey);
             if (entry == null) {
-                final int effectiveRegionSize = computeCacheFileRegionSize(fileLength, region);
-                entry = keyMapping.computeIfAbsent(regionKey, key -> new LFUCacheEntry(new CacheFileRegion(key, effectiveRegionSize), now));
+                entry = keyMapping.computeIfAbsent(regionKey, key -> new LFUCacheEntry(new CacheFileRegion(key, fileLength), now));
             }
             // io is volatile, double locking is fine, as long as we assign it last.
             if (entry.chunk.io == null) {

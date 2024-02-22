@@ -618,8 +618,9 @@ public class DoSection implements ExecutableSection {
                 case "version" -> parseVersionSelector(parser);
                 default -> throw new XContentParseException(parser.getTokenLocation(), "unknown node_selector [" + name + "]");
             };
-        } finally {
+        } catch(XContentParseException e) {
             parser.nextToken();
+            throw e;
         }
     }
 

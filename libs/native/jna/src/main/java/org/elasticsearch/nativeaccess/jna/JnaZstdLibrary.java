@@ -11,7 +11,6 @@ package org.elasticsearch.nativeaccess.jna;
 import com.sun.jna.Library;
 import com.sun.jna.Memory;
 import com.sun.jna.Native;
-
 import com.sun.jna.Pointer;
 
 import org.elasticsearch.nativeaccess.lib.ZstdLibrary;
@@ -49,8 +48,7 @@ public class JnaZstdLibrary implements ZstdLibrary {
         assert src.isDirect() == false;
         assert dstLen != 0;
         assert srcLen != 0;
-        try (Memory nativeDst = new Memory(dstLen);
-             Memory nativeSrc = new Memory(srcLen)) {
+        try (Memory nativeDst = new Memory(dstLen); Memory nativeSrc = new Memory(srcLen)) {
             nativeSrc.write(0, src.array(), src.position(), srcLen);
             long compressedLen = functions.ZSTD_compress(nativeDst, dstLen, nativeSrc, srcLen, compressionLevel);
             if (functions.ZSTD_isError(compressedLen) == false) {
@@ -75,8 +73,7 @@ public class JnaZstdLibrary implements ZstdLibrary {
     public long decompress(ByteBuffer dst, int dstLen, ByteBuffer src, int srcLen) {
         assert dst.isDirect() == false;
         assert src.isDirect() == false;
-        try (Memory nativeDst = new Memory(dstLen);
-             Memory nativeSrc = new Memory(srcLen)) {
+        try (Memory nativeDst = new Memory(dstLen); Memory nativeSrc = new Memory(srcLen)) {
             nativeSrc.write(0, src.array(), src.position(), srcLen);
             long decompressedLen = functions.ZSTD_decompress(nativeDst, dstLen, nativeSrc, srcLen);
             if (functions.ZSTD_isError(decompressedLen) == false) {

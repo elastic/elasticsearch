@@ -181,17 +181,25 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
         }
 
         // TODO: we don't have this anywhere already?
-        String platform = String.format(Locale.ROOT, "%s-%s",
+        String platform = String.format(
+            Locale.ROOT,
+            "%s-%s",
             ElasticsearchDistribution.CURRENT_PLATFORM.toString(),
-            Architecture.current().toString().toLowerCase(Locale.ROOT));
+            Architecture.current().toString().toLowerCase(Locale.ROOT)
+        );
         String existingLibraryPath = System.getProperty("java.library.path");
 
         project.getTasks().withType(Test.class).configureEach(test -> {
             var dep = project.getDependencies().project(Map.of("path", nativeProject, "configuration", "runtimePath"));
             Configuration nativeConfig = project.getConfigurations().detachedConfiguration(dep);
             var systemProperties = test.getExtensions().getByType(SystemPropertyCommandLineArgumentProvider.class);
-            var libraryPath = (Supplier<String>) () ->
-                String.format(Locale.ROOT, "%s/%s:%s", nativeConfig.getAsPath(), platform, existingLibraryPath);
+            var libraryPath = (Supplier<String>) () -> String.format(
+                Locale.ROOT,
+                "%s/%s:%s",
+                nativeConfig.getAsPath(),
+                platform,
+                existingLibraryPath
+            );
 
             test.dependsOn(nativeConfig);
             // we may use JNA or the JDK's foreign function api to load libraries, so we set both sysprops

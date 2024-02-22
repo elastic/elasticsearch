@@ -20,6 +20,7 @@ public final class Zstd {
     Zstd(ZstdLibrary zstdLib) {
         this.zstdLib = zstdLib;
     }
+
     /**
      * Compress the content of {@code src} into {@code dst} at compression level {@code level}, and return the number of compressed bytes.
      * {@link ByteBuffer#position()} and {@link ByteBuffer#limit()} of both {@link ByteBuffer}s are left unmodified.

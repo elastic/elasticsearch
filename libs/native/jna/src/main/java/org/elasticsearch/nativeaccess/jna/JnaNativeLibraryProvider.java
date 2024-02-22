@@ -8,9 +8,6 @@
 
 package org.elasticsearch.nativeaccess.jna;
 
-import com.sun.jna.Library;
-import com.sun.jna.Native;
-
 import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
 import org.elasticsearch.nativeaccess.lib.PosixCLibrary;
 import org.elasticsearch.nativeaccess.lib.ZstdLibrary;

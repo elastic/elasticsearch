@@ -8,7 +8,6 @@
 
 package org.elasticsearch.nativeaccess;
 
-import org.apache.lucene.util.Constants;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 import org.junit.BeforeClass;

@@ -33,12 +33,8 @@ import org.junit.BeforeClass;
 
 import java.util.List;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.hamcrest.CoreMatchers.equalTo;
-import static org.hamcrest.CoreMatchers.is;
-import static org.hamcrest.CoreMatchers.notNullValue;
-import static org.hamcrest.CoreMatchers.nullValue;
+import static org.hamcrest.CoreMatchers.*;
 
 public class UpdateDataStreamGlobalRetentionServiceTests extends ESTestCase {
     private static TestThreadPool threadPool;
@@ -196,19 +192,9 @@ public class UpdateDataStreamGlobalRetentionServiceTests extends ESTestCase {
     }
 
     public void testUpdateAndAcknowledgeListener() throws Exception {
-        AtomicInteger listenerOnRespondCount = new AtomicInteger();
-        List<UpdateDataStreamGlobalRetentionResponse.AffectedDataStream> affectedDataStreams = randomList(
-            5,
-            () -> new UpdateDataStreamGlobalRetentionResponse.AffectedDataStream(randomAlphaOfLength(10), null, null)
-        );
         ActionListener<UpdateDataStreamGlobalRetentionResponse> listener = new ActionListener<>() {
             @Override
-            public void onResponse(UpdateDataStreamGlobalRetentionResponse response) {
-                assertThat(response.isAcknowledged(), is(true));
-                assertThat(response.isDryRun(), is(false));
-                assertThat(response.getAffectedDataStreams(), equalTo(affectedDataStreams));
-                listenerOnRespondCount.incrementAndGet();
-            }
+            public void onResponse(UpdateDataStreamGlobalRetentionResponse response) {}
 
             @Override
             public void onFailure(Exception e) {
@@ -218,34 +204,22 @@ public class UpdateDataStreamGlobalRetentionServiceTests extends ESTestCase {
         DataStreamGlobalRetention globalRetention = randomNonEmptyGlobalRetention();
         service.updateGlobalRetention(
             new PutDataStreamGlobalRetentionAction.Request(globalRetention.getDefaultRetention(), globalRetention.getMaxRetention()),
-            affectedDataStreams,
+            List.of(),
             listener
         );
-        assertBusy(() -> assertThat(listenerOnRespondCount.get(), is(1)));
-    }
+        assertBusy(() -> assertThat(clusterService.state().getCustoms().get(DataStreamGlobalRetention.TYPE), equalTo(globalRetention)));
 
-    public void testRemoveAndAcknowledgeListener() throws Exception {
-        AtomicInteger listenerOnRespondCount = new AtomicInteger();
-        List<UpdateDataStreamGlobalRetentionResponse.AffectedDataStream> affectedDataStreams = randomList(
-            5,
-            () -> new UpdateDataStreamGlobalRetentionResponse.AffectedDataStream(randomAlphaOfLength(10), null, null)
-        );
-        ActionListener<UpdateDataStreamGlobalRetentionResponse> listener = new ActionListener<>() {
+        listener = new ActionListener<>() {
             @Override
-            public void onResponse(UpdateDataStreamGlobalRetentionResponse response) {
-                assertThat(response.isAcknowledged(), is(true));
-                assertThat(response.isDryRun(), is(false));
-                assertThat(response.getAffectedDataStreams(), equalTo(affectedDataStreams));
-                listenerOnRespondCount.incrementAndGet();
-            }
+            public void onResponse(UpdateDataStreamGlobalRetentionResponse response) {}
 
             @Override
             public void onFailure(Exception e) {
                 fail(e);
             }
         };
-        service.removeGlobalRetention(new DeleteDataStreamGlobalRetentionAction.Request(), affectedDataStreams, listener);
-        assertBusy(() -> assertThat(listenerOnRespondCount.get(), is(1)));
+        service.removeGlobalRetention(new DeleteDataStreamGlobalRetentionAction.Request(), List.of(), listener);
+        assertBusy(() -> assertThat(clusterService.state().getCustoms().get(DataStreamGlobalRetention.TYPE), nullValue()));
     }
 
     private static DataStreamGlobalRetention randomNonEmptyGlobalRetention() {

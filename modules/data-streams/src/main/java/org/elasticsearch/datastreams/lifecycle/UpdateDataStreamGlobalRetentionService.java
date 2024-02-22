@@ -47,7 +47,7 @@ public class UpdateDataStreamGlobalRetentionService {
                 return new Tuple<>(updateGlobalRetention(clusterState, task.globalRetention()), task);
             }
         };
-        this.taskQueue = clusterService.createTaskQueue("-retention-data-stream-global", Priority.HIGH, executor);
+        this.taskQueue = clusterService.createTaskQueue("data-stream-global-retention", Priority.HIGH, executor);
 
     }
 
@@ -57,7 +57,7 @@ public class UpdateDataStreamGlobalRetentionService {
         final ActionListener<UpdateDataStreamGlobalRetentionResponse> listener
     ) {
         taskQueue.submitTask(
-            "update-global-data-stream-settings",
+            "update-data-stream-global-retention",
             new UpsertGlobalDataStreamMetadataTask(
                 request.getGlobalRetention(),
                 affectedDataStreams,
@@ -74,7 +74,7 @@ public class UpdateDataStreamGlobalRetentionService {
         final ActionListener<UpdateDataStreamGlobalRetentionResponse> listener
     ) {
         taskQueue.submitTask(
-            "remove-global-data-stream-settings",
+            "remove-data-stream-global-retention",
             new UpsertGlobalDataStreamMetadataTask(null, affectedDataStreams, listener, request.masterNodeTimeout()),
             request.masterNodeTimeout()
         );

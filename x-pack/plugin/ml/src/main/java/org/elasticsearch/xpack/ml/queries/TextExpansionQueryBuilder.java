@@ -31,8 +31,10 @@ import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfigUpdate;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -74,16 +76,7 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
         }
 
         public static String getAllowedFieldTypesAsString() {
-            StringBuilder result = new StringBuilder();
-            for (AllowedFieldType fieldType : values()) {
-                result.append(fieldType.getTypeName()).append(", ");
-            }
-
-            // Remove the trailing ", "
-            if (result.length() > 0) {
-                result.setLength(result.length() - 2);
-            }
-            return result.toString();
+            return Arrays.stream(values()).map(value -> value.typeName).collect(Collectors.joining(", "));
         }
     }
 

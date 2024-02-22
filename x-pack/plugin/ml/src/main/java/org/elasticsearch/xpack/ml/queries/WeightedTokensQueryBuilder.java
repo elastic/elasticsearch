@@ -161,9 +161,9 @@ public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTok
                     + fieldTypeName
                     + "]"
                     + " is not an appropriate field type for text expansion query. "
-                    + "Allowed field types are "
+                    + "Allowed field types are ["
                     + AllowedFieldType.getAllowedFieldTypesAsString()
-                    + "."
+                    + "]."
             );
         }
 

@@ -22,11 +22,12 @@ public class DefaultBuildVersion implements BuildVersion {
     public static BuildVersion CURRENT = new DefaultBuildVersion(Version.CURRENT.id());
     public static BuildVersion EMPTY = new DefaultBuildVersion(0);
 
-    // TODO[wrb]: hold on to a Version field
     private final int versionId;
+    private final Version version;
 
     public DefaultBuildVersion(int versionId) {
         this.versionId = versionId;
+        this.version = Version.fromId(versionId);
     }
 
     @Override
@@ -36,17 +37,17 @@ public class DefaultBuildVersion implements BuildVersion {
 
     @Override
     public boolean isCompatibleWithCurrent() {
-        return Version.CURRENT.minimumCompatibilityVersion().onOrBefore(Version.fromId(versionId));
+        return Version.CURRENT.minimumCompatibilityVersion().onOrBefore(version);
     }
 
     @Override
     public boolean isFutureVersion() {
-        return Version.CURRENT.before(Version.fromId(versionId));
+        return Version.CURRENT.before(version);
     }
 
     @Override
     public Version toVersion() {
-        return Version.fromId(this.versionId);
+        return version;
     }
 
     @Override

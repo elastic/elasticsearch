@@ -153,6 +153,10 @@ dependencies {
   testImplementation('org.apache.directory.mavibot:mavibot:1.0.0-M8')
 }
 
+tasks.named("test").configure {
+  systemProperty 'es.insecure_network_trace_enabled', 'true'
+}
+
 tasks.named("processInternalClusterTestResources").configure {
   from(project(xpackModule('core')).file('src/main/config'))
   from(project(xpackModule('core')).file('src/test/resources'))

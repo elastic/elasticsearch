@@ -456,16 +456,20 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     }
 
     /**
-     * Creates a new document size observerl
+     * Creates a new document size observer
      * @param documentParsingProvider a provider to create a new observer.
      * @param request an index request to provide information about bytes being already parsed.
-     * @return a Fixed version of DocumentSizeObserver if parsing already happened (in IngestService).
+     * @return a Fixed version of DocumentSizeObserver if parsing already happened (in IngestService, UpdateHelper)
+     * and there is a value to be reported >0
      * It would be pre-populated with information about how many bytes were already parsed
-     * or return a new 'empty' DocumentSizeObserver.
+     * or a noop instance if parsed bytes in IngestService/UpdateHelper was 0 (like when empty doc or script in update)
+     * or return a new DocumentSizeObserver that will be used when parsing.
      */
     private static DocumentSizeObserver getDocumentSizeObserver(DocumentParsingProvider documentParsingProvider, IndexRequest request) {
         if (request.getNormalisedBytesParsed() != -1) {
             return documentParsingProvider.newFixedSizeDocumentObserver(request.getNormalisedBytesParsed());
+        } else if (request.getNormalisedBytesParsed() == 0) {
+            return DocumentSizeObserver.EMPTY_INSTANCE;
         }
         return documentParsingProvider.newDocumentSizeObserver();
     }

@@ -289,14 +289,14 @@ public class CountedKeywordFieldMapper extends FieldMapper {
         @Override
         public FieldMapper build(MapperBuilderContext context) {
 
-            BinaryFieldMapper countFieldMapper = new BinaryFieldMapper.Builder(name + COUNT_FIELD_NAME_SUFFIX, true).build(context);
+            BinaryFieldMapper countFieldMapper = new BinaryFieldMapper.Builder(name() + COUNT_FIELD_NAME_SUFFIX, true).build(context);
             boolean isIndexed = indexed.getValue();
             FieldType ft = isIndexed ? FIELD_TYPE_INDEXED : FIELD_TYPE_NOT_INDEXED;
             return new CountedKeywordFieldMapper(
-                name,
+                name(),
                 ft,
                 new CountedKeywordFieldType(
-                    context.buildFullName(name),
+                    context.buildFullName(name()),
                     isIndexed,
                     false,
                     true,

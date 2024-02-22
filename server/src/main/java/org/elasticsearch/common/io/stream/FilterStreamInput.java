@@ -28,6 +28,11 @@ public abstract class FilterStreamInput extends StreamInput {
     }
 
     @Override
+    public String readString() throws IOException {
+        return delegate.readString();
+    }
+
+    @Override
     public byte readByte() throws IOException {
         return delegate.readByte();
     }

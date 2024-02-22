@@ -48,7 +48,7 @@ public final class UpdateApiKeyRequest extends BaseSingleUpdateApiKeyRequest {
     }
 
     public interface RequestTranslator {
-        UpdateApiKeyRequest translate(RestRequest request, boolean strictRequestValidation) throws IOException;
+        UpdateApiKeyRequest translate(RestRequest request) throws IOException;
 
         class Default implements RequestTranslator {
             private static final ConstructingObjectParser<Payload, Void> PARSER = initParser((n, p) -> {
@@ -81,8 +81,7 @@ public final class UpdateApiKeyRequest extends BaseSingleUpdateApiKeyRequest {
             }
 
             @Override
-            public UpdateApiKeyRequest translate(RestRequest request, boolean strictRequestValidation) throws IOException {
-                assert strictRequestValidation == false;
+            public UpdateApiKeyRequest translate(RestRequest request) throws IOException {
                 // Note that we use `ids` here even though we only support a single id. This is because this route shares a path prefix with
                 // `RestClearApiKeyCacheAction` and our current REST implementation requires that path params have the same wildcard if
                 // their paths share a prefix

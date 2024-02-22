@@ -47,12 +47,7 @@ public final class RestUpdateApiKeyAction extends ApiKeyBaseRestHandler {
 
     @Override
     protected RestChannelConsumer innerPrepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        // TODO this needs to be a supplier since the setting is dynamic...
-        final boolean strictRequestValidation = settings.getAsBoolean(
-            "xpack.security.authc.api_key.strict_request_validation.enabled",
-            false
-        );
-        final UpdateApiKeyRequest updateApiKeyRequest = requestTranslator.translate(request, strictRequestValidation);
+        final UpdateApiKeyRequest updateApiKeyRequest = requestTranslator.translate(request);
         return channel -> client.execute(UpdateApiKeyAction.INSTANCE, updateApiKeyRequest, new RestToXContentListener<>(channel));
     }
 

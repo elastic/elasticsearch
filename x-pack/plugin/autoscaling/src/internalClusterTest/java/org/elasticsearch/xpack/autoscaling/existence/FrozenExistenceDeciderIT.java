@@ -134,6 +134,11 @@ public class FrozenExistenceDeciderIT extends AbstractFrozenAutoscalingIntegTest
 
         logger.info("-> starting dedicated frozen node");
         internalCluster().startNode(NodeRoles.onlyRole(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE));
+        Thread.sleep(1000);
+        logger.info("-> starting another dedicated frozen node");
+        // start another node to cause a bit more cluster activity in case the `wait-for-index-colour` ILM step missed the
+        // notification that partial-index is now GREEN.
+        internalCluster().startNode(NodeRoles.onlyRole(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE));
 
         // we've seen a case where bootstrapping a node took just over 60 seconds in the test environment, so using an (excessive) 90
         // seconds max wait time to avoid flakiness

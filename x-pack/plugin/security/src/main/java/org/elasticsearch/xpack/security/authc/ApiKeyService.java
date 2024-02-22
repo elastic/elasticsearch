@@ -202,6 +202,17 @@ public class ApiKeyService {
         Property.NodeScope
     );
 
+    /**
+     * This setting is never registered by the security plugin - in order to configure strict request validation
+     * another plugin must register it as a boolean setting and override the value.
+     */
+    public static final Setting<Boolean> STRICT_REQUEST_VALIDATION_SETTING = Setting.boolSetting(
+        "xpack.security.authc.api_key.strict_request_validation.enabled",
+        false, // TODO : This will become true at a later time
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
     private final Clock clock;
     private final Client client;
     private final SecurityIndexManager securityIndex;

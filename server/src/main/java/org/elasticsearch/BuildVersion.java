@@ -28,14 +28,6 @@ public interface BuildVersion extends Writeable, ToXContentFragment {
         return null;
     }
 
-    // temporary
-    // TODO[wrb]: remove from PersistedClusterStateService
-    // TODO[wrb]: remove from security bootstrap checks
-    @Deprecated
-    static BuildVersion fromVersion(Version version) {
-        return new DefaultBuildVersion(version.id());
-    }
-
     static BuildVersion fromVersionId(int versionId) {
         return ExtensionLoader.loadSingleton(ServiceLoader.load(BuildExtension.class))
             .map(ext -> ext.fromVersionId(versionId))

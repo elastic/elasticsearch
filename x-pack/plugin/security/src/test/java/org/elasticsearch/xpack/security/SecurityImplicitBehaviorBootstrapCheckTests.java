@@ -33,15 +33,13 @@ import static org.mockito.Mockito.when;
 public class SecurityImplicitBehaviorBootstrapCheckTests extends AbstractBootstrapCheckTestCase {
 
     public void testFailureUpgradeFrom7xWithImplicitSecuritySettings() throws Exception {
-        final Version previousVersion = randomValueOtherThan(
-            Version.V_8_0_0,
-            () -> VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumCompatibilityVersion(), Version.V_8_0_0)
+        final BuildVersion previousVersion = toBuildVersion(
+            randomValueOtherThan(
+                Version.V_8_0_0,
+                () -> VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumCompatibilityVersion(), Version.V_8_0_0)
+            )
         );
-        NodeMetadata nodeMetadata = new NodeMetadata(
-            randomAlphaOfLength(10),
-            BuildVersion.fromVersion(previousVersion),
-            IndexVersion.current()
-        );
+        NodeMetadata nodeMetadata = new NodeMetadata(randomAlphaOfLength(10), previousVersion, IndexVersion.current());
         nodeMetadata = nodeMetadata.upgradeToCurrentVersion();
         ClusterStateLicenseService licenseService = mock(ClusterStateLicenseService.class);
         Metadata metadata = createLicensesMetadata(
@@ -72,15 +70,13 @@ public class SecurityImplicitBehaviorBootstrapCheckTests extends AbstractBootstr
     }
 
     public void testUpgradeFrom7xWithImplicitSecuritySettingsOnGoldPlus() throws Exception {
-        final Version previousVersion = randomValueOtherThan(
-            Version.V_8_0_0,
-            () -> VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumCompatibilityVersion(), Version.V_8_0_0)
+        final BuildVersion previousVersion = toBuildVersion(
+            randomValueOtherThan(
+                Version.V_8_0_0,
+                () -> VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumCompatibilityVersion(), Version.V_8_0_0)
+            )
         );
-        NodeMetadata nodeMetadata = new NodeMetadata(
-            randomAlphaOfLength(10),
-            BuildVersion.fromVersion(previousVersion),
-            IndexVersion.current()
-        );
+        NodeMetadata nodeMetadata = new NodeMetadata(randomAlphaOfLength(10), previousVersion, IndexVersion.current());
         nodeMetadata = nodeMetadata.upgradeToCurrentVersion();
         ClusterStateLicenseService licenseService = mock(ClusterStateLicenseService.class);
         Metadata metadata = createLicensesMetadata(
@@ -97,15 +93,13 @@ public class SecurityImplicitBehaviorBootstrapCheckTests extends AbstractBootstr
     }
 
     public void testUpgradeFrom7xWithExplicitSecuritySettings() throws Exception {
-        final Version previousVersion = randomValueOtherThan(
-            Version.V_8_0_0,
-            () -> VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumCompatibilityVersion(), Version.V_8_0_0)
+        final BuildVersion previousVersion = toBuildVersion(
+            randomValueOtherThan(
+                Version.V_8_0_0,
+                () -> VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumCompatibilityVersion(), Version.V_8_0_0)
+            )
         );
-        NodeMetadata nodeMetadata = new NodeMetadata(
-            randomAlphaOfLength(10),
-            BuildVersion.fromVersion(previousVersion),
-            IndexVersion.current()
-        );
+        NodeMetadata nodeMetadata = new NodeMetadata(randomAlphaOfLength(10), previousVersion, IndexVersion.current());
         nodeMetadata = nodeMetadata.upgradeToCurrentVersion();
         ClusterStateLicenseService licenseService = mock(ClusterStateLicenseService.class);
         BootstrapCheck.BootstrapCheckResult result = new SecurityImplicitBehaviorBootstrapCheck(nodeMetadata, licenseService).check(
@@ -118,12 +112,8 @@ public class SecurityImplicitBehaviorBootstrapCheckTests extends AbstractBootstr
     }
 
     public void testUpgradeFrom8xWithImplicitSecuritySettings() throws Exception {
-        final Version previousVersion = VersionUtils.randomVersionBetween(random(), Version.V_8_0_0, null);
-        NodeMetadata nodeMetadata = new NodeMetadata(
-            randomAlphaOfLength(10),
-            BuildVersion.fromVersion(previousVersion),
-            IndexVersion.current()
-        );
+        final BuildVersion previousVersion = toBuildVersion(VersionUtils.randomVersionBetween(random(), Version.V_8_0_0, null));
+        NodeMetadata nodeMetadata = new NodeMetadata(randomAlphaOfLength(10), previousVersion, IndexVersion.current());
         nodeMetadata = nodeMetadata.upgradeToCurrentVersion();
         ClusterStateLicenseService licenseService = mock(ClusterStateLicenseService.class);
         BootstrapCheck.BootstrapCheckResult result = new SecurityImplicitBehaviorBootstrapCheck(nodeMetadata, licenseService).check(
@@ -136,12 +126,8 @@ public class SecurityImplicitBehaviorBootstrapCheckTests extends AbstractBootstr
     }
 
     public void testUpgradeFrom8xWithExplicitSecuritySettings() throws Exception {
-        final Version previousVersion = VersionUtils.randomVersionBetween(random(), Version.V_8_0_0, null);
-        NodeMetadata nodeMetadata = new NodeMetadata(
-            randomAlphaOfLength(10),
-            BuildVersion.fromVersion(previousVersion),
-            IndexVersion.current()
-        );
+        final BuildVersion previousVersion = toBuildVersion(VersionUtils.randomVersionBetween(random(), Version.V_8_0_0, null));
+        NodeMetadata nodeMetadata = new NodeMetadata(randomAlphaOfLength(10), previousVersion, IndexVersion.current());
         nodeMetadata = nodeMetadata.upgradeToCurrentVersion();
         ClusterStateLicenseService licenseService = mock(ClusterStateLicenseService.class);
         BootstrapCheck.BootstrapCheckResult result = new SecurityImplicitBehaviorBootstrapCheck(nodeMetadata, licenseService).check(
@@ -156,5 +142,9 @@ public class SecurityImplicitBehaviorBootstrapCheckTests extends AbstractBootstr
     private Metadata createLicensesMetadata(TrialLicenseVersion era, String licenseMode) throws Exception {
         License license = TestUtils.generateSignedLicense(licenseMode, TimeValue.timeValueHours(2));
         return Metadata.builder().putCustom(LicensesMetadata.TYPE, new LicensesMetadata(license, era)).build();
+    }
+
+    private static BuildVersion toBuildVersion(Version version) {
+        return BuildVersion.fromVersionId(version.id());
     }
 }

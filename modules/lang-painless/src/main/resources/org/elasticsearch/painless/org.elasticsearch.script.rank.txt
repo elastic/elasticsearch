@@ -16,22 +16,22 @@ class org.apache.lucene.search.ScoreDoc {
     int doc
     int shardIndex
 }
-class org.elasticsearch.search.scriptrank.RankKey {
+class org.elasticsearch.search.rank.script.RankKey {
     (int, int)
     int doc()
     int shardIndex()
 }
 
-class org.elasticsearch.search.scriptrank.RetrieverResults{
+class org.elasticsearch.search.rank.script.RetrieverResults{
 }
 
-class org.elasticsearch.search.scriptrank.ScriptRankDoc{
+class org.elasticsearch.search.rank.script.ScriptRankDoc{
     (ScoreDoc, Map, float[])
     float getDocScore()
     def getField(String)
     float getQueryScore(int)
     def getUserContext()
-    setUserContext(def)
+    void setUserContext(def)
 }
 
 class org.apache.lucene.util.PriorityQueue @no_import{

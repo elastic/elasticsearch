@@ -17,9 +17,9 @@ def results = [:];
 for (def retrieverResult : ctx.retrievers) {
     int index = retrieverResult.size();
     for (ScriptRankDoc scriptRankDoc : retrieverResult) {
-        ScoreDoc scoreDoc = scriptRankDoc.scoreDoc();
+        ScoreDoc scoreDoc = scriptRankDoc.;
         results.compute(
-                new RankKey(scoreDoc.doc, scoreDoc.shardIndex),
+                null,
                 (key, value) -> {
                     def v = value;
                     if (v == null) {

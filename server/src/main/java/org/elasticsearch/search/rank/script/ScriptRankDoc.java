@@ -65,8 +65,9 @@ public final class ScriptRankDoc {
      * @return The query's score for this document.
      */
     public float getQueryScore(int queryIndex) throws IndexOutOfBoundsException {
-        return queryScores[queryIndex];
+        return queryScores[queryIndex]; // TODO: need to make this a vector of scores
     }
+
 
     /**
      * TODO update documentation

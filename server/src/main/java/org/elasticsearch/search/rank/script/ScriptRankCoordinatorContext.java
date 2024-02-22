@@ -116,6 +116,7 @@ public class ScriptRankCoordinatorContext extends RankCoordinatorContext {
             }
         }
 
+        // TODO these need to return multiple iterators on the same object
         List<List<ScriptRankDoc>> allRetrieverResults = new ArrayList<>(queues.size());
         for (PriorityQueue<ScoreDoc> queue : queues) {
             List<ScriptRankDoc> currentRetrieverResults = new ArrayList<>();
@@ -139,6 +140,7 @@ public class ScriptRankCoordinatorContext extends RankCoordinatorContext {
         ctx.put("from", from);
         ctx.put("windowSize", windowSize);
 
+        // TODO change this to return an Iterable<ScriptRankDoc>
         List<ScoreDoc> scriptResult = rankScript.execute(ctx);
 
         var sortedTopDocs = new SearchPhaseController.SortedTopDocs(scriptResult.toArray(ScoreDoc[]::new), false, null, null, null, 0);

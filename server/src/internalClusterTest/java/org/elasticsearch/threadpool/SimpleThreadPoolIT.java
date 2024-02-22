@@ -107,7 +107,7 @@ public class SimpleThreadPoolIT extends ESIntegTestCase {
                 + "|"
                 + Pattern.quote(ESIntegTestCase.TEST_CLUSTER_NODE_PREFIX)
                 + ")";
-            assertThat(threadName, matchesRegex("\\[" + nodePrefix + "\\d+\\]"));
+            assertThat(threadName, matchesRegex("elasticsearch\\[" + nodePrefix + "\\d+\\].*"));
         }
     }
 

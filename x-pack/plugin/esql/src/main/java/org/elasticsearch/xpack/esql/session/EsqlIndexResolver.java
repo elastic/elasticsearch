@@ -14,6 +14,7 @@ import org.elasticsearch.action.fieldcaps.IndexFieldCapabilities;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.index.IndexResolver;
@@ -62,6 +63,7 @@ public class EsqlIndexResolver {
     }
 
     public IndexResolution mergedMappings(String indexPattern, FieldCapabilitiesResponse fieldCapsResponse) {
+        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH_COORDINATION); // too expensive to run this on a transport worker
         if (fieldCapsResponse.getIndexResponses().isEmpty()) {
             return IndexResolution.notFound(indexPattern);
         }
@@ -105,6 +107,15 @@ public class EsqlIndexResolver {
                     new HashMap<>()
                 );
             fields.put(name, field);
+        }
+
+        boolean allEmpty = false;
+        for (FieldCapabilitiesIndexResponse ir : fieldCapsResponse.getIndexResponses()) {
+            allEmpty &= ir.get().isEmpty();
+        }
+        if (allEmpty) {
+            // If all the mappings are empty we return an empty set of resolved indices to line up with QL
+            return IndexResolution.valid(new EsIndex(indexPattern, rootFields, Set.of()));
         }
 
         Set<String> concreteIndices = new HashSet<>(fieldCapsResponse.getIndexResponses().size());
@@ -231,6 +242,7 @@ public class EsqlIndexResolver {
     private static FieldCapabilitiesRequest createFieldCapsRequest(String index, Set<String> fieldNames) {
         FieldCapabilitiesRequest req = new FieldCapabilitiesRequest().indices(Strings.commaDelimitedListToStringArray(index));
         req.fields(fieldNames.toArray(String[]::new));
+        req.includeUnmapped(true);
         // lenient because we throw our own errors looking at the response e.g. if something was not resolved
         // also because this way security doesn't throw authorization exceptions but rather honors ignore_unavailable
         req.indicesOptions(IndexResolver.FIELD_CAPS_INDICES_OPTIONS);

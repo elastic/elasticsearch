@@ -111,7 +111,7 @@ public class NodeMetadataTests extends ESTestCase {
 
         final IllegalStateException illegalStateException = expectThrows(
             IllegalStateException.class,
-            () -> new NodeMetadata(nodeId, DefaultBuildVersion.EMPTY, IndexVersion.current()).upgradeToCurrentVersion()
+            () -> new NodeMetadata(nodeId, BuildVersion.empty(), IndexVersion.current()).upgradeToCurrentVersion()
         );
         assertThat(
             illegalStateException.getMessage(),

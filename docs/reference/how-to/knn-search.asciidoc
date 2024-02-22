@@ -18,7 +18,8 @@ can be automatically quantized during index time through
 <<dense-vector-quantization,`quantization`>>. Quantization will reduce the
 required memory by 4x, but it will also reduce the precision of the vectors and
 increase disk usage for the field (by up to 25%). Increased disk usage is a
-result of {es} storing both the quantized and the unqantized vectors.
+result of {es} storing both the quantized and the unquantized vectors.
+For example, an increase in disk usage by 10GB can result in a 30GB reduction in required memory.
 
 For `float` vectors with `dim` greater than or equal to `384`, using a
 <<dense-vector-quantization,`quantized`>> index is highly recommended.

@@ -1,0 +1,32 @@
+---
+"Noop":
+  - do:
+      indices.create:
+        index: test_1
+        body:
+          settings:
+            number_of_shards: 1
+  - do:
+      bulk:
+        refresh: true
+        body: |
+          { "create": { "_index": "test_1", "_id": "1"} }
+          { "foo": "bar" }
+          { "create": { "_index": "test_1", "_id": "2"} }
+          { "foo": "bar" }
+  - do:
+      bulk:
+        body: |
+          { "update": { "_index": "test_1", "_id": "1"} }
+          { "doc": { "foo": "bar" } }
+          { "update": { "_index": "test_1", "_id": "2"} }
+          { "doc": { "foo": "bar" } }
+
+  - match: { items.0.update.result: noop }
+  - match: { items.1.update.result: noop }
+
+  - do:
+      indices.stats: { index: test_1 }
+
+  - match: { _all.total.indexing.index_total: 2 }
+  - match: { _all.total.indexing.noop_update_total: 2 }

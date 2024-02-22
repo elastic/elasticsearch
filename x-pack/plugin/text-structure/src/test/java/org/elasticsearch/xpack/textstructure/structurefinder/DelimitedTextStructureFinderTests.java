@@ -38,8 +38,9 @@ import static org.hamcrest.Matchers.startsWith;
 
 public class DelimitedTextStructureFinderTests extends TextStructureTestCase {
 
-    private final TextStructureFinderFactory csvFactory = new DelimitedTextStructureFinderFactory(',', '"', 2, false);
-    private final TextStructureFinderFactory tsvFactory = new DelimitedTextStructureFinderFactory('\t', '"', 3, false);
+    // TODO: revert
+    private final DelimitedTextStructureFinderFactory csvFactory = new DelimitedTextStructureFinderFactory(',', '"', 2, false);
+    private final DelimitedTextStructureFinderFactory tsvFactory = new DelimitedTextStructureFinderFactory('\t', '"', 3, false);
 
     public void testCreateConfigsGivenCompleteCsv() throws Exception {
         String sample = """
@@ -788,6 +789,29 @@ public class DelimitedTextStructureFinderTests extends TextStructureTestCase {
         assertEquals("time_iso8601", structure.getTimestampField());
         assertEquals(Collections.singletonList("ISO8601"), structure.getJodaTimestampFormats());
         assertEquals(Collections.singleton("properties"), structure.getMappings().keySet());
+    }
+
+    public void testCreateFromMessages() throws Exception {
+        List<String> messages = List.of("a,b,c", "d,e,f", "g,h,i");
+        assertTrue(csvFactory.canCreateFromMessages(explanation, messages, 0.0));
+        TextStructureFinder structureFinder = csvFactory.createFromMessages(
+            explanation,
+            messages,
+            TextStructureOverrides.EMPTY_OVERRIDES,
+            NOOP_TIMEOUT_CHECKER);
+        TextStructure structure = structureFinder.getStructure();
+        assertEquals(TextStructure.Format.DELIMITED, structure.getFormat());
+        assertEquals(3, structure.getNumMessagesAnalyzed());
+    }
+
+    public void testCreateFromMessages_multipleRowPerMessage() {
+        List<String> messages = List.of("a,b,c\nd,e,f", "g,h,i");
+        assertFalse(csvFactory.canCreateFromMessages(explanation, messages, 0.0));
+    }
+
+    public void testCreateFromMessages_emptyMessage() {
+        List<String> messages = List.of("a,b,c", "", "d,e,f");
+        assertFalse(csvFactory.canCreateFromMessages(explanation, messages, 0.0));
     }
 
     public void testFindHeaderFromSampleGivenHeaderInSample() throws IOException {

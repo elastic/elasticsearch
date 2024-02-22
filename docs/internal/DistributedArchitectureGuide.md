@@ -12,17 +12,21 @@
 
 Callbacks are used extensively throughout Elasticsearch because they enable us to write asynchronous and nonblocking code, i.e. code which
 doesn't necessarily compute a result straight away but also doesn't block the calling thread waiting for the result to become available.
-Callbacks can be passed into methods for the method to perhaps complete straight away, or instead perhaps to store in a data structure and
-complete at some later time, or (most commonly) pass along down into some other method which takes a callback argument, possibly after
-modifying its behaviour slightly by wrapping it in another callback.
+They support several useful control flows:
 
-`ActionListener` is a general-purpose callback interface that is used extensively across the Elasticsearch codebase. It's an important
-feature of the Elasticsearch codebase that `ActionListener` is used pretty much everywhere that needs to perform some asynchronous and
-nonblocking computation. The uniformity makes it easier to compose parts of the system together without needing to build adapters to convert
-back and forth between different kinds of callback. It also makes it easier to develop the skills needed to read and understand all the
-asynchronous code, although this definitely takes practice and is certainly not easy in an absolute sense. Finally, it has allowed us to
-build a rich library for working with `ActionListener` instances themselves, creating new instances out of existing ones and completing them
-in interesting ways. See for instance:
+- They can be completed immediately on the calling thread.
+- They can be completed concurrently on a different thread.
+- They can be stored in a data structure and completed later on when the system reaches a particular state.
+- Most commonly, they can be passed on to other methods that themselves require a callback.
+- They can be wrapped in another callback which modifies the behaviour of the original callback, perhaps adding some extra code to run
+  before or after completion, before passing them on.
+
+`ActionListener` is a general-purpose callback interface that is used extensively across the Elasticsearch codebase. `ActionListener` is
+used pretty much everywhere that needs to perform some asynchronous and nonblocking computation. The uniformity makes it easier to compose
+parts of the system together without needing to build adapters to convert back and forth between different kinds of callback. It also makes
+it easier to develop the skills needed to read and understand all the asynchronous code, although this definitely takes practice and is
+certainly not easy in an absolute sense. Finally, it has allowed us to build a rich library for working with `ActionListener` instances
+themselves, creating new instances out of existing ones and completing them in interesting ways. See for instance:
 
 - all the static methods on [ActionListener](https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/action/ActionListener.java) itself
 - [`ThreadedActionListener`](https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/action/support/ThreadedActionListener.java) for forking work elsewhere
@@ -30,11 +34,15 @@ in interesting ways. See for instance:
 - [`SubscribableListener`](https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/action/support/SubscribableListener.java) for constructing flexible workflows
 
 Callback-based asynchronous code can easily call regular synchronous code, but synchronous code cannot run callback-based asynchronous code
-without blocking the calling thread until the continuation is executed. This blocking is at best undesirable (threads are too expensive to
+without blocking the calling thread until the callback is called back. This blocking is at best undesirable (threads are too expensive to
 waste with unnecessary blocking) and at worst outright broken (the blocking can lead to deadlock). Unfortunately this means that most of our
 code ends up having to be written with callbacks, simply because it's ultimately calling into some other code that takes a callback. The
-entry points for all Elasticsearch APIs are callback-based, and the whole system works in terms of an event loop which processes network
-events via callbacks.
+entry points for all Elasticsearch APIs are callback-based (e.g. REST APIs all start at
+[`org.elasticsearch.rest.BaseRestHandler#prepareRequest`](https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/rest/BaseRestHandler.java),
+and transport APIs all start at
+[`org.elasticsearch.action.support.TransportAction#doExecute`](https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/action/support/TransportAction.java))
+and the whole system fundamentally works in terms of an event loop (a `io.netty.channel.EventLoop`) which processes network events via
+callbacks.
 
 `ActionListener` is not an _ad-hoc_ invention. Formally speaking, it is our implementation of the general concept of a continuation in the
 sense of [_continuation-passing style_](https://en.wikipedia.org/wiki/Continuation-passing_style) (CPS): an extra argument to a function
@@ -46,15 +54,18 @@ ways that computation can continue in Java (it can return a value or it can thro
 CPS is strictly more expressive than direct style: direct code can be mechanically translated into continuation-passing style, but CPS also
 enables all sorts of other useful control structures such as forking work onto separate threads, possibly to be executed in parallel,
 perhaps even across multiple nodes, or possibly collecting a list of continuations all waiting for the same condition to be satisfied before
-proceeding. Some languages have first-class support for continuations (e.g. the `async` and `await` primitives in C#) allowing the
+proceeding (e.g.
+[`SubscribableListener`](https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/action/support/SubscribableListener.java)
+amongst many others). Some languages have first-class support for continuations (e.g. the `async` and `await` primitives in C#) allowing the
 programmer to write code in direct style away from those exotic control structures, but Java does not. That's why we have to manipulate all
 the callbacks ourselves.
 
 Strictly speaking, CPS requires that a computation _only_ continues by calling the continuation. In Elasticsearch, this means that
 asynchronous methods must have `void` return type and may not throw any exceptions. This is mostly the case in our code as written today,
 and is a good guiding principle, but we don't enforce it and there are some deviations from this rule. In particular, it's not uncommon to
-permit some methods to throw an exception, using things like `ActionListener#run` (or an equivalent `try ... catch ...` block) further up
-the stack to handle it.
+permit some methods to throw an exception, using things like
+[`ActionListener#run`](https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/action/ActionListener.java)
+(or an equivalent `try ... catch ...` block) further up the stack to handle it.
 
 This pattern is often used in the transport action layer with the use of the
 [ChannelActionListener](https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/action/support/ChannelActionListener.java)

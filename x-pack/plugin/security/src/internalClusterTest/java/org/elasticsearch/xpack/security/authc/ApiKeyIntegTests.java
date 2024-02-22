@@ -15,10 +15,10 @@ import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequestBuilder;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.TransportGetAction;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
@@ -810,7 +810,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
 
     private void refreshSecurityIndex() throws Exception {
         assertBusy(() -> {
-            final RefreshResponse refreshResponse = indicesAdmin().prepareRefresh(SECURITY_MAIN_ALIAS).get();
+            final BroadcastResponse refreshResponse = indicesAdmin().prepareRefresh(SECURITY_MAIN_ALIAS).get();
             assertThat(refreshResponse.getFailedShards(), is(0));
         });
     }
@@ -2891,7 +2891,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             final PlainActionFuture<QueryApiKeyResponse> future = new PlainActionFuture<>();
             client.execute(
                 QueryApiKeyAction.INSTANCE,
-                new QueryApiKeyRequest(QueryBuilders.idsQuery().addIds(apiKeyId), null, null, null, null, withLimitedBy),
+                new QueryApiKeyRequest(QueryBuilders.idsQuery().addIds(apiKeyId), null, null, null, null, null, withLimitedBy),
                 future
             );
             final QueryApiKeyResponse queryApiKeyResponse = future.actionGet();
@@ -2910,7 +2910,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             final PlainActionFuture<QueryApiKeyResponse> future = new PlainActionFuture<>();
             client.execute(
                 QueryApiKeyAction.INSTANCE,
-                new QueryApiKeyRequest(QueryBuilders.matchAllQuery(), null, 1000, null, null, withLimitedBy),
+                new QueryApiKeyRequest(QueryBuilders.matchAllQuery(), null, null, 1000, null, null, withLimitedBy),
                 future
             );
             final QueryApiKeyResponse queryApiKeyResponse = future.actionGet();

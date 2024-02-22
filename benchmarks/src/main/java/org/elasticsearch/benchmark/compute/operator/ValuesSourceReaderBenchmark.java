@@ -43,6 +43,7 @@ import org.elasticsearch.compute.operator.topn.TopNOperator;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -189,6 +190,11 @@ public class ValuesSourceReaderBenchmark {
                 }
 
                 @Override
+                public MappedFieldType.FieldExtractPreference fieldExtractPreference() {
+                    return MappedFieldType.FieldExtractPreference.NONE;
+                }
+
+                @Override
                 public SearchLookup lookup() {
                     throw new UnsupportedOperationException();
                 }
@@ -201,6 +207,11 @@ public class ValuesSourceReaderBenchmark {
                 @Override
                 public String parentField(String field) {
                     throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public FieldNamesFieldMapper.FieldNamesFieldType fieldNames() {
+                    return FieldNamesFieldMapper.FieldNamesFieldType.get(true);
                 }
             });
         }

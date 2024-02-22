@@ -67,7 +67,6 @@ final class IntArrayBlock extends AbstractArrayBlock implements IntBlock {
 
     @Override
     public IntBlock filter(int... positions) {
-        // TODO use reference counting to share the vector
         try (var builder = blockFactory().newIntBlockBuilder(positions.length)) {
             for (int pos : positions) {
                 if (isNull(pos)) {
@@ -109,7 +108,7 @@ final class IntArrayBlock extends AbstractArrayBlock implements IntBlock {
         // The following line is correct because positions with multi-values are never null.
         int expandedPositionCount = vector.getPositionCount();
         long bitSetRamUsedEstimate = Math.max(nullsMask.size(), BlockRamUsageEstimator.sizeOfBitSet(expandedPositionCount));
-        blockFactory().adjustBreaker(bitSetRamUsedEstimate, false);
+        blockFactory().adjustBreaker(bitSetRamUsedEstimate);
 
         IntArrayBlock expanded = new IntArrayBlock(
             vector,
@@ -119,7 +118,7 @@ final class IntArrayBlock extends AbstractArrayBlock implements IntBlock {
             MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING,
             blockFactory()
         );
-        blockFactory().adjustBreaker(expanded.ramBytesUsedOnlyBlock() - bitSetRamUsedEstimate, true);
+        blockFactory().adjustBreaker(expanded.ramBytesUsedOnlyBlock() - bitSetRamUsedEstimate);
         // We need to incRef after adjusting any breakers, otherwise we might leak the vector if the breaker trips.
         vector.incRef();
         return expanded;
@@ -167,7 +166,7 @@ final class IntArrayBlock extends AbstractArrayBlock implements IntBlock {
 
     @Override
     public void closeInternal() {
-        blockFactory().adjustBreaker(-ramBytesUsedOnlyBlock(), true);
+        blockFactory().adjustBreaker(-ramBytesUsedOnlyBlock());
         Releasables.closeExpectNoException(vector);
     }
 }

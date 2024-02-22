@@ -17,6 +17,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.SourceLoader;
@@ -339,12 +340,52 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
                 if (source.rescores() != null && source.rescores().isEmpty() == false) {
                     validationException = addValidationError("using [rescore] is not allowed in a scroll context", validationException);
                 }
+                if (CollectionUtils.isEmpty(source.searchAfter()) == false) {
+                    validationException = addValidationError("[search_after] cannot be used in a scroll context", validationException);
+                }
+                if (source.collapse() != null) {
+                    validationException = addValidationError("cannot use `collapse` in a scroll context", validationException);
+                }
             }
             if (requestCache != null && requestCache) {
                 validationException = addValidationError("[request_cache] cannot be used in a scroll context", validationException);
             }
         }
         if (source != null) {
+            if (source.slice() != null) {
+                if (source.pointInTimeBuilder() == null && (scroll == false)) {
+                    validationException = addValidationError(
+                        "[slice] can only be used with [scroll] or [point-in-time] requests",
+                        validationException
+                    );
+                }
+            }
+            if (source.from() > 0 && CollectionUtils.isEmpty(source.searchAfter()) == false) {
+                validationException = addValidationError(
+                    "[from] parameter must be set to 0 when [search_after] is used",
+                    validationException
+                );
+            }
+            if (source.collapse() != null && source.rescores() != null && source.rescores().isEmpty() == false) {
+                validationException = addValidationError("cannot use `collapse` in conjunction with `rescore`", validationException);
+            }
+            if (source.storedFields() != null) {
+                if (source.storedFields().fetchFields() == false) {
+                    if (source.fetchSource() != null && source.fetchSource().fetchSource()) {
+                        validationException = addValidationError(
+                            "[stored_fields] cannot be disabled if [_source] is requested",
+                            validationException
+                        );
+                    }
+                    if (source.fetchFields() != null) {
+                        validationException = addValidationError(
+                            "[stored_fields] cannot be disabled when using the [fields] option",
+                            validationException
+                        );
+                    }
+
+                }
+            }
             if (source.subSearches().size() >= 2 && source.rankBuilder() == null) {
                 validationException = addValidationError("[sub_searches] requires [rank]", validationException);
             }

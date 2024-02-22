@@ -9,6 +9,7 @@
 package org.elasticsearch.action.admin.indices.forcemerge;
 
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequestBuilder;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 
 /**
@@ -20,7 +21,7 @@ import org.elasticsearch.client.internal.ElasticsearchClient;
  */
 public class ForceMergeRequestBuilder extends BroadcastOperationRequestBuilder<
     ForceMergeRequest,
-    ForceMergeResponse,
+    BroadcastResponse,
     ForceMergeRequestBuilder> {
 
     public ForceMergeRequestBuilder(ElasticsearchClient client) {

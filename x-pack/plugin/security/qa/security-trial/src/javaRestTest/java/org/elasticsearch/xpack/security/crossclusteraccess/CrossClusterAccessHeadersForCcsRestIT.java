@@ -34,8 +34,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.ReleasableRef;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.test.ESTestCase;
@@ -1149,24 +1149,28 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                     capturedHeaders.add(
                         new CapturedActionWithHeaders(task.getAction(), Map.copyOf(threadPool.getThreadContext().getHeaders()))
                     );
-                    channel.sendResponse(
-                        new SearchResponse(
-                            new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN),
-                            InternalAggregations.EMPTY,
-                            null,
-                            false,
-                            null,
-                            null,
-                            1,
-                            null,
-                            1,
-                            1,
-                            0,
-                            100,
-                            ShardSearchFailure.EMPTY_ARRAY,
-                            SearchResponse.Clusters.EMPTY
+                    try (
+                        var searchResponseRef = ReleasableRef.of(
+                            new SearchResponse(
+                                SearchHits.empty(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN),
+                                InternalAggregations.EMPTY,
+                                null,
+                                false,
+                                null,
+                                null,
+                                1,
+                                null,
+                                1,
+                                1,
+                                0,
+                                100,
+                                ShardSearchFailure.EMPTY_ARRAY,
+                                SearchResponse.Clusters.EMPTY
+                            )
                         )
-                    );
+                    ) {
+                        channel.sendResponse(searchResponseRef.get());
+                    }
                 }
             );
             service.start();

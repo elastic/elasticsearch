@@ -14,8 +14,8 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutComponentTemplateAction;
-import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.ingest.PutPipelineTransportAction;
 import org.elasticsearch.action.support.GroupedActionListener;
@@ -536,9 +536,8 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
     ) {
         final Executor executor = threadPool.generic();
         executor.execute(() -> {
-            PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request(templateName).indexTemplate(
-                indexTemplate
-            );
+            TransportPutComposableIndexTemplateAction.Request request = new TransportPutComposableIndexTemplateAction.Request(templateName)
+                .indexTemplate(indexTemplate);
             request.masterNodeTimeout(TimeValue.timeValueMinutes(1));
             executeAsyncWithOrigin(
                 client.threadPool().getThreadContext(),
@@ -569,7 +568,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
                         onPutTemplateFailure(templateName, e);
                     }
                 },
-                (req, listener) -> client.execute(PutComposableIndexTemplateAction.INSTANCE, req, listener)
+                (req, listener) -> client.execute(TransportPutComposableIndexTemplateAction.TYPE, req, listener)
             );
         });
     }
@@ -809,12 +808,13 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
                 );
                 for (String rolloverTarget : rolloverTargets) {
                     logger.info(
-                        "rolling over data stream [{}] as a followup to the upgrade of the [{}] index template [{}]",
+                        "rolling over data stream [{}] lazily as a followup to the upgrade of the [{}] index template [{}]",
                         rolloverTarget,
                         getOrigin(),
                         templateName
                     );
                     RolloverRequest request = new RolloverRequest(rolloverTarget, null);
+                    request.lazy(true);
                     request.masterNodeTimeout(TimeValue.timeValueMinutes(1));
                     executeAsyncWithOrigin(
                         client.threadPool().getThreadContext(),

@@ -4,6 +4,8 @@
 <titleabbrev>Set connector sync job stats</titleabbrev>
 ++++
 
+preview::[]
+
 Sets connector sync job stats.
 
 [[set-connector-sync-job-stats-api-request]]

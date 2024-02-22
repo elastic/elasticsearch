@@ -31,6 +31,23 @@ setup:
   - match: { name: test-name }
 
 ---
+"Update Connector Description":
+  - do:
+      connector.update_name:
+        connector_id: test-connector
+        body:
+          description: test-description
+
+
+  - match: { result: updated }
+
+  - do:
+      connector.get:
+        connector_id: test-connector
+
+  - match: { description: test-description }
+
+---
 "Update Connector Name and Description":
   - do:
       connector.update_name:

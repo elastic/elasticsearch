@@ -9,13 +9,14 @@
 package org.elasticsearch.action.admin.indices.forcemerge;
 
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 
-public class ForceMergeAction extends ActionType<ForceMergeResponse> {
+public class ForceMergeAction extends ActionType<BroadcastResponse> {
 
     public static final ForceMergeAction INSTANCE = new ForceMergeAction();
     public static final String NAME = "indices:admin/forcemerge";
 
     private ForceMergeAction() {
-        super(NAME, ForceMergeResponse::new);
+        super(NAME);
     }
 }

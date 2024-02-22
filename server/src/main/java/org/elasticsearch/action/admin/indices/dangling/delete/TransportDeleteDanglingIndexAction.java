@@ -49,7 +49,7 @@ import java.util.stream.Collectors;
  * to add the index to the index graveyard.
  */
 public class TransportDeleteDanglingIndexAction extends AcknowledgedTransportMasterNodeAction<DeleteDanglingIndexRequest> {
-    public static final ActionType<AcknowledgedResponse> TYPE = ActionType.acknowledgedResponse("cluster:admin/indices/dangling/delete");
+    public static final ActionType<AcknowledgedResponse> TYPE = new ActionType<>("cluster:admin/indices/dangling/delete");
     private static final Logger logger = LogManager.getLogger(TransportDeleteDanglingIndexAction.class);
 
     private final Settings settings;

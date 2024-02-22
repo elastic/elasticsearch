@@ -4,9 +4,9 @@
 <titleabbrev>Semantic search with the {infer} API</titleabbrev>
 ++++
 
-The instructions in this tutorial shows you how to use the {infer} API with the 
-Open AI service to perform semantic search on your data. The following example 
-uses OpenAI's `text-embedding-ada-002` second generation embedding model. You 
+The instructions in this tutorial shows you how to use the {infer} API with the
+Open AI service to perform semantic search on your data. The following example
+uses OpenAI's `text-embedding-ada-002` second generation embedding model. You
 can use any OpenAI models, they are all supported by the {infer} API.
 
 
@@ -14,8 +14,8 @@ can use any OpenAI models, they are all supported by the {infer} API.
 [[infer-openai-requirements]]
 ==== Requirements
 
-An https://openai.com/[OpenAI account] is required to use the {infer} API with 
-the OpenAI service. 
+An https://openai.com/[OpenAI account] is required to use the {infer} API with
+the OpenAI service.
 
 
 [discrete]
@@ -39,13 +39,13 @@ PUT _inference/text_embedding/openai_embeddings <1>
 ------------------------------------------------------------
 // TEST[skip:TBD]
 <1> The task type is `text_embedding` in the path.
-<2> The API key of your OpenAI account. You can find your OpenAI API keys in 
-your OpenAI account under the 
-https://platform.openai.com/api-keys[API keys section]. You need to provide 
-your API key only once. The <<get-inference-api>> does not return your API 
+<2> The API key of your OpenAI account. You can find your OpenAI API keys in
+your OpenAI account under the
+https://platform.openai.com/api-keys[API keys section]. You need to provide
+your API key only once. The <<get-inference-api>> does not return your API
 key.
-<3> The name of the embedding model to use. You can find the list of OpenAI 
-embedding models 
+<3> The name of the embedding model to use. You can find the list of OpenAI
+embedding models
 https://platform.openai.com/docs/guides/embeddings/embedding-models[here].
 
 
@@ -53,9 +53,9 @@ https://platform.openai.com/docs/guides/embeddings/embedding-models[here].
 [[infer-openai-mappings]]
 ==== Create the index mapping
 
-The mapping of the destination index - the index that contains the embeddings 
-that the model will create based on your input text - must be created. The 
-destination index must have a field with the <<dense-vector, `dense_vector`>> 
+The mapping of the destination index - the index that contains the embeddings
+that the model will create based on your input text - must be created. The
+destination index must have a field with the <<dense-vector, `dense_vector`>>
 field type to index the output of the OpenAI model.
 
 [source,console]
@@ -67,7 +67,7 @@ PUT openai-embeddings
       "content_embedding": { <1>
         "type": "dense_vector", <2>
         "dims": 1536, <3>
-        "element_type": "byte",
+        "element_type": "float",
         "similarity": "dot_product" <4>
       },
       "content": { <5>
@@ -80,15 +80,15 @@ PUT openai-embeddings
 <1> The name of the field to contain the generated tokens. It must be refrenced
 in the {infer} pipeline configuration in the next step.
 <2> The field to contain the tokens is a `dense_vector` field.
-<3> The output dimensions of the model. Find this value in the 
-https://platform.openai.com/docs/guides/embeddings/embedding-models[OpenAI documentation] 
+<3> The output dimensions of the model. Find this value in the
+https://platform.openai.com/docs/guides/embeddings/embedding-models[OpenAI documentation]
 of the model you use.
-<4> The faster` dot_product` function can be used to calculate similarity 
-because OpenAI embeddings are normalised to unit length. You can check the 
+<4> The faster` dot_product` function can be used to calculate similarity
+because OpenAI embeddings are normalised to unit length. You can check the
 https://platform.openai.com/docs/guides/embeddings/which-distance-function-should-i-use[OpenAI docs]
-about which similarity function to use. 
+about which similarity function to use.
 <5> The name of the field from which to create the sparse vector representation.
-In this example, the name of the field is `content`. It must be referenced in 
+In this example, the name of the field is `content`. It must be referenced in
 the {infer} pipeline configuration in the next step.
 <6> The field type which is text in this example.
 
@@ -98,8 +98,8 @@ the {infer} pipeline configuration in the next step.
 ==== Create an ingest pipeline with an inference processor
 
 Create an <<ingest,ingest pipeline>> with an
-<<inference-processor,{infer} processor>> and use the OpenAI model you created 
-above to infer against the data that is being ingested in the 
+<<inference-processor,{infer} processor>> and use the OpenAI model you created
+above to infer against the data that is being ingested in the
 pipeline.
 
 [source,console]
@@ -119,8 +119,8 @@ PUT _ingest/pipeline/openai_embeddings
   ]
 }
 --------------------------------------------------
-<1> The name of the inference model you created by using the 
-<<put-inference-api>>. 
+<1> The name of the inference model you created by using the
+<<put-inference-api>>.
 <2> Configuration object that defines the `input_field` for the {infer} process
 and the `output_field` that will contain the {infer} results.
 
@@ -179,9 +179,9 @@ POST _reindex?wait_for_completion=false
 number makes the update of the reindexing process quicker which enables you to
 follow the progress closely and detect errors early.
 
-NOTE: The 
-https://platform.openai.com/account/limits[rate limit of your OpenAI account] 
-may affect the throughput of the reindexing process. If this happens, change 
+NOTE: The
+https://platform.openai.com/account/limits[rate limit of your OpenAI account]
+may affect the throughput of the reindexing process. If this happens, change
 `size` to `3` or a similar value in magnitude.
 
 The call returns a task ID to monitor the progress:
@@ -192,7 +192,7 @@ GET _tasks/<task_id>
 ----
 // TEST[skip:TBD]
 
-You can also cancel the reindexing process if you don't want to wait until the 
+You can also cancel the reindexing process if you don't want to wait until the
 reindexing process is fully complete which might take hours:
 
 [source,console]
@@ -206,12 +206,12 @@ POST _tasks/<task_id>/_cancel
 [[infer-semantic-search]]
 ==== Semantic search
 
-After the dataset has been enriched with the embeddings, you can query the data 
+After the dataset has been enriched with the embeddings, you can query the data
 using {ref}/knn-search.html#knn-semantic-search[semantic search]. Pass a
 `query_vector_builder` to the k-nearest neighbor (kNN) vector search API, and
 provide the query text and the model you have used to create the embeddings.
 
-NOTE: If you cancelled the reindexing process, you run the query only a part of 
+NOTE: If you cancelled the reindexing process, you run the query only a part of
 the data which affects the quality of your results.
 
 [source,console]
@@ -237,7 +237,7 @@ GET openai-embeddings/_search
 --------------------------------------------------
 // TEST[skip:TBD]
 
-As a result, you receive the top 10 documents that are closest in meaning to the 
+As a result, you receive the top 10 documents that are closest in meaning to the
 query from the `openai-embeddings` index sorted by their proximity to the query:
 
 [source,consol-result]

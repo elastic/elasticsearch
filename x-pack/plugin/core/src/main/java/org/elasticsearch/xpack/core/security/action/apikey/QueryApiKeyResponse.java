@@ -8,43 +8,38 @@
 package org.elasticsearch.xpack.core.security.action.apikey;
 
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
+import java.util.List;
 import java.util.Objects;
 
 /**
  * Response for search API keys.<br>
  * The result contains information about the API keys that were found.
  */
-public final class QueryApiKeyResponse extends ActionResponse implements ToXContentObject, Writeable {
+public final class QueryApiKeyResponse extends ActionResponse implements ToXContentObject {
 
     private final long total;
     private final Item[] items;
+    private final @Nullable InternalAggregations aggregations;
 
-    public QueryApiKeyResponse(StreamInput in) throws IOException {
-        super(in);
-        this.total = in.readLong();
-        this.items = in.readArray(Item::new, Item[]::new);
-    }
-
-    public QueryApiKeyResponse(long total, Collection<Item> items) {
+    public QueryApiKeyResponse(long total, Collection<Item> items, @Nullable InternalAggregations aggregations) {
         this.total = total;
         Objects.requireNonNull(items, "items must be provided");
         this.items = items.toArray(new Item[0]);
+        this.aggregations = aggregations;
     }
 
     public static QueryApiKeyResponse emptyResponse() {
-        return new QueryApiKeyResponse(0, Collections.emptyList());
+        return new QueryApiKeyResponse(0, List.of(), null);
     }
 
     public long getTotal() {
@@ -59,16 +54,22 @@ public final class QueryApiKeyResponse extends ActionResponse implements ToXCont
         return items.length;
     }
 
+    public InternalAggregations getAggregations() {
+        return aggregations;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject().field("total", total).field("count", items.length).array("api_keys", (Object[]) items);
+        if (aggregations != null) {
+            aggregations.toXContent(builder, params);
+        }
         return builder.endObject();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeLong(total);
-        out.writeArray(items);
+        TransportAction.localOnly();
     }
 
     @Override
@@ -76,22 +77,23 @@ public final class QueryApiKeyResponse extends ActionResponse implements ToXCont
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         QueryApiKeyResponse that = (QueryApiKeyResponse) o;
-        return total == that.total && Arrays.equals(items, that.items);
+        return total == that.total && Arrays.equals(items, that.items) && Objects.equals(aggregations, that.aggregations);
     }
 
     @Override
     public int hashCode() {
         int result = Objects.hash(total);
         result = 31 * result + Arrays.hashCode(items);
+        result = 31 * result + Objects.hash(aggregations);
         return result;
     }
 
     @Override
     public String toString() {
-        return "QueryApiKeyResponse{" + "total=" + total + ", items=" + Arrays.toString(items) + '}';
+        return "QueryApiKeyResponse{total=" + total + ", items=" + Arrays.toString(items) + ", aggs=" + aggregations + "}";
     }
 
-    public static class Item implements ToXContentObject, Writeable {
+    public static class Item implements ToXContentObject {
         private final ApiKey apiKey;
         @Nullable
         private final Object[] sortValues;
@@ -101,23 +103,12 @@ public final class QueryApiKeyResponse extends ActionResponse implements ToXCont
             this.sortValues = sortValues;
         }
 
-        public Item(StreamInput in) throws IOException {
-            this.apiKey = new ApiKey(in);
-            this.sortValues = in.readOptionalArray(Lucene::readSortValue, Object[]::new);
-        }
-
         public ApiKey getApiKey() {
             return apiKey;
         }
 
         public Object[] getSortValues() {
             return sortValues;
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            apiKey.writeTo(out);
-            out.writeOptionalArray(Lucene::writeSortValue, sortValues);
         }
 
         @Override

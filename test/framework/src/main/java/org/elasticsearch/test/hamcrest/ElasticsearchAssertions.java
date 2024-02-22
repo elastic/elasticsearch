@@ -14,27 +14,29 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.RequestBuilder;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchScrollRequestBuilder;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BaseBroadcastResponse;
 import org.elasticsearch.action.support.master.IsAcknowledgedSupplier;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -49,6 +51,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.hamcrest.Matcher;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -68,7 +71,6 @@ import java.util.function.Consumer;
 
 import static org.apache.lucene.tests.util.LuceneTestCase.expectThrows;
 import static org.apache.lucene.tests.util.LuceneTestCase.expectThrowsAnyOf;
-import static org.elasticsearch.test.ESIntegTestCase.clearScroll;
 import static org.elasticsearch.test.ESIntegTestCase.client;
 import static org.elasticsearch.test.LambdaMatchers.transformedArrayItemsMatch;
 import static org.elasticsearch.test.LambdaMatchers.transformedItemsMatch;
@@ -98,7 +100,7 @@ import static org.junit.Assert.fail;
 
 public class ElasticsearchAssertions {
 
-    public static void assertAcked(ActionRequestBuilder<?, ? extends IsAcknowledgedSupplier> builder) {
+    public static void assertAcked(RequestBuilder<?, ? extends IsAcknowledgedSupplier> builder) {
         assertAcked(builder, TimeValue.timeValueSeconds(30));
     }
 
@@ -106,7 +108,7 @@ public class ElasticsearchAssertions {
         assertAcked(future.actionGet());
     }
 
-    public static void assertAcked(ActionRequestBuilder<?, ? extends IsAcknowledgedSupplier> builder, TimeValue timeValue) {
+    public static void assertAcked(RequestBuilder<?, ? extends IsAcknowledgedSupplier> builder, TimeValue timeValue) {
         assertAcked(builder.get(timeValue));
     }
 
@@ -140,7 +142,7 @@ public class ElasticsearchAssertions {
      *
      * @param builder the request builder
      */
-    public static void assertBlocked(ActionRequestBuilder<?, ?> builder) {
+    public static void assertBlocked(RequestBuilder<?, ?> builder) {
         assertBlocked(builder, (ClusterBlock) null);
     }
 
@@ -178,7 +180,7 @@ public class ElasticsearchAssertions {
      * @param builder the request builder
      * @param expectedBlockId the expected block id
      */
-    public static void assertBlocked(final ActionRequestBuilder<?, ?> builder, @Nullable final Integer expectedBlockId) {
+    public static void assertBlocked(final RequestBuilder<?, ?> builder, @Nullable final Integer expectedBlockId) {
         var e = ESTestCase.expectThrows(ClusterBlockException.class, builder);
         assertThat(e.blocks(), not(empty()));
         RestStatus status = checkRetryableBlock(e.blocks()) ? RestStatus.TOO_MANY_REQUESTS : RestStatus.FORBIDDEN;
@@ -199,7 +201,7 @@ public class ElasticsearchAssertions {
      * @param builder the request builder
      * @param expectedBlock the expected block
      */
-    public static void assertBlocked(final ActionRequestBuilder<?, ?> builder, @Nullable final ClusterBlock expectedBlock) {
+    public static void assertBlocked(final RequestBuilder<?, ?> builder, @Nullable final ClusterBlock expectedBlock) {
         assertBlocked(builder, expectedBlock != null ? expectedBlock.id() : null);
     }
 
@@ -339,12 +341,12 @@ public class ElasticsearchAssertions {
         assertThat(searchResponse.getHits().getAt(number - 1), matcher);
     }
 
-    public static void assertNoFailures(ActionRequestBuilder<?, SearchResponse> searchRequestBuilder) {
+    public static void assertNoFailures(RequestBuilder<? extends ActionRequest, SearchResponse> searchRequestBuilder) {
         assertNoFailuresAndResponse(searchRequestBuilder, r -> {});
     }
 
     public static void assertNoFailuresAndResponse(
-        ActionRequestBuilder<?, SearchResponse> searchRequestBuilder,
+        RequestBuilder<? extends ActionRequest, SearchResponse> searchRequestBuilder,
         Consumer<SearchResponse> consumer
     ) {
         assertResponse(searchRequestBuilder, res -> {
@@ -365,7 +367,7 @@ public class ElasticsearchAssertions {
     }
 
     public static <Q extends ActionRequest, R extends ActionResponse> void assertResponse(
-        ActionRequestBuilder<Q, R> searchRequestBuilder,
+        RequestBuilder<Q, R> searchRequestBuilder,
         Consumer<R> consumer
     ) {
         var res = searchRequestBuilder.get();
@@ -386,6 +388,7 @@ public class ElasticsearchAssertions {
      *                              respNum starts at 1, which contains the resp from the initial request.
      */
     public static void assertScrollResponsesAndHitCount(
+        Client client,
         TimeValue keepAlive,
         SearchRequestBuilder searchRequestBuilder,
         int expectedTotalHitCount,
@@ -401,21 +404,18 @@ public class ElasticsearchAssertions {
             retrievedDocsCount += scrollResponse.getHits().getHits().length;
             responseConsumer.accept(responses.size(), scrollResponse);
             while (scrollResponse.getHits().getHits().length > 0) {
-                scrollResponse = prepareScrollSearch(scrollResponse.getScrollId(), keepAlive).get();
+                scrollResponse = client.prepareSearchScroll(scrollResponse.getScrollId()).setScroll(keepAlive).get();
                 responses.add(scrollResponse);
                 assertThat(scrollResponse.getHits().getTotalHits().value, equalTo((long) expectedTotalHitCount));
                 retrievedDocsCount += scrollResponse.getHits().getHits().length;
                 responseConsumer.accept(responses.size(), scrollResponse);
             }
         } finally {
-            clearScroll(scrollResponse.getScrollId());
+            ClearScrollResponse clearResponse = client.prepareClearScroll().setScrollIds(Arrays.asList(scrollResponse.getScrollId())).get();
             responses.forEach(SearchResponse::decRef);
+            assertThat(clearResponse.isSucceeded(), Matchers.equalTo(true));
         }
         assertThat(retrievedDocsCount, equalTo(expectedTotalHitCount));
-    }
-
-    public static SearchScrollRequestBuilder prepareScrollSearch(String scrollId, TimeValue timeout) {
-        return client().prepareSearchScroll(scrollId).setScroll(timeout);
     }
 
     public static <R extends ActionResponse> void assertResponse(ActionFuture<R> responseFuture, Consumer<R> consumer)
@@ -429,7 +429,7 @@ public class ElasticsearchAssertions {
     }
 
     public static void assertCheckedResponse(
-        ActionRequestBuilder<?, SearchResponse> searchRequestBuilder,
+        RequestBuilder<?, SearchResponse> searchRequestBuilder,
         CheckedConsumer<SearchResponse, IOException> consumer
     ) throws IOException {
         var res = searchRequestBuilder.get();
@@ -691,7 +691,7 @@ public class ElasticsearchAssertions {
      * Run the request from a given builder and check that it throws an exception of the right type, with a given {@link RestStatus}
      */
     public static <E extends Throwable> void assertRequestBuilderThrows(
-        ActionRequestBuilder<?, ?> builder,
+        RequestBuilder<?, ?> builder,
         Class<E> exceptionClass,
         RestStatus status
     ) {
@@ -704,7 +704,7 @@ public class ElasticsearchAssertions {
      * @param extraInfo extra information to add to the failure message
      */
     public static <E extends Throwable> void assertRequestBuilderThrows(
-        ActionRequestBuilder<?, ?> builder,
+        RequestBuilder<?, ?> builder,
         Class<E> exceptionClass,
         String extraInfo
     ) {
@@ -766,11 +766,11 @@ public class ElasticsearchAssertions {
         }
     }
 
-    public static void assertRequestBuilderThrows(ActionRequestBuilder<?, ?> builder, RestStatus status) {
+    public static void assertRequestBuilderThrows(RequestBuilder<?, ?> builder, RestStatus status) {
         assertFutureThrows(builder.execute(), status);
     }
 
-    public static void assertRequestBuilderThrows(ActionRequestBuilder<?, ?> builder, RestStatus status, String extraInfo) {
+    public static void assertRequestBuilderThrows(RequestBuilder<?, ?> builder, RestStatus status, String extraInfo) {
         assertFutureThrows(builder.execute(), status, extraInfo);
     }
 
@@ -814,11 +814,16 @@ public class ElasticsearchAssertions {
         // Note that byte[] holding binary values need special treatment as they need to be properly compared item per item.
         Map<String, Object> actualMap = null;
         Map<String, Object> expectedMap = null;
-        try (XContentParser actualParser = xContentType.xContent().createParser(XContentParserConfiguration.EMPTY, actual.streamInput())) {
+        try (
+            XContentParser actualParser = XContentHelper.createParserNotCompressed(XContentParserConfiguration.EMPTY, actual, xContentType)
+        ) {
             actualMap = actualParser.map();
             try (
-                XContentParser expectedParser = xContentType.xContent()
-                    .createParser(XContentParserConfiguration.EMPTY, expected.streamInput())
+                XContentParser expectedParser = XContentHelper.createParserNotCompressed(
+                    XContentParserConfiguration.EMPTY,
+                    expected,
+                    xContentType
+                )
             ) {
                 expectedMap = expectedParser.map();
                 try {

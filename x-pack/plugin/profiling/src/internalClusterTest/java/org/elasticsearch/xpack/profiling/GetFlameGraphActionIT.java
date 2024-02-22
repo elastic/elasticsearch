@@ -7,12 +7,9 @@
 
 package org.elasticsearch.xpack.profiling;
 
-import org.apache.lucene.tests.util.LuceneTestCase;
-
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/103809")
 public class GetFlameGraphActionIT extends ProfilingTestCase {
     public void testGetStackTracesUnfiltered() throws Exception {
-        GetStackTracesRequest request = new GetStackTracesRequest(1000, 600.0d, 1.0d, null, null, null, null, null, null, null, null);
+        GetStackTracesRequest request = new GetStackTracesRequest(1000, 600.0d, 1.0d, 1.0d, null, null, null, null, null, null, null, null);
         GetFlamegraphResponse response = client().execute(GetFlamegraphAction.INSTANCE, request).get();
         // only spot-check top level properties - detailed tests are done in unit tests
         assertEquals(994, response.getSize());

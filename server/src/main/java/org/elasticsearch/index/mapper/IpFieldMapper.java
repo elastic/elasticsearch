@@ -154,7 +154,7 @@ public class IpFieldMapper extends FieldMapper {
             IpFieldScript.Factory factory = scriptCompiler.compile(this.script.get(), IpFieldScript.CONTEXT);
             return factory == null
                 ? null
-                : (lookup, ctx, doc, consumer) -> factory.newFactory(name, script.get().getParams(), lookup, OnScriptError.FAIL)
+                : (lookup, ctx, doc, consumer) -> factory.newFactory(name(), script.get().getParams(), lookup, OnScriptError.FAIL)
                     .newInstance(ctx)
                     .runForDoc(doc, consumer);
         }
@@ -166,10 +166,13 @@ public class IpFieldMapper extends FieldMapper {
 
         @Override
         public IpFieldMapper build(MapperBuilderContext context) {
+            if (context.parentObjectContainsDimensions()) {
+                dimension.setValue(true);
+            }
             return new IpFieldMapper(
-                name,
+                name(),
                 new IpFieldType(
-                    context.buildFullName(name),
+                    context.buildFullName(name()),
                     indexed.getValue() && indexCreatedVersion.isLegacyIndexVersion() == false,
                     stored.getValue(),
                     hasDocValues.getValue(),
@@ -555,7 +558,7 @@ public class IpFieldMapper extends FieldMapper {
 
     private void indexValue(DocumentParserContext context, InetAddress address) {
         if (dimension) {
-            context.getDimensions().addIp(fieldType().name(), address);
+            context.getDimensions().addIp(fieldType().name(), address).validate(context.indexSettings());
         }
         if (indexed) {
             Field field = new InetAddressPoint(fieldType().name(), address);

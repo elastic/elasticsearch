@@ -19,17 +19,23 @@ public class MapperBuilderContext {
      * The root context, to be used when building a tree of mappers
      */
     public static MapperBuilderContext root(boolean isSourceSynthetic, boolean isDataStream) {
-        return new MapperBuilderContext(null, isSourceSynthetic, isDataStream);
+        return new MapperBuilderContext(null, isSourceSynthetic, isDataStream, false);
     }
 
     private final String path;
     private final boolean isSourceSynthetic;
     private final boolean isDataStream;
+    private final boolean parentObjectContainsDimensions;
 
-    MapperBuilderContext(String path, boolean isSourceSynthetic, boolean isDataStream) {
+    MapperBuilderContext(String path) {
+        this(path, false, false, false);
+    }
+
+    MapperBuilderContext(String path, boolean isSourceSynthetic, boolean isDataStream, boolean parentObjectContainsDimensions) {
         this.path = path;
         this.isSourceSynthetic = isSourceSynthetic;
         this.isDataStream = isDataStream;
+        this.parentObjectContainsDimensions = parentObjectContainsDimensions;
     }
 
     /**
@@ -38,7 +44,7 @@ public class MapperBuilderContext {
      * @return a new MapperBuilderContext with this context as its parent
      */
     public MapperBuilderContext createChildContext(String name) {
-        return new MapperBuilderContext(buildFullName(name), isSourceSynthetic, isDataStream);
+        return new MapperBuilderContext(buildFullName(name), isSourceSynthetic, isDataStream, parentObjectContainsDimensions);
     }
 
     /**
@@ -64,4 +70,12 @@ public class MapperBuilderContext {
     public boolean isDataStream() {
         return isDataStream;
     }
+
+    /**
+     * Are these field mappings being built dimensions?
+     */
+    public boolean parentObjectContainsDimensions() {
+        return parentObjectContainsDimensions;
+    }
+
 }

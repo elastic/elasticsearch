@@ -20,6 +20,7 @@ import java.util.NavigableMap;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.function.IntFunction;
 
 /**
  * <p>Transport version is used to coordinate compatible wire protocol communication between nodes, at a fine-grained level.  This replaces
@@ -92,84 +93,11 @@ public class TransportVersions {
      * READ THE COMMENT BELOW THIS BLOCK OF DECLARATIONS BEFORE ADDING NEW TRANSPORT VERSIONS
      * Detached transport versions added below here.
      */
-    public static final TransportVersion V_8_500_020 = def(8_500_020);
-    public static final TransportVersion V_8_500_061 = def(8_500_061);
-    public static final TransportVersion V_8_500_062 = def(8_500_062);
-    public static final TransportVersion V_8_500_063 = def(8_500_063);
-    public static final TransportVersion V_8_500_064 = def(8_500_064);
-    public static final TransportVersion V_8_500_065 = def(8_500_065);
-    public static final TransportVersion V_8_500_066 = def(8_500_066);
-    public static final TransportVersion SEARCH_RESP_SKIP_UNAVAILABLE_ADDED = def(8_500_067);
-    public static final TransportVersion ML_TRAINED_MODEL_FINISH_PENDING_WORK_ADDED = def(8_500_068);
-    public static final TransportVersion SEARCH_APP_INDICES_REMOVED = def(8_500_069);
-    public static final TransportVersion GENERIC_NAMED_WRITABLE_ADDED = def(8_500_070);
-    public static final TransportVersion PINNED_QUERY_OPTIONAL_INDEX = def(8_500_071);
-    public static final TransportVersion SHARD_SIZE_PRIMARY_TERM_GEN_ADDED = def(8_500_072);
-    public static final TransportVersion COMPAT_VERSIONS_MAPPING_VERSION_ADDED = def(8_500_073);
-    public static final TransportVersion V_8_500_074 = def(8_500_074);
-    public static final TransportVersion NODE_INFO_INDEX_VERSION_ADDED = def(8_500_075);
-    public static final TransportVersion FIRST_NEW_ID_LAYOUT = def(8_501_00_0);
-    public static final TransportVersion COMMIT_PRIMARY_TERM_GENERATION = def(8_501_00_1);
-    public static final TransportVersion WAIT_FOR_CLUSTER_STATE_IN_RECOVERY_ADDED = def(8_502_00_0);
-    public static final TransportVersion RECOVERY_COMMIT_TOO_NEW_EXCEPTION_ADDED = def(8_503_00_0);
-    public static final TransportVersion NODE_INFO_COMPONENT_VERSIONS_ADDED = def(8_504_00_0);
-    public static final TransportVersion COMPACT_FIELD_CAPS_ADDED = def(8_505_00_0);
-    public static final TransportVersion DATA_STREAM_RESPONSE_INDEX_PROPERTIES = def(8_506_00_0);
-    public static final TransportVersion ML_TRAINED_MODEL_CONFIG_PLATFORM_ADDED = def(8_507_00_0);
-    public static final TransportVersion LONG_COUNT_IN_HISTOGRAM_ADDED = def(8_508_00_0);
-    public static final TransportVersion INFERENCE_MODEL_SECRETS_ADDED = def(8_509_00_0);
-    public static final TransportVersion NODE_INFO_REQUEST_SIMPLIFIED = def(8_510_00_0);
-    public static final TransportVersion NESTED_KNN_VECTOR_QUERY_V = def(8_511_00_0);
-    public static final TransportVersion ML_PACKAGE_LOADER_PLATFORM_ADDED = def(8_512_00_0);
-    public static final TransportVersion ELSER_SERVICE_MODEL_VERSION_ADDED_PATCH = def(8_512_00_1);
-    public static final TransportVersion PLUGIN_DESCRIPTOR_OPTIONAL_CLASSNAME = def(8_513_00_0);
-    public static final TransportVersion UNIVERSAL_PROFILING_LICENSE_ADDED = def(8_514_00_0);
-    public static final TransportVersion ELSER_SERVICE_MODEL_VERSION_ADDED = def(8_515_00_0);
-    public static final TransportVersion NODE_STATS_HTTP_ROUTE_STATS_ADDED = def(8_516_00_0);
-    public static final TransportVersion INCLUDE_SHARDS_STATS_ADDED = def(8_517_00_0);
-    public static final TransportVersion BUILD_QUALIFIER_SEPARATED = def(8_518_00_0);
-    public static final TransportVersion PIPELINES_IN_BULK_RESPONSE_ADDED = def(8_519_00_0);
-    public static final TransportVersion PLUGIN_DESCRIPTOR_STRING_VERSION = def(8_520_00_0);
-    public static final TransportVersion TOO_MANY_SCROLL_CONTEXTS_EXCEPTION_ADDED = def(8_521_00_0);
-    public static final TransportVersion UNCONTENDED_REGISTER_ANALYSIS_ADDED = def(8_522_00_0);
-    public static final TransportVersion TRANSFORM_GET_CHECKPOINT_TIMEOUT_ADDED = def(8_523_00_0);
-    public static final TransportVersion IP_ADDRESS_WRITEABLE = def(8_524_00_0);
-    public static final TransportVersion PRIMARY_TERM_ADDED = def(8_525_00_0);
-    public static final TransportVersion CLUSTER_FEATURES_ADDED = def(8_526_00_0);
-    public static final TransportVersion DSL_ERROR_STORE_INFORMATION_ENHANCED = def(8_527_00_0);
-    public static final TransportVersion INVALID_BUCKET_PATH_EXCEPTION_INTRODUCED = def(8_528_00_0);
-    public static final TransportVersion KNN_AS_QUERY_ADDED = def(8_529_00_0);
-    public static final TransportVersion UNDESIRED_SHARD_ALLOCATIONS_COUNT_ADDED = def(8_530_00_0);
-    public static final TransportVersion ML_INFERENCE_TASK_SETTINGS_OPTIONAL_ADDED = def(8_531_00_0);
-    public static final TransportVersion DEPRECATED_COMPONENT_TEMPLATES_ADDED = def(8_532_00_0);
-    public static final TransportVersion UPDATE_NON_DYNAMIC_SETTINGS_ADDED = def(8_533_00_0);
-    public static final TransportVersion REPO_ANALYSIS_REGISTER_OP_COUNT_ADDED = def(8_534_00_0);
-    public static final TransportVersion ML_TRAINED_MODEL_PREFIX_STRINGS_ADDED = def(8_535_00_0);
-    public static final TransportVersion COUNTED_KEYWORD_ADDED = def(8_536_00_0);
-    public static final TransportVersion SHAPE_VALUE_SERIALIZATION_ADDED = def(8_537_00_0);
-    public static final TransportVersion INFERENCE_MULTIPLE_INPUTS = def(8_538_00_0);
-    public static final TransportVersion ADDITIONAL_DESIRED_BALANCE_RECONCILIATION_STATS = def(8_539_00_0);
-    public static final TransportVersion ML_STATE_CHANGE_TIMESTAMPS = def(8_540_00_0);
-    public static final TransportVersion DATA_STREAM_FAILURE_STORE_ADDED = def(8_541_00_0);
-    public static final TransportVersion ML_INFERENCE_OPENAI_ADDED = def(8_542_00_0);
-    public static final TransportVersion SHUTDOWN_MIGRATION_STATUS_INCLUDE_COUNTS = def(8_543_00_0);
-    public static final TransportVersion TRANSFORM_GET_CHECKPOINT_QUERY_AND_CLUSTER_ADDED = def(8_544_00_0);
-    public static final TransportVersion GRANT_API_KEY_CLIENT_AUTHENTICATION_ADDED = def(8_545_00_0);
-    public static final TransportVersion PIT_WITH_INDEX_FILTER = def(8_546_00_0);
-    public static final TransportVersion NODE_INFO_VERSION_AS_STRING = def(8_547_00_0);
-    public static final TransportVersion GET_API_KEY_INVALIDATION_TIME_ADDED = def(8_548_00_0);
-    public static final TransportVersion ML_INFERENCE_GET_MULTIPLE_MODELS = def(8_549_00_0);
-    public static final TransportVersion INFERENCE_SERVICE_RESULTS_ADDED = def(8_550_00_0);
-    public static final TransportVersion ESQL_PROFILE = def(8_551_00_0);
-    public static final TransportVersion CLUSTER_STATS_RESCORER_USAGE_ADDED = def(8_552_00_0);
-    public static final TransportVersion ML_INFERENCE_HF_SERVICE_ADDED = def(8_553_00_0);
-    public static final TransportVersion INFERENCE_USAGE_ADDED = def(8_554_00_0);
-    public static final TransportVersion UPGRADE_TO_LUCENE_9_9 = def(8_555_00_0);
-    public static final TransportVersion HEALTH_INFO_ENRICHED_WITH_DSL_STATUS = def(8_556_00_0);
-    public static final TransportVersion SOURCE_IN_SINGLE_VALUE_QUERY_ADDED = def(8_557_00_0);
-    public static final TransportVersion MISSED_INDICES_UPDATE_EXCEPTION_ADDED = def(8_558_00_0);
-    public static final TransportVersion INFERENCE_SERVICE_EMBEDDING_SIZE_ADDED = def(8_559_00_0);
-    public static final TransportVersion ENRICH_ELASTICSEARCH_VERSION_REMOVED = def(8_560_00_0);
+    public static final TransportVersion V_8_9_X = def(8_500_020);
+    public static final TransportVersion V_8_10_X = def(8_500_061);
+    public static final TransportVersion V_8_11_X = def(8_512_00_1);
+    public static final TransportVersion V_8_12_0 = def(8_560_00_0);
+    public static final TransportVersion DATE_HISTOGRAM_SUPPORT_DOWNSAMPLED_TZ_8_12_PATCH = def(8_560_00_1);
     public static final TransportVersion NODE_STATS_REQUEST_SIMPLIFIED = def(8_561_00_0);
     public static final TransportVersion TEXT_EXPANSION_TOKEN_PRUNING_CONFIG_ADDED = def(8_562_00_0);
     public static final TransportVersion ESQL_ASYNC_QUERY = def(8_563_00_0);
@@ -178,6 +106,33 @@ public class TransportVersions {
     public static final TransportVersion SNAPSHOTS_IN_PROGRESS_TRACKING_REMOVING_NODES_ADDED = def(8_566_00_0);
     public static final TransportVersion SMALLER_RELOAD_SECURE_SETTINGS_REQUEST = def(8_567_00_0);
     public static final TransportVersion UPDATE_API_KEY_EXPIRATION_TIME_ADDED = def(8_568_00_0);
+    public static final TransportVersion LAZY_ROLLOVER_ADDED = def(8_569_00_0);
+    public static final TransportVersion ESQL_PLAN_POINT_LITERAL_WKB = def(8_570_00_0);
+    public static final TransportVersion HOT_THREADS_AS_BYTES = def(8_571_00_0);
+    public static final TransportVersion ML_INFERENCE_REQUEST_INPUT_TYPE_ADDED = def(8_572_00_0);
+    public static final TransportVersion ESQL_ENRICH_POLICY_CCQ_MODE = def(8_573_00_0);
+    public static final TransportVersion DATE_HISTOGRAM_SUPPORT_DOWNSAMPLED_TZ = def(8_574_00_0);
+    public static final TransportVersion PEERFINDER_REPORTS_PEERS_MASTERS = def(8_575_00_0);
+    public static final TransportVersion ESQL_MULTI_CLUSTERS_ENRICH = def(8_576_00_0);
+    public static final TransportVersion NESTED_KNN_MORE_INNER_HITS = def(8_577_00_0);
+    public static final TransportVersion REQUIRE_DATA_STREAM_ADDED = def(8_578_00_0);
+    public static final TransportVersion ML_INFERENCE_COHERE_EMBEDDINGS_ADDED = def(8_579_00_0);
+    public static final TransportVersion DESIRED_NODE_VERSION_OPTIONAL_STRING = def(8_580_00_0);
+    public static final TransportVersion ML_INFERENCE_REQUEST_INPUT_TYPE_UNSPECIFIED_ADDED = def(8_581_00_0);
+    public static final TransportVersion ASYNC_SEARCH_STATUS_SUPPORTS_KEEP_ALIVE = def(8_582_00_0);
+    public static final TransportVersion KNN_QUERY_NUMCANDS_AS_OPTIONAL_PARAM = def(8_583_00_0);
+    public static final TransportVersion TRANSFORM_GET_BASIC_STATS = def(8_584_00_0);
+    public static final TransportVersion NLP_DOCUMENT_CHUNKING_ADDED = def(8_585_00_0);
+    public static final TransportVersion SEARCH_TIMEOUT_EXCEPTION_ADDED = def(8_586_00_0);
+    public static final TransportVersion ML_TEXT_EMBEDDING_INFERENCE_SERVICE_ADDED = def(8_587_00_0);
+    public static final TransportVersion HEALTH_INFO_ENRICHED_WITH_REPOS = def(8_588_00_0);
+    public static final TransportVersion RESOLVE_CLUSTER_ENDPOINT_ADDED = def(8_589_00_0);
+    public static final TransportVersion FIELD_CAPS_FIELD_HAS_VALUE = def(8_590_00_0);
+    public static final TransportVersion ML_INFERENCE_REQUEST_INPUT_TYPE_CLASS_CLUSTER_ADDED = def(8_591_00_0);
+    public static final TransportVersion ML_DIMENSIONS_SET_BY_USER_ADDED = def(8_592_00_0);
+    public static final TransportVersion INDEX_REQUEST_NORMALIZED_BYTES_PARSED = def(8_593_00_0);
+    public static final TransportVersion INGEST_GRAPH_STRUCTURE_EXCEPTION = def(8_594_00_0);
+    public static final TransportVersion ML_MODEL_IN_SERVICE_SETTINGS = def(8_595_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,
@@ -242,7 +197,7 @@ public class TransportVersions {
      * Reference to the minimum transport version that can be used with CCS.
      * This should be the transport version used by the previous minor release.
      */
-    public static final TransportVersion MINIMUM_CCS_VERSION = ML_PACKAGE_LOADER_PLATFORM_ADDED;
+    public static final TransportVersion MINIMUM_CCS_VERSION = V_8_12_0;
 
     static final NavigableMap<Integer, TransportVersion> VERSION_IDS = getAllVersionIds(TransportVersions.class);
 
@@ -298,6 +253,8 @@ public class TransportVersions {
     static Collection<TransportVersion> getAllVersions() {
         return VERSION_IDS.values();
     }
+
+    static final IntFunction<String> VERSION_LOOKUP = ReleaseVersions.generateVersionsLookup(TransportVersions.class);
 
     // no instance
     private TransportVersions() {}

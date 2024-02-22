@@ -86,9 +86,9 @@ public class MockBlockFactory extends BlockFactory {
     }
 
     @Override
-    void adjustBreaker(final long delta, final boolean isDataAlreadyCreated) {
+    void adjustBreaker(final long delta) {
         purgeTrackBlocks();
-        super.adjustBreaker(delta, isDataAlreadyCreated);
+        super.adjustBreaker(delta);
     }
 
     void purgeTrackBlocks() {

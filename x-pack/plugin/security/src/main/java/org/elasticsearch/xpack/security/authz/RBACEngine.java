@@ -43,6 +43,7 @@ import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.async.TransportDeleteAsyncResultAction;
 import org.elasticsearch.xpack.core.eql.EqlAsyncActionNames;
+import org.elasticsearch.xpack.core.esql.EsqlAsyncActionNames;
 import org.elasticsearch.xpack.core.search.action.GetAsyncSearchAction;
 import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchAction;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyAction;
@@ -407,7 +408,12 @@ public class RBACEngine implements AuthorizationEngine {
     }
 
     private static boolean allowsRemoteIndices(TransportRequest transportRequest) {
-        return transportRequest instanceof IndicesRequest.Replaceable replaceable && replaceable.allowsRemoteIndices();
+        // TODO this may need to change. See https://github.com/elastic/elasticsearch/issues/105598
+        if (transportRequest instanceof IndicesRequest.SingleIndexNoWildcards single) {
+            return single.allowsRemoteIndices();
+        } else {
+            return transportRequest instanceof IndicesRequest.Replaceable replaceable && replaceable.allowsRemoteIndices();
+        }
     }
 
     private static boolean isChildActionAuthorizedByParentOnLocalNode(RequestInfo requestInfo, AuthorizationInfo authorizationInfo) {
@@ -963,6 +969,7 @@ public class RBACEngine implements AuthorizationEngine {
             || action.equals(GetAsyncSearchAction.NAME)
             || action.equals(TransportDeleteAsyncResultAction.TYPE.name())
             || action.equals(EqlAsyncActionNames.EQL_ASYNC_GET_RESULT_ACTION_NAME)
+            || action.equals(EsqlAsyncActionNames.ESQL_ASYNC_GET_RESULT_ACTION_NAME)
             || action.equals(SqlAsyncActionNames.SQL_ASYNC_GET_RESULT_ACTION_NAME);
     }
 

@@ -1,6 +1,0 @@
-pr: 102456
-summary: Switch logs data streams to search all fields by default
-area: Data streams
-type: enhancement
-issues:
- - 99872

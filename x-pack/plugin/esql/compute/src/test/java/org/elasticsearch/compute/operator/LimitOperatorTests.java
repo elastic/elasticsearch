@@ -7,8 +7,6 @@
 
 package org.elasticsearch.compute.operator;
 
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BasicBlockTests;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -24,7 +22,7 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class LimitOperatorTests extends OperatorTestCase {
     @Override
-    protected LimitOperator.Factory simple(BigArrays bigArrays) {
+    protected LimitOperator.Factory simple() {
         return new LimitOperator.Factory(100);
     }
 
@@ -50,15 +48,9 @@ public class LimitOperatorTests extends OperatorTestCase {
         assertThat(outputPositionCount, equalTo(Math.min(100, inputPositionCount)));
     }
 
-    @Override
-    protected ByteSizeValue memoryLimitForSimple() {
-        assumeFalse("doesn't allocate, just filters", true);
-        return null;
-    }
-
     public void testStatus() {
         BlockFactory blockFactory = driverContext().blockFactory();
-        LimitOperator op = simple(BigArrays.NON_RECYCLING_INSTANCE).get(driverContext());
+        LimitOperator op = simple().get(driverContext());
 
         LimitOperator.Status status = op.status();
         assertThat(status.limit(), equalTo(100));
@@ -80,7 +72,7 @@ public class LimitOperatorTests extends OperatorTestCase {
 
     public void testNeedInput() {
         BlockFactory blockFactory = driverContext().blockFactory();
-        try (LimitOperator op = simple(BigArrays.NON_RECYCLING_INSTANCE).get(driverContext())) {
+        try (LimitOperator op = simple().get(driverContext())) {
             assertTrue(op.needsInput());
             Page p = new Page(blockFactory.newConstantNullBlock(10));
             op.addInput(p);
@@ -95,7 +87,7 @@ public class LimitOperatorTests extends OperatorTestCase {
     public void testBlockBiggerThanRemaining() {
         BlockFactory blockFactory = driverContext().blockFactory();
         for (int i = 0; i < 100; i++) {
-            try (var op = simple(BigArrays.NON_RECYCLING_INSTANCE).get(driverContext())) {
+            try (var op = simple().get(driverContext())) {
                 assertTrue(op.needsInput());
                 Page p = new Page(randomBlock(blockFactory, 200));  // test doesn't close because operator returns a view
                 op.addInput(p);
@@ -115,7 +107,7 @@ public class LimitOperatorTests extends OperatorTestCase {
     public void testBlockPreciselyRemaining() {
         BlockFactory blockFactory = driverContext().blockFactory();
         for (int i = 0; i < 100; i++) {
-            try (var op = simple(BigArrays.NON_RECYCLING_INSTANCE).get(driverContext())) {
+            try (var op = simple().get(driverContext())) {
                 assertTrue(op.needsInput());
                 Page p = new Page(randomBlock(blockFactory, 100));  // test doesn't close because operator returns same page
                 op.addInput(p);

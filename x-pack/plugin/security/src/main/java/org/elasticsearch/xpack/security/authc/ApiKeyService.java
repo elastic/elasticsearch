@@ -979,13 +979,13 @@ public class ApiKeyService {
             try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
                 builder.map(rdMap);
                 try (
-                    XContentParser parser = XContentType.JSON.xContent()
-                        .createParser(
-                            XContentParserConfiguration.EMPTY.withDeprecationHandler(
-                                new ApiKeyLoggingDeprecationHandler(deprecationLogger, apiKeyId)
-                            ),
-                            BytesReference.bytes(builder).streamInput()
-                        )
+                    XContentParser parser = XContentHelper.createParserNotCompressed(
+                        XContentParserConfiguration.EMPTY.withDeprecationHandler(
+                            new ApiKeyLoggingDeprecationHandler(deprecationLogger, apiKeyId)
+                        ),
+                        BytesReference.bytes(builder),
+                        XContentType.JSON
+                    )
                 ) {
                     return RoleDescriptor.parse(name, parser, false);
                 }
@@ -1937,7 +1937,6 @@ public class ApiKeyService {
 
     public void queryApiKeys(SearchRequest searchRequest, boolean withLimitedBy, ActionListener<QueryApiKeyResponse> listener) {
         ensureEnabled();
-
         final SecurityIndexManager frozenSecurityIndex = securityIndex.defensiveCopy();
         if (frozenSecurityIndex.indexExists() == false) {
             logger.debug("security index does not exist");
@@ -1962,7 +1961,7 @@ public class ApiKeyService {
                         final List<QueryApiKeyResponse.Item> apiKeyItem = Arrays.stream(searchResponse.getHits().getHits())
                             .map(hit -> convertSearchHitToQueryItem(hit, withLimitedBy))
                             .toList();
-                        listener.onResponse(new QueryApiKeyResponse(total, apiKeyItem));
+                        listener.onResponse(new QueryApiKeyResponse(total, apiKeyItem, searchResponse.getAggregations()));
                     }, listener::onFailure)
                 )
             );
@@ -2004,6 +2003,7 @@ public class ApiKeyService {
             apiKeyDoc.invalidation != -1 ? Instant.ofEpochMilli(apiKeyDoc.invalidation) : null,
             (String) apiKeyDoc.creator.get("principal"),
             (String) apiKeyDoc.creator.get("realm"),
+            (String) apiKeyDoc.creator.get("realm_type"),
             metadata,
             roleDescriptors,
             limitedByRoleDescriptors

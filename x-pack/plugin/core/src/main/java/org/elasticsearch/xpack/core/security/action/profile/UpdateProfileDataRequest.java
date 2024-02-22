@@ -50,8 +50,8 @@ public class UpdateProfileDataRequest extends ActionRequest {
     public UpdateProfileDataRequest(StreamInput in) throws IOException {
         super(in);
         this.uid = in.readString();
-        this.labels = in.readMap();
-        this.data = in.readMap();
+        this.labels = in.readGenericMap();
+        this.data = in.readGenericMap();
         this.ifPrimaryTerm = in.readLong();
         this.ifSeqNo = in.readLong();
         this.refreshPolicy = RefreshPolicy.readFrom(in);

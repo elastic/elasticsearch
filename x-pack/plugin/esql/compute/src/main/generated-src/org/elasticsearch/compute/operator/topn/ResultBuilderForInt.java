@@ -11,6 +11,10 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
 
+/**
+ * Builds the resulting {@link IntBlock} for some column in a top-n.
+ * This class is generated. Edit {@code X-ResultBuilder.java.st} instead.
+ */
 class ResultBuilderForInt implements ResultBuilder {
     private final IntBlock.Builder builder;
 

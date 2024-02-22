@@ -27,7 +27,7 @@ import org.elasticsearch.xpack.core.XPackPlugin;
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
 
 public class TransportDeleteAsyncResultAction extends HandledTransportAction<DeleteAsyncResultRequest, AcknowledgedResponse> {
-    public static final ActionType<AcknowledgedResponse> TYPE = ActionType.acknowledgedResponse("indices:data/read/async_search/delete");
+    public static final ActionType<AcknowledgedResponse> TYPE = new ActionType<>("indices:data/read/async_search/delete");
     private final DeleteAsyncResultsService deleteResultsService;
     private final ClusterService clusterService;
     private final TransportService transportService;

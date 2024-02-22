@@ -11,7 +11,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
-import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
@@ -39,16 +38,16 @@ public final class ToCartesianPointFromStringEvaluator extends AbstractConvertFu
     BytesRef scratchPad = new BytesRef();
     if (vector.isConstant()) {
       try {
-        return driverContext.blockFactory().newConstantLongBlockWith(evalValue(vector, 0, scratchPad), positionCount);
+        return driverContext.blockFactory().newConstantBytesRefBlockWith(evalValue(vector, 0, scratchPad), positionCount);
       } catch (IllegalArgumentException  e) {
         registerException(e);
         return driverContext.blockFactory().newConstantNullBlock(positionCount);
       }
     }
-    try (LongBlock.Builder builder = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
+    try (BytesRefBlock.Builder builder = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       for (int p = 0; p < positionCount; p++) {
         try {
-          builder.appendLong(evalValue(vector, p, scratchPad));
+          builder.appendBytesRef(evalValue(vector, p, scratchPad));
         } catch (IllegalArgumentException  e) {
           registerException(e);
           builder.appendNull();
@@ -58,7 +57,7 @@ public final class ToCartesianPointFromStringEvaluator extends AbstractConvertFu
     }
   }
 
-  private static long evalValue(BytesRefVector container, int index, BytesRef scratchPad) {
+  private static BytesRef evalValue(BytesRefVector container, int index, BytesRef scratchPad) {
     BytesRef value = container.getBytesRef(index, scratchPad);
     return ToCartesianPoint.fromKeyword(value);
   }
@@ -67,7 +66,7 @@ public final class ToCartesianPointFromStringEvaluator extends AbstractConvertFu
   public Block evalBlock(Block b) {
     BytesRefBlock block = (BytesRefBlock) b;
     int positionCount = block.getPositionCount();
-    try (LongBlock.Builder builder = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
+    try (BytesRefBlock.Builder builder = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       BytesRef scratchPad = new BytesRef();
       for (int p = 0; p < positionCount; p++) {
         int valueCount = block.getValueCount(p);
@@ -77,12 +76,12 @@ public final class ToCartesianPointFromStringEvaluator extends AbstractConvertFu
         boolean valuesAppended = false;
         for (int i = start; i < end; i++) {
           try {
-            long value = evalValue(block, i, scratchPad);
+            BytesRef value = evalValue(block, i, scratchPad);
             if (positionOpened == false && valueCount > 1) {
               builder.beginPositionEntry();
               positionOpened = true;
             }
-            builder.appendLong(value);
+            builder.appendBytesRef(value);
             valuesAppended = true;
           } catch (IllegalArgumentException  e) {
             registerException(e);
@@ -98,7 +97,7 @@ public final class ToCartesianPointFromStringEvaluator extends AbstractConvertFu
     }
   }
 
-  private static long evalValue(BytesRefBlock container, int index, BytesRef scratchPad) {
+  private static BytesRef evalValue(BytesRefBlock container, int index, BytesRef scratchPad) {
     BytesRef value = container.getBytesRef(index, scratchPad);
     return ToCartesianPoint.fromKeyword(value);
   }

@@ -12,7 +12,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -26,7 +25,6 @@ import org.elasticsearch.transport.LeakTracker;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -202,28 +200,6 @@ public class MultiSearchTemplateResponse extends ActionResponse implements Itera
     static final class Fields {
         static final String RESPONSES = "responses";
         static final String STATUS = "status";
-    }
-
-    public static MultiSearchTemplateResponse fromXContext(XContentParser parser) {
-        // The MultiSearchTemplateResponse is identical to the multi search response so we reuse the parsing logic in multi search response
-        MultiSearchResponse mSearchResponse = MultiSearchResponse.fromXContext(parser);
-        try {
-            org.elasticsearch.action.search.MultiSearchResponse.Item[] responses = mSearchResponse.getResponses();
-            Item[] templateResponses = new Item[responses.length];
-            int i = 0;
-            for (org.elasticsearch.action.search.MultiSearchResponse.Item item : responses) {
-                SearchTemplateResponse stResponse = null;
-                if (item.getResponse() != null) {
-                    stResponse = new SearchTemplateResponse();
-                    stResponse.setResponse(item.getResponse());
-                    item.getResponse().incRef();
-                }
-                templateResponses[i++] = new Item(stResponse, item.getFailure());
-            }
-            return new MultiSearchTemplateResponse(templateResponses, mSearchResponse.getTook().millis());
-        } finally {
-            mSearchResponse.decRef();
-        }
     }
 
     @Override

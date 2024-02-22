@@ -31,7 +31,7 @@ public class GetCalendarsAction extends ActionType<GetCalendarsAction.Response> 
     public static final String NAME = "cluster:monitor/xpack/ml/calendars/get";
 
     private GetCalendarsAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
     public static class Request extends ActionRequest implements ToXContentObject {

@@ -1,6 +1,0 @@
-pr: 102808
-summary: Active shards message corrected for search shards
-area: Distributed
-type: bug
-issues:
- - 101896

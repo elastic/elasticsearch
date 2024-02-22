@@ -20,10 +20,12 @@ public class APMYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .module("constant-keyword")
+        .module("counted-keyword")
         .module("data-streams")
         .module("ingest-common")
         .module("ingest-geoip")
         .module("ingest-user-agent")
+        .module("lang-mustache")
         .module("mapper-extras")
         .module("wildcard")
         .module("x-pack-analytics")

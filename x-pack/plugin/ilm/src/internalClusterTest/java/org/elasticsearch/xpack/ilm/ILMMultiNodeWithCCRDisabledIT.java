@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.ilm;
 
-import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -94,8 +94,8 @@ public class ILMMultiNodeWithCCRDisabledIT extends ESIntegTestCase {
             .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
             .build();
         client().execute(
-            PutComposableIndexTemplateAction.INSTANCE,
-            new PutComposableIndexTemplateAction.Request("template").indexTemplate(template)
+            TransportPutComposableIndexTemplateAction.TYPE,
+            new TransportPutComposableIndexTemplateAction.Request("template").indexTemplate(template)
         ).actionGet();
         prepareIndex(index).setCreate(true).setId("1").setSource("@timestamp", "2020-09-09").get();
 

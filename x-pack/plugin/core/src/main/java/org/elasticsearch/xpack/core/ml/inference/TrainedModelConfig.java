@@ -107,7 +107,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
     public static final ParseField PLATFORM_ARCHITECTURE = new ParseField("platform_architecture");
 
     public static final TransportVersion VERSION_3RD_PARTY_CONFIG_ADDED = TransportVersions.V_8_0_0;
-    public static final TransportVersion VERSION_ALLOCATION_MEMORY_ADDED = TransportVersions.V_8_500_064;
+    public static final TransportVersion VERSION_ALLOCATION_MEMORY_ADDED = TransportVersions.V_8_11_X;
 
     // These parsers follow the pattern that metadata is parsed leniently (to allow for enhancements), whilst config is parsed strictly
     public static final ObjectParser<TrainedModelConfig.Builder, Void> LENIENT_PARSER = createParser(true);
@@ -271,7 +271,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         createTime = in.readInstant();
         definition = in.readOptionalWriteable(LazyModelDefinition::fromStreamInput);
         tags = in.readCollectionAsImmutableList(StreamInput::readString);
-        metadata = in.readMap();
+        metadata = in.readGenericMap();
         input = new TrainedModelInput(in);
         modelSize = in.readVLong();
         estimatedOperations = in.readVLong();
@@ -293,12 +293,12 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             modelPackageConfig = null;
             fullDefinition = null;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ML_TRAINED_MODEL_CONFIG_PLATFORM_ADDED)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
             platformArchitecture = in.readOptionalString();
         } else {
             platformArchitecture = null;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ML_TRAINED_MODEL_PREFIX_STRINGS_ADDED)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             prefixStrings = in.readOptionalWriteable(TrainedModelPrefixStrings::new);
         }
     }
@@ -482,11 +482,11 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             out.writeOptionalBoolean(fullDefinition);
         }
 
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ML_TRAINED_MODEL_CONFIG_PLATFORM_ADDED)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
             out.writeOptionalString(platformArchitecture);
         }
 
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ML_TRAINED_MODEL_PREFIX_STRINGS_ADDED)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             out.writeOptionalWriteable(prefixStrings);
         }
     }

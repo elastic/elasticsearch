@@ -1,11 +1,11 @@
 [[update-connector-filtering-api]]
 === Update connector filtering API
-
-preview::[]
-
 ++++
 <titleabbrev>Update connector filtering</titleabbrev>
 ++++
+
+preview::[]
+
 
 Updates the `filtering` configuration of a connector. Learn more about filtering in the {enterprise-search-ref}/sync-rules.html[sync rules] documentation.
 

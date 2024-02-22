@@ -31,6 +31,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -62,7 +63,6 @@ import org.elasticsearch.xpack.core.ml.utils.MlStrings;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -575,12 +575,8 @@ public class DatafeedConfigProvider {
     }
 
     private void parseLenientlyFromSource(BytesReference source, ActionListener<DatafeedConfig.Builder> datafeedConfigListener) {
-        try (
-            InputStream stream = source.streamInput();
-            XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, stream)
-        ) {
-            datafeedConfigListener.onResponse(DatafeedConfig.LENIENT_PARSER.apply(parser, null));
+        try {
+            datafeedConfigListener.onResponse(parseLenientlyFromSource(source));
         } catch (Exception e) {
             datafeedConfigListener.onFailure(e);
         }
@@ -588,11 +584,14 @@ public class DatafeedConfigProvider {
 
     private DatafeedConfig.Builder parseLenientlyFromSource(BytesReference source) throws IOException {
         try (
-            InputStream stream = source.streamInput();
-            XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, stream)
+            XContentParser parser = XContentHelper.createParserNotCompressed(
+                LoggingDeprecationHandler.XCONTENT_PARSER_CONFIG.withRegistry(xContentRegistry),
+                source,
+                XContentType.JSON
+            )
         ) {
             return DatafeedConfig.LENIENT_PARSER.apply(parser, null);
         }
     }
+
 }

@@ -75,4 +75,3 @@ setup:
   - match: { status: 403 }
   - match: { error.type: security_exception }
   - match: { error.reason: "current license is non-compliant for [Reciprocal Rank Fusion (RRF)]" }
-

@@ -15,8 +15,16 @@ import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 public class EsqlQueryRequestBuilder extends ActionRequestBuilder<EsqlQueryRequest, EsqlQueryResponse> {
 
-    public EsqlQueryRequestBuilder(ElasticsearchClient client) {
-        super(client, EsqlQueryAction.INSTANCE, new EsqlQueryRequest());
+    public static EsqlQueryRequestBuilder newAsyncEsqlQueryRequestBuilder(ElasticsearchClient client) {
+        return new EsqlQueryRequestBuilder(client, EsqlQueryRequest.asyncEsqlQueryRequest());
+    }
+
+    public static EsqlQueryRequestBuilder newSyncEsqlQueryRequestBuilder(ElasticsearchClient client) {
+        return new EsqlQueryRequestBuilder(client, EsqlQueryRequest.syncEsqlQueryRequest());
+    }
+
+    private EsqlQueryRequestBuilder(ElasticsearchClient client, EsqlQueryRequest request) {
+        super(client, EsqlQueryAction.INSTANCE, request);
     }
 
     public EsqlQueryRequestBuilder query(String query) {
@@ -51,11 +59,6 @@ public class EsqlQueryRequestBuilder extends ActionRequestBuilder<EsqlQueryReque
 
     public EsqlQueryRequestBuilder keepOnCompletion(boolean keepOnCompletion) {
         request.keepOnCompletion(keepOnCompletion);
-        return this;
-    }
-
-    public EsqlQueryRequestBuilder async(boolean async) {
-        request.async(async);
         return this;
     }
 }

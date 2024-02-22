@@ -33,6 +33,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.hamcrest.Matchers.containsString;
 
 public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkReadyStep> {
@@ -300,14 +301,9 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
         IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(index)
             .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), "node1", true, ShardRoutingState.STARTED))
             .addShard(
-                TestShardRouting.newShardRouting(
-                    new ShardId(index, 0),
-                    null,
-                    null,
-                    false,
-                    ShardRoutingState.UNASSIGNED,
+                shardRoutingBuilder(new ShardId(index, 0), null, false, ShardRoutingState.UNASSIGNED).withUnassignedInfo(
                     randomUnassignedInfo("the shard is intentionally unassigned")
-                )
+                ).build()
             );
 
         CheckShrinkReadyStep step = createRandomInstance();
@@ -358,14 +354,9 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
             .addShard(TestShardRouting.newShardRouting(new ShardId(index, 1), "node1", false, ShardRoutingState.STARTED))
             .addShard(TestShardRouting.newShardRouting(new ShardId(index, 1), "node2", true, ShardRoutingState.STARTED))
             .addShard(
-                TestShardRouting.newShardRouting(
-                    new ShardId(index, 0),
-                    null,
-                    null,
-                    false,
-                    ShardRoutingState.UNASSIGNED,
+                shardRoutingBuilder(new ShardId(index, 0), null, false, ShardRoutingState.UNASSIGNED).withUnassignedInfo(
                     new UnassignedInfo(UnassignedInfo.Reason.REPLICA_ADDED, "no attempt")
-                )
+                ).build()
             );
 
         CheckShrinkReadyStep step = createRandomInstance();
@@ -399,14 +390,9 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
             .addShard(TestShardRouting.newShardRouting(new ShardId(index, 1), "node2", false, ShardRoutingState.STARTED))
             .addShard(TestShardRouting.newShardRouting(new ShardId(index, 1), "node3", true, ShardRoutingState.STARTED))
             .addShard(
-                TestShardRouting.newShardRouting(
-                    new ShardId(index, 0),
-                    null,
-                    null,
-                    false,
-                    ShardRoutingState.UNASSIGNED,
+                shardRoutingBuilder(new ShardId(index, 0), null, false, ShardRoutingState.UNASSIGNED).withUnassignedInfo(
                     new UnassignedInfo(UnassignedInfo.Reason.REPLICA_ADDED, "no attempt")
-                )
+                ).build()
             );
 
         CheckShrinkReadyStep step = createRandomInstance();

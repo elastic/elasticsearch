@@ -1,11 +1,10 @@
 [[check-in-connector-api]]
 === Check in connector API
-
-preview::[]
-
 ++++
 <titleabbrev>Check in a connector</titleabbrev>
 ++++
+
+preview::[]
 
 Updates the `last_seen` field of a connector with current timestamp.
 

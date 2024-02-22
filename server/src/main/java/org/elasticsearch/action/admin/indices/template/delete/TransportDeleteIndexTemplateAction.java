@@ -31,7 +31,7 @@ import org.elasticsearch.transport.TransportService;
  */
 public class TransportDeleteIndexTemplateAction extends AcknowledgedTransportMasterNodeAction<DeleteIndexTemplateRequest> {
 
-    public static final ActionType<AcknowledgedResponse> TYPE = ActionType.acknowledgedResponse("indices:admin/template/delete");
+    public static final ActionType<AcknowledgedResponse> TYPE = new ActionType<>("indices:admin/template/delete");
     private static final Logger logger = LogManager.getLogger(TransportDeleteIndexTemplateAction.class);
 
     private final MetadataIndexTemplateService indexTemplateService;

@@ -42,7 +42,7 @@ public class ToDouble extends AbstractConvertFunction {
         Map.entry(INTEGER, ToDoubleFromIntEvaluator.Factory::new) // CastIntToDoubleEvaluator would be a candidate, but not MV'd
     );
 
-    @FunctionInfo(returnType = "double")
+    @FunctionInfo(returnType = "double", description = "Converts an input value to a double value.")
     public ToDouble(
         Source source,
         @Param(name = "v", type = { "boolean", "date", "keyword", "text", "double", "long", "unsigned_long", "integer" }) Expression field

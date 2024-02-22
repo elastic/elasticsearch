@@ -9,7 +9,6 @@ package org.elasticsearch.compute.data;
 
 $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
-$else$
 $endif$
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -104,11 +103,11 @@ $endif$
                     final int valueCount = getValueCount(pos);
                     out.writeVInt(valueCount);
                     for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
-    $if(BytesRef)$
+$if(BytesRef)$
                         out.write$Type$(get$Type$(getFirstValueIndex(pos) + valueIndex, new BytesRef()));
-    $else$
+$else$
                         out.write$Type$(get$Type$(getFirstValueIndex(pos) + valueIndex));
-    $endif$
+$endif$
                     }
                 }
             }

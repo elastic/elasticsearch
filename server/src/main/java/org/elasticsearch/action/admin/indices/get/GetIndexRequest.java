@@ -20,7 +20,7 @@ import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashSet;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -64,7 +64,7 @@ public class GetIndexRequest extends ClusterInfoRequest<GetIndexRequest> {
         public static Feature[] fromRequest(RestRequest request) {
             if (request.hasParam("features")) {
                 String[] featureNames = request.param("features").split(",");
-                Set<Feature> features = new HashSet<>();
+                Set<Feature> features = EnumSet.noneOf(Feature.class);
                 List<String> invalidFeatures = new ArrayList<>();
                 for (int k = 0; k < featureNames.length; k++) {
                     try {

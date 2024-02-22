@@ -37,7 +37,7 @@ import java.io.IOException;
  */
 public class TransportPutIndexTemplateAction extends AcknowledgedTransportMasterNodeAction<PutIndexTemplateRequest> {
 
-    public static final ActionType<AcknowledgedResponse> TYPE = ActionType.acknowledgedResponse("indices:admin/template/put");
+    public static final ActionType<AcknowledgedResponse> TYPE = new ActionType<>("indices:admin/template/put");
     private static final Logger logger = LogManager.getLogger(TransportPutIndexTemplateAction.class);
 
     private final MetadataIndexTemplateService indexTemplateService;

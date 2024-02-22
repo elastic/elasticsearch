@@ -33,7 +33,6 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
-import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.runEsql;
 
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class MultiClustersIT extends ESRestTestCase {
@@ -123,6 +122,20 @@ public class MultiClustersIT extends ESRestTestCase {
         logger.info("--> query {} response {}", query, resp);
         return resp;
     }
+
+    protected boolean supportsAsync() {
+        return false; // TODO: Version.CURRENT.onOrAfter(Version.V_8_13_0); ?? // the Async API was introduced in 8.13.0
+    }
+
+    private Map<String, Object> runEsql(RestEsqlTestCase.RequestObjectBuilder requestObject) throws IOException {
+        if (supportsAsync()) {
+            return RestEsqlTestCase.runEsqlAsync(requestObject, NO_WARNINGS);
+        } else {
+            return RestEsqlTestCase.runEsqlSync(requestObject, NO_WARNINGS);
+        }
+    }
+
+    private static final List<String> NO_WARNINGS = List.of();
 
     public void testCount() throws Exception {
         {

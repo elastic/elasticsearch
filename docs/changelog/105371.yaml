@@ -1,0 +1,5 @@
+pr: 105371
+summary: "ESQL: Add plan consistency verification after each optimizer"
+area: ES|QL
+type: enhancement
+issues: []

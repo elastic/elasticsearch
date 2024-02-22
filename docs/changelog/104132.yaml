@@ -1,0 +1,5 @@
+pr: 104132
+summary: Add support for the `simple_query_string` to the Query API Key API
+area: Security
+type: enhancement
+issues: []

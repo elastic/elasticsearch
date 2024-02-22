@@ -42,6 +42,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.index.query.AbstractQueryBuilder.DEFAULT_BOOST;
+
 /**
  * DFS phase of a search request, used to make scoring 100% accurate by collecting additional info from each shard before the query phase.
  * The additional information is used to better compare the scores coming from all the shards, which depend on local factors (e.g. idf).
@@ -179,8 +181,10 @@ public class DfsPhase {
         }
 
         SearchExecutionContext searchExecutionContext = context.getSearchExecutionContext();
-        List<KnnSearchBuilder> knnSearch = context.request().source().knnSearch();
+        List<KnnSearchBuilder> knnSearch = source.knnSearch();
         List<KnnVectorQueryBuilder> knnVectorQueryBuilders = knnSearch.stream().map(KnnSearchBuilder::toQueryBuilder).toList();
+        // Since we apply boost during the DfsQueryPhase, we should not apply boost here:
+        knnVectorQueryBuilders.forEach(knnVectorQueryBuilder -> knnVectorQueryBuilder.boost(DEFAULT_BOOST));
 
         if (context.request().getAliasFilter().getQueryBuilder() != null) {
             for (KnnVectorQueryBuilder knnVectorQueryBuilder : knnVectorQueryBuilders) {

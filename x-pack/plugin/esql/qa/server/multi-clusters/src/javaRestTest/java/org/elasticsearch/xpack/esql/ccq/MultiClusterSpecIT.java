@@ -7,11 +7,13 @@
 
 package org.elasticsearch.xpack.esql.ccq;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
+import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
@@ -19,28 +21,38 @@ import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
 import org.elasticsearch.xpack.ql.CsvSpecReader;
+import org.elasticsearch.xpack.ql.CsvSpecReader.CsvTestCase;
+import org.elasticsearch.xpack.ql.SpecReader;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.net.URL;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
+import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.ENRICH_SOURCE_INDICES;
+import static org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase.Mode.SYNC;
+import static org.elasticsearch.xpack.ql.CsvSpecReader.specParser;
+import static org.elasticsearch.xpack.ql.TestUtils.classpathResources;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 /**
  * This suite loads the data into either the local cluster or the remote cluster, then run spec tests with CCQ.
  * TODO: Some spec tests prevents us from splitting data across multiple shards/indices/clusters
  */
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/103737")
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class MultiClusterSpecIT extends EsqlSpecTestCase {
 
@@ -50,14 +62,32 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
     @ClassRule
     public static TestRule clusterRule = RuleChain.outerRule(remoteCluster).around(localCluster);
 
-    public MultiClusterSpecIT(String fileName, String groupName, String testName, Integer lineNumber, CsvSpecReader.CsvTestCase testCase) {
-        super(fileName, groupName, testName, lineNumber, convertToRemoteIndices(testCase));
+    @ParametersFactory(argumentFormatting = "%2$s.%3$s")
+    public static List<Object[]> readScriptSpec() throws Exception {
+        List<URL> urls = classpathResources("/*.csv-spec");
+        assertTrue("Not enough specs found " + urls, urls.size() > 0);
+        List<Object[]> specs = SpecReader.readScriptSpec(urls, specParser());
+
+        int len = specs.get(0).length;
+        List<Object[]> testcases = new ArrayList<>();
+        for (var spec : specs) {
+            for (Mode mode : List.of(SYNC)) { // No async, for now
+                Object[] obj = new Object[len + 1];
+                System.arraycopy(spec, 0, obj, 0, len);
+                obj[len] = mode;
+                testcases.add(obj);
+            }
+        }
+        return testcases;
+    }
+
+    public MultiClusterSpecIT(String fileName, String groupName, String testName, Integer lineNumber, CsvTestCase testCase, Mode mode) {
+        super(fileName, groupName, testName, lineNumber, convertToRemoteIndices(testCase), mode);
     }
 
     @Override
     protected void shouldSkipTest(String testName) {
         super.shouldSkipTest(testName);
-        assumeFalse("CCQ doesn't support enrich yet", hasEnrich(testCase.query));
         assumeFalse("can't test with _index metadata", hasIndexMetadata(testCase.query));
         assumeTrue("Test " + testName + " is skipped on " + Clusters.oldVersion(), isEnabled(testName, Clusters.oldVersion()));
     }
@@ -83,19 +113,21 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
      */
     static RestClient twoClients(RestClient localClient, RestClient remoteClient) throws IOException {
         RestClient twoClients = mock(RestClient.class);
+        // write to a single cluster for now due to the precision of some functions such as avg and tests related to updates
+        final RestClient bulkClient = randomFrom(localClient, remoteClient);
         when(twoClients.performRequest(any())).then(invocation -> {
             Request request = invocation.getArgument(0);
-            if (request.getEndpoint().contains("_query")) {
+            String endpoint = request.getEndpoint();
+            if (endpoint.startsWith("/_query")) {
                 return localClient.performRequest(request);
-            } else if (request.getEndpoint().contains("_bulk")) {
-                if (randomBoolean()) {
-                    return remoteClient.performRequest(request);
-                } else {
-                    return localClient.performRequest(request);
-                }
+            } else if (endpoint.endsWith("/_bulk") && ENRICH_SOURCE_INDICES.stream().noneMatch(i -> endpoint.equals("/" + i + "/_bulk"))) {
+                return bulkClient.performRequest(request);
             } else {
-                localClient.performRequest(request);
-                return remoteClient.performRequest(request);
+                Request[] clones = cloneRequests(request, 2);
+                Response resp1 = remoteClient.performRequest(clones[0]);
+                Response resp2 = localClient.performRequest(clones[1]);
+                assertEquals(resp1.getStatusLine().getStatusCode(), resp2.getStatusLine().getStatusCode());
+                return resp2;
             }
         });
         doAnswer(invocation -> {
@@ -105,20 +137,42 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         return twoClients;
     }
 
+    static Request[] cloneRequests(Request orig, int numClones) throws IOException {
+        Request[] clones = new Request[numClones];
+        for (int i = 0; i < clones.length; i++) {
+            clones[i] = new Request(orig.getMethod(), orig.getEndpoint());
+            clones[i].addParameters(orig.getParameters());
+        }
+        HttpEntity entity = orig.getEntity();
+        if (entity != null) {
+            byte[] bytes = entity.getContent().readAllBytes();
+            entity.getContent().close();
+            for (Request clone : clones) {
+                ByteArrayInputStream cloneInput = new ByteArrayInputStream(bytes);
+                HttpEntity cloneEntity = spy(entity);
+                when(cloneEntity.getContent()).thenReturn(cloneInput);
+                clone.setEntity(cloneEntity);
+            }
+        }
+        return clones;
+    }
+
     static CsvSpecReader.CsvTestCase convertToRemoteIndices(CsvSpecReader.CsvTestCase testCase) {
         String query = testCase.query;
         String[] commands = query.split("\\|");
         String first = commands[0].trim();
+
         if (commands[0].toLowerCase(Locale.ROOT).startsWith("from")) {
-            String[] parts = commands[0].split("\\[");
+            String[] parts = commands[0].split("(?i)metadata");
             assert parts.length >= 1 : parts;
             String fromStatement = parts[0];
+
             String[] localIndices = fromStatement.substring("FROM ".length()).split(",");
             String remoteIndices = Arrays.stream(localIndices)
                 .map(index -> "*:" + index.trim() + "," + index.trim())
                 .collect(Collectors.joining(","));
-            var newFrom = "FROM " + remoteIndices + commands[0].substring(fromStatement.length());
-            testCase.query = newFrom + " " + query.substring(first.length());
+            var newFrom = "FROM " + remoteIndices + " " + commands[0].substring(fromStatement.length());
+            testCase.query = newFrom + query.substring(first.length());
         }
         int offset = testCase.query.length() - query.length();
         if (offset != 0) {
@@ -140,21 +194,10 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         return testCase;
     }
 
-    static boolean hasEnrich(String query) {
-        String[] commands = query.split("\\|");
-        for (int i = 0; i < commands.length; i++) {
-            commands[i] = commands[i].trim();
-            if (commands[i].toLowerCase(Locale.ROOT).startsWith("enrich")) {
-                return true;
-            }
-        }
-        return false;
-    }
-
     static boolean hasIndexMetadata(String query) {
         String[] commands = query.split("\\|");
         if (commands[0].trim().toLowerCase(Locale.ROOT).startsWith("from")) {
-            String[] parts = commands[0].split("\\[");
+            String[] parts = commands[0].split("(?i)metadata");
             return parts.length > 1 && parts[1].contains("_index");
         }
         return false;

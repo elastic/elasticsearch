@@ -87,19 +87,19 @@ public class BlockFactoryTests extends ESTestCase {
             int positions = randomIntBetween(1, 16384);
             long preAdjustBytes = blockFactory.preAdjustBreakerForBoolean(positions);
             assertThat(preAdjustBytes, is((long) positions));
-            blockFactory.adjustBreaker(-preAdjustBytes, true);
+            blockFactory.adjustBreaker(-preAdjustBytes);
 
             preAdjustBytes = blockFactory.preAdjustBreakerForInt(positions);
             assertThat(preAdjustBytes, is((long) positions * 4));
-            blockFactory.adjustBreaker(-preAdjustBytes, true);
+            blockFactory.adjustBreaker(-preAdjustBytes);
 
             preAdjustBytes = blockFactory.preAdjustBreakerForLong(positions);
             assertThat(preAdjustBytes, is((long) positions * 8));
-            blockFactory.adjustBreaker(-preAdjustBytes, true);
+            blockFactory.adjustBreaker(-preAdjustBytes);
 
             preAdjustBytes = blockFactory.preAdjustBreakerForDouble(positions);
             assertThat(preAdjustBytes, is((long) positions * 8));
-            blockFactory.adjustBreaker(-preAdjustBytes, true);
+            blockFactory.adjustBreaker(-preAdjustBytes);
         }
     }
 

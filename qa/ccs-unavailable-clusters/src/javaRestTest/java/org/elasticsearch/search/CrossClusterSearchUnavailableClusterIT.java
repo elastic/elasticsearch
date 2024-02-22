@@ -56,7 +56,6 @@ import java.util.concurrent.TimeUnit;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 
-@SuppressWarnings("removal")
 public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
 
     private final ThreadPool threadPool = new TestThreadPool(getClass().getName());
@@ -93,7 +92,7 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
                 SearchRequest::new,
                 (request, channel, task) -> channel.sendResponse(
                     new SearchResponse(
-                        new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN),
+                        SearchHits.empty(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN),
                         InternalAggregations.EMPTY,
                         null,
                         false,

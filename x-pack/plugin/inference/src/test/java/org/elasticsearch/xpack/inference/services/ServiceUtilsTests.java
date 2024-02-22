@@ -8,23 +8,45 @@
 package org.elasticsearch.xpack.inference.services;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.InferenceService;
+import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.InputType;
+import org.elasticsearch.inference.Model;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.inference.results.TextEmbeddingByteResults;
+import org.elasticsearch.xpack.core.inference.results.TextEmbeddingResults;
+import org.elasticsearch.xpack.inference.results.TextEmbeddingByteResultsTests;
+import org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests;
 
+import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.convertToUri;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUri;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalEnum;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredSecureString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.getEmbeddingSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class ServiceUtilsTests extends ESTestCase {
+
+    private static final TimeValue TIMEOUT = TimeValue.timeValueSeconds(30);
 
     public void testRemoveAsTypeWithTheCorrectType() {
         Map<String, Object> map = new HashMap<>(Map.of("a", 5, "b", "a string", "c", Boolean.TRUE, "d", 1.0));
@@ -105,10 +127,11 @@ public class ServiceUtilsTests extends ESTestCase {
         assertThat(uri.toString(), is("www.elastic.co"));
     }
 
-    public void testConvertToUri_ThrowsNullPointerException_WhenPassedNull() {
+    public void testConvertToUri_DoesNotThrowNullPointerException_WhenPassedNull() {
         var validation = new ValidationException();
-        expectThrows(NullPointerException.class, () -> convertToUri(null, "name", "scope", validation));
+        var uri = convertToUri(null, "name", "scope", validation);
 
+        assertNull(uri);
         assertTrue(validation.validationErrors().isEmpty());
     }
 
@@ -234,6 +257,169 @@ public class ServiceUtilsTests extends ESTestCase {
         assertFalse(validation.validationErrors().isEmpty());
         assertTrue(map.isEmpty());
         assertThat(validation.validationErrors().get(0), is("[scope] Invalid value empty string. [key] must be a non-empty string"));
+    }
+
+    public void testExtractOptionalEnum_ReturnsNull_WhenFieldDoesNotExist() {
+        var validation = new ValidationException();
+        Map<String, Object> map = modifiableMap(Map.of("key", "value"));
+        var createdEnum = extractOptionalEnum(map, "abc", "scope", InputType::fromString, EnumSet.allOf(InputType.class), validation);
+
+        assertNull(createdEnum);
+        assertTrue(validation.validationErrors().isEmpty());
+        assertThat(map.size(), is(1));
+    }
+
+    public void testExtractOptionalEnum_ReturnsNullAndAddsException_WhenAnInvalidValueExists() {
+        var validation = new ValidationException();
+        Map<String, Object> map = modifiableMap(Map.of("key", "invalid_value"));
+        var createdEnum = extractOptionalEnum(
+            map,
+            "key",
+            "scope",
+            InputType::fromString,
+            EnumSet.of(InputType.INGEST, InputType.SEARCH),
+            validation
+        );
+
+        assertNull(createdEnum);
+        assertFalse(validation.validationErrors().isEmpty());
+        assertTrue(map.isEmpty());
+        assertThat(
+            validation.validationErrors().get(0),
+            is("[scope] Invalid value [invalid_value] received. [key] must be one of [ingest, search]")
+        );
+    }
+
+    public void testExtractOptionalEnum_ReturnsNullAndAddsException_WhenValueIsNotPartOfTheAcceptableValues() {
+        var validation = new ValidationException();
+        Map<String, Object> map = modifiableMap(Map.of("key", InputType.UNSPECIFIED.toString()));
+        var createdEnum = extractOptionalEnum(map, "key", "scope", InputType::fromString, EnumSet.of(InputType.INGEST), validation);
+
+        assertNull(createdEnum);
+        assertFalse(validation.validationErrors().isEmpty());
+        assertTrue(map.isEmpty());
+        assertThat(validation.validationErrors().get(0), is("[scope] Invalid value [unspecified] received. [key] must be one of [ingest]"));
+    }
+
+    public void testExtractOptionalEnum_ReturnsIngest_WhenValueIsAcceptable() {
+        var validation = new ValidationException();
+        Map<String, Object> map = modifiableMap(Map.of("key", InputType.INGEST.toString()));
+        var createdEnum = extractOptionalEnum(map, "key", "scope", InputType::fromString, EnumSet.of(InputType.INGEST), validation);
+
+        assertThat(createdEnum, is(InputType.INGEST));
+        assertTrue(validation.validationErrors().isEmpty());
+        assertTrue(map.isEmpty());
+    }
+
+    public void testExtractOptionalEnum_ReturnsClassification_WhenValueIsAcceptable() {
+        var validation = new ValidationException();
+        Map<String, Object> map = modifiableMap(Map.of("key", InputType.CLASSIFICATION.toString()));
+        var createdEnum = extractOptionalEnum(
+            map,
+            "key",
+            "scope",
+            InputType::fromString,
+            EnumSet.of(InputType.INGEST, InputType.CLASSIFICATION),
+            validation
+        );
+
+        assertThat(createdEnum, is(InputType.CLASSIFICATION));
+        assertTrue(validation.validationErrors().isEmpty());
+        assertTrue(map.isEmpty());
+    }
+
+    public void testGetEmbeddingSize_ReturnsError_WhenTextEmbeddingResults_IsEmpty() {
+        var service = mock(InferenceService.class);
+
+        var model = mock(Model.class);
+        when(model.getTaskType()).thenReturn(TaskType.TEXT_EMBEDDING);
+
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<InferenceServiceResults> listener = (ActionListener<InferenceServiceResults>) invocation.getArguments()[4];
+            listener.onResponse(new TextEmbeddingResults(List.of()));
+
+            return Void.TYPE;
+        }).when(service).infer(any(), any(), any(), any(), any());
+
+        PlainActionFuture<Integer> listener = new PlainActionFuture<>();
+        getEmbeddingSize(model, service, listener);
+
+        var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
+
+        assertThat(thrownException.getMessage(), is("Could not determine embedding size"));
+        assertThat(thrownException.getCause().getMessage(), is("Embeddings list is empty"));
+    }
+
+    public void testGetEmbeddingSize_ReturnsError_WhenTextEmbeddingByteResults_IsEmpty() {
+        var service = mock(InferenceService.class);
+
+        var model = mock(Model.class);
+        when(model.getTaskType()).thenReturn(TaskType.TEXT_EMBEDDING);
+
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<InferenceServiceResults> listener = (ActionListener<InferenceServiceResults>) invocation.getArguments()[4];
+            listener.onResponse(new TextEmbeddingByteResults(List.of()));
+
+            return Void.TYPE;
+        }).when(service).infer(any(), any(), any(), any(), any());
+
+        PlainActionFuture<Integer> listener = new PlainActionFuture<>();
+        getEmbeddingSize(model, service, listener);
+
+        var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
+
+        assertThat(thrownException.getMessage(), is("Could not determine embedding size"));
+        assertThat(thrownException.getCause().getMessage(), is("Embeddings list is empty"));
+    }
+
+    public void testGetEmbeddingSize_ReturnsSize_ForTextEmbeddingResults() {
+        var service = mock(InferenceService.class);
+
+        var model = mock(Model.class);
+        when(model.getTaskType()).thenReturn(TaskType.TEXT_EMBEDDING);
+
+        var textEmbedding = TextEmbeddingResultsTests.createRandomResults();
+
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<InferenceServiceResults> listener = (ActionListener<InferenceServiceResults>) invocation.getArguments()[4];
+            listener.onResponse(textEmbedding);
+
+            return Void.TYPE;
+        }).when(service).infer(any(), any(), any(), any(), any());
+
+        PlainActionFuture<Integer> listener = new PlainActionFuture<>();
+        getEmbeddingSize(model, service, listener);
+
+        var size = listener.actionGet(TIMEOUT);
+
+        assertThat(size, is(textEmbedding.embeddings().get(0).values().size()));
+    }
+
+    public void testGetEmbeddingSize_ReturnsSize_ForTextEmbeddingByteResults() {
+        var service = mock(InferenceService.class);
+
+        var model = mock(Model.class);
+        when(model.getTaskType()).thenReturn(TaskType.TEXT_EMBEDDING);
+
+        var textEmbedding = TextEmbeddingByteResultsTests.createRandomResults();
+
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<InferenceServiceResults> listener = (ActionListener<InferenceServiceResults>) invocation.getArguments()[4];
+            listener.onResponse(textEmbedding);
+
+            return Void.TYPE;
+        }).when(service).infer(any(), any(), any(), any(), any());
+
+        PlainActionFuture<Integer> listener = new PlainActionFuture<>();
+        getEmbeddingSize(model, service, listener);
+
+        var size = listener.actionGet(TIMEOUT);
+
+        assertThat(size, is(textEmbedding.embeddings().get(0).values().size()));
     }
 
     private static <K, V> Map<K, V> modifiableMap(Map<K, V> aMap) {

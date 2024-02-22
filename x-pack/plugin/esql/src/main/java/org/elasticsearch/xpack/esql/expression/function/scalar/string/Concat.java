@@ -13,11 +13,11 @@ import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlClientException;
-import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
-import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
-import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
@@ -34,11 +34,16 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
 /**
  * Join strings.
  */
-public class Concat extends ScalarFunction implements EvaluatorMapper {
+public class Concat extends EsqlScalarFunction {
 
     static final long MAX_CONCAT_LENGTH = MB.toBytes(1);
 
-    public Concat(Source source, Expression first, List<? extends Expression> rest) {
+    @FunctionInfo(returnType = "keyword", description = "Concatenates two or more strings.")
+    public Concat(
+        Source source,
+        @Param(name = "first", type = { "keyword", "text" }) Expression first,
+        @Param(name = "rest", type = { "keyword", "text" }) List<? extends Expression> rest
+    ) {
         super(source, Stream.concat(Stream.of(first), rest.stream()).toList());
     }
 
@@ -68,11 +73,6 @@ public class Concat extends ScalarFunction implements EvaluatorMapper {
     @Override
     public boolean foldable() {
         return Expressions.foldable(children());
-    }
-
-    @Override
-    public Object fold() {
-        return EvaluatorMapper.super.fold();
     }
 
     @Override
@@ -110,10 +110,5 @@ public class Concat extends ScalarFunction implements EvaluatorMapper {
     @Override
     protected NodeInfo<? extends Expression> info() {
         return NodeInfo.create(this, Concat::new, children().get(0), children().subList(1, children().size()));
-    }
-
-    @Override
-    public ScriptTemplate asScript() {
-        throw new UnsupportedOperationException("functions do not support scripting");
     }
 }

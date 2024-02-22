@@ -11,6 +11,50 @@ the indexing algorithm runs searches under the hood to create the vector index
 structures. So these same recommendations also help with indexing speed.
 
 [discrete]
+=== Reduce vector memory foot-print
+
+The default <<dense-vector-element-type,`element_type`>> is `float`. But this
+can be automatically quantized during index time through
+<<dense-vector-quantization,`quantization`>>. Quantization will reduce the
+required memory by 4x, but it will also reduce the precision of the vectors and
+increase disk usage for the field (by up to 25%).
+
+For `float` vectors with `dim` greater than or equal to `384`, using a
+<<dense-vector-quantization,`quantized`>> index is highly recommended.
+
+[discrete]
+=== Reduce vector dimensionality
+
+The speed of kNN search scales linearly with the number of vector dimensions,
+because each similarity computation considers each element in the two vectors.
+Whenever possible, it's better to use vectors with a lower dimension. Some
+embedding models come in different "sizes", with both lower and higher
+dimensional options available. You could also experiment with dimensionality
+reduction techniques like PCA. When experimenting with different approaches,
+it's important to measure the impact on relevance to ensure the search
+quality is still acceptable.
+
+[discrete]
+=== Exclude vector fields from `_source`
+
+{es} stores the original JSON document that was passed at index time in the
+<<mapping-source-field, `_source` field>>. By default, each hit in the search
+results contains the full document `_source`. When the documents contain
+high-dimensional `dense_vector` fields, the `_source` can be quite large and
+expensive to load. This could significantly slow down the speed of kNN search.
+
+You can disable storing `dense_vector` fields in the `_source` through the
+<<include-exclude, `excludes`>> mapping parameter. This prevents loading and
+returning large vectors during search, and also cuts down on the index size.
+Vectors that have been omitted from `_source` can still be used in kNN search,
+since it relies on separate data structures to perform the search. Before
+using the <<include-exclude, `excludes`>> parameter, make sure to review the
+downsides of omitting fields from `_source`.
+
+Another option is to use  <<synthetic-source,synthetic `_source`>> if all
+your index fields support it.
+
+[discrete]
 === Ensure data nodes have enough memory
 
 {es} uses the https://arxiv.org/abs/1603.09320[HNSW] algorithm for approximate
@@ -41,47 +85,6 @@ The following file extensions are used for the approximate kNN search:
 * `vec` and `veq` for vector values
 * `vex` for HNSW graph
 * `vem`, `vemf`, and `vemq` for metadata
-
-[discrete]
-=== Reduce vector dimensionality
-
-The speed of kNN search scales linearly with the number of vector dimensions,
-because each similarity computation considers each element in the two vectors.
-Whenever possible, it's better to use vectors with a lower dimension. Some
-embedding models come in different "sizes", with both lower and higher
-dimensional options available. You could also experiment with dimensionality
-reduction techniques like PCA. When experimenting with different approaches,
-it's important to measure the impact on relevance to ensure the search
-quality is still acceptable.
-
-[discrete]
-=== Reduce vector memory foot-print
-
-The default <<dense-vector-element-type,`element_type`>> is `float`. But this can be
-automatically quantized during index time through <<dense-vector-quantization,`quantization`>>. Quantization will
-reduce the required memory by 4x, but it will also reduce the precision of the vectors. For `float` vectors with
-`dim` greater than or equal to `384`, using a <<dense-vector-quantization,`quantized`>> index is highly recommended.
-
-[discrete]
-=== Exclude vector fields from `_source`
-
-{es} stores the original JSON document that was passed at index time in the
-<<mapping-source-field, `_source` field>>. By default, each hit in the search
-results contains the full document `_source`. When the documents contain
-high-dimensional `dense_vector` fields, the `_source` can be quite large and
-expensive to load. This could significantly slow down the speed of kNN search.
-
-You can disable storing `dense_vector` fields in the `_source` through the
-<<include-exclude, `excludes`>> mapping parameter. This prevents loading and
-returning large vectors during search, and also cuts down on the index size.
-Vectors that have been omitted from `_source` can still be used in kNN search,
-since it relies on separate data structures to perform the search. Before
-using the <<include-exclude, `excludes`>> parameter, make sure to review the
-downsides of omitting fields from `_source`.
-
-Another option is to use  <<synthetic-source,synthetic `_source`>> if all
-your index fields support it.
-
 
 [discrete]
 === Reduce the number of index segments

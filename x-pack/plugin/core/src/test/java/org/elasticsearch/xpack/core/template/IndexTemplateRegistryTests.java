@@ -15,7 +15,7 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutComponentTemplateAction;
-import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.ingest.PutPipelineTransportAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -222,7 +222,7 @@ public class IndexTemplateRegistryTests extends ESTestCase {
 
         AtomicInteger calledTimes = new AtomicInteger(0);
         client.setVerifier((action, request, listener) -> {
-            if (action instanceof PutComposableIndexTemplateAction) {
+            if (action == TransportPutComposableIndexTemplateAction.TYPE) {
                 assertPutComposableIndexTemplateAction(calledTimes, action, request, listener);
                 return AcknowledgedResponse.TRUE;
             } else if (action == ILMActions.PUT) {
@@ -249,7 +249,7 @@ public class IndexTemplateRegistryTests extends ESTestCase {
 
         AtomicInteger calledTimes = new AtomicInteger(0);
         client.setVerifier((action, request, listener) -> {
-            if (action instanceof PutComposableIndexTemplateAction) {
+            if (action == TransportPutComposableIndexTemplateAction.TYPE) {
                 assertPutComposableIndexTemplateAction(calledTimes, action, request, listener);
                 return AcknowledgedResponse.TRUE;
             } else if (action instanceof PutComponentTemplateAction) {
@@ -308,7 +308,7 @@ public class IndexTemplateRegistryTests extends ESTestCase {
             } else if (action instanceof PutComponentTemplateAction) {
                 assertPutComponentTemplate(calledTimes, action, request, listener);
                 return AcknowledgedResponse.TRUE;
-            } else if (action instanceof PutComposableIndexTemplateAction) {
+            } else if (action == TransportPutComposableIndexTemplateAction.TYPE) {
                 assertPutComposableIndexTemplateAction(calledTimes, action, request, listener);
                 return AcknowledgedResponse.TRUE;
             } else {
@@ -377,7 +377,8 @@ public class IndexTemplateRegistryTests extends ESTestCase {
                 rolloverCounter.incrementAndGet();
                 RolloverRequest rolloverRequest = ((RolloverRequest) request);
                 assertThat(rolloverRequest.getRolloverTarget(), startsWith("logs-my_app-"));
-            } else if (action instanceof PutComposableIndexTemplateAction) {
+                assertThat(rolloverRequest.isLazy(), equalTo(true));
+            } else if (action == TransportPutComposableIndexTemplateAction.TYPE) {
                 putIndexTemplateCounter.incrementAndGet();
             }
             return AcknowledgedResponse.TRUE;
@@ -397,15 +398,16 @@ public class IndexTemplateRegistryTests extends ESTestCase {
         assertBusy(() -> assertThat(rolloverCounter.get(), equalTo(2)));
         AtomicReference<Collection<RolloverResponse>> rolloverResponsesRef = registry.getRolloverResponses();
         assertBusy(() -> assertNotNull(rolloverResponsesRef.get()));
-        Collection<RolloverResponse> rolloverResponses = rolloverResponsesRef.get();
-        assertThat(rolloverResponses, hasSize(2));
+        assertThat(rolloverResponsesRef.get(), hasSize(2));
 
         // test again, to verify that the per-index-template creation lock gets released for reuse
         putIndexTemplateCounter.set(0);
         rolloverCounter.set(0);
+        rolloverResponsesRef.set(Collections.emptySet());
         registry.clusterChanged(event);
         assertBusy(() -> assertThat(putIndexTemplateCounter.get(), equalTo(1)));
         assertBusy(() -> assertThat(rolloverCounter.get(), equalTo(2)));
+        assertBusy(() -> assertThat(rolloverResponsesRef.get(), hasSize(2)));
 
         // test rollover failures
         putIndexTemplateCounter.set(0);
@@ -416,7 +418,7 @@ public class IndexTemplateRegistryTests extends ESTestCase {
                 RolloverRequest rolloverRequest = ((RolloverRequest) request);
                 assertThat(rolloverRequest.getRolloverTarget(), startsWith("logs-my_app-"));
                 throw new RuntimeException("Failed to rollover " + rolloverRequest.getRolloverTarget());
-            } else if (action instanceof PutComposableIndexTemplateAction) {
+            } else if (action == TransportPutComposableIndexTemplateAction.TYPE) {
                 putIndexTemplateCounter.incrementAndGet();
             }
             return AcknowledgedResponse.TRUE;
@@ -462,7 +464,7 @@ public class IndexTemplateRegistryTests extends ESTestCase {
                 rolloverCounter.incrementAndGet();
                 RolloverRequest rolloverRequest = ((RolloverRequest) request);
                 assertThat(rolloverRequest.getRolloverTarget(), startsWith("logs-my_app-"));
-            } else if (action instanceof PutComposableIndexTemplateAction) {
+            } else if (action == TransportPutComposableIndexTemplateAction.TYPE) {
                 putIndexTemplateCounter.incrementAndGet();
             }
             return AcknowledgedResponse.TRUE;
@@ -482,7 +484,7 @@ public class IndexTemplateRegistryTests extends ESTestCase {
 
         AtomicInteger calledTimes = new AtomicInteger(0);
         client.setVerifier((action, request, listener) -> {
-            if (action instanceof PutComposableIndexTemplateAction) {
+            if (action == TransportPutComposableIndexTemplateAction.TYPE) {
                 // ignore this
                 return AcknowledgedResponse.TRUE;
             } else if (action == ILMActions.PUT) {
@@ -510,7 +512,7 @@ public class IndexTemplateRegistryTests extends ESTestCase {
 
         AtomicInteger calledTimes = new AtomicInteger(0);
         client.setVerifier((action, request, listener) -> {
-            if (action instanceof PutComposableIndexTemplateAction) {
+            if (action == TransportPutComposableIndexTemplateAction.TYPE) {
                 // ignore this
                 return AcknowledgedResponse.TRUE;
             } else if (action == ILMActions.PUT) {
@@ -542,7 +544,7 @@ public class IndexTemplateRegistryTests extends ESTestCase {
         policies.forEach(p -> policyMap.put(p.getName(), p));
 
         client.setVerifier((action, request, listener) -> {
-            if (action instanceof PutComposableIndexTemplateAction) {
+            if (action == TransportPutComposableIndexTemplateAction.TYPE) {
                 // ignore this
                 return AcknowledgedResponse.TRUE;
             } else if (action == ILMActions.PUT) {
@@ -574,7 +576,7 @@ public class IndexTemplateRegistryTests extends ESTestCase {
         policies.forEach(p -> policyMap.put(p.getName(), p));
 
         client.setVerifier((action, request, listener) -> {
-            if (action instanceof PutComposableIndexTemplateAction) {
+            if (action == TransportPutComposableIndexTemplateAction.TYPE) {
                 // ignore this
                 return AcknowledgedResponse.TRUE;
             } else if (action == ILMActions.PUT) {
@@ -627,7 +629,7 @@ public class IndexTemplateRegistryTests extends ESTestCase {
 
         AtomicInteger calledTimes = new AtomicInteger(0);
         client.setVerifier((action, request, listener) -> {
-            if (action instanceof PutComposableIndexTemplateAction) {
+            if (action == TransportPutComposableIndexTemplateAction.TYPE) {
                 // ignore this
                 return AcknowledgedResponse.TRUE;
             } else if (action == ILMActions.PUT) {
@@ -694,8 +696,9 @@ public class IndexTemplateRegistryTests extends ESTestCase {
         ActionRequest request,
         ActionListener<?> listener
     ) {
-        assertThat(request, instanceOf(PutComposableIndexTemplateAction.Request.class));
-        PutComposableIndexTemplateAction.Request putComposableTemplateRequest = (PutComposableIndexTemplateAction.Request) request;
+        assertThat(request, instanceOf(TransportPutComposableIndexTemplateAction.Request.class));
+        TransportPutComposableIndexTemplateAction.Request putComposableTemplateRequest =
+            (TransportPutComposableIndexTemplateAction.Request) request;
         assertThat(putComposableTemplateRequest.name(), equalTo("custom-plugin-template"));
         ComposableIndexTemplate composableIndexTemplate = putComposableTemplateRequest.indexTemplate();
         assertThat(composableIndexTemplate.composedOf(), hasSize(2));

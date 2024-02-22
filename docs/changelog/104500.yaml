@@ -1,0 +1,5 @@
+pr: 104500
+summary: Thread pool metrics
+area: Infra/Core
+type: enhancement
+issues: []

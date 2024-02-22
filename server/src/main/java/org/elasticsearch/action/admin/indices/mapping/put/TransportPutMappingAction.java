@@ -45,7 +45,7 @@ import java.util.Optional;
  */
 public class TransportPutMappingAction extends AcknowledgedTransportMasterNodeAction<PutMappingRequest> {
 
-    public static final ActionType<AcknowledgedResponse> TYPE = ActionType.acknowledgedResponse("indices:admin/mapping/put");
+    public static final ActionType<AcknowledgedResponse> TYPE = new ActionType<>("indices:admin/mapping/put");
     private static final Logger logger = LogManager.getLogger(TransportPutMappingAction.class);
 
     private final MetadataMappingService metadataMappingService;
@@ -112,7 +112,7 @@ public class TransportPutMappingAction extends AcknowledgedTransportMasterNodeAc
                 return;
             }
 
-            performMappingUpdate(concreteIndices, request, listener, metadataMappingService);
+            performMappingUpdate(concreteIndices, request, listener, metadataMappingService, false);
         } catch (IndexNotFoundException ex) {
             logger.debug(() -> "failed to put mappings on indices [" + Arrays.asList(request.indices() + "]"), ex);
             throw ex;
@@ -147,7 +147,8 @@ public class TransportPutMappingAction extends AcknowledgedTransportMasterNodeAc
         Index[] concreteIndices,
         PutMappingRequest request,
         ActionListener<AcknowledgedResponse> listener,
-        MetadataMappingService metadataMappingService
+        MetadataMappingService metadataMappingService,
+        boolean autoUpdate
     ) {
         final ActionListener<AcknowledgedResponse> wrappedListener = listener.delegateResponse((l, e) -> {
             logger.debug(() -> "failed to put mappings on indices [" + Arrays.asList(concreteIndices) + "]", e);
@@ -157,7 +158,8 @@ public class TransportPutMappingAction extends AcknowledgedTransportMasterNodeAc
         try {
             updateRequest = new PutMappingClusterStateUpdateRequest(request.source()).indices(concreteIndices)
                 .ackTimeout(request.timeout())
-                .masterNodeTimeout(request.masterNodeTimeout());
+                .masterNodeTimeout(request.masterNodeTimeout())
+                .autoUpdate(autoUpdate);
         } catch (IOException e) {
             wrappedListener.onFailure(e);
             return;

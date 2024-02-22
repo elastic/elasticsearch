@@ -46,7 +46,7 @@ public abstract class BaseUpdateApiKeyRequest extends ActionRequest {
     public BaseUpdateApiKeyRequest(StreamInput in) throws IOException {
         super(in);
         this.roleDescriptors = in.readOptionalCollectionAsList(RoleDescriptor::new);
-        this.metadata = in.readMap();
+        this.metadata = in.readGenericMap();
         if (in.getTransportVersion().onOrAfter(TransportVersions.UPDATE_API_KEY_EXPIRATION_TIME_ADDED)) {
             expiration = in.readOptionalTimeValue();
         } else {
@@ -82,6 +82,10 @@ public abstract class BaseUpdateApiKeyRequest extends ActionRequest {
                 validationException = RoleDescriptorRequestValidator.validate(roleDescriptor, validationException);
             }
         }
+        if (expiration != null && expiration.nanos() <= 0) {
+            validationException = addValidationError("API key expiration must be in the future", validationException);
+        }
+
         return validationException;
     }
 

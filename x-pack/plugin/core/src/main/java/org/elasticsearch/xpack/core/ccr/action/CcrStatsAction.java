@@ -29,7 +29,7 @@ public class CcrStatsAction extends ActionType<CcrStatsAction.Response> {
     public static final CcrStatsAction INSTANCE = new CcrStatsAction();
 
     private CcrStatsAction() {
-        super(NAME, CcrStatsAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends MasterNodeRequest<Request> {

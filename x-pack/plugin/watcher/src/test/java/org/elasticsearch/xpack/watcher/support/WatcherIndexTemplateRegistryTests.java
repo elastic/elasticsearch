@@ -7,8 +7,8 @@
 package org.elasticsearch.xpack.watcher.support;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.AdminClient;
 import org.elasticsearch.client.internal.Client;
@@ -123,19 +123,19 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
 
         ClusterChangedEvent event = createClusterChangedEvent(Collections.emptyMap(), nodes);
         registry.clusterChanged(event);
-        ArgumentCaptor<PutComposableIndexTemplateAction.Request> argumentCaptor = ArgumentCaptor.forClass(
-            PutComposableIndexTemplateAction.Request.class
+        ArgumentCaptor<TransportPutComposableIndexTemplateAction.Request> argumentCaptor = ArgumentCaptor.forClass(
+            TransportPutComposableIndexTemplateAction.Request.class
         );
-        verify(client, times(1)).execute(same(PutComposableIndexTemplateAction.INSTANCE), argumentCaptor.capture(), any());
+        verify(client, times(1)).execute(same(TransportPutComposableIndexTemplateAction.TYPE), argumentCaptor.capture(), any());
 
         // now delete one template from the cluster state and lets retry
         Map<String, Integer> existingTemplates = new HashMap<>();
         existingTemplates.put(WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME, INDEX_TEMPLATE_VERSION);
         ClusterChangedEvent newEvent = createClusterChangedEvent(existingTemplates, nodes);
         registry.clusterChanged(newEvent);
-        argumentCaptor = ArgumentCaptor.forClass(PutComposableIndexTemplateAction.Request.class);
-        verify(client, times(1)).execute(same(PutComposableIndexTemplateAction.INSTANCE), argumentCaptor.capture(), any());
-        PutComposableIndexTemplateAction.Request req = argumentCaptor.getAllValues()
+        argumentCaptor = ArgumentCaptor.forClass(TransportPutComposableIndexTemplateAction.Request.class);
+        verify(client, times(1)).execute(same(TransportPutComposableIndexTemplateAction.TYPE), argumentCaptor.capture(), any());
+        TransportPutComposableIndexTemplateAction.Request req = argumentCaptor.getAllValues()
             .stream()
             .filter(r -> r.name().equals(WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME))
             .findFirst()
@@ -156,10 +156,10 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
         );
         ClusterChangedEvent event = createClusterChangedEvent(Settings.EMPTY, Collections.emptyMap(), Collections.emptyMap(), nodes);
         registry.clusterChanged(event);
-        ArgumentCaptor<PutComposableIndexTemplateAction.Request> argumentCaptor = ArgumentCaptor.forClass(
-            PutComposableIndexTemplateAction.Request.class
+        ArgumentCaptor<TransportPutComposableIndexTemplateAction.Request> argumentCaptor = ArgumentCaptor.forClass(
+            TransportPutComposableIndexTemplateAction.Request.class
         );
-        verify(client, times(1)).execute(same(PutComposableIndexTemplateAction.INSTANCE), argumentCaptor.capture(), any());
+        verify(client, times(1)).execute(same(TransportPutComposableIndexTemplateAction.TYPE), argumentCaptor.capture(), any());
 
         // now delete one template from the cluster state and lets retry
         Map<String, Integer> existingTemplates = new HashMap<>();
@@ -167,7 +167,7 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
         ClusterChangedEvent newEvent = createClusterChangedEvent(existingTemplates, nodes);
         registry.clusterChanged(newEvent);
         ArgumentCaptor<PutIndexTemplateRequest> captor = ArgumentCaptor.forClass(PutIndexTemplateRequest.class);
-        verify(client, times(1)).execute(same(PutComposableIndexTemplateAction.INSTANCE), argumentCaptor.capture(), any());
+        verify(client, times(1)).execute(same(TransportPutComposableIndexTemplateAction.TYPE), argumentCaptor.capture(), any());
         captor.getAllValues().forEach(req -> assertNull(req.settings().get("index.lifecycle.name")));
         verify(client, times(0)).execute(eq(ILMActions.PUT), any(), any());
     }

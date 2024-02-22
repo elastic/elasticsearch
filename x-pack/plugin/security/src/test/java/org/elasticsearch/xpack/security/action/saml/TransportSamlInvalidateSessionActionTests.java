@@ -16,7 +16,6 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -34,6 +33,7 @@ import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.search.TransportSearchScrollAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.Client;
@@ -56,6 +56,7 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.client.NoOpClient;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
@@ -129,7 +130,8 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
     private List<SearchRequest> searchRequests;
     private TransportSamlInvalidateSessionAction action;
     private SamlLogoutRequestHandler.Result logoutRequest;
-    private Function<SearchRequest, SearchHit[]> searchFunction = ignore -> new SearchHit[0];
+    private Function<SearchRequest, SearchHit[]> searchFunction = ignore -> SearchHits.EMPTY;
+    private ThreadPool threadPool;
 
     @Before
     public void setup() throws Exception {
@@ -147,9 +149,8 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
             .put(getFullSettingKey(realmId, RealmSettings.ORDER_SETTING), 0)
             .build();
 
-        final ThreadContext threadContext = new ThreadContext(settings);
-        final ThreadPool threadPool = mock(ThreadPool.class);
-        when(threadPool.getThreadContext()).thenReturn(threadContext);
+        this.threadPool = new TestThreadPool("saml test thread pool", settings);
+        final ThreadContext threadContext = threadPool.getThreadContext();
         AuthenticationTestHelper.builder()
             .user(new User("kibana"))
             .realmRef(new RealmRef("realm", "type", "node"))
@@ -197,32 +198,36 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
                     SearchRequest searchRequest = (SearchRequest) request;
                     searchRequests.add(searchRequest);
                     final SearchHit[] hits = searchFunction.apply(searchRequest);
-                    ActionListener.respondAndRelease(
-                        listener,
-                        (Response) new SearchResponse(
-                            new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), 0f),
-                            null,
-                            null,
-                            false,
-                            false,
-                            null,
-                            1,
-                            "_scrollId1",
-                            1,
-                            1,
-                            0,
-                            1,
-                            null,
-                            null
-                        )
-                    );
+                    final var searchHits = new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), 0f);
+                    try {
+                        ActionListener.respondAndRelease(
+                            listener,
+                            (Response) new SearchResponse(
+                                searchHits,
+                                null,
+                                null,
+                                false,
+                                false,
+                                null,
+                                1,
+                                "_scrollId1",
+                                1,
+                                1,
+                                0,
+                                1,
+                                null,
+                                null
+                            )
+                        );
+                    } finally {
+                        searchHits.decRef();
+                    }
                 } else if (TransportSearchScrollAction.TYPE.name().equals(action.name())) {
                     assertThat(request, instanceOf(SearchScrollRequest.class));
-                    final SearchHit[] hits = new SearchHit[0];
                     ActionListener.respondAndRelease(
                         listener,
                         (Response) new SearchResponse(
-                            new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), 0f),
+                            SearchHits.EMPTY_WITH_TOTAL_HITS,
                             null,
                             null,
                             false,
@@ -246,7 +251,7 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
                     listener.onResponse((Response) response);
                 } else if (RefreshAction.NAME.equals(action.name())) {
                     assertThat(request, instanceOf(RefreshRequest.class));
-                    listener.onResponse((Response) mock(RefreshResponse.class));
+                    listener.onResponse((Response) mock(BroadcastResponse.class));
                 } else {
                     super.doExecute(action, request, listener);
                 }
@@ -334,6 +339,7 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
     @After
     public void cleanup() {
         samlRealm.close();
+        threadPool.shutdown();
     }
 
     public void testInvalidateCorrectTokensFromLogoutRequest() throws Exception {
@@ -363,7 +369,7 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
             .filter(r -> r.id().startsWith("token"))
             .map(r -> tokenHit(counter.incrementAndGet(), r.source()))
             .collect(Collectors.toList())
-            .toArray(new SearchHit[0]);
+            .toArray(SearchHits.EMPTY);
         assertThat(searchHits.length, equalTo(4));
         searchFunction = req1 -> {
             searchFunction = findTokenByRefreshToken(searchHits);
@@ -464,7 +470,7 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
                     return new SearchHit[] { hit };
                 }
             }
-            return new SearchHit[0];
+            return SearchHits.EMPTY;
         };
     }
 

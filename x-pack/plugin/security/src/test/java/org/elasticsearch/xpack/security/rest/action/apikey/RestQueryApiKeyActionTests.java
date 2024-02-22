@@ -29,6 +29,7 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.searchafter.SearchAfterBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -58,7 +59,7 @@ public class RestQueryApiKeyActionTests extends ESTestCase {
             .put("node.name", "test-" + getTestName())
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
             .build();
-        threadPool = new ThreadPool(settings);
+        threadPool = new ThreadPool(settings, MeterRegistry.NOOP);
     }
 
     @Override
@@ -125,7 +126,7 @@ public class RestQueryApiKeyActionTests extends ESTestCase {
                 final QueryBuilder shouldQueryBuilder = boolQueryBuilder.should().get(0);
                 assertThat(shouldQueryBuilder.getClass(), is(PrefixQueryBuilder.class));
                 assertThat(((PrefixQueryBuilder) shouldQueryBuilder).fieldName(), equalTo("metadata.environ"));
-                listener.onResponse((Response) new QueryApiKeyResponse(0, List.of()));
+                listener.onResponse((Response) QueryApiKeyResponse.emptyResponse());
             }
         };
         final RestQueryApiKeyAction restQueryApiKeyAction = new RestQueryApiKeyAction(Settings.EMPTY, mockLicenseState);
@@ -189,7 +190,7 @@ public class RestQueryApiKeyActionTests extends ESTestCase {
                     equalTo(new SearchAfterBuilder().setSortValues(new String[] { "key-2048", "2021-07-01T00:00:59.000Z" }))
                 );
 
-                listener.onResponse((Response) new QueryApiKeyResponse(0, List.of()));
+                listener.onResponse((Response) QueryApiKeyResponse.emptyResponse());
             }
         };
 

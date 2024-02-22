@@ -11,9 +11,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.TransportSearchAction;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -85,7 +85,7 @@ public class InferenceStep extends AbstractDataFrameAnalyticsStep {
             }
         }, listener::onFailure);
 
-        ActionListener<RefreshResponse> refreshDestListener = ActionListener.wrap(
+        ActionListener<BroadcastResponse> refreshDestListener = ActionListener.wrap(
             refreshResponse -> searchIfTestDocsExist(testDocsExistListener),
             listener::onFailure
         );

@@ -121,6 +121,20 @@ public class EsqlQueryRequestTests extends ESTestCase {
         }
     }
 
+    public void testDefaultValueForOptionalAsyncParams() throws IOException {
+        String query = randomAlphaOfLengthBetween(1, 100);
+        String json = String.format(Locale.ROOT, """
+            {
+                "query": "%s"
+            }
+            """, query);
+        EsqlQueryRequest request = parseEsqlQueryRequestAsync(json);
+        assertEquals(query, request.query());
+        assertFalse(request.keepOnCompletion());
+        assertEquals(TimeValue.timeValueSeconds(1), request.waitForCompletionTimeout());
+        assertEquals(TimeValue.timeValueDays(5), request.keepAlive());
+    }
+
     public void testRejectUnknownFields() {
         assertParserErrorMessage("""
             {
@@ -247,11 +261,15 @@ public class EsqlQueryRequestTests extends ESTestCase {
     }
 
     static EsqlQueryRequest parseEsqlQueryRequestSync(String json) throws IOException {
-        return parseEsqlQueryRequest(json, EsqlQueryRequest::fromXContentSync);
+        var request = parseEsqlQueryRequest(json, EsqlQueryRequest::fromXContentSync);
+        assertFalse(request.async());
+        return request;
     }
 
     static EsqlQueryRequest parseEsqlQueryRequestAsync(String json) throws IOException {
-        return parseEsqlQueryRequest(json, EsqlQueryRequest::fromXContentAsync);
+        var request = parseEsqlQueryRequest(json, EsqlQueryRequest::fromXContentAsync);
+        assertTrue(request.async());
+        return request;
     }
 
     static EsqlQueryRequest parseEsqlQueryRequest(String json, Function<XContentParser, EsqlQueryRequest> fromXContentFunc)

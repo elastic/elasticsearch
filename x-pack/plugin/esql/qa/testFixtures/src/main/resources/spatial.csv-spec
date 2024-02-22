@@ -1,15 +1,19 @@
-convertFromLong#[skip:-8.11.99, reason:spatial type geo_point only added in 8.12]
-row long = 1512146573982606908
-| eval pt = to_geopoint(long);
+###############################################
+# Tests for GEO_POINT type
+#
 
-long:long           |pt:geo_point
-1512146573982606908 |POINT(42.97109630194 14.7552534413725)
+convertFromStringQuantize#[skip:-8.11.99, reason:spatial type geo_point only added in 8.12]
+row wkt = "POINT(42.97109629958868 14.7552534006536)"
+| eval pt = to_geopoint(wkt);
+
+wkt:keyword           |pt:geo_point
+POINT(42.97109629958868 14.7552534006536) |POINT(42.97109629958868 14.7552534006536)
 ;
 
-convertFromString#[skip:-8.11.99, reason:spatial type geo_point only added in 8.12]
+convertFromString#[skip:-8.12.99, reason:spatial type geo_point improved precision in 8.13]
 // tag::to_geopoint-str[]
-row wkt = "POINT(42.97109630194 14.7552534413725)"
-| eval pt = to_geopoint(wkt)
+ROW wkt = "POINT(42.97109630194 14.7552534413725)"
+| EVAL pt = TO_GEOPOINT(wkt)
 // end::to_geopoint-str[]
 ;
 
@@ -19,15 +23,7 @@ wkt:keyword                              |pt:geo_point
 // end::to_geopoint-str-result[]
 ;
 
-convertFromLongArray#[skip:-8.11.99, reason:spatial type geo_point only added in 8.12]
-row long = [1512146573982606908, 2329183180959557901]
-| eval pt = to_geopoint(long);
-
-long:long                                  |pt:geo_point
-[1512146573982606908, 2329183180959557901] |[POINT(42.97109630194 14.7552534413725), POINT(75.8092915005895 22.727749187571)]
-;
-
-convertFromStringArray#[skip:-8.11.99, reason:spatial type geo_point only added in 8.12]
+convertFromStringArray#[skip:-8.12.99, reason:spatial type geo_point improved precision in 8.13]
 row wkt = ["POINT(42.97109630194 14.7552534413725)", "POINT(75.8092915005895 22.727749187571)"]
 | eval pt = to_geopoint(wkt);
 
@@ -35,37 +31,318 @@ wkt:keyword                                                                     
 ["POINT(42.97109630194 14.7552534413725)", "POINT(75.8092915005895 22.727749187571)"] |[POINT(42.97109630194 14.7552534413725), POINT(75.8092915005895 22.727749187571)]
 ;
 
-simpleLoad#[skip:-8.11.99, reason:spatial type geo_point only added in 8.12]
+centroidFromStringNested#[skip:-8.12.99, reason:st_centroid added in 8.13]
+row wkt = "POINT(42.97109629958868 14.7552534006536)"
+| STATS c = ST_CENTROID(TO_GEOPOINT(wkt));
+
+c:geo_point
+POINT(42.97109629958868 14.7552534006536)
+;
+
+centroidFromString1#[skip:-8.12.99, reason:st_centroid added in 8.13]
+ROW wkt = ["POINT(42.97109629958868 14.7552534006536)"]
+| MV_EXPAND wkt
+| EVAL pt = TO_GEOPOINT(wkt)
+| STATS c = ST_CENTROID(pt);
+
+c:geo_point
+POINT(42.97109629958868 14.7552534006536)
+;
+
+centroidFromString2#[skip:-8.12.99, reason:st_centroid added in 8.13]
+ROW wkt = ["POINT(42.97109629958868 14.7552534006536)", "POINT(75.80929149873555 22.72774917539209)"]
+| MV_EXPAND wkt
+| EVAL pt = TO_GEOPOINT(wkt)
+| STATS c = ST_CENTROID(pt);
+
+c:geo_point
+POINT(59.390193899162114 18.741501288022846)
+;
+
+centroidFromString3#[skip:-8.12.99, reason:st_centroid added in 8.13]
+ROW wkt = ["POINT(42.97109629958868 14.7552534006536)", "POINT(75.80929149873555 22.72774917539209)", "POINT(-0.030548143003023033 24.37553649504829)"]
+| MV_EXPAND wkt
+| EVAL pt = TO_GEOPOINT(wkt)
+| STATS c = ST_CENTROID(pt);
+
+c:geo_point
+POINT(39.58327988510707 20.619513023697994)
+;
+
+simpleLoad#[skip:-8.12.99, reason:spatial type geo_point improved precision in 8.13]
 FROM airports | WHERE scalerank == 9 | SORT abbrev | WHERE length(name) > 12;
 
-abbrev:keyword | location:geo_point                           | name:text                   | scalerank:i | type:k     
-CJJ            | POINT(127.49591611325741 36.72202274668962)  | Cheongju Int'l              | 9           | major
-HOD            | POINT(42.97109629958868 14.7552534006536)    | Hodeidah Int'l              | 9           | mid
-IDR            | POINT(75.80929149873555 22.72774917539209)   | Devi Ahilyabai Holkar Int'l | 9           | mid
-IXC            | POINT(76.80172610096633 30.6707248929888)    | Chandigarh Int'l            | 9           | [major, military]
-LYP            | POINT(72.98781909048557 31.362743536010385)  | Faisalabad Int'l            | 9           | [mid, military]
-MLG            | POINT(112.71141858771443 -7.9299800377339125)| Abdul Rachman Saleh         | 9           | [mid, military]
-OMS            | POINT(73.3163595199585 54.95764828752726)    | Omsk Tsentralny             | 9           | mid
-OVB            | POINT(82.6671524439007 55.00958469696343)    | Novosibirsk Tolmachev       | 9           | mid
-OZH            | POINT(35.301872827112675 47.87326351739466)  | Zaporozhye Int'l            | 9           | [mid, military]
-TRZ            | POINT(78.7089578434825 10.760357128456235)   | Tiruchirappalli             | 9           | mid
-WIIT           | POINT(105.17606039531529 -5.242566782981157) | Radin Inten II              | 9           | mid
-ZAH            | POINT(60.9007085300982 29.47529417462647)    | Zahedan Int'l               | 9           | mid
+abbrev:keyword  |  city:keyword    |  city_location:geo_point |  country:keyword  |  location:geo_point                         |  name:text                    |  scalerank:i  |  type:k   
+CJJ             |  Cheongju        |  POINT(127.4833 36.6333) |  South Korea      |  POINT(127.495916124681 36.7220227766673)   |  Cheongju Int'l               |  9            |  major 
+HOD             |  Al Ḩudaydah     |  POINT(42.9511 14.8022)  |  Yemen            |  POINT(42.97109630194 14.7552534413725)     |  Hodeidah Int'l               |  9            |  mid   
+IDR             |  Indore          |  POINT(75.8472 22.7167)  |  India            |  POINT(75.8092915005895 22.727749187571)    |  Devi Ahilyabai Holkar Int'l  |  9            |  mid   
+IXC             |  Chandīgarh      |  POINT(76.78 30.75)      |  India            |  POINT(76.8017261105242 30.6707248949667)   |  Chandigarh Int'l             |  9            |  [major, military] 
+LYP             |  Faisalabad      |  POINT(73.0911 31.4167)  |  Pakistan         |  POINT(72.9878190922305 31.3627435480862)   |  Faisalabad Int'l             |  9            |  [mid, military]   
+MLG             |  Malang          |  POINT(112.62 -7.98)     |  Indonesia        |  POINT(112.711418617258 -7.92998002840567)  |  Abdul Rachman Saleh          |  9            |  [mid, military] 
+OMS             |  Omsk            |  POINT(73.3833 54.9667)  |  Russia           |  POINT(73.3163595376585 54.9576482934059)   |  Omsk Tsentralny              |  9            |  mid 
+OVB             |  Novosibirsk     |  POINT(82.9167 55.0333)  |  Russia           |  POINT(82.6671524525865 55.0095847136264)   |  Novosibirsk Tolmachev        |  9            |  mid 
+OZH             |  Zaporizhzhia    |  POINT(35.1175 47.85)    |  Ukraine          |  POINT(35.3018728575279 47.8732635579023)   |  Zaporozhye Int'l             |  9            |  [mid, military] 
+TRZ             |  Trichinopoly    |  POINT(78.7047 10.7903)  |  India            |  POINT(78.7089578747476 10.7603571306554)   |  Tiruchirappalli              |  9            |  mid 
+WIIT            |  Bandar Lampung  |  POINT(105.2667 -5.45)   |  Indonesia        |  POINT(105.176060419161 -5.242566777132)    |  Radin Inten II               |  9            |  mid 
+ZAH             |  Zāhedān         |  POINT(60.8628 29.4964)  |  Iran             |  POINT(60.900708564915 29.4752941956573)    |  Zahedan Int'l                |  9            |  mid 
 ;
 
-convertCartesianFromLong#[skip:-8.11.99, reason:spatial type cartesian_point only added in 8.12]
-row long = 5009771769843126025
-| eval pt = to_cartesianpoint(long);
-
-long:long           |pt:cartesian_point
-5009771769843126025 |POINT(4297.11 -1475.53)
+centroidFromAirports#[skip:-8.12.99, reason:st_centroid added in 8.13]
+// tag::st_centroid-airports[]
+FROM airports
+| STATS centroid=ST_CENTROID(location)
+// end::st_centroid-airports[]
 ;
 
-convertCartesianFromString#[skip:-8.11.99, reason:spatial type cartesian_point only added in 8.12]
-// tag::to_cartesianpoint-str[]
-row wkt = ["POINT(4297.11 -1475.53)", "POINT(7580.93 2272.77)"]
+// tag::st_centroid-airports-result[]
+centroid:geo_point
+POINT(-0.030548143003023033 24.37553649504829)
+// end::st_centroid-airports-result[]
+;
+
+centroidFromAirportsNested#[skip:-8.12.99, reason:st_centroid added in 8.13]
+FROM airports
+| STATS centroid=ST_CENTROID(TO_GEOPOINT(location))
+;
+
+centroid:geo_point
+POINT (-0.03054810272375508 24.37553651570554)
+;
+
+centroidFromAirportsCount#[skip:-8.12.99, reason:st_centroid added in 8.13]
+FROM airports
+| STATS centroid=ST_CENTROID(location), count=COUNT()
+;
+
+centroid:geo_point                             | count:long
+POINT(-0.030548143003023033 24.37553649504829) | 891
+;
+
+centroidFromAirportsCountGrouped#[skip:-8.12.99, reason:st_centroid added in 8.13]
+FROM airports
+| STATS centroid=ST_CENTROID(location), count=COUNT() BY scalerank
+| SORT scalerank DESC
+;
+
+centroid:geo_point                            | count:long | scalerank:i
+POINT(83.27726172452623 28.99289782286029)    | 33         | 9
+POINT(-12.330427954750142 29.554613442537242) | 247        | 8
+POINT(19.934784222002094 13.864835376774234)  | 133        | 7
+POINT(-10.861430599274028 28.170889387807705) | 151        | 6
+POINT(9.394940837974781 28.953888530174837)   | 46         | 5
+POINT(-3.118828632340757 17.868389564340685)  | 194        | 4
+POINT(-26.976065734634176 42.907839377294295) | 24         | 3
+POINT(1.2588642098541771 24.379140841774642)  | 63         | 2
+;
+
+centroidFromAirportsFiltered#[skip:-8.12.99, reason:st_centroid added in 8.13]
+FROM airports
+| WHERE scalerank == 9
+| STATS centroid=ST_CENTROID(location), count=COUNT()
+;
+
+centroid:geo_point                         | count:long
+POINT(83.27726172452623 28.99289782286029) | 33
+;
+
+centroidFromAirportsCountGroupedCentroid#[skip:-8.12.99, reason:st_centroid added in 8.13]
+FROM airports
+| STATS centroid=ST_CENTROID(location), count=COUNT() BY scalerank
+| STATS centroid=ST_CENTROID(centroid), count=SUM(count)
+;
+
+centroid:geo_point                           | count:long
+POINT (7.572387259169772 26.836561792945492) | 891
+;
+
+centroidFromAirportsCountCityLocations#[skip:-8.12.99, reason:st_centroid added in 8.13]
+FROM airports
+| STATS centroid=ST_CENTROID(city_location), count=COUNT()
+;
+
+centroid:geo_point                            | count:long
+POINT (1.3965610809060276 24.127649406297987) | 891
+;
+
+centroidFromAirportsCountGroupedCountry#[skip:-8.12.99, reason:st_centroid added in 8.13]
+FROM airports
+| STATS centroid=ST_CENTROID(city_location), count=COUNT() BY country
+| SORT count DESC, country ASC
+| WHERE count >= 10
+;
+
+centroid:geo_point                             | count:long | country:k
+POINT (-97.3333946136801 38.07953176370194)    | 129        | United States
+POINT (78.42264595516026 21.91585598140955)    | 50         | India
+POINT (-102.37784670852125 24.268197756260633) | 45         | Mexico
+POINT (112.92023897966052 32.982985347554816)  | 41         | China
+POINT (-94.40291355867443 50.70210267953273)   | 37         | Canada
+POINT (-47.3366032685003 -15.80931615144495)   | 31         | Brazil
+POINT (57.30444226807986 55.01281536452902)    | 26         | Russia
+null                                           | 19         | null
+POINT (140.68777053945644 -27.688147084349218) | 17         | Australia
+POINT (-2.594152985359816 54.359511745107525)  | 17         | United Kingdom
+POINT (-64.19630772720735 -34.977900019058815) | 13         | Argentina
+POINT (3.710366631858051 46.890841646818444)   | 12         | France
+POINT (107.94202494900674 -4.528175020823255)  | 12         | Indonesia
+POINT (10.15085451220247 50.663009069605984)   | 11         | Germany
+POINT (11.015199956230141 43.04051815532148)   | 11         | Italy
+POINT (6.725663595240224 9.201645437966693)    | 11         | Nigeria
+POINT (70.7946499697864 30.69746997440234)     | 10         | Pakistan
+;
+
+centroidFromAirportsFilteredCountry#[skip:-8.12.99, reason:st_centroid added in 8.13]
+FROM airports
+| WHERE country == "United States"
+| STATS centroid=ST_CENTROID(city_location), count=COUNT()
+;
+
+centroid:geo_point                          | count:long
+POINT (-97.3333946136801 38.07953176370194) | 129
+;
+
+centroidFromAirportsCountGroupedCountryCentroid#[skip:-8.12.99, reason:st_centroid added in 8.13]
+FROM airports
+| STATS centroid=ST_CENTROID(city_location), count=COUNT() BY country
+| STATS centroid=ST_CENTROID(centroid), count=SUM(count)
+;
+
+centroid:geo_point                            | count:long
+POINT (17.55538044598613 18.185558743854063)  | 891
+;
+
+centroidFromAirportsCountryCount#[skip:-8.12.99, reason:st_centroid added in 8.13]
+FROM airports
+| STATS airports=ST_CENTROID(location), cities=ST_CENTROID(city_location), count=COUNT()
+;
+
+airports:geo_point                             | cities:geo_point                              | count:long
+POINT(-0.030548143003023033 24.37553649504829) | POINT (1.3965610809060276 24.127649406297987) | 891
+;
+
+centroidFromAirportsFilteredAndSorted#[skip:-8.12.99, reason:st_centroid added in 8.13]
+FROM airports
+| WHERE scalerank == 9
+| SORT abbrev
+| WHERE length(name) > 12
+| STATS centroid=ST_CENTROID(location), count=COUNT()
+;
+
+centroid:geo_point                          | count:long
+POINT(78.73736493755132 26.761841227998957) | 12
+;
+
+centroidFromAirportsAfterMvExpand#[skip:-8.12.99, reason:st_centroid added in 8.13]
+FROM airports
+| MV_EXPAND type
+| STATS centroid=ST_CENTROID(location), count=COUNT()
+;
+
+centroid:geo_point                          | count:long
+POINT(2.121611400672094 24.559172889205755) | 933
+;
+
+centroidFromAirportsGroupedAfterMvExpand#[skip:-8.12.99, reason:st_centroid added in 8.13]
+FROM airports
+| MV_EXPAND type
+| STATS centroid=ST_CENTROID(location), count=COUNT() BY scalerank
+| SORT scalerank DESC
+;
+
+centroid:geo_point                            | count:long | scalerank:i
+POINT(83.16847535921261 28.79002037679311)    | 40         | 9
+POINT(-9.579701727760353 29.651473146404623)  | 266        | 8
+POINT(21.64429362312379 14.766539423726499)   | 142        | 7
+POINT(-9.082370867592193 28.242454005495436)  | 155        | 6
+POINT(9.394940837974781 28.953888530174837)   | 46         | 5
+POINT(-1.6692755030477562 17.78088210212057)  | 197        | 4
+POINT(-26.976065734634176 42.907839377294295) | 24         | 3
+POINT(1.2588642098541771 24.379140841774642)  | 63         | 2
+;
+
+centroidFromAirportsGroupedAfterMvExpandFiltered#[skip:-8.12.99, reason:st_centroid added in 8.13]
+FROM airports
+| WHERE scalerank == 9
+| MV_EXPAND type
+| STATS centroid=ST_CENTROID(location), count=COUNT() BY scalerank
+;
+
+centroid:geo_point                            | count:long | scalerank:i
+POINT(83.16847535921261 28.79002037679311)    | 40         | 9
+;
+
+centroidFromAirportsAfterMvExpandFiltered#[skip:-8.12.99, reason:st_centroid added in 8.13]
+FROM airports
+| WHERE scalerank == 9
+| MV_EXPAND type
+| STATS centroid=ST_CENTROID(location), count=COUNT()
+;
+
+centroid:geo_point                            | count:long
+POINT(83.16847535921261 28.79002037679311)    | 40
+;
+
+geoPointEquals#[skip:-8.12.99, reason:spatial type geo_point improved in 8.13]
+// tag::to_geopoint-equals[]
+ROW wkt = ["POINT(42.97109630194 14.7552534413725)", "POINT(75.8092915005895 22.727749187571)"]
+| MV_EXPAND wkt
+| EVAL pt = to_geopoint(wkt)
+| WHERE pt == to_geopoint("POINT(42.97109630194 14.7552534413725)")
+// end::to_geopoint-equals[]
+;
+
+// tag::to_geopoint-equals-result[]
+wkt:keyword                              |pt:geo_point
+"POINT(42.97109630194 14.7552534413725)" |POINT(42.97109630194 14.7552534413725)
+// end::to_geopoint-equals-result[]
+;
+
+geoPointNotEquals#[skip:-8.12.99, reason:spatial type geo_point improved in 8.13]
+// tag::to_geopoint-not-equals[]
+ROW wkt = ["POINT(42.97109630194 14.7552534413725)", "POINT(75.8092915005895 22.727749187571)"]
+| MV_EXPAND wkt
+| EVAL pt = to_geopoint(wkt)
+| WHERE pt != to_geopoint("POINT(42.97109630194 14.7552534413725)")
+// end::to_geopoint-not-equals[]
+;
+
+// tag::to_geopoint-not-equals-result[]
+wkt:keyword                               |pt:geo_point
+"POINT(75.8092915005895 22.727749187571)" |POINT(75.8092915005895 22.727749187571)
+// end::to_geopoint-not-equals-result[]
+;
+
+convertFromStringParseError#[skip:-8.12.99, reason:spatial type geo_point improved in 8.13]
+// tag::to_geopoint-str-parse-error[]
+row wkt = ["POINTX(42.97109630194 14.7552534413725)", "POINT(75.8092915005895 22.727749187571)", "POINT(111)"]
 | mv_expand wkt
-| eval pt = to_cartesianpoint(wkt)
+| eval pt = to_geopoint(wkt)
+// end::to_geopoint-str-parse-error[]
+;
+
+// tag::to_geopoint-str-parse-error-warning[]
+warning:Line 3:13: evaluation of [to_geopoint(wkt)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 3:13: java.lang.IllegalArgumentException: Failed to parse WKT: Unknown geometry type: pointx
+warning:Line 3:13: java.lang.IllegalArgumentException: Failed to parse WKT: expected number but found: ')'
+// end::to_geopoint-str-parse-error-warning[]
+
+// tag::to_geopoint-str-parse-error-result[]
+wkt:keyword                               |pt:geo_point
+"POINTX(42.97109630194 14.7552534413725)" |null
+"POINT(75.8092915005895 22.727749187571)" |POINT(75.8092915005895 22.727749187571)
+"POINT(111)"                              |null
+// end::to_geopoint-str-parse-error-result[]
+;
+
+###############################################
+# Tests for CARTESIAN_POINT type
+#
+
+convertCartesianFromString#[skip:-8.12.99, reason:spatial type cartesian_point improved precision in 8.13]
+// tag::to_cartesianpoint-str[]
+ROW wkt = ["POINT(4297.11 -1475.53)", "POINT(7580.93 2272.77)"]
+| MV_EXPAND wkt
+| EVAL pt = TO_CARTESIANPOINT(wkt)
 // end::to_cartesianpoint-str[]
 ;
 
@@ -76,32 +353,188 @@ wkt:keyword               |pt:cartesian_point
 // end::to_cartesianpoint-str-result[]
 ;
 
-convertCartesianFromLongArray#[skip:-8.11.99, reason:spatial type cartesian_point only added in 8.12]
-row long = [5009771769843126025, 5038656556796611666]
-| eval pt = to_cartesianpoint(long);
-
-long:long                                  |pt:cartesian_point
-[5009771769843126025, 5038656556796611666] |[POINT(4297.11 -1475.53), POINT(7580.93 2272.77)]
-;
-
-convertCartesianFromStringArray#[skip:-8.11.99, reason:spatial type cartesian_point only added in 8.12]
+convertCartesianFromStringArray#[skip:-8.12.99, reason:spatial type cartesian_point improved precision in 8.13]
 row wkt = ["POINT(4297.11 -1475.53)", "POINT(7580.93 2272.77)"]
 | eval pt = to_cartesianpoint(wkt);
 
-wkt:keyword                                                                           |pt:cartesian_point
+wkt:keyword                                           |pt:cartesian_point
 ["POINT(4297.11 -1475.53)", "POINT(7580.93 2272.77)"] |[POINT(4297.11 -1475.53), POINT(7580.93 2272.77)]
 ;
 
-simpleCartesianLoad#[skip:-8.11.99, reason:spatial type cartesian_point only added in 8.12]
+centroidCartesianFromStringNested#[skip:-8.12.99, reason:st_centroid added in 8.13]
+row wkt = "POINT(4297.10986328125 -1475.530029296875)"
+| STATS c = ST_CENTROID(TO_CARTESIANPOINT(wkt));
+
+c:cartesian_point
+POINT(4297.10986328125 -1475.530029296875)
+;
+
+centroidFromCartesianString1#[skip:-8.12.99, reason:st_centroid added in 8.13]
+ROW wkt = ["POINT(4297.10986328125 -1475.530029296875)"]
+| MV_EXPAND wkt
+| EVAL pt = TO_CARTESIANPOINT(wkt)
+| STATS c = ST_CENTROID(pt);
+
+c:cartesian_point
+POINT(4297.10986328125 -1475.530029296875)
+;
+
+centroidFromCartesianString2#[skip:-8.12.99, reason:st_centroid added in 8.13]
+ROW wkt = ["POINT(4297.10986328125 -1475.530029296875)", "POINT(7580.93017578125 2272.77001953125)"]
+| MV_EXPAND wkt
+| EVAL pt = TO_CARTESIANPOINT(wkt)
+| STATS c = ST_CENTROID(pt);
+
+c:cartesian_point
+POINT(5939.02001953125 398.6199951171875)
+;
+
+centroidFromCartesianString3#[skip:-8.12.99, reason:st_centroid added in 8.13]
+ROW wkt = ["POINT(4297.10986328125 -1475.530029296875)", "POINT(7580.93017578125 2272.77001953125)", "POINT(-30.548143003023033 2437.553649504829)"]
+| MV_EXPAND wkt
+| EVAL pt = TO_CARTESIANPOINT(wkt)
+| STATS c = ST_CENTROID(pt);
+
+c:cartesian_point
+POINT(3949.163965353159 1078.2645465797348)
+;
+
+simpleCartesianLoad#[skip:-8.12.99, reason:spatial type cartesian_point improved precision in 8.13]
 FROM airports_web | WHERE scalerank == 9 | SORT abbrev | WHERE length(name) > 12;
 
-abbrev:keyword | location:cartesian_point        | name:text                   | scalerank:i | type:k
-CJJ            | POINT (14192780.0 4400431.0)    | Cheongju Int'l              | 9           | major
-HOD            | POINT (4783520.5 1661010.0)     | Hodeidah Int'l              | 9           | mid
-IDR            | POINT (8439052.0 2599127.5)     | Devi Ahilyabai Holkar Int'l | 9           | mid
-OMS            | POINT (8161540.0 7353651.0)     | Omsk Tsentralny             | 9           | mid
-OVB            | POINT (9202465.0 7363726.5)     | Novosibirsk Tolmachev       | 9           | mid
-TRZ            | POINT (8761841.0 1204941.5)     | Tiruchirappalli             | 9           | mid
-WIIT           | POINT (11708145.0 -584415.9375) | Radin Inten II              | 9           | mid
-ZAH            | POINT (6779436.0 3436280.5)     | Zahedan Int'l               | 9           | mid
+abbrev:keyword | location:cartesian_point                      | name:text                   | scalerank:i | type:k
+CJJ            | POINT (14192780.461221408 4400430.851323913)  | Cheongju Int'l              | 9           | major
+HOD            | POINT (4783520.559160681 1661010.0197476079)  | Hodeidah Int'l              | 9           | mid
+IDR            | POINT (8439051.727244465 2599127.5424638605)  | Devi Ahilyabai Holkar Int'l | 9           | mid
+OMS            | POINT (8161539.810548711 7353650.845101996)   | Omsk Tsentralny             | 9           | mid
+OVB            | POINT (9202465.316351846 7363726.532780712)   | Novosibirsk Tolmachev       | 9           | mid
+TRZ            | POINT (8761841.111486122 1204941.537981898)   | Tiruchirappalli             | 9           | mid
+WIIT           | POINT (11708145.489503577 -584415.9142832769) | Radin Inten II              | 9           | mid
+ZAH            | POINT (6779435.866395892 3436280.545331025)   | Zahedan Int'l               | 9           | mid
+;
+
+cartesianCentroidFromAirports#[skip:-8.12.99, reason:st_centroid added in 8.13]
+FROM airports_web
+| STATS centroid=ST_CENTROID(location);
+
+centroid:cartesian_point
+POINT(-266681.67563861894 3053301.5120195406)
+;
+
+cartesianCentroidFromAirportsNested#[skip:-8.12.99, reason:st_centroid added in 8.13]
+FROM airports_web
+| STATS centroid=ST_CENTROID(TO_CARTESIANPOINT(location));
+
+centroid:cartesian_point
+POINT (-266681.66530554957 3053301.506061676)
+;
+
+cartesianCentroidFromAirportsCount#[skip:-8.12.99, reason:st_centroid added in 8.13]
+FROM airports_web
+| STATS centroid=ST_CENTROID(location), count=COUNT()
+;
+
+centroid:cartesian_point                      | count:long
+POINT(-266681.67563861894 3053301.5120195406) | 849
+;
+
+cartesianCentroidFromAirportsCountGrouped#[skip:-8.12.99, reason:st_centroid added in 8.13]
+FROM airports_web
+| STATS centroid=ST_CENTROID(location), count=COUNT() BY scalerank
+| SORT scalerank DESC
+;
+
+centroid:cartesian_point                      | count:long | scalerank:i
+POINT(9289013.153846154 3615537.0533353365)   | 26         | 9
+POINT(-1729861.3231565242 3781377.2572642546) | 228        | 8
+POINT(2001203.8796622984 1588548.3963268648)  | 124        | 7
+POINT(-1417910.8585910928 3496034.7206865167) | 147        | 6
+POINT(1045839.9891304348 3582296.444293478)   | 46         | 5
+POINT(-513618.93804196664 2279874.075660586)  | 191        | 4
+POINT(-3002961.9270833335 5451641.91796875)   | 24         | 3
+POINT(140136.12878224207 3081220.7881944445)  | 63         | 2
+;
+
+cartesianCentroidFromAirportsFiltered#[skip:-8.12.99, reason:st_centroid added in 8.13]
+FROM airports_web
+| WHERE scalerank == 9
+| STATS centroid=ST_CENTROID(location), count=COUNT()
+;
+
+centroid:cartesian_point                    | count:long
+POINT(9289013.153846154 3615537.0533353365) | 26
+;
+
+cartesianCentroidFromAirportsFilteredAndSorted#[skip:-8.12.99, reason:st_centroid added in 8.13]
+FROM airports_web
+| WHERE scalerank == 9
+| SORT abbrev
+| WHERE length(name) > 12
+| STATS centroid=ST_CENTROID(location), count=COUNT()
+;
+
+centroid:cartesian_point            | count:long
+POINT(9003597.4375 3429344.0078125) | 8
+;
+
+cartesianCentroidFromAirportsCountGroupedCentroid#[skip:-8.12.99, reason:st_centroid added in 8.13]
+FROM airports_web
+| STATS centroid=ST_CENTROID(location), count=COUNT() BY scalerank
+| STATS centroid=ST_CENTROID(centroid), count=SUM(count)
+;
+
+centroid:cartesian_point                    | count:long
+POINT (726480.0130685265 3359566.331716279) | 849
+;
+
+cartesianPointEquals#[skip:-8.12.99, reason:spatial type cartesian_point improved in 8.13]
+// tag::to_cartesianpoint-equals[]
+ROW wkt = ["POINT(4297.11 -1475.53)", "POINT(7580.93 2272.77)"]
+| MV_EXPAND wkt
+| EVAL pt = to_cartesianpoint(wkt)
+| WHERE pt == to_cartesianpoint("POINT(4297.11 -1475.53)")
+// end::to_cartesianpoint-equals[]
+;
+
+// tag::to_cartesianpoint-equals-result[]
+wkt:keyword               |pt:cartesian_point
+"POINT(4297.11 -1475.53)" |POINT(4297.11 -1475.53)
+// end::to_cartesianpoint-equals-result[]
+;
+
+cartesianPointNotEquals#[skip:-8.12.99, reason:spatial type cartesian_point improved in 8.13]
+// tag::to_cartesianpoint-not-equals[]
+ROW wkt = ["POINT(4297.11 -1475.53)", "POINT(7580.93 2272.77)"]
+| MV_EXPAND wkt
+| EVAL pt = to_cartesianpoint(wkt)
+| WHERE pt != to_cartesianpoint("POINT(4297.11 -1475.53)")
+// end::to_cartesianpoint-not-equals[]
+;
+
+// tag::to_cartesianpoint-not-equals-result[]
+wkt:keyword              |pt:cartesian_point
+"POINT(7580.93 2272.77)" |POINT(7580.93 2272.77)
+// end::to_cartesianpoint-not-equals-result[]
+;
+
+convertCartesianFromStringParseError#[skip:-8.12.99, reason:spatial type cartesian_point improved in 8.13]
+// tag::to_cartesianpoint-str-parse-error[]
+row wkt = ["POINTX(4297.11 -1475.53)", "POINT(7580.93 2272.77)", "POINT(111)"]
+| mv_expand wkt
+| eval pt = to_cartesianpoint(wkt)
+// end::to_cartesianpoint-str-parse-error[]
+;
+
+// tag::to_cartesianpoint-str-parse-error-warning[]
+warning:Line 3:13: evaluation of [to_cartesianpoint(wkt)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 3:13: java.lang.IllegalArgumentException: Failed to parse WKT: Unknown geometry type: pointx
+warning:Line 3:13: java.lang.IllegalArgumentException: Failed to parse WKT: expected number but found: ')'
+// end::to_cartesianpoint-str-parse-error-warning[]
+
+// tag::to_cartesianpoint-str-parse-error-result[]
+wkt:keyword                |pt:cartesian_point
+"POINTX(4297.11 -1475.53)" |null
+"POINT(7580.93 2272.77)"   |POINT(7580.93 2272.77)
+"POINT(111)"               |null
+// end::to_cartesianpoint-str-parse-error-result[]
 ;

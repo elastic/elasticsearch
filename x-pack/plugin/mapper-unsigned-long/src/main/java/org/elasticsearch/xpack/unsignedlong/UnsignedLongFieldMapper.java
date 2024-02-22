@@ -195,8 +195,11 @@ public class UnsignedLongFieldMapper extends FieldMapper {
 
         @Override
         public UnsignedLongFieldMapper build(MapperBuilderContext context) {
+            if (context.parentObjectContainsDimensions()) {
+                dimension.setValue(true);
+            }
             UnsignedLongFieldType fieldType = new UnsignedLongFieldType(
-                context.buildFullName(name),
+                context.buildFullName(name()),
                 indexed.getValue(),
                 stored.getValue(),
                 hasDocValues.getValue(),
@@ -206,7 +209,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                 metric.getValue(),
                 indexMode
             );
-            return new UnsignedLongFieldMapper(name, fieldType, multiFieldsBuilder.build(this, context), copyTo, this);
+            return new UnsignedLongFieldMapper(name(), fieldType, multiFieldsBuilder.build(this, context), copyTo, this);
         }
     }
 
@@ -324,7 +327,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             if (hasDocValues()) {
                 return new BlockDocValuesReader.LongsBlockLoader(name());
             }
-            return new BlockSourceReader.LongsBlockLoader(new SourceValueFetcher(blContext.sourcePaths(name()), nullValueFormatted) {
+            ValueFetcher valueFetcher = new SourceValueFetcher(blContext.sourcePaths(name()), nullValueFormatted) {
                 @Override
                 protected Object parseSourceValue(Object value) {
                     if (value.equals("")) {
@@ -332,7 +335,11 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                     }
                     return parseUnsignedLong(value);
                 }
-            });
+            };
+            BlockSourceReader.LeafIteratorLookup lookup = isStored() || isIndexed()
+                ? BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name())
+                : BlockSourceReader.lookupMatchingAll();
+            return new BlockSourceReader.LongsBlockLoader(valueFetcher, lookup);
         }
 
         @Override
@@ -633,7 +640,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
         }
 
         if (dimension && numericValue != null) {
-            context.getDimensions().addUnsignedLong(fieldType().name(), numericValue);
+            context.getDimensions().addUnsignedLong(fieldType().name(), numericValue).validate(context.indexSettings());
         }
 
         List<Field> fields = new ArrayList<>();

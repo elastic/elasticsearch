@@ -1,0 +1,5 @@
+pr: 104943
+summary: Fix server cli to always pass through exit code
+area: Infra/CLI
+type: bug
+issues: []

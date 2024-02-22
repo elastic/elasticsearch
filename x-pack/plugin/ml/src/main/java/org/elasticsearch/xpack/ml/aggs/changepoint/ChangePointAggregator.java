@@ -17,12 +17,12 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
-import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers;
 import org.elasticsearch.search.aggregations.pipeline.SiblingPipelineAggregator;
 import org.elasticsearch.xpack.ml.aggs.MlAggsHelper;
+import org.elasticsearch.xpack.ml.aggs.changepoint.ChangeType.Indeterminable;
 
 import java.util.Arrays;
 import java.util.Map;
@@ -39,11 +39,17 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
 
     private static final Logger logger = LogManager.getLogger(ChangePointAggregator.class);
 
-    static final double P_VALUE_THRESHOLD = 0.025;
+    static final double P_VALUE_THRESHOLD = 0.01;
     private static final int MINIMUM_BUCKETS = 10;
     private static final int MAXIMUM_CANDIDATE_CHANGE_POINTS = 1000;
     private static final int MAXIMUM_SAMPLE_SIZE_FOR_KS_TEST = 500;
     private static final KolmogorovSmirnovTest KOLMOGOROV_SMIRNOV_TEST = new KolmogorovSmirnovTest();
+
+    private static double changePValueThreshold(int nValues) {
+        // This was obtained by simulating the test power for a fixed size effect as a
+        // function of the bucket value count.
+        return P_VALUE_THRESHOLD * Math.exp(-0.04 * (double) (nValues - 2 * (MINIMUM_BUCKETS + 1)));
+    }
 
     private static int lowerBound(int[] x, int start, int end, int xs) {
         int retVal = Arrays.binarySearch(x, start, end, xs);
@@ -71,7 +77,7 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
         }
     }
 
-    static int[] candidateChangePoints(double[] values) {
+    static int[] computeCandidateChangePoints(double[] values) {
         int minValues = Math.max((int) (0.1 * values.length + 0.5), MINIMUM_BUCKETS);
         if (values.length - 2 * minValues <= MAXIMUM_CANDIDATE_CHANGE_POINTS) {
             return IntStream.range(minValues, values.length - minValues).toArray();
@@ -86,7 +92,7 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
     }
 
     @Override
-    public InternalAggregation doReduce(Aggregations aggregations, AggregationReduceContext context) {
+    public InternalAggregation doReduce(InternalAggregations aggregations, AggregationReduceContext context) {
         Optional<MlAggsHelper.DoubleBucketValues> maybeBucketsValue = extractDoubleBucketedValues(
             bucketsPaths()[0],
             aggregations,
@@ -116,36 +122,51 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
                 )
             );
         }
-        int[] candidatePoints = candidateChangePoints(bucketValues.getValues());
-        ChangeType changeType = testForChange(bucketValues, candidatePoints, P_VALUE_THRESHOLD);
-        if (changeType.pValue() > P_VALUE_THRESHOLD) {
-            try {
-                SpikeAndDipDetector detect = new SpikeAndDipDetector(bucketValues.getValues());
-                changeType = detect.at(P_VALUE_THRESHOLD);
-            } catch (NotStrictlyPositiveException nspe) {
-                logger.debug("failure calculating spikes", nspe);
-            }
+
+        ChangeType spikeOrDip = testForSpikeOrDip(bucketValues, P_VALUE_THRESHOLD);
+
+        // Test for change step, trend and distribution changes.
+        ChangeType change = testForChange(bucketValues, changePValueThreshold(bucketValues.getValues().length));
+        logger.trace("change p-value: [{}]", change.pValue());
+
+        if (spikeOrDip.pValue() < change.pValue()) {
+            change = spikeOrDip;
         }
+
         ChangePointBucket changePointBucket = null;
-        if (changeType.changePoint() >= 0) {
-            changePointBucket = extractBucket(bucketsPaths()[0], aggregations, changeType.changePoint()).map(
-                b -> new ChangePointBucket(b.getKey(), b.getDocCount(), (InternalAggregations) b.getAggregations())
+        if (change.changePoint() >= 0) {
+            changePointBucket = extractBucket(bucketsPaths()[0], aggregations, change.changePoint()).map(
+                b -> new ChangePointBucket(b.getKey(), b.getDocCount(), b.getAggregations())
             ).orElse(null);
         }
 
-        return new InternalChangePointAggregation(name(), metadata(), changePointBucket, changeType);
+        return new InternalChangePointAggregation(name(), metadata(), changePointBucket, change);
     }
 
-    static ChangeType testForChange(MlAggsHelper.DoubleBucketValues bucketValues, int[] candidateChangePoints, double pValueThreshold) {
+    static ChangeType testForSpikeOrDip(MlAggsHelper.DoubleBucketValues bucketValues, double pValueThreshold) {
+        try {
+            SpikeAndDipDetector detect = new SpikeAndDipDetector(bucketValues.getValues());
+            ChangeType result = detect.at(pValueThreshold);
+            logger.trace("spike or dip p-value: [{}]", result.pValue());
+            return result;
+        } catch (NotStrictlyPositiveException nspe) {
+            logger.debug("failure testing for dips and spikes", nspe);
+        }
+        return new Indeterminable("failure testing for dips and spikes");
+    }
+
+    static ChangeType testForChange(MlAggsHelper.DoubleBucketValues bucketValues, double pValueThreshold) {
         double[] timeWindow = bucketValues.getValues();
-        return testForChange(timeWindow, candidateChangePoints, pValueThreshold).changeType(bucketValues, slope(timeWindow));
+        return testForChange(timeWindow, pValueThreshold).changeType(bucketValues, slope(timeWindow));
     }
 
-    static TestStats testForChange(double[] timeWindow, int[] candidateChangePoints, double pValueThreshold) {
+    static TestStats testForChange(double[] timeWindow, double pValueThreshold) {
 
-        logger.trace("timeWindow: [{}]", Arrays.toString(timeWindow));
+        int[] candidateChangePoints = computeCandidateChangePoints(timeWindow);
+        logger.trace("candidatePoints: [{}]", Arrays.toString(candidateChangePoints));
 
         double[] timeWindowWeights = outlierWeights(timeWindow);
+        logger.trace("timeWindow: [{}]", Arrays.toString(timeWindow));
         logger.trace("timeWindowWeights: [{}]", Arrays.toString(timeWindowWeights));
         RunningStats dataRunningStats = RunningStats.from(timeWindow, i -> timeWindowWeights[i]);
         DataStats dataStats = new DataStats(

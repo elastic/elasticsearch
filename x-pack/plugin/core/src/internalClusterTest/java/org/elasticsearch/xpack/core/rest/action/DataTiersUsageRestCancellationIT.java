@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.rest.action;
 
 import org.apache.http.client.methods.HttpGet;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -33,6 +34,7 @@ import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.action.TransportXPackUsageAction;
 import org.elasticsearch.xpack.core.action.XPackUsageAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
+import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.action.XPackUsageResponse;
 import org.elasticsearch.xpack.core.datatiers.NodesDataTiersUsageTransportAction;
 
@@ -129,7 +131,7 @@ public class DataTiersUsageRestCancellationIT extends ESIntegTestCase {
         }
 
         @Override
-        protected List<XPackUsageFeatureAction> usageActions() {
+        protected List<ActionType<XPackUsageFeatureResponse>> usageActions() {
             return List.of(XPackUsageFeatureAction.DATA_TIERS);
         }
     }

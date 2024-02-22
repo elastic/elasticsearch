@@ -26,14 +26,12 @@ import java.util.Objects;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
-public class DeleteQueryRulesetAction extends ActionType<AcknowledgedResponse> {
+public class DeleteQueryRulesetAction {
 
-    public static final DeleteQueryRulesetAction INSTANCE = new DeleteQueryRulesetAction();
     public static final String NAME = "cluster:admin/xpack/query_rules/delete";
+    public static final ActionType<AcknowledgedResponse> INSTANCE = new ActionType<>(NAME);
 
-    private DeleteQueryRulesetAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
-    }
+    private DeleteQueryRulesetAction() {/* no instances */}
 
     public static class Request extends ActionRequest implements ToXContentObject {
         private final String rulesetId;

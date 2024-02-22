@@ -67,6 +67,12 @@ setup:
           - { "name": "Denise", "city_id": "sgn" }
 
 ---
+teardown:
+  - do:
+      enrich.delete_policy:
+        name: cities_policy
+
+---
 "Basic":
   - do:
       allowed_warnings_regex:
@@ -129,8 +135,3 @@ setup:
   - match: { values.1: [ "Bob", "nyc", "USA" ] }
   - match: { values.2: [ "Denise", "sgn", null ] }
   - match: { values.3: [ "Mario", "rom", "Italy" ] }
-
-  - do:
-      enrich.delete_policy:
-        name: cities_policy
-  - is_true: acknowledged

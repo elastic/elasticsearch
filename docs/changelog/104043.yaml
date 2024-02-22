@@ -1,0 +1,5 @@
+pr: 104043
+summary: Expose service account authentication metrics
+area: Authentication
+type: enhancement
+issues: []

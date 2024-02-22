@@ -40,11 +40,24 @@ public interface LiveVersionMapArchive {
     }
 
     /**
-     * Returns how much memory is currently being used by the archive and would be freed up after
-     * unpromotables are refreshed.
+     * Returns the total memory usage if the Archive.
      */
-    default long getMemoryBytesUsed() {
+    default long getRamBytesUsed() {
         return 0L;
+    }
+
+    /**
+     * Returns how much memory could be freed up by creating a new commit and issuing a new unpromotable refresh.
+     */
+    default long getReclaimableRamBytes() {
+        return 0;
+    }
+
+    /**
+     * Returns how much memory will be freed once the current ongoing unpromotable refresh is finished.
+     */
+    default long getRefreshingRamBytes() {
+        return 0;
     }
 
     LiveVersionMapArchive NOOP_ARCHIVE = new LiveVersionMapArchive() {

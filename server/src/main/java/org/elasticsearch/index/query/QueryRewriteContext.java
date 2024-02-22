@@ -159,6 +159,10 @@ public class QueryRewriteContext {
         return null;
     }
 
+    public InnerHitsRewriteContext convertToInnerHitsRewriteContext() {
+        return null;
+    }
+
     /**
      * Returns the {@link MappedFieldType} for the provided field name.
      * If the field is not mapped, the behaviour depends on the index.query.parse.allow_unmapped_fields setting, which defaults to true.
@@ -283,6 +287,13 @@ public class QueryRewriteContext {
      */
     public IndexSettings getIndexSettings() {
         return indexSettings;
+    }
+
+    /**
+     * Returns the MappingLookup for the queried index.
+     */
+    public MappingLookup getMappingLookup() {
+        return mappingLookup;
     }
 
     /**

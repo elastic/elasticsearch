@@ -82,7 +82,7 @@ public class TransportReplicationActionRetryOnClosedNodeIT extends ESIntegTestCa
 
     public static class TestAction extends TransportReplicationAction<Request, Request, Response> {
         private static final String ACTION_NAME = "internal:test-replication-action";
-        private static final ActionType<Response> TYPE = new ActionType<>(ACTION_NAME, Response::new);
+        private static final ActionType<Response> TYPE = new ActionType<>(ACTION_NAME);
 
         @Inject
         public TestAction(

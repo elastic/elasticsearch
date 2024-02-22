@@ -12,7 +12,6 @@ import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalSingleBucketAggregationTestCase;
-import org.elasticsearch.search.aggregations.bucket.ParsedSingleBucketAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
@@ -49,11 +48,6 @@ public class InternalFilterTests extends InternalSingleBucketAggregationTestCase
     @Override
     protected void extraAssertReduced(InternalFilter reduced, List<InternalFilter> inputs) {
         // Nothing extra to assert
-    }
-
-    @Override
-    protected Class<? extends ParsedSingleBucketAggregation> implementationClass() {
-        return ParsedFilter.class;
     }
 
     public void testReducePipelinesReturnsSameInstanceWithoutPipelines() {

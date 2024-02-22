@@ -167,27 +167,43 @@ public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTok
             );
         }
 
+        return (this.tokenPruningConfig == null) ? queryBuilderWithAllTokens(tokens, ft, context) : queryBuilderWithPrunedTokens(tokens, ft, context);
+    }
+
+    private Query queryBuilderWithAllTokens(List<WeightedToken> tokens, MappedFieldType ft, SearchExecutionContext context) {
+        var qb = new BooleanQuery.Builder();
+
+        for (var token : tokens) {
+            qb.add(new BoostQuery(ft.termQuery(token.token(), context), token.weight()), BooleanClause.Occur.SHOULD);
+        }
+        return qb.setMinimumNumberShouldMatch(1).build();
+    }
+    private Query queryBuilderWithPrunedTokens(List<WeightedToken> tokens, MappedFieldType ft, SearchExecutionContext context)  throws IOException {
         var qb = new BooleanQuery.Builder();
         int fieldDocCount = context.getIndexReader().getDocCount(fieldName);
-        float bestWeight = 0f;
-        for (var t : tokens) {
-            bestWeight = Math.max(t.weight(), bestWeight);
-        }
+        float bestWeight = findBestWeightFor(tokens);
         float averageTokenFreqRatio = getAverageTokenFreqRatio(context.getIndexReader(), fieldDocCount);
         if (averageTokenFreqRatio == 0) {
             return new MatchNoDocsQuery("The \"" + getName() + "\" query is against an empty field");
         }
+
         for (var token : tokens) {
             boolean keep = shouldKeepToken(context.getIndexReader(), token, fieldDocCount, averageTokenFreqRatio, bestWeight);
-            if (this.tokenPruningConfig != null) {
-                keep ^= this.tokenPruningConfig.isOnlyScorePrunedTokens();
-            }
+            keep ^= this.tokenPruningConfig.isOnlyScorePrunedTokens();
             if (keep) {
                 qb.add(new BoostQuery(ft.termQuery(token.token(), context), token.weight()), BooleanClause.Occur.SHOULD);
             }
         }
-        qb.setMinimumNumberShouldMatch(1);
-        return qb.build();
+
+        return qb.setMinimumNumberShouldMatch(1).build();
+    }
+
+    private float findBestWeightFor(List<WeightedToken> tokens) {
+        float bestWeight = 0f;
+        for (var t : tokens) {
+            bestWeight = Math.max(t.weight(), bestWeight);
+        }
+        return bestWeight;
     }
 
     @Override

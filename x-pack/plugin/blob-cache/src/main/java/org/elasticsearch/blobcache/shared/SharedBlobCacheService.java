@@ -398,7 +398,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         return recoveryRangeSize;
     }
 
-    private int getRegion(long position) {
+    protected int getRegion(long position) {
         return (int) (position / regionSize);
     }
 
@@ -406,7 +406,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         return (int) (position % regionSize);
     }
 
-    private long getRegionStart(int region) {
+    protected long getRegionStart(int region) {
         return (long) region * regionSize;
     }
 

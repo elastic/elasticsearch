@@ -603,7 +603,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         for (String storedFieldRest : storedFieldRestVariations) {
             SearchUsageHolder searchUsageHolder = new UsageService().getSearchUsageHolder();
             try (XContentParser parser = createParser(JsonXContent.jsonXContent, storedFieldRest)) {
-                new SearchSourceBuilder().parseXContent(parser, true, searchUsageHolder);
+                new SearchSourceBuilder().parseXContent(parser, true, searchUsageHolder, nf -> false);
                 SearchUsageStats searchUsageStats = searchUsageHolder.getSearchUsageStats();
                 Map<String, Long> sectionsUsage = searchUsageStats.getSectionsUsage();
                 assertEquals(

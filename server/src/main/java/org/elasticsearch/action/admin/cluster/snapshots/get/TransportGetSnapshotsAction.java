@@ -27,7 +27,6 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.repositories.GetSnapshotInfoContext;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
@@ -482,13 +481,11 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             listener.onFailure(e);
             return;
         }
-        repository.getSnapshotInfo(
-            new GetSnapshotInfoContext(snapshotIdsToIterate, ignoreUnavailable == false, task::isCancelled, (context, snapshotInfo) -> {
-                if (predicate.test(snapshotInfo)) {
-                    snapshotInfos.add(snapshotInfo.maybeWithoutIndices(indices));
-                }
-            }, allDoneListener)
-        );
+        repository.getSnapshotInfo(snapshotIdsToIterate, ignoreUnavailable == false, task::isCancelled, snapshotInfo -> {
+            if (predicate.test(snapshotInfo)) {
+                snapshotInfos.add(snapshotInfo.maybeWithoutIndices(indices));
+            }
+        }, allDoneListener);
     }
 
     private static boolean isCurrentSnapshotsOnly(String[] snapshots) {

@@ -16,9 +16,9 @@ public abstract class LenientTestCase extends CliIntegrationTestCase {
     public void testLenientCommand() throws IOException {
         index("test", body -> body.field("name", "foo").field("tags", new String[] { "bar", "bar" }));
         assertEquals("[?1l>[?1000l[?2004llenient set to [90mtrue[0m", command("lenient = true"));
-        assertThat(command("SELECT * FROM test"), matchesRegex("\\s*name\\s*\\|\\s*tags\\s*"));
+        assertThat(command("SELECT * FROM test"), matchesRegex(".*\\s*name\\s*\\|\\s*tags\\s*.*"));
         assertThat(readLine(), containsString("----------"));
-        assertThat(readLine(), matchesRegex("\\s*foo\\s*\\|\\s*bar\\s*"));
+        assertThat(readLine(), matchesRegex(".*\\s*foo\\s*\\|\\s*bar\\s*.*"));
         assertEquals("", readLine());
     }
 

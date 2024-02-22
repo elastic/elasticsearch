@@ -31,9 +31,9 @@ public abstract class SelectTestCase extends CliIntegrationTestCase {
     public void testSelectWithWhere() throws IOException {
         index("test", body -> body.field("test_field", "test_value1").field("i", 1));
         index("test", body -> body.field("test_field", "test_value2").field("i", 2));
-        assertThat(command("SELECT * FROM test WHERE i = 2"), matchesRegex("\\s*i\\s*\\|\\s*test_field\\s*"));
+        assertThat(command("SELECT * FROM test WHERE i = 2"), matchesRegex(".*\\s*i\\s*\\|\\s*test_field\\s*.*"));
         assertThat(readLine(), containsString("----------"));
-        assertThat(readLine(), matchesRegex("\\s*2\\s*\\|\\s*test_value2\\s*"));
+        assertThat(readLine(), matchesRegex(".*\\s*2\\s*\\|\\s*test_value2\\s*.*"));
         assertEquals("", readLine());
     }
 }

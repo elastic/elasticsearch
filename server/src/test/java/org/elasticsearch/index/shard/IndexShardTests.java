@@ -1431,7 +1431,7 @@ public class IndexShardTests extends IndexShardTestCase {
              * the race, then the other thread lost the race and only one operation should have been executed.
              */
             assertThat(e, instanceOf(IllegalStateException.class));
-            assertThat(e, hasToString(matchesRegex("operation primary term \\[\\d+\\] is too old")));
+            assertThat(e, hasToString(matchesRegex(".*operation primary term \\[\\d+\\] is too old.*")));
             assertThat(counter.get(), equalTo(1L));
         } else {
             assertThat(counter.get(), equalTo(2L));

@@ -62,7 +62,6 @@ public class IndexShardRoutingTable {
     final int totalSearchShardCount;
 
     IndexShardRoutingTable(ShardId shardId, List<ShardRouting> shards) {
-        assert shards.isEmpty() == false;
         this.shuffler = new RotationShardShuffler(Randomness.get().nextInt());
         this.shardId = shardId;
         this.shards = shards.toArray(ShardRouting[]::new);

@@ -612,11 +612,15 @@ public class DoSection implements ExecutableSection {
     );
 
     private static NodeSelector buildNodeSelector(String name, XContentParser parser) throws IOException {
-        return switch (name) {
-            case "attribute" -> parseAttributeValuesSelector(parser);
-            case "version" -> parseVersionSelector(parser);
-            default -> throw new XContentParseException(parser.getTokenLocation(), "unknown node_selector [" + name + "]");
-        };
+        try {
+            return switch (name) {
+                case "attribute" -> parseAttributeValuesSelector(parser);
+                case "version" -> parseVersionSelector(parser);
+                default -> throw new XContentParseException(parser.getTokenLocation(), "unknown node_selector [" + name + "]");
+            };
+        } finally {
+            parser.nextToken();
+        }
     }
 
     private static NodeSelector parseAttributeValuesSelector(XContentParser parser) throws IOException {
@@ -663,22 +667,6 @@ public class DoSection implements ExecutableSection {
         return result;
     }
 
-    private static boolean matchWithRange(
-        String nodeVersionString,
-        List<Predicate<Set<String>>> acceptedVersionRanges,
-        XContentLocation location
-    ) {
-        try {
-            return acceptedVersionRanges.stream().anyMatch(v -> v.test(Set.of(nodeVersionString)));
-        } catch (IllegalArgumentException e) {
-            throw new XContentParseException(
-                location,
-                "[version] range node selector expects a semantic version format (x.y.z), but found " + nodeVersionString,
-                e
-            );
-        }
-    }
-
     private static NodeSelector parseVersionSelector(XContentParser parser) throws IOException {
         if (false == parser.currentToken().isValue()) {
             throw new XContentParseException(parser.getTokenLocation(), "expected [version] to be a value");
@@ -691,7 +679,7 @@ public class DoSection implements ExecutableSection {
             versionSelectorString = "version is " + Build.current().version() + " (current)";
         } else if (parser.text().equals("original")) {
             nodeMatcher = nodeVersion -> Build.current().version().equals(nodeVersion) == false;
-            versionSelectorString = "version is " + nodeVersion + "(original)";
+            versionSelectorString = "version is not current (original)";
         } else {
             throw new XContentParseException(
                 parser.getTokenLocation(),

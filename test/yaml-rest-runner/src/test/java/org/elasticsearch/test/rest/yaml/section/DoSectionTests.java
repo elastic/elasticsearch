@@ -579,12 +579,7 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
                 index: test_index""");
 
         var exception = expectThrows(XContentParseException.class, () -> DoSection.parse(parser));
-        assertThat(
-            exception.getMessage(),
-            endsWith("unknown version selector [5.2.0-6.0.0]. Only [current] and [non_current] are allowed.")
-        );
-        parser.close();
-        parser = null;
+        assertThat(exception.getMessage(), endsWith("unknown version selector [5.2.0-6.0.0]. Only [current] and [original] are allowed."));
     }
 
     public void testNodeSelectorCurrentVersion() throws IOException {
@@ -612,7 +607,7 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
     public void testNodeSelectorNonCurrentVersion() throws IOException {
         parser = createParser(YamlXContent.yamlXContent, """
             node_selector:
-                version: non_current
+                version: original
             indices.get_field_mapping:
                 index: test_index""");
 

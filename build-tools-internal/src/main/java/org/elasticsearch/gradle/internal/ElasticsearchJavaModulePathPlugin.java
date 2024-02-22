@@ -95,17 +95,15 @@ public abstract class ElasticsearchJavaModulePathPlugin implements Plugin<Projec
             task.getOptions().getCompilerArgumentProviders().add(argumentProvider);
             FileCollection classpath = task.getClasspath();
             if (isIdea() == false && task.getClasspath() != null) {
-                task.getLogger().lifecycle("moduleCompileClasspath: " + moduleCompileClasspath);
                 FileCollection trimmedClasspath = classpath.minus(moduleCompileClasspath);
                 task.setClasspath(project.files(trimmedClasspath));
-                task.getLogger().info("new classpath: " + task.getClasspath());
             }
             task.doLast(new Action<Task>() {
                 @Override
                 public void execute(Task t) {
                     Logger logger = task.getLogger();
-                    if (logger.isLifecycleEnabled()) {
-                        logger.lifecycle(
+                    if (logger.isInfoEnabled()) {
+                        logger.info(
                             "{}\n Module path args: {}\n Classpath: {}",
                             task.getPath(),
                             argsToString(argumentProvider.asArguments()),

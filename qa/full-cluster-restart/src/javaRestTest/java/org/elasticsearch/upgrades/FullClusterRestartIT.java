@@ -1291,6 +1291,10 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
             XContentMapValues.extractValue("snapshots.version", snapResponse),
             either(Matchers.<Object>equalTo(List.of(tookOnVersion))).or(equalTo(List.of(tookOnIndexVersion.toString())))
         );
+        assertThat(
+            XContentMapValues.extractValue("snapshots.build_version", snapResponse),
+            either(Matchers.<Object>equalTo(Build.current().version())).or(equalTo(List.of(tookOnIndexVersion.toReleaseVersion())))
+        );
 
         // Remove the routing setting and template so we can test restoring them.
         client().performRequest(

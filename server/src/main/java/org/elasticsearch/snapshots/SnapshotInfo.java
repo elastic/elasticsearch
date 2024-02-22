@@ -798,9 +798,10 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
 
         if (version != null) {
             builder.field(VERSION_ID, version.id());
+            builder.field(VERSION, version.toString());
         }
         if (buildVersion != null) {
-            builder.field(VERSION, buildVersion);
+            builder.field(BUILD_VERSION, buildVersion);
         }
 
         if (params.paramAsBoolean(INDEX_NAMES_XCONTENT_PARAM, true)) {

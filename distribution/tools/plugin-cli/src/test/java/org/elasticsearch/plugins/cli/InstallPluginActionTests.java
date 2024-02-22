@@ -1286,7 +1286,7 @@ public class InstallPluginActionTests extends ESTestCase {
             )
         );
         assertEquals(ExitCodes.IO_ERROR, e.exitCode);
-        assertThat(e, hasToString(matchesRegex("checksum file at \\[.*\\] is not for this plugin")));
+        assertThat(e, hasToString(matchesRegex(".*checksum file at \\[.*\\] is not for this plugin.*")));
     }
 
     public void testInvalidShaFileContainingExtraLine() throws Exception {

@@ -5,18 +5,13 @@
 :frontmatter-tags-content-type: [how-to]
 :frontmatter-tags-user-goals: [configure]
 
-{kib} {alert-features} include support for {transform} rules, which check the 
-health of {ctransforms} with certain conditions. If the conditions of the rule 
-are met, an alert is created and the associated action is triggered. For 
+{kib} {alert-features} include support for {transform} health rules, which 
+check the health of {ctransforms} with certain conditions. If the conditions of
+the rule are met, an alert is created and the associated actions run. For 
 example, you can create a rule to check if a {ctransform} is started and to 
 notify you in an email if it is not. To learn more about {kib} {alert-features}, 
 refer to 
 {kibana-ref}/alerting-getting-started.html#alerting-getting-started[Alerting].
-
-The following {transform} rules are available:
-
-{transform-cap} health:: 
-  Monitors {transforms} health and alerts if an operational issue occurred.
 
 [[creating-transform-rules]]
 == Creating a rule
@@ -30,14 +25,11 @@ tags. Select the {transform} health rule type:
 image::images/transform-rule.png["Creating a transform health rule",500]
 // NOTE: This is screenshot is automatically generated. Do not edit it directly.
 
-[[creating-transform-health-rules]]
-=== {transform-cap} health
-
 Select the {transform} or {transforms} to include. You can also use a special 
 character (`*`) to apply the rule to all your {transforms}. {transforms-cap} 
 created after the rule are automatically included.
 
-The following health check is available and enabled by default:
+The following health checks are available and enabled by default:
 
 _{transform-cap} is not started_:: 
   Notifies if the corresponding {transforms} is not started or it does not index 
@@ -71,8 +63,12 @@ about all the supported connectors, go to
 
 After you select a connector, you must set the action frequency. You can choose
 to create a summary of alerts on each check interval or on a custom interval.
-// For example, send slack notifications that summarize the new, ongoing, and
-// recovered alerts:
+For example, send notifications that summarize the new, ongoing, and recovered
+alerts:
+
+[role="screenshot"]
+image::images/transform-alert-summary-actions.png["Setting action frequency to summary of alerts",500]
+// NOTE: This is screenshot is automatically generated. Do not edit it directly.
 
 TIP: If you choose a custom action interval, it cannot be shorter than the
 rule's check interval.
@@ -87,12 +83,12 @@ You can further refine the conditions under which actions run by specifying that
 actions only run when they match a KQL query or when an alert occurs within a
 specific time frame.
 
-It's also possible to customize the notification messages for each action. A
-list of variables is available to include in the message, like {transform} ID,
-description, {transform} state, and so on.
+There is a set of variables that you can use to customize the notification
+messages for each action. Click the icon above the message text box to get the
+list of variables or refer to <<transform-action-variables>>.
 
 [role="screenshot"]
-image::images/transform-alert-actions.png["Selecting connector type",500]
+image::images/transform-alert-actions.png["Selecting action variables",500]
 // NOTE: This is screenshot is automatically generated. Do not edit it directly.
 
 After you save the configurations, the rule appears in the *{rules-ui}* list 
@@ -142,5 +138,5 @@ message in an email connector action might contain:
 --------------------------------------------------
 --
 
-For more action variable examples, refer to
+For more examples, refer to
 {kibana-ref}/rule-action-variables.html[Rule action variables].

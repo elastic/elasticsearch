@@ -131,6 +131,7 @@ def commonPackageConfig(String type, String architecture) {
 
     // top level "into" directive is not inherited from ospackage for some reason, so we must
     // specify it again explicitly for copying common files
+    String platform = 'linux-' + ((architecture == 'x64') ? 'x86_64' : architecture)
     into('/usr/share/elasticsearch') {
       into('bin') {
         with binFiles(type, false)
@@ -140,10 +141,10 @@ def commonPackageConfig(String type, String architecture) {
         fileMode 0644
       }
       into('lib') {
-        with libFiles
+        with libFiles(platform)
       }
       into('modules') {
-        with modulesFiles('linux-' + ((architecture == 'x64') ? 'x86_64' : architecture))
+        with modulesFiles(platform)
       }
       into('jdk') {
         with jdkFiles(project, 'linux', architecture)

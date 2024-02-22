@@ -22,12 +22,23 @@ embeddedProviders {
   impl 'native-access-jna', project(':libs:elasticsearch-native:jna')
 }
 
+System.out.println("adding configurations")
+configurations {
+  darwinAarch64
+  darwinAarch64Jar
+}
+
+String zstdVersion = "1.5.5"
+
 dependencies {
+
   api project(':libs:elasticsearch-core')
   api project(':libs:elasticsearch-logging')
   testImplementation(project(":test:framework")) {
     exclude group: 'org.elasticsearch', module: 'elasticsearch-native'
   }
+
+  darwinAarch64Jar "org.elasticsearch:zstd:${zstdVersion}:darwin-aarch64"
 }
 
 tasks.withType(CheckForbiddenApisTask).configureEach {

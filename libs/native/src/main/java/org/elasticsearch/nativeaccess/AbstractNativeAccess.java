@@ -10,18 +10,27 @@ package org.elasticsearch.nativeaccess;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
+import org.elasticsearch.nativeaccess.lib.ZstdLibrary;
 
 abstract class AbstractNativeAccess implements NativeAccess {
 
     protected static final Logger logger = LogManager.getLogger(NativeAccess.class);
 
     private final String name;
+    private final Zstd zstd;
 
-    protected AbstractNativeAccess(String name) {
+    protected AbstractNativeAccess(String name, NativeLibraryProvider libraryProvider) {
         this.name = name;
+        this.zstd = new Zstd(libraryProvider.getLibrary(ZstdLibrary.class));
     }
 
     String getName() {
         return name;
+    }
+
+    @Override
+    public Zstd getZstd() {
+        return zstd;
     }
 }

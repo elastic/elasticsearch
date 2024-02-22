@@ -26,4 +26,10 @@ public interface NativeAccess {
      * @return true if running as root, or false if unsure
      */
     boolean definitelyRunningAsRoot();
+
+    /**
+     * Returns an accessor to zstd compression functions.
+     * @return an object used to compress and decompress bytes using zstd
+     */
+    Zstd getZstd();
 }

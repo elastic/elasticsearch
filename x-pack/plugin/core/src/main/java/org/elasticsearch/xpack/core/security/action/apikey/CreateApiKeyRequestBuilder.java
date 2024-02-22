@@ -96,6 +96,15 @@ public class CreateApiKeyRequestBuilder extends ActionRequestBuilder<CreateApiKe
     }
 
     public CreateApiKeyRequestBuilder source(BytesReference source, XContentType xContentType) throws IOException {
+        CreateApiKeyRequest createApiKeyRequest = parse(source, xContentType);
+        setName(createApiKeyRequest.getName());
+        setRoleDescriptors(createApiKeyRequest.getRoleDescriptors());
+        setExpiration(createApiKeyRequest.getExpiration());
+        setMetadata(createApiKeyRequest.getMetadata());
+        return this;
+    }
+
+    protected CreateApiKeyRequest parse(BytesReference source, XContentType xContentType) throws IOException {
         try (
             XContentParser parser = XContentHelper.createParserNotCompressed(
                 LoggingDeprecationHandler.XCONTENT_PARSER_CONFIG,
@@ -103,14 +112,8 @@ public class CreateApiKeyRequestBuilder extends ActionRequestBuilder<CreateApiKe
                 xContentType
             )
         ) {
-            CreateApiKeyRequest createApiKeyRequest = parse(parser);
-            setName(createApiKeyRequest.getName());
-            setRoleDescriptors(createApiKeyRequest.getRoleDescriptors());
-            setExpiration(createApiKeyRequest.getExpiration());
-            setMetadata(createApiKeyRequest.getMetadata());
-
+            return parse(parser);
         }
-        return this;
     }
 
     public static CreateApiKeyRequest parse(XContentParser parser) throws IOException {

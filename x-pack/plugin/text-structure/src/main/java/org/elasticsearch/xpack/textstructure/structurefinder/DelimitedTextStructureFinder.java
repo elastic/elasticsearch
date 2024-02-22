@@ -619,7 +619,6 @@ public class DelimitedTextStructureFinder implements TextStructureFinder {
         try (CsvListReader csvReader = new CsvListReader(new StringReader(sample), csvPreference)) {
 
             int fieldsInFirstRow = -1;
-            int fieldsInLastRow = -1;
 
             List<Integer> illFormattedRows = new ArrayList<>();
             int numberOfRows = 0;
@@ -643,7 +642,6 @@ public class DelimitedTextStructureFinder implements TextStructureFinder {
                             );
                             return false;
                         }
-                        fieldsInLastRow = fieldsInFirstRow;
                         continue;
                     }
 
@@ -676,26 +674,7 @@ public class DelimitedTextStructureFinder implements TextStructureFinder {
                             );
                             return false;
                         }
-                        continue;
                     }
-
-                    fieldsInLastRow = fieldsInThisRow;
-                }
-
-                if (fieldsInLastRow > fieldsInFirstRow) {
-                    explanation.add(
-                        "Not "
-                            + formatName
-                            + " because last row has more fields than first row: ["
-                            + fieldsInFirstRow
-                            + "] and ["
-                            + fieldsInLastRow
-                            + "]"
-                    );
-                    return false;
-                }
-                if (fieldsInLastRow < fieldsInFirstRow) {
-                    --numberOfRows;
                 }
             } catch (SuperCsvException e) {
                 // Tolerate an incomplete last row

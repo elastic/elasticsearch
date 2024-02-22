@@ -206,7 +206,7 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
                 taskId,
                 ShardFollowTask.NAME,
                 shardFollowTask,
-                null,
+                request.masterNodeTimeout(),
                 handler.getActionListener(shardId)
             );
         }

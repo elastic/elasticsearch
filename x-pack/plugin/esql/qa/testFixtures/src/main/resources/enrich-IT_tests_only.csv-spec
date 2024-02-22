@@ -152,6 +152,7 @@ a:keyword   | a_lang:keyword
 ["1", "2"]  | ["English", "French"] 
 ;
 
+<<<<<<< HEAD
 enrichCidr#[skip:-8.13.99, reason:enrich for cidr added in 8.14.0]
 FROM sample_data
 | ENRICH client_cidr_policy ON client_ip WITH env
@@ -290,7 +291,36 @@ FROM airports
 warning:Line 3:30: evaluation of [LENGTH(TO_STRING(city_boundary))] failed, treating result as null. Only first 20 failures recorded.
 warning:Line 3:30: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
-
 city_centroid:geo_point    |  count:long  |  min_wkt:integer  |  max_wkt:integer
 POINT(1.396561 24.127649)  |  872         |  88               |  1044
+;
+
+spatialEnrichmentKeywordMatchAndSpatialPredicate
+FROM airports
+| ENRICH city_names ON city WITH airport, region, city_boundary
+| MV_EXPAND city_boundary
+| EVAL airport_in_city = ST_INTERSECTS(location, city_boundary)
+| STATS count=COUNT(*) BY airport_in_city
+| SORT count ASC
+;
+
+count:long  |  airport_in_city:boolean
+114         |  null
+396         |  true
+455         |  false
+;
+
+spatialEnrichmentKeywordMatchAndSpatialAggregation
+FROM airports
+| ENRICH city_names ON city WITH airport, region, city_boundary
+| MV_EXPAND city_boundary
+| EVAL airport_in_city = ST_INTERSECTS(location, city_boundary)
+| STATS count=COUNT(*), centroid=ST_CENTROID(location) BY airport_in_city
+| SORT count ASC
+;
+
+count:long  |  centroid:geo_point            |  airport_in_city:boolean
+114         |  POINT (-24.750062 31.575549)  |  null
+396         |  POINT (-2.534797 20.667712)   |  true
+455         |  POINT (3.090752 27.676442)    |  false
 ;

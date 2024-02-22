@@ -281,6 +281,7 @@ public class CsvTestsDataLoader {
         CheckedBiFunction<XContent, InputStream, XContentParser, IOException> p,
         Logger logger
     ) throws IOException {
+        ArrayList<String> failures = new ArrayList<>();
         StringBuilder builder = new StringBuilder();
         try (BufferedReader reader = org.elasticsearch.xpack.ql.TestUtils.reader(resource)) {
             String line;
@@ -390,13 +391,19 @@ public class CsvTestsDataLoader {
                 }
                 lineNumber++;
                 if (builder.length() > BULK_DATA_SIZE) {
-                    sendBulkRequest(indexName, builder, client, logger);
+                    sendBulkRequest(indexName, builder, client, logger, failures);
                     builder.setLength(0);
                 }
             }
         }
         if (builder.isEmpty() == false) {
-            sendBulkRequest(indexName, builder, client, logger);
+            sendBulkRequest(indexName, builder, client, logger, failures);
+        }
+        if (failures.isEmpty() == false) {
+            for (String failure : failures) {
+                logger.error(failure);
+            }
+            throw new IOException("Data loading failed with " + failures.size() + " errors: " + failures.get(0));
         }
     }
 
@@ -405,7 +412,8 @@ public class CsvTestsDataLoader {
         return isQuoted ? value : "\"" + value + "\"";
     }
 
-    private static void sendBulkRequest(String indexName, StringBuilder builder, RestClient client, Logger logger) throws IOException {
+    private static void sendBulkRequest(String indexName, StringBuilder builder, RestClient client, Logger logger, List<String> failures)
+        throws IOException {
         // The indexName is optional for a bulk request, but we use it for routing in MultiClusterSpecIT.
         builder.append("\n");
         logger.debug("Sending bulk request of [{}] bytes for [{}]", builder.length(), indexName);
@@ -422,12 +430,24 @@ public class CsvTestsDataLoader {
                 if (Boolean.FALSE.equals(errors)) {
                     logger.info("Data loading of [{}] bytes into [{}] OK", builder.length(), indexName);
                 } else {
-                    throw new IOException("Data loading of [" + indexName + "] failed with errors: " + errors);
+                    addError(failures, indexName, builder, "errors: " + result);
                 }
             }
         } else {
-            throw new IOException("Data loading of [" + indexName + "] failed with status: " + response.getStatusLine());
+            addError(failures, indexName, builder, "status: " + response.getStatusLine());
         }
+    }
+
+    private static void addError(List<String> failures, String indexName, StringBuilder builder, String message) {
+        failures.add(
+            format(
+                "Data loading of [{}] bytes into [{}] failed with {}: Data [{}...]",
+                builder.length(),
+                indexName,
+                message,
+                builder.substring(0, 100)
+            )
+        );
     }
 
     private static void forceMerge(RestClient client, Set<String> indices, Logger logger) throws IOException {

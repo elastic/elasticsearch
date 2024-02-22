@@ -66,7 +66,6 @@ abbrev:keyword  |  region:text         |  city_location:geo_point |  airport:tex
 CPH             |  Københavns Kommune  |  POINT(12.5683 55.6761)  |  Copenhagen    |  265
 ;
 
-geo_shapeEquals#[skip:-8.12.99, reason: spatial type geo_shape only added in 8.13]
 pointIntersectsStringPolygon#[skip:-8.12.99, reason:st_intersects added in 8.13]
 FROM airports
 | EVAL location = TO_GEOSHAPE(location)

@@ -613,7 +613,7 @@ public abstract class DocumentParserContext {
         if (objectMapper instanceof PassThroughObjectMapper passThroughObjectMapper) {
             containsDimensions = passThroughObjectMapper.containsDimensions();
         }
-        return new MapperBuilderContext(p, mappingLookup().isSourceSynthetic(), false, containsDimensions);
+        return new MapperBuilderContext(p, mappingLookup().isSourceSynthetic(), false, containsDimensions, dynamic);
     }
 
     public abstract XContentParser parser();

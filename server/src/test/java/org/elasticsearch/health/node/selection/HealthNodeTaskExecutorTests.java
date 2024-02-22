@@ -8,6 +8,7 @@
 
 package org.elasticsearch.health.node.selection;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -46,7 +47,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
-public class HealthNodeExecutorTests extends ESTestCase {
+public class HealthNodeTaskExecutorTests extends ESTestCase {
 
     /** Needed by {@link ClusterService} **/
     private static ThreadPool threadPool;
@@ -66,7 +67,7 @@ public class HealthNodeExecutorTests extends ESTestCase {
 
     @BeforeClass
     public static void setUpThreadPool() {
-        threadPool = new TestThreadPool(HealthNodeExecutorTests.class.getSimpleName());
+        threadPool = new TestThreadPool(HealthNodeTaskExecutorTests.class.getSimpleName());
     }
 
     @Before
@@ -91,20 +92,19 @@ public class HealthNodeExecutorTests extends ESTestCase {
         clusterService.close();
     }
 
-    public void testTaskCreation() {
-        HealthNodeTaskExecutor executor = HealthNodeTaskExecutor.create(
-            clusterService,
-            persistentTasksService,
-            featureService,
-            settings,
-            clusterSettings
-        );
-        executor.startTask(new ClusterChangedEvent("", initialState(), ClusterState.EMPTY_STATE));
-        verify(persistentTasksService, times(1)).sendStartRequest(
-            eq("health-node"),
-            eq("health-node"),
-            eq(new HealthNodeTaskParams()),
-            any()
+    public void testTaskCreation() throws Exception {
+        HealthNodeTaskExecutor.create(clusterService, persistentTasksService, featureService, settings, clusterSettings);
+        clusterService.getClusterApplierService().onNewClusterState("initialization", this::initialState, ActionListener.noop());
+        // Ensure that if the task is gone, it will be recreated.
+        clusterService.getClusterApplierService().onNewClusterState("initialization", this::initialState, ActionListener.noop());
+        assertBusy(
+            () -> verify(persistentTasksService, times(2)).sendStartRequest(
+                eq("health-node"),
+                eq("health-node"),
+                eq(new HealthNodeTaskParams()),
+                eq(null),
+                any()
+            )
         );
     }
 
@@ -121,6 +121,7 @@ public class HealthNodeExecutorTests extends ESTestCase {
             eq("health-node"),
             eq("health-node"),
             eq(new HealthNodeTaskParams()),
+            eq(null),
             any()
         );
     }

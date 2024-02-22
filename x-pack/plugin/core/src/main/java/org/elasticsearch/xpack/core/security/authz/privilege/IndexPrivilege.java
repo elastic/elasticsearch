@@ -32,6 +32,7 @@ import org.elasticsearch.action.datastreams.PromoteDataStreamAction;
 import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
 import org.elasticsearch.action.search.TransportSearchShardsAction;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.seqno.RetentionLeaseActions;
 import org.elasticsearch.xpack.core.ccr.action.ForgetFollowerAction;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
@@ -256,6 +257,11 @@ public final class IndexPrivilege extends Privilege {
                 return resolve(theName);
             }
         });
+    }
+
+    @Nullable
+    public static IndexPrivilege getNamedOrNull(String name) {
+        return VALUES.get(name.toLowerCase(Locale.ROOT));
     }
 
     private static IndexPrivilege resolve(Set<String> name) {

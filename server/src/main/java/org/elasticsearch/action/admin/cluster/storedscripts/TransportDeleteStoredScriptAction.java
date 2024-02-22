@@ -27,7 +27,7 @@ import org.elasticsearch.transport.TransportService;
 
 public class TransportDeleteStoredScriptAction extends AcknowledgedTransportMasterNodeAction<DeleteStoredScriptRequest> {
 
-    public static final ActionType<AcknowledgedResponse> TYPE = ActionType.localOnly("cluster:admin/script/delete");
+    public static final ActionType<AcknowledgedResponse> TYPE = new ActionType<>("cluster:admin/script/delete");
 
     @Inject
     public TransportDeleteStoredScriptAction(

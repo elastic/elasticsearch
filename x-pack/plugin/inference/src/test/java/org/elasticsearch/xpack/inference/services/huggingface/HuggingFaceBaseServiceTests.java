@@ -13,6 +13,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -64,7 +65,7 @@ public class HuggingFaceBaseServiceTests extends ESTestCase {
 
         try (var service = new TestService(new SetOnce<>(factory), new SetOnce<>(createWithEmptySettings(threadPool)))) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(mockModel, List.of(""), new HashMap<>(), listener);
+            service.infer(mockModel, List.of(""), new HashMap<>(), InputType.INGEST, listener);
 
             var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
             assertThat(
@@ -99,7 +100,7 @@ public class HuggingFaceBaseServiceTests extends ESTestCase {
 
         @Override
         protected HuggingFaceModel createModel(
-            String modelId,
+            String inferenceEntityId,
             TaskType taskType,
             Map<String, Object> serviceSettings,
             Map<String, Object> secretSettings,

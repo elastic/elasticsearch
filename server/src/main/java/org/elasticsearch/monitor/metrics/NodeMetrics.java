@@ -37,17 +37,23 @@ public class NodeMetrics extends AbstractLifecycleComponent {
     private final NodeService nodeService;
     private final List<AutoCloseable> metrics;
     private NodeStatsCache stats;
+    private final TimeValue cacheExpiry;
 
     /**
      * Constructs a new NodeMetrics instance.
      *
-     * @param meterRegistry The MeterRegistry used to register metrics.
-     * @param nodeService   The NodeService for interacting with the Elasticsearch node and extracting statistics.
-     */
-    public NodeMetrics(MeterRegistry meterRegistry, NodeService nodeService) {
+     * @param meterRegistry     The MeterRegistry used to register metrics.
+     * @param nodeService       The NodeService for interacting with the Elasticsearch node and extracting statistics.
+     * @param metricsInterval   The interval at which the agent sends metrics to the APM Server
+     * */
+    public NodeMetrics(MeterRegistry meterRegistry, NodeService nodeService, TimeValue metricsInterval) {
         this.registry = meterRegistry;
         this.nodeService = nodeService;
         this.metrics = new ArrayList<>(17);
+        // we set the cache to expire after half the interval at which the agent sends
+        // metrics to the APM Server so that there is enough time for the cache not
+        // update during the same poll period and that expires before a new poll period
+        this.cacheExpiry = new TimeValue(metricsInterval.getMillis() / 2);
     }
 
     /**
@@ -57,10 +63,7 @@ public class NodeMetrics extends AbstractLifecycleComponent {
      * @param registry The MeterRegistry used to register and collect metrics.
      */
     private void registerAsyncMetrics(MeterRegistry registry) {
-        // Agent should poll stats every 4 minutes and being this cache is lazy we need a
-        // number high enough so that the cache does not update during the same poll
-        // period and that expires before a new poll period, therefore we choose 1 minute.
-        this.stats = new NodeStatsCache(TimeValue.timeValueMinutes(1));
+        this.stats = new NodeStatsCache(cacheExpiry);
         metrics.add(
             registry.registerLongAsyncCounter(
                 "es.indices.get.total",

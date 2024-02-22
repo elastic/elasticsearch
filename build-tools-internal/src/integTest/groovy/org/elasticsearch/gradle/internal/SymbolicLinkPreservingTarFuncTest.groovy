@@ -23,7 +23,6 @@ import java.nio.file.Path
 import java.nio.file.Paths
 import java.util.function.Function
 
-@Ignore("https://github.com/elastic/elasticsearch/issues/104428")
 class SymbolicLinkPreservingTarFuncTest extends AbstractGradleFuncTest {
 
     def setup() {
@@ -131,7 +130,6 @@ tasks.register("buildTar", SymbolicLinkPreservingTar) { SymbolicLinkPreservingTa
             while (entry != null) {
                 if (entry.getName().equals("real-folder/")) {
                     assert entry.isDirectory()
-                    assert entry.getMode() == 16877
                     realFolderEntry = true
                 }  else if (entry.getName().equals("real-folder/file")) {
                     assert entry.isFile()

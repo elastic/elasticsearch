@@ -1,11 +1,24 @@
 [discrete]
 [[esql-to_ip]]
 === `TO_IP`
+
+*Syntax*
+
+[source,esql]
+----
+TO_IP(v)
+----
+
+*Parameters*
+
+`v`::
+Input value. The input can be a single- or multi-valued column or an expression.
+
+*Description*
+
 Converts an input string to an IP value.
 
-The input can be a single- or multi-valued field or an expression.
-
-Example:
+*Example*
 
 [source.merge.styled,esql]
 ----
@@ -16,10 +29,10 @@ include::{esql-specs}/ip.csv-spec[tag=to_ip]
 include::{esql-specs}/ip.csv-spec[tag=to_ip-result]
 |===
 
-Note that in the example above the last conversion of the string isn't
-possible. When this happens, the result is a *null* value. In this case a
-_Warning_ header is added to the response. The header will provide information
-on the source of the failure:
+Note that in this example, the last conversion of the string isn't possible.
+When this happens, the result is a *null* value. In this case a _Warning_ header
+is added to the response. The header will provide information on the source of
+the failure:
 
 `"Line 1:68: evaluation of [TO_IP(str2)] failed, treating result as null. Only first 20 failures recorded."`
 

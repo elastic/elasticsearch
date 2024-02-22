@@ -1,0 +1,5 @@
+pr: 103481
+summary: Redirect failed ingest node operations to a failure store when available
+area: Data streams
+type: feature
+issues: []

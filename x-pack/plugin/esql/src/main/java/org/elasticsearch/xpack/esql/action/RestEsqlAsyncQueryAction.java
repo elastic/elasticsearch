@@ -18,11 +18,11 @@ import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryResponse.DROP_NULL_COLUMNS_OPTION;
 import static org.elasticsearch.xpack.esql.formatter.TextFormat.URL_PARAM_DELIMITER;
 
 @ServerlessScope(Scope.PUBLIC)
@@ -60,6 +60,6 @@ public class RestEsqlAsyncQueryAction extends BaseRestHandler {
 
     @Override
     protected Set<String> responseParams() {
-        return Collections.singleton(URL_PARAM_DELIMITER);
+        return Set.of(URL_PARAM_DELIMITER, DROP_NULL_COLUMNS_OPTION);
     }
 }

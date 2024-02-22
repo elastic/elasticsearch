@@ -49,7 +49,7 @@ import java.util.Set;
 import java.util.function.IntFunction;
 
 import static java.util.Map.entry;
-import static org.elasticsearch.TransportVersions.GENERIC_NAMED_WRITABLE_ADDED;
+import static org.elasticsearch.TransportVersions.V_8_11_X;
 
 /**
  * A stream from another node to this node. Technically, it can also be streamed from a byte array but that is mostly for testing.
@@ -216,7 +216,7 @@ public abstract class StreamOutput extends OutputStream {
         writeBytes(buffer, 0, index);
     }
 
-    private static int putVInt(byte[] buffer, int i, int off) {
+    public static int putVInt(byte[] buffer, int i, int off) {
         if (Integer.numberOfLeadingZeros(i) >= 25) {
             buffer[off] = (byte) i;
             return 1;
@@ -596,10 +596,13 @@ public abstract class StreamOutput extends OutputStream {
      * @param valueWriter The value writer
      */
     public final <K, V> void writeMap(final Map<K, V> map, final Writer<K> keyWriter, final Writer<V> valueWriter) throws IOException {
-        writeVInt(map.size());
-        for (final Map.Entry<K, V> entry : map.entrySet()) {
-            keyWriter.write(this, entry.getKey());
-            valueWriter.write(this, entry.getValue());
+        int size = map.size();
+        writeVInt(size);
+        if (size > 0) {
+            for (final Map.Entry<K, V> entry : map.entrySet()) {
+                keyWriter.write(this, entry.getKey());
+                valueWriter.write(this, entry.getValue());
+            }
         }
     }
 
@@ -768,8 +771,7 @@ public abstract class StreamOutput extends OutputStream {
             // Note that we do not rely on the checks in VersionCheckingStreamOutput because that only applies to CCS
             final var genericNamedWriteable = (GenericNamedWriteable) v;
             TransportVersion minSupportedVersion = genericNamedWriteable.getMinimalSupportedVersion();
-            assert minSupportedVersion.onOrAfter(GENERIC_NAMED_WRITABLE_ADDED)
-                : "[GenericNamedWriteable] requires [" + GENERIC_NAMED_WRITABLE_ADDED + "]";
+            assert minSupportedVersion.onOrAfter(V_8_11_X) : "[GenericNamedWriteable] requires [" + V_8_11_X + "]";
             if (o.getTransportVersion().before(minSupportedVersion)) {
                 final var message = Strings.format(
                     "[%s] requires minimal transport version [%s] and cannot be sent using transport version [%s]",
@@ -785,8 +787,10 @@ public abstract class StreamOutput extends OutputStream {
         })
     );
 
+    public static final byte GENERIC_LIST_HEADER = (byte) 7;
+
     public <T> void writeGenericList(List<T> v, Writer<T> writer) throws IOException {
-        writeByte((byte) 7);
+        writeByte(GENERIC_LIST_HEADER);
         writeCollection(v, writer);
     }
 

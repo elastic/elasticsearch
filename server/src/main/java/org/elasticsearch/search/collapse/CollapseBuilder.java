@@ -102,11 +102,21 @@ public class CollapseBuilder implements Writeable, ToXContentObject {
     }
 
     public CollapseBuilder setInnerHits(InnerHitBuilder innerHit) {
+        if (innerHit.getName() == null) {
+            throw new IllegalArgumentException("inner_hits must have a [name]; set the [name] field in the inner_hits definition");
+        }
         this.innerHits = Collections.singletonList(innerHit);
         return this;
     }
 
     public CollapseBuilder setInnerHits(List<InnerHitBuilder> innerHits) {
+        if (innerHits != null) {
+            for (InnerHitBuilder innerHit : innerHits) {
+                if (innerHit.getName() == null) {
+                    throw new IllegalArgumentException("inner_hits must have a [name]; set the [name] field in the inner_hits definition");
+                }
+            }
+        }
         this.innerHits = innerHits;
         return this;
     }

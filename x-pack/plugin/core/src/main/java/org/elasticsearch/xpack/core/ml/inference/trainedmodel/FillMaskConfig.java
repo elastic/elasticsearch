@@ -115,7 +115,7 @@ public class FillMaskConfig implements NlpConfig {
             return builder.build();
         } else if (update instanceof TokenizationConfigUpdate tokenizationUpdate) {
             FillMaskConfig.Builder builder = new FillMaskConfig.Builder(this);
-            return builder.setTokenization(this.getTokenization().updateSpanSettings(tokenizationUpdate.getSpanSettings())).build();
+            return builder.setTokenization(this.getTokenization().updateWindowSettings(tokenizationUpdate.getSpanSettings())).build();
         } else {
             throw incompatibleUpdateException(update.getName());
         }

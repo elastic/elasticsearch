@@ -13,6 +13,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.document.DocumentField;
@@ -25,7 +26,9 @@ import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.core.SimpleRefCounted;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
@@ -35,6 +38,7 @@ import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.search.fetch.subphase.LookupField;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.transport.LeakTracker;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -51,10 +55,12 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
@@ -70,7 +76,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  *
  * @see SearchHits
  */
-public final class SearchHit implements Writeable, ToXContentObject {
+public final class SearchHit implements Writeable, ToXContentObject, RefCounted {
 
     private final transient int docId;
 
@@ -114,6 +120,8 @@ public final class SearchHit implements Writeable, ToXContentObject {
 
     private Map<String, SearchHits> innerHits;
 
+    private final RefCounted refCounted;
+
     // used only in tests
     public SearchHit(int docId) {
         this(docId, null);
@@ -124,6 +132,10 @@ public final class SearchHit implements Writeable, ToXContentObject {
     }
 
     public SearchHit(int nestedTopDocId, String id, NestedIdentity nestedIdentity) {
+        this(nestedTopDocId, id, nestedIdentity, null);
+    }
+
+    private SearchHit(int nestedTopDocId, String id, NestedIdentity nestedIdentity, @Nullable RefCounted refCounted) {
         this(
             nestedTopDocId,
             DEFAULT_SCORE,
@@ -142,8 +154,10 @@ public final class SearchHit implements Writeable, ToXContentObject {
             null,
             null,
             null,
+            null,
             new HashMap<>(),
-            new HashMap<>()
+            new HashMap<>(),
+            refCounted
         );
     }
 
@@ -164,9 +178,11 @@ public final class SearchHit implements Writeable, ToXContentObject {
         SearchShardTarget shard,
         String index,
         String clusterAlias,
+        Map<String, Object> sourceAsMap,
         Map<String, SearchHits> innerHits,
         Map<String, DocumentField> documentFields,
-        Map<String, DocumentField> metaFields
+        Map<String, DocumentField> metaFields,
+        @Nullable RefCounted refCounted
     ) {
         this.docId = docId;
         this.score = score;
@@ -184,12 +200,14 @@ public final class SearchHit implements Writeable, ToXContentObject {
         this.shard = shard;
         this.index = index;
         this.clusterAlias = clusterAlias;
+        this.sourceAsMap = sourceAsMap;
         this.innerHits = innerHits;
         this.documentFields = documentFields;
         this.metaFields = metaFields;
+        this.refCounted = refCounted == null ? LeakTracker.wrap(new SimpleRefCounted()) : ALWAYS_REFERENCED;
     }
 
-    public static SearchHit readFrom(StreamInput in) throws IOException {
+    public static SearchHit readFrom(StreamInput in, boolean pooled) throws IOException {
         final float score = in.readFloat();
         final int rank;
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
@@ -205,7 +223,7 @@ public final class SearchHit implements Writeable, ToXContentObject {
         final long version = in.readLong();
         final long seqNo = in.readZLong();
         final long primaryTerm = in.readVLong();
-        BytesReference source = in.readBytesReference();
+        BytesReference source = pooled ? in.readReleasableBytesReference() : in.readBytesReference();
         if (source.length() == 0) {
             source = null;
         }
@@ -244,7 +262,7 @@ public final class SearchHit implements Writeable, ToXContentObject {
         if (size > 0) {
             innerHits = Maps.newMapWithExpectedSize(size);
             for (int i = 0; i < size; i++) {
-                innerHits.put(in.readString(), new SearchHits(in));
+                innerHits.put(in.readString(), SearchHits.readFrom(in, pooled));
             }
         } else {
             innerHits = null;
@@ -266,16 +284,31 @@ public final class SearchHit implements Writeable, ToXContentObject {
             shardTarget,
             index,
             clusterAlias,
+            null,
             innerHits,
             documentFields,
-            metaFields
+            metaFields,
+            pooled ? null : ALWAYS_REFERENCED
         );
+    }
+
+    public static SearchHit unpooled(int docId) {
+        return unpooled(docId, null);
+    }
+
+    public static SearchHit unpooled(int docId, String id) {
+        return unpooled(docId, id, null);
+    }
+
+    public static SearchHit unpooled(int nestedTopDocId, String id, NestedIdentity nestedIdentity) {
+        return new SearchHit(nestedTopDocId, id, nestedIdentity, ALWAYS_REFERENCED);
     }
 
     private static final Text SINGLE_MAPPING_TYPE = new Text(MapperService.SINGLE_MAPPING_NAME);
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        assert hasReferences();
         out.writeFloat(score);
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
             out.writeVInt(rank);
@@ -401,6 +434,7 @@ public final class SearchHit implements Writeable, ToXContentObject {
      * Returns bytes reference, also uncompress the source if needed.
      */
     public BytesReference getSourceRef() {
+        assert hasReferences();
         if (this.source == null) {
             return null;
         }
@@ -427,6 +461,7 @@ public final class SearchHit implements Writeable, ToXContentObject {
      * {@code _source} or if source is disabled in the mapping.
      */
     public boolean hasSource() {
+        assert hasReferences();
         return source != null;
     }
 
@@ -434,6 +469,7 @@ public final class SearchHit implements Writeable, ToXContentObject {
      * The source of the document as string (can be {@code null}).
      */
     public String getSourceAsString() {
+        assert hasReferences();
         if (source == null) {
             return null;
         }
@@ -448,6 +484,7 @@ public final class SearchHit implements Writeable, ToXContentObject {
      * The source of the document as a map (can be {@code null}).
      */
     public Map<String, Object> getSourceAsMap() {
+        assert hasReferences();
         if (source == null) {
             return null;
         }
@@ -463,6 +500,7 @@ public final class SearchHit implements Writeable, ToXContentObject {
      * The hit field matching the given field name.
      */
     public DocumentField field(String fieldName) {
+        assert hasReferences();
         DocumentField result = documentFields.get(fieldName);
         if (result != null) {
             return result;
@@ -527,25 +565,24 @@ public final class SearchHit implements Writeable, ToXContentObject {
         if (lookupResults.isEmpty()) {
             return;
         }
-        final List<String> fields = new ArrayList<>(documentFields.keySet());
-        for (String field : fields) {
-            documentFields.computeIfPresent(field, (k, docField) -> {
-                if (docField.getLookupFields().isEmpty()) {
-                    return docField;
+        for (Iterator<Map.Entry<String, DocumentField>> iterator = documentFields.entrySet().iterator(); iterator.hasNext();) {
+            Map.Entry<String, DocumentField> entry = iterator.next();
+            final DocumentField docField = entry.getValue();
+            if (docField.getLookupFields().isEmpty()) {
+                continue;
+            }
+            final List<Object> newValues = new ArrayList<>(docField.getValues());
+            for (LookupField lookupField : docField.getLookupFields()) {
+                final List<Object> resolvedValues = lookupResults.get(lookupField);
+                if (resolvedValues != null) {
+                    newValues.addAll(resolvedValues);
                 }
-                final List<Object> newValues = new ArrayList<>(docField.getValues());
-                for (LookupField lookupField : docField.getLookupFields()) {
-                    final List<Object> resolvedValues = lookupResults.get(lookupField);
-                    if (resolvedValues != null) {
-                        newValues.addAll(resolvedValues);
-                    }
-                }
-                if (newValues.isEmpty() && docField.getIgnoredValues().isEmpty()) {
-                    return null;
-                } else {
-                    return new DocumentField(docField.getName(), newValues, docField.getIgnoredValues());
-                }
-            });
+            }
+            if (newValues.isEmpty() && docField.getIgnoredValues().isEmpty()) {
+                iterator.remove();
+            } else {
+                entry.setValue(new DocumentField(docField.getName(), newValues, docField.getIgnoredValues()));
+            }
         }
         assert hasLookupFields() == false : "Some lookup fields are not resolved";
     }
@@ -653,11 +690,87 @@ public final class SearchHit implements Writeable, ToXContentObject {
      * @return Inner hits or <code>null</code> if there are none
      */
     public Map<String, SearchHits> getInnerHits() {
+        assert hasReferences();
         return innerHits;
     }
 
     public void setInnerHits(Map<String, SearchHits> innerHits) {
+        assert innerHits == null || innerHits.values().stream().noneMatch(h -> h.hasReferences() == false);
+        assert this.innerHits == null;
         this.innerHits = innerHits;
+    }
+
+    @Override
+    public void incRef() {
+        refCounted.incRef();
+    }
+
+    @Override
+    public boolean tryIncRef() {
+        return refCounted.tryIncRef();
+    }
+
+    @Override
+    public boolean decRef() {
+        if (refCounted.decRef()) {
+            deallocate();
+            return true;
+        }
+        return false;
+    }
+
+    private void deallocate() {
+        if (SearchHit.this.innerHits != null) {
+            for (SearchHits h : SearchHit.this.innerHits.values()) {
+                h.decRef();
+            }
+            SearchHit.this.innerHits = null;
+        }
+        if (SearchHit.this.source instanceof RefCounted r) {
+            r.decRef();
+        }
+        SearchHit.this.source = null;
+    }
+
+    @Override
+    public boolean hasReferences() {
+        return refCounted.hasReferences();
+    }
+
+    public SearchHit asUnpooled() {
+        assert hasReferences();
+        if (isPooled() == false) {
+            return this;
+        }
+        return new SearchHit(
+            docId,
+            score,
+            rank,
+            id,
+            nestedIdentity,
+            version,
+            seqNo,
+            primaryTerm,
+            source instanceof RefCounted ? new BytesArray(source.toBytesRef(), true) : source,
+            highlightFields,
+            sortValues,
+            matchedQueries,
+            explanation,
+            shard,
+            index,
+            clusterAlias,
+            sourceAsMap,
+            innerHits == null
+                ? null
+                : innerHits.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().asUnpooled())),
+            documentFields,
+            metaFields,
+            ALWAYS_REFERENCED
+        );
+    }
+
+    public boolean isPooled() {
+        return refCounted != ALWAYS_REFERENCED;
     }
 
     public static class Fields {
@@ -690,6 +803,7 @@ public final class SearchHit implements Writeable, ToXContentObject {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        assert hasReferences();
         builder.startObject();
         toInnerXContent(builder, params);
         builder.endObject();
@@ -972,9 +1086,11 @@ public final class SearchHit implements Writeable, ToXContentObject {
             shardTarget,
             index,
             clusterAlias,
+            null,
             get(Fields.INNER_HITS, values, null),
             get(DOCUMENT_FIELDS, values, Collections.emptyMap()),
-            get(METADATA_FIELDS, values, Collections.emptyMap())
+            get(METADATA_FIELDS, values, Collections.emptyMap()),
+            ALWAYS_REFERENCED // TODO: do we ever want pooling here?
         );
     }
 

@@ -32,7 +32,7 @@ import java.util.function.Supplier;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 
 public abstract class AbstractXContentTestCase<T extends ToXContent> extends ESTestCase {
-    protected static final int NUMBER_OF_TEST_RUNS = 20;
+    public static final int NUMBER_OF_TEST_RUNS = 20;
 
     public static <T> XContentTester<T> xContentTester(
         CheckedBiFunction<XContent, BytesReference, XContentParser, IOException> createParser,

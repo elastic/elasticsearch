@@ -13,7 +13,6 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
-import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
 
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
@@ -87,18 +86,8 @@ public class InternalDateRangeTests extends InternalRangeTestCase<InternalDateRa
     }
 
     @Override
-    protected Class<ParsedDateRange> implementationClass() {
-        return ParsedDateRange.class;
-    }
-
-    @Override
     protected Class<? extends InternalMultiBucketAggregation.InternalBucket> internalRangeBucketClass() {
         return InternalDateRange.Bucket.class;
-    }
-
-    @Override
-    protected Class<? extends ParsedMultiBucketAggregation.ParsedBucket> parsedRangeBucketClass() {
-        return ParsedDateRange.ParsedBucket.class;
     }
 
     @Override

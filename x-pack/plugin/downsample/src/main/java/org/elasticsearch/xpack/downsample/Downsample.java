@@ -21,6 +21,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
@@ -39,6 +40,7 @@ import org.elasticsearch.xpack.core.downsample.DownsampleShardPersistentTaskStat
 import org.elasticsearch.xpack.core.downsample.DownsampleShardTask;
 
 import java.util.List;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 public class Downsample extends Plugin implements ActionPlugin, PersistentTaskPlugin {
@@ -81,7 +83,8 @@ public class Downsample extends Plugin implements ActionPlugin, PersistentTaskPl
         IndexScopedSettings indexScopedSettings,
         SettingsFilter settingsFilter,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<DiscoveryNodes> nodesInCluster
+        Supplier<DiscoveryNodes> nodesInCluster,
+        Predicate<NodeFeature> clusterSupportsFeature
     ) {
         return List.of(new RestDownsampleAction());
     }
@@ -94,7 +97,13 @@ public class Downsample extends Plugin implements ActionPlugin, PersistentTaskPl
         SettingsModule settingsModule,
         IndexNameExpressionResolver expressionResolver
     ) {
-        return List.of(new DownsampleShardPersistentTaskExecutor(client, DownsampleShardTask.TASK_NAME, DOWNSAMPLE_TASK_THREAD_POOL_NAME));
+        return List.of(
+            new DownsampleShardPersistentTaskExecutor(
+                client,
+                DownsampleShardTask.TASK_NAME,
+                threadPool.executor(DOWNSAMPLE_TASK_THREAD_POOL_NAME)
+            )
+        );
     }
 
     @Override

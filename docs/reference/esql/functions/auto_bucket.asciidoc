@@ -2,17 +2,19 @@
 [[esql-auto_bucket]]
 === `AUTO_BUCKET`
 
+experimental::[]
+
 *Syntax*
 
 [source,esql]
 ----
-AUTO_BUCKET(field, buckets, from, to)
+AUTO_BUCKET(expression, buckets, from, to)
 ----
 
 *Parameters*
 
 `field`::
-Numeric or date column from which to derive buckets.
+Numeric or date expression from which to derive buckets.
 
 `buckets`::
 Target number of buckets.

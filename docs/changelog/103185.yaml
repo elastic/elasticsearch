@@ -1,5 +1,0 @@
-pr: 103185
-summary: Fix format string in `OldLuceneVersions`
-area: Search
-type: bug
-issues: []

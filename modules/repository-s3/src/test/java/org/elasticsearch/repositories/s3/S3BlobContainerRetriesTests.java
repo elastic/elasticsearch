@@ -7,6 +7,8 @@
  */
 package org.elasticsearch.repositories.s3;
 
+import fixture.s3.S3HttpHandler;
+
 import com.amazonaws.DnsResolver;
 import com.amazonaws.SdkClientException;
 import com.amazonaws.services.s3.AmazonS3ClientBuilder;
@@ -41,6 +43,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.blobstore.AbstractBlobContainerRetriesTestCase;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
+import org.elasticsearch.watcher.ResourceWatcherService;
 import org.hamcrest.Matcher;
 import org.junit.After;
 import org.junit.Before;
@@ -92,7 +95,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
     @Before
     public void setUp() throws Exception {
         shouldErrorOnDns = new AtomicBoolean(false);
-        service = new S3Service(Mockito.mock(Environment.class), Settings.EMPTY) {
+        service = new S3Service(Mockito.mock(Environment.class), Settings.EMPTY, Mockito.mock(ResourceWatcherService.class)) {
             @Override
             protected AmazonS3ClientBuilder buildClientBuilder(S3ClientSettings clientSettings) {
                 final AmazonS3ClientBuilder builder = super.buildClientBuilder(clientSettings);
@@ -229,7 +232,10 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
 
         final byte[] bytes = randomBlobContent();
         httpServer.createContext(downloadStorageEndpoint(blobContainer, "write_blob_max_retries"), exchange -> {
-            if ("PUT".equals(exchange.getRequestMethod()) && exchange.getRequestURI().getQuery() == null) {
+            final S3HttpHandler.RequestComponents requestComponents = S3HttpHandler.parseRequestComponents(
+                S3HttpHandler.getRawRequestString(exchange)
+            );
+            if ("PUT".equals(requestComponents.method()) && requestComponents.query().isEmpty()) {
                 if (countDown.countDown()) {
                     final BytesReference body = Streams.readFully(exchange.getRequestBody());
                     if (Objects.deepEquals(bytes, BytesReference.toBytes(body))) {
@@ -318,9 +324,12 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         final CountDown countDownComplete = new CountDown(nbErrors);
 
         httpServer.createContext(downloadStorageEndpoint(blobContainer, "write_large_blob"), exchange -> {
+            final S3HttpHandler.RequestComponents requestComponents = S3HttpHandler.parseRequestComponents(
+                S3HttpHandler.getRawRequestString(exchange)
+            );
             final long contentLength = Long.parseLong(exchange.getRequestHeaders().getFirst("Content-Length"));
 
-            if ("POST".equals(exchange.getRequestMethod()) && exchange.getRequestURI().getQuery().equals("uploads")) {
+            if ("POST".equals(requestComponents.method()) && requestComponents.query().equals("uploads")) {
                 // initiate multipart upload request
                 if (countDownInitiate.countDown()) {
                     byte[] response = ("""
@@ -336,9 +345,9 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
                     exchange.close();
                     return;
                 }
-            } else if ("PUT".equals(exchange.getRequestMethod())
-                && exchange.getRequestURI().getQuery().contains("uploadId=TEST")
-                && exchange.getRequestURI().getQuery().contains("partNumber=")) {
+            } else if ("PUT".equals(requestComponents.method())
+                && requestComponents.query().contains("uploadId=TEST")
+                && requestComponents.query().contains("partNumber=")) {
                     // upload part request
                     MD5DigestCalculatingInputStream md5 = new MD5DigestCalculatingInputStream(exchange.getRequestBody());
                     BytesReference bytes = Streams.readFully(md5);
@@ -352,7 +361,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
                         return;
                     }
 
-                } else if ("POST".equals(exchange.getRequestMethod()) && exchange.getRequestURI().getQuery().equals("uploadId=TEST")) {
+                } else if ("POST".equals(requestComponents.method()) && requestComponents.query().equals("uploadId=TEST")) {
                     // complete multipart upload request
                     if (countDownComplete.countDown()) {
                         Streams.readFully(exchange.getRequestBody());
@@ -417,9 +426,12 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         final CountDown countDownComplete = new CountDown(nbErrors);
 
         httpServer.createContext(downloadStorageEndpoint(blobContainer, "write_large_blob_streaming"), exchange -> {
+            final S3HttpHandler.RequestComponents requestComponents = S3HttpHandler.parseRequestComponents(
+                S3HttpHandler.getRawRequestString(exchange)
+            );
             final long contentLength = Long.parseLong(exchange.getRequestHeaders().getFirst("Content-Length"));
 
-            if ("POST".equals(exchange.getRequestMethod()) && exchange.getRequestURI().getQuery().equals("uploads")) {
+            if ("POST".equals(requestComponents.method()) && requestComponents.query().equals("uploads")) {
                 // initiate multipart upload request
                 if (countDownInitiate.countDown()) {
                     byte[] response = ("""
@@ -435,9 +447,9 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
                     exchange.close();
                     return;
                 }
-            } else if ("PUT".equals(exchange.getRequestMethod())
-                && exchange.getRequestURI().getQuery().contains("uploadId=TEST")
-                && exchange.getRequestURI().getQuery().contains("partNumber=")) {
+            } else if ("PUT".equals(requestComponents.method())
+                && requestComponents.query().contains("uploadId=TEST")
+                && requestComponents.query().contains("partNumber=")) {
                     // upload part request
                     MD5DigestCalculatingInputStream md5 = new MD5DigestCalculatingInputStream(exchange.getRequestBody());
                     BytesReference bytes = Streams.readFully(md5);
@@ -450,7 +462,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
                         return;
                     }
 
-                } else if ("POST".equals(exchange.getRequestMethod()) && exchange.getRequestURI().getQuery().equals("uploadId=TEST")) {
+                } else if ("POST".equals(requestComponents.method()) && requestComponents.query().equals("uploadId=TEST")) {
                     // complete multipart upload request
                     if (countDownComplete.countDown()) {
                         Streams.readFully(exchange.getRequestBody());
@@ -509,7 +521,6 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         assertEquals(blobSize, bytesReceived.get());
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/104436")
     public void testReadRetriesAfterMeaningfulProgress() throws Exception {
         final int maxRetries = between(0, 5);
         final int bufferSizeBytes = scaledRandomIntBetween(

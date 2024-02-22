@@ -212,6 +212,24 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
     }
 
     /**
+     * Derives basic checkpointing stats.  This does not make a call to obtain any additional information.
+     * This will only read checkpointing information from this TransformTask.
+     *
+     * @return basic checkpointing info, including id, position, and progress of the Next Checkpoint and the id of the Last Checkpoint.
+     */
+    public TransformCheckpointingInfo deriveBasicCheckpointingInfo() {
+        var transformIndexer = getIndexer();
+        if (transformIndexer == null) {
+            return TransformCheckpointingInfo.EMPTY;
+        }
+        return new TransformCheckpointingInfo.TransformCheckpointingInfoBuilder().setLastCheckpoint(transformIndexer.getLastCheckpoint())
+            .setNextCheckpoint(transformIndexer.getNextCheckpoint())
+            .setNextCheckpointPosition(transformIndexer.getPosition())
+            .setNextCheckpointProgress(transformIndexer.getProgress())
+            .build();
+    }
+
+    /**
      * Starts the transform and schedules it to be triggered in the future.
      *
      * @param startingCheckpoint The starting checkpoint, could null. Null indicates that there is no starting checkpoint
@@ -426,11 +444,12 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
                 return;
             }
 
-            // ignore trigger if indexer is running or completely stopped
+            // ignore trigger if indexer is running, stopping, stopped or aborting
             IndexerState indexerState = getIndexer().getState();
             if (IndexerState.INDEXING.equals(indexerState)
                 || IndexerState.STOPPING.equals(indexerState)
-                || IndexerState.STOPPED.equals(indexerState)) {
+                || IndexerState.STOPPED.equals(indexerState)
+                || IndexerState.ABORTING.equals(indexerState)) {
                 logger.debug("[{}] indexer for transform has state [{}]. Ignoring trigger.", getTransformId(), indexerState);
                 return;
             }
@@ -557,7 +576,12 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
     }
 
     void initializeIndexer(ClientTransformIndexerBuilder indexerBuilder) {
-        indexer.set(indexerBuilder.build(getThreadPool(), context));
+        initializeIndexer(indexerBuilder.build(getThreadPool(), context));
+    }
+
+    /** Visible for testing. */
+    void initializeIndexer(ClientTransformIndexer indexer) {
+        this.indexer.set(indexer);
     }
 
     ThreadPool getThreadPool() {

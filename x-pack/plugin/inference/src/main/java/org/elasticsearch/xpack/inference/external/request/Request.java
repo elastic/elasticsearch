@@ -7,12 +7,10 @@
 
 package org.elasticsearch.xpack.inference.external.request;
 
-import org.apache.http.client.methods.HttpRequestBase;
-
 import java.net.URI;
 
 public interface Request {
-    HttpRequestBase createRequest();
+    HttpRequest createHttpRequest();
 
     URI getURI();
 
@@ -27,4 +25,10 @@ public interface Request {
      * sent to the 3rd party server.
      */
     boolean[] getTruncationInfo();
+
+    /**
+     * Provides access to an identifier to determine which inference configuration this request originated from.
+     * @return the unique identifier for the inference entity configuration
+     */
+    String getInferenceEntityId();
 }

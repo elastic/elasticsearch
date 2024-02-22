@@ -124,7 +124,20 @@ public final class DataStreamTestHelper {
         @Nullable DataStreamLifecycle lifecycle,
         List<Index> failureStores
     ) {
-        return new DataStream(name, indices, generation, metadata, false, replicated, false, false, null, lifecycle, false, failureStores);
+        return new DataStream(
+            name,
+            indices,
+            generation,
+            metadata,
+            false,
+            replicated,
+            false,
+            false,
+            null,
+            lifecycle,
+            failureStores.size() > 0,
+            failureStores
+        );
     }
 
     public static String getLegacyDefaultBackingIndexName(
@@ -164,6 +177,25 @@ public final class DataStreamTestHelper {
 
     public static IndexMetadata.Builder createBackingIndex(String dataStreamName, int generation, long epochMillis) {
         return IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, generation, epochMillis))
+            .settings(SETTINGS)
+            .numberOfShards(NUMBER_OF_SHARDS)
+            .numberOfReplicas(NUMBER_OF_REPLICAS);
+    }
+
+    public static IndexMetadata.Builder createFirstFailureStore(String dataStreamName) {
+        return createFailureStore(dataStreamName, 1, System.currentTimeMillis());
+    }
+
+    public static IndexMetadata.Builder createFirstFailureStore(String dataStreamName, long epochMillis) {
+        return createFailureStore(dataStreamName, 1, epochMillis);
+    }
+
+    public static IndexMetadata.Builder createFailureStore(String dataStreamName, int generation) {
+        return createFailureStore(dataStreamName, generation, System.currentTimeMillis());
+    }
+
+    public static IndexMetadata.Builder createFailureStore(String dataStreamName, int generation, long epochMillis) {
+        return IndexMetadata.builder(DataStream.getDefaultFailureStoreName(dataStreamName, generation, epochMillis))
             .settings(SETTINGS)
             .numberOfShards(NUMBER_OF_SHARDS)
             .numberOfReplicas(NUMBER_OF_REPLICAS);

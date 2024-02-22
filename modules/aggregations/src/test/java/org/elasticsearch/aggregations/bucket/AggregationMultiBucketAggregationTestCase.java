@@ -9,18 +9,10 @@
 package org.elasticsearch.aggregations.bucket;
 
 import org.elasticsearch.aggregations.AggregationsPlugin;
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.plugins.SearchPlugin;
-import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
-import org.elasticsearch.xcontent.ContextParser;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.ParseField;
-
-import java.util.List;
-import java.util.Map;
 
 /**
  * Base class for unit testing multi bucket aggregation's bucket implementations that reside in aggregations module.
@@ -34,16 +26,5 @@ public abstract class AggregationMultiBucketAggregationTestCase<T extends Intern
     protected SearchPlugin registerPlugin() {
         return new AggregationsPlugin();
     }
-
-    @Override
-    protected List<NamedXContentRegistry.Entry> getNamedXContents() {
-        var entry = getParser();
-        return CollectionUtils.appendToCopy(
-            getDefaultNamedXContents(),
-            new NamedXContentRegistry.Entry(Aggregation.class, new ParseField(entry.getKey()), entry.getValue())
-        );
-    }
-
-    protected abstract Map.Entry<String, ContextParser<Object, Aggregation>> getParser();
 
 }

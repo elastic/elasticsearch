@@ -43,7 +43,7 @@ public class TransportClearVotingConfigExclusionsAction extends TransportMasterN
     ClearVotingConfigExclusionsRequest,
     ActionResponse.Empty> {
 
-    public static final ActionType<ActionResponse.Empty> TYPE = ActionType.emptyResponse("cluster:admin/voting_config/clear_exclusions");
+    public static final ActionType<ActionResponse.Empty> TYPE = new ActionType<>("cluster:admin/voting_config/clear_exclusions");
     private static final Logger logger = LogManager.getLogger(TransportClearVotingConfigExclusionsAction.class);
     private final Reconfigurator reconfigurator;
 

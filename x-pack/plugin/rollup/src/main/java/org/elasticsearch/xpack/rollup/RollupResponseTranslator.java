@@ -257,9 +257,7 @@ public class RollupResponseTranslator {
         AggregationReduceContext.Builder reduceContextBuilder
     ) {
 
-        final InternalAggregations liveAggs = liveResponse != null
-            ? (InternalAggregations) liveResponse.getAggregations()
-            : InternalAggregations.EMPTY;
+        final InternalAggregations liveAggs = liveResponse != null ? liveResponse.getAggregations() : InternalAggregations.EMPTY;
 
         int missingRollupAggs = rolledResponses.stream().mapToInt(searchResponse -> {
             if (searchResponse == null
@@ -386,7 +384,7 @@ public class RollupResponseTranslator {
                 count = getAggCount(agg, rolled.getAsMap());
             }
 
-            return unrollAgg((InternalAggregation) agg, original.get(agg.getName()), currentTree.get(agg.getName()), count);
+            return unrollAgg(agg, original.get(agg.getName()), currentTree.get(agg.getName()), count);
         }).collect(Collectors.toList());
     }
 
@@ -580,7 +578,7 @@ public class RollupResponseTranslator {
                         currentSubAgg = currentTree.getAggregations().get(subAgg.getName());
                     }
 
-                    return unrollAgg((InternalAggregation) subAgg, originalSubAgg, currentSubAgg, count);
+                    return unrollAgg(subAgg, originalSubAgg, currentSubAgg, count);
                 })
                 .collect(Collectors.toList())
         );
@@ -619,7 +617,7 @@ public class RollupResponseTranslator {
         }
     }
 
-    private static long getAggCount(Aggregation agg, Map<String, Aggregation> aggMap) {
+    private static long getAggCount(Aggregation agg, Map<String, InternalAggregation> aggMap) {
         String countPath = null;
 
         if (agg.getType().equals(DateHistogramAggregationBuilder.NAME)

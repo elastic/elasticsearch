@@ -1,0 +1,5 @@
+pr: 104559
+summary: Adding support for Cohere inference service
+area: Machine Learning
+type: enhancement
+issues: []

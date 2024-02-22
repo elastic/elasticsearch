@@ -32,7 +32,7 @@ public class ForecastJobAction extends ActionType<ForecastJobAction.Response> {
     public static final String NAME = "cluster:admin/xpack/ml/job/forecast";
 
     private ForecastJobAction() {
-        super(NAME, ForecastJobAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends JobTaskRequest<Request> implements ToXContentObject {

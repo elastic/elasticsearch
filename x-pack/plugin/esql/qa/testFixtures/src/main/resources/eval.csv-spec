@@ -262,6 +262,24 @@ FROM sample_data
 @timestamp:date | client_ip:ip | event_duration:long | message:keyword |  duration_ms:double
 ;
 
+docsLength
+// tag::length[]
+FROM employees
+| KEEP first_name, last_name
+| EVAL fn_length = LENGTH(first_name)
+// end::length[]
+| SORT first_name
+| LIMIT 3
+;
+
+// tag::length-result[]
+first_name:keyword   | last_name:keyword   | fn_length:integer
+Alejandro      |McAlpine       |9              
+Amabile        |Gomatam        |7              
+Anneke         |Preusig        |6
+// end::length-result[]
+;
+
 docsGettingStartedEvalNoColumnName
 // tag::gs-eval-no-column-name[]
 FROM sample_data
@@ -319,7 +337,7 @@ Parto          |Bamford        |6.004230000000001
 // end::evalReplace-result[]
 ;
 
-docsEvalUnnamedColumn
+docsEvalUnnamedColumn#[skip:-8.12.99,reason:expression spaces are maintained since 8.13]
 // tag::evalUnnamedColumn[]
 FROM employees
 | SORT emp_no
@@ -329,18 +347,18 @@ FROM employees
 | LIMIT 3;
 
 // tag::evalUnnamedColumn-result[]
-first_name:keyword | last_name:keyword | height:double | height*3.281:double
+first_name:keyword | last_name:keyword | height:double | height * 3.281:double
 Georgi         |Facello        |2.03           |6.66043           
 Bezalel        |Simmel         |2.08           |6.82448           
 Parto          |Bamford        |1.83           |6.004230000000001
 // end::evalUnnamedColumn-result[]
 ;
 
-docsEvalUnnamedColumnStats
+docsEvalUnnamedColumnStats#[skip:-8.12.99,reason:expression spaces are maintained since 8.13]
 // tag::evalUnnamedColumnStats[]
 FROM employees
 | EVAL height * 3.281
-| STATS avg_height_feet = AVG(`height*3.281`)
+| STATS avg_height_feet = AVG(`height * 3.281`)
 // end::evalUnnamedColumnStats[]
 ;
 
@@ -349,3 +367,5 @@ avg_height_feet:double
 5.801464200000001
 // end::evalUnnamedColumnStats-result[]
 ;
+
+

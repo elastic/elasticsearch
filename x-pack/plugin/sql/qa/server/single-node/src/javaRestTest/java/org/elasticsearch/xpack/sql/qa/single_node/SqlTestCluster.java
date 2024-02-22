@@ -23,7 +23,7 @@ public class SqlTestCluster {
             .setting("xpack.license.self_generated.type", "trial");
 
         if (enableFreezing) {
-            settings = settings.plugin(":x-pack:qa:freeze-plugin");
+            settings = settings.plugin("freeze-plugin");
         }
 
         return settings.build();

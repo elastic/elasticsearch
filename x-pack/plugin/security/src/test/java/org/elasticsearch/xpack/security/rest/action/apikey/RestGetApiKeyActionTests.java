@@ -22,6 +22,7 @@ import org.elasticsearch.rest.AbstractRestChannel;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -60,7 +61,7 @@ public class RestGetApiKeyActionTests extends ESTestCase {
             .put("node.name", "test-" + getTestName())
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
             .build();
-        threadPool = new ThreadPool(settings);
+        threadPool = new ThreadPool(settings, MeterRegistry.NOOP);
     }
 
     @Override
@@ -116,6 +117,7 @@ public class RestGetApiKeyActionTests extends ESTestCase {
                     null,
                     "user-x",
                     "realm-1",
+                    "realm-type-1",
                     metadata,
                     roleDescriptors,
                     limitedByRoleDescriptors
@@ -175,6 +177,7 @@ public class RestGetApiKeyActionTests extends ESTestCase {
                         null,
                         "user-x",
                         "realm-1",
+                        "realm-type-1",
                         metadata,
                         roleDescriptors,
                         limitedByRoleDescriptors
@@ -225,6 +228,7 @@ public class RestGetApiKeyActionTests extends ESTestCase {
             null,
             "user-x",
             "realm-1",
+            "realm-type-1",
             ApiKeyTests.randomMetadata(),
             type == ApiKey.Type.CROSS_CLUSTER
                 ? List.of(randomCrossClusterAccessRoleDescriptor())
@@ -241,6 +245,7 @@ public class RestGetApiKeyActionTests extends ESTestCase {
             null,
             "user-y",
             "realm-1",
+            "realm-type-1",
             ApiKeyTests.randomMetadata(),
             type == ApiKey.Type.CROSS_CLUSTER
                 ? List.of(randomCrossClusterAccessRoleDescriptor())

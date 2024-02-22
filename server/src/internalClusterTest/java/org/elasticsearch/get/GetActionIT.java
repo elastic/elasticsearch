@@ -8,20 +8,27 @@
 
 package org.elasticsearch.get;
 
+import org.apache.lucene.index.DirectoryReader;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.alias.Alias;
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetRequestBuilder;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.get.MultiGetItemResponse;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.get.MultiGetRequestBuilder;
 import org.elasticsearch.action.get.MultiGetResponse;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.engine.EngineTestCase;
@@ -32,16 +39,21 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.util.Collections.singleton;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
@@ -60,13 +72,28 @@ public class GetActionIT extends ESIntegTestCase {
     }
 
     public static class SearcherWrapperPlugin extends Plugin {
+        public static boolean enabled = false;
+        public static final AtomicInteger calls = new AtomicInteger();
+
         @Override
         public void onIndexModule(IndexModule indexModule) {
             super.onIndexModule(indexModule);
-            if (randomBoolean()) {
-                indexModule.setReaderWrapper(indexService -> EngineTestCase.randomReaderWrapper());
+            if (enabled) {
+                indexModule.setReaderWrapper(indexService -> {
+                    CheckedFunction<DirectoryReader, DirectoryReader, IOException> wrapper = EngineTestCase.randomReaderWrapper();
+                    return reader -> {
+                        calls.incrementAndGet();
+                        return wrapper.apply(reader);
+                    };
+                });
             }
         }
+    }
+
+    @Before
+    public void maybeEnableSearcherWrapper() {
+        SearcherWrapperPlugin.enabled = randomBoolean();
+        SearcherWrapperPlugin.calls.set(0);
     }
 
     public void testSimpleGet() {
@@ -816,6 +843,75 @@ public class GetActionIT extends ESIntegTestCase {
             }
             """;
         index("test", "1", doc);
+    }
+
+    public void testAvoidWrappingSearcherInMultiGet() {
+        SearcherWrapperPlugin.enabled = true;
+        assertAcked(
+            prepareCreate("test").setMapping("f", "type=keyword")
+                .setSettings(
+                    Settings.builder()
+                        .put("index.refresh_interval", "-1")
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                        .put("index.routing.rebalance.enable", "none")
+                )
+        );
+        // start tracking translog locations in the live version map
+        {
+            index("test", "0", Map.of("f", "empty"));
+            client().prepareGet("test", "0").setRealtime(true).get();
+            refresh("test");
+        }
+        Map<String, String> indexedDocs = new HashMap<>();
+        indexedDocs.put("0", "empty");
+        Map<String, String> visibleDocs = new HashMap<>(indexedDocs);
+        Set<String> pendingIds = new HashSet<>();
+        int iters = between(1, 20);
+        for (int iter = 0; iter < iters; iter++) {
+            int numDocs = randomIntBetween(1, 20);
+            BulkRequestBuilder bulk = client().prepareBulk();
+            for (int i = 0; i < numDocs; i++) {
+                String id = Integer.toString(between(1, 50));
+                String value = "v-" + between(1, 1000);
+                indexedDocs.put(id, value);
+                pendingIds.add(id);
+                bulk.add(new IndexRequest("test").id(id).source("f", value));
+            }
+            assertNoFailures(bulk.get());
+            SearcherWrapperPlugin.calls.set(0);
+            boolean realTime = randomBoolean();
+            MultiGetRequestBuilder mget = client().prepareMultiGet().setRealtime(realTime);
+            List<String> ids = randomSubsetOf(between(1, indexedDocs.size()), indexedDocs.keySet());
+            Randomness.shuffle(ids);
+            for (String id : ids) {
+                mget.add("test", id);
+            }
+            MultiGetResponse resp = mget.get();
+            Map<String, String> expected = realTime ? indexedDocs : visibleDocs;
+            int getFromTranslog = 0;
+            for (int i = 0; i < ids.size(); i++) {
+                String id = ids.get(i);
+                MultiGetItemResponse item = resp.getResponses()[i];
+                assertThat(item.getId(), equalTo(id));
+                if (expected.containsKey(id)) {
+                    assertTrue(item.getResponse().isExists());
+                    assertThat(item.getResponse().getSource().get("f"), equalTo(expected.get(id)));
+                } else {
+                    assertFalse(item.getResponse().isExists());
+                }
+                if (realTime && pendingIds.contains(id)) {
+                    getFromTranslog++;
+                }
+            }
+            int expectedCalls = getFromTranslog == ids.size() ? getFromTranslog : getFromTranslog + 1;
+            assertThat(SearcherWrapperPlugin.calls.get(), equalTo(expectedCalls));
+            if (randomBoolean()) {
+                refresh("test");
+                visibleDocs = new HashMap<>(indexedDocs);
+                pendingIds.clear();
+            }
+        }
     }
 
     public void testGetRemoteIndex() {

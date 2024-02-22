@@ -58,6 +58,7 @@ import java.util.function.IntFunction;
 
 import static org.elasticsearch.common.lucene.search.Queries.newNonNestedFilter;
 import static org.elasticsearch.compute.lucene.LuceneSourceOperator.NO_LIMIT;
+import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.NONE;
 
 public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProviders {
     /**
@@ -77,7 +78,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         /**
          * Returns something to load values from this field into a {@link Block}.
          */
-        BlockLoader blockLoader(String name, boolean asUnsupportedSource);
+        BlockLoader blockLoader(String name, boolean asUnsupportedSource, MappedFieldType.FieldExtractPreference fieldExtractPreference);
     }
 
     private final List<ShardContext> shardContexts;
@@ -88,9 +89,6 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
 
     @Override
     public final PhysicalOperation fieldExtractPhysicalOperation(FieldExtractExec fieldExtractExec, PhysicalOperation source) {
-        // TODO: see if we can get the FieldExtractExec to know if spatial types need to be read from source or doc values, and capture
-        // that information in the BlockReaderFactories.loaders method so it is passed in the BlockLoaderContext
-        // to GeoPointFieldMapper.blockLoader
         Layout.Builder layout = source.layout.builder();
         var sourceAttr = fieldExtractExec.sourceAttribute();
         List<ValuesSourceReaderOperator.ShardContext> readers = shardContexts.stream()
@@ -98,13 +96,15 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             .toList();
         List<ValuesSourceReaderOperator.FieldInfo> fields = new ArrayList<>();
         int docChannel = source.layout.get(sourceAttr.id()).channel();
+        var docValuesAttrs = fieldExtractExec.docValuesAttributes();
         for (Attribute attr : fieldExtractExec.attributesToExtract()) {
             layout.append(attr);
             DataType dataType = attr.dataType();
-            ElementType elementType = PlannerUtils.toElementType(dataType);
+            MappedFieldType.FieldExtractPreference fieldExtractPreference = PlannerUtils.extractPreference(docValuesAttrs.contains(attr));
+            ElementType elementType = PlannerUtils.toElementType(dataType, fieldExtractPreference);
             String fieldName = attr.name();
             boolean isSupported = EsqlDataTypes.isUnsupported(dataType);
-            IntFunction<BlockLoader> loader = s -> shardContexts.get(s).blockLoader(fieldName, isSupported);
+            IntFunction<BlockLoader> loader = s -> shardContexts.get(s).blockLoader(fieldName, isSupported, fieldExtractPreference);
             fields.add(new ValuesSourceReaderOperator.FieldInfo(fieldName, elementType, loader));
         }
         return source.with(new ValuesSourceReaderOperator.Factory(fields, readers, docChannel), layout.build());
@@ -186,7 +186,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         // Costin: why are they ready and not already exposed in the layout?
         boolean isUnsupported = EsqlDataTypes.isUnsupported(attrSource.dataType());
         return new OrdinalsGroupingOperator.OrdinalsGroupingOperatorFactory(
-            shardIdx -> shardContexts.get(shardIdx).blockLoader(attrSource.name(), isUnsupported),
+            shardIdx -> shardContexts.get(shardIdx).blockLoader(attrSource.name(), isUnsupported, NONE),
             vsShardContexts,
             groupElementType,
             docChannel,
@@ -255,7 +255,11 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         }
 
         @Override
-        public BlockLoader blockLoader(String name, boolean asUnsupportedSource) {
+        public BlockLoader blockLoader(
+            String name,
+            boolean asUnsupportedSource,
+            MappedFieldType.FieldExtractPreference fieldExtractPreference
+        ) {
             if (asUnsupportedSource) {
                 return BlockLoader.CONSTANT_NULLS;
             }
@@ -268,6 +272,11 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 @Override
                 public String indexName() {
                     return ctx.getFullyQualifiedIndex().getName();
+                }
+
+                @Override
+                public MappedFieldType.FieldExtractPreference fieldExtractPreference() {
+                    return fieldExtractPreference;
                 }
 
                 @Override

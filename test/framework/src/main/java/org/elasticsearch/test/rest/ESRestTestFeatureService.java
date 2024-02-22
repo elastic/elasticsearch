@@ -9,6 +9,7 @@
 package org.elasticsearch.test.rest;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.features.FeatureData;
 import org.elasticsearch.features.FeatureSpecification;
 
@@ -22,6 +23,7 @@ import java.util.function.Predicate;
 class ESRestTestFeatureService implements TestFeatureService {
     private final Predicate<String> historicalFeaturesPredicate;
     private final Set<String> clusterStateFeatures;
+    private final Set<String> allSupportedFeatures;
 
     ESRestTestFeatureService(
         List<? extends FeatureSpecification> specs,
@@ -31,6 +33,12 @@ class ESRestTestFeatureService implements TestFeatureService {
         var minNodeVersion = nodeVersions.stream().min(Comparator.naturalOrder());
         var featureData = FeatureData.createFromSpecifications(specs);
         var historicalFeatures = featureData.getHistoricalFeatures();
+        Set<String> allHistoricalFeatures = historicalFeatures.lastEntry() == null ? Set.of() : historicalFeatures.lastEntry().getValue();
+
+        this.allSupportedFeatures = Sets.union(clusterStateFeatures, minNodeVersion.<Set<String>>map(v -> {
+            var historicalFeaturesForVersion = historicalFeatures.floorEntry(v);
+            return historicalFeaturesForVersion == null ? Set.of() : historicalFeaturesForVersion.getValue();
+        }).orElse(allHistoricalFeatures));
 
         this.historicalFeaturesPredicate = minNodeVersion.<Predicate<String>>map(
             v -> featureId -> hasHistoricalFeature(historicalFeatures, v, featureId)
@@ -43,10 +51,16 @@ class ESRestTestFeatureService implements TestFeatureService {
         return features != null && features.getValue().contains(featureId);
     }
 
+    @Override
     public boolean clusterHasFeature(String featureId) {
         if (clusterStateFeatures.contains(featureId)) {
             return true;
         }
         return historicalFeaturesPredicate.test(featureId);
+    }
+
+    @Override
+    public Set<String> getAllSupportedFeatures() {
+        return allSupportedFeatures;
     }
 }

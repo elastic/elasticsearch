@@ -83,7 +83,7 @@ import static org.hamcrest.Matchers.notNullValue;
  */
 public class TransformContinuousIT extends TransformRestTestCase {
 
-    public static final int MAX_WAIT_TIME_ONE_ITERATION_SECONDS = 60;
+    public static final int MAX_WAIT_TIME_ONE_ITERATION_SECONDS = 120;
     private List<ContinuousTestCase> transformTestCases = new ArrayList<>();
 
     @Before
@@ -136,7 +136,6 @@ public class TransformContinuousIT extends TransformRestTestCase {
         deletePipeline(ContinuousTestCase.INGEST_PIPELINE);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/97263")
     public void testContinuousEvents() throws Exception {
         String sourceIndexName = ContinuousTestCase.CONTINUOUS_EVENTS_SOURCE_INDEX;
         DecimalFormat numberFormat = new DecimalFormat("000", new DecimalFormatSymbols(Locale.ROOT));

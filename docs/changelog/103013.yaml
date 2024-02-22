@@ -1,5 +1,0 @@
-pr: 103013
-summary: Deprecate the unused `elasticsearch_version` field of enrich policy json
-area: Ingest Node
-type: enhancement
-issues: []

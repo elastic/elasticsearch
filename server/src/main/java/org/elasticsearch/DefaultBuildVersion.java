@@ -34,7 +34,7 @@ public class DefaultBuildVersion implements BuildVersion {
     }
 
     @Override
-    public boolean isCompatibleWithCurrent() {
+    public boolean onOrAfterMinimumCompatible() {
         return Version.CURRENT.minimumCompatibilityVersion().onOrBefore(version);
     }
 

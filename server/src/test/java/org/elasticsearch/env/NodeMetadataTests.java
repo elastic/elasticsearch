@@ -99,7 +99,7 @@ public class NodeMetadataTests extends ESTestCase {
         final String nodeId = randomAlphaOfLength(10);
         final NodeMetadata nodeMetadata = new NodeMetadata(
             nodeId,
-            randomValueOtherThanMany(v -> v.isFutureVersion() || v.isCompatibleWithCurrent() == false, this::randomBuildVersion),
+            randomValueOtherThanMany(v -> v.isFutureVersion() || v.onOrAfterMinimumCompatible() == false, this::randomBuildVersion),
             IndexVersion.current()
         ).upgradeToCurrentVersion();
         assertThat(nodeMetadata.nodeVersion(), equalTo(BuildVersion.current()));

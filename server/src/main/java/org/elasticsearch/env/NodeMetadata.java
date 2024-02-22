@@ -116,7 +116,7 @@ public final class NodeMetadata {
         // Enable the following assertion for V9:
         // assert (nodeVersion.equals(BuildVersion.empty()) == false) : "version is required in the node metadata from v9 onwards";
 
-        if (nodeVersion.isCompatibleWithCurrent() == false) {
+        if (nodeVersion.onOrAfterMinimumCompatible() == false) {
             throw new IllegalStateException(
                 "cannot upgrade a node from version ["
                     + nodeVersion

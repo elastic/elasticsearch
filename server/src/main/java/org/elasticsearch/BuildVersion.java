@@ -16,8 +16,7 @@ import org.elasticsearch.xcontent.ToXContentFragment;
 import java.util.ServiceLoader;
 
 public interface BuildVersion extends Writeable, ToXContentFragment {
-    // TODO[wrb]: rename to isBeforeMinimumCompatible or something
-    boolean isCompatibleWithCurrent();
+    boolean onOrAfterMinimumCompatible();
 
     boolean isFutureVersion();
 

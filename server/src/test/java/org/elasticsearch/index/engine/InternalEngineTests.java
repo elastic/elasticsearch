@@ -175,6 +175,7 @@ import java.util.stream.LongStream;
 import java.util.stream.StreamSupport;
 
 import static java.util.Collections.shuffle;
+import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.elasticsearch.common.lucene.Lucene.indexWriterConfigWithNoMerging;
 import static org.elasticsearch.index.engine.Engine.ES_VERSION;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.LOCAL_RESET;
@@ -185,6 +186,7 @@ import static org.elasticsearch.index.engine.Engine.Operation.Origin.REPLICA;
 import static org.elasticsearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
+import static org.elasticsearch.test.hamcrest.OptionalMatchers.isPresent;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.sameInstance;
 import static org.hamcrest.Matchers.contains;
@@ -2669,14 +2671,9 @@ public class InternalEngineTests extends EngineTestCase {
 
         try {
             initialEngine = createEngine(defaultSettings, store, createTempDir(), newLogMergePolicy(), null);
-            final ShardRouting primary = TestShardRouting.newShardRouting(
-                shardId,
-                "node1",
-                null,
-                true,
-                ShardRoutingState.STARTED,
+            final ShardRouting primary = shardRoutingBuilder(shardId, "node1", true, ShardRoutingState.STARTED).withAllocationId(
                 allocationId
-            );
+            ).build();
             final ShardRouting initializingReplica = TestShardRouting.newShardRouting(
                 shardId,
                 "node2",
@@ -7719,7 +7716,7 @@ public class InternalEngineTests extends EngineTestCase {
 
     private static void releaseCommitRef(Map<IndexCommit, Engine.IndexCommitRef> commits, long generation) {
         var releasable = commits.keySet().stream().filter(c -> c.getGeneration() == generation).findFirst();
-        assertThat(releasable.isPresent(), is(true));
+        assertThat(releasable, isPresent());
         Engine.IndexCommitRef indexCommitRef = commits.get(releasable.get());
         try {
             indexCommitRef.close();

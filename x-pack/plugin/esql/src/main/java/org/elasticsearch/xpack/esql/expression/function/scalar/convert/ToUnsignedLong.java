@@ -46,7 +46,7 @@ public class ToUnsignedLong extends AbstractConvertFunction {
         Map.entry(INTEGER, ToUnsignedLongFromIntEvaluator.Factory::new)
     );
 
-    @FunctionInfo(returnType = "unsigned_long")
+    @FunctionInfo(returnType = "unsigned_long", description = "Converts an input value to an unsigned long value.")
     public ToUnsignedLong(
         Source source,
         @Param(name = "v", type = { "boolean", "date", "keyword", "text", "double", "long", "unsigned_long", "integer" }) Expression field

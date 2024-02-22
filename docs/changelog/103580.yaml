@@ -1,6 +1,0 @@
-pr: 103580
-summary: Copy counter field properties to downsampled index
-area: Downsampling
-type: bug
-issues:
- - 103569

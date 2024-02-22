@@ -19,6 +19,6 @@ public class GetRoleMappingsAction extends ActionType<GetRoleMappingsResponse> {
     public static final String NAME = "cluster:admin/xpack/security/role_mapping/get";
 
     private GetRoleMappingsAction() {
-        super(NAME, GetRoleMappingsResponse::new);
+        super(NAME);
     }
 }

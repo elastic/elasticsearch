@@ -102,24 +102,28 @@ fromCommand
     ;
 
 metadata
-    : OPENING_BRACKET METADATA fromIdentifier (COMMA fromIdentifier)* CLOSING_BRACKET
+    : metadataOption
+    | deprecated_metadata
     ;
 
+metadataOption
+    : METADATA fromIdentifier (COMMA fromIdentifier)*
+    ;
+
+deprecated_metadata
+    : OPENING_BRACKET metadataOption CLOSING_BRACKET
+    ;
 
 evalCommand
     : EVAL fields
     ;
 
 statsCommand
-    : STATS fields? (BY grouping)?
+    : STATS stats=fields? (BY grouping=fields)?
     ;
 
 inlinestatsCommand
-    : INLINESTATS fields (BY grouping)?
-    ;
-
-grouping
-    : qualifiedName (COMMA qualifiedName)*
+    : INLINESTATS stats=fields (BY grouping=fields)?
     ;
 
 fromIdentifier
@@ -141,8 +145,7 @@ identifier
     ;
 
 identifierPattern
-    : PROJECT_UNQUOTED_IDENTIFIER
-    | QUOTED_IDENTIFIER
+    : ID_PATTERN
     ;
 
 constant
@@ -172,7 +175,6 @@ orderExpression
 
 keepCommand
     :  KEEP qualifiedNamePattern (COMMA qualifiedNamePattern)*
-    |  PROJECT qualifiedNamePattern (COMMA qualifiedNamePattern)*
     ;
 
 dropCommand
@@ -246,7 +248,7 @@ showCommand
     ;
 
 enrichCommand
-    : ENRICH policyName=fromIdentifier (ON matchField=qualifiedNamePattern)? (WITH enrichWithClause (COMMA enrichWithClause)*)?
+    : ENRICH policyName=ENRICH_POLICY_NAME (ON matchField=qualifiedNamePattern)? (WITH enrichWithClause (COMMA enrichWithClause)*)?
     ;
 
 enrichWithClause

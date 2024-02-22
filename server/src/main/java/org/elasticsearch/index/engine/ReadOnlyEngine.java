@@ -525,13 +525,11 @@ public class ReadOnlyEngine extends Engine {
         final long recoverUpToSeqNo,
         ActionListener<Void> listener
     ) {
-        ActionListener.run(listener, l -> {
-            try (var ignored = acquireEnsureOpenRef()) {
-                try {
-                    translogRecoveryRunner.run(this, Translog.Snapshot.EMPTY);
-                } catch (final Exception e) {
-                    throw new EngineException(shardId, "failed to recover from empty translog snapshot", e);
-                }
+        ActionListener.runWithResource(listener, this::acquireEnsureOpenRef, (l, ignoredRef) -> {
+            try {
+                translogRecoveryRunner.run(this, Translog.Snapshot.EMPTY);
+            } catch (final Exception e) {
+                throw new EngineException(shardId, "failed to recover from empty translog snapshot", e);
             }
             l.onResponse(null);
         });

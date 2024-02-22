@@ -1,0 +1,6 @@
+pr: 104581
+summary: Fix bogus assertion tripped by force-executed tasks
+area: Infra/Core
+type: bug
+issues:
+ - 104580

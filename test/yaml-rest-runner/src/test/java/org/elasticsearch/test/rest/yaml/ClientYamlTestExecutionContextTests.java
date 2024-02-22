@@ -29,6 +29,11 @@ public class ClientYamlTestExecutionContextTests extends ESTestCase {
         public boolean clusterHasFeature(String featureId) {
             return true;
         }
+
+        @Override
+        public Set<String> getAllSupportedFeatures() {
+            return Set.of();
+        }
     }
 
     public void testHeadersSupportStashedValueReplacement() throws IOException {

@@ -1,0 +1,18 @@
+[discrete]
+[[esql-agg-st-centroid]]
+=== `ST_CENTROID`
+
+Calculate the spatial centroid over a field with spatial point geometry type.
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/spatial.csv-spec[tag=st_centroid-airports]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/spatial.csv-spec[tag=st_centroid-airports-result]
+|===
+
+Supported types:
+
+include::types/st_centroid.asciidoc[]

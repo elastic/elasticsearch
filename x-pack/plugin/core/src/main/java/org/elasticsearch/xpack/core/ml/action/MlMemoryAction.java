@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
@@ -61,7 +60,7 @@ public class MlMemoryAction extends ActionType<MlMemoryAction.Response> {
     static final String JAVA_INFERENCE_IN_BYTES = "java_inference_in_bytes";
 
     private MlMemoryAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<Request> {
@@ -85,11 +84,6 @@ public class MlMemoryAction extends ActionType<MlMemoryAction.Response> {
 
         public String getNodeId() {
             return nodeId;
-        }
-
-        @Override
-        public ActionRequestValidationException validate() {
-            return null;
         }
 
         @Override

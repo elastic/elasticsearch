@@ -8,21 +8,17 @@ package org.elasticsearch.xpack.application.rules;
 
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetRequest;
-import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.client.internal.OriginSettingClient;
+import org.elasticsearch.action.get.TransportGetAction;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.HeaderWarning;
-import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -45,6 +41,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xpack.core.ClientHelper.ENT_SEARCH_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.searchbusinessrules.PinnedQueryBuilder.MAX_NUM_PINNED_HITS;
 
 /**
@@ -73,7 +70,7 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_500_061;
+        return TransportVersions.V_8_10_X;
     }
 
     public RuleQueryBuilder(QueryBuilder organicQuery, Map<String, Object> matchCriteria, String rulesetId) {
@@ -109,18 +106,6 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
         }
         if (Strings.isNullOrEmpty(rulesetId)) {
             throw new IllegalArgumentException("rulesetId must not be null or empty");
-        }
-
-        // PinnedQueryBuilder will return an error if we attempt to return more than the maximum number of
-        // pinned hits. Here, we truncate matching rules rather than return an error.
-        if (pinnedIds != null && pinnedIds.size() > MAX_NUM_PINNED_HITS) {
-            HeaderWarning.addWarning("Truncating query rule pinned hits to " + MAX_NUM_PINNED_HITS + " documents");
-            pinnedIds = pinnedIds.subList(0, MAX_NUM_PINNED_HITS);
-        }
-
-        if (pinnedDocs != null && pinnedDocs.size() > MAX_NUM_PINNED_HITS) {
-            HeaderWarning.addWarning("Truncating query rule pinned hits to " + MAX_NUM_PINNED_HITS + " documents");
-            pinnedDocs = pinnedDocs.subList(0, MAX_NUM_PINNED_HITS);
         }
 
         this.organicQuery = organicQuery;
@@ -174,6 +159,9 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
 
     @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
+        // NOTE: this is old query logic, as in 8.12.2+ and 8.13.0+ we will always rewrite this query
+        // into a pinned query or the organic query. This logic remains here for backwards compatibility
+        // with coordinator nodes running versions 8.10.0 - 8.12.1.
         if ((pinnedIds != null && pinnedIds.isEmpty() == false) && (pinnedDocs != null && pinnedDocs.isEmpty() == false)) {
             throw new IllegalArgumentException("applied rules contain both pinned ids and pinned docs, only one of ids or docs is allowed");
         }
@@ -187,21 +175,25 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
         } else {
             return organicQuery.toQuery(context);
         }
-
     }
 
-    @SuppressWarnings("unchecked")
     @Override
-    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
-        if (pinnedIds != null || pinnedDocs != null) {
-            return this;
-        } else if (pinnedIdsSupplier != null || pinnedDocsSupplier != null) {
-            List<String> identifiedPinnedIds = pinnedIdsSupplier != null ? pinnedIdsSupplier.get() : null;
-            List<Item> identifiedPinnedDocs = pinnedDocsSupplier != null ? pinnedDocsSupplier.get() : null;
-            if (identifiedPinnedIds == null && identifiedPinnedDocs == null) {
-                return this; // not executed yet
+    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) {
+        if (pinnedIdsSupplier != null && pinnedDocsSupplier != null) {
+            List<String> identifiedPinnedIds = pinnedIdsSupplier.get();
+            List<Item> identifiedPinnedDocs = pinnedDocsSupplier.get();
+            if (identifiedPinnedIds == null || identifiedPinnedDocs == null) {
+                return this; // Not executed yet
+            } else if (identifiedPinnedIds.isEmpty() && identifiedPinnedDocs.isEmpty()) {
+                return organicQuery; // Nothing to pin here
+            } else if (identifiedPinnedIds.isEmpty() == false && identifiedPinnedDocs.isEmpty() == false) {
+                throw new IllegalArgumentException(
+                    "applied rules contain both pinned ids and pinned docs, only one of ids or docs is allowed"
+                );
+            } else if (identifiedPinnedIds.isEmpty() == false) {
+                return new PinnedQueryBuilder(organicQuery, truncateList(identifiedPinnedIds).toArray(new String[0]));
             } else {
-                return new RuleQueryBuilder(organicQuery, matchCriteria, rulesetId, identifiedPinnedIds, identifiedPinnedDocs, null, null);
+                return new PinnedQueryBuilder(organicQuery, truncateList(identifiedPinnedDocs).toArray(new Item[0]));
             }
         }
 
@@ -212,50 +204,37 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
         AppliedQueryRules appliedRules = new AppliedQueryRules();
 
         queryRewriteContext.registerAsyncAction((client, listener) -> {
-            Client clientWithOrigin = new OriginSettingClient(client, ENT_SEARCH_ORIGIN);
-            clientWithOrigin.get(getRequest, new ActionListener<>() {
-                @Override
-                public void onResponse(GetResponse getResponse) {
-                    if (getResponse.isExists() == false) {
-                        throw new ResourceNotFoundException("query ruleset " + rulesetId + " not found");
-                    }
-                    QueryRuleset queryRuleset = QueryRuleset.fromXContentBytes(
-                        rulesetId,
-                        getResponse.getSourceAsBytesRef(),
-                        XContentType.JSON
-                    );
-                    for (QueryRule rule : queryRuleset.rules()) {
-                        rule.applyRule(appliedRules, matchCriteria);
-                    }
-                    pinnedIdsSetOnce.set(appliedRules.pinnedIds().stream().distinct().toList());
-                    pinnedDocsSetOnce.set(appliedRules.pinnedDocs().stream().distinct().toList());
-                    listener.onResponse(null);
+            executeAsyncWithOrigin(client, ENT_SEARCH_ORIGIN, TransportGetAction.TYPE, getRequest, ActionListener.wrap(getResponse -> {
+
+                if (getResponse.isExists() == false) {
+                    listener.onFailure(new ResourceNotFoundException("query ruleset " + rulesetId + " not found"));
+                    return;
                 }
 
-                @Override
-                public void onFailure(Exception e) {
-                    Throwable cause = ExceptionsHelper.unwrapCause(e);
-                    if (cause instanceof IndexNotFoundException) {
-                        listener.onFailure(new ResourceNotFoundException("query ruleset " + rulesetId + " not found"));
-                    } else {
-                        listener.onFailure(e);
-                    }
+                QueryRuleset queryRuleset = QueryRuleset.fromXContentBytes(rulesetId, getResponse.getSourceAsBytesRef(), XContentType.JSON);
+                for (QueryRule rule : queryRuleset.rules()) {
+                    rule.applyRule(appliedRules, matchCriteria);
                 }
-            });
+                pinnedIdsSetOnce.set(appliedRules.pinnedIds().stream().distinct().toList());
+                pinnedDocsSetOnce.set(appliedRules.pinnedDocs().stream().distinct().toList());
+                listener.onResponse(null);
+
+            }, listener::onFailure));
         });
 
-        QueryBuilder newOrganicQuery = organicQuery.rewrite(queryRewriteContext);
-        RuleQueryBuilder rewritten = new RuleQueryBuilder(
-            newOrganicQuery,
-            matchCriteria,
-            this.rulesetId,
-            null,
-            null,
-            pinnedIdsSetOnce::get,
-            pinnedDocsSetOnce::get
-        );
-        rewritten.boost(this.boost);
-        return rewritten;
+        return new RuleQueryBuilder(organicQuery, matchCriteria, this.rulesetId, null, null, pinnedIdsSetOnce::get, pinnedDocsSetOnce::get)
+            .boost(this.boost)
+            .queryName(this.queryName);
+    }
+
+    private List<?> truncateList(List<?> input) {
+        // PinnedQueryBuilder will return an error if we attempt to return more than the maximum number of
+        // pinned hits. Here, we truncate matching rules rather than return an error.
+        if (input.size() > MAX_NUM_PINNED_HITS) {
+            HeaderWarning.addWarning("Truncating query rule pinned hits to " + MAX_NUM_PINNED_HITS + " documents");
+            return input.subList(0, MAX_NUM_PINNED_HITS);
+        }
+        return input;
     }
 
     @Override

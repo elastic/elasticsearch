@@ -39,7 +39,7 @@ public class ShowFunctions extends LeafPlan {
         for (var name : List.of("name", "synopsis", "argNames", "argTypes", "argDescriptions", "returnType", "description")) {
             attributes.add(new ReferenceAttribute(Source.EMPTY, name, KEYWORD));
         }
-        for (var name : List.of("optionalArgs", "variadic")) {
+        for (var name : List.of("optionalArgs", "variadic", "isAggregation")) {
             attributes.add(new ReferenceAttribute(Source.EMPTY, name, BOOLEAN));
         }
     }
@@ -63,6 +63,7 @@ public class ShowFunctions extends LeafPlan {
             row.add(signature.description());
             row.add(collect(signature, EsqlFunctionRegistry.ArgSignature::optional));
             row.add(signature.variadic());
+            row.add(signature.isAggregation());
             rows.add(row);
         }
         rows.sort(Comparator.comparing(x -> ((BytesRef) x.get(0))));

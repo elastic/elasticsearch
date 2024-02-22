@@ -71,7 +71,7 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
             \\_ExchangeSourceOperator[]
             \\_AggregationOperator[mode = FINAL, aggs = sum of longs]
             \\_ProjectOperator[projection = [0]]
-            \\_LimitOperator[limit = 500]
+            \\_LimitOperator[limit = 1000]
             \\_OutputOperator[columns = [sum(pause_me)]]""";
     }
 

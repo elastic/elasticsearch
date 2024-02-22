@@ -61,6 +61,7 @@ public final class BulkRequestParser {
     private static final ParseField IF_SEQ_NO = new ParseField("if_seq_no");
     private static final ParseField IF_PRIMARY_TERM = new ParseField("if_primary_term");
     private static final ParseField REQUIRE_ALIAS = new ParseField(DocWriteRequest.REQUIRE_ALIAS);
+    private static final ParseField REQUIRE_DATA_STREAM = new ParseField(DocWriteRequest.REQUIRE_DATA_STREAM);
     private static final ParseField LIST_EXECUTED_PIPELINES = new ParseField(DocWriteRequest.LIST_EXECUTED_PIPELINES);
     private static final ParseField DYNAMIC_TEMPLATES = new ParseField("dynamic_templates");
 
@@ -127,6 +128,7 @@ public final class BulkRequestParser {
         @Nullable FetchSourceContext defaultFetchSourceContext,
         @Nullable String defaultPipeline,
         @Nullable Boolean defaultRequireAlias,
+        @Nullable Boolean defaultRequireDataStream,
         @Nullable Boolean defaultListExecutedPipelines,
         boolean allowExplicitIndex,
         XContentType xContentType,
@@ -209,6 +211,7 @@ public final class BulkRequestParser {
                 int retryOnConflict = 0;
                 String pipeline = defaultPipeline;
                 boolean requireAlias = defaultRequireAlias != null && defaultRequireAlias;
+                boolean requireDataStream = defaultRequireDataStream != null && defaultRequireDataStream;
                 boolean listExecutedPipelines = defaultListExecutedPipelines != null && defaultListExecutedPipelines;
                 Map<String, String> dynamicTemplates = Map.of();
 
@@ -263,6 +266,8 @@ public final class BulkRequestParser {
                                 fetchSourceContext = FetchSourceContext.fromXContent(parser);
                             } else if (REQUIRE_ALIAS.match(currentFieldName, parser.getDeprecationHandler())) {
                                 requireAlias = parser.booleanValue();
+                            } else if (REQUIRE_DATA_STREAM.match(currentFieldName, parser.getDeprecationHandler())) {
+                                requireDataStream = parser.booleanValue();
                             } else if (LIST_EXECUTED_PIPELINES.match(currentFieldName, parser.getDeprecationHandler())) {
                                 listExecutedPipelines = parser.booleanValue();
                             } else {
@@ -349,6 +354,7 @@ public final class BulkRequestParser {
                                     .source(sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType), xContentType)
                                     .setDynamicTemplates(dynamicTemplates)
                                     .setRequireAlias(requireAlias)
+                                    .setRequireDataStream(requireDataStream)
                                     .setListExecutedPipelines(listExecutedPipelines),
                                 type
                             );
@@ -365,6 +371,7 @@ public final class BulkRequestParser {
                                     .source(sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType), xContentType)
                                     .setDynamicTemplates(dynamicTemplates)
                                     .setRequireAlias(requireAlias)
+                                    .setRequireDataStream(requireDataStream)
                                     .setListExecutedPipelines(listExecutedPipelines),
                                 type
                             );
@@ -382,6 +389,7 @@ public final class BulkRequestParser {
                                 .source(sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType), xContentType)
                                 .setDynamicTemplates(dynamicTemplates)
                                 .setRequireAlias(requireAlias)
+                                .setRequireDataStream(requireDataStream)
                                 .setListExecutedPipelines(listExecutedPipelines),
                             type
                         );
@@ -389,6 +397,12 @@ public final class BulkRequestParser {
                         if (version != Versions.MATCH_ANY || versionType != VersionType.INTERNAL) {
                             throw new IllegalArgumentException(
                                 "Update requests do not support versioning. " + "Please use `if_seq_no` and `if_primary_term` instead"
+                            );
+                        }
+                        if (requireDataStream) {
+                            throw new IllegalArgumentException(
+                                "Update requests do not support the `require_data_stream` flag, "
+                                    + "as data streams do not support update operations"
                             );
                         }
                         // TODO: support dynamic_templates in update requests

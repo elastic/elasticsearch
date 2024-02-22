@@ -137,7 +137,8 @@ public class MockClientBuilder {
 
         SearchResponse response = mock(SearchResponse.class);
         SearchHits searchHits = new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), 0.0f);
-        when(response.getHits()).thenReturn(searchHits);
+        when(response.getHits()).thenReturn(searchHits.asUnpooled());
+        searchHits.decRef();
 
         doAnswer(new Answer<Void>() {
             @Override
@@ -176,7 +177,8 @@ public class MockClientBuilder {
 
         SearchResponse response = mock(SearchResponse.class);
         SearchHits searchHits = new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), 0.0f);
-        when(response.getHits()).thenReturn(searchHits);
+        when(response.getHits()).thenReturn(searchHits.asUnpooled());
+        searchHits.decRef();
 
         doAnswer(new Answer<Void>() {
             @Override

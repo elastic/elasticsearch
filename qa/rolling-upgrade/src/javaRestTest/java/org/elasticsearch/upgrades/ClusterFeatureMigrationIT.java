@@ -13,7 +13,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.features.FeatureService;
-import org.junit.BeforeClass;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.List;
@@ -26,11 +26,11 @@ import static org.hamcrest.Matchers.hasSize;
 
 public class ClusterFeatureMigrationIT extends ParameterizedRollingUpgradeTestCase {
 
-    @BeforeClass
-    public static void checkMigrationVersion() {
-        assumeTrue(
+    @Before
+    public void checkMigrationVersion() {
+        assumeFalse(
             "This checks migrations from before cluster features were introduced",
-            getOldClusterVersion().before(FeatureService.CLUSTER_FEATURES_ADDED_VERSION)
+            oldClusterHasFeature(FeatureService.FEATURES_SUPPORTED)
         );
     }
 

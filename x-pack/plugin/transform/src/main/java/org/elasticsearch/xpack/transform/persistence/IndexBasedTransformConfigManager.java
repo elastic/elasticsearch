@@ -18,7 +18,6 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.TransportIndexAction;
@@ -27,6 +26,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -848,7 +848,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
             client.threadPool().getThreadContext(),
             TRANSFORM_ORIGIN,
             new RefreshRequest(TransformInternalIndexConstants.LATEST_INDEX_NAME),
-            ActionListener.<RefreshResponse>wrap(r -> listener.onResponse(true), listener::onFailure),
+            ActionListener.<BroadcastResponse>wrap(r -> listener.onResponse(true), listener::onFailure),
             client.admin().indices()::refresh
         );
     }

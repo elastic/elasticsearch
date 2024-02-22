@@ -109,6 +109,33 @@ public class ClassificationConfig implements LenientlyParsedInferenceConfig, Str
         this.predictionFieldType = PredictionFieldType.fromStream(in);
     }
 
+    @Override
+    public InferenceConfig apply(InferenceConfigUpdate update) {
+        if (update instanceof ClassificationConfigUpdate configUpdate) {
+            ClassificationConfig.Builder builder = new ClassificationConfig.Builder(this);
+            if (configUpdate.getResultsField() != null) {
+                builder.setResultsField(configUpdate.getResultsField());
+            }
+            if (configUpdate.getNumTopFeatureImportanceValues() != null) {
+                builder.setNumTopFeatureImportanceValues(configUpdate.getNumTopFeatureImportanceValues());
+            }
+            if (configUpdate.getTopClassesResultsField() != null) {
+                builder.setTopClassesResultsField(configUpdate.getTopClassesResultsField());
+            }
+            if (configUpdate.getNumTopClasses() != null) {
+                builder.setNumTopClasses(configUpdate.getNumTopClasses());
+            }
+            if (configUpdate.getPredictionFieldType() != null) {
+                builder.setPredictionFieldType(configUpdate.getPredictionFieldType());
+            }
+            return builder.build();
+        } else if (update instanceof ResultsFieldUpdate resultsFieldUpdate) {
+            return new ClassificationConfig.Builder(this).setResultsField(resultsFieldUpdate.getResultsField()).build();
+        } else {
+            throw incompatibleUpdateException(update.getName());
+        }
+    }
+
     public int getNumTopClasses() {
         return numTopClasses;
     }

@@ -1,0 +1,5 @@
+pr: 104730
+summary: "[Profiling] Support downsampling of generic events"
+area: Application
+type: enhancement
+issues: []

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.huggingface;
 
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
@@ -27,21 +26,21 @@ import java.util.Map;
 public class HuggingFaceService extends HuggingFaceBaseService {
     public static final String NAME = "hugging_face";
 
-    public HuggingFaceService(SetOnce<HttpRequestSenderFactory> factory, SetOnce<ServiceComponents> serviceComponents) {
+    public HuggingFaceService(HttpRequestSenderFactory factory, ServiceComponents serviceComponents) {
         super(factory, serviceComponents);
     }
 
     @Override
     protected HuggingFaceModel createModel(
-        String modelId,
+        String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> serviceSettings,
         @Nullable Map<String, Object> secretSettings,
         String failureMessage
     ) {
         return switch (taskType) {
-            case TEXT_EMBEDDING -> new HuggingFaceEmbeddingsModel(modelId, taskType, NAME, serviceSettings, secretSettings);
-            case SPARSE_EMBEDDING -> new HuggingFaceElserModel(modelId, taskType, NAME, serviceSettings, secretSettings);
+            case TEXT_EMBEDDING -> new HuggingFaceEmbeddingsModel(inferenceEntityId, taskType, NAME, serviceSettings, secretSettings);
+            case SPARSE_EMBEDDING -> new HuggingFaceElserModel(inferenceEntityId, taskType, NAME, serviceSettings, secretSettings);
             default -> throw new ElasticsearchStatusException(failureMessage, RestStatus.BAD_REQUEST);
         };
     }
@@ -77,6 +76,6 @@ public class HuggingFaceService extends HuggingFaceBaseService {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_HF_SERVICE_ADDED;
+        return TransportVersions.V_8_12_0;
     }
 }

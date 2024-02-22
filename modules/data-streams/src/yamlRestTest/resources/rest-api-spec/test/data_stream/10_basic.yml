@@ -303,6 +303,11 @@ setup:
         name: failure-data-stream2
   - is_true: acknowledged
 
+  - do:
+      indices.delete_index_template:
+        name: my-template4
+  - is_true: acknowledged
+
 ---
 "Create data stream with invalid name":
   - skip:
@@ -529,6 +534,82 @@ setup:
       catch: missing
       indices.get:
         index: $idx0name
+
+---
+"Delete data stream with failure stores":
+  - skip:
+      # version: " - 8.11.99"
+      # reason: "data streams only supported in 8.12+"
+      version: all
+      reason: AwaitsFix https://github.com/elastic/elasticsearch/issues/104348
+
+  - do:
+      allowed_warnings:
+        - "index template [my-template4] has index patterns [failure-data-stream1, failure-data-stream2] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template4] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template4
+        body:
+          index_patterns: [ failure-data-stream1 ]
+          data_stream:
+            failure_store: true
+
+  - do:
+      indices.create_data_stream:
+        name: failure-data-stream1
+  - is_true: acknowledged
+
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            number_of_shards:   1
+            number_of_replicas: 1
+
+  # save the backing index names for later use
+  - do:
+      indices.get_data_stream:
+        name: failure-data-stream1
+
+  - set: { data_streams.0.indices.0.index_name: idx0name }
+  - set: { data_streams.0.failure_indices.0.index_name: fs0name }
+
+  - do:
+      indices.get:
+        index: ['.ds-failure-data-stream1-*000001', 'test_index']
+
+  - is_true: test_index.settings
+  - is_true: .$idx0name.settings
+
+  - do:
+      indices.get_data_stream: {}
+  - match: { data_streams.0.name: failure-data-stream1 }
+  - match: { data_streams.0.timestamp_field.name: '@timestamp' }
+  - match: { data_streams.0.generation: 1 }
+  - length: { data_streams.0.indices: 1 }
+  - match: { data_streams.0.indices.0.index_name: '/\.ds-failure-data-stream1-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
+  - length: { data_streams.0.failure_indices: 1 }
+  - match: { data_streams.0.failure_indices.0.index_name: '/\.fs-failure-data-stream1-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
+
+  - do:
+      indices.delete_data_stream:
+        name: failure-data-stream1
+  - is_true: acknowledged
+
+  - do:
+      catch: missing
+      indices.get:
+        index: $idx0name
+
+  - do:
+      catch: missing
+      indices.get:
+        index: $fs0name
+
+  - do:
+      indices.delete_index_template:
+        name: my-template4
+  - is_true: acknowledged
 
 ---
 "Delete data stream missing behaviour":

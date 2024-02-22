@@ -25,6 +25,8 @@ import java.util.List;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
 public class DateParseTests extends AbstractScalarFunctionTestCase {
@@ -59,13 +61,50 @@ public class DateParseTests extends AbstractScalarFunctionTestCase {
                         DataTypes.DATETIME,
                         equalTo(1683244800000L)
                     )
+                ),
+                new TestCaseSupplier(
+                    List.of(DataTypes.KEYWORD, DataTypes.KEYWORD),
+                    () -> new TestCaseSupplier.TestCase(
+                        List.of(
+                            new TestCaseSupplier.TypedData(new BytesRef("not a format"), DataTypes.KEYWORD, "second"),
+                            new TestCaseSupplier.TypedData(new BytesRef("2023-05-05"), DataTypes.KEYWORD, "first")
+
+                        ),
+                        "DateParseEvaluator[val=Attribute[channel=1], formatter=Attribute[channel=0], zoneId=Z]",
+                        DataTypes.DATETIME,
+                        is(nullValue())
+                    ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
+                        .withWarning(
+                            "Line -1:-1: java.lang.IllegalArgumentException: Invalid format: [not a format]: Unknown pattern letter: o"
+                        )
+                        .withFoldingException(
+                            InvalidArgumentException.class,
+                            "invalid date pattern for []: Invalid format: [not a format]: Unknown pattern letter: o"
+                        )
+                ),
+                new TestCaseSupplier(
+                    List.of(DataTypes.KEYWORD, DataTypes.KEYWORD),
+                    () -> new TestCaseSupplier.TestCase(
+                        List.of(
+                            new TestCaseSupplier.TypedData(new BytesRef("yyyy-MM-dd"), DataTypes.KEYWORD, "second"),
+                            new TestCaseSupplier.TypedData(new BytesRef("not a date"), DataTypes.KEYWORD, "first")
+
+                        ),
+                        "DateParseEvaluator[val=Attribute[channel=1], formatter=Attribute[channel=0], zoneId=Z]",
+                        DataTypes.DATETIME,
+                        is(nullValue())
+                    ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
+                        .withWarning(
+                            "Line -1:-1: java.lang.IllegalArgumentException: "
+                                + "failed to parse date field [not a date] with format [yyyy-MM-dd]"
+                        )
                 )
             )
         );
     }
 
     public void testInvalidPattern() {
-        String pattern = randomAlphaOfLength(10);
+        String pattern = "invalid";
         DriverContext driverContext = driverContext();
         InvalidArgumentException e = expectThrows(
             InvalidArgumentException.class,

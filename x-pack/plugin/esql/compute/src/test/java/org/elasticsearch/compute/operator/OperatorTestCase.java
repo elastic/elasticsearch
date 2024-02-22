@@ -41,6 +41,7 @@ import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.in;
 
 /**
  * Base tests for {@link Operator}s that are not {@link SourceOperator} or {@link SinkOperator}.
@@ -97,16 +98,10 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
         DriverContext inputFactoryContext = driverContext();
         List<Page> input = CannedSourceOperator.collectPages(simpleInput(inputFactoryContext.blockFactory(), between(1_000, 10_000)));
         try {
-            ByteSizeValue limit = BreakerTestUtil.findBreakerLimit(
-                memoryLimitForSimple,
-                l -> runWithLimit(simple, CannedSourceOperator.deepCopyOf(input), l)
-            );
+            ByteSizeValue limit = BreakerTestUtil.findBreakerLimit(memoryLimitForSimple, l -> runWithLimit(simple, input, l));
             ByteSizeValue testWithSize = ByteSizeValue.ofBytes(randomLongBetween(0, limit.getBytes()));
             logger.info("testing with {} against a limit of {}", testWithSize, limit);
-            Exception e = expectThrows(
-                CircuitBreakingException.class,
-                () -> runWithLimit(simple, CannedSourceOperator.deepCopyOf(input), testWithSize)
-            );
+            Exception e = expectThrows(CircuitBreakingException.class, () -> runWithLimit(simple, input, testWithSize));
             assertThat(e.getMessage(), equalTo(MockBigArrays.ERROR_MESSAGE));
         } finally {
             Releasables.closeExpectNoException(Releasables.wrap(() -> Iterators.map(input.iterator(), p -> p::releaseBlocks)));
@@ -119,15 +114,16 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
         CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
         BlockFactory blockFactory = BlockFactory.getInstance(breaker, bigArrays);
         DriverContext driverContext = new DriverContext(bigArrays, blockFactory);
+        List<Page> localInput = CannedSourceOperator.deepCopyOf(blockFactory, input);
         boolean driverStarted = false;
         try {
             var operator = factory.get(driverContext);
             driverStarted = true;
-            drive(operator, input.iterator(), driverContext);
+            drive(operator, localInput.iterator(), driverContext);
         } finally {
             if (driverStarted == false) {
                 // if drive hasn't even started then we need to release the input pages manually
-                Releasables.closeExpectNoException(Releasables.wrap(() -> Iterators.map(input.iterator(), p -> p::releaseBlocks)));
+                Releasables.closeExpectNoException(Releasables.wrap(() -> Iterators.map(localInput.iterator(), p -> p::releaseBlocks)));
             }
             assertThat(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(0L));
         }

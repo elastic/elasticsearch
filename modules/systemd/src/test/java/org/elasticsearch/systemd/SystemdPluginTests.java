@@ -25,6 +25,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 
+import static org.elasticsearch.test.hamcrest.OptionalMatchers.isPresentWith;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
@@ -110,12 +112,16 @@ public class SystemdPluginTests extends ESTestCase {
 
     public void testOnNodeStartedFailure() {
         final int rc = randomIntBetween(Integer.MIN_VALUE, -1);
-        runTestOnNodeStarted(Boolean.TRUE.toString(), rc, (maybe, plugin) -> {
-            assertThat(maybe, OptionalMatchers.isPresent());
-            // noinspection OptionalGetWithoutIsPresent
-            assertThat(maybe.get(), instanceOf(RuntimeException.class));
-            assertThat(maybe.get(), hasToString(containsString("sd_notify returned error [" + rc + "]")));
-        });
+        runTestOnNodeStarted(
+            Boolean.TRUE.toString(),
+            rc,
+            (maybe, plugin) -> assertThat(
+                maybe,
+                isPresentWith(
+                    allOf(instanceOf(RuntimeException.class), hasToString(containsString("sd_notify returned error [" + rc + "]")))
+                )
+            )
+        );
     }
 
     public void testOnNodeStartedNotEnabled() {

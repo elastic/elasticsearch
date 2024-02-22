@@ -95,6 +95,7 @@ public class DefaultRestChannel extends AbstractRestChannel {
             toClose.add(() -> CloseableChannel.closeChannel(httpChannel));
         }
         toClose.add(() -> tracer.stopTrace(request));
+        toClose.add(restResponse);
 
         boolean success = false;
         String opaque = null;
@@ -113,7 +114,6 @@ public class DefaultRestChannel extends AbstractRestChannel {
             final HttpResponse httpResponse;
             if (isHeadRequest == false && restResponse.isChunked()) {
                 ChunkedRestResponseBody chunkedContent = restResponse.chunkedContent();
-                toClose.add(chunkedContent);
                 if (httpLogger != null && httpLogger.isBodyTracerEnabled()) {
                     final var loggerStream = httpLogger.openResponseBodyLoggingStream(request.getRequestId());
                     toClose.add(() -> {
@@ -131,8 +131,6 @@ public class DefaultRestChannel extends AbstractRestChannel {
                 final BytesReference content = restResponse.content();
                 if (content instanceof Releasable releasable) {
                     toClose.add(releasable);
-                } else if (restResponse.isChunked()) {
-                    toClose.add(restResponse.chunkedContent());
                 }
                 toClose.add(this::releaseOutputBuffer);
 

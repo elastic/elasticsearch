@@ -672,6 +672,26 @@ steps:
           buildDirectory: /dev/shm/bk
         env:
           BWC_VERSION: 7.17.17
+      - label: 7.17.18 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.17.18#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.17.18
+      - label: 7.17.19 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.17.19#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.17.19
       - label: 8.0.0 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.0.0#bwcTest
         timeout_in_minutes: 300
@@ -1112,6 +1132,36 @@ steps:
           buildDirectory: /dev/shm/bk
         env:
           BWC_VERSION: 8.12.0
+      - label: 8.12.1 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.12.1#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.12.1
+      - label: 8.12.2 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.12.2#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.12.2
+      - label: 8.12.3 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.12.3#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.12.3
       - label: 8.13.0 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.13.0#bwcTest
         timeout_in_minutes: 300
@@ -1122,8 +1172,18 @@ steps:
           buildDirectory: /dev/shm/bk
         env:
           BWC_VERSION: 8.13.0
+      - label: 8.14.0 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.14.0#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.14.0
   - label: concurrent-search-tests
-    command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dtests.jvm.argline=-Des.concurrent_search=true -Des.concurrent_search=true check
+    command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dtests.jvm.argline=-Des.concurrent_search=true -Des.concurrent_search=true functionalTests
     timeout_in_minutes: 420
     agents:
       provider: gcp
@@ -1218,7 +1278,7 @@ steps:
       diskSizeGb: 350
       machineType: custom-32-98304
   - label: single-processor-node-tests
-    command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dtests.configure_test_clusters_with_one_processor=true check
+    command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dtests.configure_test_clusters_with_one_processor=true functionalTests
     timeout_in_minutes: 420
     agents:
       provider: gcp
@@ -1303,13 +1363,13 @@ steps:
       machineType: n2-standard-8
       buildDirectory: /dev/shm/bk
     if: build.branch == "main" || build.branch == "7.17"
-  - label: Check branch consistency
+  - label: check-branch-consistency
     command: .ci/scripts/run-gradle.sh branchConsistency
     timeout_in_minutes: 15
     agents:
       provider: gcp
       image: family/elasticsearch-ubuntu-2004
       machineType: n2-standard-2
-  - label: Check branch protection rules
+  - label: check-branch-protection-rules
     command: .buildkite/scripts/branch-protection.sh
     timeout_in_minutes: 5

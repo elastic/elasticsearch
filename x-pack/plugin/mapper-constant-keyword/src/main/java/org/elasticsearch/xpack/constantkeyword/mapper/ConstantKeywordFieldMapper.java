@@ -99,8 +99,8 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
         @Override
         public ConstantKeywordFieldMapper build(MapperBuilderContext context) {
             return new ConstantKeywordFieldMapper(
-                name,
-                new ConstantKeywordFieldType(context.buildFullName(name), value.getValue(), meta.getValue())
+                name(),
+                new ConstantKeywordFieldType(context.buildFullName(name()), value.getValue(), meta.getValue())
             );
         }
     }
@@ -311,7 +311,9 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
         if (fieldType().value == null) {
             ConstantKeywordFieldType newFieldType = new ConstantKeywordFieldType(fieldType().name(), value, fieldType().meta());
             Mapper update = new ConstantKeywordFieldMapper(simpleName(), newFieldType);
-            context.addDynamicMapper(update);
+            boolean dynamicMapperAdded = context.addDynamicMapper(update);
+            // the mapper is already part of the mapping, we're just updating it with the new value
+            assert dynamicMapperAdded;
         } else if (Objects.equals(fieldType().value, value) == false) {
             throw new IllegalArgumentException(
                 "[constant_keyword] field ["

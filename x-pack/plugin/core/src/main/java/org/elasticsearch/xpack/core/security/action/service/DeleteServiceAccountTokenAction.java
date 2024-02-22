@@ -15,6 +15,6 @@ public class DeleteServiceAccountTokenAction extends ActionType<DeleteServiceAcc
     public static final DeleteServiceAccountTokenAction INSTANCE = new DeleteServiceAccountTokenAction();
 
     public DeleteServiceAccountTokenAction() {
-        super(NAME, DeleteServiceAccountTokenResponse::new);
+        super(NAME);
     }
 }

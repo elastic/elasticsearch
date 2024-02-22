@@ -68,7 +68,6 @@ public final class $Type$BigArrayBlock extends AbstractArrayBlock implements $Ty
 
     @Override
     public $Type$Block filter(int... positions) {
-        // TODO use reference counting to share the vector
         try (var builder = blockFactory().new$Type$BlockBuilder(positions.length)) {
             for (int pos : positions) {
                 if (isNull(pos)) {

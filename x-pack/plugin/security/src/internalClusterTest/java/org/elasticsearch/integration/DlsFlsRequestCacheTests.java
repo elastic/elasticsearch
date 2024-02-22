@@ -9,9 +9,8 @@ package org.elasticsearch.integration;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
-import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.search.SearchRequestBuilder;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.SecureString;
@@ -377,14 +376,14 @@ public class DlsFlsRequestCacheTests extends SecuritySingleNodeTestCase {
         assertCacheState(DLS_TEMPLATE_ROLE_QUERY_INDEX, 0, 0);
 
         // Force merge the index to ensure there can be no background merges during the subsequent searches that would invalidate the cache
-        final ForceMergeResponse forceMergeResponse = indicesAdmin().prepareForceMerge(
+        final BroadcastResponse forceMergeResponse = indicesAdmin().prepareForceMerge(
             DLS_INDEX,
             FLS_INDEX,
             INDEX,
             DLS_TEMPLATE_ROLE_QUERY_INDEX
         ).setFlush(true).get();
         ElasticsearchAssertions.assertAllSuccessful(forceMergeResponse);
-        final RefreshResponse refreshResponse = indicesAdmin().prepareRefresh(DLS_INDEX, FLS_INDEX, INDEX, DLS_TEMPLATE_ROLE_QUERY_INDEX)
+        final BroadcastResponse refreshResponse = indicesAdmin().prepareRefresh(DLS_INDEX, FLS_INDEX, INDEX, DLS_TEMPLATE_ROLE_QUERY_INDEX)
             .get();
         assertThat(refreshResponse.getFailedShards(), equalTo(0));
         ensureGreen(DLS_INDEX, FLS_INDEX, INDEX, DLS_TEMPLATE_ROLE_QUERY_INDEX);

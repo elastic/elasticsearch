@@ -39,7 +39,7 @@ public interface Operator extends Releasable {
      * non-trivial overhead and it's just not worth building even
      * smaller blocks without under normal circumstances.
      */
-    int MIN_TARGET_PAGE_SIZE = 10;
+    int MIN_TARGET_PAGE_SIZE = 32;
 
     /**
      * whether the given operator can accept more input pages

@@ -26,6 +26,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+
 public class GetPipelineResponseTests extends AbstractXContentSerializingTestCase<GetPipelineResponse> {
 
     private XContentBuilder getRandomXContentBuilder() throws IOException {
@@ -69,7 +71,7 @@ public class GetPipelineResponseTests extends AbstractXContentSerializingTestCas
                 .xContent()
                 .createParser(xContentRegistry(), LoggingDeprecationHandler.INSTANCE, BytesReference.bytes(builder).streamInput())
         ) {
-            parsedResponse = GetPipelineResponse.fromXContent(parser);
+            parsedResponse = doParseInstance(parser);
         }
         List<PipelineConfiguration> actualPipelines = response.pipelines();
         List<PipelineConfiguration> parsedPipelines = parsedResponse.pipelines();
@@ -82,7 +84,23 @@ public class GetPipelineResponseTests extends AbstractXContentSerializingTestCas
 
     @Override
     protected GetPipelineResponse doParseInstance(XContentParser parser) throws IOException {
-        return GetPipelineResponse.fromXContent(parser);
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
+        List<PipelineConfiguration> pipelines = new ArrayList<>();
+        while (parser.nextToken().equals(XContentParser.Token.FIELD_NAME)) {
+            String pipelineId = parser.currentName();
+            parser.nextToken();
+            try (XContentBuilder contentBuilder = XContentBuilder.builder(parser.contentType().xContent())) {
+                contentBuilder.generator().copyCurrentStructure(parser);
+                PipelineConfiguration pipeline = new PipelineConfiguration(
+                    pipelineId,
+                    BytesReference.bytes(contentBuilder),
+                    contentBuilder.contentType()
+                );
+                pipelines.add(pipeline);
+            }
+        }
+        ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.currentToken(), parser);
+        return new GetPipelineResponse(pipelines);
     }
 
     @Override

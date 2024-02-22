@@ -1,11 +1,10 @@
 [[update-connector-pipeline-api]]
 === Update connector pipeline API
-
-preview::[]
-
 ++++
 <titleabbrev>Update connector pipeline</titleabbrev>
 ++++
+
+preview::[]
 
 Updates the `pipeline` configuration of a connector.
 

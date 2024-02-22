@@ -67,7 +67,6 @@ final class BooleanArrayBlock extends AbstractArrayBlock implements BooleanBlock
 
     @Override
     public BooleanBlock filter(int... positions) {
-        // TODO use reference counting to share the vector
         try (var builder = blockFactory().newBooleanBlockBuilder(positions.length)) {
             for (int pos : positions) {
                 if (isNull(pos)) {

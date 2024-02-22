@@ -9,6 +9,8 @@
 package org.elasticsearch.common.util.concurrent;
 
 import org.elasticsearch.common.metrics.CounterMetric;
+import org.elasticsearch.telemetry.metric.LongCounter;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 import java.util.concurrent.RejectedExecutionHandler;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -16,6 +18,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 public abstract class EsRejectedExecutionHandler implements RejectedExecutionHandler {
 
     private final CounterMetric rejected = new CounterMetric();
+    private LongCounter rejectionCounter = null;
 
     /**
      * The number of rejected executions.
@@ -26,6 +29,14 @@ public abstract class EsRejectedExecutionHandler implements RejectedExecutionHan
 
     protected void incrementRejections() {
         rejected.inc();
+        if (rejectionCounter != null) {
+            rejectionCounter.increment();
+        }
+    }
+
+    public void registerCounter(MeterRegistry meterRegistry, String metric_name, String threadpool_name) {
+        rejectionCounter = meterRegistry.registerLongCounter(metric_name, "number of rejected threads for " + threadpool_name, "count");
+        rejectionCounter.incrementBy(rejected());
     }
 
     protected static EsRejectedExecutionException newRejectedException(

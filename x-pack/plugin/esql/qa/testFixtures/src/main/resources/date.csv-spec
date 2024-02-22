@@ -315,6 +315,70 @@ from employees | where birth_date > now() | sort emp_no asc | keep emp_no, birth
 emp_no:integer  | birth_date:date
 ;
 
+autoBucketYearInAgg#[skip:-8.12.99, reason:date type is supported in 8.13]
+FROM employees
+| WHERE hire_date >= "1999-01-01T00:00:00Z"
+| EVAL bucket = AUTO_BUCKET(hire_date, 5, "1999-01-01T00:00:00Z", NOW())
+| STATS COUNT(*) by bucket
+| sort bucket;
+
+COUNT(*):long            | bucket:date
+1                        | 1999-01-01T00:00:00.000Z
+;
+
+autoBucketYearInAggConstRefsString#[skip:-8.12.99, reason:date type is supported in 8.13]
+FROM employees
+| WHERE hire_date >= "1999-01-01T00:00:00Z"
+| EVAL bucket_start = "1999-01-01T00:00:00Z"
+| EVAL bucket_end = NOW()
+| EVAL bucket = AUTO_BUCKET(hire_date, 5, bucket_start, bucket_end)
+| STATS COUNT(*) by bucket
+| sort bucket;
+
+COUNT(*):long            | bucket:date
+1                        | 1999-01-01T00:00:00.000Z
+;
+
+autoBucketYearInAggConstRefsConcat#[skip:-8.12.99, reason:date type is supported in 8.13]
+FROM employees
+| WHERE hire_date >= "1999-01-01T00:00:00Z"
+| EVAL bucket_start = CONCAT("1999-01-01", "T", "00:00:00Z")
+| EVAL bucket_end = NOW()
+| EVAL bucket = AUTO_BUCKET(hire_date, 5, bucket_start, bucket_end)
+| STATS COUNT(*) by bucket
+| sort bucket;
+
+COUNT(*):long            | bucket:date
+1                        | 1999-01-01T00:00:00.000Z
+;
+
+autoBucketYearInAggConstRefsDate#[skip:-8.12.99, reason:date type is supported in 8.13]
+FROM employees
+| WHERE hire_date >= "1999-01-01T00:00:00Z"
+| EVAL bucket_start = TO_DATETIME("1999-01-01T00:00:00.000Z")
+| EVAL bucket_end = NOW()
+| EVAL bucket = AUTO_BUCKET(hire_date, 5, bucket_start, bucket_end)
+| keep bucket_start, bucket_end, bucket
+| STATS COUNT(*) by bucket
+| sort bucket;
+
+COUNT(*):long            | bucket:date
+1                        | 1999-01-01T00:00:00.000Z
+;
+
+autoBucketYearInAggConstRefsRename#[skip:-8.12.99, reason:date type is supported in 8.13]
+FROM employees
+| WHERE hire_date >= "1999-01-01T00:00:00Z"
+| EVAL bucket_start = "1999-01-01T00:00:00Z"
+| EVAL bucket_end = NOW()
+| RENAME bucket_end as be, bucket_start as bs
+| STATS c = COUNT(*) by AUTO_BUCKET(hire_date, 5, bs, be)
+| SORT c
+;
+
+c:long            | AUTO_BUCKET(hire_date, 5, bs, be):date
+1                 | 1999-01-01T00:00:00.000Z
+;
 
 autoBucketMonthInAgg
 // tag::auto_bucket_in_agg[]
@@ -335,6 +399,80 @@ AVG(salary):double | bucket:date
           51532.0  | 1985-10-01T00:00:00.000Z
           54539.75 | 1985-11-01T00:00:00.000Z
 // end::auto_bucket_in_agg-result[]
+;
+
+evalDateDiffInNanoAndMicroAndMilliSeconds#[skip:-8.12.99, reason:date_diff added in 8.13]
+ROW date1=to_datetime("2023-12-02T11:00:00.000Z"), date2=to_datetime("2023-12-02T11:00:00.001Z") 
+| EVAL dd_ns1=date_diff("nanoseconds", date1, date2), dd_ns2=date_diff("ns", date1, date2)
+| EVAL dd_mcs1=date_diff("microseconds", date1, date2), dd_mcs2=date_diff("mcs", date1, date2)
+| EVAL dd_ms1=date_diff("milliseconds", date1, date2), dd_ms2=date_diff("ms", date1, date2)
+| keep dd_ns1, dd_ns2, dd_mcs1, dd_mcs2, dd_ms1, dd_ms2
+;
+
+dd_ns1:integer  | dd_ns2:integer    | dd_mcs1:integer   | dd_mcs2:integer   | dd_ms1:integer    | dd_ms2:integer
+1000000         | 1000000           | 1000              | 1000              | 1                 | 1                         
+;
+
+evalDateDiffInSecondsAndMinutesAndHours#[skip:-8.12.99, reason:date_diff added in 8.13]
+ROW date1=to_datetime("2023-12-02T11:00:00.000Z"), date2=to_datetime("2023-12-02T12:00:00.000Z") 
+| EVAL dd_s1=date_diff("seconds", date1, date2), dd_s2=date_diff("ss", date1, date2), dd_s3=date_diff("s", date1, date2)
+| EVAL dd_m1=date_diff("minutes", date1, date2), dd_m2=date_diff("mi", date1, date2), dd_m3=date_diff("n", date1, date2)
+| EVAL dd_h1=date_diff("hours", date1, date2), dd_h2=date_diff("hh", date1, date2)
+| keep dd_s1, dd_s2, dd_s3, dd_m1, dd_m2, dd_m3, dd_h1, dd_h2
+;
+
+dd_s1:integer   | dd_s2:integer | dd_s3:integer | dd_m1:integer | dd_m2:integer | dd_m3:integer | dd_h1:integer | dd_h2:integer
+3600            | 3600          | 3600          | 60            | 60            | 60            | 1             | 1                         
+;
+
+evalDateDiffInDaysAndWeeks#[skip:-8.12.99, reason:date_diff added in 8.13]
+ROW date1=to_datetime("2023-12-02T11:00:00.000Z"), date2=to_datetime("2023-12-24T11:00:00.000Z") 
+| EVAL dd_wd1=date_diff("weekdays", date1, date2), dd_wd2=date_diff("dw", date1, date2)
+| EVAL dd_w1=date_diff("weeks", date1, date2), dd_w2=date_diff("wk", date1, date2), dd_w3=date_diff("ww", date1, date2)
+| EVAL dd_d1=date_diff("dy", date1, date2), dd_d2=date_diff("y", date1, date2)
+| EVAL dd_dy1=date_diff("days", date1, date2), dd_dy2=date_diff("dd", date1, date2), dd_dy3=date_diff("d", date1, date2)
+| keep dd_wd1, dd_wd2, dd_w1, dd_w2, dd_w3, dd_d1, dd_d2, dd_dy1, dd_dy2, dd_dy3
+;
+
+dd_wd1:integer  | dd_wd2:integer    | dd_w1:integer | dd_w2:integer | dd_w3:integer | dd_d1:integer | dd_d2:integer | dd_dy1:integer    | dd_dy2:integer    | dd_dy3:integer
+22              | 22                | 3             | 3             | 3             | 22            | 22            | 22                | 22                | 22                     
+;
+
+evalDateDiffInMonthsAndQuartersAndYears#[skip:-8.12.99, reason:date_diff added in 8.13]
+ROW date1=to_datetime("2023-12-02T11:00:00.000Z"), date2=to_datetime("2024-12-24T11:00:00.000Z") 
+| EVAL dd_m1=date_diff("months", date1, date2), dd_m2=date_diff("mm", date1, date2), dd_m3=date_diff("m", date1, date2)
+| EVAL dd_q1=date_diff("quarters", date1, date2), dd_q2=date_diff("qq", date1, date2), dd_q3=date_diff("q", date1, date2)
+| EVAL dd_y1=date_diff("years", date1, date2), dd_y2=date_diff("yyyy", date1, date2), dd_y3=date_diff("yy", date1, date2)
+| keep dd_m1, dd_m2, dd_m3, dd_q1, dd_q2, dd_q3, dd_y1, dd_y2, dd_y3
+;
+
+dd_m1:integer   | dd_m2:integer | dd_m3:integer | dd_q1:integer | dd_q2:integer | dd_q3:integer | dd_y1:integer | dd_y2:integer | dd_y3:integer
+12              | 12            | 12            | 4             | 4             | 4             | 1             | 1             | 1                                     
+;
+
+evalDateDiffErrorOutOfIntegerRange#[skip:-8.12.99, reason:date_diff added in 8.13]
+ROW date1=to_datetime("2023-12-02T11:00:00.000Z"), date2=to_datetime("2023-12-23T11:00:00.000Z") 
+| EVAL dd_oo=date_diff("nanoseconds", date1, date2)
+| keep dd_oo
+;
+warning: Line 2:14: evaluation of [date_diff(\"nanoseconds\", date1, date2)] failed, treating result as null. Only first 20 failures recorded.
+warning: Line 2:14: org.elasticsearch.xpack.ql.InvalidArgumentException: [1814400000000000] out of [integer] range
+
+dd_oo:integer
+null
+;
+
+docsDateDiff#[skip:-8.12.99, reason:date_diff added in 8.13]
+// tag::docsDateDiff[]
+ROW date1 = TO_DATETIME("2023-12-02T11:00:00.000Z"), date2 = TO_DATETIME("2023-12-02T11:00:00.001Z")
+| EVAL dd_ms = DATE_DIFF("microseconds", date1, date2)
+// end::docsDateDiff[]
+;
+
+// tag::docsDateDiff-result[]
+date1:date          |         date2:date          |    dd_ms:integer
+2023-12-02T11:00:00.000Z | 2023-12-02T11:00:00.001Z | 1000  
+// end::docsDateDiff-result[]
 ;
 
 evalDateParseWithSimpleDate
@@ -845,11 +983,11 @@ FROM employees
 //end::docsAutoBucketWeeklyHistogram-result[]
 ;
 
-docsAutoBucketLast24hr
+docsAutoBucketLast24hr#[skip:-8.12.99, reason:date type is supported in 8.13]
 //tag::docsAutoBucketLast24hr[]
 FROM sample_data 
 | WHERE @timestamp >= NOW() - 1 day and @timestamp < NOW()
-| EVAL bucket = AUTO_BUCKET(@timestamp, 25, DATE_FORMAT(NOW() - 1 day), DATE_FORMAT(NOW()))
+| EVAL bucket = AUTO_BUCKET(@timestamp, 25, NOW() - 1 day, NOW())
 | STATS COUNT(*) BY bucket
 //end::docsAutoBucketLast24hr[]
 ;
@@ -857,11 +995,11 @@ FROM sample_data
    COUNT(*):long    |    bucket:date
 ;
 
-docsGettingStartedAutoBucket
+docsGettingStartedAutoBucket#[skip:-8.12.99, reason:date type is supported in 8.13]
 // tag::gs-auto_bucket[]
 FROM sample_data
 | KEEP @timestamp
-| EVAL bucket = AUTO_BUCKET (@timestamp, 24, "2023-10-23T00:00:00Z", "2023-10-23T23:59:59Z")
+| EVAL bucket = AUTO_BUCKET(@timestamp, 24, "2023-10-23T00:00:00Z", NOW())
 // end::gs-auto_bucket[]
 | LIMIT 0
 ;
@@ -873,7 +1011,7 @@ docsGettingStartedAutoBucketStatsBy
 // tag::gs-auto_bucket-stats-by[]
 FROM sample_data
 | KEEP @timestamp, event_duration
-| EVAL bucket = AUTO_BUCKET (@timestamp, 24, "2023-10-23T00:00:00Z", "2023-10-23T23:59:59Z")
+| EVAL bucket = AUTO_BUCKET(@timestamp, 24, "2023-10-23T00:00:00Z", "2023-10-23T23:59:59Z")
 | STATS COUNT(*) BY bucket
 // end::gs-auto_bucket-stats-by[]
 | SORT bucket
@@ -888,7 +1026,7 @@ docsGettingStartedAutoBucketStatsByMedian
 // tag::gs-auto_bucket-stats-by-median[]
 FROM sample_data
 | KEEP @timestamp, event_duration
-| EVAL bucket = AUTO_BUCKET (@timestamp, 24, "2023-10-23T00:00:00Z", "2023-10-23T23:59:59Z")
+| EVAL bucket = AUTO_BUCKET(@timestamp, 24, "2023-10-23T00:00:00Z", "2023-10-23T23:59:59Z")
 | STATS median_duration = MEDIAN(event_duration) BY bucket
 // end::gs-auto_bucket-stats-by-median[]
 | SORT bucket
@@ -986,4 +1124,30 @@ hires:long     | year:date
 1              |1997-01-01T00:00:00.000Z
 1              |1999-01-01T00:00:00.000Z
 // end::docsDateTruncHistogram-result[]
+;
+
+docsNow
+// tag::docsNow[]
+ROW current_date = NOW()
+// end::docsNow[]
+| EVAL y = SUBSTRING(DATE_FORMAT("yyyy", current_date), 0, 2)
+| KEEP y
+;
+
+// tag::docsNow-result[]
+y:keyword
+20
+// end::docsNow-result[]  
+;
+
+docsNowWhere
+// tag::docsNowWhere[]
+FROM sample_data
+| WHERE @timestamp > NOW() - 1 hour
+// end::docsNowWhere[]
+;
+
+// tag::docsNowWhere-result[]
+@timestamp:date   | client_ip:ip | event_duration:long | message:keyword
+// end::docsNowWhere-result[]
 ;

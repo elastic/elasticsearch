@@ -82,6 +82,7 @@ public final class FetchPhase {
             // Only set the shardResults if building search hits was successful
             if (hits != null) {
                 context.fetchResult().shardResult(hits, profileResult);
+                hits.decRef();
             }
         }
     }
@@ -173,7 +174,7 @@ public final class FetchPhase {
         }
 
         TotalHits totalHits = context.getTotalHits();
-        return new SearchHits(hits, totalHits, context.getMaxScore());
+        return SearchHits.unpooled(hits, totalHits, context.getMaxScore());
     }
 
     List<FetchSubPhaseProcessor> getProcessors(SearchShardTarget target, FetchContext context, Profiler profiler) {
@@ -247,11 +248,12 @@ public final class FetchPhase {
 
         String id = idLoader.getId(subDocId);
         if (id == null) {
-            SearchHit hit = new SearchHit(docId, null);
+            // TODO: can we use pooled buffers here as well?
+            SearchHit hit = SearchHit.unpooled(docId, null);
             Source source = Source.lazy(lazyStoredSourceLoader(profiler, subReaderContext, subDocId));
             return new HitContext(hit, subReaderContext, subDocId, Map.of(), source);
         } else {
-            SearchHit hit = new SearchHit(docId, id);
+            SearchHit hit = SearchHit.unpooled(docId, id);
             Source source;
             if (requiresSource) {
                 Timer timer = profiler.startLoadingSource();
@@ -328,7 +330,7 @@ public final class FetchPhase {
         assert nestedIdentity != null;
         Source nestedSource = nestedIdentity.extractSource(rootSource);
 
-        SearchHit hit = new SearchHit(topDocId, rootId, nestedIdentity);
+        SearchHit hit = SearchHit.unpooled(topDocId, rootId, nestedIdentity);
         return new HitContext(hit, subReaderContext, nestedInfo.doc(), childFieldLoader.storedFields(), nestedSource);
     }
 

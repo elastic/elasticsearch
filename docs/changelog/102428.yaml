@@ -1,0 +1,5 @@
+pr: 102428
+summary: "ESQL: Add option to drop null fields"
+area: ES|QL
+type: enhancement
+issues: []

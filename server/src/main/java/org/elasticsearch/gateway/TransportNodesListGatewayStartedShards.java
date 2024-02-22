@@ -27,7 +27,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.NodeEnvironment;
@@ -63,7 +62,7 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
     private static final Logger logger = LogManager.getLogger(TransportNodesListGatewayStartedShards.class);
 
     public static final String ACTION_NAME = "internal:gateway/local/started_shards";
-    public static final ActionType<NodesGatewayStartedShards> TYPE = new ActionType<>(ACTION_NAME, Writeable.Reader.localOnly());
+    public static final ActionType<NodesGatewayStartedShards> TYPE = new ActionType<>(ACTION_NAME);
 
     private final Settings settings;
     private final NodeEnvironment nodeEnv;

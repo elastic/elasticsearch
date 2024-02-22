@@ -2,10 +2,8 @@
 |===
 v | result
 boolean | long
-cartesian_point | long
 datetime | long
 double | long
-geo_point | long
 integer | long
 keyword | long
 long | long

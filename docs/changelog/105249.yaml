@@ -1,0 +1,5 @@
+pr: 105249
+summary: "[Connector API] Support updating configuration values only"
+area: Application
+type: enhancement
+issues: []

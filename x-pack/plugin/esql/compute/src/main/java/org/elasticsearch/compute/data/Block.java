@@ -107,8 +107,7 @@ public interface Block extends Accountable, BlockLoader.Block, NamedWriteable, R
     boolean mayHaveMultivaluedFields();
 
     /**
-     * Creates a new block that only exposes the positions provided. Materialization of the selected positions is avoided.
-     * The new block may hold a reference to this block, increasing this block's reference count.
+     * Creates a new block that only exposes the positions provided.
      * @param positions the positions to retain
      * @return a filtered block
      * TODO: pass BlockFactory

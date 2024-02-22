@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.ql.planner.ExpressionTranslator;
-import org.elasticsearch.xpack.ql.planner.ExpressionTranslators;
 import org.elasticsearch.xpack.ql.planner.QlTranslatorHandler;
 import org.elasticsearch.xpack.ql.querydsl.query.Query;
 import org.elasticsearch.xpack.ql.type.DataType;
@@ -25,9 +24,10 @@ import org.elasticsearch.xpack.ql.type.DataType;
 import java.util.function.Supplier;
 
 public final class EsqlTranslatorHandler extends QlTranslatorHandler {
+
     @Override
     public Query asQuery(Expression e) {
-        return ExpressionTranslators.toQuery(e, this);
+        return EsqlExpressionTranslators.toQuery(e, this);
     }
 
     @Override

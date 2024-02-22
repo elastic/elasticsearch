@@ -13,8 +13,8 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -135,7 +135,7 @@ public class SearchWithRandomIOExceptionsIT extends ESIntegTestCase {
         ESIntegTestCase.NumShards numShards = getNumShards("test");
         logger.info("Start Refresh");
         // don't assert on failures here
-        final RefreshResponse refreshResponse = indicesAdmin().prepareRefresh("test").execute().get();
+        final BroadcastResponse refreshResponse = indicesAdmin().prepareRefresh("test").execute().get();
         final boolean refreshFailed = refreshResponse.getShardFailures().length != 0 || refreshResponse.getFailedShards() != 0;
         logger.info(
             "Refresh failed [{}] numShardsFailed: [{}], shardFailuresLength: [{}], successfulShards: [{}], totalShards: [{}] ",

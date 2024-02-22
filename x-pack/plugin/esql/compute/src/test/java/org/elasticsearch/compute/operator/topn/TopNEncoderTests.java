@@ -11,8 +11,9 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
+import org.elasticsearch.geo.GeometryTestUtils;
+import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.utils.WellKnownBinary;
 import org.elasticsearch.test.ESTestCase;
@@ -139,8 +140,8 @@ public class TopNEncoderTests extends ESTestCase {
     }
 
     static BytesRef randomPointAsWKB() {
-        SpatialPoint point = randomBoolean() ? randomGeoPoint() : randomCartesianPoint();
-        byte[] wkb = WellKnownBinary.toWKB(new Point(point.getX(), point.getY()), ByteOrder.LITTLE_ENDIAN);
+        Point point = randomBoolean() ? GeometryTestUtils.randomPoint() : ShapeTestUtils.randomPoint();
+        byte[] wkb = WellKnownBinary.toWKB(point, ByteOrder.LITTLE_ENDIAN);
         return new BytesRef(wkb);
     }
 }

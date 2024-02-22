@@ -55,7 +55,7 @@ public class SearchApplication implements Writeable, ToXContentObject {
         + "We recommend storing a template to avoid breaking changes.";
 
     public static final String NO_ALIAS_WARNING = "Alias is missing for the search application";
-    private static final TransportVersion INDICES_REMOVED_TRANSPORT_VERSION = TransportVersions.SEARCH_APP_INDICES_REMOVED;
+    private static final TransportVersion INDICES_REMOVED_TRANSPORT_VERSION = TransportVersions.V_8_11_X;
     private final String name;
 
     @Nullable

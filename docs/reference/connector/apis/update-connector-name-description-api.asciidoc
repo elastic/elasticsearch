@@ -1,11 +1,11 @@
 [[update-connector-name-description-api]]
 === Update connector name and description API
-
-preview::[]
-
 ++++
 <titleabbrev>Update connector name and description</titleabbrev>
 ++++
+
+preview::[]
+
 
 Updates the `name` and `description` fields of a connector.
 

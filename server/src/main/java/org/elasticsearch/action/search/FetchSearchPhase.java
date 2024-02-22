@@ -66,7 +66,7 @@ final class FetchSearchPhase extends SearchPhase {
             );
         }
         this.fetchResults = new ArraySearchPhaseResults<>(resultConsumer.getNumShards());
-        context.addReleasable(fetchResults::decRef);
+        context.addReleasable(fetchResults);
         this.queryResults = resultConsumer.getAtomicArray();
         this.aggregatedDfs = aggregatedDfs;
         this.nextPhaseFactory = nextPhaseFactory;
@@ -229,12 +229,9 @@ final class FetchSearchPhase extends SearchPhase {
         SearchPhaseController.ReducedQueryPhase reducedQueryPhase,
         AtomicArray<? extends SearchPhaseResult> fetchResultsArr
     ) {
-        context.executeNextPhase(
-            this,
-            nextPhaseFactory.apply(
-                SearchPhaseController.merge(context.getRequest().scroll() != null, reducedQueryPhase, fetchResultsArr),
-                queryResults
-            )
-        );
+        var resp = SearchPhaseController.merge(context.getRequest().scroll() != null, reducedQueryPhase, fetchResultsArr);
+        context.addReleasable(resp::decRef);
+        fetchResults.close();
+        context.executeNextPhase(this, nextPhaseFactory.apply(resp, queryResults));
     }
 }

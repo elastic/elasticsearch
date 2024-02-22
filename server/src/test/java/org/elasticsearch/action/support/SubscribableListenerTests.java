@@ -20,8 +20,10 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -603,5 +605,90 @@ public class SubscribableListenerTests extends ESTestCase {
 
         initialListener.onFailure(new ElasticsearchException("simulated"));
         assertComplete(chainedListener, "simulated");
+    }
+
+    public void testJavaDocExample() {
+        // Not really testing anything meaningful, this is just here to make sure that the example in the JavaDocs for SubscribableListener
+        // actually compiles and at least vaguely makes sense.
+        safeAwait(SubscribableListener.<Boolean>newForked(l -> exampleAsyncMethod(randomIdentifier(), List.of(), l)));
+    }
+
+    private void exampleAsyncMethod(String request, List<Long> items, ActionListener<Boolean> finalListener) {
+        SubscribableListener
+
+            // Start the chain and run the first step by creating a SubscribableListener using newForked():
+            .<String>newForked(l -> firstAsyncStep(request, l))
+
+            // Run a second step when the first step completes using andThen(); if the first step fails then the exception falls through to
+            // the end without executing the intervening steps.
+            .<Integer>andThen((l, firstStepResult) -> secondAsyncStep(request, firstStepResult, l))
+
+            // Run another step when the second step completes with another andThen() call; as above this only runs if the first two steps
+            // succeed.
+            .<Boolean>andThen((l, secondStepResult) -> {
+                if (condition) {
+                    // Steps are exception-safe: an exception thrown here will be passed to the listener rather than escaping to the
+                    // caller.
+                    throw new IOException("failure");
+                }
+
+                // Steps can fan out to multiple subsidiary async actions using utilities like RefCountingListener.
+                final var result = new AtomicBoolean();
+                try (var listeners = new RefCountingListener(l.map(v -> result.get()))) {
+                    for (final var item : items) {
+                        thirdAsyncStep(secondStepResult, item, listeners.acquire());
+                    }
+                }
+            })
+
+            // Synchronous (non-forking) steps which do not return a result can be expressed using andThenAccept() with a consumer:
+            .andThenAccept(thirdStepResult -> {
+                if (condition) {
+                    // andThenAccept() is also exception-safe
+                    throw new ElasticsearchException("some other problem");
+                }
+                consumeThirdStepResult(thirdStepResult);
+            })
+
+            // Synchronous (non-forking) steps which do return a result can be expressed using andThenApply() with a function:
+            .andThenApply(voidFromStep4 -> {
+                if (condition) {
+                    // andThenApply() is also exception-safe
+                    throw new IllegalArgumentException("failure");
+                }
+                return computeFifthStepResult();
+            })
+
+            // To complete the chain, add the outer listener which will be completed with the result of the previous step if all steps were
+            // successful, or the exception if any step failed.
+            .addListener(finalListener);
+    }
+
+    private static final boolean condition = false;
+
+    private static void firstAsyncStep(@SuppressWarnings("unused") String request, ActionListener<String> listener) {
+        listener.onResponse(null);
+    }
+
+    private static void secondAsyncStep(
+        @SuppressWarnings("unused") String request,
+        @SuppressWarnings("unused") String firstStepResult,
+        ActionListener<Integer> listener
+    ) {
+        listener.onResponse(null);
+    }
+
+    private static void thirdAsyncStep(
+        @SuppressWarnings("unused") Integer secondStepResult,
+        @SuppressWarnings("unused") Long item,
+        ActionListener<Void> listener
+    ) {
+        listener.onResponse(null);
+    }
+
+    private static void consumeThirdStepResult(@SuppressWarnings("unused") boolean flag) {}
+
+    private static boolean computeFifthStepResult() {
+        return false;
     }
 }

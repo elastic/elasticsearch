@@ -8,14 +8,15 @@
 package org.elasticsearch.search.aggregations.bucket.sampler;
 
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
+import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 public class UnmappedSampler extends InternalSampler {
@@ -38,8 +39,31 @@ public class UnmappedSampler extends InternalSampler {
     }
 
     @Override
-    public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
-        return new UnmappedSampler(name, metadata);
+    protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
+        InternalAggregation empty = this;
+        return new AggregatorReducer() {
+            AggregatorReducer aggregatorReducer = null;
+
+            @Override
+            public void accept(InternalAggregation aggregation) {
+                if (aggregatorReducer != null) {
+                    aggregatorReducer.accept(aggregation);
+                } else if ((aggregation instanceof UnmappedSampler) == false) {
+                    aggregatorReducer = aggregation.getReducer(reduceContext, size);
+                    aggregatorReducer.accept(aggregation);
+                }
+            }
+
+            @Override
+            public InternalAggregation get() {
+                return aggregatorReducer != null ? aggregatorReducer.get() : empty;
+            }
+
+            @Override
+            public void close() {
+                Releasables.close(aggregatorReducer);
+            }
+        };
     }
 
     @Override

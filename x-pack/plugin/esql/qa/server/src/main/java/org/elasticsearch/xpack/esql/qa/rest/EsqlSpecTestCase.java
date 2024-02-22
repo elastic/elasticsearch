@@ -12,12 +12,16 @@ import org.apache.http.HttpEntity;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.Point;
+import org.elasticsearch.geometry.utils.GeometryValidator;
+import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.esql.CsvTestUtils;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.RequestObjectBuilder;
 import org.elasticsearch.xpack.ql.CsvSpecReader.CsvTestCase;
 import org.elasticsearch.xpack.ql.SpecReader;
@@ -29,8 +33,13 @@ import java.io.IOException;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
+import static org.apache.lucene.geo.GeoEncodingUtils.decodeLatitude;
+import static org.apache.lucene.geo.GeoEncodingUtils.decodeLongitude;
+import static org.apache.lucene.geo.GeoEncodingUtils.encodeLatitude;
+import static org.apache.lucene.geo.GeoEncodingUtils.encodeLongitude;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.elasticsearch.xpack.esql.CsvAssert.assertData;
@@ -162,31 +171,38 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         Logger logger
     ) {
         assertMetadata(expected, actualColumns, logger);
-        assertData(expected, actualValues, testCase.ignoreOrder, logger, EsqlSpecTestCase::valueToString);
+        assertData(expected, actualValues, testCase.ignoreOrder, logger, EsqlSpecTestCase::valueMapper);
     }
 
-    /**
-     * Unfortunately the GeoPoint.toString method returns the old format, but cannot be changed due to BWC.
-     * So we need to custom format GeoPoint as well as wrap Lists to ensure this custom conversion applies to multi-value fields
-     */
-    private static String valueToString(Object value) {
+    private static Object valueMapper(CsvTestUtils.Type type, Object value) {
         if (value == null) {
             return "null";
-        } else if (value instanceof List<?> list) {
-            StringBuilder sb = new StringBuilder("[");
-            for (Object field : list) {
-                if (sb.length() > 1) {
-                    sb.append(", ");
-                }
-                sb.append(valueToString(field));
-            }
-            return sb.append("]").toString();
-        } else if (value instanceof SpatialPoint point) {
-            // Alternatively we could just change GeoPoint.toString() to use WKT, but that has other side-effects
-            return point.toWKT();
-        } else {
-            return value.toString();
         }
+        if (type == CsvTestUtils.Type.GEO_POINT || type == CsvTestUtils.Type.CARTESIAN_POINT) {
+            // Point tests are failing in clustered integration tests because of tiny precision differences at very small scales
+            if (value instanceof String wkt) {
+                try {
+                    Geometry geometry = WellKnownText.fromWKT(GeometryValidator.NOOP, false, wkt);
+                    if (geometry instanceof Point point) {
+                        return normalizedPoint(type, point.getX(), point.getY());
+                    }
+                } catch (Throwable ignored) {}
+            }
+        }
+        return value.toString();
+    }
+
+    private static String normalizedPoint(CsvTestUtils.Type type, double x, double y) {
+        if (type == CsvTestUtils.Type.GEO_POINT) {
+            return normalizedGeoPoint(x, y);
+        }
+        return String.format(Locale.ROOT, "POINT (%f %f)", (float) x, (float) y);
+    }
+
+    private static String normalizedGeoPoint(double x, double y) {
+        x = decodeLongitude(encodeLongitude(x));
+        y = decodeLatitude(encodeLatitude(y));
+        return String.format(Locale.ROOT, "POINT (%f %f)", x, y);
     }
 
     private Throwable reworkException(Throwable th) {

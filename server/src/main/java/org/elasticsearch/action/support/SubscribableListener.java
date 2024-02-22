@@ -26,6 +26,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
+import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 
@@ -33,8 +34,64 @@ import java.util.concurrent.Executor;
  * An {@link ActionListener} to which other {@link ActionListener} instances can subscribe, such that when this listener is completed it
  * fans-out its result to the subscribed listeners.
  * <p>
- * Similar to {@link ListenableActionFuture} and {@link ListenableFuture} except for its handling of exceptions: if this listener is
- * completed exceptionally then the exception is passed to subscribed listeners without modification.
+ * Exceptions are passed to subscribed listeners without modification. {@link ListenableActionFuture} and {@link ListenableFuture} are child
+ * classes that provide additional exception handling.
+ * <p>
+ * A sequence of async steps can be chained together using a series of {@link SubscribableListener}s, similar to {@link CompletionStage}
+ * (without the {@code catch (Throwable t)}). Listeners can be created for each step, where the next step subscribes to the result of the
+ * previous, using utilities like {@link #andThen(CheckedBiConsumer)}. The following example demonstrates how this might be used:
+ * <pre>{@code
+ * private void exampleAsyncMethod(String request, List<Long> items, ActionListener<Boolean> finalListener) {
+ *     SubscribableListener
+ *
+ *         // Start the chain and run the first step by creating a SubscribableListener using newForked():
+ *         .<String>newForked(l -> firstAsyncStep(request, l))
+ *
+ *         // Run a second step when the first step completes using andThen(); if the first step fails then the exception falls through to
+ *         // the end without executing the intervening steps.
+ *         .<Integer>andThen((l, firstStepResult) -> secondAsyncStep(request, firstStepResult, l))
+ *
+ *         // Run another step when the second step completes with another andThen() call; as above this only runs if the first two steps
+ *         // succeed.
+ *         .<Boolean>andThen((l, secondStepResult) -> {
+ *             if (condition) {
+ *                 // Steps are exception-safe: an exception thrown here will be passed to the listener rather than escaping to the
+ *                 // caller.
+ *                 throw new IOException("failure");
+ *             }
+ *
+ *             // Steps can fan out to multiple subsidiary async actions using utilities like RefCountingListener.
+ *             final var result = new AtomicBoolean();
+ *             try (var listeners = new RefCountingListener(l.map(v -> result.get()))) {
+ *                 for (final var item : items) {
+ *                     thirdAsyncStep(secondStepResult, item, listeners.acquire());
+ *                 }
+ *             }
+ *         })
+ *
+ *         // Synchronous (non-forking) steps which do not return a result can be expressed using andThenAccept() with a consumer:
+ *         .andThenAccept(thirdStepResult -> {
+ *             if (condition) {
+ *                 // andThenAccept() is also exception-safe
+ *                 throw new ElasticsearchException("some other problem");
+ *             }
+ *             consumeThirdStepResult(thirdStepResult);
+ *         })
+ *
+ *         // Synchronous (non-forking) steps which do return a result can be expressed using andThenApply() with a function:
+ *         .andThenApply(voidFromStep4 -> {
+ *             if (condition) {
+ *                 // andThenApply() is also exception-safe
+ *                 throw new IllegalArgumentException("failure");
+ *             }
+ *             return computeFifthStepResult();
+ *         })
+ *
+ *         // To complete the chain, add the outer listener which will be completed with the result of the previous step if all steps were
+ *         // successful, or the exception if any step failed.
+ *         .addListener(finalListener);
+ * }
+ * }</pre>
  */
 public class SubscribableListener<T> implements ActionListener<T> {
 

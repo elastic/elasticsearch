@@ -7,7 +7,6 @@
 
 package org.elasticsearch.compute.operator;
 
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
@@ -93,12 +92,6 @@ public class ProjectOperatorTests extends OperatorTestCase {
             }
         }
         assertThat(total, equalTo(input.stream().mapToInt(Page::getPositionCount).sum()));
-    }
-
-    @Override
-    protected ByteSizeValue enoughMemoryForSimple() {
-        assumeTrue("doesn't allocate", false);
-        return null;
     }
 
     public void testDescriptionOfMany() {

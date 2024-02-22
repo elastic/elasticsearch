@@ -52,7 +52,7 @@ import java.util.Objects;
  */
 public class RoleDescriptor implements ToXContentObject, Writeable {
 
-    public static final TransportVersion WORKFLOWS_RESTRICTION_VERSION = TransportVersions.V_8_500_020;
+    public static final TransportVersion WORKFLOWS_RESTRICTION_VERSION = TransportVersions.V_8_9_X;
 
     public static final String ROLE_TYPE = "role";
 
@@ -621,7 +621,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         return XContentHelper.createParserNotCompressed(LoggingDeprecationHandler.XCONTENT_PARSER_CONFIG, source, xContentType);
     }
 
-    private static RoleDescriptor.IndicesPrivileges[] parseIndices(String roleName, XContentParser parser, boolean allow2xFormat)
+    public static RoleDescriptor.IndicesPrivileges[] parseIndices(String roleName, XContentParser parser, boolean allow2xFormat)
         throws IOException {
         if (parser.currentToken() != XContentParser.Token.START_ARRAY) {
             throw new ElasticsearchParseException(
@@ -954,7 +954,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         }
     }
 
-    private static ApplicationResourcePrivileges[] parseApplicationPrivileges(String roleName, XContentParser parser) throws IOException {
+    public static ApplicationResourcePrivileges[] parseApplicationPrivileges(String roleName, XContentParser parser) throws IOException {
         if (parser.currentToken() != XContentParser.Token.START_ARRAY) {
             throw new ElasticsearchParseException(
                 "failed to parse application privileges for role [{}]. expected field [{}] value "

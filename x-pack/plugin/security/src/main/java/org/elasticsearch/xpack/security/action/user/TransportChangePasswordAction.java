@@ -26,9 +26,7 @@ import java.util.Locale;
 
 public class TransportChangePasswordAction extends HandledTransportAction<ChangePasswordRequest, ActionResponse.Empty> {
 
-    public static final ActionType<ActionResponse.Empty> TYPE = ActionType.emptyResponse(
-        "cluster:admin/xpack/security/user/change_password"
-    );
+    public static final ActionType<ActionResponse.Empty> TYPE = new ActionType<>("cluster:admin/xpack/security/user/change_password");
     private final Settings settings;
     private final NativeUsersStore nativeUsersStore;
 

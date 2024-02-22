@@ -62,7 +62,7 @@ public class UpdateResponseTests extends ESTestCase {
         }
         {
             UpdateResponse updateResponse = new UpdateResponse(
-                new ReplicationResponse.ShardInfo(10, 6),
+                ReplicationResponse.ShardInfo.of(10, 6),
                 new ShardId("index", "index_uuid", 1),
                 "id",
                 3,
@@ -94,7 +94,7 @@ public class UpdateResponseTests extends ESTestCase {
             fields.put("isbn", new DocumentField("isbn", Collections.singletonList("ABC-123")));
 
             UpdateResponse updateResponse = new UpdateResponse(
-                new ReplicationResponse.ShardInfo(3, 2),
+                ReplicationResponse.ShardInfo.of(3, 2),
                 new ShardId("books", "books_uuid", 2),
                 "1",
                 7,

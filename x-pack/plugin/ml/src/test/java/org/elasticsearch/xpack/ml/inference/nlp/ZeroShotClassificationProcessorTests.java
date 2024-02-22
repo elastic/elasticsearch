@@ -47,8 +47,8 @@ public class ZeroShotClassificationProcessorTests extends ESTestCase {
         ZeroShotClassificationProcessor processor = new ZeroShotClassificationProcessor(tokenizer, config);
 
         NlpTask.Request request = processor.getRequestBuilder(
-            (NlpConfig) new ZeroShotClassificationConfigUpdate.Builder().setLabels(List.of("new", "stuff")).build().apply(config)
-        ).buildRequest(List.of("Elasticsearch fun"), "request1", Tokenization.Truncate.NONE, -1);
+            (NlpConfig) config.apply(new ZeroShotClassificationConfigUpdate.Builder().setLabels(List.of("new", "stuff")).build())
+        ).buildRequest(List.of("Elasticsearch fun"), "request1", Tokenization.Truncate.NONE, -1, null);
 
         Map<String, Object> jsonDocAsMap = XContentHelper.convertToMap(request.processInput(), true, XContentType.JSON).v2();
 

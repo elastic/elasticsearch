@@ -31,7 +31,7 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.elasticsearch.test.hamcrest.ModuleDescriptorMatchers.exportsOf;
 import static org.elasticsearch.test.hamcrest.ModuleDescriptorMatchers.opensOf;
 import static org.elasticsearch.test.hamcrest.OptionalMatchers.isEmpty;
-import static org.elasticsearch.test.hamcrest.OptionalMatchers.isPresent;
+import static org.elasticsearch.test.hamcrest.OptionalMatchers.isPresentWith;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -51,16 +51,13 @@ public class EmbeddedModulePathTests extends ESTestCase {
         assertThat(over, isEmpty());
 
         over = EmbeddedModulePath.version("foo-1.2.jar");
-        assertThat(over, isPresent());
-        assertThat(over.get(), is(Version.parse("1.2")));
+        assertThat(over, isPresentWith(Version.parse("1.2")));
 
         over = EmbeddedModulePath.version("foo-bar-1.2.3-SNAPSHOT.jar");
-        assertThat(over, isPresent());
-        assertThat(over.get(), is(Version.parse("1.2.3-SNAPSHOT")));
+        assertThat(over, isPresentWith(Version.parse("1.2.3-SNAPSHOT")));
 
         over = EmbeddedModulePath.version("elasticsearch-8.3.0-SNAPSHOT.jar");
-        assertThat(over, isPresent());
-        assertThat(over.get(), is(Version.parse("8.3.0-SNAPSHOT")));
+        assertThat(over, isPresentWith(Version.parse("8.3.0-SNAPSHOT")));
 
         expectThrows(IAE, () -> EmbeddedModulePath.version(""));
         expectThrows(IAE, () -> EmbeddedModulePath.version("foo"));

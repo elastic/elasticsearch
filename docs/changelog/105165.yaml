@@ -1,5 +1,0 @@
-pr: 105165
-summary: Backport stable `ThreadPool` constructor from `LogstashInternalBridge`
-area: Ingest Node
-type: bug
-issues: []

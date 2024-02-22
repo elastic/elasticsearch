@@ -241,6 +241,8 @@ public class ConnectorSyncJobIndexService {
                     // A pending non-running sync job is set to `canceled` directly
                     // without a transition to the in-between `canceling` status
                     nextStatus = ConnectorSyncStatus.CANCELED;
+
+                    // We do not update `cancelation_requested_at` as this is not an async operation
                     timestampFieldToUpdate = ConnectorSyncJob.CANCELED_AT_FIELD.getPreferredName();
                 } else {
                     nextStatus = ConnectorSyncStatus.CANCELING;

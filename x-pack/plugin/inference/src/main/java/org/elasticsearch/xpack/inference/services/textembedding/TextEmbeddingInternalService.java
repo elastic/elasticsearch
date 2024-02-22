@@ -36,13 +36,12 @@ import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.action.StopTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
-import org.elasticsearch.xpack.core.ml.inference.results.ChunkedTextExpansionResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfigUpdate;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TokenizationConfigUpdate;
 import org.elasticsearch.xpack.inference.services.settings.InternalServiceSettings;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -241,7 +240,7 @@ public class TextEmbeddingInternalService implements InferenceService {
         Map<String, Object> taskSettings,
         InputType inputType,
         ChunkingOptions chunkingOptions,
-        ActionListener<ChunkedInferenceServiceResults> listener
+        ActionListener<List<ChunkedInferenceServiceResults>> listener
     ) {
         try {
             checkCompatibleTaskType(model.getConfigurations().getTaskType());
@@ -252,7 +251,7 @@ public class TextEmbeddingInternalService implements InferenceService {
 
         var configUpdate = chunkingOptions.settingsArePresent()
             ? new TokenizationConfigUpdate(chunkingOptions.windowSize(), chunkingOptions.span())
-            : TextExpansionConfigUpdate.EMPTY_UPDATE;
+            : TextEmbeddingConfigUpdate.EMPTY_INSTANCE;
 
         var request = InferTrainedModelDeploymentAction.Request.forTextInput(
             model.getConfigurations().getInferenceEntityId(),
@@ -314,8 +313,13 @@ public class TextEmbeddingInternalService implements InferenceService {
                 INFERENCE_ORIGIN,
                 PutTrainedModelAction.INSTANCE,
                 putRequest,
-                listener.delegateFailure((l, r) -> {
-                    l.onResponse(Boolean.TRUE);
+                ActionListener.wrap(response -> listener.onResponse(Boolean.TRUE), e -> {
+                    if (e instanceof ElasticsearchStatusException esException
+                        && esException.getMessage().contains(PutTrainedModelAction.MODEL_ALREADY_EXISTS_ERROR_MESSAGE_FRAGMENT)) {
+                        listener.onResponse(Boolean.TRUE);
+                    } else {
+                        listener.onFailure(e);
+                    }
                 })
             );
         } else if (model instanceof CustomElandModel elandModel) {
@@ -333,6 +337,33 @@ public class TextEmbeddingInternalService implements InferenceService {
         }
     }
 
+    @Override
+    public void isModelDownloaded(Model model, ActionListener<Boolean> listener) {
+        ActionListener<GetTrainedModelsAction.Response> getModelsResponseListener = listener.delegateFailure((delegate, response) -> {
+            if (response.getResources().count() < 1) {
+                delegate.onResponse(Boolean.FALSE);
+            } else {
+                delegate.onResponse(Boolean.TRUE);
+            }
+        });
+
+        if (model instanceof TextEmbeddingModel == false) {
+            listener.onFailure(notTextEmbeddingModelException(model));
+        } else if (model.getServiceSettings() instanceof InternalServiceSettings internalServiceSettings) {
+            String modelId = internalServiceSettings.getModelId();
+            GetTrainedModelsAction.Request getRequest = new GetTrainedModelsAction.Request(modelId);
+            executeAsyncWithOrigin(client, INFERENCE_ORIGIN, GetTrainedModelsAction.INSTANCE, getRequest, getModelsResponseListener);
+        } else {
+            listener.onFailure(
+                new IllegalArgumentException(
+                    "Unable to determine supported model for ["
+                        + model.getConfigurations().getInferenceEntityId()
+                        + "] please verify the request and submit a bug report if necessary."
+                )
+            );
+        }
+    }
+
     private static IllegalStateException notTextEmbeddingModelException(Model model) {
         return new IllegalStateException(
             "Error starting model, [" + model.getConfigurations().getInferenceEntityId() + "] is not a text embedding model"
@@ -345,23 +376,23 @@ public class TextEmbeddingInternalService implements InferenceService {
         }
     }
 
-    private ChunkedTextEmbeddingResults translateChunkedResults(List<InferenceResults> inferenceResults) {
-        if (inferenceResults.size() != 1) {
-            throw new ElasticsearchStatusException("Expected exactly one chunked text embedding result", RestStatus.INTERNAL_SERVER_ERROR);
+    private List<ChunkedInferenceServiceResults> translateChunkedResults(List<InferenceResults> inferenceResults) {
+        var translated = new ArrayList<ChunkedInferenceServiceResults>();
+
+        for (var inferenceResult : inferenceResults) {
+            if (inferenceResult instanceof org.elasticsearch.xpack.core.ml.inference.results.ChunkedTextEmbeddingResults mlChunkedResult) {
+                translated.add(ChunkedTextEmbeddingResults.ofMlResult(mlChunkedResult));
+            } else {
+                throw new ElasticsearchStatusException(
+                    "Expected a chunked inference [{}] received [{}]",
+                    RestStatus.INTERNAL_SERVER_ERROR,
+                    ChunkedTextEmbeddingResults.NAME,
+                    inferenceResult.getWriteableName()
+                );
+            }
         }
 
-        if (inferenceResults.get(
-            0
-        ) instanceof org.elasticsearch.xpack.core.ml.inference.results.ChunkedTextEmbeddingResults mlChunkedResult) {
-            return ChunkedTextEmbeddingResults.ofMlResult(mlChunkedResult);
-        } else {
-            throw new ElasticsearchStatusException(
-                "Expected a chunked inference [{}] received [{}]",
-                RestStatus.INTERNAL_SERVER_ERROR,
-                ChunkedTextExpansionResults.NAME,
-                inferenceResults.get(0).getWriteableName()
-            );
-        }
+        return translated;
     }
 
     @Override

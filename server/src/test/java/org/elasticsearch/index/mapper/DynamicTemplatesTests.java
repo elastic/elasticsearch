@@ -21,6 +21,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.plugins.internal.DocumentSizeObserver;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -732,7 +733,16 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
             {"foo": "41.12,-71.34", "bar": "41.12,-71.34"}
             """;
         ParsedDocument doc = mapperService.documentMapper()
-            .parse(new SourceToParse("1", new BytesArray(json), XContentType.JSON, null, Map.of("foo", "geo_point"), false));
+            .parse(
+                new SourceToParse(
+                    "1",
+                    new BytesArray(json),
+                    XContentType.JSON,
+                    null,
+                    Map.of("foo", "geo_point"),
+                    DocumentSizeObserver.EMPTY_INSTANCE
+                )
+            );
         assertThat(doc.rootDoc().getFields("foo"), hasSize(2));
         assertThat(doc.rootDoc().getFields("bar"), hasSize(1));
     }
@@ -1795,6 +1805,53 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
         ObjectMapper artifacts = (ObjectMapper) mapping.getRoot().getMapper("artifacts");
         ObjectMapper leaf = (ObjectMapper) artifacts.getMapper("leaf");
         assertFalse(leaf.subobjects());
+    }
+
+    public void testSubobjectsFalseFlattened() throws IOException {
+        String mapping = """
+            {
+              "_doc": {
+                "properties": {
+                  "attributes": {
+                    "type": "object",
+                    "subobjects": false
+                  }
+                },
+                "dynamic_templates": [
+                  {
+                    "test": {
+                      "path_match": "attributes.*",
+                      "match_mapping_type": "object",
+                      "mapping": {
+                        "type": "flattened"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+            """;
+        String docJson = """
+            {
+              "attributes": {
+                "complex.attribute": {
+                  "a": "b"
+                },
+                "foo.bar": "baz"
+              }
+            }
+            """;
+
+        MapperService mapperService = createMapperService(mapping);
+        ParsedDocument parsedDoc = mapperService.documentMapper().parse(source(docJson));
+        merge(mapperService, dynamicMapping(parsedDoc.dynamicMappingsUpdate()));
+
+        Mapper fooBarMapper = mapperService.documentMapper().mappers().getMapper("attributes.foo.bar");
+        assertNotNull(fooBarMapper);
+        assertEquals("text", fooBarMapper.typeName());
+        Mapper fooStructuredMapper = mapperService.documentMapper().mappers().getMapper("attributes.complex.attribute");
+        assertNotNull(fooStructuredMapper);
+        assertEquals("flattened", fooStructuredMapper.typeName());
     }
 
     public void testMatchWithArrayOfFieldNames() throws IOException {

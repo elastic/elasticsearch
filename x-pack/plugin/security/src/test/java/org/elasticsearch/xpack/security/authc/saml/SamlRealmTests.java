@@ -336,51 +336,72 @@ public class SamlRealmTests extends SamlTestCase {
         );
     }
 
-    public void testAuthenticateWithRoleMapping() throws Exception {
+    private UserRoleMapper mockRoleMapper(Set<String> rolesToReturn, AtomicReference<UserRoleMapper.UserData> userData) {
         final UserRoleMapper roleMapper = mock(UserRoleMapper.class);
-        AtomicReference<UserRoleMapper.UserData> userData = new AtomicReference<>();
         Mockito.doAnswer(invocation -> {
             assert invocation.getArguments().length == 2;
             userData.set((UserRoleMapper.UserData) invocation.getArguments()[0]);
             @SuppressWarnings("unchecked")
             ActionListener<Set<String>> listener = (ActionListener<Set<String>>) invocation.getArguments()[1];
-            listener.onResponse(Collections.singleton("superuser"));
+            listener.onResponse(rolesToReturn);
             return null;
         }).when(roleMapper).resolveRoles(any(UserRoleMapper.UserData.class), anyActionListener());
+        return roleMapper;
+    }
 
+    public void testAuthenticateWithEmptyRoleMapping() throws Exception {
+        final AtomicReference<UserRoleMapper.UserData> userData = new AtomicReference<>();
+        final UserRoleMapper roleMapper = mockRoleMapper(Set.of(), userData);
+
+        final boolean testWithDelimiter = randomBoolean();
+        final AuthenticationResult<User> result = performAuthentication(
+            roleMapper,
+            randomBoolean(),
+            randomBoolean(),
+            randomFrom(Boolean.TRUE, Boolean.FALSE, null),
+            false,
+            randomBoolean() ? REALM_NAME : null,
+            testWithDelimiter ? List.of("STRIKE Team: Delta$shield") : Arrays.asList("avengers", "shield"),
+            testWithDelimiter ? "$" : null,
+            randomBoolean() ? List.of("superuser", "kibana_admin") : randomFrom(List.of(), null)
+        );
+        assertThat(result, notNullValue());
+        assertThat(result.getStatus(), equalTo(AuthenticationResult.Status.SUCCESS));
+        assertThat(result.getValue().roles().length, equalTo(0));
+    }
+
+    public void testAuthenticateWithRoleMapping() throws Exception {
+        final AtomicReference<UserRoleMapper.UserData> userData = new AtomicReference<>();
+        final UserRoleMapper roleMapper = mockRoleMapper(Set.of("superuser", "kibana_admin"), userData);
+
+        final boolean excludeRoles = randomBoolean();
+        final List<String> rolesToExclude = excludeRoles ? List.of("superuser") : randomFrom(List.of(), null);
         final boolean useNameId = randomBoolean();
         final boolean principalIsEmailAddress = randomBoolean();
         final Boolean populateUserMetadata = randomFrom(Boolean.TRUE, Boolean.FALSE, null);
         final String authenticatingRealm = randomBoolean() ? REALM_NAME : null;
         final boolean testWithDelimiter = randomBoolean();
-        final AuthenticationResult<User> result;
+        final AuthenticationResult<User> result = performAuthentication(
+            roleMapper,
+            useNameId,
+            principalIsEmailAddress,
+            populateUserMetadata,
+            false,
+            authenticatingRealm,
+            testWithDelimiter ? List.of("STRIKE Team: Delta$shield") : Arrays.asList("avengers", "shield"),
+            testWithDelimiter ? "$" : null,
+            rolesToExclude
+        );
 
-        if (testWithDelimiter) {
-            result = performAuthentication(
-                roleMapper,
-                useNameId,
-                principalIsEmailAddress,
-                populateUserMetadata,
-                false,
-                authenticatingRealm,
-                List.of("STRIKE Team: Delta$shield"),
-                "$"
-            );
-        } else {
-            result = performAuthentication(
-                roleMapper,
-                useNameId,
-                principalIsEmailAddress,
-                populateUserMetadata,
-                false,
-                authenticatingRealm
-            );
-        }
         assertThat(result, notNullValue());
         assertThat(result.getStatus(), equalTo(AuthenticationResult.Status.SUCCESS));
         assertThat(result.getValue().principal(), equalTo(useNameId ? "clint.barton" : "cbarton"));
         assertThat(result.getValue().email(), equalTo("cbarton@shield.gov"));
-        assertThat(result.getValue().roles(), arrayContainingInAnyOrder("superuser"));
+        if (excludeRoles) {
+            assertThat(result.getValue().roles(), arrayContainingInAnyOrder("kibana_admin"));
+        } else {
+            assertThat(result.getValue().roles(), arrayContainingInAnyOrder("kibana_admin", "superuser"));
+        }
         if (populateUserMetadata == Boolean.FALSE) {
             // TODO : "saml_nameid" should be null too, but the logout code requires it for now.
             assertThat(result.getValue().metadata().get("saml_uid"), nullValue());
@@ -474,6 +495,30 @@ public class SamlRealmTests extends SamlTestCase {
         List<String> groups,
         String groupsDelimiter
     ) throws Exception {
+        return performAuthentication(
+            roleMapper,
+            useNameId,
+            principalIsEmailAddress,
+            populateUserMetadata,
+            useAuthorizingRealm,
+            authenticatingRealm,
+            groups,
+            groupsDelimiter,
+            null
+        );
+    }
+
+    private AuthenticationResult<User> performAuthentication(
+        UserRoleMapper roleMapper,
+        boolean useNameId,
+        boolean principalIsEmailAddress,
+        Boolean populateUserMetadata,
+        boolean useAuthorizingRealm,
+        String authenticatingRealm,
+        List<String> groups,
+        String groupsDelimiter,
+        List<String> rolesToExclude
+    ) throws Exception {
         final EntityDescriptor idp = mockIdp();
         final SpConfiguration sp = new SpConfiguration("<sp>", "https://saml/", null, null, null, Collections.emptyList());
         final SamlAuthenticator authenticator = mock(SamlAuthenticator.class);
@@ -513,6 +558,9 @@ public class SamlRealmTests extends SamlTestCase {
                 getFullSettingKey(REALM_NAME, SamlRealmSettings.POPULATE_USER_METADATA),
                 populateUserMetadata.booleanValue()
             );
+        }
+        if (rolesToExclude != null) {
+            settingsBuilder.put(getFullSettingKey(REALM_NAME, SamlRealmSettings.EXCLUDE_ROLES), String.join(",", rolesToExclude));
         }
         if (useAuthorizingRealm) {
             settingsBuilder.putList(
@@ -740,6 +788,36 @@ public class SamlRealmTests extends SamlTestCase {
         );
         assertThat(settingsException.getMessage(), containsString(REALM_SETTINGS_PREFIX + ".attribute_patterns.name"));
         assertThat(settingsException.getMessage(), containsString(REALM_SETTINGS_PREFIX + ".attributes.name"));
+    }
+
+    public void testSettingExcludeRolesAndAuthorizationRealmsThrowsException() throws Exception {
+        final Settings realmSettings = Settings.builder()
+            .putList(getFullSettingKey(REALM_NAME, SamlRealmSettings.EXCLUDE_ROLES), "superuser", "kibana_admin")
+            .putList(
+                getFullSettingKey(new RealmConfig.RealmIdentifier("saml", REALM_NAME), DelegatedAuthorizationSettings.AUTHZ_REALMS),
+                "ldap"
+            )
+            .build();
+        final RealmConfig config = buildConfig(realmSettings);
+
+        final UserRoleMapper roleMapper = mock(UserRoleMapper.class);
+        final SamlAuthenticator authenticator = mock(SamlAuthenticator.class);
+        final SamlLogoutRequestHandler logoutHandler = mock(SamlLogoutRequestHandler.class);
+        final EntityDescriptor idp = mockIdp();
+        final SpConfiguration sp = new SpConfiguration("<sp>", "https://saml/", null, null, null, Collections.emptyList());
+
+        var e = expectThrows(IllegalArgumentException.class, () -> buildRealm(config, roleMapper, authenticator, logoutHandler, idp, sp));
+
+        assertThat(
+            e.getCause().getMessage(),
+            containsString(
+                "Setting ["
+                    + REALM_SETTINGS_PREFIX
+                    + ".exclude_roles] is not permitted when setting ["
+                    + REALM_SETTINGS_PREFIX
+                    + ".authorization_realms] is configured."
+            )
+        );
     }
 
     public void testMissingPrincipalSettingThrowsSettingsException() throws Exception {

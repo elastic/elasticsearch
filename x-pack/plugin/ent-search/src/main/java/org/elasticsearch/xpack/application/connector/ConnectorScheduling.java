@@ -240,7 +240,7 @@ public class ConnectorScheduling implements Writeable, ToXContentObject {
     }
 
     /**
-     * Default scheduling is set to every at midnight (00:00:00).
+     * Default scheduling is set to everyday at midnight (00:00:00).
      *
      * @return default scheduling for full, incremental and access control syncs.
      */

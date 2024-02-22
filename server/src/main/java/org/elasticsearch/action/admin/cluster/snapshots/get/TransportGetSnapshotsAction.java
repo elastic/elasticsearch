@@ -130,6 +130,10 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
 
     /**
      * A single invocation of the get-snapshots API.
+     * <p>
+     * Decides which repositories to query, picks a collection of candidate {@link SnapshotId} values from each {@link RepositoryData},
+     * chosen according to the request parameters, loads the relevant {@link SnapshotInfo} blobs, and finally sorts and filters the
+     * results.
      */
     private class GetSnapshotsOperation {
         private final CancellableTask cancellableTask;

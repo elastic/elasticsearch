@@ -161,6 +161,8 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
         inferenceServices.add(this::getInferenceServiceFactories);
 
         var factoryContext = new InferenceServiceExtension.InferenceServiceFactoryContext(services.client());
+        // This must be done after the HttpRequestSenderFactory is created so that the services can get the
+        // reference correctly
         var inferenceRegistry = new InferenceServiceRegistryImpl(inferenceServices, factoryContext);
         inferenceRegistry.init(services.client());
         inferenceServiceRegistry.set(inferenceRegistry);
@@ -178,10 +180,10 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
     public List<InferenceServiceExtension.Factory> getInferenceServiceFactories() {
         return List.of(
             ElserInternalService::new,
-            context -> new HuggingFaceElserService(httpFactory, serviceComponents),
-            context -> new HuggingFaceService(httpFactory, serviceComponents),
-            context -> new OpenAiService(httpFactory, serviceComponents),
-            context -> new CohereService(httpFactory, serviceComponents),
+            context -> new HuggingFaceElserService(httpFactory.get(), serviceComponents.get()),
+            context -> new HuggingFaceService(httpFactory.get(), serviceComponents.get()),
+            context -> new OpenAiService(httpFactory.get(), serviceComponents.get()),
+            context -> new CohereService(httpFactory.get(), serviceComponents.get()),
             TextEmbeddingInternalService::new
         );
     }

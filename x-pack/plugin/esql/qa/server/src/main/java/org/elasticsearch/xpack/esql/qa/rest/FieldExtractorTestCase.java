@@ -664,7 +664,7 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
         );
         String err = EntityUtils.toString(e.getResponse().getEntity());
         assertThat(
-            err.replace("\n ", ""),  // yaml adds newline we don't want to match
+            deyaml(err),
             containsString(
                 "Cannot use field [f] due to ambiguities being mapped as [2] incompatible types: [keyword] in [test1], [long] in [test2]"
             )
@@ -749,7 +749,7 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
         );
         String err = EntityUtils.toString(e.getResponse().getEntity());
         assertThat(
-            err.replace("\n ", ""),  // yaml adds newline we don't want to match
+            deyaml(err),
             containsString(
                 "Cannot use field [file] due to ambiguities"
                     + " being mapped as [2] incompatible types: [keyword] in [test1], [object] in [test2]"
@@ -908,6 +908,96 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
     /**
      * Two indices, one with:
      * <pre>
+     * "emp_no": {
+     *     "type": "long"
+     * }
+     * </pre>
+     * and the other with
+     * <pre>
+     * "emp_no": {
+     *     "type": "integer"
+     * }
+     * </pre>.
+     *
+     * In an ideal world we'd promote the {@code integer} to an {@code long} and just go.
+     */
+    public void testLongIntegerConflict() throws IOException {
+        longTest().sourceMode(SourceMode.DEFAULT).createIndex("test1", "emp_no");
+        index("test1", """
+            {"emp_no": 1}""");
+        intTest().sourceMode(SourceMode.DEFAULT).createIndex("test2", "emp_no");
+        index("test2", """
+            {"emp_no": 2}""");
+
+        ResponseException e = expectThrows(
+            ResponseException.class,
+            () -> runEsqlSync(new RestEsqlTestCase.RequestObjectBuilder().query("FROM test* | SORT emp_no | LIMIT 3"))
+        );
+        String err = EntityUtils.toString(e.getResponse().getEntity());
+        assertThat(
+            deyaml(err),
+            containsString(
+                "Cannot use field [emp_no] due to ambiguities being "
+                    + "mapped as [2] incompatible types: [integer] in [test2], [long] in [test1]"
+            )
+        );
+
+        Map<String, Object> result = runEsqlSync(new RestEsqlTestCase.RequestObjectBuilder().query("FROM test* | LIMIT 2"));
+        assertMap(
+            result,
+            matchesMap().entry("columns", List.of(columnInfo("emp_no", "unsupported")))
+                .entry("values", List.of(matchesList().item(null), matchesList().item(null)))
+        );
+    }
+
+    /**
+     * Two indices, one with:
+     * <pre>
+     * "emp_no": {
+     *     "type": "integer"
+     * }
+     * </pre>
+     * and the other with
+     * <pre>
+     * "emp_no": {
+     *     "type": "short"
+     * }
+     * </pre>.
+     *
+     * In an ideal world we'd promote the {@code short} to an {@code integer} and just go.
+     */
+    public void testIntegerShortConflict() throws IOException {
+        intTest().sourceMode(SourceMode.DEFAULT).createIndex("test1", "emp_no");
+        index("test1", """
+            {"emp_no": 1}""");
+        shortTest().sourceMode(SourceMode.DEFAULT).createIndex("test2", "emp_no");
+        index("test2", """
+            {"emp_no": 2}""");
+
+        ResponseException e = expectThrows(
+            ResponseException.class,
+            () -> runEsqlSync(new RestEsqlTestCase.RequestObjectBuilder().query("FROM test* | SORT emp_no | LIMIT 3"))
+        );
+        String err = EntityUtils.toString(e.getResponse().getEntity());
+        assertThat(
+            deyaml(err),
+            containsString(
+                "Cannot use field [emp_no] due to ambiguities being "
+                    + "mapped as [2] incompatible types: [integer] in [test1], [short] in [test2]"
+            )
+        );
+
+        Map<String, Object> result = runEsqlSync(new RestEsqlTestCase.RequestObjectBuilder().query("FROM test* | LIMIT 2"));
+        assertMap(
+            result,
+            matchesMap().entry("columns", List.of(columnInfo("emp_no", "unsupported")))
+                .entry("values", List.of(matchesList().item(null), matchesList().item(null)))
+        );
+    }
+
+    /**
+     * Two indices, one with:
+     * <pre>
      * "foo": {
      *   "type": "object",
      *   "properties": {
@@ -944,7 +1034,7 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
         );
         String err = EntityUtils.toString(e.getResponse().getEntity());
         assertThat(
-            err.replace("\n", ""), // yaml adds newlines which we don't match
+            deyaml(err),
             containsString(
                 "Cannot use field [foo.emp_no] due to ambiguities being "
                     + "mapped as [2] incompatible types: [integer] in [test1], [keyword] in [test2]"
@@ -1318,5 +1408,12 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
         logger.info("index: {} {}", name, configStr);
         request.setJsonEntity(configStr);
         client().performRequest(request);
+    }
+
+    /**
+     * Yaml adds newlines and some indentation which we don't want to match.
+     */
+    private String deyaml(String err) {
+        return err.replaceAll("\\\\\n\s+\\\\", "");
     }
 }

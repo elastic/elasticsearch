@@ -53,7 +53,7 @@ public class ConnectorSyncJobStateMachine {
      * transition from one {@link ConnectorSyncStatus} to another is invalid.
      *
      * @param current The current {@link ConnectorSyncStatus} of the {@link ConnectorSyncJob}.
-     * @param next The proposed next {link ConnectorSyncStatus} of the {@link ConnectorSyncJob}.
+     * @param next The proposed next {@link ConnectorSyncStatus} of the {@link ConnectorSyncJob}.
      */
     public static void assertValidStateTransition(ConnectorSyncStatus current, ConnectorSyncStatus next)
         throws ConnectorSyncJobInvalidStatusTransitionException {

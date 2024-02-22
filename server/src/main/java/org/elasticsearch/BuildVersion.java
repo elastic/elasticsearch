@@ -10,7 +10,6 @@ package org.elasticsearch;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.internal.BuildExtension;
-import org.elasticsearch.internal.DefaultBuildVersion;
 import org.elasticsearch.plugins.ExtensionLoader;
 import org.elasticsearch.xcontent.ToXContentFragment;
 
@@ -55,4 +54,5 @@ public interface BuildVersion extends Writeable, ToXContentFragment {
             .map(ext -> ext.fromVersionId(0))
             .orElse(DefaultBuildVersion.EMPTY);
     }
+
 }

@@ -10,6 +10,7 @@ package org.elasticsearch.internal;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.BuildVersion;
+import org.elasticsearch.DefaultBuildVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;

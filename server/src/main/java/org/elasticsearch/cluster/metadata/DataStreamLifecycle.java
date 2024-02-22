@@ -134,7 +134,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
      */
     @Nullable
     public TimeValue getEffectiveDataRetention() {
-        return dataRetention == null ? null : dataRetention.value;
+        return getDataStreamRetention();
     }
 
     /**

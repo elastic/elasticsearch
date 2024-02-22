@@ -82,6 +82,7 @@ import javax.net.ssl.X509ExtendedTrustManager;
 import static java.util.Map.entry;
 import static org.elasticsearch.common.xcontent.XContentHelper.convertToMap;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
@@ -250,22 +251,29 @@ public class SamlAuthenticationIT extends ESRestTestCase {
      * <li>Uses that token to verify the user details</li>
      * </ol>
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/103595")
     public void testLoginUserWithSamlRoleMapping() throws Exception {
-        // this realm name comes from the config in build.gradle
         final Tuple<String, String> authTokens = loginViaSaml("shibboleth");
         verifyElasticsearchAccessTokenForRoleMapping(authTokens.v1());
-        final String accessToken = verifyElasticsearchRefreshToken(authTokens.v2());
+        final Tuple<String, String> newAuthTokens = verifyElasticsearchRefreshToken(authTokens.v2());
+        final String accessToken = newAuthTokens.v1();
         verifyElasticsearchAccessTokenForRoleMapping(accessToken);
+        logoutSaml(newAuthTokens);
+        verifyElasticsearchAccessTokenInvalidated(accessToken);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/103595")
     public void testLoginUserWithAuthorizingRealm() throws Exception {
-        // this realm name comes from the config in build.gradle
         final Tuple<String, String> authTokens = loginViaSaml("shibboleth_native");
         verifyElasticsearchAccessTokenForAuthorizingRealms(authTokens.v1());
-        final String accessToken = verifyElasticsearchRefreshToken(authTokens.v2());
+        final Tuple<String, String> newAuthTokens = verifyElasticsearchRefreshToken(authTokens.v2());
+        final String accessToken = newAuthTokens.v1();
         verifyElasticsearchAccessTokenForAuthorizingRealms(accessToken);
+        logoutSaml(newAuthTokens);
+        verifyElasticsearchAccessTokenInvalidated(accessToken);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/103595")
     public void testLoginWithWrongRealmFails() throws Exception {
         final BasicHttpContext context = new BasicHttpContext();
         try (CloseableHttpClient client = getHttpClient()) {
@@ -340,6 +348,11 @@ public class SamlAuthenticationIT extends ESRestTestCase {
         assertThat(metadata.get("is_native"), equalTo(true));
     }
 
+    private void verifyElasticsearchAccessTokenInvalidated(String accessToken) {
+        var e = expectThrows(ResponseException.class, () -> callAuthenticateApiUsingAccessToken(accessToken));
+        assertThat(e.getMessage(), containsString("The access token expired"));
+    }
+
     private Map<String, Object> callAuthenticateApiUsingAccessToken(String accessToken) throws IOException {
         Request request = new Request("GET", "/_security/_authenticate");
         RequestOptions.Builder options = request.getOptions().toBuilder();
@@ -348,7 +361,7 @@ public class SamlAuthenticationIT extends ESRestTestCase {
         return entityAsMap(client().performRequest(request));
     }
 
-    private String verifyElasticsearchRefreshToken(String refreshToken) throws IOException {
+    private Tuple<String, String> verifyElasticsearchRefreshToken(String refreshToken) throws IOException {
         final Map<String, ?> body = Map.of("grant_type", "refresh_token", "refresh_token", refreshToken);
         final Response response = client().performRequest(buildRequest("POST", "/_security/oauth2/token", body, kibanaAuth()));
         assertOK(response);
@@ -361,7 +374,7 @@ public class SamlAuthenticationIT extends ESRestTestCase {
         final Object accessToken = result.get("access_token");
         assertThat(accessToken, notNullValue());
         assertThat(accessToken, instanceOf(String.class));
-        return (String) accessToken;
+        return Tuple.tuple((String) accessToken, (String) newRefreshToken);
     }
 
     /**
@@ -460,6 +473,13 @@ public class SamlAuthenticationIT extends ESRestTestCase {
             }
             return Map.of();
         }
+    }
+
+    private Map<String, Object> logoutSaml(final Tuple<String, String> authTokens) throws IOException {
+        final Map<String, Object> body = Map.of("token", authTokens.v1(), "refresh_token", authTokens.v2());
+        final Response response = client().performRequest(buildRequest("POST", "/_security/saml/logout", body, kibanaAuth()));
+        assertHttpOk(response.getStatusLine());
+        return parseResponseAsMap(response.getEntity());
     }
 
     /**

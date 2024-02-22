@@ -97,7 +97,7 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
     private final AtomicBoolean taskIsBootstrapped = new AtomicBoolean(false);
 
     GeoIpDownloaderTaskExecutor(Client client, HttpClient httpClient, ClusterService clusterService, ThreadPool threadPool) {
-        super(GEOIP_DOWNLOADER, ThreadPool.Names.GENERIC);
+        super(GEOIP_DOWNLOADER, threadPool.generic());
         this.client = new OriginSettingClient(client, IngestService.INGEST_ORIGIN);
         this.httpClient = httpClient;
         this.clusterService = clusterService;
@@ -268,7 +268,7 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
         return pipelineDefinitions.stream().filter(pipelineConfig -> {
             List<Map<String, Object>> processors = (List<Map<String, Object>>) pipelineConfig.getConfigAsMap().get(Pipeline.PROCESSORS_KEY);
             return hasAtLeastOneGeoipProcessor(processors, downloadDatabaseOnPipelineCreation);
-        }).collect(Collectors.toList());
+        }).toList();
     }
 
     /**

@@ -1,6 +1,0 @@
-pr: 104288
-summary: Don't throw error for remote shards that open PIT filtered out
-area: Search
-type: bug
-issues:
- - 102596

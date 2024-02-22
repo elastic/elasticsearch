@@ -1,0 +1,12 @@
+pr: 103651
+summary: Flag in `_field_caps` to return only fields with values in index
+area: Search
+type: enhancement
+issues: []
+highlight:
+  title: Flag in `_field_caps` to return only fields with values in index
+  body: |-
+    We added support for filtering the field capabilities API output by removing
+    fields that don't have a value. This can be done through the newly added
+    `include_empty_fields` parameter, which defaults to true.
+  notable: true

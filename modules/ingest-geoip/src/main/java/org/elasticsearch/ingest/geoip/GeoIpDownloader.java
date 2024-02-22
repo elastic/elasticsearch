@@ -188,7 +188,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
             }
         } catch (Exception e) {
             stats = stats.failedDownload();
-            logger.error((org.apache.logging.log4j.util.Supplier<?>) () -> "error downloading geoip database [" + name + "]", e);
+            logger.error(() -> "error downloading geoip database [" + name + "]", e);
         }
     }
 

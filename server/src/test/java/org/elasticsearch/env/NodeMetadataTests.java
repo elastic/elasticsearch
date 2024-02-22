@@ -14,7 +14,6 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
-import org.elasticsearch.internal.DefaultBuildVersion;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.elasticsearch.test.VersionUtils;
@@ -39,7 +38,7 @@ public class NodeMetadataTests extends ESTestCase {
     }
 
     private BuildVersion randomBuildVersion() {
-        return new DefaultBuildVersion(randomVersion().id());
+        return BuildVersion.fromVersionId(randomVersion().id());
     }
 
     private IndexVersion randomIndexVersion() {
@@ -93,7 +92,7 @@ public class NodeMetadataTests extends ESTestCase {
         Files.copy(resource, stateDir.resolve(NodeMetadata.FORMAT.getStateFileName(between(0, Integer.MAX_VALUE))));
         final NodeMetadata nodeMetadata = NodeMetadata.FORMAT.loadLatestState(logger, xContentRegistry(), tempDir);
         assertThat(nodeMetadata.nodeId(), equalTo("y6VUVMSaStO4Tz-B5BxcOw"));
-        assertThat(nodeMetadata.nodeVersion(), equalTo(DefaultBuildVersion.EMPTY));
+        assertThat(nodeMetadata.nodeVersion(), equalTo(BuildVersion.empty()));
     }
 
     public void testUpgradesLegitimateVersions() {
@@ -156,7 +155,7 @@ public class NodeMetadataTests extends ESTestCase {
     public void testUpgradeMarksPreviousVersion() {
         final String nodeId = randomAlphaOfLength(10);
         final Version version = VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumCompatibilityVersion(), Version.V_8_0_0);
-        final BuildVersion buildVersion = new DefaultBuildVersion(version.id());
+        final BuildVersion buildVersion = BuildVersion.fromVersionId(version.id());
 
         final NodeMetadata nodeMetadata = new NodeMetadata(nodeId, buildVersion, IndexVersion.current()).upgradeToCurrentVersion();
         assertThat(nodeMetadata.nodeVersion(), equalTo(BuildVersion.current()));
@@ -172,7 +171,7 @@ public class NodeMetadataTests extends ESTestCase {
     }
 
     public static BuildVersion tooNewBuildVersion() {
-        return new DefaultBuildVersion(between(Version.CURRENT.id() + 1, 99999999));
+        return BuildVersion.fromVersionId(between(Version.CURRENT.id() + 1, 99999999));
     }
 
     public static Version tooOldVersion() {
@@ -180,6 +179,6 @@ public class NodeMetadataTests extends ESTestCase {
     }
 
     public static BuildVersion tooOldBuildVersion() {
-        return new DefaultBuildVersion(between(1, Version.CURRENT.minimumCompatibilityVersion().id - 1));
+        return BuildVersion.fromVersionId(between(1, Version.CURRENT.minimumCompatibilityVersion().id - 1));
     }
 }

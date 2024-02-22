@@ -200,11 +200,9 @@ public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTok
     }
 
     private float findBestWeightFor(List<WeightedToken> tokens) {
-        float bestWeight = 0f;
-        for (var t : tokens) {
-            bestWeight = Math.max(t.weight(), bestWeight);
-        }
-        return bestWeight;
+        return tokens.stream()
+            .map(WeightedToken::weight)
+            .reduce(0f, Math::max);
     }
 
     @Override

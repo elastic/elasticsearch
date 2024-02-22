@@ -291,7 +291,7 @@ public class Tile2DVisitorTests extends ESTestCase {
         assertThat(tile2DVisitor.relation(), in(expectedRelation));
     }
 
-    private static class TestCoordinateEncoder implements CoordinateEncoder {
+    private static class TestCoordinateEncoder extends CoordinateEncoder {
 
         private static final TestCoordinateEncoder INSTANCE = new TestCoordinateEncoder();
 

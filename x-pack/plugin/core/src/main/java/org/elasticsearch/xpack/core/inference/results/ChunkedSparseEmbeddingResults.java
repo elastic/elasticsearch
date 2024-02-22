@@ -37,6 +37,10 @@ public class ChunkedSparseEmbeddingResults implements ChunkedInferenceServiceRes
         this.chunkedResults = in.readCollectionAsList(ChunkedTextExpansionResults.ChunkedResult::new);
     }
 
+    public List<ChunkedTextExpansionResults.ChunkedResult> getChunkedResults() {
+        return chunkedResults;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startArray("sparse_embedding_chunk");

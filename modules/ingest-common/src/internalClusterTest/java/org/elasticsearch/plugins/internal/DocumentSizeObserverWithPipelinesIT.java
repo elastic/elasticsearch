@@ -78,7 +78,7 @@ public class DocumentSizeObserverWithPipelinesIT extends ESIntegTestCase {
         public TestDocumentParsingProviderPlugin() {}
 
         @Override
-        public DocumentParsingProvider getDocumentParsingSupplier() {
+        public DocumentParsingProvider getDocumentParsingProvider() {
             // returns a static instance, because we want to assert that the wrapping is called only once
             return new DocumentParsingProvider() {
                 @Override

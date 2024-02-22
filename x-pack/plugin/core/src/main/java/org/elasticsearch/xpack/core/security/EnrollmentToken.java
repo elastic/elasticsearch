@@ -26,7 +26,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 public class EnrollmentToken {
     // This was previously a version string, e.g. 8.12.0, but treated exclusively as a string everywhere, never parsed into a version.
     // Arbitrarily set to 9 when decoupling this from node version.
-    public static final String CURRENT_TOKEN_VERSION = "9";
+    public static final String CURRENT_TOKEN_VERSION = "8.14.0";
 
     private final String apiKey;
     private final String fingerprint;

@@ -63,9 +63,14 @@ public enum SpatialCoordinateTypes {
     public abstract long pointAsLong(double x, double y);
 
     public long wkbAsLong(BytesRef wkb) {
+        Point point = wkbAsPoint(wkb);
+        return pointAsLong(point.getX(), point.getY());
+    }
+
+    public Point wkbAsPoint(BytesRef wkb) {
         Geometry geometry = WellKnownBinary.fromWKB(GeometryValidator.NOOP, false, wkb.bytes, wkb.offset, wkb.length);
         if (geometry instanceof Point point) {
-            return pointAsLong(point.getX(), point.getY());
+            return point;
         } else {
             throw new IllegalArgumentException("Unsupported geometry: " + geometry.type());
         }

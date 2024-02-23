@@ -227,7 +227,8 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
         assertEquals(List.of(3.14), fetchSourceValue(mapper, "3.1415"));
         assertEquals(List.of(), fetchSourceValue(mapper, ""));
 
-        MappedFieldType nullValueMapper = new ScaledFloatFieldMapper.Builder("field", false, false, null, IndexVersion.current()).scalingFactor(100)
+        MappedFieldType nullValueMapper = new ScaledFloatFieldMapper.Builder("field", false, false, null, IndexVersion.current())
+            .scalingFactor(100)
             .nullValue(2.71)
             .build(MapperBuilderContext.root(false, false))
             .fieldType();

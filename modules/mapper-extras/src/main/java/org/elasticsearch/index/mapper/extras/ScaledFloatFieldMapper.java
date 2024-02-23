@@ -137,7 +137,13 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             );
         }
 
-        public Builder(String name, boolean ignoreMalformedByDefault, boolean coerceByDefault, IndexMode indexMode, IndexVersion indexVersion) {
+        public Builder(
+            String name,
+            boolean ignoreMalformedByDefault,
+            boolean coerceByDefault,
+            IndexMode indexMode,
+            IndexVersion indexVersion
+        ) {
             super(name);
             this.ignoreMalformed = Parameter.explicitBoolParam(
                 "ignore_malformed",
@@ -562,7 +568,8 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         long scaledValue = encode(
             doubleValue,
             scalingFactor,
-            ignoreMalformed.value() == false && indexVersion.onOrAfter(IndexVersions.STRICT_SCALED_FLOAT_PARSING));
+            ignoreMalformed.value() == false && indexVersion.onOrAfter(IndexVersions.STRICT_SCALED_FLOAT_PARSING)
+        );
 
         NumberFieldMapper.NumberType.LONG.addFields(context.doc(), fieldType().name(), scaledValue, indexed, hasDocValues, stored);
 

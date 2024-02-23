@@ -544,10 +544,10 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
     }
 
     public void testEncodeDecodeRandom() {
-        double scalingFactor = randomDoubleBetween(0, Long.MAX_VALUE/2.0, false);
-        double v = randomBoolean() ?
-            randomDoubleBetween((Long.MIN_VALUE + 1)/scalingFactor, (Long.MAX_VALUE - 1)/scalingFactor, true) :
-            randomFloat();
+        double scalingFactor = randomDoubleBetween(0, Long.MAX_VALUE / 2.0, false);
+        double v = randomBoolean()
+            ? randomDoubleBetween((Long.MIN_VALUE + 1) / scalingFactor, (Long.MAX_VALUE - 1) / scalingFactor, true)
+            : randomFloat();
         double once = encodeDecode(v, scalingFactor, true);
         double twice = encodeDecode(once, scalingFactor, true);
         assertThat(twice, equalTo(once));

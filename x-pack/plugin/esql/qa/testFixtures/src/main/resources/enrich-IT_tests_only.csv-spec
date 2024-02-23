@@ -152,7 +152,6 @@ a:keyword   | a_lang:keyword
 ["1", "2"]  | ["English", "French"] 
 ;
 
-<<<<<<< HEAD
 enrichCidr#[skip:-8.13.99, reason:enrich for cidr added in 8.14.0]
 FROM sample_data
 | ENRICH client_cidr_policy ON client_ip WITH env
@@ -295,7 +294,7 @@ city_centroid:geo_point    |  count:long  |  min_wkt:integer  |  max_wkt:integer
 POINT(1.396561 24.127649)  |  872         |  88               |  1044
 ;
 
-spatialEnrichmentKeywordMatchAndSpatialPredicate
+spatialEnrichmentKeywordMatchAndSpatialPredicate#[skip:-8.13.99, reason:st_intersects added in 8.14]
 FROM airports
 | ENRICH city_names ON city WITH airport, region, city_boundary
 | MV_EXPAND city_boundary
@@ -310,7 +309,7 @@ count:long  |  airport_in_city:boolean
 455         |  false
 ;
 
-spatialEnrichmentKeywordMatchAndSpatialAggregation
+spatialEnrichmentKeywordMatchAndSpatialAggregation#[skip:-8.13.99, reason:st_intersects added in 8.14]
 FROM airports
 | ENRICH city_names ON city WITH airport, region, city_boundary
 | MV_EXPAND city_boundary

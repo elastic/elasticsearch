@@ -54,7 +54,7 @@ abbrev:keyword | name:text    | location:geo_shape                         | cou
 "VLC"          | "Valencia"   | POINT(-0.473474930771676 39.4914597884489) | "Spain"         | "Paterna"    | POINT(-0.4406 39.5028)
 ;
 
-simpleLoadFromCityBoundaries#[skip:-8.12.99, reason: spatial type geo_shape only added in 8.13]
+simpleLoadFromCityBoundaries#[skip:-8.13.99, reason:chunked CSV import support added in 8.14]
 FROM airport_city_boundaries
 | WHERE abbrev == "CPH"
 | EVAL boundary_wkt_length = LENGTH(TO_STRING(city_boundary))
@@ -66,7 +66,7 @@ abbrev:keyword  |  region:text         |  city_location:geo_point |  airport:tex
 CPH             |  Københavns Kommune  |  POINT(12.5683 55.6761)  |  Copenhagen    |  265
 ;
 
-pointIntersectsStringPolygon#[skip:-8.12.99, reason:st_intersects added in 8.13]
+pointIntersectsStringPolygon#[skip:-8.13.99, reason:st_intersects added in 8.14]
 FROM airports
 | EVAL location = TO_GEOSHAPE(location)
 | WHERE ST_INTERSECTS(location, "POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))")
@@ -77,7 +77,7 @@ abbrev:keyword | name:text      | location:geo_shape                     | count
 HOD            | Hodeidah Int'l | POINT(42.97109630194 14.7552534413725) | Yemen           | Al Ḩudaydah  | POINT(42.9511 14.8022)
 ;
 
-pointIntersectsStringPolygonReversed#[skip:-8.12.99, reason:st_intersects added in 8.13]
+pointIntersectsStringPolygonReversed#[skip:-8.13.99, reason:st_intersects added in 8.14]
 FROM airports
 | EVAL location = TO_GEOSHAPE(location)
 | WHERE ST_INTERSECTS("POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))", location)
@@ -88,7 +88,7 @@ abbrev:keyword | name:text      | location:geo_shape                     | count
 HOD            | Hodeidah Int'l | POINT(42.97109630194 14.7552534413725) | Yemen           | Al Ḩudaydah  | POINT(42.9511 14.8022)
 ;
 
-literalPointIntersectsStringPolygon#[skip:-8.12.99, reason:st_intersects added in 8.13]
+literalPointIntersectsStringPolygon#[skip:-8.13.99, reason:st_intersects added in 8.14]
 ROW wkt = ["POINT(1 1)", "POINT(-1 -1)", "POINT(-1 1)", "POINT(1 -1)"]
 | MV_EXPAND wkt
 | EVAL pt = TO_GEOPOINT(wkt)
@@ -100,7 +100,7 @@ wkt:keyword   | pt:geo_point
 "POINT(1 -1)" | POINT(1 -1)
 ;
 
-literalPointIntersectsStringPolygonReversed#[skip:-8.12.99, reason:st_intersects added in 8.13]
+literalPointIntersectsStringPolygonReversed#[skip:-8.13.99, reason:st_intersects added in 8.14]
 ROW wkt = ["POINT(1 1)", "POINT(-1 -1)", "POINT(-1 1)", "POINT(1 -1)"]
 | MV_EXPAND wkt
 | EVAL pt = TO_GEOPOINT(wkt)
@@ -112,7 +112,7 @@ wkt:keyword   | pt:geo_point
 "POINT(1 -1)" | POINT(1 -1)
 ;
 
-literalPointAsShapeIntersectsStringPolygon#[skip:-8.12.99, reason:st_intersects added in 8.13]
+literalPointAsShapeIntersectsStringPolygon#[skip:-8.13.99, reason:st_intersects added in 8.14]
 ROW wkt = ["POINT(1 1)", "POINT(-1 -1)", "POINT(-1 1)", "POINT(1 -1)"]
 | MV_EXPAND wkt
 | EVAL pt = TO_GEOSHAPE(wkt)
@@ -124,7 +124,7 @@ wkt:keyword   | pt:geo_shape
 "POINT(1 -1)" | POINT(1 -1)
 ;
 
-literalPointAsShapeIntersectsStringPolygonReversed#[skip:-8.12.99, reason:st_intersects added in 8.13]
+literalPointAsShapeIntersectsStringPolygonReversed#[skip:-8.13.99, reason:st_intersects added in 8.14]
 ROW wkt = ["POINT(1 1)", "POINT(-1 -1)", "POINT(-1 1)", "POINT(1 -1)"]
 | MV_EXPAND wkt
 | EVAL pt = TO_GEOSHAPE(wkt)
@@ -136,7 +136,7 @@ wkt:keyword   | pt:geo_shape
 "POINT(1 -1)" | POINT(1 -1)
 ;
 
-shapeIntersectsStringPolygon#[skip:-8.12.99, reason:st_intersects added in 8.13]
+shapeIntersectsStringPolygon#[skip:-8.13.99, reason:st_intersects added in 8.14]
 FROM countries_bbox
 | WHERE ST_INTERSECTS(shape, "POLYGON((29 -30, 31 -30, 31 -27.3, 29 -27.3, 29 -30))")
 | SORT id DESC
@@ -148,7 +148,7 @@ SWZ        | Swaziland    | BBOX(30.798336, 32.133400, -25.728336, -27.316391)
 LSO        | Lesotho      | BBOX(27.013973, 29.455554, -28.570691, -30.650527)
 ;
 
-literalPolygonIntersectsLiteralPolygon#[skip:-8.12.99, reason:st_intersects added in 8.13]
+literalPolygonIntersectsLiteralPolygon#[skip:-8.13.99, reason:st_intersects added in 8.14]
 ROW wkt = ["POLYGON((-20 60, -6 60, -6 66, -20 66, -20 60))", "POLYGON((20 60, 6 60, 6 66, 20 66, 20 60))"]
 | EVAL other = TO_GEOSHAPE("POLYGON((-15 64, -10 64, -10 66, -15 66, -15 64))")
 | MV_EXPAND wkt
@@ -161,7 +161,7 @@ wkt:keyword                                       | shape:geo_shape             
 "POLYGON((-20 60, -6 60, -6 66, -20 66, -20 60))" | POLYGON((-20 60, -6 60, -6 66, -20 66, -20 60)) | POLYGON((-15 64, -10 64, -10 66, -15 66, -15 64))
 ;
 
-literalPolygonIntersectsStringPolygon#[skip:-8.12.99, reason:st_intersects added in 8.13]
+literalPolygonIntersectsStringPolygon#[skip:-8.13.99, reason:st_intersects added in 8.14]
 ROW wkt = ["POLYGON((-20 60, -6 60, -6 66, -20 66, -20 60))", "POLYGON((20 60, 6 60, 6 66, 20 66, 20 60))"]
 | EVAL other = "POLYGON((-15 64, -10 64, -10 66, -15 66, -15 64))"
 | MV_EXPAND wkt
@@ -174,7 +174,7 @@ wkt:keyword                                       | shape:geo_shape             
 "POLYGON((-20 60, -6 60, -6 66, -20 66, -20 60))" | POLYGON((-20 60, -6 60, -6 66, -20 66, -20 60)) | "POLYGON((-15 64, -10 64, -10 66, -15 66, -15 64))"
 ;
 
-stringPolygonIntersectsStringPolygon#[skip:-8.12.99, reason:st_intersects added in 8.13]
+stringPolygonIntersectsStringPolygon#[skip:-8.13.99, reason:st_intersects added in 8.14]
 ROW intersects = ST_INTERSECTS("POLYGON((-20 60, -6 60, -6 66, -20 66, -20 60))", "POLYGON((-15 64, -10 64, -10 66, -15 66, -15 64))")
 ;
 
@@ -277,7 +277,7 @@ abbrev:keyword | name:text    | scalerank:integer | type:keyword | location:cart
 "VLC"          | "Valencia"   | 8                 | "mid"        | POINT(-52706.98819688343 4792315.469321795)
 ;
 
-cartesianPointIntersectsPolygon#[skip:-8.12.99, reason:st_intersects added in 8.13]
+cartesianPointIntersectsPolygon#[skip:-8.13.99, reason:st_intersects added in 8.14]
 FROM airports_web
 | EVAL location = TO_CARTESIANSHAPE(location)
 | WHERE ST_INTERSECTS(location, "POLYGON((4700000 1600000, 4800000 1600000, 4800000 1700000, 4700000 1700000, 4700000 1600000))")
@@ -288,7 +288,7 @@ abbrev:keyword |  name:text     | location:cartesian_shape                     |
 HOD            | Hodeidah Int'l | POINT (4783520.559160681 1661010.0197476079) | 9           | mid
 ;
 
-literalCartesianPointIntersectsPolygon#[skip:-8.12.99, reason:st_intersects added in 8.13]
+literalCartesianPointIntersectsPolygon#[skip:-8.13.99, reason:st_intersects added in 8.14]
 ROW wkt = ["POINT(1 1)", "POINT(-1 -1)", "POINT(-1 1)", "POINT(1 -1)"]
 | MV_EXPAND wkt
 | EVAL pt = TO_CARTESIANSHAPE(wkt)
@@ -300,7 +300,7 @@ wkt:keyword   | pt:cartesian_shape
 "POINT(1 -1)" | POINT(1 -1)
 ;
 
-cartesianShapeIntersectsPolygon#[skip:-8.12.99, reason:st_intersects added in 8.13]
+cartesianShapeIntersectsPolygon#[skip:-8.13.99, reason:st_intersects added in 8.14]
 FROM countries_bbox_web
 | WHERE ST_INTERSECTS(shape, "POLYGON((3100000 -3400000, 3500000 -3400000, 3500000 -3150000, 3100000 -3150000, 3100000 -3400000))")
 | SORT id DESC
@@ -312,7 +312,7 @@ SWZ        | Swaziland    | BBOX(3428455.080322901, 3577073.7249586442, -2965472
 LSO        | Lesotho      | BBOX(3007181.718244638, 3278977.271857335, -3321117.2692412077, -3587446.106149188)
 ;
 
-literalCartesianPolygonIntersectsPolygon#[skip:-8.12.99, reason:st_intersects added in 8.13]
+literalCartesianPolygonIntersectsPolygon#[skip:-8.13.99, reason:st_intersects added in 8.14]
 ROW wkt = ["POLYGON((-2000 6000, -600 6000, -600 6600, -2000 6600, -2000 6000))", "POLYGON((2000 6000, 600 6000, 600 6600, 2000 6600, 2000 6000))"]
 | MV_EXPAND wkt
 | EVAL shape = TO_CARTESIANSHAPE(wkt)

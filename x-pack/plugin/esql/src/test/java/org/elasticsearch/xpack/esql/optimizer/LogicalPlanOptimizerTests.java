@@ -3310,7 +3310,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             String queryTemplate = randomBoolean() ? queryTemplateKeepFirst : queryTemplateKeepAfter;
             var plan = optimizedPlan(LoggerMessageFormat.format(null, queryTemplate, overwritingCommand));
 
-            var project = as(plan, EsqlProject.class);
+            var project = as(plan, Project.class);
             var projections = project.projections();
             assertThat(projections.size(), equalTo(3));
             assertThat(projections.get(0).name(), equalTo("first_name"));

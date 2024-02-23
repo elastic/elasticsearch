@@ -908,10 +908,10 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             if (aliasesForShadowedOrderByAttrs.isEmpty() == false) {
                 List<Alias> newAliases = aliasesForShadowedOrderByAttrs.values().stream().toList();
 
-                LogicalPlan plan = new Eval(Source.EMPTY, orderBy.child(), newAliases);
+                LogicalPlan plan = new Eval(orderBy.source(), orderBy.child(), newAliases);
                 plan = generatingPlan.replaceChild(plan);
                 plan = new OrderBy(orderBy.source(), plan, newOrder);
-                plan = new EsqlProject(Source.EMPTY, plan, generatingPlan.output());
+                plan = new Project(generatingPlan.source(), plan, generatingPlan.output());
 
                 return plan;
             }
@@ -942,17 +942,12 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         for (Expression expr : expressions) {
             rewrittenExpressions.add(expr.transformUp(Attribute.class, attr -> {
                 if (attributeNamesToRename.contains(attr.name())) {
-                    Alias existingAlias = aliasesForReplacedAttributes.get(attr);
-                    if (existingAlias == null) {
-                        String tempName = SubstituteSurrogates.rawTemporaryName(attr.name(), "temp_name", attr.id().toString());
-
-                        Alias tempNameForShadowedAttr = new Alias(Source.EMPTY, tempName, attr);
-                        aliasesForReplacedAttributes.put(attr, tempNameForShadowedAttr);
-
-                        return tempNameForShadowedAttr.toAttribute();
-                    } else {
-                        return existingAlias.toAttribute();
-                    }
+                    Alias renamedAttribute = aliasesForReplacedAttributes.computeIfAbsent(attr, a -> {
+                        String tempName = SubstituteSurrogates.rawTemporaryName(a.name(), "temp_name", a.id().toString());
+                        // TODO: this should be synthetic
+                        return new Alias(a.source(), tempName, null, a, null, false);
+                    });
+                    return renamedAttribute.toAttribute();
                 }
 
                 return attr;

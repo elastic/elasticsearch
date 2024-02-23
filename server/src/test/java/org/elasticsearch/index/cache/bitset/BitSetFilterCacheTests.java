@@ -42,6 +42,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -267,35 +268,61 @@ public class BitSetFilterCacheTests extends ESTestCase {
     }
 
     public void testShouldLoadRandomAccessFiltersEagerly() {
-        assertTrue(BitsetFilterCache.shouldLoadRandomAccessFiltersEagerly(bitsetFilterCacheSettings(true, true, true)));
-
-        assertFalse(BitsetFilterCache.shouldLoadRandomAccessFiltersEagerly(bitsetFilterCacheSettings(true, true, false)));
-        assertFalse(BitsetFilterCache.shouldLoadRandomAccessFiltersEagerly(bitsetFilterCacheSettings(true, false, true)));
-        assertFalse(BitsetFilterCache.shouldLoadRandomAccessFiltersEagerly(bitsetFilterCacheSettings(true, false, false)));
-
-        assertTrue(BitsetFilterCache.shouldLoadRandomAccessFiltersEagerly(bitsetFilterCacheSettings(false, true, true)));
-        assertTrue(BitsetFilterCache.shouldLoadRandomAccessFiltersEagerly(bitsetFilterCacheSettings(false, false, true)));
-
-        assertFalse(BitsetFilterCache.shouldLoadRandomAccessFiltersEagerly(bitsetFilterCacheSettings(false, true, false)));
-        assertFalse(BitsetFilterCache.shouldLoadRandomAccessFiltersEagerly(bitsetFilterCacheSettings(false, false, false)));
+        var values = List.of(true, false);
+        for (var hasIndexRole : values) {
+            for (var indexFastRefresh : values) {
+                for (var loadFiltersEagerly : values) {
+                    for (var isStateless : values) {
+                        if (isStateless && hasIndexRole) {
+                            assertEquals(loadFiltersEagerly && indexFastRefresh,
+                                BitsetFilterCache.shouldLoadRandomAccessFiltersEagerly(bitsetFilterCacheSettings(
+                                        isStateless,
+                                        hasIndexRole,
+                                        loadFiltersEagerly,
+                                        indexFastRefresh
+                                    )
+                                ));
+                        } else if (loadFiltersEagerly) {
+                            assertTrue(BitsetFilterCache.shouldLoadRandomAccessFiltersEagerly(bitsetFilterCacheSettings(
+                                isStateless,
+                                hasIndexRole,
+                                loadFiltersEagerly,
+                                indexFastRefresh
+                            )));
+                        } else {
+                            assertFalse(BitsetFilterCache.shouldLoadRandomAccessFiltersEagerly(bitsetFilterCacheSettings(
+                                isStateless,
+                                hasIndexRole,
+                                loadFiltersEagerly,
+                                indexFastRefresh
+                            )));
+                        }
+                    }
+                }
+            }
+        }
     }
 
-    private IndexSettings bitsetFilterCacheSettings(boolean isIndexNode, boolean indexFastRefresh, boolean loadFiltersEagerly) {
-        var indexSettings = Settings.builder()
-            .put(INDEX_FAST_REFRESH_SETTING.getKey(), indexFastRefresh)
-            .put(INDEX_LOAD_RANDOM_ACCESS_FILTERS_EAGERLY_SETTING.getKey(), loadFiltersEagerly)
-            .build();
+    private IndexSettings bitsetFilterCacheSettings(
+        boolean isStateless,
+        boolean hasIndexRole,
+        boolean loadFiltersEagerly,
+        boolean indexFastRefresh
+    ) {
+        var indexSettingsBuilder = Settings.builder()
+            .put(INDEX_LOAD_RANDOM_ACCESS_FILTERS_EAGERLY_SETTING.getKey(), loadFiltersEagerly);
+        if (isStateless) indexSettingsBuilder.put(INDEX_FAST_REFRESH_SETTING.getKey(), indexFastRefresh);
 
         var nodeSettingsBuilder = Settings.builder()
             .putList(
                 NodeRoleSettings.NODE_ROLES_SETTING.getKey(),
-                isIndexNode ? DiscoveryNodeRole.INDEX_ROLE.roleName() : DiscoveryNodeRole.SEARCH_ROLE.roleName()
+                hasIndexRole ? DiscoveryNodeRole.INDEX_ROLE.roleName() : DiscoveryNodeRole.SEARCH_ROLE.roleName()
             )
-            .put(STATELESS_ENABLED_SETTING_NAME, true);
+            .put(STATELESS_ENABLED_SETTING_NAME, isStateless);
 
         return IndexSettingsModule.newIndexSettings(
             new Index("index", IndexMetadata.INDEX_UUID_NA_VALUE),
-            indexSettings,
+            indexSettingsBuilder.build(),
             nodeSettingsBuilder.build()
         );
     }

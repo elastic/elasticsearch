@@ -100,10 +100,12 @@ public final class BitsetFilterCache
         this.listener = listener;
     }
 
-    static boolean shouldLoadRandomAccessFiltersEagerly(IndexSettings indexSettings) {
-        boolean loadFiltersEagerlySetting = indexSettings.getValue(INDEX_LOAD_RANDOM_ACCESS_FILTERS_EAGERLY_SETTING);
-        if (DiscoveryNode.hasRole(indexSettings.getNodeSettings(), DiscoveryNodeRole.INDEX_ROLE)) {
-            return loadFiltersEagerlySetting && INDEX_FAST_REFRESH_SETTING.get(indexSettings.getSettings());
+    static boolean shouldLoadRandomAccessFiltersEagerly(IndexSettings settings) {
+        boolean loadFiltersEagerlySetting = settings.getValue(INDEX_LOAD_RANDOM_ACCESS_FILTERS_EAGERLY_SETTING);
+        boolean hasIndexRole = DiscoveryNode.hasRole(settings.getNodeSettings(), DiscoveryNodeRole.INDEX_ROLE);
+        boolean isStateless = DiscoveryNode.isStateless(settings.getNodeSettings());
+        if (isStateless && hasIndexRole) {
+            return loadFiltersEagerlySetting && INDEX_FAST_REFRESH_SETTING.get(settings.getSettings());
         }
         return loadFiltersEagerlySetting;
     }

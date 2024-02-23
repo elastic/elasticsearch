@@ -26,8 +26,6 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 
-import java.util.List;
-
 /**
  * {@link PerFieldMapperCodec This Lucene codec} provides the default
  * {@link PostingsFormat} and {@link KnnVectorsFormat} for Elasticsearch. It utilizes the

@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.health.HealthFeatures;
 import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.health.metadata.HealthMetadata;
 import org.elasticsearch.index.IndexVersion;
@@ -397,7 +398,11 @@ public class ShardsCapacityHealthIndicatorServiceTests extends ESTestCase {
             metadata.put(idxMetadata);
         }
 
-        return ClusterState.builder(clusterState).metadata(metadata).build();
+        var features = Set.of(HealthFeatures.SUPPORTS_SHARDS_CAPACITY_INDICATOR.id());
+        return ClusterState.builder(clusterState)
+            .metadata(metadata)
+            .nodeFeatures(Map.of(dataNode.getId(), features, frozenNode.getId(), features))
+            .build();
     }
 
     private static IndexMetadata.Builder createIndexInDataNode(int shards) {

@@ -20,34 +20,16 @@ package co.elastic.elasticsearch.stateless.commits;
 import co.elastic.elasticsearch.stateless.lucene.StatelessCommitRef;
 import co.elastic.elasticsearch.stateless.test.FakeStatelessNode;
 
-import org.apache.lucene.analysis.core.KeywordAnalyzer;
-import org.apache.lucene.document.Field;
-import org.apache.lucene.document.KeywordField;
-import org.apache.lucene.document.NumericDocValuesField;
-import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexCommit;
-import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.NoDeletionPolicy;
 import org.apache.lucene.store.IOContext;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.engine.EngineTestCase;
-import org.elasticsearch.index.mapper.LuceneDocument;
-import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
-import java.util.function.LongConsumer;
 
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -67,7 +49,7 @@ public class VirtualBatchedCompoundCommitTests extends ESTestCase {
             for (int batchNumber = 1; batchNumber <= numberOfBatches; batchNumber++) {
 
                 var numberOfNewCommits = randomIntBetween(1, 4);
-                var indexCommits = generateIndexCommits(fakeNode, numberOfNewCommits);
+                var indexCommits = fakeNode.generateIndexCommits(numberOfNewCommits);
 
                 long firstCommitGeneration = indexCommits.get(0).getGeneration();
                 var virtualBatchedCompoundCommit = new VirtualBatchedCompoundCommit(
@@ -120,7 +102,7 @@ public class VirtualBatchedCompoundCommitTests extends ESTestCase {
         try (var fakeNode = createFakeNode(primaryTerm)) {
             var numberOfCommits = randomIntBetween(2, 4);
             List<Long> closedCommitRefGenerations = new ArrayList<>();
-            var commits = generateIndexCommits(fakeNode, numberOfCommits, closedCommitRefGenerations::add);
+            var commits = fakeNode.generateIndexCommits(numberOfCommits, false, closedCommitRefGenerations::add);
 
             long firstCommitGeneration = commits.get(0).getGeneration();
             var virtualBatchedCompoundCommit = new VirtualBatchedCompoundCommit(
@@ -150,59 +132,6 @@ public class VirtualBatchedCompoundCommitTests extends ESTestCase {
                 assertThat(closedCommitRefGenerations, hasItem(commit.getGeneration()));
             }
         }
-    }
-
-    // TODO: move this method to FakeStatelessNode
-    private List<StatelessCommitRef> generateIndexCommits(FakeStatelessNode testHarness, int commitsNumber) throws IOException {
-        return generateIndexCommits(testHarness, commitsNumber, generation -> {});
-    }
-
-    private List<StatelessCommitRef> generateIndexCommits(FakeStatelessNode testHarness, int commitsNumber, LongConsumer onCommitClosed)
-        throws IOException {
-        List<StatelessCommitRef> commits = new ArrayList<>(commitsNumber);
-        Set<String> previousCommit;
-
-        final var indexWriterConfig = new IndexWriterConfig(new KeywordAnalyzer());
-        indexWriterConfig.setIndexDeletionPolicy(NoDeletionPolicy.INSTANCE);
-        String deleteId = randomAlphaOfLength(10);
-
-        try (var indexWriter = new IndexWriter(testHarness.indexingStore.directory(), indexWriterConfig)) {
-            try (var indexReader = DirectoryReader.open(indexWriter)) {
-                IndexCommit indexCommit = indexReader.getIndexCommit();
-                previousCommit = new HashSet<>(indexCommit.getFileNames());
-            }
-            for (int i = 0; i < commitsNumber; i++) {
-                LuceneDocument document = new LuceneDocument();
-                document.add(new KeywordField("field0", "term", Field.Store.YES));
-                indexWriter.addDocument(document.getFields());
-                if (randomBoolean()) {
-                    final ParsedDocument tombstone = ParsedDocument.deleteTombstone(deleteId);
-                    LuceneDocument delete = tombstone.docs().get(0);
-                    NumericDocValuesField field = Lucene.newSoftDeletesField();
-                    delete.add(field);
-                    indexWriter.softUpdateDocument(EngineTestCase.newUid(deleteId), delete.getFields(), Lucene.newSoftDeletesField());
-                }
-                indexWriter.commit();
-                try (var indexReader = DirectoryReader.open(indexWriter)) {
-                    IndexCommit indexCommit = indexReader.getIndexCommit();
-                    Set<String> commitFiles = new HashSet<>(indexCommit.getFileNames());
-                    Set<String> additionalFiles = Sets.difference(commitFiles, previousCommit);
-                    previousCommit = commitFiles;
-
-                    StatelessCommitRef statelessCommitRef = new StatelessCommitRef(
-                        testHarness.shardId,
-                        new Engine.IndexCommitRef(indexCommit, () -> onCommitClosed.accept(indexCommit.getGeneration())),
-                        commitFiles,
-                        additionalFiles,
-                        1,
-                        0
-                    );
-                    commits.add(statelessCommitRef);
-                }
-            }
-        }
-
-        return commits;
     }
 
     private static byte[] readLocalFile(FakeStatelessNode testHarness, String fileName) throws IOException {

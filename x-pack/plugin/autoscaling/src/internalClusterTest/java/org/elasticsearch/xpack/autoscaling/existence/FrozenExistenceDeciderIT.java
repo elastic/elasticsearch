@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.autoscaling.existence;
 
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.blobcache.BlobCachePlugin;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
@@ -134,15 +135,13 @@ public class FrozenExistenceDeciderIT extends AbstractFrozenAutoscalingIntegTest
 
         logger.info("-> starting dedicated frozen node");
         internalCluster().startNode(NodeRoles.onlyRole(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE));
-        Thread.sleep(1000);
-        logger.info("-> starting another dedicated frozen node");
-        // start another node to cause a bit more cluster activity in case the `wait-for-index-colour` ILM step missed the
-        // notification that partial-index is now GREEN.
-        internalCluster().startNode(NodeRoles.onlyRole(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE));
 
         // we've seen a case where bootstrapping a node took just over 60 seconds in the test environment, so using an (excessive) 90
         // seconds max wait time to avoid flakiness
         assertBusy(() -> {
+            // cause a bit of cluster activity using an empty reroute call in case the `wait-for-index-colour` ILM step missed the
+            // notification that partial-index is now GREEN.
+            client().admin().cluster().reroute(new ClusterRerouteRequest());
             String[] indices = indices();
             assertThat(indices, arrayContaining(PARTIAL_INDEX_NAME));
             assertThat(indices, not(arrayContaining(INDEX_NAME)));

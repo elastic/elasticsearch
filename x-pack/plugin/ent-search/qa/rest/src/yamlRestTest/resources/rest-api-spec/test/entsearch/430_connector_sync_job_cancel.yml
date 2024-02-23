@@ -33,7 +33,11 @@ setup:
       connector_sync_job.get:
         connector_sync_job_id: $sync-job-id-to-cancel
 
+  - set: { cancelation_requested_at: cancelation_requested_at }
+
   - match: { status: "canceled"}
+  - match: { completed_at: $cancelation_requested_at }
+  - match: { canceled_at: $cancelation_requested_at }
 
 ---
 "Cancel a canceled Connector Sync Job - invalid state transition from canceled to canceling":

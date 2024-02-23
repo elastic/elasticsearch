@@ -221,8 +221,8 @@ public class ConnectorSyncJobIndexService {
 
     /**
      * Cancels the {@link ConnectorSyncJob} in the underlying index.
-     * Canceling means to set the {@link ConnectorSyncStatus} to "canceling" and not "canceled" as this is an async operation.
-     * It also updates 'cancelation_requested_at' to the time, when the method was called.
+     * Canceling means to set the {@link ConnectorSyncStatus} either to "canceling" or "canceled"
+     * depending on the current {@link ConnectorSyncStatus} of the {@link ConnectorSyncJob}.
      *
      * @param connectorSyncJobId     The id of the connector sync job object.
      * @param listener               The action listener to invoke on response/failure.
@@ -230,26 +230,39 @@ public class ConnectorSyncJobIndexService {
     public void cancelConnectorSyncJob(String connectorSyncJobId, ActionListener<UpdateResponse> listener) {
         try {
             getConnectorSyncJob(connectorSyncJobId, listener.delegateFailure((getSyncJobListener, syncJobSearchResult) -> {
-                String timestampFieldToUpdate;
-                Instant updatedTimestamp = Instant.now();
+                Map<String, Object> syncJobFieldsToUpdate;
+                Instant now = Instant.now();
 
-                ConnectorSyncStatus nextStatus;
                 ConnectorSyncStatus prevStatus = getConnectorSyncJobStatusFromSearchResult(syncJobSearchResult);
 
-                if (ConnectorSyncStatus.PENDING.equals(prevStatus)) {
-                    // A pending non-running sync job is set to `canceled` directly
-                    // without a transition to the in-between `canceling` status
-                    nextStatus = ConnectorSyncStatus.CANCELED;
-
-                    // We do not update `cancelation_requested_at` as this is not an async operation
-                    timestampFieldToUpdate = ConnectorSyncJob.CANCELED_AT_FIELD.getPreferredName();
-                } else {
-                    nextStatus = ConnectorSyncStatus.CANCELING;
-                    timestampFieldToUpdate = ConnectorSyncJob.CANCELATION_REQUESTED_AT_FIELD.getPreferredName();
-                }
-
                 try {
-                    ConnectorSyncJobStateMachine.assertValidStateTransition(prevStatus, nextStatus);
+                    if (ConnectorSyncStatus.PENDING.equals(prevStatus) || ConnectorSyncStatus.SUSPENDED.equals(prevStatus)) {
+                        // A pending or suspended non-running sync job is set to `canceled` directly
+                        // without a transition to the in-between `canceling` status
+                        ConnectorSyncStatus nextStatus = ConnectorSyncStatus.CANCELED;
+                        ConnectorSyncJobStateMachine.assertValidStateTransition(prevStatus, nextStatus);
+
+                        syncJobFieldsToUpdate = Map.of(
+                            ConnectorSyncJob.STATUS_FIELD.getPreferredName(),
+                            nextStatus,
+                            ConnectorSyncJob.CANCELATION_REQUESTED_AT_FIELD.getPreferredName(),
+                            now,
+                            ConnectorSyncJob.CANCELED_AT_FIELD.getPreferredName(),
+                            now,
+                            ConnectorSyncJob.COMPLETED_AT_FIELD.getPreferredName(),
+                            now
+                        );
+                    } else {
+                        ConnectorSyncStatus nextStatus = ConnectorSyncStatus.CANCELING;
+                        ConnectorSyncJobStateMachine.assertValidStateTransition(prevStatus, nextStatus);
+
+                        syncJobFieldsToUpdate = Map.of(
+                            ConnectorSyncJob.STATUS_FIELD.getPreferredName(),
+                            nextStatus,
+                            ConnectorSyncJob.CANCELATION_REQUESTED_AT_FIELD.getPreferredName(),
+                            now
+                        );
+                    }
                 } catch (ConnectorSyncJobInvalidStatusTransitionException e) {
                     getSyncJobListener.onFailure(new ElasticsearchStatusException(e.getMessage(), RestStatus.BAD_REQUEST, e));
                     return;
@@ -257,7 +270,7 @@ public class ConnectorSyncJobIndexService {
 
                 final UpdateRequest updateRequest = new UpdateRequest(CONNECTOR_SYNC_JOB_INDEX_NAME, connectorSyncJobId).setRefreshPolicy(
                     WriteRequest.RefreshPolicy.IMMEDIATE
-                ).doc(Map.of(ConnectorSyncJob.STATUS_FIELD.getPreferredName(), nextStatus, timestampFieldToUpdate, updatedTimestamp));
+                ).doc(syncJobFieldsToUpdate);
 
                 client.update(
                     updateRequest,

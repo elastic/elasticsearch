@@ -21,9 +21,7 @@ import org.elasticsearch.xpack.textstructure.structurefinder.TextStructureFinder
 import org.elasticsearch.xpack.textstructure.structurefinder.TextStructureOverrides;
 import org.elasticsearch.xpack.textstructure.structurefinder.TimeoutChecker;
 
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.StringJoiner;
 
 import static org.elasticsearch.threadpool.ThreadPool.Names.GENERIC;
 
@@ -45,26 +43,21 @@ public class TransportFindMessageStructureAction extends HandledTransportAction<
 
     @Override
     protected void doExecute(Task task, FindMessageStructureAction.Request request, ActionListener<FindStructureResponse> listener) {
-        StringJoiner sample = new StringJoiner("\n");
-        request.getMessages().forEach(sample::add);
         threadPool.executor(GENERIC).execute(() -> {
             try {
-                listener.onResponse(buildTextStructureResponse(sample.toString(), request));
+                listener.onResponse(buildTextStructureResponse(request));
             } catch (Exception e) {
                 listener.onFailure(e);
             }
         });
     }
 
-    private FindStructureResponse buildTextStructureResponse(String sample, FindMessageStructureAction.Request request) throws Exception {
+    private FindStructureResponse buildTextStructureResponse(FindMessageStructureAction.Request request) throws Exception {
         TextStructureFinderManager structureFinderManager = new TextStructureFinderManager(threadPool.scheduler());
         try (TimeoutChecker timeoutChecker = new TimeoutChecker("structure analysis", request.getTimeout(), threadPool.scheduler())) {
             TextStructureFinder textStructureFinder = structureFinderManager.makeBestStructureFinder(
                 new ArrayList<>(),
-                sample,
-                StandardCharsets.UTF_8.name(),
-                false,
-                request.getLineMergeSizeLimit(),
+                request.getMessages(),
                 new TextStructureOverrides(request),
                 timeoutChecker
             );

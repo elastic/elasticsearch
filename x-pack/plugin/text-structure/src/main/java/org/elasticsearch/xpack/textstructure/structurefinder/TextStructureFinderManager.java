@@ -551,24 +551,12 @@ public final class TextStructureFinderManager {
         );
     }
 
-    public TextStructureFinder makeBestStructureFinder(
-        List<String> explanation,
-        String sample,
-        String charsetName,
-        Boolean hasByteOrderMarker,
-        int lineMergeSizeLimit,
-        TextStructureOverrides overrides,
-        TimeoutChecker timeoutChecker
-    ) throws Exception {
-
+    List<TextStructureFinderFactory> getFactories(TextStructureOverrides overrides) {
         Character delimiter = overrides.getDelimiter();
         Character quote = overrides.getQuote();
         Boolean shouldTrimFields = overrides.getShouldTrimFields();
         List<TextStructureFinderFactory> factories;
-        double allowedFractionOfBadLines = 0.0;
         if (delimiter != null) {
-            allowedFractionOfBadLines = DelimitedTextStructureFinderFactory.DELIMITER_OVERRIDDEN_ALLOWED_FRACTION_OF_BAD_LINES;
-
             // If a precise delimiter is specified, we only need one structure finder
             // factory, and we'll tolerate as little as one column in the input
             factories = Collections.singletonList(
@@ -581,8 +569,6 @@ public final class TextStructureFinderManager {
             );
 
         } else if (quote != null || shouldTrimFields != null || TextStructure.Format.DELIMITED.equals(overrides.getFormat())) {
-            allowedFractionOfBadLines = DelimitedTextStructureFinderFactory.FORMAT_OVERRIDDEN_ALLOWED_FRACTION_OF_BAD_LINES;
-
             // The delimiter is not specified, but some other aspect of delimited text is,
             // so clone our default delimited factories altering the overridden values
             factories = ORDERED_STRUCTURE_FACTORIES.stream()
@@ -599,6 +585,34 @@ public final class TextStructureFinderManager {
 
         }
 
+        return factories;
+    }
+
+    private double getAllowedFractionOfBadLines(TextStructureOverrides overrides) {
+        Character delimiter = overrides.getDelimiter();
+        Character quote = overrides.getQuote();
+        Boolean shouldTrimFields = overrides.getShouldTrimFields();
+        if (delimiter != null) {
+            return DelimitedTextStructureFinderFactory.DELIMITER_OVERRIDDEN_ALLOWED_FRACTION_OF_BAD_LINES;
+        } else if (quote != null || shouldTrimFields != null || TextStructure.Format.DELIMITED.equals(overrides.getFormat())) {
+            return DelimitedTextStructureFinderFactory.FORMAT_OVERRIDDEN_ALLOWED_FRACTION_OF_BAD_LINES;
+        } else {
+            return 0.0;
+        }
+    }
+
+    TextStructureFinder makeBestStructureFinder(
+        List<String> explanation,
+        String sample,
+        String charsetName,
+        Boolean hasByteOrderMarker,
+        int lineMergeSizeLimit,
+        TextStructureOverrides overrides,
+        TimeoutChecker timeoutChecker
+    ) throws Exception {
+        List<TextStructureFinderFactory> factories = getFactories(overrides);
+        double allowedFractionOfBadLines = getAllowedFractionOfBadLines(overrides);
+
         for (TextStructureFinderFactory factory : factories) {
             timeoutChecker.check("high level format detection");
             if (factory.canCreateFromSample(explanation, sample, allowedFractionOfBadLines)) {
@@ -611,6 +625,28 @@ public final class TextStructureFinderManager {
                     overrides,
                     timeoutChecker
                 );
+            }
+        }
+
+        throw new IllegalArgumentException(
+            "Input did not match "
+                + ((overrides.getFormat() == null) ? "any known formats" : "the specified format [" + overrides.getFormat() + "]")
+        );
+    }
+
+    public TextStructureFinder makeBestStructureFinder(
+        List<String> explanation,
+        List<String> messages,
+        TextStructureOverrides overrides,
+        TimeoutChecker timeoutChecker
+    ) throws Exception {
+        List<TextStructureFinderFactory> factories = getFactories(overrides);
+        double allowedFractionOfBadLines = getAllowedFractionOfBadLines(overrides);
+
+        for (TextStructureFinderFactory factory : factories) {
+            timeoutChecker.check("high level format detection");
+            if (factory.canCreateFromMessages(explanation, messages, allowedFractionOfBadLines)) {
+                return factory.createFromMessages(explanation, messages, overrides, timeoutChecker);
             }
         }
 

@@ -36,6 +36,7 @@ import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
@@ -45,11 +46,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.nio.ByteBuffer;
-import java.util.Collection;
 import java.util.Comparator;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.IntStream;
@@ -64,10 +61,12 @@ public class SharedBlobCacheWarmingService {
     private static final Logger logger = LogManager.getLogger(SharedBlobCacheWarmingService.class);
 
     private final SharedBlobCacheService<FileCacheKey> cacheService;
+    private final ThreadPool threadPool;
     private final ThrottledTaskRunner throttledTaskRunner;
 
     public SharedBlobCacheWarmingService(SharedBlobCacheService<FileCacheKey> cacheService, ThreadPool threadPool) {
         this.cacheService = cacheService;
+        this.threadPool = threadPool;
         this.throttledTaskRunner = new ThrottledTaskRunner(
             "prewarming-cache",
             // use half of the SHARD_READ_THREAD_POOL at max to leave room for regular concurrent reads to complete
@@ -90,8 +89,12 @@ public class SharedBlobCacheWarmingService {
      * @param commit the commit to be recovered
      */
     public void warmCacheForIndexingShardRecovery(IndexShard indexShard, StatelessCompoundCommit commit) {
-        ActionListener<Void> listener = ActionListener.running(() -> logger.debug("{} warming completed", indexShard.shardId()));
-        warmCache(indexShard, commit, new IndexingShardRecoveryComparator(), listener);
+        final long started = threadPool.rawRelativeTimeInMillis();
+        logger.debug("{} warming", indexShard.shardId());
+        warmCache(indexShard, commit, new IndexingShardRecoveryComparator(), ActionListener.running(() -> {
+            final long finished = threadPool.rawRelativeTimeInMillis();
+            logger.debug("{} warming completed in {} ms", indexShard.shardId(), finished - started);
+        }));
     }
 
     protected void warmCache(
@@ -110,41 +113,30 @@ public class SharedBlobCacheWarmingService {
             var commitFiles = commit.commitFiles().entrySet().stream().sorted(comparator).toList();
 
             // used to deduplicate regions of blob files to avoid warming the same region twice
-            final Map<BlobFile, Set<Integer>> blobFileRegions = new HashMap<>();
-
-            for (var commitFile : commitFiles) {
+            final Set<BlobRegion> regions = Sets.newHashSetWithExpectedSize(commitFiles.size());
+            for (var entry : commitFiles) {
                 if (store.isClosing()) {
                     break;
                 }
-                var blobLocation = commitFile.getValue();
-                // compute the regions of the compound commit blob that must be warmed up for this commit file
-                var blobRegions = computeRegions(indexShard.shardId(), commitFile.getKey(), blobLocation);
-                blobRegions.forEach(region -> {
-                    if (blobFileRegions.computeIfAbsent(blobLocation.blobFile(), ignored -> new HashSet<>()).add(region)) {
-                        // Maybe avoid enqueing all regions needed for a recovery at once? It means that a recovery of a large shard may
-                        // keep busy the runner for a long time while the regions to warm for other shards are waiting to be processed in
-                        // the queue.
+                var fileName = entry.getKey();
+                var blobLocation = entry.getValue();
+                addRegions(regions, indexShard.shardId(), fileName, blobLocation);
+            }
 
-                        // TODO the time to reach the first byte is the main latency, so we could combine contiguous regions in a single
-                        // warming task and benefit from the object store high throughput to fill more than one regions.
+            // Maybe avoid enqueing all regions needed for a recovery at once? It means that a recovery of a large shard may
+            // keep busy the runner for a long time while the regions to warm for other shards are waiting to be processed in
+            // the queue.
 
-                        var blobFile = blobLocation.blobFile();
-                        logger.trace(
-                            () -> format(
-                                "%s adding region [%d][%d-%d] of blob [%s] to cache warming task queue",
-                                indexShard.shardId(),
-                                region,
-                                (long) region * cacheService.getRegionSize(),
-                                (long) region * cacheService.getRegionSize() + cacheService.getRegionSize(),
-                                blobFile.blobName()
-                            )
-                        );
-                        throttledTaskRunner.enqueueTask(new CacheRegionWarmingTask(blobFile, region, indexShard, refs.acquire()));
-                    }
-                });
+            // TODO the time to reach the first byte is the main latency, so we could combine contiguous regions in a single
+            // warming task and benefit from the object store high throughput to fill more than one regions.
+
+            for (BlobRegion region : regions) {
+                throttledTaskRunner.enqueueTask(new CacheRegionWarmingTask(region.blob(), region.region(), indexShard, refs.acquire()));
             }
         }
     }
+
+    private record BlobRegion(BlobFile blob, int region) {}
 
     /**
      * Finds the regions of the compound commit blob that must be warmed up for the given file.
@@ -156,79 +148,67 @@ public class SharedBlobCacheWarmingService {
      * </p>
      * @param fileName the name of the Lucene file
      * @param blobLocation the blob location of the Lucene file
-     * @return a set of region ids
      */
-    private Collection<Integer> computeRegions(ShardId shardId, String fileName, BlobLocation blobLocation) {
+    private void addRegions(Set<BlobRegion> regions, ShardId shardId, String fileName, BlobLocation blobLocation) {
         if (shouldFullyWarmUp(fileName)) {
             // compute the range of bytes in the compound commit blob corresponding to the full file
             var range = ByteRange.of(blobLocation.offset(), blobLocation.offset() + blobLocation.fileLength());
-
-            // compute the blob regions associated to the range (can be more than one region)
-            var blobRegions = findRegions(range);
-            logger.trace(
-                () -> format(
-                    "%s found region(s) %s of blob [%s] to warm up for range [%d-%d] of file [name=%s, length=%d]",
-                    shardId,
-                    blobRegions,
-                    blobLocation.blobFile().blobName(),
-                    range.start(),
-                    range.end(),
-                    fileName,
-                    blobLocation.fileLength()
-                )
-            );
-            return blobRegions;
+            findRegions(range).forEach(region -> {
+                var added = regions.add(new BlobRegion(blobLocation.blobFile(), region));
+                logDetectedRegion(shardId, added, region, fileName, blobLocation, range, "content");
+            });
         }
-
-        var blobRegions = new HashSet<Integer>();
 
         // prewarm the header of the file (header have no fixed length so we prewarm BUFFER_SIZE at least)
         var header = ByteRange.of(blobLocation.offset(), blobLocation.offset() + Math.min(BUFFER_SIZE, blobLocation.fileLength()));
-        final var headerRegions = findRegions(header);
-        logger.trace(
-            () -> format(
-                "%s found region(s) %s of blob [%s] to warm up for header [%d-%d] of file [name=%s, length=%d]",
-                shardId,
-                headerRegions,
-                blobLocation.blobFile().blobName(),
-                header.start(),
-                header.end(),
-                fileName,
-                blobLocation.fileLength()
-            )
-        );
-        blobRegions.addAll(headerRegions);
+        findRegions(header).forEach(region -> {
+            var added = regions.add(new BlobRegion(blobLocation.blobFile(), region));
+            logDetectedRegion(shardId, added, region, fileName, blobLocation, header, "header");
+        });
 
         // prewarm the footer of the file
-        if (blobLocation.blobLength() > BUFFER_SIZE) {
+        if (blobLocation.fileLength() > BUFFER_SIZE) {
             var footer = ByteRange.of(
                 blobLocation.offset() + blobLocation.fileLength() - CodecUtil.footerLength(),
                 blobLocation.offset() + blobLocation.fileLength()
             );
-            final var footerRegions = findRegions(footer);
-            logger.trace(
-                () -> format(
-                    "%s found region(s) %s of blob [%s] to warm up for header [%d-%d] of file [name=%s, length=%d]",
-                    shardId,
-                    footerRegions,
-                    blobLocation.blobFile().blobName(),
-                    header.start(),
-                    header.end(),
-                    fileName,
-                    blobLocation.fileLength()
-                )
-            );
-            blobRegions.addAll(footerRegions);
+            findRegions(footer).forEach(region -> {
+                var added = regions.add(new BlobRegion(blobLocation.blobFile(), region));
+                logDetectedRegion(shardId, added, region, fileName, blobLocation, footer, "footer");
+            });
         }
-        return Set.copyOf(blobRegions);
+    }
+
+    private static void logDetectedRegion(
+        ShardId shardId,
+        boolean added,
+        int regions,
+        String fileName,
+        BlobLocation blobLocation,
+        ByteRange range,
+        String type
+    ) {
+        logger.trace(
+            () -> format(
+                "%s: %s warming region %s of blob [%s][%d-%d] for file [name=%s, length=%d] %s",
+                shardId,
+                added ? "scheduling" : "already scheduled",
+                regions,
+                blobLocation.blobFile().blobName(),
+                range.start(),
+                range.end(),
+                fileName,
+                blobLocation.fileLength(),
+                type
+            )
+        );
     }
 
     private static boolean shouldFullyWarmUp(String fileName) {
         var extension = LuceneFilesExtensions.fromFile(fileName);
         return extension == null // segments_N are fully warmed up in cache
             || extension.isMetadata() // metadata files
-            || StatelessCommitService.isGenerationalFile(fileName) // generational files
-            || LuceneFilesExtensions.FNM.equals(extension); // field infos files
+            || StatelessCommitService.isGenerationalFile(fileName); // generational files
     }
 
     private static final ThreadLocal<ByteBuffer> writeBuffer = ThreadLocal.withInitial(() -> {
@@ -242,14 +222,14 @@ public class SharedBlobCacheWarmingService {
      * @param range a range of bytes that can cover more than one region
      * @return a list of region ids
      */
-    private List<Integer> findRegions(ByteRange range) {
+    private IntStream findRegions(ByteRange range) {
         final int regionSize = cacheService.getRegionSize();
         int startRegion = (int) (range.start() / regionSize);
         int endRegion = (int) ((range.end() - (range.end() % regionSize == 0 ? 1 : 0)) / regionSize);
         if (startRegion != endRegion) {
-            return IntStream.rangeClosed(startRegion, endRegion).boxed().toList();
+            return IntStream.rangeClosed(startRegion, endRegion);
         }
-        return List.of(startRegion);
+        return IntStream.of(startRegion);
     }
 
     /**
@@ -427,6 +407,5 @@ public class SharedBlobCacheWarmingService {
             case DVM, DVD -> 10;
             default -> Integer.MAX_VALUE;
         };
-
     }
 }

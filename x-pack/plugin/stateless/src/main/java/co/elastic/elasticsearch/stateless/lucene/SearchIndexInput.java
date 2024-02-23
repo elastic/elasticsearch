@@ -156,7 +156,6 @@ public final class SearchIndexInput extends BlobCacheBufferedIndexInput {
         // accessing the byte buffer anymore that was passed to doReadInternal
         // In particular, it's important to acquire all permits before adapting the ByteBuffer's offset
         final ByteBufferReference byteBufferReference = new ByteBufferReference(b);
-        logger.trace("readInternal: read [{}-{}] ([{}] bytes) from [{}]", position, position + length, length, this);
         try {
             final ByteRange rangeToWrite = BlobCacheUtils.computeRange(
                 cacheService.getRangeSize(),
@@ -170,18 +169,15 @@ public final class SearchIndexInput extends BlobCacheBufferedIndexInput {
 
             int bytesRead = 0;
             try {
-                bytesRead = cacheFile.populateAndRead(rangeToWrite, rangeToRead, (channel, pos, relativePos, len) -> {
+                bytesRead = cacheFile.populateAndRead(rangeToWrite, rangeToRead, (channel, channelPos, relativePos, len) -> {
                     logger.trace(
-                        "{}: reading cached {} logical {} channel {} pos {} length {} (details: {})",
+                        "{}: reading cached [{}][{}-{}]",
+                        SearchIndexInput.super.toString(),
                         cacheFile.getCacheKey().fileName(),
-                        false,
                         rangeToRead.start(),
-                        pos,
-                        relativePos,
-                        length,
-                        cacheFile
+                        rangeToRead.start() + len
                     );
-                    return SharedBytes.readCacheFile(channel, pos, relativePos, len, byteBufferReference);
+                    return SharedBytes.readCacheFile(channel, channelPos, relativePos, len, byteBufferReference);
                 }, (channel, channelPos, relativePos, len, progressUpdater) -> {
                     final long streamStartPosition = rangeToWrite.start() + relativePos;
                     try (
@@ -193,13 +189,12 @@ public final class SearchIndexInput extends BlobCacheBufferedIndexInput {
                         )
                     ) {
                         assert ThreadPool.assertCurrentThreadPool(Stateless.SHARD_READ_THREAD_POOL);
-                        logger.trace(
-                            "{}: writing channel {} pos {} length {} (details: {})",
+                        logger.debug(
+                            "{}: loading [{}][{}-{}] from blobstore",
+                            SearchIndexInput.super.toString(),
                             cacheFile.getCacheKey().fileName(),
-                            channelPos,
-                            relativePos,
-                            len,
-                            cacheFile
+                            streamStartPosition,
+                            streamStartPosition + len
                         );
                         SharedBytes.copyToCacheFileAligned(
                             channel,

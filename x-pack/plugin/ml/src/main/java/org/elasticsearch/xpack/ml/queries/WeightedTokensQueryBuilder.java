@@ -160,7 +160,7 @@ public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTok
                 "["
                     + fieldTypeName
                     + "]"
-                    + " is not an appropriate field type for text expansion query. "
+                    + " is not an appropriate field type for this query. "
                     + "Allowed field types are ["
                     + AllowedFieldType.getAllowedFieldTypesAsString()
                     + "]."
@@ -185,7 +185,7 @@ public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTok
         throws IOException {
         var qb = new BooleanQuery.Builder();
         int fieldDocCount = context.getIndexReader().getDocCount(fieldName);
-        float bestWeight = findBestWeightFor(tokens);
+        float bestWeight = tokens.stream().map(WeightedToken::weight).reduce(0f, Math::max);
         float averageTokenFreqRatio = getAverageTokenFreqRatio(context.getIndexReader(), fieldDocCount);
         if (averageTokenFreqRatio == 0) {
             return new MatchNoDocsQuery("The \"" + getName() + "\" query is against an empty field");
@@ -200,10 +200,6 @@ public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTok
         }
 
         return qb.setMinimumNumberShouldMatch(1).build();
-    }
-
-    private float findBestWeightFor(List<WeightedToken> tokens) {
-        return tokens.stream().map(WeightedToken::weight).reduce(0f, Math::max);
     }
 
     @Override

@@ -295,7 +295,7 @@ setup:
       reason: "validation for invalid field type introduced in 8.14.0"
 
   - do:
-      catch: /\[keyword\] is not an appropriate field type for text expansion query/
+      catch: /\[keyword\] is not an appropriate field type for this query/
       search:
         index: index-with-rank-features
         body:

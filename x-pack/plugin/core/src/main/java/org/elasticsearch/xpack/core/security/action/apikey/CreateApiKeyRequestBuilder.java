@@ -31,13 +31,12 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  * Request builder for populating a {@link CreateApiKeyRequest}
  */
 public class CreateApiKeyRequestBuilder extends ActionRequestBuilder<CreateApiKeyRequest, CreateApiKeyResponse> {
-
-    private static final ConstructingObjectParser<CreateApiKeyRequest, Void> PARSER = initParser(
+    private static final ConstructingObjectParser<CreateApiKeyRequest, Void> PARSER = createParser(
         (n, p) -> RoleDescriptor.parse(n, p, false)
     );
 
     @SuppressWarnings("unchecked")
-    protected static ConstructingObjectParser<CreateApiKeyRequest, Void> initParser(
+    protected static ConstructingObjectParser<CreateApiKeyRequest, Void> createParser(
         CheckedBiFunction<String, XContentParser, RoleDescriptor, IOException> roleDescriptorParser
     ) {
         ConstructingObjectParser<CreateApiKeyRequest, Void> parser = new ConstructingObjectParser<>(

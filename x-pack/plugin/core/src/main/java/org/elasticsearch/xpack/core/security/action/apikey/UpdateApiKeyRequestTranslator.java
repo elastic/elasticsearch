@@ -25,10 +25,10 @@ public interface UpdateApiKeyRequestTranslator {
     UpdateApiKeyRequest translate(RestRequest request) throws IOException;
 
     class Default implements UpdateApiKeyRequestTranslator {
-        private static final ConstructingObjectParser<Payload, Void> PARSER = initParser((n, p) -> RoleDescriptor.parse(n, p, false));
+        private static final ConstructingObjectParser<Payload, Void> PARSER = createParser((n, p) -> RoleDescriptor.parse(n, p, false));
 
         @SuppressWarnings("unchecked")
-        protected static ConstructingObjectParser<Payload, Void> initParser(
+        protected static ConstructingObjectParser<Payload, Void> createParser(
             CheckedBiFunction<String, XContentParser, RoleDescriptor, IOException> roleDescriptorParser
         ) {
             final ConstructingObjectParser<Payload, Void> parser = new ConstructingObjectParser<>(

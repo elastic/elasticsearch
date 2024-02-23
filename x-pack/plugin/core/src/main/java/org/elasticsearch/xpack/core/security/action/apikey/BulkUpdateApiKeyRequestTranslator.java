@@ -26,12 +26,12 @@ public interface BulkUpdateApiKeyRequestTranslator {
     BulkUpdateApiKeyRequest translate(RestRequest request) throws IOException;
 
     class Default implements BulkUpdateApiKeyRequestTranslator {
-        private static final ConstructingObjectParser<BulkUpdateApiKeyRequest, Void> PARSER = initParser(
+        private static final ConstructingObjectParser<BulkUpdateApiKeyRequest, Void> PARSER = createParser(
             (n, p) -> RoleDescriptor.parse(n, p, false)
         );
 
         @SuppressWarnings("unchecked")
-        protected static ConstructingObjectParser<BulkUpdateApiKeyRequest, Void> initParser(
+        protected static ConstructingObjectParser<BulkUpdateApiKeyRequest, Void> createParser(
             CheckedBiFunction<String, XContentParser, RoleDescriptor, IOException> roleDescriptorParser
         ) {
             final ConstructingObjectParser<BulkUpdateApiKeyRequest, Void> parser = new ConstructingObjectParser<>(

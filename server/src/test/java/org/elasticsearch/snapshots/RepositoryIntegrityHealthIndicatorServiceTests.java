@@ -8,7 +8,6 @@
 
 package org.elasticsearch.snapshots;
 
-import org.elasticsearch.cluster.ClusterFeatures;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;

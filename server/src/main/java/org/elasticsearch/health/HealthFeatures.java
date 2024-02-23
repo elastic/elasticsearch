@@ -28,11 +28,6 @@ public class HealthFeatures implements FeatureSpecification {
 
     @Override
     public Map<NodeFeature, Version> getHistoricalFeatures() {
-        return Map.of(
-            SUPPORTS_HEALTH,
-            Version.V_8_5_0,
-            SUPPORTS_SHARDS_CAPACITY_INDICATOR,
-            Version.V_8_8_0
-        );
+        return Map.of(SUPPORTS_HEALTH, Version.V_8_5_0, SUPPORTS_SHARDS_CAPACITY_INDICATOR, Version.V_8_8_0);
     }
 }

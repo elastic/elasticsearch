@@ -194,20 +194,24 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
         // Flushing before blocking operations because we expect this to reduce the amount of work done by the flush that happens while
         // operations are blocked. NB the flush has force=false so may do nothing.
         final var preFlushStep = new SubscribableListener<Engine.FlushResult>();
-        logger.trace("[{}] flushing before acquiring all primary operation permits", request.shardId());
+
+        logShardStats("flushing before acquiring all primary operation permits", indexShard, engine);
         ActionListener.run(preFlushStep, l -> engine.flush(false, false, l));
+        logger.debug("[{}] completed the flush, waiting to upload", request.shardId());
 
         preFlushStep.addListener(listener.delegateResponse((l, e) -> {
             indexShard.recoveryStats().decCurrentAsSource();
             l.onFailure(e);
         }).delegateFailureAndWrap((listener0, preFlushResult) -> {
-            logger.trace("[{}] acquiring all primary operation permits", request.shardId());
+            logger.debug("[{}] acquiring all primary operation permits", request.shardId());
             indexShard.relocated(request.targetAllocationId(), (primaryContext, handoffResultListener) -> {
-                logger.trace("[{}] obtained primary context: [{}]", request.shardId(), primaryContext);
+                logShardStats("obtained primary context", indexShard, engine);
+                logger.debug("[{}] obtained primary context: [{}]", request.shardId(), primaryContext);
 
                 final var markedShardAsRelocating = new SubscribableListener<Void>();
                 // Do not wait on flush durability as we will wait at the stateless commit service level for the upload
                 engine.flush(false, true, ActionListener.noop());
+                logShardStats("flush after acquiring primary context completed", indexShard, engine);
                 long lastFlushedGeneration = engine.getLastCommittedSegmentInfos().getGeneration();
 
                 final var localCheckpoints = new HashMap<>(primaryContext.getCheckpointStates());
@@ -241,7 +245,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
                 ActionListener<TransportResponse.Empty> compoundHandoffListener = new ActionListener<>() {
                     @Override
                     public void onResponse(TransportResponse.Empty unused) {
-                        logger.trace("[{}] primary context handoff succeeded", request.shardId());
+                        logger.debug("[{}] primary context handoff succeeded", request.shardId());
                         try {
                             handoffCompleteListener.onResponse(null);
                             indexShard.recoveryStats().decCurrentAsSource();
@@ -261,7 +265,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
                 };
 
                 markedShardAsRelocating.addListener(compoundHandoffListener.delegateFailureAndWrap((finalHandoffListener, v) -> {
-                    logger.trace("[{}] flush complete, handing off primary context", request.shardId());
+                    logger.debug("[{}] flush complete, handing off primary context", request.shardId());
 
                     assert assertLastCommitSequenceNumberConsistency(indexShard, sourceCheckpoints, false);
                     transportService.sendChildRequest(
@@ -286,6 +290,20 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
         }), recoveryExecutor, threadContext);
     }
 
+    private void logShardStats(String message, IndexShard indexShard, Engine engine) {
+        if (logger.isDebugEnabled()) {
+            logger.debug(
+                "{}: {}.Flush stats [{}], Translog stats [{}], Merge stats [{}], Segments {}",
+                indexShard.shardId(),
+                message,
+                Strings.toString(indexShard.flushStats()),
+                Strings.toString(indexShard.translogStats()),
+                Strings.toString(indexShard.mergeStats()),
+                engine.segments()
+            );
+        }
+    }
+
     private IndexEngine ensureIndexEngine(Engine engine, IndexShardState indexShardState, ShardRouting shardRouting) {
         if (engine instanceof IndexEngine indexEngine) {
             return indexEngine;
@@ -305,7 +323,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
 
     private void handlePrimaryContextHandoff(PrimaryContextHandoffRequest request, ActionListener<Void> listener) {
         // executed remotely by `TransportStatelessPrimaryRelocationAction#handleStartRelocation` (i.e. we are on the target node here)
-        logger.trace("[{}] received primary context", request.shardId());
+        logger.debug("[{}] received primary context", request.shardId());
 
         final var indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
         final var indexShard = indexService.getShard(request.shardId().id());

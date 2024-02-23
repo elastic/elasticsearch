@@ -169,8 +169,7 @@ public record BlobLocation(BlobFile blobFile, long offset, long fileLength) impl
             + primaryTerm()
             + ", blobName='"
             + blobName()
-            + '\''
-            + ", blobLength="
+            + "', blobLength="
             + blobLength()
             + ", offset="
             + offset

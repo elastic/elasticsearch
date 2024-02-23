@@ -62,7 +62,8 @@ information, refer to https://www.elastic.co/subscriptions.
 [[remote-clusters-security-api-key]]
 ==== Establish trust with a remote cluster
 
-NOTE: If the remote cluster is part of an {ess} deployment, there is already a valid certificate. In that case, you can ignore steps of this procedure related to certificates.
+NOTE: If a remote cluster is part of an {ess} deployment, it has a valid certificate by default. 
+You can therefore skip steps related to certificates in these instructions.
 
 ===== On the remote cluster
 

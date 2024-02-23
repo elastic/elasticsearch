@@ -112,16 +112,16 @@ public final class ParentJoinFieldMapper extends FieldMapper {
 
         @Override
         public ParentJoinFieldMapper build(MapperBuilderContext context) {
-            checkObjectOrNested(context, name);
+            checkObjectOrNested(context, name());
             final Map<String, ParentIdFieldMapper> parentIdFields = new HashMap<>();
             relations.get()
                 .stream()
-                .map(relation -> new ParentIdFieldMapper(name + "#" + relation.parent(), eagerGlobalOrdinals.get()))
+                .map(relation -> new ParentIdFieldMapper(name() + "#" + relation.parent(), eagerGlobalOrdinals.get()))
                 .forEach(mapper -> parentIdFields.put(mapper.name(), mapper));
             Joiner joiner = new Joiner(name(), relations.get());
             return new ParentJoinFieldMapper(
-                name,
-                new JoinFieldType(context.buildFullName(name), joiner, meta.get()),
+                name(),
+                new JoinFieldType(context.buildFullName(name()), joiner, meta.get()),
                 Collections.unmodifiableMap(parentIdFields),
                 eagerGlobalOrdinals.get(),
                 relations.get()

@@ -11,9 +11,6 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.hash.MurmurHash3;
@@ -21,11 +18,7 @@ import org.elasticsearch.common.hash.MurmurHash3.Hash128;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.query.SearchExecutionContext;
 
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.Locale;
 
 /**
@@ -40,67 +33,13 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
 
     public static final TsidExtractingIdFieldMapper INSTANCE = new TsidExtractingIdFieldMapper();
 
-    public static final TypeParser PARSER = new FixedTypeParser(MappingParserContext::idFieldMapper);
-    // NOTE: we use a prefix when hashing the tsid field so to be able later on (for instance for debugging purposes)
-    // to query documents whose tsid has been hashed. Using a prefix allows us to query using the prefix.
-
-    static final class IdFieldType extends TermBasedFieldType {
-        IdFieldType() {
-            super(NAME, true, true, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
-        }
-
-        @Override
-        public String typeName() {
-            return CONTENT_TYPE;
-        }
-
-        @Override
-        public boolean isSearchable() {
-            // The _id field is always searchable.
-            return true;
-        }
-
-        @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            return new StoredValueFetcher(context.lookup(), NAME);
-        }
-
-        @Override
-        public Query termQuery(Object value, SearchExecutionContext context) {
-            return termsQuery(Arrays.asList(value), context);
-        }
-
-        @Override
-        public Query existsQuery(SearchExecutionContext context) {
-            return new MatchAllDocsQuery();
-        }
-
-        @Override
-        public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
-            failIfNotIndexed();
-            BytesRef[] bytesRefs = values.stream().map(v -> {
-                Object idObject = v;
-                if (idObject instanceof BytesRef) {
-                    idObject = ((BytesRef) idObject).utf8ToString();
-                }
-                return Uid.encodeId(idObject.toString());
-            }).toArray(BytesRef[]::new);
-            return new TermInSetQuery(name(), bytesRefs);
-        }
-
-        @Override
-        public BlockLoader blockLoader(BlockLoaderContext blContext) {
-            return new BlockStoredFieldsReader.IdBlockLoader();
-        }
-
-        @Override
-        public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
-            throw new IllegalArgumentException("Fielddata is not supported on [_id] field in [time_series] indices");
-        }
-    }
-
     private TsidExtractingIdFieldMapper() {
-        super(new IdFieldType());
+        super(new AbstractIdFieldType() {
+            @Override
+            public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
+                throw new IllegalArgumentException("Fielddata is not supported on [_id] field in [time_series] indices");
+            }
+        });
     }
 
     private static final long SEED = 0;
@@ -114,7 +53,7 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
         }
         long timestamp = timestampField.numericValue().longValue();
         byte[] suffix = new byte[16];
-        String id = createId(context.hasDynamicMappers() == false, routingBuilder, tsid, timestamp, suffix);
+        String id = createId(context.hasDynamicMappers(), routingBuilder, tsid, timestamp, suffix);
         /*
          * Make sure that _id from extracting the tsid matches that _id
          * from extracting the _source. This should be true for all valid

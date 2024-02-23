@@ -1,0 +1,5 @@
+pr: 105717
+summary: Upgrade jna to 5.12.1
+area: Infra/Core
+type: upgrade
+issues: []

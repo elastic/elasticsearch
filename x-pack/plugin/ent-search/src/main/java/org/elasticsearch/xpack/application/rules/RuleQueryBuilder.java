@@ -8,21 +8,17 @@ package org.elasticsearch.xpack.application.rules;
 
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetRequest;
-import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.client.internal.OriginSettingClient;
+import org.elasticsearch.action.get.TransportGetAction;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.HeaderWarning;
-import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -45,6 +41,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xpack.core.ClientHelper.ENT_SEARCH_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.searchbusinessrules.PinnedQueryBuilder.MAX_NUM_PINNED_HITS;
 
 /**
@@ -207,36 +204,22 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
         AppliedQueryRules appliedRules = new AppliedQueryRules();
 
         queryRewriteContext.registerAsyncAction((client, listener) -> {
-            Client clientWithOrigin = new OriginSettingClient(client, ENT_SEARCH_ORIGIN);
-            clientWithOrigin.get(getRequest, new ActionListener<>() {
-                @Override
-                public void onResponse(GetResponse getResponse) {
-                    if (getResponse.isExists() == false) {
-                        throw new ResourceNotFoundException("query ruleset " + rulesetId + " not found");
-                    }
-                    QueryRuleset queryRuleset = QueryRuleset.fromXContentBytes(
-                        rulesetId,
-                        getResponse.getSourceAsBytesRef(),
-                        XContentType.JSON
-                    );
-                    for (QueryRule rule : queryRuleset.rules()) {
-                        rule.applyRule(appliedRules, matchCriteria);
-                    }
-                    pinnedIdsSetOnce.set(appliedRules.pinnedIds().stream().distinct().toList());
-                    pinnedDocsSetOnce.set(appliedRules.pinnedDocs().stream().distinct().toList());
-                    listener.onResponse(null);
+            executeAsyncWithOrigin(client, ENT_SEARCH_ORIGIN, TransportGetAction.TYPE, getRequest, ActionListener.wrap(getResponse -> {
+
+                if (getResponse.isExists() == false) {
+                    listener.onFailure(new ResourceNotFoundException("query ruleset " + rulesetId + " not found"));
+                    return;
                 }
 
-                @Override
-                public void onFailure(Exception e) {
-                    Throwable cause = ExceptionsHelper.unwrapCause(e);
-                    if (cause instanceof IndexNotFoundException) {
-                        listener.onFailure(new ResourceNotFoundException("query ruleset " + rulesetId + " not found"));
-                    } else {
-                        listener.onFailure(e);
-                    }
+                QueryRuleset queryRuleset = QueryRuleset.fromXContentBytes(rulesetId, getResponse.getSourceAsBytesRef(), XContentType.JSON);
+                for (QueryRule rule : queryRuleset.rules()) {
+                    rule.applyRule(appliedRules, matchCriteria);
                 }
-            });
+                pinnedIdsSetOnce.set(appliedRules.pinnedIds().stream().distinct().toList());
+                pinnedDocsSetOnce.set(appliedRules.pinnedDocs().stream().distinct().toList());
+                listener.onResponse(null);
+
+            }, listener::onFailure));
         });
 
         return new RuleQueryBuilder(organicQuery, matchCriteria, this.rulesetId, null, null, pinnedIdsSetOnce::get, pinnedDocsSetOnce::get)

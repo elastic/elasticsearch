@@ -25,17 +25,15 @@ public interface UpdateApiKeyRequestTranslator {
     UpdateApiKeyRequest translate(RestRequest request) throws IOException;
 
     class Default implements UpdateApiKeyRequestTranslator {
-        private static final ConstructingObjectParser<Default.Payload, Void> PARSER = initParser(
-            (n, p) -> RoleDescriptor.parse(n, p, false)
-        );
+        private static final ConstructingObjectParser<Payload, Void> PARSER = initParser((n, p) -> RoleDescriptor.parse(n, p, false));
 
         @SuppressWarnings("unchecked")
-        protected static ConstructingObjectParser<Default.Payload, Void> initParser(
+        protected static ConstructingObjectParser<Payload, Void> initParser(
             CheckedBiFunction<String, XContentParser, RoleDescriptor, IOException> roleDescriptorParser
         ) {
-            final ConstructingObjectParser<Default.Payload, Void> parser = new ConstructingObjectParser<>(
+            final ConstructingObjectParser<Payload, Void> parser = new ConstructingObjectParser<>(
                 "update_api_key_request_payload",
-                a -> new Default.Payload(
+                a -> new Payload(
                     (List<RoleDescriptor>) a[0],
                     (Map<String, Object>) a[1],
                     TimeValue.parseTimeValue((String) a[2], null, "expiration")
@@ -52,14 +50,14 @@ public interface UpdateApiKeyRequestTranslator {
 
         @Override
         public UpdateApiKeyRequest translate(RestRequest request) throws IOException {
-            // Note that we use `ids` here even though we only support a single id. This is because this route shares a path prefix with
-            // `RestClearApiKeyCacheAction` and our current REST implementation requires that path params have the same wildcard if
-            // their paths share a prefix
+            // Note that we use `ids` here even though we only support a single ID. This is because the route where this translator is used
+            // shares a path prefix with `RestClearApiKeyCacheAction` and our current REST implementation requires that path params have the
+            // same wildcard if their paths share a prefix
             final String apiKeyId = request.param("ids");
             if (false == request.hasContent()) {
                 return UpdateApiKeyRequest.usingApiKeyId(apiKeyId);
             }
-            final Default.Payload payload = PARSER.parse(request.contentParser(), null);
+            final Payload payload = PARSER.parse(request.contentParser(), null);
             return new UpdateApiKeyRequest(apiKeyId, payload.roleDescriptors, payload.metadata, payload.expiration);
         }
 

@@ -1,8 +1,8 @@
 = Elasticsearch
 
-Elasticsearch is a search and analytics engine capable of addressing many use cases including generative AI. As the foundation of Elastic’s open Stack platform, Elasticsearch centrally stores your real-time data to deliver fast, highly relevant search that’s scalable and production-ready with flexible deployment options.
+Elasticsearch is a distributed search and analytics engine optimized for speed and relevance on production-scale workloads. Elasticsearch is the foundation of Elastic's open Stack platform. Search in near real-time over massive datasets, perform vector searches, integrate with generative AI applications, and much more.
 
-Use cases enabled by Elasticsearch include
+Use cases enabled by Elasticsearch include:
 
 * https://www.elastic.co/search-labs/blog/articles/retrieval-augmented-generation-rag[Retrieval Augmented Generation (RAG)] 
 * https://www.elastic.co/search-labs/blog/categories/vector-search[Vector search]

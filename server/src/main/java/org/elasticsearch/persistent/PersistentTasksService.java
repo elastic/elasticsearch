@@ -156,6 +156,11 @@ public class PersistentTasksService {
         execute(request, UpdatePersistentTaskStatusAction.INSTANCE, listener);
     }
 
+    @Deprecated(forRemoval = true)
+    public void sendRemoveRequest(final String taskId, final ActionListener<PersistentTask<?>> listener) {
+        sendRemoveRequest(taskId, null, listener);
+    }
+
     /**
      * Notifies the master node to remove a persistent task from the cluster state. Accepts operation timeout as optional parameter
      */

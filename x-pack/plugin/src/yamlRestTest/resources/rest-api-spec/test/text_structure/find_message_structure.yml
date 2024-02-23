@@ -1,8 +1,6 @@
 "Messages structure finder with JSON messages":
   - do:
       text_structure.find_message_structure:
-        lines_to_sample: 3
-        line_merge_size_limit: 1234
         timeout: 10s
         body:
           messages:
@@ -46,8 +44,6 @@
 "Messages structure finder with log messages":
   - do:
       text_structure.find_message_structure:
-        lines_to_sample: 3
-        line_merge_size_limit: 1234
         timeout: 10s
         body:
           messages:

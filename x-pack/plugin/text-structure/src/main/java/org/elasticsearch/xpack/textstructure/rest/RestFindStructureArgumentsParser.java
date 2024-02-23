@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.textstructure.rest;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.xpack.core.textstructure.action.AbstractFindStructureRequest;
+import org.elasticsearch.xpack.core.textstructure.action.FindFieldStructureAction;
 import org.elasticsearch.xpack.core.textstructure.action.FindStructureAction;
 import org.elasticsearch.xpack.textstructure.structurefinder.TextStructureFinderManager;
 
@@ -20,18 +21,30 @@ public class RestFindStructureArgumentsParser<Request extends AbstractFindStruct
     private static final TimeValue DEFAULT_TIMEOUT = new TimeValue(25, TimeUnit.SECONDS);
 
     static void parse(RestRequest restRequest, AbstractFindStructureRequest request) {
-        request.setLinesToSample(
-            restRequest.paramAsInt(
-                FindStructureAction.Request.LINES_TO_SAMPLE.getPreferredName(),
-                TextStructureFinderManager.DEFAULT_IDEAL_SAMPLE_LINE_COUNT
-            )
-        );
-        request.setLineMergeSizeLimit(
-            restRequest.paramAsInt(
-                FindStructureAction.Request.LINE_MERGE_SIZE_LIMIT.getPreferredName(),
-                TextStructureFinderManager.DEFAULT_LINE_MERGE_SIZE_LIMIT
-            )
-        );
+        if (request instanceof FindStructureAction.Request) {
+            request.setLinesToSample(
+                restRequest.paramAsInt(
+                    FindStructureAction.Request.LINES_TO_SAMPLE.getPreferredName(),
+                    TextStructureFinderManager.DEFAULT_IDEAL_SAMPLE_LINE_COUNT
+                )
+            );
+            request.setLineMergeSizeLimit(
+                restRequest.paramAsInt(
+                    FindStructureAction.Request.LINE_MERGE_SIZE_LIMIT.getPreferredName(),
+                    TextStructureFinderManager.DEFAULT_LINE_MERGE_SIZE_LIMIT
+                )
+            );
+            request.setCharset(restRequest.param(FindStructureAction.Request.CHARSET.getPreferredName()));
+            request.setHasHeaderRow(restRequest.paramAsBoolean(FindStructureAction.Request.HAS_HEADER_ROW.getPreferredName(), null));
+        } else if (request instanceof FindFieldStructureAction.Request) {
+            request.setLinesToSample(
+                restRequest.paramAsInt(
+                    FindStructureAction.Request.DOCUMENTS_TO_SAMPLE.getPreferredName(),
+                    TextStructureFinderManager.DEFAULT_IDEAL_SAMPLE_LINE_COUNT
+                )
+            );
+        }
+
         request.setTimeout(
             TimeValue.parseTimeValue(
                 restRequest.param(FindStructureAction.Request.TIMEOUT.getPreferredName()),
@@ -39,10 +52,8 @@ public class RestFindStructureArgumentsParser<Request extends AbstractFindStruct
                 FindStructureAction.Request.TIMEOUT.getPreferredName()
             )
         );
-        request.setCharset(restRequest.param(FindStructureAction.Request.CHARSET.getPreferredName()));
         request.setFormat(restRequest.param(FindStructureAction.Request.FORMAT.getPreferredName()));
         request.setColumnNames(restRequest.paramAsStringArray(FindStructureAction.Request.COLUMN_NAMES.getPreferredName(), null));
-        request.setHasHeaderRow(restRequest.paramAsBoolean(FindStructureAction.Request.HAS_HEADER_ROW.getPreferredName(), null));
         request.setDelimiter(restRequest.param(FindStructureAction.Request.DELIMITER.getPreferredName()));
         request.setQuote(restRequest.param(FindStructureAction.Request.QUOTE.getPreferredName()));
         request.setShouldTrimFields(restRequest.paramAsBoolean(FindStructureAction.Request.SHOULD_TRIM_FIELDS.getPreferredName(), null));

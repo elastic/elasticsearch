@@ -30,6 +30,7 @@ public abstract class AbstractFindStructureRequest extends ActionRequest {
     public static final int MIN_SAMPLE_LINE_COUNT = 2;
 
     public static final ParseField LINES_TO_SAMPLE = new ParseField("lines_to_sample");
+    public static final ParseField DOCUMENTS_TO_SAMPLE = new ParseField("documents_to_sample");
     public static final ParseField LINE_MERGE_SIZE_LIMIT = new ParseField("line_merge_size_limit");
     public static final ParseField TIMEOUT = new ParseField("timeout");
     public static final ParseField CHARSET = TextStructure.CHARSET;

@@ -26,8 +26,7 @@ setup:
       text_structure.find_field_structure:
         index: airlines
         field: message
-        lines_to_sample: 3
-        line_merge_size_limit: 1234
+        documents_to_sample: 3
         timeout: 10s
   - match: { num_lines_analyzed: 3 }
   - match: { num_messages_analyzed: 3 }

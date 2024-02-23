@@ -19,24 +19,10 @@
       ]
     },
     "params":{
-      "lines_to_sample":{
-        "type":"int",
-        "description":"How many lines of the file should be included in the analysis",
-        "default":1000
-      },
-      "line_merge_size_limit":{
-        "type":"int",
-        "description":"Maximum number of characters permitted in a single message when lines are merged to create messages.",
-        "default":10000
-      },
       "timeout":{
         "type":"time",
         "description":"Timeout after which the analysis will be aborted",
         "default":"25s"
-      },
-      "charset":{
-        "type":"string",
-        "description":"Optional parameter to specify the character set of the file"
       },
       "format":{
         "type":"enum",
@@ -47,10 +33,6 @@
           "semi_structured_text"
         ],
         "description":"Optional parameter to specify the high level file format"
-      },
-      "has_header_row":{
-        "type":"boolean",
-        "description":"Optional parameter to specify whether a delimited file includes the column names in its first row"
       },
       "column_names":{
         "type":"list",
@@ -91,7 +73,7 @@
       }
     },
     "body":{
-      "description":"The messages to be analyzed",
+      "description":"JSON object with one field [messages], containing an array of messages to be analyzed",
       "required":true
     }
   }

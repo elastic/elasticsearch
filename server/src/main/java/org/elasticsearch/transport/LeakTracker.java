@@ -41,6 +41,8 @@ public final class LeakTracker {
 
     public static final LeakTracker INSTANCE = new LeakTracker();
 
+    private static volatile String contextHint = "";
+
     private LeakTracker() {}
 
     /**
@@ -70,6 +72,15 @@ public final class LeakTracker {
                 logger.error("LEAK: resource was not cleaned up before it was garbage-collected.{}", records);
             }
         }
+    }
+
+    /**
+     * Set a hint string that will be recorded with every leak that is recorded. Used by unit tests to allow identifying the exact test
+     * that caused a leak by setting the test name here.
+     * @param hint hint value
+     */
+    public static void setContextHint(String hint) {
+        contextHint = hint;
     }
 
     public static Releasable wrap(Releasable releasable) {
@@ -299,19 +310,25 @@ public final class LeakTracker {
         private final Record next;
         private final int pos;
 
+        private final String threadName;
+
+        private final String contextHint = LeakTracker.contextHint;
+
         Record(Record next) {
             this.next = next;
             this.pos = next.pos + 1;
+            threadName = Thread.currentThread().getName();
         }
 
         private Record() {
             next = null;
             pos = -1;
+            threadName = Thread.currentThread().getName();
         }
 
         @Override
         public String toString() {
-            StringBuilder buf = new StringBuilder();
+            StringBuilder buf = new StringBuilder("\tin [").append(threadName).append("][").append(contextHint).append("]\n");
             StackTraceElement[] array = getStackTrace();
             // Skip the first three elements since those are just related to the leak tracker.
             for (int i = 3; i < array.length; i++) {

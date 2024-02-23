@@ -26,7 +26,6 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
-import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.AbstractRestChannel;
 import org.elasticsearch.rest.RestRequest;
@@ -264,9 +263,9 @@ public class RepositoryCredentialsTests extends ESSingleNodeTestCase {
             ClusterService clusterService,
             BigArrays bigArrays,
             RecoverySettings recoverySettings,
-            RepositoriesMetrics repositoriesMetrics
+            S3RepositoriesMetrics s3RepositoriesMetrics
         ) {
-            return new S3Repository(metadata, registry, getService(), clusterService, bigArrays, recoverySettings, repositoriesMetrics) {
+            return new S3Repository(metadata, registry, getService(), clusterService, bigArrays, recoverySettings, s3RepositoriesMetrics) {
                 @Override
                 protected void assertSnapshotOrGenericThread() {
                     // eliminate thread name check as we create repo manually on test/main threads

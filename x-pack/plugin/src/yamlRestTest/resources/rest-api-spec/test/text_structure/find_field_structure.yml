@@ -32,7 +32,7 @@ setup:
   - match: { num_lines_analyzed: 3 }
   - match: { num_messages_analyzed: 3 }
   - match: { charset: "UTF-8" }
-  - match: { has_byte_order_marker: false }
+  - match: { has_byte_order_marker: null }
   - match: { format: ndjson }
   - match: { timestamp_field: time }
   - match: { joda_timestamp_formats.0: UNIX }

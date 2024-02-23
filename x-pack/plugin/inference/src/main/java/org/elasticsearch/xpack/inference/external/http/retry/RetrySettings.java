@@ -140,44 +140,4 @@ public class RetrySettings {
          */
         INTERVAL
     }
-
-    // public static final Setting<TimeValue> RETRY_INITIAL_DELAY_SETTING = Setting.timeSetting(
-    // "xpack.inference.http.retry.initial_delay",
-    // TimeValue.timeValueSeconds(1),
-    // Setting.Property.NodeScope,
-    // Setting.Property.Dynamic
-    // );
-    //
-    // public static final Setting<TimeValue> RETRY_MAX_DELAY_BOUND_SETTING = Setting.timeSetting(
-    // "xpack.inference.http.retry.max_delay_bound",
-    // TimeValue.timeValueSeconds(5),
-    // Setting.Property.NodeScope,
-    // Setting.Property.Dynamic
-    // );
-    //
-    // public static final Setting<TimeValue> RETRY_TIMEOUT_SETTING = Setting.timeSetting(
-    // "xpack.inference.http.retry.timeout",
-    // TimeValue.timeValueSeconds(30),
-    // Setting.Property.NodeScope,
-    // Setting.Property.Dynamic
-    // );
-    //
-    // private final InternalSettings internalSettings;
-    //
-    // public RetrySettings(Settings settings) {
-    // var initialDelay = RETRY_INITIAL_DELAY_SETTING.get(settings);
-    // var maxDelayBound = RETRY_MAX_DELAY_BOUND_SETTING.get(settings);
-    // var timeoutValue = RETRY_TIMEOUT_SETTING.get(settings);
-    // this.internalSettings = new InternalSettings(initialDelay, maxDelayBound, timeoutValue);
-    // }
-    //
-    // public record InternalSettings(TimeValue initialDelay, TimeValue maxDelayBound, TimeValue timeoutValue) {}
-    //
-    // public InternalSettings getSettings() {
-    // return internalSettings;
-    // }
-    //
-    // public static List<Setting<?>> getSettingsDefinitions() {
-    // return List.of(RETRY_INITIAL_DELAY_SETTING, RETRY_MAX_DELAY_BOUND_SETTING, RETRY_TIMEOUT_SETTING);
-    // }
 }

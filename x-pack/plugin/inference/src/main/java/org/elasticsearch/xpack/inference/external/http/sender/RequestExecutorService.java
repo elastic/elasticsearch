@@ -253,6 +253,16 @@ class RequestExecutorService implements RequestExecutor {
         return terminationLatch.await(timeout, unit);
     }
 
+    /**
+     * Execute the request at some point in the future.
+     *
+     * @param requestCreator the http request to send
+     * @param input the text to perform inference on
+     * @param timeout the maximum time to wait for this request to complete (failing or succeeding). Once the time elapses, the
+     *                listener::onFailure is called with a {@link org.elasticsearch.ElasticsearchTimeoutException}.
+     *                If null, then the request will wait forever
+     * @param listener an {@link ActionListener<InferenceServiceResults>} for the response or failure
+     */
     public void execute(
         ExecutableRequestCreator requestCreator,
         List<String> input,

@@ -122,6 +122,7 @@ public class HuggingFaceActionCreatorTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testSend_FailsFromInvalidResponseFormat_ForElserAction() throws IOException {
+        // timeout as zero for no retries
         var settings = buildSettingsWithRetryFields(
             TimeValue.timeValueMillis(1),
             TimeValue.timeValueMinutes(1),
@@ -152,13 +153,7 @@ public class HuggingFaceActionCreatorTests extends ESTestCase {
             var model = HuggingFaceElserModelTests.createModel(getUrl(webServer), "secret");
             var actionCreator = new HuggingFaceActionCreator(
                 sender,
-                new ServiceComponents(
-                    threadPool,
-                    mockThrottlerManager(),
-                    // timeout as zero for no retries
-                    settings,
-                    TruncatorTests.createTruncator()
-                )
+                new ServiceComponents(threadPool, mockThrottlerManager(), settings, TruncatorTests.createTruncator())
             );
             var action = actionCreator.create(model);
 
@@ -235,6 +230,7 @@ public class HuggingFaceActionCreatorTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testSend_FailsFromInvalidResponseFormat_ForEmbeddingsAction() throws IOException {
+        // timeout as zero for no retries
         var settings = buildSettingsWithRetryFields(
             TimeValue.timeValueMillis(1),
             TimeValue.timeValueMinutes(1),
@@ -263,13 +259,7 @@ public class HuggingFaceActionCreatorTests extends ESTestCase {
             var model = HuggingFaceEmbeddingsModelTests.createModel(getUrl(webServer), "secret");
             var actionCreator = new HuggingFaceActionCreator(
                 sender,
-                new ServiceComponents(
-                    threadPool,
-                    mockThrottlerManager(),
-                    // timeout as zero for no retries
-                    settings,
-                    TruncatorTests.createTruncator()
-                )
+                new ServiceComponents(threadPool, mockThrottlerManager(), settings, TruncatorTests.createTruncator())
             );
             var action = actionCreator.create(model);
 

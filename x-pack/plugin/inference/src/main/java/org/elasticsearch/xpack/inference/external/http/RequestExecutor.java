@@ -27,8 +27,6 @@ public interface RequestExecutor {
 
     boolean awaitTermination(long timeout, TimeUnit unit) throws InterruptedException;
 
-    // void execute(HttpRequest request, @Nullable TimeValue timeout, ActionListener<HttpResult> listener);
-
     void execute(
         ExecutableRequestCreator requestCreator,
         List<String> input,

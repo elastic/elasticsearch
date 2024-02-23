@@ -26,16 +26,7 @@ import co.elastic.elasticsearch.stateless.lucene.StatelessCommitRef;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 import co.elastic.elasticsearch.stateless.test.FakeStatelessNode;
 
-import org.apache.lucene.analysis.core.KeywordAnalyzer;
-import org.apache.lucene.document.Field;
-import org.apache.lucene.document.KeywordField;
-import org.apache.lucene.document.NumericDocValuesField;
-import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFileNames;
-import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.NoDeletionPolicy;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -65,17 +56,12 @@ import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.engine.EngineTestCase;
-import org.elasticsearch.index.mapper.LuceneDocument;
-import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpNodeClient;
@@ -138,7 +124,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
         Set<String> uploadedBlobs = Collections.newSetFromMap(new ConcurrentHashMap<>());
         try (var testHarness = createNode(fileCapture(uploadedBlobs), fileCapture(uploadedBlobs))) {
 
-            List<StatelessCommitRef> commitRefs = generateIndexCommits(testHarness, randomIntBetween(3, 8));
+            List<StatelessCommitRef> commitRefs = testHarness.generateIndexCommits(randomIntBetween(3, 8));
             List<String> commitFiles = commitRefs.stream()
                 .flatMap(ref -> ref.getCommitFiles().stream())
                 .filter(file -> file.startsWith(IndexFileNames.SEGMENTS) == false)
@@ -197,7 +183,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
 
         }, fileCapture(uploadedBlobs))) {
 
-            List<StatelessCommitRef> commitRefs = generateIndexCommits(testHarness, randomIntBetween(2, 4));
+            List<StatelessCommitRef> commitRefs = testHarness.generateIndexCommits(randomIntBetween(2, 4));
             List<String> commitFiles = commitRefs.stream()
                 .flatMap(ref -> ref.getCommitFiles().stream())
                 .filter(file -> file.startsWith(IndexFileNames.SEGMENTS) == false)
@@ -253,7 +239,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             compoundCommitFileCapture.accept(compoundCommitFile, runnable);
         })) {
 
-            List<StatelessCommitRef> commitRefs = generateIndexCommits(testHarness, 2);
+            List<StatelessCommitRef> commitRefs = testHarness.generateIndexCommits(2);
             StatelessCommitRef firstCommit = commitRefs.get(0);
             StatelessCommitRef secondCommit = commitRefs.get(1);
 
@@ -323,7 +309,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             uploadedBlobs.add(file);
         })) {
 
-            List<StatelessCommitRef> commitRefs = generateIndexCommits(testHarness, 3);
+            List<StatelessCommitRef> commitRefs = testHarness.generateIndexCommits(3);
             StatelessCommitRef firstCommit = commitRefs.get(0);
             StatelessCommitRef secondCommit = commitRefs.get(1);
             StatelessCommitRef thirdCommit = commitRefs.get(2);
@@ -412,7 +398,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             compoundCommitFileCapture.accept(compoundCommitFile, runnable);
         })) {
 
-            List<StatelessCommitRef> commitRefs = generateIndexCommits(testHarness, 3);
+            List<StatelessCommitRef> commitRefs = testHarness.generateIndexCommits(3);
             StatelessCommitRef firstCommit = commitRefs.get(0);
             StatelessCommitRef secondCommit = commitRefs.get(1);
             StatelessCommitRef thirdCommit = commitRefs.get(2);
@@ -478,7 +464,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
 
     public void testMapIsPrunedOnIndexDelete() throws Exception {
         try (var testHarness = createNode((n, r) -> r.run(), (n, r) -> r.run())) {
-            List<StatelessCommitRef> refs = generateIndexCommits(testHarness, 2, true);
+            List<StatelessCommitRef> refs = testHarness.generateIndexCommits(2, true);
             StatelessCommitRef firstCommit = refs.get(0);
             StatelessCommitRef secondCommit = refs.get(1);
 
@@ -540,7 +526,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
         Set<String> uploadedBlobs = Collections.newSetFromMap(new ConcurrentHashMap<>());
         try (var testHarness = createNode(fileCapture(uploadedBlobs), fileCapture(uploadedBlobs))) {
 
-            StatelessCommitRef commitRef = generateIndexCommits(testHarness, 1).get(0);
+            StatelessCommitRef commitRef = testHarness.generateIndexCommits(1).get(0);
 
             List<String> commitFiles = commitRef.getCommitFiles()
                 .stream()
@@ -649,7 +635,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             var state = clusterStateWithPrimaryAndSearchShards(shardId, 1);
             stateRef.set(state);
 
-            var initialCommits = generateIndexCommits(testHarness, 10);
+            var initialCommits = testHarness.generateIndexCommits(10);
             for (StatelessCommitRef initialCommit : initialCommits) {
                 commitService.onCommitCreation(initialCommit);
                 fakeSearchNode.respondWithUsedCommits(
@@ -658,7 +644,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 );
             }
 
-            var mergedCommit = generateIndexCommits(testHarness, 1, true).get(0);
+            var mergedCommit = testHarness.generateIndexCommits(1, true).get(0);
             commitService.onCommitCreation(mergedCommit);
 
             markDeletedAndLocalUnused(initialCommits, commitService, shardId);
@@ -719,7 +705,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             var state = clusterStateWithPrimaryAndSearchShards(shardId, 1);
             stateRef.set(state);
 
-            var initialCommits = generateIndexCommits(testHarness, 10);
+            var initialCommits = testHarness.generateIndexCommits(10);
             var firstCommit = initialCommits.get(0);
             for (StatelessCommitRef initialCommit : initialCommits) {
                 commitService.onCommitCreation(initialCommit);
@@ -730,7 +716,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 );
             }
 
-            var mergedCommit = generateIndexCommits(testHarness, 1, true).get(0);
+            var mergedCommit = testHarness.generateIndexCommits(1, true).get(0);
             commitService.onCommitCreation(mergedCommit);
 
             markDeletedAndLocalUnused(initialCommits, commitService, shardId);
@@ -790,13 +776,13 @@ public class StatelessCommitServiceTests extends ESTestCase {
             var state = clusterStateWithPrimaryAndSearchShards(shardId, 0);
             stateRef.set(state);
 
-            var initialCommits = generateIndexCommits(testHarness, 10);
+            var initialCommits = testHarness.generateIndexCommits(10);
             var firstCommit = initialCommits.get(0);
             for (StatelessCommitRef initialCommit : initialCommits) {
                 commitService.onCommitCreation(initialCommit);
             }
 
-            var mergedCommit = generateIndexCommits(testHarness, 1, true).get(0);
+            var mergedCommit = testHarness.generateIndexCommits(1, true).get(0);
             commitService.onCommitCreation(mergedCommit);
 
             for (StatelessCommitRef indexCommit : initialCommits) {
@@ -868,7 +854,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             var state = clusterStateWithPrimaryAndSearchShards(shardId, 1);
             stateRef.set(state);
 
-            var initialCommits = generateIndexCommits(testHarness, 10);
+            var initialCommits = testHarness.generateIndexCommits(10);
             for (StatelessCommitRef initialCommit : initialCommits) {
                 commitService.onCommitCreation(initialCommit);
                 fakeSearchNode.respondWithUsedCommits(
@@ -877,7 +863,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 );
             }
 
-            var mergedCommit = generateIndexCommits(testHarness, 1, true).get(0);
+            var mergedCommit = testHarness.generateIndexCommits(1, true).get(0);
             commitService.onCommitCreation(mergedCommit);
 
             markDeletedAndLocalUnused(initialCommits, commitService, shardId);
@@ -961,12 +947,12 @@ public class StatelessCommitServiceTests extends ESTestCase {
             var state = clusterStateWithPrimaryAndSearchShards(shardId, 1);
             stateRef.set(state);
 
-            var initialCommits = generateIndexCommits(testHarness, 2);
+            var initialCommits = testHarness.generateIndexCommits(2);
             for (StatelessCommitRef initialCommit : initialCommits) {
                 commitService.onCommitCreation(initialCommit);
             }
 
-            var mergedCommit = generateIndexCommits(testHarness, 1, true).get(0);
+            var mergedCommit = testHarness.generateIndexCommits(1, true).get(0);
             commitService.onCommitCreation(mergedCommit);
 
             markDeletedAndLocalUnused(initialCommits, commitService, shardId);
@@ -1047,12 +1033,12 @@ public class StatelessCommitServiceTests extends ESTestCase {
             var state = clusterStateWithPrimaryAndSearchShards(shardId, 0);
             stateRef.set(state);
 
-            var initialCommits = generateIndexCommits(testHarness, 2);
+            var initialCommits = testHarness.generateIndexCommits(2);
             for (StatelessCommitRef initialCommit : initialCommits) {
                 commitService.onCommitCreation(initialCommit);
             }
 
-            var mergedCommit = generateIndexCommits(testHarness, 1, true).get(0);
+            var mergedCommit = testHarness.generateIndexCommits(1, true).get(0);
             commitService.onCommitCreation(mergedCommit);
 
             PlainActionFuture<Void> mergedCommitUploadedFuture = new PlainActionFuture<>();
@@ -1102,7 +1088,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             var state = clusterStateWithPrimaryAndSearchShards(shardId, 1);
             stateRef.set(state);
 
-            var initialCommits = generateIndexCommits(testHarness, 10);
+            var initialCommits = testHarness.generateIndexCommits(10);
             for (StatelessCommitRef initialCommit : initialCommits) {
                 commitService.onCommitCreation(initialCommit);
                 fakeSearchNode.respondWithUsedCommits(
@@ -1121,7 +1107,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             testHarness.commitService.register(testHarness.shardId, primaryTerm);
             testHarness.commitService.markRecoveredCommit(testHarness.shardId, indexingShardState.v1(), indexingShardState.v2());
 
-            var mergedCommit = generateIndexCommits(testHarness, 1, true).get(0);
+            var mergedCommit = testHarness.generateIndexCommits(1, true).get(0);
             commitService.onCommitCreation(mergedCommit);
 
             StatelessCommitRef recoveryCommit = initialCommits.get(initialCommits.size() - 1);
@@ -1196,7 +1182,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             var state = clusterStateWithPrimaryAndSearchShards(shardId, 1);
             stateRef.set(state);
 
-            var initialCommits = generateIndexCommits(testHarness, 10);
+            var initialCommits = testHarness.generateIndexCommits(10);
             for (StatelessCommitRef initialCommit : initialCommits) {
                 commitService.onCommitCreation(initialCommit);
                 fakeSearchNode.respondWithUsedCommits(
@@ -1205,7 +1191,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 );
             }
 
-            var mergedCommit = generateIndexCommits(testHarness, 1, true).get(0);
+            var mergedCommit = testHarness.generateIndexCommits(1, true).get(0);
             commitService.onCommitCreation(mergedCommit);
 
             fakeSearchNode.respondWithUsedCommits(
@@ -1230,7 +1216,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             // therefore we should retain all commits.
             assertThat(deletedCommits, empty());
 
-            StatelessCommitRef newCommit = generateIndexCommits(testHarness, 1, true).get(0);
+            StatelessCommitRef newCommit = testHarness.generateIndexCommits(1, true).get(0);
             StatelessCommitRef retainedBySearch = initialCommits.get(1);
             commitService.onCommitCreation(newCommit);
             fakeSearchNode.respondWithUsedCommits(
@@ -1311,7 +1297,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             ClusterState stateWithNoSearchShards = clusterStateWithPrimaryAndSearchShards(shardId, 0);
             stateRef.set(stateWithNoSearchShards);
 
-            var initialCommits = generateIndexCommits(testHarness, 10);
+            var initialCommits = testHarness.generateIndexCommits(10);
             for (StatelessCommitRef initialCommit : initialCommits) {
                 commitService.onCommitCreation(initialCommit);
             }
@@ -1344,7 +1330,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             PrimaryTermAndGeneration registeredCommit = registerFuture.actionGet();
             assertThat(registeredCommit, equalTo(new PrimaryTermAndGeneration(commit.getPrimaryTerm(), commit.getGeneration())));
 
-            var mergedCommit = generateIndexCommits(testHarness, 1, true).get(0);
+            var mergedCommit = testHarness.generateIndexCommits(1, true).get(0);
             commitService.onCommitCreation(mergedCommit);
 
             markDeletedAndLocalUnused(initialCommits, commitService, shardId);
@@ -1406,7 +1392,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             stateRef.set(state);
 
             int numberOfCommits = randomIntBetween(1, 10);
-            var initialCommits = generateIndexCommits(testHarness, numberOfCommits);
+            var initialCommits = testHarness.generateIndexCommits(numberOfCommits);
             var delayedNewCommitNotifications = randomSubsetOf(initialCommits);
             for (StatelessCommitRef initialCommit : initialCommits) {
                 commitService.onCommitCreation(initialCommit);
@@ -1478,7 +1464,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             AtomicBoolean running = new AtomicBoolean(true);
             AtomicLong indexingRoundsCompleted = new AtomicLong();
 
-            List<StatelessCommitRef> initialCommits = generateIndexCommits(testHarness, between(1, 5));
+            List<StatelessCommitRef> initialCommits = testHarness.generateIndexCommits(between(1, 5));
             initialCommits.forEach(commitService::onCommitCreation);
             Set<PrimaryTermAndGeneration> allCommits = ConcurrentCollections.newConcurrentSet();
             initialCommits.stream()
@@ -1495,7 +1481,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 safeAwait(barrier);
                 try {
                     while (running.get()) {
-                        List<StatelessCommitRef> newCommits = generateIndexCommits(testHarness, between(1, 5));
+                        List<StatelessCommitRef> newCommits = testHarness.generateIndexCommits(between(1, 5));
                         newCommits.forEach(commitService::onCommitCreation);
                         newCommits.stream()
                             .map(commit -> new PrimaryTermAndGeneration(commit.getPrimaryTerm(), commit.getGeneration()))
@@ -1509,7 +1495,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
                         Thread.yield();
                         indexingRoundsCompleted.incrementAndGet();
                     }
-                    var mergedCommit = generateIndexCommits(testHarness, 1, true).get(0);
+                    var mergedCommit = testHarness.generateIndexCommits(1, true).get(0);
                     commitService.onCommitCreation(mergedCommit);
                     latestCommit.set(new PrimaryTermAndGeneration(mergedCommit.getPrimaryTerm(), mergedCommit.getGeneration()));
                     fakeSearchNode.respondWithUsedCommits(mergedCommit.getGeneration(), latestCommit.get());
@@ -1607,7 +1593,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             var commitService = testHarness.commitService;
             ClusterState stateWithNoSearchShards = clusterStateWithPrimaryAndSearchShards(shardId, 0);
             var state = clusterStateWithPrimaryAndSearchShards(shardId, 1);
-            var initialCommits = generateIndexCommits(testHarness, 10);
+            var initialCommits = testHarness.generateIndexCommits(10);
             var commit = initialCommits.get(initialCommits.size() - 1);
             var nodeId = state.getRoutingTable().shardRoutingTable(shardId).replicaShards().get(0).currentNodeId();
 
@@ -1808,61 +1794,6 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 return new WrappedBlobContainer(innerContainer);
             }
         };
-    }
-
-    private List<StatelessCommitRef> generateIndexCommits(FakeStatelessNode testHarness, int commitsNumber) throws IOException {
-        return generateIndexCommits(testHarness, commitsNumber, false);
-    }
-
-    private List<StatelessCommitRef> generateIndexCommits(FakeStatelessNode testHarness, int commitsNumber, boolean merge)
-        throws IOException {
-        List<StatelessCommitRef> commits = new ArrayList<>(commitsNumber);
-        Set<String> previousCommit;
-
-        final var indexWriterConfig = new IndexWriterConfig(new KeywordAnalyzer());
-        indexWriterConfig.setIndexDeletionPolicy(NoDeletionPolicy.INSTANCE);
-        String deleteId = randomAlphaOfLength(10);
-
-        try (var indexWriter = new IndexWriter(testHarness.indexingStore.directory(), indexWriterConfig)) {
-            try (var indexReader = DirectoryReader.open(indexWriter)) {
-                IndexCommit indexCommit = indexReader.getIndexCommit();
-                previousCommit = new HashSet<>(indexCommit.getFileNames());
-            }
-            for (int i = 0; i < commitsNumber; i++) {
-                LuceneDocument document = new LuceneDocument();
-                document.add(new KeywordField("field0", "term", Field.Store.YES));
-                indexWriter.addDocument(document.getFields());
-                if (randomBoolean()) {
-                    final ParsedDocument tombstone = ParsedDocument.deleteTombstone(deleteId);
-                    LuceneDocument delete = tombstone.docs().get(0);
-                    NumericDocValuesField field = Lucene.newSoftDeletesField();
-                    delete.add(field);
-                    indexWriter.softUpdateDocument(EngineTestCase.newUid(deleteId), delete.getFields(), Lucene.newSoftDeletesField());
-                }
-                indexWriter.commit();
-                if (merge) {
-                    indexWriter.forceMerge(1, true);
-                }
-                try (var indexReader = DirectoryReader.open(indexWriter)) {
-                    IndexCommit indexCommit = indexReader.getIndexCommit();
-                    Set<String> commitFiles = new HashSet<>(indexCommit.getFileNames());
-                    Set<String> additionalFiles = Sets.difference(commitFiles, previousCommit);
-                    previousCommit = commitFiles;
-
-                    StatelessCommitRef statelessCommitRef = new StatelessCommitRef(
-                        testHarness.shardId,
-                        new Engine.IndexCommitRef(indexCommit, () -> {}),
-                        commitFiles,
-                        additionalFiles,
-                        primaryTerm,
-                        0
-                    );
-                    commits.add(statelessCommitRef);
-                }
-            }
-        }
-
-        return commits;
     }
 
     private static void markDeletedAndLocalUnused(List<StatelessCommitRef> commits, StatelessCommitService commitService, ShardId shardId) {

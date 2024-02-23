@@ -27,9 +27,19 @@ import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.lucene.FileCacheKey;
 import co.elastic.elasticsearch.stateless.lucene.IndexDirectory;
 import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
+import co.elastic.elasticsearch.stateless.lucene.StatelessCommitRef;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 import co.elastic.elasticsearch.stateless.utils.TransferableCloseables;
 
+import org.apache.lucene.analysis.core.KeywordAnalyzer;
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.KeywordField;
+import org.apache.lucene.document.NumericDocValuesField;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.NoDeletionPolicy;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.Version;
@@ -49,14 +59,20 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.fs.FsBlobStore;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.EngineTestCase;
+import org.elasticsearch.index.mapper.LuceneDocument;
+import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.store.FsDirectoryFactory;
@@ -77,12 +93,15 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
+import java.util.function.LongConsumer;
 
 import static co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService.BUCKET_SETTING;
 import static org.elasticsearch.env.Environment.PATH_REPO_SETTING;
@@ -261,6 +280,64 @@ public class FakeStatelessNode implements Closeable {
 
             closeables = localCloseables.transfer();
         }
+    }
+
+    public List<StatelessCommitRef> generateIndexCommits(int commitsNumber) throws IOException {
+        return generateIndexCommits(commitsNumber, false, generation -> {});
+    }
+
+    public List<StatelessCommitRef> generateIndexCommits(int commitsNumber, boolean merge) throws IOException {
+        return generateIndexCommits(commitsNumber, merge, generation -> {});
+    }
+
+    public List<StatelessCommitRef> generateIndexCommits(int commitsNumber, boolean merge, LongConsumer onCommitClosed) throws IOException {
+        List<StatelessCommitRef> commits = new ArrayList<>(commitsNumber);
+        Set<String> previousCommit;
+
+        final var indexWriterConfig = new IndexWriterConfig(new KeywordAnalyzer());
+        indexWriterConfig.setIndexDeletionPolicy(NoDeletionPolicy.INSTANCE);
+        String deleteId = ESTestCase.randomAlphaOfLength(10);
+
+        try (var indexWriter = new IndexWriter(indexingStore.directory(), indexWriterConfig)) {
+            try (var indexReader = DirectoryReader.open(indexWriter)) {
+                IndexCommit indexCommit = indexReader.getIndexCommit();
+                previousCommit = new HashSet<>(indexCommit.getFileNames());
+            }
+            for (int i = 0; i < commitsNumber; i++) {
+                LuceneDocument document = new LuceneDocument();
+                document.add(new KeywordField("field0", "term", Field.Store.YES));
+                indexWriter.addDocument(document.getFields());
+                if (ESTestCase.randomBoolean()) {
+                    final ParsedDocument tombstone = ParsedDocument.deleteTombstone(deleteId);
+                    LuceneDocument delete = tombstone.docs().get(0);
+                    NumericDocValuesField field = Lucene.newSoftDeletesField();
+                    delete.add(field);
+                    indexWriter.softUpdateDocument(EngineTestCase.newUid(deleteId), delete.getFields(), Lucene.newSoftDeletesField());
+                }
+                indexWriter.commit();
+                if (merge) {
+                    indexWriter.forceMerge(1, true);
+                }
+                try (var indexReader = DirectoryReader.open(indexWriter)) {
+                    IndexCommit indexCommit = indexReader.getIndexCommit();
+                    Set<String> commitFiles = new HashSet<>(indexCommit.getFileNames());
+                    Set<String> additionalFiles = Sets.difference(commitFiles, previousCommit);
+                    previousCommit = commitFiles;
+
+                    StatelessCommitRef statelessCommitRef = new StatelessCommitRef(
+                        shardId,
+                        new Engine.IndexCommitRef(indexCommit, () -> onCommitClosed.accept(indexCommit.getGeneration())),
+                        commitFiles,
+                        additionalFiles,
+                        primaryTerm,
+                        0
+                    );
+                    commits.add(statelessCommitRef);
+                }
+            }
+        }
+
+        return commits;
     }
 
     protected StatelessCommitCleaner createCommitCleaner(

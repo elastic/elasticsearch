@@ -19,8 +19,6 @@ import org.hamcrest.Matchers;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 public class ResolvedRepositoriesTests extends ESTestCase {
 
@@ -62,23 +60,20 @@ public class ResolvedRepositoriesTests extends ESTestCase {
     public void testWildcards() {
         final var state = clusterStateWithRepositories("test-match-1", "test-match-2", "test-exclude", "other-repo");
 
-        runWildcardTest(state, Set.of("test-match-1", "test-match-2", "test-exclude"), "test-*");
-        runWildcardTest(state, Set.of("test-match-1", "test-match-2"), "test-*1", "test-*2");
-        runWildcardTest(state, Set.of("test-match-1", "test-match-2"), "test-*", "-*-exclude");
-        runWildcardTest(state, Set.of(), "no-*-repositories");
-        runWildcardTest(state, Set.of("test-match-1", "test-match-2", "other-repo"), "test-*", "-*-exclude", "other-repo");
-        runWildcardTest(state, Set.of("test-match-1", "test-match-2", "other-repo"), "other-repo", "test-*", "-*-exclude");
+        runWildcardTest(state, List.of("test-match-1", "test-match-2", "test-exclude"), "test-*");
+        runWildcardTest(state, List.of("test-match-1", "test-match-2"), "test-*1", "test-*2");
+        runWildcardTest(state, List.of("test-match-2", "test-match-1"), "test-*2", "test-*1");
+        runWildcardTest(state, List.of("test-match-1", "test-match-2"), "test-*", "-*-exclude");
+        runWildcardTest(state, List.of(), "no-*-repositories");
+        runWildcardTest(state, List.of("test-match-1", "test-match-2", "other-repo"), "test-*", "-*-exclude", "other-repo");
+        runWildcardTest(state, List.of("other-repo", "test-match-1", "test-match-2"), "other-repo", "test-*", "-*-exclude");
     }
 
-    private static void runWildcardTest(ClusterState clusterState, Set<String> expectedNames, String... patterns) {
+    private static void runWildcardTest(ClusterState clusterState, List<String> expectedNames, String... patterns) {
         final var result = getRepositories(clusterState, patterns);
         final var description = Strings.format("%s should yield %s", Arrays.toString(patterns), expectedNames);
         assertFalse(description, result.hasMissingRepositories());
-        assertEquals(
-            description,
-            expectedNames,
-            result.repositoryMetadata().stream().map(RepositoryMetadata::name).collect(Collectors.toSet())
-        );
+        assertEquals(description, expectedNames, result.repositoryMetadata().stream().map(RepositoryMetadata::name).toList());
     }
 
     private static ResolvedRepositories getRepositories(ClusterState clusterState, String... patterns) {

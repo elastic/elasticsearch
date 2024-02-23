@@ -39,7 +39,7 @@ public abstract class ReaperService implements BuildService<ReaperService.Params
      */
     public void registerPid(String serviceId, long pid) {
         String[] killPidCommand = OS.<String[]>conditional()
-            .onWindows(() -> new String[] { "Taskkill", "/F", "/PID", String.valueOf(pid) })
+            .onWindows(() -> new String[] { "Taskkill", "/F", "/T", "/PID", String.valueOf(pid) })
             .onUnix(() -> new String[] { "kill", "-9", String.valueOf(pid) })
             .supply();
         registerCommand(serviceId, killPidCommand);

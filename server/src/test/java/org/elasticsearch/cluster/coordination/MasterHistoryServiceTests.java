@@ -9,7 +9,7 @@
 package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -33,7 +33,7 @@ public class MasterHistoryServiceTests extends ESTestCase {
         MasterHistoryService masterHistoryService = createMasterHistoryService();
         List<DiscoveryNode> remoteHistory = masterHistoryService.getRemoteMasterHistory();
         assertNull(remoteHistory);
-        DiscoveryNode masterNode = TestDiscoveryNode.create(UUID.randomUUID().toString());
+        DiscoveryNode masterNode = DiscoveryNodeUtils.create(UUID.randomUUID().toString());
         List<DiscoveryNode> masterHistory = new ArrayList<>();
         masterHistory.add(masterNode);
         masterHistory.add(null);

@@ -9,7 +9,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.search.Query;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
@@ -17,6 +16,7 @@ import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.DateScriptFieldData;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
@@ -75,7 +75,7 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
             Object::toString
         ).acceptsNull();
 
-        Builder(String name) {
+        protected Builder(String name) {
             super(name, DateFieldScript.CONTEXT);
         }
 
@@ -87,12 +87,12 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
             return Collections.unmodifiableList(parameters);
         }
 
-        AbstractScriptFieldType<?> createFieldType(
+        protected AbstractScriptFieldType<?> createFieldType(
             String name,
             DateFieldScript.Factory factory,
             Script script,
             Map<String, String> meta,
-            Version supportedVersion,
+            IndexVersion supportedVersion,
             OnScriptError onScriptError
         ) {
             String pattern = format.getValue() == null ? DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.pattern() : format.getValue();
@@ -102,28 +102,30 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
         }
 
         @Override
-        AbstractScriptFieldType<?> createFieldType(
+        protected AbstractScriptFieldType<?> createFieldType(
             String name,
             DateFieldScript.Factory factory,
             Script script,
             Map<String, String> meta,
             OnScriptError onScriptError
         ) {
-            return createFieldType(name, factory, script, meta, Version.CURRENT, onScriptError);
+            return createFieldType(name, factory, script, meta, IndexVersion.current(), onScriptError);
         }
 
         @Override
-        DateFieldScript.Factory getParseFromSourceFactory() {
+        protected DateFieldScript.Factory getParseFromSourceFactory() {
             return DateFieldScript.PARSE_FROM_SOURCE;
         }
 
         @Override
-        DateFieldScript.Factory getCompositeLeafFactory(Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory) {
+        protected DateFieldScript.Factory getCompositeLeafFactory(
+            Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory
+        ) {
             return DateFieldScript.leafAdapter(parentScriptFactory);
         }
     }
 
-    public static RuntimeField sourceOnly(String name, DateFormatter dateTimeFormatter, Version supportedVersion) {
+    public static RuntimeField sourceOnly(String name, DateFormatter dateTimeFormatter, IndexVersion supportedVersion) {
         Builder builder = new Builder(name);
         builder.format.setValue(dateTimeFormatter.pattern());
         return builder.createRuntimeField(DateFieldScript.PARSE_FROM_SOURCE, supportedVersion);
@@ -175,6 +177,11 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
             timeZone = ZoneOffset.UTC;
         }
         return new DocValueFormat.DateTime(dateTimeFormatter, timeZone, Resolution.MILLISECONDS);
+    }
+
+    @Override
+    public BlockLoader blockLoader(BlockLoaderContext blContext) {
+        return new DateScriptBlockDocValuesReader.DateScriptBlockLoader(leafFactory(blContext.lookup()));
     }
 
     @Override

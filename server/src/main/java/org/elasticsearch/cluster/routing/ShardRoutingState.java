@@ -31,7 +31,7 @@ public enum ShardRoutingState {
      */
     RELOCATING((byte) 4);
 
-    private byte value;
+    private final byte value;
 
     ShardRoutingState(byte value) {
         this.value = value;

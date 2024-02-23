@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.ArrayUtils;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -20,6 +21,7 @@ import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateRequest;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
@@ -41,6 +43,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class TransportAuthenticateActionTests extends ESTestCase {
+
+    private ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
 
     public void testInternalUser() {
         SecurityContext securityContext = mock(SecurityContext.class);
@@ -123,6 +127,13 @@ public class TransportAuthenticateActionTests extends ESTestCase {
         final User user = randomFrom(new ElasticUser(true), new KibanaUser(true), new User("joe"));
         final Authentication authentication = AuthenticationTestHelper.builder().user(user).build();
         final User effectiveUser = authentication.getEffectiveSubject().getUser();
+        final boolean operator = randomBoolean();
+
+        if (operator) {
+            threadContext.putHeader(AuthenticationField.PRIVILEGE_CATEGORY_KEY, AuthenticationField.PRIVILEGE_CATEGORY_VALUE_OPERATOR);
+        } else if (randomBoolean()) {
+            threadContext.putHeader(AuthenticationField.PRIVILEGE_CATEGORY_KEY, AuthenticationField.PRIVILEGE_CATEGORY_VALUE_EMPTY);
+        }
 
         TransportAuthenticateAction action = prepareAction(anonymousUser, effectiveUser, authentication);
 
@@ -141,6 +152,7 @@ public class TransportAuthenticateActionTests extends ESTestCase {
         });
 
         assertThat(responseRef.get(), notNullValue());
+        assertThat(responseRef.get().isOperator(), is(operator));
         if (anonymousUser.enabled() && false == (authentication.isApiKey() || authentication.isCrossClusterAccess())) {
             // Roles of anonymousUser are added to non api key authentication
             final Authentication auth = responseRef.get().authentication();
@@ -210,6 +222,7 @@ public class TransportAuthenticateActionTests extends ESTestCase {
         SecurityContext securityContext = mock(SecurityContext.class);
         when(securityContext.getAuthentication()).thenReturn(authentication);
         when(securityContext.getUser()).thenReturn(user);
+        when(securityContext.getThreadContext()).thenReturn(this.threadContext);
 
         TransportService transportService = new TransportService(
             Settings.EMPTY,

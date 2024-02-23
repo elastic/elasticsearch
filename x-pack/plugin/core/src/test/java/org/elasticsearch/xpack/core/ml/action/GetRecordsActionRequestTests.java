@@ -60,8 +60,4 @@ public class GetRecordsActionRequestTests extends AbstractXContentSerializingTes
         return Request::new;
     }
 
-    @Override
-    protected boolean supportsUnknownFields() {
-        return false;
-    }
 }

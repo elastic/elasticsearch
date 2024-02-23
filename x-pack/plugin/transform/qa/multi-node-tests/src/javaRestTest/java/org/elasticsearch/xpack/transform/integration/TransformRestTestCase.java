@@ -62,6 +62,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xpack.core.transform.TransformField.BASIC_STATS;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.core.Is.is;
@@ -164,15 +165,13 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
         if (timeout != null) {
             stopTransformRequest.addParameter(TransformField.TIMEOUT.getPreferredName(), timeout.getStringRep());
         }
-        Map<String, Object> stopTransformResponse = entityAsMap(client().performRequest(stopTransformRequest));
-        assertThat(stopTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
+        assertAcknowledged(client().performRequest(stopTransformRequest));
     }
 
     protected void startTransform(String id, RequestOptions options) throws IOException {
         Request startTransformRequest = new Request("POST", TRANSFORM_ENDPOINT + id + "/_start");
         startTransformRequest.setOptions(options);
-        Map<String, Object> startTransformResponse = entityAsMap(client().performRequest(startTransformRequest));
-        assertThat(startTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
+        assertAcknowledged(client().performRequest(startTransformRequest));
     }
 
     // workaround for https://github.com/elastic/elasticsearch/issues/62204
@@ -210,8 +209,7 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
     }
 
     protected void deleteTransform(String id) throws IOException {
-        Request request = new Request("DELETE", TRANSFORM_ENDPOINT + id);
-        assertOK(adminClient().performRequest(request));
+        deleteTransform(id, false);
     }
 
     protected void deleteTransform(String id, boolean force) throws IOException {
@@ -222,16 +220,24 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
         assertOK(adminClient().performRequest(request));
     }
 
-    protected void putTransform(String id, String config, RequestOptions options) throws IOException {
+    protected Response putTransform(String id, String config, RequestOptions options) throws IOException {
+        return putTransform(id, config, false, options);
+    }
+
+    protected Response putTransform(String id, String config, boolean deferValidation, RequestOptions options) throws IOException {
         if (createdTransformIds.contains(id)) {
             throw new IllegalArgumentException("transform [" + id + "] is already registered");
         }
 
-        Request put = new Request("PUT", TRANSFORM_ENDPOINT + id);
-        put.setJsonEntity(config);
-        put.setOptions(options);
-        assertOK(client().performRequest(put));
+        Request request = new Request("PUT", TRANSFORM_ENDPOINT + id);
+        request.setJsonEntity(config);
+        if (deferValidation) {
+            request.addParameter("defer_validation", "true");
+        }
+        request.setOptions(options);
+        Response response = assertOK(client().performRequest(request));
         createdTransformIds.add(id);
+        return response;
     }
 
     protected Map<String, Object> previewTransform(String transformConfig, RequestOptions options) throws IOException {
@@ -251,8 +257,19 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
         return stats.get(0);
     }
 
+    @SuppressWarnings("unchecked")
+    protected Map<String, Object> getBasicTransformStats(String id) throws IOException {
+        var request = new Request("GET", TRANSFORM_ENDPOINT + id + "/_stats");
+        request.addParameter(BASIC_STATS.getPreferredName(), "true");
+        request.setOptions(RequestOptions.DEFAULT);
+        Response response = client().performRequest(request);
+        List<Map<String, Object>> stats = (List<Map<String, Object>>) XContentMapValues.extractValue("transforms", entityAsMap(response));
+        assertThat(stats, hasSize(1));
+        return stats.get(0);
+    }
+
     protected String getTransformState(String id) throws IOException {
-        return (String) getTransformStats(id).get("state");
+        return (String) getBasicTransformStats(id).get("state");
     }
 
     @SuppressWarnings("unchecked")
@@ -280,7 +297,7 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
         assertBusy(
             () -> assertEquals(
                 checkpoint,
-                ((Integer) XContentMapValues.extractValue("checkpointing.last.checkpoint", getTransformStats(id))).longValue()
+                ((Integer) XContentMapValues.extractValue("checkpointing.last.checkpoint", getBasicTransformStats(id))).longValue()
             ),
             waitTime.getMillis(),
             TimeUnit.MILLISECONDS
@@ -397,7 +414,14 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
     }
 
     protected void updateConfig(String id, String update, RequestOptions options) throws Exception {
+        updateConfig(id, update, false, options);
+    }
+
+    protected void updateConfig(String id, String update, boolean deferValidation, RequestOptions options) throws Exception {
         Request updateRequest = new Request("POST", "_transform/" + id + "/_update");
+        if (deferValidation) {
+            updateRequest.addParameter("defer_validation", String.valueOf(deferValidation));
+        }
         updateRequest.setJsonEntity(update);
         updateRequest.setOptions(options);
         assertOK(client().performRequest(updateRequest));
@@ -409,6 +433,17 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
         int numUsers,
         Function<Integer, Integer> userIdProvider,
         Function<Integer, String> dateStringProvider
+    ) throws Exception {
+        createReviewsIndex(indexName, numDocs, numUsers, userIdProvider, dateStringProvider, null);
+    }
+
+    protected void createReviewsIndex(
+        String indexName,
+        int numDocs,
+        int numUsers,
+        Function<Integer, Integer> userIdProvider,
+        Function<Integer, String> dateStringProvider,
+        String defaultPipeline
     ) throws Exception {
         assert numUsers > 0;
 
@@ -449,6 +484,9 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
                     .endObject()
                     .endObject()
                     .endObject();
+                if (defaultPipeline != null) {
+                    builder.startObject("settings").field("index.default_pipeline", defaultPipeline).endObject();
+                }
             }
             builder.endObject();
 

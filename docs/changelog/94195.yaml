@@ -1,6 +1,0 @@
-pr: 94195
-summary: Use double wildcards for filtered excludes properly
-area: Infra/Core
-type: bug
-issues:
- - 92632

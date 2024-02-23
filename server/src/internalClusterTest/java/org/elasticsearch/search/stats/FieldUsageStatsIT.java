@@ -11,7 +11,6 @@ package org.elasticsearch.search.stats;
 import org.elasticsearch.action.admin.indices.stats.FieldUsageShardResponse;
 import org.elasticsearch.action.admin.indices.stats.FieldUsageStatsAction;
 import org.elasticsearch.action.admin.indices.stats.FieldUsageStatsRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -30,6 +29,7 @@ import java.util.concurrent.ExecutionException;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 
 public class FieldUsageStatsIT extends ESIntegTestCase {
 
@@ -49,18 +49,17 @@ public class FieldUsageStatsIT extends ESIntegTestCase {
     public void testFieldUsageStats() throws ExecutionException, InterruptedException {
         internalCluster().ensureAtLeastNumDataNodes(2);
         int numShards = randomIntBetween(1, 2);
-        assertAcked(client().admin().indices().prepareCreate("test").setSettings(indexSettings(numShards, 1)));
+        assertAcked(indicesAdmin().prepareCreate("test").setSettings(indexSettings(numShards, 1)));
 
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy/MM/dd", Locale.ROOT);
         LocalDate date = LocalDate.of(2015, 9, 1);
 
         for (int i = 0; i < 30; i++) {
-            client().prepareIndex("test")
-                .setId(Integer.toString(i))
+            prepareIndex("test").setId(Integer.toString(i))
                 .setSource("field", "value", "field2", "value2", "date_field", formatter.format(date.plusDays(i)))
                 .get();
         }
-        client().admin().indices().prepareRefresh("test").get();
+        indicesAdmin().prepareRefresh("test").get();
 
         ensureGreen("test");
 
@@ -73,17 +72,18 @@ public class FieldUsageStatsIT extends ESIntegTestCase {
         assertFalse(stats.hasField("field2"));
         assertFalse(stats.hasField("date_field"));
 
-        SearchResponse searchResponse = client().prepareSearch()
-            .setSearchType(SearchType.DEFAULT)
-            .setQuery(QueryBuilders.termQuery("field", "value"))
-            .addAggregation(AggregationBuilders.terms("agg1").field("field.keyword"))
-            .addAggregation(AggregationBuilders.filter("agg2", QueryBuilders.spanTermQuery("field2", "value2")))
-            .setSize(between(5, 100))
-            .setPreference("fixed")
-            .get();
-
-        assertHitCount(searchResponse, 30);
-        assertAllSuccessful(searchResponse);
+        assertResponse(
+            prepareSearch().setSearchType(SearchType.DEFAULT)
+                .setQuery(QueryBuilders.termQuery("field", "value"))
+                .addAggregation(AggregationBuilders.terms("agg1").field("field.keyword"))
+                .addAggregation(AggregationBuilders.filter("agg2", QueryBuilders.spanTermQuery("field2", "value2")))
+                .setSize(between(5, 100))
+                .setPreference("fixed"),
+            response -> {
+                assertHitCount(response, 30);
+                assertAllSuccessful(response);
+            }
+        );
 
         stats = aggregated(client().execute(FieldUsageStatsAction.INSTANCE, new FieldUsageStatsRequest()).get().getStats().get("test"));
         logger.info("Stats after first query: {}", stats);
@@ -114,13 +114,13 @@ public class FieldUsageStatsIT extends ESIntegTestCase {
         assertEquals(Set.of(UsageContext.DOC_VALUES), stats.get("field.keyword").keySet());
         assertEquals(1L * numShards, stats.get("field.keyword").getDocValues());
 
-        client().prepareSearch()
-            .setSearchType(SearchType.DEFAULT)
+        prepareSearch().setSearchType(SearchType.DEFAULT)
             .setQuery(QueryBuilders.termQuery("field", "value"))
             .addAggregation(AggregationBuilders.terms("agg1").field("field.keyword"))
             .setSize(0)
             .setPreference("fixed")
-            .get();
+            .get()
+            .decRef();
 
         stats = aggregated(client().execute(FieldUsageStatsAction.INSTANCE, new FieldUsageStatsRequest()).get().getStats().get("test"));
         logger.info("Stats after second query: {}", stats);
@@ -134,9 +134,7 @@ public class FieldUsageStatsIT extends ESIntegTestCase {
         // show that we also track stats in can_match
         assertEquals(
             2L * numShards,
-            client().admin()
-                .indices()
-                .prepareStats("test")
+            indicesAdmin().prepareStats("test")
                 .clear()
                 .setSearch(true)
                 .get()
@@ -146,13 +144,13 @@ public class FieldUsageStatsIT extends ESIntegTestCase {
                 .getTotal()
                 .getQueryCount()
         );
-        client().prepareSearch()
-            .setSearchType(SearchType.DEFAULT)
+        prepareSearch().setSearchType(SearchType.DEFAULT)
             .setPreFilterShardSize(1)
             .setQuery(QueryBuilders.rangeQuery("date_field").from("2016/01/01"))
             .setSize(100)
             .setPreference("fixed")
-            .get();
+            .get()
+            .decRef();
 
         stats = aggregated(client().execute(FieldUsageStatsAction.INSTANCE, new FieldUsageStatsRequest()).get().getStats().get("test"));
         logger.info("Stats after third query: {}", stats);
@@ -164,9 +162,7 @@ public class FieldUsageStatsIT extends ESIntegTestCase {
         // to produce a valid search result with all the aggs etc., so we hit one of the two shards
         assertEquals(
             (2 * numShards) + 1,
-            client().admin()
-                .indices()
-                .prepareStats("test")
+            indicesAdmin().prepareStats("test")
                 .clear()
                 .setSearch(true)
                 .get()

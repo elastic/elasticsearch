@@ -48,7 +48,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
 
 import javax.inject.Inject;
 
@@ -234,7 +233,7 @@ public class SplitPackagesAuditTask extends DefaultTask {
             String lastPackageName = null;
             Set<String> currentClasses = null;
             boolean filterErrorsFound = false;
-            for (String fqcn : getParameters().getIgnoreClasses().get().stream().sorted().collect(Collectors.toList())) {
+            for (String fqcn : getParameters().getIgnoreClasses().get().stream().sorted().toList()) {
                 int lastDot = fqcn.lastIndexOf('.');
                 if (lastDot == -1) {
                     LOGGER.error("Missing package in classname in split package ignores: " + fqcn);

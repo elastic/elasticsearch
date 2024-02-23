@@ -347,7 +347,7 @@ public class CacheService extends AbstractLifecycleComponent {
             if (allowShardsEvictions) {
                 final ShardEviction shardEviction = new ShardEviction(snapshotUUID, snapshotIndexName, shardId);
                 pendingShardsEvictions.computeIfAbsent(shardEviction, shard -> {
-                    final PlainActionFuture<?> future = PlainActionFuture.newFuture();
+                    final PlainActionFuture<?> future = new PlainActionFuture<>();
                     threadPool.generic().execute(new AbstractRunnable() {
                         @Override
                         protected void doRun() {
@@ -636,7 +636,7 @@ public class CacheService extends AbstractLifecycleComponent {
     class CacheSynchronizationTask extends AbstractAsyncTask {
 
         CacheSynchronizationTask(ThreadPool threadPool, TimeValue interval) {
-            super(logger, Objects.requireNonNull(threadPool), Objects.requireNonNull(interval), true);
+            super(logger, Objects.requireNonNull(threadPool), threadPool.generic(), Objects.requireNonNull(interval), true);
         }
 
         @Override
@@ -647,11 +647,6 @@ public class CacheService extends AbstractLifecycleComponent {
         @Override
         public void runInternal() {
             synchronizeCache();
-        }
-
-        @Override
-        protected String getThreadPool() {
-            return ThreadPool.Names.GENERIC;
         }
 
         @Override

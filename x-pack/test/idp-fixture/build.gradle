@@ -1,46 +1,36 @@
-import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.Architecture
-import static org.elasticsearch.gradle.internal.distribution.InternalElasticsearchDistributionTypes.DOCKER;
+import org.elasticsearch.gradle.internal.docker.DockerBuildTask
+import org.elasticsearch.gradle.internal.info.BuildParams
 
-apply plugin: 'elasticsearch.test.fixtures'
-apply plugin: 'elasticsearch.internal-distribution-download'
+apply plugin: 'elasticsearch.java'
+apply plugin: 'elasticsearch.cache-test-fixtures'
 
-dockerCompose {
-  composeAdditionalArgs = ['--compatibility']
+dependencies {
+  testImplementation project(':test:framework')
+
+  api project(':test:fixtures:testcontainer-utils')
+  api "junit:junit:${versions.junit}"
 }
 
-tasks.register("copyKeystore", Sync) {
-  from project(':x-pack:plugin:core')
-    .file('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks')
-  into "${buildDir}/certs"
-  doLast {
-    file("${buildDir}/certs").setReadable(true, false)
-    file("${buildDir}/certs/testnode.jks").setReadable(true, false)
-  }
+tasks.register("deployIdpFixtureDockerImages", DockerBuildTask) {
+    dockerContext.fileValue(file("src/main/resources/idp"))
+    baseImages = ["openjdk:11.0.16-jre"]
+    noCache = BuildParams.isCi()
+    tags = ["docker.elastic.co/elasticsearch-dev/idp-fixture:1.0"]
+    push = BuildParams.isCi()
+    getPlatforms().addAll( Architecture.values().collect{ it.dockerPlatform } )
 }
 
-elasticsearch_distributions {
-  docker {
-    type = DOCKER
-    architecture = Architecture.current()
-    version = VersionProperties.getElasticsearch()
-    failIfUnavailable = false // This ensures we skip this testing if Docker is unavailable
-  }
+
+tasks.register("deployOpenLdapFixtureDockerImages", DockerBuildTask) {
+  dockerContext.fileValue(file("src/main/resources/openldap"))
+  baseImages = ["osixia/openldap:1.4.0"]
+  noCache = BuildParams.isCi()
+  tags = ["docker.elastic.co/elasticsearch-dev/openldap-fixture:1.0"]
+  push = BuildParams.isCi()
+  getPlatforms().addAll( Architecture.values().collect{ it.dockerPlatform } )
 }
 
-tasks.named("preProcessFixture").configure {
-  dependsOn "copyKeystore", elasticsearch_distributions.docker
-  doLast {
-    File file = file("${testFixturesDir}/logs/node1")
-    file.mkdirs()
-    file.setWritable(true, false)
-  }
-}
-
-tasks.named('composeUp').configure {
-  dependsOn "preProcessFixture"
-}
-
-tasks.named('composePull').configure {
-  enabled = false // this task fails due to docker-compose oddities
+tasks.register("deployFixtureDockerImages") {
+  dependsOn tasks.withType(DockerBuildTask)
 }

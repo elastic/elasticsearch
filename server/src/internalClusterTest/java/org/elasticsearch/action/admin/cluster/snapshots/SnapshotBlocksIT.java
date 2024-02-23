@@ -46,11 +46,11 @@ public class SnapshotBlocksIT extends ESIntegTestCase {
 
         int docs = between(10, 100);
         for (int i = 0; i < docs; i++) {
-            client().prepareIndex(INDEX_NAME).setSource("test", "init").execute().actionGet();
+            prepareIndex(INDEX_NAME).setSource("test", "init").get();
         }
         docs = between(10, 100);
         for (int i = 0; i < docs; i++) {
-            client().prepareIndex(OTHER_INDEX_NAME).setSource("test", "init").execute().actionGet();
+            prepareIndex(OTHER_INDEX_NAME).setSource("test", "init").get();
         }
 
         logger.info("--> register a repository");
@@ -69,8 +69,7 @@ public class SnapshotBlocksIT extends ESIntegTestCase {
         CreateSnapshotResponse snapshotResponse = clusterAdmin().prepareCreateSnapshot(REPOSITORY_NAME, SNAPSHOT_NAME)
             .setIncludeGlobalState(true)
             .setWaitForCompletion(true)
-            .execute()
-            .actionGet();
+            .get();
         assertThat(snapshotResponse.status(), equalTo(RestStatus.OK));
         ensureSearchable();
     }
@@ -90,8 +89,7 @@ public class SnapshotBlocksIT extends ESIntegTestCase {
         logger.info("-->  creating a snapshot is allowed when the cluster is not read only");
         CreateSnapshotResponse response = clusterAdmin().prepareCreateSnapshot(REPOSITORY_NAME, "snapshot-2")
             .setWaitForCompletion(true)
-            .execute()
-            .actionGet();
+            .get();
         assertThat(response.status(), equalTo(RestStatus.OK));
     }
 
@@ -138,7 +136,7 @@ public class SnapshotBlocksIT extends ESIntegTestCase {
     }
 
     public void testRestoreSnapshotWithBlocks() {
-        assertAcked(client().admin().indices().prepareDelete(INDEX_NAME, OTHER_INDEX_NAME));
+        assertAcked(indicesAdmin().prepareDelete(INDEX_NAME, OTHER_INDEX_NAME));
         assertFalse(indexExists(INDEX_NAME));
         assertFalse(indexExists(OTHER_INDEX_NAME));
 
@@ -153,8 +151,7 @@ public class SnapshotBlocksIT extends ESIntegTestCase {
         logger.info("-->  creating a snapshot is allowed when the cluster is not read only");
         RestoreSnapshotResponse response = clusterAdmin().prepareRestoreSnapshot(REPOSITORY_NAME, SNAPSHOT_NAME)
             .setWaitForCompletion(true)
-            .execute()
-            .actionGet();
+            .get();
         assertThat(response.status(), equalTo(RestStatus.OK));
         assertTrue(indexExists(INDEX_NAME));
         assertTrue(indexExists(OTHER_INDEX_NAME));
@@ -164,7 +161,7 @@ public class SnapshotBlocksIT extends ESIntegTestCase {
         // This test checks that the Get Snapshot operation is never blocked, even if the cluster is read only.
         try {
             setClusterReadOnly(true);
-            GetSnapshotsResponse response = clusterAdmin().prepareGetSnapshots(REPOSITORY_NAME).execute().actionGet();
+            GetSnapshotsResponse response = clusterAdmin().prepareGetSnapshots(REPOSITORY_NAME).get();
             assertThat(response.getSnapshots(), hasSize(1));
             assertThat(response.getSnapshots().get(0).snapshotId().getName(), equalTo(SNAPSHOT_NAME));
         } finally {
@@ -176,10 +173,7 @@ public class SnapshotBlocksIT extends ESIntegTestCase {
         // This test checks that the Snapshot Status operation is never blocked, even if the cluster is read only.
         try {
             setClusterReadOnly(true);
-            SnapshotsStatusResponse response = clusterAdmin().prepareSnapshotStatus(REPOSITORY_NAME)
-                .setSnapshots(SNAPSHOT_NAME)
-                .execute()
-                .actionGet();
+            SnapshotsStatusResponse response = clusterAdmin().prepareSnapshotStatus(REPOSITORY_NAME).setSnapshots(SNAPSHOT_NAME).get();
             assertThat(response.getSnapshots(), hasSize(1));
             assertThat(response.getSnapshots().get(0).getState().completed(), equalTo(true));
         } finally {

@@ -33,7 +33,7 @@ public class GetDeploymentStatsAction extends ActionType<GetDeploymentStatsActio
     public static final String NAME = "cluster:internal/xpack/ml/trained_models/deployments/stats/get";
 
     private GetDeploymentStatsAction() {
-        super(NAME, GetDeploymentStatsAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends BaseTasksRequest<GetDeploymentStatsAction.Request> {
@@ -50,7 +50,7 @@ public class GetDeploymentStatsAction extends ActionType<GetDeploymentStatsActio
         public Request(StreamInput in) throws IOException {
             super(in);
             this.deploymentId = in.readString();
-            this.expandedIds = in.readStringList();
+            this.expandedIds = in.readStringCollectionAsList();
         }
 
         @Override

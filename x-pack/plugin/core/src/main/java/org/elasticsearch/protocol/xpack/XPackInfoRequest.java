@@ -7,6 +7,7 @@
 package org.elasticsearch.protocol.xpack;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -97,6 +98,6 @@ public class XPackInfoRequest extends ActionRequest {
     }
 
     private static boolean hasLicenseVersionField(TransportVersion streamVersion) {
-        return streamVersion.onOrAfter(TransportVersion.V_7_8_1) && streamVersion.before(TransportVersion.V_8_0_0);
+        return streamVersion.between(TransportVersions.V_7_8_1, TransportVersions.V_8_0_0);
     }
 }

@@ -30,6 +30,7 @@ import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -87,7 +88,7 @@ public class MultiSearchRequestTests extends ESTestCase {
 
     public void testFailWithUnknownKey() {
         final String requestContent = """
-            {"index":"test", "ignore_unavailable" : true, "unknown_key" : "open,closed"}}
+            {"index":"test", "ignore_unavailable" : true, "unknown_key" : "open,closed"}
             {"query" : {"match_all" :{}}}
             """;
         FakeRestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry()).withContent(
@@ -96,21 +97,27 @@ public class MultiSearchRequestTests extends ESTestCase {
         ).build();
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
-            () -> RestMultiSearchAction.parseRequest(restRequest, null, true, new UsageService().getSearchUsageHolder())
+            () -> RestMultiSearchAction.parseRequest(restRequest, null, true, new UsageService().getSearchUsageHolder(), nf -> false)
         );
         assertEquals("key [unknown_key] is not supported in the metadata section", ex.getMessage());
     }
 
     public void testSimpleAddWithCarriageReturn() throws Exception {
         final String requestContent = """
-            {"index":"test", "ignore_unavailable" : true, "expand_wildcards" : "open,closed"}}
+            {"index":"test", "ignore_unavailable" : true, "expand_wildcards" : "open,closed"}
             {"query" : {"match_all" :{}}}
             """;
         FakeRestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry()).withContent(
             new BytesArray(requestContent),
             XContentType.JSON
         ).build();
-        MultiSearchRequest request = RestMultiSearchAction.parseRequest(restRequest, null, true, new UsageService().getSearchUsageHolder());
+        MultiSearchRequest request = RestMultiSearchAction.parseRequest(
+            restRequest,
+            null,
+            true,
+            new UsageService().getSearchUsageHolder(),
+            nf -> false
+        );
         assertThat(request.requests().size(), equalTo(1));
         assertThat(request.requests().get(0).indices()[0], equalTo("test"));
         assertThat(
@@ -121,14 +128,20 @@ public class MultiSearchRequestTests extends ESTestCase {
 
     public void testDefaultIndicesOptions() throws IOException {
         final String requestContent = """
-            {"index":"test", "expand_wildcards" : "open,closed"}}
+            {"index":"test", "expand_wildcards" : "open,closed"}
             {"query" : {"match_all" :{}}}
             """;
         FakeRestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry()).withContent(
             new BytesArray(requestContent),
             XContentType.JSON
         ).withParams(Collections.singletonMap("ignore_unavailable", "true")).build();
-        MultiSearchRequest request = RestMultiSearchAction.parseRequest(restRequest, null, true, new UsageService().getSearchUsageHolder());
+        MultiSearchRequest request = RestMultiSearchAction.parseRequest(
+            restRequest,
+            null,
+            true,
+            new UsageService().getSearchUsageHolder(),
+            nf -> false
+        );
         assertThat(request.requests().size(), equalTo(1));
         assertThat(request.requests().get(0).indices()[0], equalTo("test"));
         assertThat(
@@ -194,29 +207,33 @@ public class MultiSearchRequestTests extends ESTestCase {
                 new MultiSearchResponse.Item(null, new IllegalStateException("baaaaaazzzz")) },
             tookInMillis
         );
+        try {
 
-        assertEquals(XContentHelper.stripWhitespace(Strings.format("""
-            {
-              "took": %s,
-              "responses": [
+            assertEquals(XContentHelper.stripWhitespace(Strings.format("""
                 {
-                  "error": {
-                    "root_cause": [ { "type": "illegal_state_exception", "reason": "foobar" } ],
-                    "type": "illegal_state_exception",
-                    "reason": "foobar"
-                  },
-                  "status": 500
-                },
-                {
-                  "error": {
-                    "root_cause": [ { "type": "illegal_state_exception", "reason": "baaaaaazzzz" } ],
-                    "type": "illegal_state_exception",
-                    "reason": "baaaaaazzzz"
-                  },
-                  "status": 500
-                }
-              ]
-            }""", tookInMillis)), Strings.toString(response));
+                  "took": %s,
+                  "responses": [
+                    {
+                      "error": {
+                        "root_cause": [ { "type": "illegal_state_exception", "reason": "foobar" } ],
+                        "type": "illegal_state_exception",
+                        "reason": "foobar"
+                      },
+                      "status": 500
+                    },
+                    {
+                      "error": {
+                        "root_cause": [ { "type": "illegal_state_exception", "reason": "baaaaaazzzz" } ],
+                        "type": "illegal_state_exception",
+                        "reason": "baaaaaazzzz"
+                      },
+                      "status": 500
+                    }
+                  ]
+                }""", tookInMillis)), Strings.toString(response));
+        } finally {
+            response.decRef();
+        }
     }
 
     public void testMaxConcurrentSearchRequests() {
@@ -233,7 +250,7 @@ public class MultiSearchRequestTests extends ESTestCase {
         ).build();
         IllegalArgumentException expectThrows = expectThrows(
             IllegalArgumentException.class,
-            () -> RestMultiSearchAction.parseRequest(restRequest, null, true, new UsageService().getSearchUsageHolder())
+            () -> RestMultiSearchAction.parseRequest(restRequest, null, true, new UsageService().getSearchUsageHolder(), nf -> false)
         );
         assertEquals("The msearch request must be terminated by a newline [\n]", expectThrows.getMessage());
 
@@ -246,7 +263,8 @@ public class MultiSearchRequestTests extends ESTestCase {
             restRequestWithNewLine,
             null,
             true,
-            new UsageService().getSearchUsageHolder()
+            new UsageService().getSearchUsageHolder(),
+            nf -> false
         );
         assertEquals(3, msearchRequest.requests().size());
     }
@@ -263,7 +281,9 @@ public class MultiSearchRequestTests extends ESTestCase {
 
         MultiSearchRequest request = new MultiSearchRequest();
         RestMultiSearchAction.parseMultiLineRequest(restRequest, SearchRequest.DEFAULT_INDICES_OPTIONS, true, (searchRequest, parser) -> {
-            searchRequest.source(new SearchSourceBuilder().parseXContent(parser, false, new UsageService().getSearchUsageHolder()));
+            searchRequest.source(
+                new SearchSourceBuilder().parseXContent(parser, false, new UsageService().getSearchUsageHolder(), nf -> false)
+            );
             request.add(searchRequest);
         });
         return request;
@@ -313,7 +333,8 @@ public class MultiSearchRequestTests extends ESTestCase {
                 SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().parseXContent(
                     p,
                     false,
-                    new UsageService().getSearchUsageHolder()
+                    new UsageService().getSearchUsageHolder(),
+                    nf -> false
                 );
                 if (searchSourceBuilder.equals(new SearchSourceBuilder()) == false) {
                     r.source(searchSourceBuilder);
@@ -536,6 +557,41 @@ public class MultiSearchRequestTests extends ESTestCase {
 
     public void testEqualsAndHashcode() {
         checkEqualsAndHashCode(createMultiSearchRequest(), MultiSearchRequestTests::copyRequest, MultiSearchRequestTests::mutate);
+    }
+
+    public void testFailOnExtraCharacters() throws IOException {
+        try {
+            parseMultiSearchRequestFromString("""
+                {"index": "test"}{{{{{extra chars that shouldn't be here
+                { "query": {"match_all": {}}}
+                """, null);
+            fail("should have caught first line; extra open brackets");
+        } catch (XContentParseException e) {
+            assertEquals("[1:18] Unexpected token after end of object", e.getMessage());
+        }
+        try {
+            parseMultiSearchRequestFromString("""
+                {"index": "test"}
+                { "query": {"match_all": {}}}{{{{even more chars
+                """, null);
+            fail("should have caught second line");
+        } catch (XContentParseException e) {
+            assertEquals("[1:30] Unexpected token after end of object", e.getMessage());
+        }
+        try {
+            parseMultiSearchRequestFromString("""
+                {}
+                { "query": {"match_all": {}}}}}}different error message
+                """, null);
+            fail("should have caught second line; extra closing brackets");
+        } catch (XContentParseException e) {
+            assertEquals(
+                "[1:31] Unexpected close marker '}': expected ']' (for root starting at "
+                    + "[Source: (byte[])\"{ \"query\": {\"match_all\": {}}}}}}different error message\"; line: 1, column: 0])\n "
+                    + "at [Source: (byte[])\"{ \"query\": {\"match_all\": {}}}}}}different error message\"; line: 1, column: 31]",
+                e.getMessage()
+            );
+        }
     }
 
     private static MultiSearchRequest mutate(MultiSearchRequest searchRequest) throws IOException {

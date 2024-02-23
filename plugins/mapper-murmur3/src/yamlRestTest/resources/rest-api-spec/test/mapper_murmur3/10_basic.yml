@@ -84,3 +84,23 @@ setup:
                 source: "field('foo.hash').get(10L)"
 
   - match: { hits.hits.0.fields.field.0: -2129773440516405919 }
+---
+"Murmur3 fields api":
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        body: { "foo": "foo" }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        index: test
+        body:
+          sort: [ { foo.hash: desc } ]
+          fields: [ foo.hash ]
+
+  - match: { hits.hits.0.fields: {foo.hash: ["foo"]} }

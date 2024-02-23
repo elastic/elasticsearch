@@ -8,6 +8,8 @@
 
 package org.elasticsearch.server.cli;
 
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ESTestCase.WithoutSecurityManager;
@@ -28,10 +30,13 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
 
 @WithoutSecurityManager
 public class JvmOptionsParserTests extends ESTestCase {
@@ -48,7 +53,6 @@ public class JvmOptionsParserTests extends ESTestCase {
         try (StringReader sr = new StringReader("-Xms1g\n-Xmx1g"); BufferedReader br = new BufferedReader(sr)) {
             assertExpectedJvmOptions(randomIntBetween(8, Integer.MAX_VALUE), br, Arrays.asList("-Xms1g", "-Xmx1g"));
         }
-
     }
 
     public void testSingleVersionOption() throws IOException {
@@ -344,4 +348,32 @@ public class JvmOptionsParserTests extends ESTestCase {
         assertThat(seenInvalidLines, equalTo(invalidLines));
     }
 
+    public void testNodeProcessorsActiveCount() {
+        {
+            final List<String> jvmOptions = SystemJvmOptions.systemJvmOptions(Settings.EMPTY, Map.of());
+            assertThat(jvmOptions, not(hasItem(containsString("-XX:ActiveProcessorCount="))));
+        }
+        {
+            Settings nodeSettings = Settings.builder().put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), 1).build();
+            final List<String> jvmOptions = SystemJvmOptions.systemJvmOptions(nodeSettings, Map.of());
+            assertThat(jvmOptions, hasItem("-XX:ActiveProcessorCount=1"));
+        }
+        {
+            // check rounding
+            Settings nodeSettings = Settings.builder().put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), 0.2).build();
+            final List<String> jvmOptions = SystemJvmOptions.systemJvmOptions(nodeSettings, Map.of());
+            assertThat(jvmOptions, hasItem("-XX:ActiveProcessorCount=1"));
+        }
+        {
+            // check validation
+            Settings nodeSettings = Settings.builder().put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), 10000).build();
+            var e = expectThrows(IllegalArgumentException.class, () -> SystemJvmOptions.systemJvmOptions(nodeSettings, Map.of()));
+            assertThat(e.getMessage(), containsString("setting [node.processors] must be <="));
+        }
+    }
+
+    public void testCommandLineDistributionType() {
+        final List<String> jvmOptions = SystemJvmOptions.systemJvmOptions(Settings.EMPTY, Map.of("es.distribution.type", "testdistro"));
+        assertThat(jvmOptions, hasItem("-Des.distribution.type=testdistro"));
+    }
 }

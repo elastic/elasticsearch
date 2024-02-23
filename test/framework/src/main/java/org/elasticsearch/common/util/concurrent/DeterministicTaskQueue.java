@@ -28,6 +28,7 @@ import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Delayed;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
@@ -81,7 +82,7 @@ public class DeterministicTaskQueue {
     }
 
     public void runAllTasks() {
-        while (hasDeferredTasks() || hasRunnableTasks()) {
+        while (hasAnyTasks()) {
             if (hasDeferredTasks() && random.nextBoolean()) {
                 advanceTime();
             } else if (hasRunnableTasks()) {
@@ -91,13 +92,26 @@ public class DeterministicTaskQueue {
     }
 
     public void runAllTasksInTimeOrder() {
-        while (hasDeferredTasks() || hasRunnableTasks()) {
+        while (hasAnyTasks()) {
             if (hasRunnableTasks()) {
                 runRandomTask();
             } else {
                 advanceTime();
             }
         }
+    }
+
+    /**
+     * Run all {@code runnableTasks} and {@code deferredTasks} that are scheduled to run before or on the given {@code timeInMillis}.
+     * The current time will be set to {@code timeInMillis} once the method returns.
+     */
+    public void runTasksUpToTimeInOrder(long timeInMillis) {
+        runAllRunnableTasks();
+        while (nextDeferredTaskExecutionTimeMillis <= timeInMillis) {
+            advanceTime();
+            runAllRunnableTasks();
+        }
+        currentTimeMillis = timeInMillis;
     }
 
     /**
@@ -112,6 +126,13 @@ public class DeterministicTaskQueue {
      */
     public boolean hasDeferredTasks() {
         return deferredTasks.isEmpty() == false;
+    }
+
+    /**
+     * @return whether there are any runnable or deferred tasks
+     */
+    public boolean hasAnyTasks() {
+        return hasDeferredTasks() || hasRunnableTasks();
     }
 
     /**
@@ -164,6 +185,14 @@ public class DeterministicTaskQueue {
             logger.trace("scheduleAt: adding {} with extra delay of [{}ms]", deferredTask, extraDelayMillis);
             scheduleDeferredTask(deferredTask);
         }
+    }
+
+    /**
+     * Similar to {@link #scheduleAt} but also advance time to {@code executionTimeMillis} and run all eligible tasks.
+     */
+    public void scheduleAtAndRunUpTo(final long executionTimeMillis, final Runnable task) {
+        scheduleAt(executionTimeMillis, task);
+        runTasksUpToTimeInOrder(executionTimeMillis);
     }
 
     private void scheduleDeferredTask(DeferredTask deferredTask) {
@@ -249,7 +278,7 @@ public class DeterministicTaskQueue {
 
                 @Override
                 public boolean isShutdown() {
-                    throw new UnsupportedOperationException();
+                    return false;
                 }
 
                 @Override
@@ -354,7 +383,7 @@ public class DeterministicTaskQueue {
             }
 
             @Override
-            public ScheduledCancellable schedule(Runnable command, TimeValue delay, String executor) {
+            public ScheduledCancellable schedule(Runnable command, TimeValue delay, Executor executor) {
                 final int NOT_STARTED = 0;
                 final int STARTED = 1;
                 final int CANCELLED = 2;
@@ -397,11 +426,6 @@ public class DeterministicTaskQueue {
                     }
 
                 };
-            }
-
-            @Override
-            public Cancellable scheduleWithFixedDelay(Runnable command, TimeValue interval, String executor) {
-                return super.scheduleWithFixedDelay(command, interval, executor);
             }
 
             @Override

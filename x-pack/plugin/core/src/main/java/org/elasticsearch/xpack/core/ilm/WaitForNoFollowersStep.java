@@ -37,7 +37,7 @@ public class WaitForNoFollowersStep extends AsyncWaitStep {
 
     private static final Logger logger = LogManager.getLogger(WaitForNoFollowersStep.class);
 
-    static final String NAME = "wait-for-shard-history-leases";
+    public static final String NAME = "wait-for-shard-history-leases";
     static final String CCR_LEASE_KEY = "ccr";
     private static final String WAIT_MESSAGE = "this index is a leader index; waiting for all following indices to cease "
         + "following before proceeding";

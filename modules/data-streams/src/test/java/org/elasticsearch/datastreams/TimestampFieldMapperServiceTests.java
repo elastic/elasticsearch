@@ -9,9 +9,9 @@
 package org.elasticsearch.datastreams;
 
 import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
+import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -58,7 +58,7 @@ public class TimestampFieldMapperServiceTests extends ESSingleNodeTestCase {
 
     public void testGetTimestampFieldTypeForTsdbDataStream() throws IOException {
         createTemplate(true);
-        IndexResponse indexResponse = indexDoc();
+        DocWriteResponse indexResponse = indexDoc();
 
         var indicesService = getInstanceFromNode(IndicesService.class);
         var result = indicesService.getTimestampFieldType(indexResponse.getShardId().getIndex());
@@ -67,14 +67,14 @@ public class TimestampFieldMapperServiceTests extends ESSingleNodeTestCase {
 
     public void testGetTimestampFieldTypeForDataStream() throws IOException {
         createTemplate(false);
-        IndexResponse indexResponse = indexDoc();
+        DocWriteResponse indexResponse = indexDoc();
 
         var indicesService = getInstanceFromNode(IndicesService.class);
         var result = indicesService.getTimestampFieldType(indexResponse.getShardId().getIndex());
         assertThat(result, nullValue());
     }
 
-    private IndexResponse indexDoc() {
+    private DocWriteResponse indexDoc() {
         Instant time = Instant.now();
         var indexRequest = new IndexRequest("k8s").opType(DocWriteRequest.OpType.CREATE);
         indexRequest.source(DOC.replace("$time", formatInstant(time)), XContentType.JSON);
@@ -94,20 +94,15 @@ public class TimestampFieldMapperServiceTests extends ESSingleNodeTestCase {
               }
             }""";
         var templateSettings = Settings.builder().put("index.mode", tsdb ? "time_series" : "standard");
-        var request = new PutComposableIndexTemplateAction.Request("id");
+        var request = new TransportPutComposableIndexTemplateAction.Request("id");
         request.indexTemplate(
-            new ComposableIndexTemplate(
-                List.of("k8s*"),
-                new Template(templateSettings.build(), new CompressedXContent(mappingTemplate), null),
-                null,
-                null,
-                null,
-                null,
-                new ComposableIndexTemplate.DataStreamTemplate(false, false),
-                null
-            )
+            ComposableIndexTemplate.builder()
+                .indexPatterns(List.of("k8s*"))
+                .template(new Template(templateSettings.build(), new CompressedXContent(mappingTemplate), null))
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
+                .build()
         );
-        client().execute(PutComposableIndexTemplateAction.INSTANCE, request).actionGet();
+        client().execute(TransportPutComposableIndexTemplateAction.TYPE, request).actionGet();
     }
 
     private static String formatInstant(Instant instant) {

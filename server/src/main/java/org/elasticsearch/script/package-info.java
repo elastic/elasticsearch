@@ -9,6 +9,7 @@
 /**
  * Support for running user provided scripts (in the request, in cluster state, etc) in portions of various requests
  * ({@link org.elasticsearch.common.lucene.search.function.FunctionScoreQuery}, {@link org.elasticsearch.search.aggregations.Aggregation},
- * {@link org.elasticsearch.action.update.UpdateAction}, etc). Pluggable via implementing {@link org.elasticsearch.plugins.ScriptPlugin}.
+ * {@link org.elasticsearch.action.update.TransportUpdateAction}, etc). Pluggable via implementing
+ * {@link org.elasticsearch.plugins.ScriptPlugin}.
  */
 package org.elasticsearch.script;

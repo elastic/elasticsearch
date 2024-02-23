@@ -11,7 +11,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
@@ -25,7 +24,6 @@ import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
-import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -73,11 +71,14 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
 
     private static final Logger logger = LogManager.getLogger(TestTaskPlugin.class);
 
+    public static final ActionType<NodesResponse> TEST_TASK_ACTION = new ActionType<>("cluster:admin/tasks/test");
+    public static final ActionType<UnblockTestTasksResponse> UNBLOCK_TASK_ACTION = new ActionType<>("cluster:admin/tasks/testunblock");
+
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         return Arrays.asList(
-            new ActionHandler<>(TestTaskAction.INSTANCE, TransportTestTaskAction.class),
-            new ActionHandler<>(UnblockTestTasksAction.INSTANCE, TransportUnblockTestTasksAction.class)
+            new ActionHandler<>(TEST_TASK_ACTION, TransportTestTaskAction.class),
+            new ActionHandler<>(UNBLOCK_TASK_ACTION, TransportUnblockTestTasksAction.class)
         );
     }
 
@@ -141,12 +142,12 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
 
         @Override
         protected List<NodeResponse> readNodesFrom(StreamInput in) throws IOException {
-            return in.readList(NodeResponse::new);
+            return in.readCollectionAsList(NodeResponse::new);
         }
 
         @Override
         protected void writeNodesTo(StreamOutput out, List<NodeResponse> nodes) throws IOException {
-            out.writeList(nodes);
+            out.writeCollection(nodes);
         }
 
         public int getFailureCount() {
@@ -262,15 +263,12 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
         @Inject
         public TransportTestTaskAction(ThreadPool threadPool, ClusterService clusterService, TransportService transportService) {
             super(
-                TestTaskAction.NAME,
-                threadPool,
+                TEST_TASK_ACTION.name(),
                 clusterService,
                 transportService,
                 new ActionFilters(new HashSet<>()),
-                NodesRequest::new,
                 NodeRequest::new,
-                ThreadPool.Names.GENERIC,
-                NodeResponse.class
+                threadPool.executor(ThreadPool.Names.GENERIC)
             );
         }
 
@@ -314,16 +312,6 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
             }
             logger.info("Test task finished on the node {}", clusterService.localNode());
             return new NodeResponse(clusterService.localNode());
-        }
-    }
-
-    public static class TestTaskAction extends ActionType<NodesResponse> {
-
-        public static final TestTaskAction INSTANCE = new TestTaskAction();
-        public static final String NAME = "cluster:admin/tasks/test";
-
-        private TestTaskAction() {
-            super(NAME, NodesResponse::new);
         }
     }
 
@@ -398,14 +386,14 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
         @Inject
         public TransportUnblockTestTasksAction(ClusterService clusterService, TransportService transportService) {
             super(
-                UnblockTestTasksAction.NAME,
+                UNBLOCK_TASK_ACTION.name(),
                 clusterService,
                 transportService,
                 new ActionFilters(new HashSet<>()),
                 UnblockTestTasksRequest::new,
                 UnblockTestTasksResponse::new,
                 UnblockTestTaskResponse::new,
-                ThreadPool.Names.MANAGEMENT
+                transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT)
             );
         }
 
@@ -421,7 +409,7 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
 
         @Override
         protected void taskOperation(
-            Task actionTask,
+            CancellableTask actionTask,
             UnblockTestTasksRequest request,
             Task task,
             ActionListener<UnblockTestTaskResponse> listener
@@ -430,23 +418,6 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
             listener.onResponse(new UnblockTestTaskResponse());
         }
 
-    }
-
-    public static class UnblockTestTasksAction extends ActionType<UnblockTestTasksResponse> {
-
-        public static final UnblockTestTasksAction INSTANCE = new UnblockTestTasksAction();
-        public static final String NAME = "cluster:admin/tasks/testunblock";
-
-        private UnblockTestTasksAction() {
-            super(NAME, UnblockTestTasksResponse::new);
-        }
-    }
-
-    public static class UnblockTestTasksRequestBuilder extends ActionRequestBuilder<UnblockTestTasksRequest, UnblockTestTasksResponse> {
-
-        protected UnblockTestTasksRequestBuilder(ElasticsearchClient client, ActionType<UnblockTestTasksResponse> action) {
-            super(client, action, new UnblockTestTasksRequest());
-        }
     }
 
     private static class OriginAssertingInterceptor implements TransportInterceptor {

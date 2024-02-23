@@ -22,11 +22,13 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.monitor.os.OsStats;
 import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.rescore.QueryRescorerBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
@@ -41,7 +43,10 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
@@ -201,22 +206,23 @@ public class ClusterStatsIT extends ESIntegTestCase {
 
         ClusterStatsResponse response = clusterAdmin().prepareClusterStats().get();
         String msg = response.toString();
-        assertThat(msg, response.getTimestamp(), Matchers.greaterThan(946681200000L)); // 1 Jan 2000
-        assertThat(msg, response.indicesStats.getStore().getSizeInBytes(), Matchers.greaterThan(0L));
+        assertThat(msg, response.getTimestamp(), greaterThan(946681200000L)); // 1 Jan 2000
+        assertThat(msg, response.indicesStats.getStore().sizeInBytes(), greaterThan(0L));
 
-        assertThat(msg, response.nodesStats.getFs().getTotal().getBytes(), Matchers.greaterThan(0L));
-        assertThat(msg, response.nodesStats.getJvm().getVersions().size(), Matchers.greaterThan(0));
+        assertThat(msg, response.nodesStats.getFs().getTotal().getBytes(), greaterThan(0L));
+        assertThat(msg, response.nodesStats.getJvm().getVersions().size(), greaterThan(0));
 
-        assertThat(msg, response.nodesStats.getVersions().size(), Matchers.greaterThan(0));
-        assertThat(msg, response.nodesStats.getVersions().contains(Version.CURRENT), Matchers.equalTo(true));
-        assertThat(msg, response.nodesStats.getPlugins().size(), Matchers.greaterThanOrEqualTo(0));
+        assertThat(msg, response.nodesStats.getVersions(), hasSize(greaterThan(0)));
+        // TODO: Build.current().unqualifiedVersion() -- or Build.current().version() if/when we move NodeInfo to Build version(s)
+        assertThat(msg, response.nodesStats.getVersions(), hasItem(Version.CURRENT.toString()));
+        assertThat(msg, response.nodesStats.getPlugins(), hasSize(greaterThanOrEqualTo(0)));
 
-        assertThat(msg, response.nodesStats.getProcess().count, Matchers.greaterThan(0));
+        assertThat(msg, response.nodesStats.getProcess().count, greaterThan(0));
         // 0 happens when not supported on platform
-        assertThat(msg, response.nodesStats.getProcess().getAvgOpenFileDescriptors(), Matchers.greaterThanOrEqualTo(0L));
+        assertThat(msg, response.nodesStats.getProcess().getAvgOpenFileDescriptors(), greaterThanOrEqualTo(0L));
         // these can be -1 if not supported on platform
-        assertThat(msg, response.nodesStats.getProcess().getMinOpenFileDescriptors(), Matchers.greaterThanOrEqualTo(-1L));
-        assertThat(msg, response.nodesStats.getProcess().getMaxOpenFileDescriptors(), Matchers.greaterThanOrEqualTo(-1L));
+        assertThat(msg, response.nodesStats.getProcess().getMinOpenFileDescriptors(), greaterThanOrEqualTo(-1L));
+        assertThat(msg, response.nodesStats.getProcess().getMaxOpenFileDescriptors(), greaterThanOrEqualTo(-1L));
 
         NodesStatsResponse nodesStatsResponse = clusterAdmin().prepareNodesStats().setOs(true).get();
         long total = 0;
@@ -263,9 +269,9 @@ public class ClusterStatsIT extends ESIntegTestCase {
         assertThat(response.getStatus(), Matchers.equalTo(ClusterHealthStatus.GREEN));
         assertTrue(response.getIndicesStats().getMappings().getFieldTypeStats().isEmpty());
 
-        client().admin().indices().prepareCreate("test1").setMapping("""
+        indicesAdmin().prepareCreate("test1").setMapping("""
             {"properties":{"foo":{"type": "keyword"}}}""").get();
-        client().admin().indices().prepareCreate("test2").setMapping("""
+        indicesAdmin().prepareCreate("test2").setMapping("""
             {
               "properties": {
                 "foo": {
@@ -348,16 +354,26 @@ public class ClusterStatsIT extends ESIntegTestCase {
             );
             getRestClient().performRequest(request);
         }
+        {
+            Request request = new Request("GET", "/_search");
+            SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(QueryBuilders.termQuery("field", "value"))
+                .addRescorer(new QueryRescorerBuilder(new MatchAllQueryBuilder().boost(3.0f)));
+            request.setJsonEntity(Strings.toString(searchSourceBuilder));
+            getRestClient().performRequest(request);
+        }
 
         SearchUsageStats stats = clusterAdmin().prepareClusterStats().get().getIndicesStats().getSearchUsageStats();
-        assertEquals(5, stats.getTotalSearchCount());
+        assertEquals(6, stats.getTotalSearchCount());
         assertEquals(4, stats.getQueryUsage().size());
         assertEquals(1, stats.getQueryUsage().get("match").longValue());
-        assertEquals(2, stats.getQueryUsage().get("term").longValue());
+        assertEquals(3, stats.getQueryUsage().get("term").longValue());
         assertEquals(1, stats.getQueryUsage().get("range").longValue());
         assertEquals(1, stats.getQueryUsage().get("bool").longValue());
-        assertEquals(2, stats.getSectionsUsage().size());
-        assertEquals(4, stats.getSectionsUsage().get("query").longValue());
+        assertEquals(3, stats.getSectionsUsage().size());
+        assertEquals(5, stats.getSectionsUsage().get("query").longValue());
         assertEquals(1, stats.getSectionsUsage().get("aggs").longValue());
+        assertEquals(1, stats.getSectionsUsage().get("rescore").longValue());
+        assertEquals(1, stats.getRescorerUsage().size());
+        assertEquals(1, stats.getRescorerUsage().get("query").longValue());
     }
 }

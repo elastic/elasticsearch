@@ -21,7 +21,8 @@ import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.MapperTestCase;
+import org.elasticsearch.index.mapper.NumberFieldMapperTests;
+import org.elasticsearch.index.mapper.NumberTypeOutOfRangeSpec;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
@@ -30,19 +31,23 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
+import org.hamcrest.Matcher;
 import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
+import java.util.function.Function;
 
 import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notANumber;
 
-public class ScaledFloatFieldMapperTests extends MapperTestCase {
+public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
 
     @Override
     protected Collection<? extends Plugin> getPlugins() {
@@ -156,6 +161,25 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
         assertEquals(1230, pointField.numericValue().longValue());
     }
 
+    public void testDocValuesSearchable() throws Exception {
+        boolean[] indexables = new boolean[] { true, false };
+        boolean[] hasDocValues = new boolean[] { true, false };
+        for (boolean indexable : indexables) {
+            for (boolean hasDocValue : hasDocValues) {
+                MapperService mapperService = createMapperService(
+                    fieldMapping(
+                        b -> b.field("type", "scaled_float")
+                            .field("index", indexable)
+                            .field("doc_values", hasDocValue)
+                            .field("scaling_factor", 10.0)
+                    )
+                );
+                MappedFieldType fieldType = mapperService.fieldType("field");
+                assertEquals(fieldType.isSearchable(), indexable || hasDocValue);
+            }
+        }
+    }
+
     public void testStore() throws Exception {
         DocumentMapper mapper = createDocumentMapper(
             fieldMapping(b -> b.field("type", "scaled_float").field("store", true).field("scaling_factor", 10.0))
@@ -177,7 +201,7 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
         assertEquals(1230, storedField.numericValue().longValue());
     }
 
-    public void testCoerce() throws Exception {
+    public void testCoerce() throws IOException {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         ParsedDocument doc = mapper.parse(
             new SourceToParse(
@@ -349,13 +373,15 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
         public SyntheticSourceExample example(int maxValues) {
             if (randomBoolean()) {
                 Tuple<Double, Double> v = generateValue();
-                return new SyntheticSourceExample(v.v1(), v.v2(), this::mapping);
+                return new SyntheticSourceExample(v.v1(), v.v2(), roundDocValues(v.v2()), this::mapping);
             }
             List<Tuple<Double, Double>> values = randomList(1, maxValues, this::generateValue);
             List<Double> in = values.stream().map(Tuple::v1).toList();
             List<Double> outList = values.stream().map(Tuple::v2).sorted().toList();
             Object out = outList.size() == 1 ? outList.get(0) : outList;
-            return new SyntheticSourceExample(in, out, this::mapping);
+            List<Double> outBlockList = values.stream().map(v -> roundDocValues(v.v2())).sorted().toList();
+            Object outBlock = outBlockList.size() == 1 ? outBlockList.get(0) : outBlockList;
+            return new SyntheticSourceExample(in, out, outBlock, this::mapping);
         }
 
         private Tuple<Double, Double> generateValue() {
@@ -377,6 +403,11 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
                 return decoded - Math.ulp(decoded);
             }
             return decoded;
+        }
+
+        private double roundDocValues(double d) {
+            long encoded = Math.round(d * scalingFactor);
+            return encoded * (1 / scalingFactor);
         }
 
         private void mapping(XContentBuilder b) throws IOException {
@@ -409,8 +440,53 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
     }
 
     @Override
+    protected Function<Object, Object> loadBlockExpected() {
+        return v -> (Number) v;
+    }
+
+    @Override
+    protected Matcher<?> blockItemMatcher(Object expected) {
+        return "NaN".equals(expected) ? notANumber() : equalTo(expected);
+    }
+
+    @Override
     protected IngestScriptSupport ingestScriptSupport() {
         throw new AssumptionViolatedException("not supported");
+    }
+
+    @Override
+    protected List<NumberTypeOutOfRangeSpec> outOfRangeSpecs() {
+        // No outOfRangeSpecs are specified because ScaledFloatFieldMapper doesn't extend NumberFieldMapper and doesn't use a
+        // NumberFieldMapper.NumberType that is present in OutOfRangeSpecs
+        return Collections.emptyList();
+    }
+
+    @Override
+    public void testIgnoreMalformedWithObject() {} // TODO: either implement this, remove it, or update ScaledFloatFieldMapper's behaviour
+
+    @Override
+    public void testAllowMultipleValuesField() {} // TODO: either implement this, remove it, or update ScaledFloatFieldMapper's behaviour
+
+    @Override
+    public void testScriptableTypes() {} // TODO: either implement this, remove it, or update ScaledFloatFieldMapper's behaviour
+
+    @Override
+    public void testDimension() {} // TODO: either implement this, remove it, or update ScaledFloatFieldMapper's behaviour
+
+    @Override
+    protected Number missingValue() {
+        return 0.123;
+    }
+
+    @Override
+    protected Number randomNumber() {
+        /*
+         * The source parser and doc values round trip will both reduce
+         * the precision to 32 bits if the value is more precise.
+         * randomDoubleBetween will smear the values out across a wide
+         * range of valid values.
+         */
+        return randomBoolean() ? randomDoubleBetween(-Float.MAX_VALUE, Float.MAX_VALUE, true) : randomFloat();
     }
 
     public void testEncodeDecodeExactScalingFactor() {
@@ -424,7 +500,11 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
     public void testEncodeDecodeNoSaturation() {
         double scalingFactor = randomValue();
         double unsaturated = randomDoubleBetween(Long.MIN_VALUE / scalingFactor, Long.MAX_VALUE / scalingFactor, true);
-        assertThat(encodeDecode(unsaturated, scalingFactor), equalTo(Math.round(unsaturated * scalingFactor) / scalingFactor));
+        assertEquals(
+            encodeDecode(unsaturated, scalingFactor),
+            Math.round(unsaturated * scalingFactor) / scalingFactor,
+            unsaturated * 1e-10
+        );
     }
 
     /**

@@ -66,11 +66,11 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
             );
 
         if (dataLoaded == false) {
-            DataLoader.loadDatasetIntoEs(highLevelClient(provisioningClient), this::createParser);
+            DataLoader.loadDatasetIntoEs(provisioningClient, this::createParser);
         }
     }
 
-    private boolean doWithRequest(Request request, RestClient client, Function<Response, Boolean> consumer) {
+    private static boolean doWithRequest(Request request, RestClient client, Function<Response, Boolean> consumer) {
         try {
             return consumer.apply(client.performRequest(request));
         } catch (IOException e) {
@@ -228,7 +228,7 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
 
     }
 
-    private String eventsToString(List<Map<String, Object>> events) {
+    private static String eventsToString(List<Map<String, Object>> events) {
         StringJoiner sj = new StringJoiner(",", "[", "]");
         for (Map<String, Object> event : events) {
             sj.add(event.get("_id") + "|" + event.get("_index"));
@@ -244,9 +244,13 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
         final long[] ids = new long[len];
         for (int i = 0; i < len; i++) {
             Map<String, Object> event = events.get(i);
-            Map<String, Object> source = (Map<String, Object>) event.get("_source");
-            Object field = source.get(idField());
-            ids[i] = ((Number) field).longValue();
+            if (Boolean.TRUE.equals(event.get("missing"))) {
+                ids[i] = -1;
+            } else {
+                Map<String, Object> source = (Map<String, Object>) event.get("_source");
+                Object field = source.get(idField());
+                ids[i] = ((Number) field).longValue();
+            }
         }
         return ids;
     }
@@ -297,7 +301,7 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
         );
     }
 
-    private String keysToString(List<Object> keys) {
+    private static String keysToString(List<Object> keys) {
         StringJoiner sj = new StringJoiner(",", "[", "]");
         for (Object key : keys) {
             sj.add(key.toString());

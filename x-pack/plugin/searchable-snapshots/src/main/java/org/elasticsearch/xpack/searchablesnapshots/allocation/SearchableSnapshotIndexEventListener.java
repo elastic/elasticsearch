@@ -9,12 +9,12 @@ package org.elasticsearch.xpack.searchablesnapshots.allocation;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.StepListener;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
@@ -68,12 +68,12 @@ public class SearchableSnapshotIndexEventListener implements IndexEventListener 
         final var store = indexShard.store();
         final SearchableSnapshotDirectory directory = unwrapDirectory(store.directory());
         assert directory != null;
-        final StepListener<Void> preWarmListener = new StepListener<>();
+        final ListenableFuture<Void> preWarmListener = new ListenableFuture<>();
         final boolean success = directory.loadSnapshot(indexShard.recoveryState(), store::isClosing, preWarmListener);
         final ShardRouting shardRouting = indexShard.routingEntry();
         if (success && shardRouting.isRelocationTarget()) {
             final Runnable preWarmCondition = indexShard.addCleanFilesDependency();
-            preWarmListener.whenComplete(v -> preWarmCondition.run(), e -> {
+            preWarmListener.addListener(ActionListener.wrap(v -> preWarmCondition.run(), e -> {
                 logger.warn(
                     () -> format(
                         "pre-warm operation failed for [%s] while it was the target of primary relocation [%s]",
@@ -83,7 +83,7 @@ public class SearchableSnapshotIndexEventListener implements IndexEventListener 
                     e
                 );
                 preWarmCondition.run();
-            });
+            }));
         }
         assert directory.listAll().length > 0 : "expecting directory listing to be non-empty";
         assert success || indexShard.routingEntry().recoverySource().getType() == RecoverySource.Type.PEER

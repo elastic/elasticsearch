@@ -152,8 +152,9 @@ public class EvictingQueue<T> implements Queue<T> {
     @Override
     public boolean addAll(Collection<? extends T> c) {
         boolean modified = false;
-        for (T e : c)
+        for (T e : c) {
             if (add(e)) modified = true;
+        }
         return modified;
     }
 

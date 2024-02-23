@@ -21,8 +21,10 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.LongSupplier;
+import java.util.stream.Collectors;
 
 /**
  * This class represents a node's view of the history of which nodes have been elected master over the last 30 minutes. It is kept in
@@ -34,6 +36,7 @@ public class MasterHistory implements ClusterStateListener {
      * The maximum amount of time that the master history covers.
      */
     private final TimeValue maxHistoryAge;
+    private final ClusterService clusterService;
     // Note: While the master can be null, the TimeAndMaster object in this list is never null
     private volatile List<TimeAndMaster> masterHistory;
     private final LongSupplier currentTimeMillisSupplier;
@@ -53,10 +56,12 @@ public class MasterHistory implements ClusterStateListener {
         Setting.Property.NodeScope
     );
 
+    @SuppressWarnings("this-escape")
     public MasterHistory(ThreadPool threadPool, ClusterService clusterService) {
         this.masterHistory = new ArrayList<>();
         this.currentTimeMillisSupplier = threadPool::relativeTimeInMillis;
         this.maxHistoryAge = MAX_HISTORY_AGE_SETTING.get(clusterService.getSettings());
+        this.clusterService = clusterService;
         clusterService.addListener(this);
     }
 
@@ -247,12 +252,34 @@ public class MasterHistory implements ClusterStateListener {
     /**
      * This method returns an immutable view of this master history, typically for sending over the wire to another node. The returned List
      * is ordered by when the master was seen, with the earliest-seen masters being first. The List can contain null values. Times are
-     * intentionally not included because they cannot be compared across machines.
+     * intentionally not included because they cannot be compared across machines. This list contains nodes even if they are not currently
+     * in the cluster.
      * @return An immutable view of this master history
      */
-    public List<DiscoveryNode> getNodes() {
+    public List<DiscoveryNode> getRawNodes() {
         List<TimeAndMaster> masterHistoryCopy = getRecentMasterHistory(masterHistory);
         return masterHistoryCopy.stream().map(TimeAndMaster::master).toList();
+    }
+
+    /*
+     * This method is similar to getRawNodes(), except any non-null nodes whose ephemeral IDs are not in the nodes in the cluster
+     * state are removed. This is meant to be used to filter out nodes from the master history that are no longer part of the cluster. We
+     * need to keep these nodes in the master history in case they return to the cluster, but we do not want them to count toward our
+     * stability calculations.
+     */
+    public List<DiscoveryNode> getNodes() {
+        List<DiscoveryNode> nodes = getRawNodes();
+        if (nodes == null || nodes.isEmpty()) {
+            return nodes;
+        }
+        Set<String> ephemeralIdsCurrentlyInCluster = clusterService.state()
+            .nodes()
+            .stream()
+            .map(DiscoveryNode::getEphemeralId)
+            .collect(Collectors.toSet());
+        return nodes.stream()
+            .filter(node -> node == null || ephemeralIdsCurrentlyInCluster.contains(node.getEphemeralId()))
+            .collect(Collectors.toList());
     }
 
     private record TimeAndMaster(long startTimeMillis, DiscoveryNode master) {}

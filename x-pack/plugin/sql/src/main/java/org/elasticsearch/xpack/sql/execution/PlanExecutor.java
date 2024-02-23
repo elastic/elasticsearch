@@ -10,9 +10,9 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.xpack.ql.analyzer.PreAnalyzer;
 import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.ql.index.IndexResolver;
-import org.elasticsearch.xpack.sql.analysis.analyzer.PreAnalyzer;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Verifier;
 import org.elasticsearch.xpack.sql.execution.search.SourceGenerator;
 import org.elasticsearch.xpack.sql.expression.function.SqlFunctionRegistry;
@@ -75,9 +75,9 @@ public class PlanExecutor {
     ) {
         metrics.translate();
 
-        newSession(cfg).sqlExecutable(sql, params, wrap(exec -> {
+        newSession(cfg).sqlExecutable(sql, params, listener.delegateFailureAndWrap((delegate, exec) -> {
             if (exec instanceof EsQueryExec e) {
-                listener.onResponse(SourceGenerator.sourceBuilder(e.queryContainer(), cfg.filter(), cfg.pageSize()));
+                delegate.onResponse(SourceGenerator.sourceBuilder(e.queryContainer(), cfg.filter(), cfg.pageSize()));
             }
             // try to provide a better resolution of what failed
             else {
@@ -90,9 +90,9 @@ public class PlanExecutor {
                 } else {
                     message = "Cannot generate a query DSL";
                 }
-                listener.onFailure(new PlanningException(message + ", sql statement: [{}]", sql));
+                delegate.onFailure(new PlanningException(message + ", sql statement: [{}]", sql));
             }
-        }, listener::onFailure));
+        }));
     }
 
     public void sql(SqlConfiguration cfg, String sql, List<SqlTypedParamValue> params, ActionListener<Page> listener) {

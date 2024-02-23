@@ -1,3 +1,8 @@
+---
+setup:
+  - skip:
+      version: "8.7.00 - 8.9.99"
+      reason: "Synthetic source shows up in the mapping in 8.10 and on, may trigger assert failures in mixed cluster tests"
 
 ---
 date:
@@ -148,7 +153,7 @@ reject @timestamp with wrong type:
       reason: introduced in 8.1.0
 
   - do:
-      catch: /data stream timestamp field \[@timestamp\] is of type \[keyword\], but \[date,date_nanos\] is expected/
+      catch: /data stream timestamp field \[@timestamp\] is of type \[long\], but \[date,date_nanos\] is expected/
       indices.create:
           index: test
           body:
@@ -163,7 +168,7 @@ reject @timestamp with wrong type:
             mappings:
               properties:
                 "@timestamp":
-                  type: keyword
+                  type: long
 
 ---
 reject timestamp meta field with wrong type:

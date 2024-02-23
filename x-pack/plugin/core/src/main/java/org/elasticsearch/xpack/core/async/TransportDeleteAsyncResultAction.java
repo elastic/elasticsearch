@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.async;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -17,6 +18,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -25,6 +27,7 @@ import org.elasticsearch.xpack.core.XPackPlugin;
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
 
 public class TransportDeleteAsyncResultAction extends HandledTransportAction<DeleteAsyncResultRequest, AcknowledgedResponse> {
+    public static final ActionType<AcknowledgedResponse> TYPE = new ActionType<>("indices:data/read/async_search/delete");
     private final DeleteAsyncResultsService deleteResultsService;
     private final ClusterService clusterService;
     private final TransportService transportService;
@@ -39,7 +42,7 @@ public class TransportDeleteAsyncResultAction extends HandledTransportAction<Del
         ThreadPool threadPool,
         BigArrays bigArrays
     ) {
-        super(DeleteAsyncResultAction.NAME, transportService, actionFilters, DeleteAsyncResultRequest::new);
+        super(TYPE.name(), transportService, actionFilters, DeleteAsyncResultRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.transportService = transportService;
         this.clusterService = clusterService;
         AsyncTaskIndexService<?> store = new AsyncTaskIndexService<>(
@@ -66,9 +69,9 @@ public class TransportDeleteAsyncResultAction extends HandledTransportAction<Del
         } else {
             transportService.sendRequest(
                 node,
-                DeleteAsyncResultAction.NAME,
+                TYPE.name(),
                 request,
-                new ActionListenerResponseHandler<>(listener, AcknowledgedResponse::readFrom, ThreadPool.Names.SAME)
+                new ActionListenerResponseHandler<>(listener, AcknowledgedResponse::readFrom, EsExecutors.DIRECT_EXECUTOR_SERVICE)
             );
         }
     }

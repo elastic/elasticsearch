@@ -8,11 +8,12 @@
 package org.elasticsearch.xpack.search;
 
 import org.apache.http.util.EntityUtils;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.client.asyncsearch.AsyncSearchResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.SecureString;
@@ -22,20 +23,32 @@ import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchResponseUtils;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.local.distribution.DistributionType;
+import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
+import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
 import org.hamcrest.CustomMatcher;
 import org.hamcrest.Matcher;
 import org.junit.Before;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.XPackPlugin.ASYNC_RESULTS_INDEX;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField.RUN_AS_USER_HEADER;
@@ -46,6 +59,59 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
 public class AsyncSearchSecurityIT extends ESRestTestCase {
+
+    private static final ConstructingObjectParser<AsyncSearchResponse, Void> ASYNC_SEARCH_RESPONSE_PARSER = new ConstructingObjectParser<>(
+        "submit_async_search_response",
+        true,
+        args -> new AsyncSearchResponse(
+            (String) args[4],
+            (SearchResponse) args[5],
+            (ElasticsearchException) args[6],
+            (boolean) args[0],
+            (boolean) args[1],
+            (long) args[2],
+            (long) args[3]
+        )
+    );
+    static {
+        ASYNC_SEARCH_RESPONSE_PARSER.declareBoolean(constructorArg(), new ParseField("is_partial"));
+        ASYNC_SEARCH_RESPONSE_PARSER.declareBoolean(constructorArg(), new ParseField("is_running"));
+        ASYNC_SEARCH_RESPONSE_PARSER.declareLong(constructorArg(), new ParseField("start_time_in_millis"));
+        ASYNC_SEARCH_RESPONSE_PARSER.declareLong(constructorArg(), new ParseField("expiration_time_in_millis"));
+        ASYNC_SEARCH_RESPONSE_PARSER.declareString(optionalConstructorArg(), new ParseField("id"));
+        ASYNC_SEARCH_RESPONSE_PARSER.declareObject(optionalConstructorArg(), (p, c) -> {
+            // we should be before the opening START_OBJECT of the response
+            ensureExpectedToken(XContentParser.Token.START_OBJECT, p.currentToken(), p);
+            p.nextToken();
+            return SearchResponseUtils.parseInnerSearchResponse(p);
+        }, new ParseField("response"));
+        ASYNC_SEARCH_RESPONSE_PARSER.declareObject(
+            optionalConstructorArg(),
+            (p, c) -> ElasticsearchException.fromXContent(p),
+            new ParseField("error")
+        );
+    }
+
+    @ClassRule
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .distribution(DistributionType.DEFAULT)
+        .nodes(2)
+        .setting("xpack.license.self_generated.type", "trial")
+        .setting("xpack.security.enabled", "true")
+        .rolesFile(Resource.fromClasspath("roles.yml"))
+        .user("test_kibana_user", "x-pack-test-password", "kibana_system", false)
+        .user("test-admin", "x-pack-test-password", "test-admin", false)
+        .user("user1", "x-pack-test-password", "user1", false)
+        .user("user2", "x-pack-test-password", "user2", false)
+        .user("user-dls", "x-pack-test-password", "user-dls", false)
+        .user("user-cancel", "x-pack-test-password", "user-cancel", false)
+        .build();
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
+
     /**
      * All tests run as a superuser but use <code>es-security-runas-user</code> to become a less privileged user.
      */
@@ -157,15 +223,20 @@ public class AsyncSearchSecurityIT extends ESRestTestCase {
     private SearchHit[] getSearchHits(String asyncId, String user) throws IOException {
         final Response resp = getAsyncSearch(asyncId, user);
         assertOK(resp);
-        AsyncSearchResponse searchResponse = AsyncSearchResponse.fromXContent(
+        SearchResponse searchResponse = ASYNC_SEARCH_RESPONSE_PARSER.apply(
             XContentHelper.createParser(
                 NamedXContentRegistry.EMPTY,
                 LoggingDeprecationHandler.INSTANCE,
                 new BytesArray(EntityUtils.toByteArray(resp.getEntity())),
                 XContentType.JSON
-            )
-        );
-        return searchResponse.getSearchResponse().getHits().getHits();
+            ),
+            null
+        ).getSearchResponse();
+        try {
+            return searchResponse.getHits().asUnpooled().getHits();
+        } finally {
+            searchResponse.decRef();
+        }
     }
 
     public void testAuthorizationOfPointInTime() throws Exception {
@@ -204,7 +275,7 @@ public class AsyncSearchSecurityIT extends ESRestTestCase {
         try {
             final Request request = new Request("POST", "/_async_search");
             setRunAsHeader(request, authorizedUser);
-            request.addParameter("wait_for_completion_timeout", "true");
+            request.addParameter("wait_for_completion_timeout", "1s");
             request.addParameter("keep_on_completion", "true");
             if (randomBoolean()) {
                 request.addParameter("index", "index-" + authorizedUser);

@@ -43,29 +43,25 @@ public final class GeoShapeBoundsAggregator extends MetricsAggregator {
         Map<String, Object> metadata
     ) throws IOException {
         super(name, context, parent, metadata);
-        this.valuesSource = valuesSourceConfig.hasValues() ? (GeoShapeValuesSource) valuesSourceConfig.getValuesSource() : null;
+        assert valuesSourceConfig.hasValues();
+        this.valuesSource = (GeoShapeValuesSource) valuesSourceConfig.getValuesSource();
         this.wrapLongitude = wrapLongitude;
-        if (valuesSource != null) {
-            tops = bigArrays().newDoubleArray(1, false);
-            tops.fill(0, tops.size(), Double.NEGATIVE_INFINITY);
-            bottoms = bigArrays().newDoubleArray(1, false);
-            bottoms.fill(0, bottoms.size(), Double.POSITIVE_INFINITY);
-            posLefts = bigArrays().newDoubleArray(1, false);
-            posLefts.fill(0, posLefts.size(), Double.POSITIVE_INFINITY);
-            posRights = bigArrays().newDoubleArray(1, false);
-            posRights.fill(0, posRights.size(), Double.NEGATIVE_INFINITY);
-            negLefts = bigArrays().newDoubleArray(1, false);
-            negLefts.fill(0, negLefts.size(), Double.POSITIVE_INFINITY);
-            negRights = bigArrays().newDoubleArray(1, false);
-            negRights.fill(0, negRights.size(), Double.NEGATIVE_INFINITY);
-        }
+        tops = bigArrays().newDoubleArray(1, false);
+        tops.fill(0, tops.size(), Double.NEGATIVE_INFINITY);
+        bottoms = bigArrays().newDoubleArray(1, false);
+        bottoms.fill(0, bottoms.size(), Double.POSITIVE_INFINITY);
+        posLefts = bigArrays().newDoubleArray(1, false);
+        posLefts.fill(0, posLefts.size(), Double.POSITIVE_INFINITY);
+        posRights = bigArrays().newDoubleArray(1, false);
+        posRights.fill(0, posRights.size(), Double.NEGATIVE_INFINITY);
+        negLefts = bigArrays().newDoubleArray(1, false);
+        negLefts.fill(0, negLefts.size(), Double.POSITIVE_INFINITY);
+        negRights = bigArrays().newDoubleArray(1, false);
+        negRights.fill(0, negRights.size(), Double.NEGATIVE_INFINITY);
     }
 
     @Override
     public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) {
-        if (valuesSource == null) {
-            return LeafBucketCollector.NO_OP_COLLECTOR;
-        }
         final GeoShapeValues values = valuesSource.shapeValues(aggCtx.getLeafReaderContext());
         return new LeafBucketCollectorBase(sub, values) {
             @Override
@@ -105,9 +101,6 @@ public final class GeoShapeBoundsAggregator extends MetricsAggregator {
 
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) {
-        if (valuesSource == null) {
-            return buildEmptyAggregation();
-        }
         double top = tops.get(owningBucketOrdinal);
         double bottom = bottoms.get(owningBucketOrdinal);
         double posLeft = posLefts.get(owningBucketOrdinal);
@@ -119,17 +112,7 @@ public final class GeoShapeBoundsAggregator extends MetricsAggregator {
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalGeoBounds(
-            name,
-            Double.NEGATIVE_INFINITY,
-            Double.POSITIVE_INFINITY,
-            Double.POSITIVE_INFINITY,
-            Double.NEGATIVE_INFINITY,
-            Double.POSITIVE_INFINITY,
-            Double.NEGATIVE_INFINITY,
-            wrapLongitude,
-            metadata()
-        );
+        return InternalGeoBounds.empty(name, wrapLongitude, metadata());
     }
 
     @Override

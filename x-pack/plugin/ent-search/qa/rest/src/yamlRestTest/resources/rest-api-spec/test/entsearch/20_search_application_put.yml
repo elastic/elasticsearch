@@ -57,6 +57,42 @@ teardown:
         name: test-re-creating-search-application
         ignore: 404
 
+  - do:
+      indices.delete:
+        index: [ "test-index1", "test-index2", "test-index3", "test-index4" ]
+        ignore: 404
+
+---
+"Create search application fails for unprivileged user":
+  - skip:
+      features: headers
+
+  - do:
+      catch: unauthorized
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVucHJpdmlsZWdlZDplbnRzZWFyY2gtdW5wcml2aWxlZ2VkLXVzZXI=" }  # unprivileged
+      search_application.put:
+        name: test-search-application
+        body:
+          indices: [ "test-index1", "test-index2" ]
+          template:
+            script:
+              source:
+                query:
+                  query_string:
+                    query: "{{query_string}}"
+            dictionary:
+              additionalProperties: false
+              required: [ "query_string" ]
+              properties:
+                query_string:
+                  type: string
+
+  - do:
+      indices.exists_alias:
+        name: test-search-application
+
+  - is_false: ''
+
 ---
 "Create Search Application":
   - do:
@@ -70,37 +106,43 @@ teardown:
                 query:
                   query_string:
                     query: "{{query_string}}"
+            dictionary:
+              additionalProperties: false
+              required: [ "query_string" ]
+              properties:
+                query_string:
+                  type: string
 
   - match: { result: "created" }
 
   - do:
-      indices.exists_alias:
-        name: test-search-application
+      indices.get_alias:
+        index: test-search-application
 
-  - is_true: ''
+  - match: { test-index1.aliases.test-search-application: {} }
+  - match: { test-index2.aliases.test-search-application: {} }
 
-  - match: { "foo" }
   - do:
       search_application.get:
         name: test-search-application
   - match: { indices: [ "test-index1", "test-index2" ] }
-  - match: {
-      template: {
-        script: {
-          source: {
-            query: {
-              query_string: {
+  - match:
+      template:
+        script:
+          source:
+            query:
+              query_string:
                 query: "{{query_string}}"
-              }
-            }
-          },
-          lang: "mustache",
-          options: {
+          lang: "mustache"
+          options:
             content_type: "application/json;charset=utf-8"
-          }
-        }
-      }
-    }
+        dictionary:
+          additionalProperties: false
+          required: [ "query_string" ]
+          properties:
+            query_string:
+              type: string
+
 ---
 "Create Search Application with string encoded template script":
   - do:
@@ -109,32 +151,88 @@ teardown:
         body:
           indices: [ "test-index1", "test-index2" ]
           template:
-            script: {
-              source: "{ \"query\": { \"query_string\":{ \"query\": \"{{query_string}}\", \"default_field\": \"_all\" } } }",
-              params: {
+            script:
+              source: "{ \"query\": { \"query_string\":{ \"query\": \"{{query_string}}\", \"default_field\": \"_all\" } } }"
+              params:
                 query_string: "elastic"
-              },
               lang: "mustache"
-            }
+            dictionary:
+              properties:
+                another_query_string:
+                  type: "string"
+  - do:
+      indices.get_alias:
+        index: another-test-search-application
+
+  - match: { test-index1.aliases.another-test-search-application: {} }
+  - match: { test-index2.aliases.another-test-search-application: {} }
 
   - do:
       search_application.get:
         name: another-test-search-application
-  - match: {
-    template: {
-      script: {
-        source: "{ \"query\": { \"query_string\":{ \"query\": \"{{query_string}}\", \"default_field\": \"_all\" } } }",
-        params: {
-          query_string: "elastic"
-        },
-        lang: "mustache"
-      }
-    }
-  }
-  - match: { indices: [ "test-index1", "test-index2" ] }
+
+  - match:
+      template:
+        script:
+          source: "{ \"query\": { \"query_string\":{ \"query\": \"{{query_string}}\", \"default_field\": \"_all\" } } }"
+          params:
+            query_string: "elastic"
+          lang: "mustache"
+        dictionary:
+          properties:
+            another_query_string:
+              type: "string"
+
 ---
-"Update Search Application with null template, results in default template being applied":
+"Update Search Application with null template":
+  - skip:
+      features: warnings
+
   - do:
+        warnings:
+          - "Using default search application template which is subject to change. We recommend storing a template to avoid breaking changes."
+        search_application.put:
+          name: test-updated-search-application
+          body:
+            indices: [ "test-index1", "test-index2" ]
+
+  - do:
+      warnings:
+        - "Using default search application template which is subject to change. We recommend storing a template to avoid breaking changes."
+      search_application.put:
+        name: test-updated-search-application
+        body:
+          indices: [ "test-index3", "test-index4" ]
+          template: null
+
+  - match: { result: "updated" }
+
+  - do:
+      indices.get_alias:
+        index: test-updated-search-application
+
+  - match: { test-index3.aliases.test-updated-search-application: { } }
+  - match: { test-index4.aliases.test-updated-search-application: { } }
+
+  - do:
+      warnings:
+        - "Using default search application template which is subject to change. We recommend storing a template to avoid breaking changes."
+      search_application.get:
+        name: test-updated-search-application
+
+  - match:
+      template:
+        script:
+          source: "{\n  \"query\": {\n    \"query_string\": {\n        \"query\": \"{{query_string}}\",\n        \"default_field\": \"{{default_field}}\"\n        }\n    }\n}\n"
+          lang: "mustache"
+          params:
+            query_string: "*"
+            default_field: "*"
+
+---
+"Update Search Application - Dictionary is not a valid JSON Schema":
+  - do:
+      catch: bad_request
       search_application.put:
         name: test-updated-search-application
         body:
@@ -145,31 +243,10 @@ teardown:
                 query:
                   query_string:
                     query: "{{query_string}}"
-
-  - do:
-      search_application.put:
-        name: test-updated-search-application
-        body:
-          indices: [ "test-index3", "test-index4" ]
-          template: null
-  - match: { result: "updated" }
-
-  - do:
-     search_application.get:
-       name: test-updated-search-application
-  - match: {
-    template: {
-      script: {
-        source: "{\n  \"query\": {\n    \"query_string\": {\n        \"query\": \"{{query_string}}\",\n        \"default_field\": \"{{default_field}}\"\n        }\n    }\n}\n",
-        params: {
-          query_string: "*",
-          default_field: "*"
-        },
-        lang: "mustache"
-      }
-    }
-  }
-  - match: { indices: [ "test-index3", "test-index4" ] }
+            dictionary:
+              properties:
+                query_string:
+                  type: notValidType
 
 ---
 "Create Search Application - Index does not exist":
@@ -188,6 +265,12 @@ teardown:
         create: true
         body:
           indices: [ "test-index1" ]
+          template:
+            script:
+              source:
+                query:
+                  query_string:
+                    query: "{{query_string}}"
 
   - match: { result: "created" }
 

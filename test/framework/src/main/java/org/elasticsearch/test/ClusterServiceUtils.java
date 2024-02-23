@@ -10,11 +10,13 @@ package org.elasticsearch.test;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.util.Throwables;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.ClusterStatePublicationEvent;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
@@ -22,20 +24,22 @@ import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.ClusterStatePublisher;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterApplier;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
+import org.elasticsearch.cluster.version.CompatibilityVersionsUtils;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.tracing.Tracer;
 
 import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
@@ -111,7 +115,7 @@ public class ClusterServiceUtils {
     }
 
     public static ClusterService createClusterService(ThreadPool threadPool, ClusterSettings clusterSettings) {
-        DiscoveryNode discoveryNode = TestDiscoveryNode.create("node", "node");
+        DiscoveryNode discoveryNode = DiscoveryNodeUtils.create("node", "node");
         return createClusterService(threadPool, discoveryNode, clusterSettings);
     }
 
@@ -126,7 +130,7 @@ public class ClusterServiceUtils {
         clusterService.setNodeConnectionsService(createNoOpNodeConnectionsService());
         ClusterState initialClusterState = ClusterState.builder(new ClusterName(ClusterServiceUtils.class.getSimpleName()))
             .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).masterNodeId(localNode.getId()))
-            .putTransportVersion(localNode.getId(), TransportVersion.CURRENT)
+            .putCompatibilityVersions(localNode.getId(), CompatibilityVersionsUtils.staticCurrent())
             .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK)
             .build();
         clusterService.getClusterApplierService().setInitialState(initialClusterState);
@@ -194,15 +198,11 @@ public class ClusterServiceUtils {
 
     public static void awaitClusterState(Logger logger, Predicate<ClusterState> statePredicate, ClusterService clusterService)
         throws Exception {
-        final ClusterStateObserver observer = new ClusterStateObserver(
+        final PlainActionFuture<Void> future = new PlainActionFuture<>();
+        ClusterStateObserver.waitForState(
             clusterService,
-            null,
-            logger,
-            clusterService.getClusterApplierService().threadPool().getThreadContext()
-        );
-        if (statePredicate.test(observer.setAndGetObservedState()) == false) {
-            final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
-            observer.waitForNextChange(new ClusterStateObserver.Listener() {
+            clusterService.getClusterApplierService().threadPool().getThreadContext(),
+            new ClusterStateObserver.Listener() {
                 @Override
                 public void onNewClusterState(ClusterState state) {
                     future.onResponse(null);
@@ -217,9 +217,12 @@ public class ClusterServiceUtils {
                 public void onTimeout(TimeValue timeout) {
                     assert false : "onTimeout called with no timeout set";
                 }
-            }, statePredicate);
-            future.get(30L, TimeUnit.SECONDS);
-        }
+            },
+            statePredicate,
+            null,
+            logger
+        );
+        future.get(30L, TimeUnit.SECONDS);
     }
 
     public static void awaitNoPendingTasks(ClusterService clusterService) {
@@ -246,5 +249,34 @@ public class ClusterServiceUtils {
             10,
             TimeUnit.SECONDS
         );
+    }
+
+    public static SubscribableListener<Void> addTemporaryStateListener(ClusterService clusterService, Predicate<ClusterState> predicate) {
+        final var listener = new SubscribableListener<Void>();
+        final ClusterStateListener clusterStateListener = new ClusterStateListener() {
+            @Override
+            public void clusterChanged(ClusterChangedEvent event) {
+                try {
+                    if (predicate.test(event.state())) {
+                        listener.onResponse(null);
+                    }
+                } catch (Exception e) {
+                    listener.onFailure(e);
+                }
+            }
+
+            @Override
+            public String toString() {
+                return predicate.toString();
+            }
+        };
+        clusterService.addListener(clusterStateListener);
+        listener.addListener(ActionListener.running(() -> clusterService.removeListener(clusterStateListener)));
+        if (predicate.test(clusterService.state())) {
+            listener.onResponse(null);
+        } else {
+            listener.addTimeout(TimeValue.timeValueSeconds(10), clusterService.threadPool(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        }
+        return listener;
     }
 }

@@ -8,11 +8,13 @@
 package org.elasticsearch.action.search;
 
 import org.apache.lucene.search.ScoreDoc;
-import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.apache.lucene.search.join.ScoreMode;
+import org.elasticsearch.index.query.NestedQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.builder.SubSearchSourceBuilder;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.dfs.DfsKnnResults;
 import org.elasticsearch.search.dfs.DfsSearchResult;
@@ -22,7 +24,6 @@ import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.vectors.KnnScoreDocQueryBuilder;
 import org.elasticsearch.transport.Transport;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -36,11 +37,11 @@ import java.util.function.Function;
  * @see CountedCollector#onFailure(int, SearchShardTarget, Exception)
  */
 final class DfsQueryPhase extends SearchPhase {
-    private final QueryPhaseResultConsumer queryResult;
+    private final SearchPhaseResults<SearchPhaseResult> queryResult;
     private final List<DfsSearchResult> searchResults;
     private final AggregatedDfs dfs;
     private final List<DfsKnnResults> knnResults;
-    private final Function<ArraySearchPhaseResults<SearchPhaseResult>, SearchPhase> nextPhaseFactory;
+    private final Function<SearchPhaseResults<SearchPhaseResult>, SearchPhase> nextPhaseFactory;
     private final SearchPhaseContext context;
     private final SearchTransportService searchTransportService;
     private final SearchProgressListener progressListener;
@@ -49,8 +50,8 @@ final class DfsQueryPhase extends SearchPhase {
         List<DfsSearchResult> searchResults,
         AggregatedDfs dfs,
         List<DfsKnnResults> knnResults,
-        QueryPhaseResultConsumer queryResult,
-        Function<ArraySearchPhaseResults<SearchPhaseResult>, SearchPhase> nextPhaseFactory,
+        SearchPhaseResults<SearchPhaseResult> queryResult,
+        Function<SearchPhaseResults<SearchPhaseResult>, SearchPhase> nextPhaseFactory,
         SearchPhaseContext context
     ) {
         super("dfs_query");
@@ -69,7 +70,7 @@ final class DfsQueryPhase extends SearchPhase {
     }
 
     @Override
-    public void run() throws IOException {
+    public void run() {
         // TODO we can potentially also consume the actual per shard results from the initial phase here in the aggregateDfs
         // to free up memory early
         final CountedCollector<SearchPhaseResult> counter = new CountedCollector<>(
@@ -94,7 +95,7 @@ final class DfsQueryPhase extends SearchPhase {
                 connection,
                 querySearchRequest,
                 context.getTask(),
-                new SearchActionListener<QuerySearchResult>(shardTarget, shardIndex) {
+                new SearchActionListener<>(shardTarget, shardIndex) {
 
                     @Override
                     protected void innerOnResponse(QuerySearchResult response) {
@@ -138,74 +139,32 @@ final class DfsQueryPhase extends SearchPhase {
             return request;
         }
 
-        if (source.rankBuilder() == null) {
-            // this path will use linear combination if there are
-            // multiple knn queries to combine all knn queries into
-            // a single query per shard
+        List<SubSearchSourceBuilder> subSearchSourceBuilders = new ArrayList<>(source.subSearches());
 
+        int i = 0;
+        for (DfsKnnResults dfsKnnResults : knnResults) {
             List<ScoreDoc> scoreDocs = new ArrayList<>();
-            for (DfsKnnResults dfsKnnResults : knnResults) {
-                for (ScoreDoc scoreDoc : dfsKnnResults.scoreDocs()) {
-                    if (scoreDoc.shardIndex == request.shardRequestIndex()) {
-                        scoreDocs.add(scoreDoc);
-                    }
+            for (ScoreDoc scoreDoc : dfsKnnResults.scoreDocs()) {
+                if (scoreDoc.shardIndex == request.shardRequestIndex()) {
+                    scoreDocs.add(scoreDoc);
                 }
             }
             scoreDocs.sort(Comparator.comparingInt(scoreDoc -> scoreDoc.doc));
-            // It is possible that the different results refer to the same doc.
-            for (int i = 0; i < scoreDocs.size() - 1; i++) {
-                ScoreDoc scoreDoc = scoreDocs.get(i);
-                int j = i + 1;
-                for (; j < scoreDocs.size(); j++) {
-                    ScoreDoc otherScoreDoc = scoreDocs.get(j);
-                    if (otherScoreDoc.doc != scoreDoc.doc) {
-                        break;
-                    }
-                    scoreDoc.score += otherScoreDoc.score;
-                }
-                if (j > i + 1) {
-                    scoreDocs.subList(i + 1, j).clear();
-                }
+            String nestedPath = dfsKnnResults.getNestedPath();
+            QueryBuilder query = new KnnScoreDocQueryBuilder(
+                scoreDocs.toArray(new ScoreDoc[0]),
+                source.knnSearch().get(i).getField(),
+                source.knnSearch().get(i).getQueryVector()
+            ).boost(source.knnSearch().get(i).boost());
+            if (nestedPath != null) {
+                query = new NestedQueryBuilder(nestedPath, query, ScoreMode.Max).innerHit(source.knnSearch().get(i).innerHit());
             }
-
-            KnnScoreDocQueryBuilder knnQuery = new KnnScoreDocQueryBuilder(scoreDocs.toArray(new ScoreDoc[0]));
-            SearchSourceBuilder newSource = source.shallowCopy().knnSearch(List.of());
-            if (source.query() == null) {
-                newSource.query(knnQuery);
-            } else {
-                newSource.query(new BoolQueryBuilder().should(knnQuery).should(source.query()));
-            }
-            request.source(newSource);
-        } else {
-            // this path will keep knn queries separate for ranking per shard
-            // if there are multiple knn queries
-
-            List<QueryBuilder> rankQueryBuilders = new ArrayList<>();
-            if (source.query() != null) {
-                rankQueryBuilders.add(source.query());
-            }
-
-            for (DfsKnnResults dfsKnnResults : knnResults) {
-                List<ScoreDoc> scoreDocs = new ArrayList<>();
-                for (ScoreDoc scoreDoc : dfsKnnResults.scoreDocs()) {
-                    if (scoreDoc.shardIndex == request.shardRequestIndex()) {
-                        scoreDocs.add(scoreDoc);
-                    }
-                }
-                scoreDocs.sort(Comparator.comparingInt(scoreDoc -> scoreDoc.doc));
-                KnnScoreDocQueryBuilder knnQuery = new KnnScoreDocQueryBuilder(scoreDocs.toArray(new ScoreDoc[0]));
-                rankQueryBuilders.add(knnQuery);
-            }
-
-            BoolQueryBuilder searchQuery = new BoolQueryBuilder();
-            for (QueryBuilder queryBuilder : rankQueryBuilders) {
-                searchQuery.should(queryBuilder);
-            }
-
-            SearchSourceBuilder newSource = source.shallowCopy().query(searchQuery).knnSearch(List.of());
-            request.source(newSource);
-            request.rankQueryBuilders(rankQueryBuilders);
+            subSearchSourceBuilders.add(new SubSearchSourceBuilder(query));
+            i++;
         }
+
+        source = source.shallowCopy().subSearches(subSearchSourceBuilders).knnSearch(List.of());
+        request.source(source);
 
         return request;
     }

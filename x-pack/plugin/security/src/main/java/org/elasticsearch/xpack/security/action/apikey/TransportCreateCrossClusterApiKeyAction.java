@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.SecurityContext;
@@ -39,7 +40,13 @@ public final class TransportCreateCrossClusterApiKeyAction extends HandledTransp
         ApiKeyService apiKeyService,
         SecurityContext context
     ) {
-        super(CreateCrossClusterApiKeyAction.NAME, transportService, actionFilters, CreateCrossClusterApiKeyRequest::new);
+        super(
+            CreateCrossClusterApiKeyAction.NAME,
+            transportService,
+            actionFilters,
+            CreateCrossClusterApiKeyRequest::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         this.apiKeyService = apiKeyService;
         this.securityContext = context;
     }
@@ -49,6 +56,12 @@ public final class TransportCreateCrossClusterApiKeyAction extends HandledTransp
         final Authentication authentication = securityContext.getAuthentication();
         if (authentication == null) {
             listener.onFailure(new IllegalStateException("authentication is required"));
+        } else if (authentication.isApiKey()) {
+            listener.onFailure(
+                new IllegalArgumentException(
+                    "authentication via API key not supported: An API key cannot be used to create a cross-cluster API key"
+                )
+            );
         } else {
             apiKeyService.createApiKey(authentication, request, Set.of(), listener);
         }

@@ -193,6 +193,7 @@ public abstract class TermsAggregator extends DeferableBucketAggregator {
     protected final Set<Aggregator> aggsUsedForSorting;
     protected final SubAggCollectionMode collectMode;
 
+    @SuppressWarnings("this-escape")
     public TermsAggregator(
         String name,
         AggregatorFactories factories,

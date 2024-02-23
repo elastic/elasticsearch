@@ -46,7 +46,7 @@ public class EvaluateDataFrameAction extends ActionType<EvaluateDataFrameAction.
     public static final String NAME = "cluster:monitor/xpack/ml/data_frame/evaluate";
 
     private EvaluateDataFrameAction() {
-        super(NAME, EvaluateDataFrameAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends ActionRequest implements ToXContentObject {
@@ -194,7 +194,7 @@ public class EvaluateDataFrameAction extends ActionType<EvaluateDataFrameAction.
         public Response(StreamInput in) throws IOException {
             super(in);
             this.evaluationName = in.readString();
-            this.metrics = in.readNamedWriteableList(EvaluationMetricResult.class);
+            this.metrics = in.readNamedWriteableCollectionAsList(EvaluationMetricResult.class);
         }
 
         public Response(String evaluationName, List<EvaluationMetricResult> metrics) {
@@ -213,7 +213,7 @@ public class EvaluateDataFrameAction extends ActionType<EvaluateDataFrameAction.
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(evaluationName);
-            out.writeNamedWriteableList(metrics);
+            out.writeNamedWriteableCollection(metrics);
         }
 
         @Override

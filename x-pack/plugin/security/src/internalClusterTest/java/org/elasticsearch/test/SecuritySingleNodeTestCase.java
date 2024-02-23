@@ -112,13 +112,14 @@ public abstract class SecuritySingleNodeTestCase extends ESSingleNodeTestCase {
     }
 
     private void doAssertXPackIsInstalled() {
-        NodesInfoResponse nodeInfos = client().admin().cluster().prepareNodesInfo().clear().setPlugins(true).get();
+        NodesInfoResponse nodeInfos = clusterAdmin().prepareNodesInfo().clear().setPlugins(true).get();
         for (NodeInfo nodeInfo : nodeInfos.getNodes()) {
             // TODO: disable this assertion for now, due to random runs with mock plugins. perhaps run without mock plugins?
             // assertThat(nodeInfo.getInfo(PluginsAndModules.class).getInfos(), hasSize(2));
             Collection<String> pluginNames = nodeInfo.getInfo(PluginsAndModules.class)
                 .getPluginInfos()
                 .stream()
+                .filter(p -> p.descriptor().isStable() == false)
                 .map(p -> p.descriptor().getClassname())
                 .collect(Collectors.toList());
             assertThat(
@@ -277,6 +278,7 @@ public abstract class SecuritySingleNodeTestCase extends ESSingleNodeTestCase {
      * Creates a new client if the method is invoked for the first time in the context of the current test scope.
      * The returned client gets automatically closed when needed, it shouldn't be closed as part of tests otherwise
      * it cannot be reused by other tests anymore.
+     * Requires that {@link org.elasticsearch.test.ESSingleNodeTestCase#addMockHttpTransport()} is overriden and set to false.
      */
     protected RestClient getRestClient() {
         return getRestClient(client());

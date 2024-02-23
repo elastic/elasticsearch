@@ -3,7 +3,10 @@ apply plugin: 'elasticsearch.publish'
 apply plugin: 'com.github.johnrengelman.shadow'
 
 description = 'JDBC driver for Elasticsearch'
-archivesBaseName = "x-pack-sql-jdbc"
+
+base {
+  archivesName = "x-pack-sql-jdbc"
+}
 
 tasks.named('forbiddenApisMain').configure {
   // does not depend on core, so only jdk and http signatures should be checked
@@ -14,6 +17,7 @@ dependencies {
   api project(':x-pack:plugin:sql:sql-client')
   testImplementation project(":test:framework")
   testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation project(':modules:rest-root')
 }
 
 tasks.named("compileJava").configure {

@@ -8,18 +8,19 @@
 
 package org.elasticsearch.action.admin.cluster.stats;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
@@ -28,7 +29,6 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -54,7 +54,7 @@ public class VersionStatsTests extends AbstractWireSerializingTestCase<VersionSt
         return new VersionStats(instance.versionStats().stream().map(svs -> {
             return switch (randomIntBetween(1, 4)) {
                 case 1 -> new VersionStats.SingleVersionStats(
-                    Version.V_7_3_0,
+                    IndexVersions.V_7_3_0,
                     svs.indexCount,
                     svs.primaryShardCount,
                     svs.totalPrimaryByteCount
@@ -87,14 +87,14 @@ public class VersionStatsTests extends AbstractWireSerializingTestCase<VersionSt
         VersionStats stats = VersionStats.of(metadata, Collections.emptyList());
         assertThat(stats.versionStats(), equalTo(Collections.emptySet()));
 
-        metadata = new Metadata.Builder().put(indexMeta("foo", Version.CURRENT, 4), true)
-            .put(indexMeta("bar", Version.CURRENT, 3), true)
-            .put(indexMeta("baz", Version.V_7_0_0, 2), true)
+        metadata = new Metadata.Builder().put(indexMeta("foo", IndexVersion.current(), 4), true)
+            .put(indexMeta("bar", IndexVersion.current(), 3), true)
+            .put(indexMeta("baz", IndexVersions.V_7_0_0, 2), true)
             .build();
         stats = VersionStats.of(metadata, Collections.emptyList());
         assertThat(stats.versionStats().size(), equalTo(2));
-        VersionStats.SingleVersionStats s1 = new VersionStats.SingleVersionStats(Version.CURRENT, 2, 7, 0);
-        VersionStats.SingleVersionStats s2 = new VersionStats.SingleVersionStats(Version.V_7_0_0, 1, 2, 0);
+        VersionStats.SingleVersionStats s1 = new VersionStats.SingleVersionStats(IndexVersion.current(), 2, 7, 0);
+        VersionStats.SingleVersionStats s2 = new VersionStats.SingleVersionStats(IndexVersions.V_7_0_0, 1, 2, 0);
         assertThat(stats.versionStats(), containsInAnyOrder(s1, s2));
 
         ShardId shardId = new ShardId("bar", "uuid", 0);
@@ -117,10 +117,12 @@ public class VersionStatsTests extends AbstractWireSerializingTestCase<VersionSt
             CommonStats.getShardLevelStats(null, indexShard, new CommonStatsFlags(CommonStatsFlags.Flag.Store)),
             null,
             null,
-            null
+            null,
+            false,
+            0
         );
         ClusterStatsNodeResponse nodeResponse = new ClusterStatsNodeResponse(
-            TestDiscoveryNode.create("id"),
+            DiscoveryNodeUtils.create("id"),
             ClusterHealthStatus.GREEN,
             null,
             null,
@@ -130,19 +132,19 @@ public class VersionStatsTests extends AbstractWireSerializingTestCase<VersionSt
 
         stats = VersionStats.of(metadata, Collections.singletonList(nodeResponse));
         assertThat(stats.versionStats().size(), equalTo(2));
-        s1 = new VersionStats.SingleVersionStats(Version.CURRENT, 2, 7, 100);
-        s2 = new VersionStats.SingleVersionStats(Version.V_7_0_0, 1, 2, 0);
+        s1 = new VersionStats.SingleVersionStats(IndexVersion.current(), 2, 7, 100);
+        s2 = new VersionStats.SingleVersionStats(IndexVersions.V_7_0_0, 1, 2, 0);
         assertThat(stats.versionStats(), containsInAnyOrder(s1, s2));
     }
 
-    private static IndexMetadata indexMeta(String name, Version version, int primaryShards) {
+    private static IndexMetadata indexMeta(String name, IndexVersion version, int primaryShards) {
         return new IndexMetadata.Builder(name).settings(indexSettings(version, primaryShards, randomIntBetween(0, 3))).build();
     }
 
     public static VersionStats randomInstance() {
-        List<Version> versions = Arrays.asList(Version.CURRENT, Version.V_7_0_0, Version.V_7_1_0, Version.V_7_2_0);
+        List<IndexVersion> versions = List.of(IndexVersion.current(), IndexVersions.V_7_0_0, IndexVersions.V_7_1_0, IndexVersions.V_7_2_0);
         List<VersionStats.SingleVersionStats> stats = new ArrayList<>();
-        for (Version v : versions) {
+        for (IndexVersion v : versions) {
             VersionStats.SingleVersionStats s = new VersionStats.SingleVersionStats(
                 v,
                 randomIntBetween(10, 20),

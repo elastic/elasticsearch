@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.MlTasks;
@@ -57,7 +58,7 @@ public class TransportKillProcessAction extends TransportTasksAction<
             KillProcessAction.Request::new,
             KillProcessAction.Response::new,
             KillProcessAction.Response::new,
-            MachineLearning.UTILITY_THREAD_POOL_NAME
+            transportService.getThreadPool().executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
         );
         this.auditor = auditor;
     }
@@ -78,7 +79,7 @@ public class TransportKillProcessAction extends TransportTasksAction<
 
     @Override
     protected void taskOperation(
-        Task actionTask,
+        CancellableTask actionTask,
         KillProcessAction.Request request,
         JobTask jobTask,
         ActionListener<KillProcessAction.Response> listener

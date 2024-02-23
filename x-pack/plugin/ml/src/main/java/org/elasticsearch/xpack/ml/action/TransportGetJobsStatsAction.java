@@ -21,6 +21,7 @@ import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -83,7 +84,7 @@ public class TransportGetJobsStatsAction extends TransportTasksAction<
             GetJobsStatsAction.Request::new,
             GetJobsStatsAction.Response::new,
             in -> new QueryPage<>(in, JobStats::new),
-            ThreadPool.Names.MANAGEMENT
+            threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.clusterService = clusterService;
         this.processManager = processManager;
@@ -94,7 +95,7 @@ public class TransportGetJobsStatsAction extends TransportTasksAction<
 
     @Override
     protected void doExecute(Task task, GetJobsStatsAction.Request request, ActionListener<GetJobsStatsAction.Response> finalListener) {
-        logger.debug("Get stats for job [{}]", request.getJobId());
+        logger.trace("Get stats for job [{}]", request.getJobId());
         TaskId parentTaskId = new TaskId(clusterService.localNode().getId(), task.getId());
 
         ClusterState state = clusterService.state();
@@ -107,14 +108,13 @@ public class TransportGetJobsStatsAction extends TransportTasksAction<
             tasks,
             true,
             parentTaskId,
-            ActionListener.wrap(expandedIds -> {
+            finalListener.delegateFailureAndWrap((delegate, expandedIds) -> {
                 request.setExpandedJobsIds(new ArrayList<>(expandedIds));
-                ActionListener<GetJobsStatsAction.Response> jobStatsListener = ActionListener.wrap(
-                    response -> gatherStatsForClosedJobs(request, response, parentTaskId, finalListener),
-                    finalListener::onFailure
+                ActionListener<GetJobsStatsAction.Response> jobStatsListener = delegate.delegateFailureAndWrap(
+                    (l, response) -> gatherStatsForClosedJobs(request, response, parentTaskId, l)
                 );
                 super.doExecute(task, request, jobStatsListener);
-            }, finalListener::onFailure)
+            })
         );
     }
 
@@ -139,7 +139,7 @@ public class TransportGetJobsStatsAction extends TransportTasksAction<
 
     @Override
     protected void taskOperation(
-        Task actionTask,
+        CancellableTask actionTask,
         GetJobsStatsAction.Request request,
         JobTask task,
         ActionListener<QueryPage<JobStats>> listener

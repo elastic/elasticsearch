@@ -8,8 +8,8 @@
 
 package org.elasticsearch.rest.action.admin.cluster;
 
-import org.elasticsearch.action.admin.cluster.allocation.DeleteDesiredBalanceAction;
 import org.elasticsearch.action.admin.cluster.allocation.DesiredBalanceRequest;
+import org.elasticsearch.action.admin.cluster.allocation.TransportDeleteDesiredBalanceAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -33,7 +33,7 @@ public class RestDeleteDesiredBalanceAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         return channel -> client.execute(
-            DeleteDesiredBalanceAction.INSTANCE,
+            TransportDeleteDesiredBalanceAction.TYPE,
             new DesiredBalanceRequest(),
             new RestToXContentListener<>(channel)
         );

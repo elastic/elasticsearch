@@ -15,15 +15,14 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.document.RestIndexAction.AutoIdHandler;
 import org.elasticsearch.rest.action.document.RestIndexAction.CreateHandler;
-import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
 import org.elasticsearch.xcontent.XContentType;
@@ -37,7 +36,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class RestIndexActionTests extends RestActionTestCase {
+public final class RestIndexActionTests extends RestActionTestCase {
 
     final List<String> contentTypeHeader = Collections.singletonList(randomCompatibleMediaType(RestApiVersion.V_7));
 
@@ -65,13 +64,6 @@ public class RestIndexActionTests extends RestActionTestCase {
         checkAutoIdOpType(Version.CURRENT, DocWriteRequest.OpType.CREATE);
     }
 
-    public void testAutoIdDefaultsToOptypeIndexForOlderVersions() {
-        checkAutoIdOpType(
-            VersionUtils.randomVersionBetween(random(), null, VersionUtils.getPreviousVersion(Version.V_7_5_0)),
-            DocWriteRequest.OpType.INDEX
-        );
-    }
-
     private void checkAutoIdOpType(Version minClusterVersion, DocWriteRequest.OpType expectedOpType) {
         SetOnce<Boolean> executeCalled = new SetOnce<>();
         verifyingClient.setExecuteVerifier((actionType, request) -> {
@@ -86,11 +78,7 @@ public class RestIndexActionTests extends RestActionTestCase {
             .build();
         clusterStateSupplier.set(
             ClusterState.builder(ClusterName.DEFAULT)
-                .nodes(
-                    DiscoveryNodes.builder()
-                        .add(TestDiscoveryNode.create("test", buildNewFakeTransportAddress(), minClusterVersion))
-                        .build()
-                )
+                .nodes(DiscoveryNodes.builder().add(DiscoveryNodeUtils.builder("test").version(minClusterVersion).build()).build())
                 .build()
         );
         dispatchRequest(autoIdRequest);

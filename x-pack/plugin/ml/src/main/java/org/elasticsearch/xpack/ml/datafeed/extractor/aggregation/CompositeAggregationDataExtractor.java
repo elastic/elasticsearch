@@ -12,16 +12,17 @@ import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfigUtils;
 import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
-import org.elasticsearch.xpack.core.ml.datafeed.extractor.DataExtractor;
-import org.elasticsearch.xpack.core.ml.datafeed.extractor.ExtractorUtils;
 import org.elasticsearch.xpack.core.ml.utils.Intervals;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
+import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
+import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorUtils;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -47,6 +48,9 @@ class CompositeAggregationDataExtractor implements DataExtractor {
 
     private static final Logger LOGGER = LogManager.getLogger(CompositeAggregationDataExtractor.class);
 
+    private static final String EARLIEST_TIME = "earliest_time";
+    private static final String LATEST_TIME = "latest_time";
+
     private volatile Map<String, Object> afterKey = null;
     private final CompositeAggregationBuilder compositeAggregationBuilder;
     private final Client client;
@@ -70,7 +74,7 @@ class CompositeAggregationDataExtractor implements DataExtractor {
         this.context = Objects.requireNonNull(dataExtractorContext);
         this.timingStatsReporter = Objects.requireNonNull(timingStatsReporter);
         this.requestBuilder = Objects.requireNonNull(requestBuilder);
-        this.interval = ExtractorUtils.getHistogramIntervalMillis(compositeAggregationBuilder);
+        this.interval = DatafeedConfigUtils.getHistogramIntervalMillis(compositeAggregationBuilder);
         this.hasNext = true;
     }
 
@@ -91,8 +95,13 @@ class CompositeAggregationDataExtractor implements DataExtractor {
     }
 
     @Override
+    public void destroy() {
+        cancel();
+    }
+
+    @Override
     public long getEndTime() {
-        return context.end;
+        return context.queryContext.end;
     }
 
     @Override
@@ -101,8 +110,8 @@ class CompositeAggregationDataExtractor implements DataExtractor {
             throw new NoSuchElementException();
         }
 
-        SearchInterval searchInterval = new SearchInterval(context.start, context.end);
-        Aggregations aggs = search();
+        SearchInterval searchInterval = new SearchInterval(context.queryContext.start, context.queryContext.end);
+        InternalAggregations aggs = search();
         if (aggs == null) {
             LOGGER.trace(() -> "[" + context.jobId + "] extraction finished");
             hasNext = false;
@@ -112,20 +121,32 @@ class CompositeAggregationDataExtractor implements DataExtractor {
         return new Result(searchInterval, Optional.of(processAggs(aggs)));
     }
 
-    private Aggregations search() {
+    private InternalAggregations search() {
         // Compare to the normal aggregation implementation, this search does not search for the previous bucket's data.
         // For composite aggs, since it is scrolling, it is not really possible to know the previous pages results in the current page.
         // Aggregations like derivative cannot work within composite aggs, for now.
         // Also, it doesn't make sense to have a derivative when grouping by time AND by some other criteria.
 
         LOGGER.trace(
-            () -> format("[%s] Executing composite aggregated search from [%s] to [%s]", context.jobId, context.start, context.end)
+            () -> format(
+                "[%s] Executing composite aggregated search from [%s] to [%s]",
+                context.jobId,
+                context.queryContext.start,
+                context.queryContext.end
+            )
         );
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().size(0)
-            .query(ExtractorUtils.wrapInTimeRangeQuery(context.query, context.timeField, context.start, context.end));
+            .query(
+                DataExtractorUtils.wrapInTimeRangeQuery(
+                    context.queryContext.query,
+                    context.queryContext.timeField,
+                    context.queryContext.start,
+                    context.queryContext.end
+                )
+            );
 
-        if (context.runtimeMappings.isEmpty() == false) {
-            searchSourceBuilder.runtimeMappings(context.runtimeMappings);
+        if (context.queryContext.runtimeMappings.isEmpty() == false) {
+            searchSourceBuilder.runtimeMappings(context.queryContext.runtimeMappings);
         }
         if (afterKey != null) {
             compositeAggregationBuilder.aggregateAfter(afterKey);
@@ -133,36 +154,48 @@ class CompositeAggregationDataExtractor implements DataExtractor {
         searchSourceBuilder.aggregation(compositeAggregationBuilder);
         ActionRequestBuilder<SearchRequest, SearchResponse> searchRequest = requestBuilder.build(searchSourceBuilder);
         SearchResponse searchResponse = executeSearchRequest(searchRequest);
-        LOGGER.trace(() -> "[" + context.jobId + "] Search composite response was obtained");
-        timingStatsReporter.reportSearchDuration(searchResponse.getTook());
-        Aggregations aggregations = searchResponse.getAggregations();
-        if (aggregations == null) {
-            return null;
+        try {
+            LOGGER.trace(() -> "[" + context.jobId + "] Search composite response was obtained");
+            timingStatsReporter.reportSearchDuration(searchResponse.getTook());
+            InternalAggregations aggregations = searchResponse.getAggregations();
+            if (aggregations == null) {
+                return null;
+            }
+            CompositeAggregation compositeAgg = aggregations.get(compositeAggregationBuilder.getName());
+            if (compositeAgg == null || compositeAgg.getBuckets().isEmpty()) {
+                return null;
+            }
+            return aggregations;
+        } finally {
+            searchResponse.decRef();
         }
-        CompositeAggregation compositeAgg = aggregations.get(compositeAggregationBuilder.getName());
-        if (compositeAgg == null || compositeAgg.getBuckets().isEmpty()) {
-            return null;
-        }
-        return aggregations;
     }
 
-    protected SearchResponse executeSearchRequest(ActionRequestBuilder<SearchRequest, SearchResponse> searchRequestBuilder) {
+    private SearchResponse executeSearchRequest(ActionRequestBuilder<SearchRequest, SearchResponse> searchRequestBuilder) {
         SearchResponse searchResponse = ClientHelper.executeWithHeaders(
-            context.headers,
+            context.queryContext.headers,
             ClientHelper.ML_ORIGIN,
             client,
             searchRequestBuilder::get
         );
-        checkForSkippedClusters(searchResponse);
+        boolean success = false;
+        try {
+            DataExtractorUtils.checkForSkippedClusters(searchResponse);
+            success = true;
+        } finally {
+            if (success == false) {
+                searchResponse.decRef();
+            }
+        }
         return searchResponse;
     }
 
-    private InputStream processAggs(Aggregations aggs) throws IOException {
+    private InputStream processAggs(InternalAggregations aggs) throws IOException {
         AggregationToJsonProcessor aggregationToJsonProcessor = new AggregationToJsonProcessor(
-            context.timeField,
+            context.queryContext.timeField,
             context.fields,
             context.includeDocCount,
-            context.start,
+            context.queryContext.start,
             context.compositeAggDateHistogramGroupSourceName
         );
         LOGGER.trace(
@@ -223,4 +256,19 @@ class CompositeAggregationDataExtractor implements DataExtractor {
         return new ByteArrayInputStream(outputStream.toByteArray());
     }
 
+    @Override
+    public DataSummary getSummary() {
+        ActionRequestBuilder<SearchRequest, SearchResponse> searchRequestBuilder = DataExtractorUtils.getSearchRequestBuilderForSummary(
+            client,
+            context.queryContext
+        );
+        SearchResponse searchResponse = executeSearchRequest(searchRequestBuilder);
+        try {
+            LOGGER.debug("[{}] Aggregating Data summary response was obtained", context.jobId);
+            timingStatsReporter.reportSearchDuration(searchResponse.getTook());
+            return DataExtractorUtils.getDataSummary(searchResponse);
+        } finally {
+            searchResponse.decRef();
+        }
+    }
 }

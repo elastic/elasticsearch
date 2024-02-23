@@ -39,6 +39,7 @@ public abstract class AbstractSerializationTestCase<T extends Writeable> extends
             .randomFieldsExcludeFilter(getRandomFieldsExcludeFilter())
             .assertEqualsConsumer(this::assertEqualInstances)
             .assertToXContentEquivalence(assertToXContentEquivalence())
+            .dispose(this::dispose)
             .test();
     }
 
@@ -61,41 +62,45 @@ public abstract class AbstractSerializationTestCase<T extends Writeable> extends
             () -> randomFrom(XContentType.values())
         );
         T testInstance = createXContextTestInstance(xContentType);
-        ToXContent.Params params = new ToXContent.DelegatingMapParams(
-            singletonMap(RestSearchAction.TYPED_KEYS_PARAM, "true"),
-            getToXContentParams()
-        );
-        boolean humanReadable = randomBoolean();
-        BytesRef firstTimeBytes = toXContent(asXContent(testInstance), xContentType, params, humanReadable).toBytesRef();
+        try {
+            ToXContent.Params params = new ToXContent.DelegatingMapParams(
+                singletonMap(RestSearchAction.TYPED_KEYS_PARAM, "true"),
+                getToXContentParams()
+            );
+            boolean humanReadable = randomBoolean();
+            BytesRef firstTimeBytes = toXContent(asXContent(testInstance), xContentType, params, humanReadable).toBytesRef();
 
-        /*
-         * 500 rounds seems to consistently reproduce the issue on Nik's
-         * laptop. Larger numbers are going to be slower but more likely
-         * to reproduce the issue.
-         */
-        int rounds = scaledRandomIntBetween(300, 5000);
-        concurrentTest(() -> {
-            try {
-                for (int r = 0; r < rounds; r++) {
-                    BytesRef thisRoundBytes = toXContent(asXContent(testInstance), xContentType, params, humanReadable).toBytesRef();
-                    if (firstTimeBytes.bytesEquals(thisRoundBytes)) {
-                        continue;
+            /*
+             * 500 rounds seems to consistently reproduce the issue on Nik's
+             * laptop. Larger numbers are going to be slower but more likely
+             * to reproduce the issue.
+             */
+            int rounds = scaledRandomIntBetween(300, 5000);
+            concurrentTest(() -> {
+                try {
+                    for (int r = 0; r < rounds; r++) {
+                        BytesRef thisRoundBytes = toXContent(asXContent(testInstance), xContentType, params, humanReadable).toBytesRef();
+                        if (firstTimeBytes.bytesEquals(thisRoundBytes)) {
+                            continue;
+                        }
+                        StringBuilder error = new StringBuilder("Failed to round trip over ");
+                        if (humanReadable) {
+                            error.append("human readable ");
+                        }
+                        error.append(xContentType);
+                        error.append("\nCanonical is:\n").append(Strings.toString(asXContent(testInstance), true, true));
+                        boolean showBytes = xContentType.xContent() == CborXContent.cborXContent;
+                        error.append("\nWanted : ").append(showBytes ? firstTimeBytes : firstTimeBytes.utf8ToString());
+                        error.append("\nBut got: ").append(showBytes ? thisRoundBytes : thisRoundBytes.utf8ToString());
+                        fail(error.toString());
                     }
-                    StringBuilder error = new StringBuilder("Failed to round trip over ");
-                    if (humanReadable) {
-                        error.append("human readable ");
-                    }
-                    error.append(xContentType);
-                    error.append("\nCanonical is:\n").append(Strings.toString(asXContent(testInstance), true, true));
-                    boolean showBytes = xContentType.xContent() == CborXContent.cborXContent;
-                    error.append("\nWanted : ").append(showBytes ? firstTimeBytes : firstTimeBytes.utf8ToString());
-                    error.append("\nBut got: ").append(showBytes ? thisRoundBytes : thisRoundBytes.utf8ToString());
-                    fail(error.toString());
+                } catch (IOException e) {
+                    throw new AssertionError(e);
                 }
-            } catch (IOException e) {
-                throw new AssertionError(e);
-            }
-        });
+            });
+        } finally {
+            dispose(testInstance);
+        }
     }
 
     protected abstract ToXContent asXContent(T instance);

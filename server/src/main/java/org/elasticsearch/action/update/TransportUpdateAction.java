@@ -11,13 +11,14 @@ package org.elasticsearch.action.update;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.TransportActions;
@@ -50,6 +51,7 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
 
 import static org.elasticsearch.ExceptionsHelper.unwrapCause;
 import static org.elasticsearch.action.bulk.TransportBulkAction.unwrappingSingleItemBulkResponse;
@@ -57,6 +59,8 @@ import static org.elasticsearch.action.bulk.TransportSingleItemBulkWriteAction.t
 
 public class TransportUpdateAction extends TransportInstanceSingleOperationAction<UpdateRequest, UpdateResponse> {
 
+    public static final String NAME = "indices:data/write/update";
+    public static final ActionType<UpdateResponse> TYPE = new ActionType<>(NAME);
     private final AutoCreateIndex autoCreateIndex;
     private final UpdateHelper updateHelper;
     private final IndicesService indicesService;
@@ -75,15 +79,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
         AutoCreateIndex autoCreateIndex,
         NodeClient client
     ) {
-        super(
-            UpdateAction.NAME,
-            threadPool,
-            clusterService,
-            transportService,
-            actionFilters,
-            indexNameExpressionResolver,
-            UpdateRequest::new
-        );
+        super(NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver, UpdateRequest::new);
         this.updateHelper = updateHelper;
         this.indicesService = indicesService;
         this.autoCreateIndex = autoCreateIndex;
@@ -193,7 +189,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 final BytesReference upsertSourceBytes = upsertRequest.source();
                 client.bulk(
                     toSingleItemBulkRequest(upsertRequest),
-                    unwrappingSingleItemBulkResponse(ActionListener.<IndexResponse>wrap(response -> {
+                    unwrappingSingleItemBulkResponse(ActionListener.<DocWriteResponse>wrap(response -> {
                         UpdateResponse update = new UpdateResponse(
                             response.getShardInfo(),
                             response.getShardId(),
@@ -235,7 +231,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 final BytesReference indexSourceBytes = indexRequest.source();
                 client.bulk(
                     toSingleItemBulkRequest(indexRequest),
-                    unwrappingSingleItemBulkResponse(ActionListener.<IndexResponse>wrap(response -> {
+                    unwrappingSingleItemBulkResponse(ActionListener.<DocWriteResponse>wrap(response -> {
                         UpdateResponse update = new UpdateResponse(
                             response.getShardInfo(),
                             response.getShardId(),
@@ -315,20 +311,27 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
         int retryCount
     ) {
         final Throwable cause = unwrapCause(failure);
-        if (cause instanceof VersionConflictEngineException) {
-            if (retryCount < request.retryOnConflict()) {
-                logger.trace(
-                    "Retry attempt [{}] of [{}] on version conflict on [{}][{}][{}]",
-                    retryCount + 1,
-                    request.retryOnConflict(),
-                    request.index(),
-                    request.getShardId(),
-                    request.id()
-                );
-                threadPool.executor(executor(request.getShardId()))
-                    .execute(ActionRunnable.wrap(listener, l -> shardOperation(request, l, retryCount + 1)));
+        if (cause instanceof VersionConflictEngineException versionConflictEngineException && retryCount < request.retryOnConflict()) {
+            logger.trace(
+                "Retry attempt [{}] of [{}] on version conflict on [{}][{}][{}]",
+                retryCount + 1,
+                request.retryOnConflict(),
+                request.index(),
+                request.getShardId(),
+                request.id()
+            );
+
+            final ExecutorService executor;
+            try {
+                executor = threadPool.executor(executor(request.getShardId()));
+            } catch (Exception e) {
+                // might fail if shard no longer exists locally, in which case we cannot retry
+                e.addSuppressed(versionConflictEngineException);
+                listener.onFailure(e);
                 return;
             }
+            executor.execute(ActionRunnable.wrap(listener, l -> shardOperation(request, l, retryCount + 1)));
+            return;
         }
         listener.onFailure(cause instanceof Exception ? (Exception) cause : new NotSerializableExceptionWrapper(cause));
     }

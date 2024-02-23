@@ -32,11 +32,6 @@ public class PutFilterActionRequestTests extends AbstractXContentSerializingTest
     }
 
     @Override
-    protected boolean supportsUnknownFields() {
-        return false;
-    }
-
-    @Override
     protected Request doParseInstance(XContentParser parser) {
         return PutFilterAction.Request.parseRequest(filterId, parser);
     }

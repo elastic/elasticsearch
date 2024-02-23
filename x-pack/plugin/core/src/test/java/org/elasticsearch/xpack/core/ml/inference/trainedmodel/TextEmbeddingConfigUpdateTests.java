@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xcontent.XContentParser;
@@ -19,7 +20,6 @@ import java.util.Map;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigTestScaffolding.cloneWithNewTruncation;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigTestScaffolding.createTokenizationUpdate;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.sameInstance;
 
 public class TextEmbeddingConfigUpdateTests extends AbstractNlpConfigUpdateTestCase<TextEmbeddingConfigUpdate> {
 
@@ -35,7 +35,7 @@ public class TextEmbeddingConfigUpdateTests extends AbstractNlpConfigUpdateTestC
     }
 
     public static TextEmbeddingConfigUpdate mutateForVersion(TextEmbeddingConfigUpdate instance, TransportVersion version) {
-        if (version.before(TransportVersion.V_8_1_0)) {
+        if (version.before(TransportVersions.V_8_1_0)) {
             return new TextEmbeddingConfigUpdate(instance.getResultsField(), null);
         }
         return instance;
@@ -60,31 +60,33 @@ public class TextEmbeddingConfigUpdateTests extends AbstractNlpConfigUpdateTestC
     public void testApply() {
         TextEmbeddingConfig originalConfig = TextEmbeddingConfigTests.createRandom();
 
-        assertThat(originalConfig, sameInstance(new TextEmbeddingConfigUpdate.Builder().build().apply(originalConfig)));
+        assertThat(originalConfig, equalTo(originalConfig.apply(new TextEmbeddingConfigUpdate.Builder().build())));
 
         assertThat(
-            new TextEmbeddingConfig(
+            TextEmbeddingConfig.create(
                 originalConfig.getVocabularyConfig(),
                 originalConfig.getTokenization(),
                 "ml-results",
                 originalConfig.getEmbeddingSize()
             ),
-            equalTo(new TextEmbeddingConfigUpdate.Builder().setResultsField("ml-results").build().apply(originalConfig))
+            equalTo(originalConfig.apply(new TextEmbeddingConfigUpdate.Builder().setResultsField("ml-results").build()))
         );
 
         Tokenization.Truncate truncate = randomFrom(Tokenization.Truncate.values());
         Tokenization tokenization = cloneWithNewTruncation(originalConfig.getTokenization(), truncate);
         assertThat(
-            new TextEmbeddingConfig(
+            TextEmbeddingConfig.create(
                 originalConfig.getVocabularyConfig(),
                 tokenization,
                 originalConfig.getResultsField(),
                 originalConfig.getEmbeddingSize()
             ),
             equalTo(
-                new TextEmbeddingConfigUpdate.Builder().setTokenizationUpdate(
-                    createTokenizationUpdate(originalConfig.getTokenization(), truncate, null)
-                ).build().apply(originalConfig)
+                originalConfig.apply(
+                    new TextEmbeddingConfigUpdate.Builder().setTokenizationUpdate(
+                        createTokenizationUpdate(originalConfig.getTokenization(), truncate, null)
+                    ).build()
+                )
             )
         );
     }

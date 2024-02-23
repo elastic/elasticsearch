@@ -43,9 +43,9 @@ PUT /my-data-stream/_create/bfspvnIBr7VVZlfp2lqX?refresh=wait_for
 
 [source,console]
 ----
-DELETE /_data_stream/*
+DELETE /_data_stream/my-data-stream*
 
-DELETE /_index_template/*
+DELETE /_index_template/my-data-stream-template
 ----
 // TEARDOWN
 ////
@@ -117,12 +117,24 @@ GET /_data_stream/my-data-stream/_stats?human=true
 === Manually roll over a data stream
 
 Use the <<indices-rollover-index,rollover API>> to manually
-<<data-streams-rollover,roll over>> a data stream:
+<<data-streams-rollover,roll over>> a data stream. You have
+two options when manually rolling over:
 
+1. To immediately trigger a rollover:
++
 [source,console]
 ----
 POST /my-data-stream/_rollover/
 ----
+2. Or to postpone the rollover until the next indexing event occurs:
++
+[source,console]
+----
+POST /my-data-stream/_rollover?lazy
+----
++
+Use the second to avoid having empty backing indices in data streams
+that do not get updated often.
 
 [discrete]
 [[open-closed-backing-indices]]

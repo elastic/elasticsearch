@@ -10,8 +10,8 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -21,9 +21,9 @@ import org.elasticsearch.xpack.core.ml.inference.assignment.Priority;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingInfo;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
+import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutorTests;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import org.junit.Before;
@@ -67,7 +67,7 @@ public class NodeLoadDetectorTests extends ESTestCase {
         );
         DiscoveryNodes nodes = DiscoveryNodes.builder()
             .add(
-                TestDiscoveryNode.create(
+                DiscoveryNodeUtils.create(
                     "_node_name1",
                     "_node_id1",
                     new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
@@ -76,7 +76,7 @@ public class NodeLoadDetectorTests extends ESTestCase {
                 )
             )
             .add(
-                TestDiscoveryNode.create(
+                DiscoveryNodeUtils.create(
                     "_node_name2",
                     "_node_id2",
                     new TransportAddress(InetAddress.getLoopbackAddress(), 9301),
@@ -85,7 +85,7 @@ public class NodeLoadDetectorTests extends ESTestCase {
                 )
             )
             .add(
-                TestDiscoveryNode.create(
+                DiscoveryNodeUtils.create(
                     "_node_name3",
                     "_node_id3",
                     new TransportAddress(InetAddress.getLoopbackAddress(), 9302),
@@ -94,7 +94,7 @@ public class NodeLoadDetectorTests extends ESTestCase {
                 )
             )
             .add(
-                TestDiscoveryNode.create(
+                DiscoveryNodeUtils.create(
                     "_node_name4",
                     "_node_id4",
                     new TransportAddress(InetAddress.getLoopbackAddress(), 9303),
@@ -130,7 +130,9 @@ public class NodeLoadDetectorTests extends ESTestCase {
                                         1,
                                         1024,
                                         ByteSizeValue.ofBytes(MODEL_MEMORY_REQUIREMENT),
-                                        Priority.NORMAL
+                                        Priority.NORMAL,
+                                        0L,
+                                        0L
                                     )
                                 )
                                     .addRoutingEntry("_node_id4", new RoutingInfo(1, 1, RoutingState.STARTING, ""))

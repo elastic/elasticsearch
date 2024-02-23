@@ -30,7 +30,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
+import java.util.EnumMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -116,7 +116,7 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
      * not ordinary important, but could be useful in tracking down problems where nodes have stopped reporting health node information.
      * @param diskHealthInfoMap A map of nodeId to DiskHealthInfo
      */
-    private void logNodesMissingHealthInfo(Map<String, DiskHealthInfo> diskHealthInfoMap, ClusterState clusterState) {
+    private static void logNodesMissingHealthInfo(Map<String, DiskHealthInfo> diskHealthInfoMap, ClusterState clusterState) {
         if (logger.isDebugEnabled()) {
             String nodesMissingHealthInfo = getSortedUniqueValuesString(
                 clusterState.getNodes().getAllNodes(),
@@ -145,9 +145,9 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
         private final Set<String> blockedIndices;
         private final List<DiscoveryNode> dataNodes = new ArrayList<>();
         // In this context a master node, is a master node that cannot contain data.
-        private final Map<HealthStatus, List<DiscoveryNode>> masterNodes = new HashMap<>();
+        private final Map<HealthStatus, List<DiscoveryNode>> masterNodes = new EnumMap<>(HealthStatus.class);
         // In this context "other" nodes are nodes that cannot contain data and are not masters.
-        private final Map<HealthStatus, List<DiscoveryNode>> otherNodes = new HashMap<>();
+        private final Map<HealthStatus, List<DiscoveryNode>> otherNodes = new EnumMap<>(HealthStatus.class);
         private final Set<DiscoveryNodeRole> affectedRoles = new HashSet<>();
         private final Set<String> indicesAtRisk;
         private final HealthStatus healthStatus;
@@ -402,7 +402,7 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
             Map<String, DiskHealthInfo> diskHealthInfoMap,
             ClusterState clusterState
         ) {
-            Map<HealthStatus, Integer> counts = new HashMap<>();
+            Map<HealthStatus, Integer> counts = new EnumMap<>(HealthStatus.class);
             for (HealthStatus healthStatus : HealthStatus.values()) {
                 counts.put(healthStatus, 0);
             }
@@ -492,7 +492,7 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
             );
         }
 
-        private int getUnhealthyNodeSize(Map<HealthStatus, List<DiscoveryNode>> nodes) {
+        private static int getUnhealthyNodeSize(Map<HealthStatus, List<DiscoveryNode>> nodes) {
             return (nodes.containsKey(HealthStatus.RED) ? nodes.get(HealthStatus.RED).size() : 0) + (nodes.containsKey(HealthStatus.YELLOW)
                 ? nodes.get(HealthStatus.YELLOW).size()
                 : 0);

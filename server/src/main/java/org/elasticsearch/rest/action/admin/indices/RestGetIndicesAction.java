@@ -20,7 +20,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
-import org.elasticsearch.rest.action.RestChunkedToXContentListener;
+import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
 
 import java.io.IOException;
 import java.util.List;
@@ -72,7 +72,7 @@ public class RestGetIndicesAction extends BaseRestHandler {
         final var httpChannel = request.getHttpChannel();
         return channel -> new RestCancellableNodeClient(client, httpChannel).admin()
             .indices()
-            .getIndex(getIndexRequest, new RestChunkedToXContentListener<>(channel));
+            .getIndex(getIndexRequest, new RestRefCountedChunkedToXContentListener<>(channel));
     }
 
     /**

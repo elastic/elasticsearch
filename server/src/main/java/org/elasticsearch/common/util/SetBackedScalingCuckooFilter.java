@@ -111,9 +111,9 @@ public class SetBackedScalingCuckooFilter implements Writeable {
         this.fpp = in.readDouble();
 
         if (isSetMode) {
-            this.hashes = in.readSet(StreamInput::readZLong);
+            this.hashes = in.readCollectionAsSet(StreamInput::readZLong);
         } else {
-            this.filters = in.readList(in12 -> new CuckooFilter(in12, rng));
+            this.filters = in.readCollectionAsList(in12 -> new CuckooFilter(in12, rng));
             this.numBuckets = filters.get(0).getNumBuckets();
             this.fingerprintMask = filters.get(0).getFingerprintMask();
             this.bitsPerEntry = filters.get(0).getBitsPerEntry();
@@ -129,7 +129,7 @@ public class SetBackedScalingCuckooFilter implements Writeable {
         if (isSetMode) {
             out.writeCollection(hashes, StreamOutput::writeZLong);
         } else {
-            out.writeList(filters);
+            out.writeCollection(filters);
         }
     }
 

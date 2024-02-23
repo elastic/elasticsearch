@@ -8,8 +8,6 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.apache.lucene.geo.GeoEncodingUtils;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -25,20 +23,6 @@ import java.util.Map;
  * Serialization and merge logic for {@link GeoCentroidAggregator}.
  */
 public class InternalGeoCentroid extends InternalCentroid implements GeoCentroid {
-
-    private static long encodeLatLon(double lat, double lon) {
-        return (Integer.toUnsignedLong(GeoEncodingUtils.encodeLatitude(lat)) << 32) | Integer.toUnsignedLong(
-            GeoEncodingUtils.encodeLongitude(lon)
-        );
-    }
-
-    private static double decodeLatitude(long encodedLatLon) {
-        return GeoEncodingUtils.decodeLatitude((int) (encodedLatLon >>> 32));
-    }
-
-    private static double decodeLongitude(long encodedLatLon) {
-        return GeoEncodingUtils.decodeLongitude((int) (encodedLatLon & 0xFFFFFFFFL));
-    }
 
     public InternalGeoCentroid(String name, SpatialPoint centroid, long count, Map<String, Object> metadata) {
         super(
@@ -58,24 +42,19 @@ public class InternalGeoCentroid extends InternalCentroid implements GeoCentroid
         super(in, new FieldExtractor("lat", SpatialPoint::getY), new FieldExtractor("lon", SpatialPoint::getX));
     }
 
+    public static InternalGeoCentroid empty(String name, Map<String, Object> metadata) {
+        return new InternalGeoCentroid(name, null, 0L, metadata);
+    }
+
     @Override
     protected GeoPoint centroidFromStream(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_2_0)) {
-            return new GeoPoint(in.readDouble(), in.readDouble());
-        } else {
-            final long hash = in.readLong();
-            return new GeoPoint(decodeLatitude(hash), decodeLongitude(hash));
-        }
+        return new GeoPoint(in.readDouble(), in.readDouble());
     }
 
     @Override
     protected void centroidToStream(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_2_0)) {
-            out.writeDouble(centroid.getY());
-            out.writeDouble(centroid.getX());
-        } else {
-            out.writeLong(encodeLatLon(centroid.getY(), centroid.getX()));
-        }
+        out.writeDouble(centroid.getY());
+        out.writeDouble(centroid.getX());
     }
 
     @Override

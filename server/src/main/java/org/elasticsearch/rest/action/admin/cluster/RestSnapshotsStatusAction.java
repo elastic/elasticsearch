@@ -13,8 +13,10 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
-import org.elasticsearch.rest.action.RestChunkedToXContentListener;
+import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
 
 import java.io.IOException;
 import java.util.List;
@@ -24,6 +26,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 /**
  * Returns status of currently running snapshot
  */
+@ServerlessScope(Scope.INTERNAL)
 public class RestSnapshotsStatusAction extends BaseRestHandler {
 
     @Override
@@ -53,6 +56,6 @@ public class RestSnapshotsStatusAction extends BaseRestHandler {
         snapshotsStatusRequest.masterNodeTimeout(request.paramAsTime("master_timeout", snapshotsStatusRequest.masterNodeTimeout()));
         return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).admin()
             .cluster()
-            .snapshotsStatus(snapshotsStatusRequest, new RestChunkedToXContentListener<>(channel));
+            .snapshotsStatus(snapshotsStatusRequest, new RestRefCountedChunkedToXContentListener<>(channel));
     }
 }

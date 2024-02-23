@@ -17,6 +17,8 @@ PUT /_snapshot/my_repository
 }
 ----
 
+IMPORTANT: If you're migrating {ref}/searchable-snapshots.html[searchable snapshots], the repository's name must be identical in the source and destination clusters.
+
 [[put-snapshot-repo-api-request]]
 ==== {api-request-title}
 

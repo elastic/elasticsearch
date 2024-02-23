@@ -43,7 +43,7 @@ public final class DoubleScriptFieldData extends IndexNumericFieldData {
 
     private final String fieldName;
     DoubleFieldScript.LeafFactory leafFactory;
-    protected final ToScriptFieldFactory<SortedNumericDoubleValues> toScriptFieldFactory;
+    private final ToScriptFieldFactory<SortedNumericDoubleValues> toScriptFieldFactory;
 
     private DoubleScriptFieldData(
         String fieldName,
@@ -97,7 +97,6 @@ public final class DoubleScriptFieldData extends IndexNumericFieldData {
             DoubleScriptDocValues doubleScriptDocValues,
             ToScriptFieldFactory<SortedNumericDoubleValues> toScriptFieldFactory
         ) {
-            super(0);
             this.doubleScriptDocValues = doubleScriptDocValues;
             this.toScriptFieldFactory = toScriptFieldFactory;
         }
@@ -106,9 +105,6 @@ public final class DoubleScriptFieldData extends IndexNumericFieldData {
         public SortedNumericDoubleValues getDoubleValues() {
             return doubleScriptDocValues;
         }
-
-        @Override
-        public void close() {}
 
         @Override
         public DocValuesScriptFieldFactory getScriptFieldFactory(String name) {

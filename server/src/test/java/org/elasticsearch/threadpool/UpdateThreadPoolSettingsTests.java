@@ -12,6 +12,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 
 import java.lang.reflect.Field;
@@ -37,7 +38,8 @@ public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
                 Settings.builder()
                     .put("node.name", "testCorrectThreadPoolTypePermittedInSettings")
                     .put("thread_pool." + threadPoolName + ".type", correctThreadPoolType.getType())
-                    .build()
+                    .build(),
+                MeterRegistry.NOOP
             );
             ThreadPool.Info info = info(threadPool, threadPoolName);
             if (ThreadPool.Names.SAME.equals(threadPoolName)) {
@@ -63,7 +65,8 @@ public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
                     Settings.builder()
                         .put("node.name", "testIndexingThreadPoolsMaxSize")
                         .put("thread_pool." + Names.WRITE + ".size", tooBig)
-                        .build()
+                        .build(),
+                    MeterRegistry.NOOP
                 );
             } finally {
                 terminateThreadPoolIfNeeded(tp);
@@ -96,7 +99,7 @@ public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
                 .put("node.name", "testFixedExecutorType")
                 .put("thread_pool." + threadPoolName + ".size", expectedSize)
                 .build();
-            threadPool = new ThreadPool(nodeSettings);
+            threadPool = new ThreadPool(nodeSettings, MeterRegistry.NOOP);
             assertThat(threadPool.executor(threadPoolName), instanceOf(EsThreadPoolExecutor.class));
 
             assertEquals(info(threadPool, threadPoolName).getThreadPoolType(), ThreadPool.ThreadPoolType.FIXED);
@@ -120,7 +123,7 @@ public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
                 .put("thread_pool." + threadPoolName + ".max", 10)
                 .put("node.name", "testScalingExecutorType")
                 .build();
-            threadPool = new ThreadPool(nodeSettings);
+            threadPool = new ThreadPool(nodeSettings, MeterRegistry.NOOP);
             final int expectedMinimum = "generic".equals(threadPoolName) ? 4 : 1;
             assertThat(info(threadPool, threadPoolName).getMin(), equalTo(expectedMinimum));
             assertThat(info(threadPool, threadPoolName).getMax(), equalTo(10));
@@ -141,7 +144,7 @@ public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
                 .put("thread_pool." + threadPoolName + ".queue_size", 1000)
                 .put("node.name", "testShutdownNowInterrupts")
                 .build();
-            threadPool = new ThreadPool(nodeSettings);
+            threadPool = new ThreadPool(nodeSettings, MeterRegistry.NOOP);
             assertEquals(info(threadPool, threadPoolName).getQueueSize().singles(), 1000L);
 
             final CountDownLatch shutDownLatch = new CountDownLatch(1);
@@ -177,9 +180,20 @@ public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
                 randomBoolean()
             );
 
-            final FixedExecutorBuilder fixed = new FixedExecutorBuilder(Settings.EMPTY, "my_pool2", 1, 1, false);
+            final FixedExecutorBuilder fixed = new FixedExecutorBuilder(
+                Settings.EMPTY,
+                "my_pool2",
+                1,
+                1,
+                EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
+            );
 
-            threadPool = new ThreadPool(Settings.builder().put("node.name", "testCustomThreadPool").build(), scaling, fixed);
+            threadPool = new ThreadPool(
+                Settings.builder().put("node.name", "testCustomThreadPool").build(),
+                MeterRegistry.NOOP,
+                scaling,
+                fixed
+            );
 
             ThreadPoolInfo groups = threadPool.info();
             boolean foundPool1 = false;

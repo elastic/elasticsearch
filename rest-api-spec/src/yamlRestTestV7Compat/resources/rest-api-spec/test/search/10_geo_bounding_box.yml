@@ -1,0 +1,80 @@
+---
+setup:
+  - skip:
+      version: "9.0.0 - "
+      reason: "compatible from 8.x to 7.x"
+      features:
+        - "headers"
+        - "warnings"
+  - do:
+      indices.create:
+        index: locations
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+
+            properties:
+              location:
+                type: geo_point
+  - do:
+      bulk:
+        index: locations
+        refresh: true
+        body: |
+          {"index":{}}
+          {"location" : {"lat": 13.5, "lon" : 34.89}}
+          {"index":{}}
+          {"location" : {"lat": -7.9, "lon" : 120.78}}
+          {"index":{}}
+          {"location" : {"lat": 45.78, "lon" : -173.45}}
+          {"index":{}}
+          {"location" : {"lat": 32.45, "lon" : 45.6}}
+          {"index":{}}
+          {"location" : {"lat": -63.24, "lon" : 31.0}}
+          {"index":{}}
+          {"location" : {"lat": 0.0, "lon" : 0.0}}
+
+
+---
+"geo bounding box query not compatible":
+  - do:
+      catch: /failed to parse \[geo_bounding_box\] query. unexpected field \[type\]/
+      search:
+        index: locations
+        body:
+          query:
+            geo_bounding_box:
+              type : indexed
+              location:
+                top_left:
+                  lat: 10
+                  lon: -10
+                bottom_right:
+                  lat: -10
+                  lon: 10
+
+---
+"geo bounding box query compatible":
+  - do:
+      headers:
+        Content-Type: "application/vnd.elasticsearch+json;compatible-with=7"
+        Accept: "application/vnd.elasticsearch+json;compatible-with=7"
+      warnings:
+        - "Deprecated parameter [type] used, it should no longer be specified."
+      search:
+        index: locations
+        body:
+          query:
+            geo_bounding_box:
+              type : indexed
+              location:
+                top_left:
+                  lat: 10
+                  lon: -10
+                bottom_right:
+                  lat: -10
+                  lon: 10
+  - match: {hits.total.value: 1}
+

@@ -75,9 +75,8 @@ public abstract class AdoptiumJdkToolchainResolver extends AbstractCustomJavaToo
             return Optional.of(
                 Lists.newArrayList(versionsNode.iterator())
                     .stream()
-                    .map(node -> toVersionInfo(node))
-                    .sorted(Comparator.comparing(AdoptiumVersionInfo::semver).reversed())
-                    .findFirst()
+                    .map(this::toVersionInfo)
+                    .max(Comparator.comparing(AdoptiumVersionInfo::semver))
                     .get()
             );
         } catch (FileNotFoundException e) {
@@ -102,7 +101,7 @@ public abstract class AdoptiumJdkToolchainResolver extends AbstractCustomJavaToo
     private URI resolveDownloadURI(AdoptiumVersionRequest request, AdoptiumVersionInfo versionInfo) {
         return URI.create(
             "https://api.adoptium.net/v3/binary/version/jdk-"
-                + versionInfo.openjdkVersion
+                + versionInfo.semver
                 + "/"
                 + request.platform
                 + "/"

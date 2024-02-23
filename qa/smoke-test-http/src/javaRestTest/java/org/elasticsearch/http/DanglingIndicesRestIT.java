@@ -8,6 +8,8 @@
 
 package org.elasticsearch.http;
 
+import io.netty.handler.codec.http.HttpMethod;
+
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
@@ -18,6 +20,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.XContentTestUtils;
+import org.elasticsearch.test.rest.ESRestTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -30,7 +33,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.elasticsearch.cluster.metadata.IndexGraveyard.SETTING_MAX_TOMBSTONES;
 import static org.elasticsearch.indices.IndicesService.WRITE_DANGLING_INDICES_INFO_SETTING;
 import static org.elasticsearch.rest.RestStatus.ACCEPTED;
-import static org.elasticsearch.rest.RestStatus.OK;
 import static org.elasticsearch.test.XContentTestUtils.createJsonMapView;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -184,10 +186,6 @@ public class DanglingIndicesRestIT extends HttpSmokeTestCase {
         return danglingIndexIds;
     }
 
-    private void assertOK(Response response) {
-        assertThat(response.getStatusLine().getStatusCode(), equalTo(OK.getStatus()));
-    }
-
     /**
      * Given a node name, finds the corresponding node ID.
      */
@@ -218,22 +216,12 @@ public class DanglingIndicesRestIT extends HttpSmokeTestCase {
         assert indices.length > 0;
 
         for (String index : indices) {
-            String indexSettings = """
-                {
-                  "settings": {
-                    "index": {
-                      "number_of_shards": 1,
-                      "number_of_replicas": 2,
-                      "routing": {
-                        "allocation": {
-                          "total_shards_per_node": 1
-                        }
-                      }
-                    }
-                  }
-                }""";
-            Request request = new Request("PUT", "/" + index);
-            request.setJsonEntity(indexSettings);
+            final var request = ESRestTestCase.newXContentRequest(HttpMethod.PUT, "/" + index, (builder, params) -> {
+                builder.startObject("settings").startObject("index");
+                builder.field("number_of_shards", 1).field("number_of_replicas", 2);
+                builder.startObject("routing").startObject("allocation").field("total_shards_per_node", 1).endObject().endObject();
+                return builder.endObject().endObject();
+            });
             assertOK(getRestClient().performRequest(request));
         }
         ensureGreen(indices);

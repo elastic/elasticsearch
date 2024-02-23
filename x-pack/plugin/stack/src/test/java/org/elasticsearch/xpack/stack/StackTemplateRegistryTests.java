@@ -7,12 +7,14 @@
 
 package org.elasticsearch.xpack.stack;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.indices.template.put.PutComponentTemplateAction;
-import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
+import org.elasticsearch.action.ingest.PutPipelineTransportAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
@@ -22,11 +24,14 @@ import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.ingest.IngestMetadata;
+import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
@@ -44,7 +49,9 @@ import org.elasticsearch.xpack.core.ilm.LifecycleAction;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
-import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
+import org.elasticsearch.xpack.core.ilm.action.ILMActions;
+import org.elasticsearch.xpack.core.ilm.action.PutLifecycleRequest;
+import org.elasticsearch.xpack.core.template.IngestPipelineConfig;
 import org.junit.After;
 import org.junit.Before;
 
@@ -58,10 +65,12 @@ import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
@@ -71,13 +80,22 @@ public class StackTemplateRegistryTests extends ESTestCase {
     private ClusterService clusterService;
     private ThreadPool threadPool;
     private VerifyingClient client;
+    private FeatureService featureService;
 
     @Before
     public void createRegistryAndClient() {
         threadPool = new TestThreadPool(this.getClass().getName());
         client = new VerifyingClient(threadPool);
         clusterService = ClusterServiceUtils.createClusterService(threadPool);
-        registry = new StackTemplateRegistry(Settings.EMPTY, clusterService, threadPool, client, NamedXContentRegistry.EMPTY);
+        featureService = new FeatureService(List.of(new StackTemplatesFeatures()));
+        registry = new StackTemplateRegistry(
+            Settings.EMPTY,
+            clusterService,
+            threadPool,
+            client,
+            NamedXContentRegistry.EMPTY,
+            featureService
+        );
     }
 
     @After
@@ -87,22 +105,49 @@ public class StackTemplateRegistryTests extends ESTestCase {
         threadPool.shutdownNow();
     }
 
-    public void testDisabledDoesNotAddTemplates() {
+    public void testDisabledDoesNotAddIndexTemplates() {
         Settings settings = Settings.builder().put(StackTemplateRegistry.STACK_TEMPLATES_ENABLED.getKey(), false).build();
         StackTemplateRegistry disabledRegistry = new StackTemplateRegistry(
             settings,
             clusterService,
             threadPool,
             client,
-            NamedXContentRegistry.EMPTY
+            NamedXContentRegistry.EMPTY,
+            featureService
         );
-        assertThat(disabledRegistry.getComponentTemplateConfigs(), anEmptyMap());
         assertThat(disabledRegistry.getComposableTemplateConfigs(), anEmptyMap());
-        assertThat(disabledRegistry.getPolicyConfigs(), hasSize(0));
+    }
+
+    public void testDisabledStillAddsComponentTemplatesAndIlmPolicies() {
+        Settings settings = Settings.builder().put(StackTemplateRegistry.STACK_TEMPLATES_ENABLED.getKey(), false).build();
+        StackTemplateRegistry disabledRegistry = new StackTemplateRegistry(
+            settings,
+            clusterService,
+            threadPool,
+            client,
+            NamedXContentRegistry.EMPTY,
+            featureService
+        );
+        assertThat(disabledRegistry.getComponentTemplateConfigs(), not(anEmptyMap()));
+        assertThat(
+            disabledRegistry.getComponentTemplateConfigs()
+                .keySet()
+                .stream()
+                // We have a naming convention that internal component templates contain `@`. See also put-component-template.asciidoc.
+                .filter(t -> t.contains("@") == false)
+                .collect(Collectors.toSet()),
+            empty()
+        );
+        assertThat(disabledRegistry.getLifecyclePolicies(), not(empty()));
+        assertThat(
+            // We have a naming convention that internal ILM policies contain `@`. See also put-lifecycle.asciidoc.
+            disabledRegistry.getLifecyclePolicies().stream().filter(p -> p.getName().contains("@") == false).collect(Collectors.toSet()),
+            empty()
+        );
     }
 
     public void testThatNonExistingTemplatesAreAddedImmediately() throws Exception {
-        DiscoveryNode node = TestDiscoveryNode.create("node");
+        DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
         ClusterChangedEvent event = createClusterChangedEvent(Collections.emptyMap(), nodes);
@@ -127,16 +172,15 @@ public class StackTemplateRegistryTests extends ESTestCase {
     }
 
     public void testThatNonExistingPoliciesAreAddedImmediately() throws Exception {
-        DiscoveryNode node = TestDiscoveryNode.create("node");
+        DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
         AtomicInteger calledTimes = new AtomicInteger(0);
         client.setVerifier((action, request, listener) -> {
-            if (action instanceof PutLifecycleAction) {
+            if (action == ILMActions.PUT) {
                 calledTimes.incrementAndGet();
-                assertThat(action, instanceOf(PutLifecycleAction.class));
-                assertThat(request, instanceOf(PutLifecycleAction.Request.class));
-                final PutLifecycleAction.Request putRequest = (PutLifecycleAction.Request) request;
+                assertThat(request, instanceOf(PutLifecycleRequest.class));
+                final PutLifecycleRequest putRequest = (PutLifecycleRequest) request;
                 assertThat(
                     putRequest.getPolicy().getName(),
                     anyOf(
@@ -155,7 +199,7 @@ public class StackTemplateRegistryTests extends ESTestCase {
             } else if (action instanceof PutComponentTemplateAction) {
                 // Ignore this, it's verified in another test
                 return new StackTemplateRegistryTests.TestPutIndexTemplateResponse(true);
-            } else if (action instanceof PutComposableIndexTemplateAction) {
+            } else if (action == TransportPutComposableIndexTemplateAction.TYPE) {
                 // Ignore this, it's verified in another test
                 return AcknowledgedResponse.TRUE;
             } else {
@@ -170,11 +214,11 @@ public class StackTemplateRegistryTests extends ESTestCase {
     }
 
     public void testPolicyAlreadyExists() {
-        DiscoveryNode node = TestDiscoveryNode.create("node");
+        DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
         Map<String, LifecyclePolicy> policyMap = new HashMap<>();
-        List<LifecyclePolicy> policies = registry.getPolicyConfigs();
+        List<LifecyclePolicy> policies = registry.getLifecyclePolicies();
         assertThat(policies, hasSize(8));
         policies.forEach(p -> policyMap.put(p.getName(), p));
 
@@ -182,7 +226,10 @@ public class StackTemplateRegistryTests extends ESTestCase {
             if (action instanceof PutComponentTemplateAction) {
                 // Ignore this, it's verified in another test
                 return AcknowledgedResponse.TRUE;
-            } else if (action instanceof PutLifecycleAction) {
+            } else if (action == TransportPutComposableIndexTemplateAction.TYPE) {
+                // Ignore this, it's verified in another test
+                return AcknowledgedResponse.TRUE;
+            } else if (action == ILMActions.PUT) {
                 fail("if the policy already exists it should not be re-put");
             } else {
                 fail("client called with unexpected request: " + request.toString());
@@ -190,17 +237,59 @@ public class StackTemplateRegistryTests extends ESTestCase {
             return null;
         });
 
-        ClusterChangedEvent event = createClusterChangedEvent(Collections.emptyMap(), policyMap, nodes);
+        ClusterChangedEvent event = createClusterChangedEvent(Collections.emptyMap(), policyMap, nodes, true);
         registry.clusterChanged(event);
     }
 
+    public void testThatIndependentPipelinesAreAdded() throws Exception {
+        DiscoveryNode node = DiscoveryNodeUtils.create("node");
+        DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
+
+        AtomicInteger calledTimes = new AtomicInteger(0);
+        client.setVerifier((action, request, listener) -> {
+            if (action == PutPipelineTransportAction.TYPE) {
+                calledTimes.incrementAndGet();
+                return AcknowledgedResponse.TRUE;
+            }
+            if (action instanceof PutComponentTemplateAction) {
+                // Ignore this, it's verified in another test
+                return AcknowledgedResponse.TRUE;
+            } else if (action == ILMActions.PUT) {
+                // Ignore this, it's verified in another test
+                return AcknowledgedResponse.TRUE;
+            } else if (action == TransportPutComposableIndexTemplateAction.TYPE) {
+                // Ignore this, it's verified in another test
+                return AcknowledgedResponse.TRUE;
+            } else {
+                fail("client called with unexpected request: " + request.toString());
+            }
+            return null;
+        });
+
+        ClusterChangedEvent event = createInitialClusterChangedEvent(nodes);
+        registry.clusterChanged(event);
+        assertBusy(
+            () -> assertThat(
+                calledTimes.get(),
+                equalTo(
+                    Long.valueOf(
+                        registry.getIngestPipelines()
+                            .stream()
+                            .filter(ingestPipelineConfig -> ingestPipelineConfig.getPipelineDependencies().isEmpty())
+                            .count()
+                    ).intValue()
+                )
+            )
+        );
+    }
+
     public void testPolicyAlreadyExistsButDiffers() throws IOException {
-        DiscoveryNode node = TestDiscoveryNode.create("node");
+        DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
         Map<String, LifecyclePolicy> policyMap = new HashMap<>();
         String policyStr = "{\"phases\":{\"delete\":{\"min_age\":\"1m\",\"actions\":{\"delete\":{}}}}}";
-        List<LifecyclePolicy> policies = registry.getPolicyConfigs();
+        List<LifecyclePolicy> policies = registry.getLifecyclePolicies();
         assertThat(policies, hasSize(8));
         policies.forEach(p -> policyMap.put(p.getName(), p));
 
@@ -208,7 +297,10 @@ public class StackTemplateRegistryTests extends ESTestCase {
             if (action instanceof PutComponentTemplateAction) {
                 // Ignore this, it's verified in another test
                 return AcknowledgedResponse.TRUE;
-            } else if (action instanceof PutLifecycleAction) {
+            } else if (action == TransportPutComposableIndexTemplateAction.TYPE) {
+                // Ignore this, it's verified in another test
+                return AcknowledgedResponse.TRUE;
+            } else if (action == ILMActions.PUT) {
                 fail("if the policy already exists it should not be re-put");
             } else {
                 fail("client called with unexpected request: " + request.toString());
@@ -235,13 +327,13 @@ public class StackTemplateRegistryTests extends ESTestCase {
         ) {
             LifecyclePolicy different = LifecyclePolicy.parse(parser, policies.get(0).getName());
             policyMap.put(policies.get(0).getName(), different);
-            ClusterChangedEvent event = createClusterChangedEvent(Collections.emptyMap(), policyMap, nodes);
+            ClusterChangedEvent event = createClusterChangedEvent(Collections.emptyMap(), policyMap, nodes, true);
             registry.clusterChanged(event);
         }
     }
 
     public void testThatVersionedOldTemplatesAreUpgraded() throws Exception {
-        DiscoveryNode node = TestDiscoveryNode.create("node");
+        DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
         ClusterChangedEvent event = createClusterChangedEvent(
@@ -258,7 +350,7 @@ public class StackTemplateRegistryTests extends ESTestCase {
     }
 
     public void testThatUnversionedOldTemplatesAreUpgraded() throws Exception {
-        DiscoveryNode node = TestDiscoveryNode.create("node");
+        DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
         ClusterChangedEvent event = createClusterChangedEvent(
@@ -277,10 +369,11 @@ public class StackTemplateRegistryTests extends ESTestCase {
             clusterService,
             threadPool,
             client,
-            NamedXContentRegistry.EMPTY
+            NamedXContentRegistry.EMPTY,
+            featureService
         );
 
-        DiscoveryNode node = TestDiscoveryNode.create("node");
+        DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
         ClusterChangedEvent event = createClusterChangedEvent(
@@ -293,17 +386,18 @@ public class StackTemplateRegistryTests extends ESTestCase {
             if (action instanceof PutComponentTemplateAction) {
                 // Ignore such
                 return AcknowledgedResponse.TRUE;
-            } else if (action instanceof PutLifecycleAction) {
+            } else if (action == ILMActions.PUT) {
                 // Ignore such
                 return AcknowledgedResponse.TRUE;
-            } else if (action instanceof PutComposableIndexTemplateAction) {
+            } else if (action == TransportPutComposableIndexTemplateAction.TYPE) {
                 calledTimes.incrementAndGet();
-                assertThat(request, instanceOf(PutComposableIndexTemplateAction.Request.class));
-                PutComposableIndexTemplateAction.Request putComposableTemplateRequest = (PutComposableIndexTemplateAction.Request) request;
+                assertThat(request, instanceOf(TransportPutComposableIndexTemplateAction.Request.class));
+                TransportPutComposableIndexTemplateAction.Request putComposableTemplateRequest =
+                    (TransportPutComposableIndexTemplateAction.Request) request;
                 assertThat(putComposableTemplateRequest.name(), equalTo("syslog"));
                 ComposableIndexTemplate composableIndexTemplate = putComposableTemplateRequest.indexTemplate();
                 assertThat(composableIndexTemplate.composedOf(), hasSize(2));
-                assertThat(composableIndexTemplate.composedOf().get(0), equalTo("logs-settings"));
+                assertThat(composableIndexTemplate.composedOf().get(0), equalTo("logs@settings"));
                 assertThat(composableIndexTemplate.composedOf().get(1), equalTo("syslog@custom"));
                 assertThat(composableIndexTemplate.getIgnoreMissingComponentTemplates(), hasSize(1));
                 assertThat(composableIndexTemplate.getIgnoreMissingComponentTemplates().get(0), equalTo("syslog@custom"));
@@ -320,14 +414,16 @@ public class StackTemplateRegistryTests extends ESTestCase {
 
     @TestLogging(value = "org.elasticsearch.xpack.core.template:DEBUG", reason = "test")
     public void testSameOrHigherVersionTemplateNotUpgraded() {
-        DiscoveryNode node = TestDiscoveryNode.create("node");
+        DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
         Map<String, Integer> versions = new HashMap<>();
         versions.put(StackTemplateRegistry.DATA_STREAMS_MAPPINGS_COMPONENT_TEMPLATE_NAME, StackTemplateRegistry.REGISTRY_VERSION);
+        versions.put(StackTemplateRegistry.ECS_DYNAMIC_MAPPINGS_COMPONENT_TEMPLATE_NAME, StackTemplateRegistry.REGISTRY_VERSION);
         versions.put(StackTemplateRegistry.LOGS_SETTINGS_COMPONENT_TEMPLATE_NAME, StackTemplateRegistry.REGISTRY_VERSION);
         versions.put(StackTemplateRegistry.LOGS_MAPPINGS_COMPONENT_TEMPLATE_NAME, StackTemplateRegistry.REGISTRY_VERSION);
         versions.put(StackTemplateRegistry.METRICS_SETTINGS_COMPONENT_TEMPLATE_NAME, StackTemplateRegistry.REGISTRY_VERSION);
+        versions.put(StackTemplateRegistry.METRICS_TSDB_SETTINGS_COMPONENT_TEMPLATE_NAME, StackTemplateRegistry.REGISTRY_VERSION);
         versions.put(StackTemplateRegistry.METRICS_MAPPINGS_COMPONENT_TEMPLATE_NAME, StackTemplateRegistry.REGISTRY_VERSION);
         versions.put(StackTemplateRegistry.SYNTHETICS_SETTINGS_COMPONENT_TEMPLATE_NAME, StackTemplateRegistry.REGISTRY_VERSION);
         versions.put(StackTemplateRegistry.SYNTHETICS_MAPPINGS_COMPONENT_TEMPLATE_NAME, StackTemplateRegistry.REGISTRY_VERSION);
@@ -336,10 +432,10 @@ public class StackTemplateRegistryTests extends ESTestCase {
             if (action instanceof PutComponentTemplateAction) {
                 fail("template should not have been re-installed");
                 return null;
-            } else if (action instanceof PutLifecycleAction) {
+            } else if (action == ILMActions.PUT) {
                 // Ignore this, it's verified in another test
                 return AcknowledgedResponse.TRUE;
-            } else if (action instanceof PutComposableIndexTemplateAction) {
+            } else if (action == TransportPutComposableIndexTemplateAction.TYPE) {
                 // Ignore this, it's verified in another test
                 return AcknowledgedResponse.TRUE;
             } else {
@@ -355,6 +451,10 @@ public class StackTemplateRegistryTests extends ESTestCase {
             StackTemplateRegistry.REGISTRY_VERSION + randomIntBetween(1, 1000)
         );
         versions.put(
+            StackTemplateRegistry.ECS_DYNAMIC_MAPPINGS_COMPONENT_TEMPLATE_NAME,
+            StackTemplateRegistry.REGISTRY_VERSION + randomIntBetween(1, 1000)
+        );
+        versions.put(
             StackTemplateRegistry.LOGS_SETTINGS_COMPONENT_TEMPLATE_NAME,
             StackTemplateRegistry.REGISTRY_VERSION + randomIntBetween(1, 1000)
         );
@@ -364,6 +464,10 @@ public class StackTemplateRegistryTests extends ESTestCase {
         );
         versions.put(
             StackTemplateRegistry.METRICS_SETTINGS_COMPONENT_TEMPLATE_NAME,
+            StackTemplateRegistry.REGISTRY_VERSION + randomIntBetween(1, 1000)
+        );
+        versions.put(
+            StackTemplateRegistry.METRICS_TSDB_SETTINGS_COMPONENT_TEMPLATE_NAME,
             StackTemplateRegistry.REGISTRY_VERSION + randomIntBetween(1, 1000)
         );
         versions.put(
@@ -383,7 +487,7 @@ public class StackTemplateRegistryTests extends ESTestCase {
     }
 
     public void testThatMissingMasterNodeDoesNothing() {
-        DiscoveryNode localNode = TestDiscoveryNode.create("node");
+        DiscoveryNode localNode = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").add(localNode).build();
 
         client.setVerifier((a, r, l) -> {
@@ -396,6 +500,42 @@ public class StackTemplateRegistryTests extends ESTestCase {
             nodes
         );
         registry.clusterChanged(event);
+    }
+
+    public void testThatNothingIsInstalledWhenAllNodesAreNotUpdated() {
+        DiscoveryNode updatedNode = DiscoveryNodeUtils.create("updatedNode");
+        DiscoveryNode outdatedNode = DiscoveryNodeUtils.create("outdatedNode", ESTestCase.buildNewFakeTransportAddress(), Version.V_8_8_0);
+        DiscoveryNodes nodes = DiscoveryNodes.builder()
+            .localNodeId("updatedNode")
+            .masterNodeId("updatedNode")
+            .add(updatedNode)
+            .add(outdatedNode)
+            .build();
+
+        client.setVerifier((a, r, l) -> {
+            fail("if some cluster mode are not updated to at least v.8.9.0 nothing should happen");
+            return null;
+        });
+
+        ClusterChangedEvent event = createClusterChangedEvent(Collections.emptyMap(), nodes);
+        registry.clusterChanged(event);
+    }
+
+    public void testThatTemplatesAreNotDeprecated() {
+        for (ComposableIndexTemplate it : registry.getComposableTemplateConfigs().values()) {
+            assertFalse(it.isDeprecated());
+        }
+        for (LifecyclePolicy ilm : registry.getLifecyclePolicies()) {
+            assertFalse(ilm.isDeprecated());
+        }
+        for (ComponentTemplate ct : registry.getComponentTemplateConfigs().values()) {
+            assertFalse(ct.deprecated());
+        }
+        registry.getIngestPipelines()
+            .stream()
+            .map(ipc -> new PipelineConfiguration(ipc.getId(), ipc.loadConfig(), XContentType.JSON))
+            .map(PipelineConfiguration::getConfigAsMap)
+            .forEach(p -> assertFalse((Boolean) p.get("deprecated")));
     }
 
     // -------------
@@ -442,16 +582,15 @@ public class StackTemplateRegistryTests extends ESTestCase {
     ) {
         if (action instanceof PutComponentTemplateAction) {
             calledTimes.incrementAndGet();
-            assertThat(action, instanceOf(PutComponentTemplateAction.class));
             assertThat(request, instanceOf(PutComponentTemplateAction.Request.class));
             final PutComponentTemplateAction.Request putRequest = (PutComponentTemplateAction.Request) request;
             assertThat(putRequest.componentTemplate().version(), equalTo((long) StackTemplateRegistry.REGISTRY_VERSION));
             assertNotNull(listener);
             return new TestPutIndexTemplateResponse(true);
-        } else if (action instanceof PutLifecycleAction) {
+        } else if (action == ILMActions.PUT) {
             // Ignore this, it's verified in another test
             return AcknowledgedResponse.TRUE;
-        } else if (action instanceof PutComposableIndexTemplateAction) {
+        } else if (action == TransportPutComposableIndexTemplateAction.TYPE) {
             // Ignore this, it's verified in another test
             return AcknowledgedResponse.TRUE;
         } else {
@@ -461,15 +600,20 @@ public class StackTemplateRegistryTests extends ESTestCase {
     }
 
     private ClusterChangedEvent createClusterChangedEvent(Map<String, Integer> existingTemplates, DiscoveryNodes nodes) {
-        return createClusterChangedEvent(existingTemplates, Collections.emptyMap(), nodes);
+        return createClusterChangedEvent(existingTemplates, Collections.emptyMap(), nodes, true);
+    }
+
+    private ClusterChangedEvent createInitialClusterChangedEvent(DiscoveryNodes nodes) {
+        return createClusterChangedEvent(Collections.emptyMap(), Collections.emptyMap(), nodes, false);
     }
 
     private ClusterChangedEvent createClusterChangedEvent(
         Map<String, Integer> existingTemplates,
         Map<String, LifecyclePolicy> existingPolicies,
-        DiscoveryNodes nodes
+        DiscoveryNodes nodes,
+        boolean addRegistryPipelines
     ) {
-        ClusterState cs = createClusterState(Settings.EMPTY, existingTemplates, existingPolicies, nodes);
+        ClusterState cs = createClusterState(Settings.EMPTY, existingTemplates, existingPolicies, nodes, addRegistryPipelines);
         ClusterChangedEvent realEvent = new ClusterChangedEvent(
             "created-from-test",
             cs,
@@ -485,7 +629,8 @@ public class StackTemplateRegistryTests extends ESTestCase {
         Settings nodeSettings,
         Map<String, Integer> existingComponentTemplates,
         Map<String, LifecyclePolicy> existingPolicies,
-        DiscoveryNodes nodes
+        DiscoveryNodes nodes,
+        boolean addRegistryPipelines
     ) {
         Map<String, ComponentTemplate> componentTemplates = new HashMap<>();
         for (Map.Entry<String, Integer> template : existingComponentTemplates.entrySet()) {
@@ -499,12 +644,26 @@ public class StackTemplateRegistryTests extends ESTestCase {
             .collect(Collectors.toMap(Map.Entry::getKey, e -> new LifecyclePolicyMetadata(e.getValue(), Collections.emptyMap(), 1, 1)));
         IndexLifecycleMetadata ilmMeta = new IndexLifecycleMetadata(existingILMMeta, OperationMode.RUNNING);
 
+        // adding the registry pipelines, as they may be dependencies for index templates
+        Map<String, PipelineConfiguration> ingestPipelines = new HashMap<>();
+        if (addRegistryPipelines) {
+            for (IngestPipelineConfig ingestPipelineConfig : registry.getIngestPipelines()) {
+                // we cannot mock PipelineConfiguration as it is a final class
+                ingestPipelines.put(
+                    ingestPipelineConfig.getId(),
+                    new PipelineConfiguration(ingestPipelineConfig.getId(), ingestPipelineConfig.loadConfig(), XContentType.JSON)
+                );
+            }
+        }
+        IngestMetadata ingestMetadata = new IngestMetadata(ingestPipelines);
+
         return ClusterState.builder(new ClusterName("test"))
             .metadata(
                 Metadata.builder()
                     .componentTemplates(componentTemplates)
                     .transientSettings(nodeSettings)
                     .putCustom(IndexLifecycleMetadata.TYPE, ilmMeta)
+                    .putCustom(IngestMetadata.TYPE, ingestMetadata)
                     .build()
             )
             .blocks(new ClusterBlocks.Builder().build())

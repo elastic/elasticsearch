@@ -26,7 +26,6 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.cluster.metadata.NodesShutdownMetadata.getShutdownsOrEmpty;
 import static org.elasticsearch.core.Strings.format;
 
 /**
@@ -34,7 +33,7 @@ import static org.elasticsearch.core.Strings.format;
  *
  * Currently, this consists of keeping track of whether we've seen nodes which are marked for shutdown.
  */
-public class NodeSeenService implements ClusterStateListener {
+public final class NodeSeenService implements ClusterStateListener {
     private static final Logger logger = LogManager.getLogger(NodeSeenService.class);
 
     final ClusterService clusterService;
@@ -72,7 +71,7 @@ public class NodeSeenService implements ClusterStateListener {
             return;
         }
 
-        final Set<String> nodesNotPreviouslySeen = eventShutdownMetadata.getAllNodeMetadataMap()
+        final Set<String> nodesNotPreviouslySeen = eventShutdownMetadata.getAll()
             .values()
             .stream()
             .filter(singleNodeShutdownMetadata -> singleNodeShutdownMetadata.getNodeSeen() == false)
@@ -97,7 +96,7 @@ public class NodeSeenService implements ClusterStateListener {
         @Override
         public ClusterState execute(BatchExecutionContext<SetSeenNodesShutdownTask> batchExecutionContext) throws Exception {
             final var initialState = batchExecutionContext.initialState();
-            var shutdownMetadata = new HashMap<>(getShutdownsOrEmpty(initialState).getAllNodeMetadataMap());
+            var shutdownMetadata = new HashMap<>(initialState.metadata().nodeShutdowns().getAll());
 
             var nodesNotPreviouslySeen = new HashSet<>();
             for (final var taskContext : batchExecutionContext.taskContexts()) {
@@ -112,7 +111,7 @@ public class NodeSeenService implements ClusterStateListener {
                 return v;
             });
 
-            if (shutdownMetadata.equals(getShutdownsOrEmpty(initialState).getAllNodeMetadataMap())) {
+            if (shutdownMetadata.equals(initialState.metadata().nodeShutdowns().getAll())) {
                 return initialState;
             }
 

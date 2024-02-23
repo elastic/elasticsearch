@@ -35,7 +35,9 @@
             "DLM",
             "Discovery-Plugins",
             "Distributed",
+            "Downsampling",
             "EQL",
+            "ES|QL",
             "Engine",
             "FIPS",
             "Features",
@@ -57,6 +59,7 @@
             "Infra/Scripting",
             "Infra/Settings",
             "Infra/Transport API",
+            "Infra/Metrics",
             "Ingest",
             "Ingest Node",
             "Java High Level REST Client",
@@ -263,6 +266,7 @@
     "compatibilityChangeArea": {
       "type": "string",
       "enum": [
+        "Authorization",
         "Cluster and node setting",
         "Command line tool",
         "CRUD",
@@ -275,6 +279,7 @@
         "Packaging",
         "Painless",
         "REST API",
+        "Rollup",
         "System requirement",
         "Transform"
       ]

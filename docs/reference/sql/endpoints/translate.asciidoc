@@ -53,7 +53,7 @@ Which returns:
 Which is the request that SQL will run to provide the results.
 In this case, SQL will use the <<scroll-search-results,scroll>>
 API. If the result contained an aggregation then SQL would use
-the normal <<search-request-body,search>> API.
+the normal <<search-search,search API>>.
 
 The request body accepts the same <<sql-search-api-request-body,parameters>> as
 the <<sql-search-api,SQL search API>>, excluding `cursor`.

@@ -18,11 +18,7 @@ public class DeleteRoleRequestBuilder extends ActionRequestBuilder<DeleteRoleReq
         WriteRequestBuilder<DeleteRoleRequestBuilder> {
 
     public DeleteRoleRequestBuilder(ElasticsearchClient client) {
-        this(client, DeleteRoleAction.INSTANCE);
-    }
-
-    public DeleteRoleRequestBuilder(ElasticsearchClient client, DeleteRoleAction action) {
-        super(client, action, new DeleteRoleRequest());
+        super(client, DeleteRoleAction.INSTANCE, new DeleteRoleRequest());
     }
 
     public DeleteRoleRequestBuilder name(String name) {

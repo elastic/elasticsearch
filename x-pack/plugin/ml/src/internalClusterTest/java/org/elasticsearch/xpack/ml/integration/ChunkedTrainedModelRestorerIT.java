@@ -123,9 +123,7 @@ public class ChunkedTrainedModelRestorerIT extends MlSingleNodeTestCase {
         String index2 = "foo-2";
 
         for (String index : new String[] { index1, index2 }) {
-            client().admin()
-                .indices()
-                .prepareCreate(index)
+            indicesAdmin().prepareCreate(index)
                 .setMapping(
                     TrainedModelDefinitionDoc.DEFINITION.getPreferredName(),
                     "type=binary",
@@ -204,8 +202,7 @@ public class ChunkedTrainedModelRestorerIT extends MlSingleNodeTestCase {
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
         for (TrainedModelDefinitionDoc doc : docs) {
             try (XContentBuilder xContentBuilder = doc.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)) {
-                IndexRequestBuilder indexRequestBuilder = client().prepareIndex(index)
-                    .setSource(xContentBuilder)
+                IndexRequestBuilder indexRequestBuilder = prepareIndex(index).setSource(xContentBuilder)
                     .setId(TrainedModelDefinitionDoc.docId(doc.getModelId(), startingDocNum++));
 
                 bulkRequestBuilder.add(indexRequestBuilder);

@@ -113,6 +113,7 @@ public class GceInstancesServiceImpl implements GceInstancesService {
 
     private final boolean validateCerts;
 
+    @SuppressWarnings("this-escape")
     public GceInstancesServiceImpl(Settings settings) {
         this.settings = settings;
         this.validateCerts = GCE_VALIDATE_CERTIFICATES.get(settings);

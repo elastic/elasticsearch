@@ -1,5 +1,0 @@
-pr: 95351
-summary: Read register current term asynchronously in `StoreHeartbeatService`
-area: Cluster Coordination
-type: bug
-issues: []

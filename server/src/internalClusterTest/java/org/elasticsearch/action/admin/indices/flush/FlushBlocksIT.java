@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.indices.flush;
 
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 
@@ -31,7 +32,7 @@ public class FlushBlocksIT extends ESIntegTestCase {
 
         int docs = between(10, 100);
         for (int i = 0; i < docs; i++) {
-            client().prepareIndex("test").setId("" + i).setSource("test", "init").execute().actionGet();
+            prepareIndex("test").setId("" + i).setSource("test", "init").get();
         }
 
         // Request is not blocked
@@ -44,7 +45,7 @@ public class FlushBlocksIT extends ESIntegTestCase {
         )) {
             try {
                 enableIndexBlock("test", blockSetting);
-                FlushResponse response = client().admin().indices().prepareFlush("test").execute().actionGet();
+                BroadcastResponse response = indicesAdmin().prepareFlush("test").get();
                 assertNoFailures(response);
                 assertThat(response.getSuccessfulShards(), equalTo(numShards.totalNumShards));
             } finally {

@@ -82,11 +82,59 @@ public class GrokTests extends ESTestCase {
     }
 
     private Map<String, Object> captureBytes(Grok grok, byte[] utf8, int offset, int length) {
-        GrokCaptureExtracter.MapExtracter extracter = new GrokCaptureExtracter.MapExtracter(grok.captureConfig());
+        GrokCaptureExtracter.MapExtracter extracter = new GrokCaptureExtracter.MapExtracter(
+            grok.captureConfig(),
+            cfg -> cfg::objectExtracter
+        );
         if (grok.match(utf8, offset, length, extracter)) {
             return extracter.result();
         }
         return null;
+    }
+
+    public void testCaptureRanges() {
+        captureRanges(false);
+        captureRanges(true);
+    }
+
+    private void captureRanges(boolean ecsCompatibility) {
+        Grok grok = new Grok(GrokBuiltinPatterns.get(ecsCompatibility), "%{WORD:a} %{WORD:b} %{NUMBER:c:int}", logger::warn);
+        assertThat(
+            grok.captureRanges("xx aaaaa bbb 1234 yyy"),
+            equalTo(
+                Map.of(
+                    "a",
+                    new GrokCaptureExtracter.Range("aaaaa", 3, 5),
+                    "b",
+                    new GrokCaptureExtracter.Range("bbb", 9, 3),
+                    "c",
+                    new GrokCaptureExtracter.Range("1234", 13, 4)
+                )
+            )
+        );
+    }
+
+    public void testCaptureRanges_noMatch() {
+        captureRanges_noMatch(false);
+        captureRanges_noMatch(true);
+    }
+
+    private void captureRanges_noMatch(boolean ecsCompatibility) {
+        Grok grok = new Grok(GrokBuiltinPatterns.get(ecsCompatibility), "%{WORD:a} %{WORD:b} %{NUMBER:c:int}", logger::warn);
+        assertNull(grok.captureRanges("xx aaaaa bbb ccc yyy"));
+    }
+
+    public void testCaptureRanges_multipleNamedCapturesWithSameName() {
+        captureRanges_multipleNamedCapturesWithSameName(false);
+        captureRanges_multipleNamedCapturesWithSameName(true);
+    }
+
+    private void captureRanges_multipleNamedCapturesWithSameName(boolean ecsCompatibility) {
+        Grok grok = new Grok(GrokBuiltinPatterns.get(ecsCompatibility), "%{WORD:parts} %{WORD:parts}", logger::warn);
+        assertThat(
+            grok.captureRanges("  aa bbb c ddd e  "),
+            equalTo(Map.of("parts", List.of(new GrokCaptureExtracter.Range("aa", 2, 2), new GrokCaptureExtracter.Range("bbb", 5, 3))))
+        );
     }
 
     public void testNoMatchingPatternInDictionary() {
@@ -755,17 +803,21 @@ public class GrokTests extends ESTestCase {
     private void testExponentialExpressions(boolean ecsCompatibility) {
         AtomicBoolean run = new AtomicBoolean(true); // to avoid a lingering thread when test has completed
 
+        // keeping track of the matcher watchdog and whether it has executed at all (hunting a rare test failure)
+        AtomicBoolean hasExecuted = new AtomicBoolean(false);
+
         String grokPattern = "Bonsuche mit folgender Anfrage: Belegart->\\[%{WORD:param2},(?<param5>(\\s*%{NOTSPACE})*)\\] "
             + "Zustand->ABGESCHLOSSEN Kassennummer->%{WORD:param9} Bonnummer->%{WORD:param10} Datum->%{DATESTAMP_OTHER:param11}";
         String logLine = "Bonsuche mit folgender Anfrage: Belegart->[EINGESCHRAENKTER_VERKAUF, VERKAUF, NACHERFASSUNG] "
             + "Zustand->ABGESCHLOSSEN Kassennummer->2 Bonnummer->6362 Datum->Mon Jan 08 00:00:00 UTC 2018";
         BiConsumer<Long, Runnable> scheduler = (delay, command) -> {
-            try {
-                Thread.sleep(delay);
-            } catch (InterruptedException e) {
-                throw new AssertionError(e);
-            }
+            hasExecuted.set(true);
             Thread t = new Thread(() -> {
+                try {
+                    Thread.sleep(delay);
+                } catch (InterruptedException e) {
+                    throw new AssertionError(e);
+                }
                 if (run.get()) {
                     command.run();
                 }
@@ -778,6 +830,20 @@ public class GrokTests extends ESTestCase {
             MatcherWatchdog.newInstance(10, 200, System::currentTimeMillis, scheduler),
             logger::warn
         );
+
+        // hunting a rare test failure -- sometimes we get a failure in the expectThrows below, and the most
+        // logical reason for it to be hit is that the matcher watchdog just never even started up.
+        Thread t = new Thread(() -> {
+            try {
+                Thread.sleep(100); // half of max execution, 10x the interval, should be plenty
+            } catch (InterruptedException e) {
+                throw new AssertionError(e);
+            }
+            assertTrue("The MatchWatchdog scheduler should have run by now", hasExecuted.get());
+        });
+        t.setName("Quis custodiet ipsos custodes?");
+        t.start();
+
         Exception e = expectThrows(RuntimeException.class, () -> grok.captures(logLine));
         run.set(false);
         assertThat(e.getMessage(), equalTo("grok pattern matching was interrupted after [200] ms"));

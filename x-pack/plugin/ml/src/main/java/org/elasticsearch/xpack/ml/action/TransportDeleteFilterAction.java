@@ -18,6 +18,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
@@ -48,7 +49,13 @@ public class TransportDeleteFilterAction extends HandledTransportAction<DeleteFi
         Client client,
         JobConfigProvider jobConfigProvider
     ) {
-        super(DeleteFilterAction.NAME, transportService, actionFilters, DeleteFilterAction.Request::new);
+        super(
+            DeleteFilterAction.NAME,
+            transportService,
+            actionFilters,
+            DeleteFilterAction.Request::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         this.client = client;
         this.jobConfigProvider = jobConfigProvider;
     }
@@ -56,16 +63,16 @@ public class TransportDeleteFilterAction extends HandledTransportAction<DeleteFi
     @Override
     protected void doExecute(Task task, DeleteFilterAction.Request request, ActionListener<AcknowledgedResponse> listener) {
         final String filterId = request.getFilterId();
-        jobConfigProvider.findJobsWithCustomRules(ActionListener.wrap(jobs -> {
+        jobConfigProvider.findJobsWithCustomRules(listener.delegateFailureAndWrap((delegate, jobs) -> {
             List<String> currentlyUsedBy = findJobsUsingFilter(jobs, filterId);
             if (currentlyUsedBy.isEmpty() == false) {
-                listener.onFailure(
+                delegate.onFailure(
                     ExceptionsHelper.conflictStatusException(Messages.getMessage(Messages.FILTER_CANNOT_DELETE, filterId, currentlyUsedBy))
                 );
             } else {
-                deleteFilter(filterId, listener);
+                deleteFilter(filterId, delegate);
             }
-        }, listener::onFailure));
+        }));
     }
 
     private static List<String> findJobsUsingFilter(List<Job> jobs, String filterId) {

@@ -53,12 +53,9 @@ public class ValuesSourceRegistry {
         }
     }
 
-    @SuppressWarnings("rawtypes")
-    public static final RegistryKey UNREGISTERED_KEY = new RegistryKey<>("unregistered", RegistryKey.class);
-
     public static class Builder {
         private final AggregationUsageService.Builder usageServiceBuilder;
-        private Map<RegistryKey<?>, List<Map.Entry<ValuesSourceType, ?>>> aggregatorRegistry = new HashMap<>();
+        private final Map<RegistryKey<?>, List<Map.Entry<ValuesSourceType, ?>>> aggregatorRegistry = new HashMap<>();
 
         public Builder() {
             this.usageServiceBuilder = new AggregationUsageService.Builder();
@@ -150,7 +147,7 @@ public class ValuesSourceRegistry {
 
     /** Maps Aggregation names to (ValuesSourceType, Supplier) pairs, keyed by ValuesSourceType */
     private final AggregationUsageService usageService;
-    private Map<RegistryKey<?>, Map<ValuesSourceType, ?>> aggregatorRegistry;
+    private final Map<RegistryKey<?>, Map<ValuesSourceType, ?>> aggregatorRegistry;
 
     public ValuesSourceRegistry(
         Map<RegistryKey<?>, List<Map.Entry<ValuesSourceType, ?>>> aggregatorRegistry,
@@ -158,10 +155,6 @@ public class ValuesSourceRegistry {
     ) {
         this.aggregatorRegistry = copyMap(aggregatorRegistry);
         this.usageService = usageService;
-    }
-
-    public boolean isRegistered(RegistryKey<?> registryKey) {
-        return aggregatorRegistry.containsKey(registryKey);
     }
 
     public <T> T getAggregator(RegistryKey<T> registryKey, ValuesSourceConfig valuesSourceConfig) {
@@ -183,6 +176,8 @@ public class ValuesSourceRegistry {
             }
             return supplier;
         }
+        // This should be a startup error. Should never happen, probably indicates a bad plugin if it does. Should probably log and have
+        // actual docs on how to resolve.
         throw new AggregationExecutionException(
             "Unregistered Aggregation [" + (registryKey != null ? registryKey.getName() : "unknown aggregation") + "]"
         );

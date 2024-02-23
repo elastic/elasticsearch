@@ -411,7 +411,7 @@ Similarly, each master-eligible node maintains the following data on disk:
 
 Each node checks the contents of its data path at startup. If it discovers
 unexpected data then it will refuse to start. This is to avoid importing
-unwanted <<modules-gateway-dangling-indices,dangling indices>> which can lead
+unwanted <<dangling-indices,dangling indices>> which can lead
 to a red cluster health. To be more precise, nodes without the `data` role will
 refuse to start if they find any shard data on disk at startup, and nodes
 without both the `master` and `data` roles will refuse to start if they have any
@@ -424,13 +424,13 @@ must perform some extra steps to prepare a node for repurposing when starting
 the node without the `data` or `master` roles.
 
 * If you want to repurpose a data node by removing the `data` role then you
-  should first use an <<allocation-filtering,allocation filter>> to safely
+  should first use an <<cluster-shard-allocation-filtering,allocation filter>> to safely
   migrate all the shard data onto other nodes in the cluster.
 
 * If you want to repurpose a node to have neither the `data` nor `master` roles
   then it is simplest to start a brand-new node with an empty data path and the
   desired roles. You may find it safest to use an
-  <<allocation-filtering,allocation filter>> to migrate the shard data elsewhere
+  <<cluster-shard-allocation-filtering,allocation filter>> to migrate the shard data elsewhere
   in the cluster first.
 
 If it is not possible to follow these extra steps then you may be able to use

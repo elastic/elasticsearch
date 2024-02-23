@@ -14,7 +14,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.test.ESTestCase;
@@ -29,12 +29,13 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.health.node.HealthInfoTests.mutateHealthInfo;
+import static org.elasticsearch.health.node.HealthInfoTests.randomDslHealthInfo;
+import static org.elasticsearch.health.node.HealthInfoTests.randomRepoHealthInfo;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.hamcrest.Matchers.equalTo;
@@ -70,20 +71,14 @@ public class FetchHealthInfoCacheActionTests extends ESTestCase {
         transportService.acceptIncomingRequests();
         int totalNodes = randomIntBetween(1, 200);
         allNodes = new DiscoveryNode[totalNodes];
-        localNode = TestDiscoveryNode.create(
-            "local_node",
-            buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE)
-        );
+        localNode = DiscoveryNodeUtils.builder("local_node")
+            .roles(Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE))
+            .build();
         allNodes[0] = localNode;
         for (int i = 0; i < totalNodes - 1; i++) {
-            DiscoveryNode remoteNode = TestDiscoveryNode.create(
-                "remote_node" + i,
-                buildNewFakeTransportAddress(),
-                Collections.emptyMap(),
-                Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE)
-            );
+            DiscoveryNode remoteNode = DiscoveryNodeUtils.builder("remote_node" + i)
+                .roles(Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE))
+                .build();
             allNodes[i + 1] = remoteNode;
         }
     }
@@ -107,7 +102,7 @@ public class FetchHealthInfoCacheActionTests extends ESTestCase {
         setState(clusterService, ClusterStateCreationUtils.state(localNode, localNode, localNode, allNodes));
         HealthInfoCache healthInfoCache = getTestHealthInfoCache();
         final FetchHealthInfoCacheAction.Response expectedResponse = new FetchHealthInfoCacheAction.Response(
-            new HealthInfo(healthInfoCache.getHealthInfo().diskInfoByNode())
+            healthInfoCache.getHealthInfo()
         );
         ActionTestUtils.execute(
             new FetchHealthInfoCacheAction.TransportAction(
@@ -132,30 +127,25 @@ public class FetchHealthInfoCacheActionTests extends ESTestCase {
             String nodeId = allNode.getId();
             healthInfoCache.updateNodeHealth(
                 nodeId,
-                new DiskHealthInfo(randomFrom(HealthStatus.values()), randomFrom(DiskHealthInfo.Cause.values()))
+                new DiskHealthInfo(randomFrom(HealthStatus.values()), randomFrom(DiskHealthInfo.Cause.values())),
+                randomDslHealthInfo(),
+                randomRepoHealthInfo()
             );
         }
         return healthInfoCache;
     }
 
     public void testResponseSerialization() {
-        FetchHealthInfoCacheAction.Response response = new FetchHealthInfoCacheAction.Response(
-            new HealthInfo(getTestHealthInfoCache().getHealthInfo().diskInfoByNode())
-        );
+        var healthInfo = getTestHealthInfoCache().getHealthInfo();
+        FetchHealthInfoCacheAction.Response response = new FetchHealthInfoCacheAction.Response(healthInfo);
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(
             response,
-            resopnseWritable -> copyWriteable(resopnseWritable, writableRegistry(), FetchHealthInfoCacheAction.Response::new),
+            responseWritable -> copyWriteable(responseWritable, writableRegistry(), FetchHealthInfoCacheAction.Response::new),
             this::mutateResponse
         );
     }
 
     private FetchHealthInfoCacheAction.Response mutateResponse(FetchHealthInfoCacheAction.Response originalResponse) {
-        Map<String, DiskHealthInfo> diskHealthInfoMap = originalResponse.getHealthInfo().diskInfoByNode();
-        Map<String, DiskHealthInfo> diskHealthInfoMapCopy = new HashMap<>(diskHealthInfoMap);
-        diskHealthInfoMapCopy.put(
-            randomAlphaOfLength(10),
-            new DiskHealthInfo(randomFrom(HealthStatus.values()), randomFrom(DiskHealthInfo.Cause.values()))
-        );
-        return new FetchHealthInfoCacheAction.Response(new HealthInfo(diskHealthInfoMapCopy));
+        return new FetchHealthInfoCacheAction.Response(mutateHealthInfo(originalResponse.getHealthInfo()));
     }
 }

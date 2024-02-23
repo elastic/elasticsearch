@@ -185,6 +185,7 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
     // package private for tests
     final AtomicReference<CacheHolder> cacheHolder = new AtomicReference<>();
 
+    @SuppressWarnings("this-escape")
     public ScriptService(
         Settings settings,
         Map<String, ScriptEngine> engines,
@@ -944,7 +945,7 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
                 ScriptCache cache = entry.getValue().get();
                 contextStats.add(cache.stats(entry.getKey()));
             }
-            return new ScriptStats(contextStats);
+            return ScriptStats.read(contextStats);
         }
 
         ScriptCacheStats cacheStats() {

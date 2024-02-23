@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.analytics.rate;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -87,7 +88,7 @@ public class RateAggregationBuilder extends ValuesSourceAggregationBuilder.Singl
         } else {
             rateUnit = null;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_11_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_11_0)) {
             if (in.readBoolean()) {
                 rateMode = in.readEnum(RateMode.class);
             }
@@ -106,7 +107,7 @@ public class RateAggregationBuilder extends ValuesSourceAggregationBuilder.Singl
         } else {
             out.writeByte((byte) 0);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_11_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_11_0)) {
             if (rateMode != null) {
                 out.writeBoolean(true);
                 out.writeEnum(rateMode);
@@ -114,11 +115,6 @@ public class RateAggregationBuilder extends ValuesSourceAggregationBuilder.Singl
                 out.writeBoolean(false);
             }
         }
-    }
-
-    @Override
-    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
-        return REGISTRY_KEY;
     }
 
     @Override
@@ -193,7 +189,16 @@ public class RateAggregationBuilder extends ValuesSourceAggregationBuilder.Singl
     @Override
     protected ValuesSourceConfig resolveConfig(AggregationContext context) {
         if (field() == null && script() == null) {
-            return new ValuesSourceConfig(CoreValuesSourceType.NUMERIC, null, true, null, null, 1.0, null, DocValueFormat.RAW, context);
+            return new ValuesSourceConfig(
+                CoreValuesSourceType.NUMERIC,
+                null,
+                true,
+                null,
+                null,
+                1.0,
+                DocValueFormat.RAW,
+                context::nowInMillis
+            );
         } else {
             return super.resolveConfig(context);
         }
@@ -215,6 +220,6 @@ public class RateAggregationBuilder extends ValuesSourceAggregationBuilder.Singl
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.V_7_10_0;
+        return TransportVersions.V_7_10_0;
     }
 }

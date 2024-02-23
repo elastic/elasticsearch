@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.transform.persistence;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
@@ -104,7 +105,7 @@ public class AuthorizationStatePersistenceUtilsTests extends TransformSingleNode
     private <T> void assertAsync(Consumer<ActionListener<T>> function, T expected) throws InterruptedException {
         CountDownLatch latch = new CountDownLatch(1);
         LatchedActionListener<T> listener = new LatchedActionListener<>(
-            ActionListener.wrap(r -> assertThat(r, is(equalTo(expected))), e -> fail("got unexpected exception: " + e.getMessage())),
+            ActionTestUtils.assertNoFailureListener(r -> assertThat(r, is(equalTo(expected)))),
             latch
         );
         function.accept(listener);

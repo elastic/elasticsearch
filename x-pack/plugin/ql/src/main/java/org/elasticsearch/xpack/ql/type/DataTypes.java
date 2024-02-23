@@ -6,14 +6,16 @@
  */
 package org.elasticsearch.xpack.ql.type;
 
+import org.elasticsearch.index.mapper.SourceFieldMapper;
+
 import java.math.BigInteger;
 import java.time.ZonedDateTime;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Locale;
 import java.util.Map;
+import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toMap;
 import static java.util.stream.Collectors.toUnmodifiableMap;
@@ -52,8 +54,16 @@ public final class DataTypes {
     public static final DataType OBJECT           = new DataType("object",            0,                 false, false, false);
     public static final DataType NESTED           = new DataType("nested",            0,                 false, false, false);
     //end::noformat
+    public static final DataType SOURCE = new DataType(
+        SourceFieldMapper.NAME,
+        SourceFieldMapper.NAME,
+        Integer.MAX_VALUE,
+        false,
+        false,
+        false
+    );
 
-    private static final Collection<DataType> TYPES = Arrays.asList(
+    private static final Collection<DataType> TYPES = Stream.of(
         UNSUPPORTED,
         NULL,
         BOOLEAN,
@@ -74,7 +84,7 @@ public final class DataTypes {
         BINARY,
         OBJECT,
         NESTED
-    ).stream().sorted(Comparator.comparing(DataType::typeName)).toList();
+    ).sorted(Comparator.comparing(DataType::typeName)).toList();
 
     private static final Map<String, DataType> NAME_TO_TYPE = TYPES.stream().collect(toUnmodifiableMap(DataType::typeName, t -> t));
 

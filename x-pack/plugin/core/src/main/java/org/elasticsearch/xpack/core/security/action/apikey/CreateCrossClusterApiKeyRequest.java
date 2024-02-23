@@ -14,8 +14,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
-import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.security.action.role.RoleDescriptorRequestValidator;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 
@@ -43,9 +41,9 @@ public final class CreateCrossClusterApiKeyRequest extends AbstractCreateApiKeyR
         super(in);
         this.name = in.readString();
         this.expiration = in.readOptionalTimeValue();
-        this.roleDescriptors = in.readImmutableList(RoleDescriptor::new);
+        this.roleDescriptors = in.readCollectionAsImmutableList(RoleDescriptor::new);
         this.refreshPolicy = WriteRequest.RefreshPolicy.readFrom(in);
-        this.metadata = in.readMap();
+        this.metadata = in.readGenericMap();
     }
 
     @Override
@@ -75,7 +73,7 @@ public final class CreateCrossClusterApiKeyRequest extends AbstractCreateApiKeyR
         out.writeString(id);
         out.writeString(name);
         out.writeOptionalTimeValue(expiration);
-        out.writeList(roleDescriptors);
+        out.writeCollection(roleDescriptors);
         refreshPolicy.writeTo(out);
         out.writeGenericMap(metadata);
     }
@@ -99,14 +97,6 @@ public final class CreateCrossClusterApiKeyRequest extends AbstractCreateApiKeyR
     }
 
     public static CreateCrossClusterApiKeyRequest withNameAndAccess(String name, String access) throws IOException {
-        return new CreateCrossClusterApiKeyRequest(
-            name,
-            CrossClusterApiKeyRoleDescriptorBuilder.PARSER.parse(
-                JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, access),
-                null
-            ),
-            null,
-            null
-        );
+        return new CreateCrossClusterApiKeyRequest(name, CrossClusterApiKeyRoleDescriptorBuilder.parse(access), null, null);
     }
 }

@@ -1,6 +1,0 @@
-pr: 95003
-summary: Fix Grok.match() with offset and suffix pattern
-area: Ingest Node
-type: bug
-issues:
- - 95002

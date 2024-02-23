@@ -11,9 +11,8 @@ package org.elasticsearch.cluster;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.RecoverySource.PeerRecoverySource;
-import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingHelper;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
@@ -28,7 +27,6 @@ import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.allOf;
@@ -38,38 +36,38 @@ import static org.hamcrest.Matchers.hasEntry;
 public class DiskUsageTests extends ESTestCase {
     public void testDiskUsageCalc() {
         DiskUsage du = new DiskUsage("node1", "n1", "random", 100, 40);
-        assertThat(du.getFreeDiskAsPercentage(), equalTo(40.0));
-        assertThat(du.getUsedDiskAsPercentage(), equalTo(100.0 - 40.0));
-        assertThat(du.getFreeBytes(), equalTo(40L));
-        assertThat(du.getUsedBytes(), equalTo(60L));
-        assertThat(du.getTotalBytes(), equalTo(100L));
+        assertThat(du.freeDiskAsPercentage(), equalTo(40.0));
+        assertThat(du.usedDiskAsPercentage(), equalTo(100.0 - 40.0));
+        assertThat(du.freeBytes(), equalTo(40L));
+        assertThat(du.usedBytes(), equalTo(60L));
+        assertThat(du.totalBytes(), equalTo(100L));
 
         DiskUsage du2 = new DiskUsage("node1", "n1", "random", 100, 55);
-        assertThat(du2.getFreeDiskAsPercentage(), equalTo(55.0));
-        assertThat(du2.getUsedDiskAsPercentage(), equalTo(45.0));
-        assertThat(du2.getFreeBytes(), equalTo(55L));
-        assertThat(du2.getUsedBytes(), equalTo(45L));
-        assertThat(du2.getTotalBytes(), equalTo(100L));
+        assertThat(du2.freeDiskAsPercentage(), equalTo(55.0));
+        assertThat(du2.usedDiskAsPercentage(), equalTo(45.0));
+        assertThat(du2.freeBytes(), equalTo(55L));
+        assertThat(du2.usedBytes(), equalTo(45L));
+        assertThat(du2.totalBytes(), equalTo(100L));
 
         // Test that DiskUsage handles invalid numbers, as reported by some
         // filesystems (ZFS & NTFS)
         DiskUsage du3 = new DiskUsage("node1", "n1", "random", 100, 101);
-        assertThat(du3.getFreeDiskAsPercentage(), equalTo(101.0));
-        assertThat(du3.getFreeBytes(), equalTo(101L));
-        assertThat(du3.getUsedBytes(), equalTo(-1L));
-        assertThat(du3.getTotalBytes(), equalTo(100L));
+        assertThat(du3.freeDiskAsPercentage(), equalTo(101.0));
+        assertThat(du3.freeBytes(), equalTo(101L));
+        assertThat(du3.usedBytes(), equalTo(-1L));
+        assertThat(du3.totalBytes(), equalTo(100L));
 
         DiskUsage du4 = new DiskUsage("node1", "n1", "random", -1, -1);
-        assertThat(du4.getFreeDiskAsPercentage(), equalTo(100.0));
-        assertThat(du4.getFreeBytes(), equalTo(-1L));
-        assertThat(du4.getUsedBytes(), equalTo(0L));
-        assertThat(du4.getTotalBytes(), equalTo(-1L));
+        assertThat(du4.freeDiskAsPercentage(), equalTo(100.0));
+        assertThat(du4.freeBytes(), equalTo(-1L));
+        assertThat(du4.usedBytes(), equalTo(0L));
+        assertThat(du4.totalBytes(), equalTo(-1L));
 
         DiskUsage du5 = new DiskUsage("node1", "n1", "random", 0, 0);
-        assertThat(du5.getFreeDiskAsPercentage(), equalTo(100.0));
-        assertThat(du5.getFreeBytes(), equalTo(0L));
-        assertThat(du5.getUsedBytes(), equalTo(0L));
-        assertThat(du5.getTotalBytes(), equalTo(0L));
+        assertThat(du5.freeDiskAsPercentage(), equalTo(100.0));
+        assertThat(du5.freeBytes(), equalTo(0L));
+        assertThat(du5.usedBytes(), equalTo(0L));
+        assertThat(du5.totalBytes(), equalTo(0L));
     }
 
     public void testRandomDiskUsage() {
@@ -79,17 +77,17 @@ public class DiskUsageTests extends ESTestCase {
             long free = between(Integer.MIN_VALUE, Integer.MAX_VALUE);
             DiskUsage du = new DiskUsage("random", "random", "random", total, free);
             if (total == 0) {
-                assertThat(du.getFreeBytes(), equalTo(free));
-                assertThat(du.getTotalBytes(), equalTo(0L));
-                assertThat(du.getUsedBytes(), equalTo(-free));
-                assertThat(du.getFreeDiskAsPercentage(), equalTo(100.0));
-                assertThat(du.getUsedDiskAsPercentage(), equalTo(0.0));
+                assertThat(du.freeBytes(), equalTo(free));
+                assertThat(du.totalBytes(), equalTo(0L));
+                assertThat(du.usedBytes(), equalTo(-free));
+                assertThat(du.freeDiskAsPercentage(), equalTo(100.0));
+                assertThat(du.usedDiskAsPercentage(), equalTo(0.0));
             } else {
-                assertThat(du.getFreeBytes(), equalTo(free));
-                assertThat(du.getTotalBytes(), equalTo(total));
-                assertThat(du.getUsedBytes(), equalTo(total - free));
-                assertThat(du.getFreeDiskAsPercentage(), equalTo(100.0 * free / total));
-                assertThat(du.getUsedDiskAsPercentage(), equalTo(100.0 - (100.0 * free / total)));
+                assertThat(du.freeBytes(), equalTo(free));
+                assertThat(du.totalBytes(), equalTo(total));
+                assertThat(du.usedBytes(), equalTo(total - free));
+                assertThat(du.freeDiskAsPercentage(), equalTo(100.0 * free / total));
+                assertThat(du.usedDiskAsPercentage(), equalTo(100.0 - (100.0 * free / total)));
             }
         }
     }
@@ -123,20 +121,22 @@ public class DiskUsageTests extends ESTestCase {
         CommonStats commonStats2 = new CommonStats();
         commonStats2.store = new StoreStats(1000, 999, 0L);
         ShardStats[] stats = new ShardStats[] {
-            new ShardStats(test_0, new ShardPath(false, test0Path, test0Path, test_0.shardId()), commonStats0, null, null, null),
-            new ShardStats(test_1, new ShardPath(false, test1Path, test1Path, test_1.shardId()), commonStats1, null, null, null),
-            new ShardStats(test_1, new ShardPath(false, test1Path, test1Path, test_1.shardId()), commonStats2, null, null, null) };
+            new ShardStats(test_0, new ShardPath(false, test0Path, test0Path, test_0.shardId()), commonStats0, null, null, null, false, 0),
+            new ShardStats(test_1, new ShardPath(false, test1Path, test1Path, test_1.shardId()), commonStats1, null, null, null, false, 0),
+            new ShardStats(
+                test_1,
+                new ShardPath(false, test1Path, test1Path, test_1.shardId()),
+                commonStats2,
+                null,
+                null,
+                null,
+                false,
+                0
+            ) };
         Map<String, Long> shardSizes = new HashMap<>();
         Map<ShardId, Long> shardDataSetSizes = new HashMap<>();
         Map<ClusterInfo.NodeAndShard, String> routingToPath = new HashMap<>();
-        InternalClusterInfoService.buildShardLevelInfo(
-            RoutingTable.EMPTY_ROUTING_TABLE,
-            stats,
-            shardSizes,
-            shardDataSetSizes,
-            routingToPath,
-            new HashMap<>()
-        );
+        InternalClusterInfoService.buildShardLevelInfo(stats, shardSizes, shardDataSetSizes, routingToPath, new HashMap<>());
 
         assertThat(
             shardSizes,
@@ -166,7 +166,7 @@ public class DiskUsageTests extends ESTestCase {
                 new FsInfo.Path("/least", "/dev/sdb", 200, 190, 70),
                 new FsInfo.Path("/most", "/dev/sdc", 300, 290, 280), };
             NodeStats nodeStats = new NodeStats(
-                TestDiscoveryNode.create("node_1", buildNewFakeTransportAddress(), emptyMap(), emptySet()),
+                DiscoveryNodeUtils.builder("node_1").roles(emptySet()).build(),
                 0,
                 null,
                 null,
@@ -174,6 +174,7 @@ public class DiskUsageTests extends ESTestCase {
                 null,
                 null,
                 new FsInfo(0, null, nodeFSInfo),
+                null,
                 null,
                 null,
                 null,
@@ -193,7 +194,7 @@ public class DiskUsageTests extends ESTestCase {
         {
             FsInfo.Path[] nodeFSInfo = new FsInfo.Path[] { new FsInfo.Path("/least_most", "/dev/sda", 100, 90, 80), };
             NodeStats nodeStats = new NodeStats(
-                TestDiscoveryNode.create("node_2", buildNewFakeTransportAddress(), emptyMap(), emptySet()),
+                DiscoveryNodeUtils.builder("node_2").roles(emptySet()).build(),
                 0,
                 null,
                 null,
@@ -201,6 +202,7 @@ public class DiskUsageTests extends ESTestCase {
                 null,
                 null,
                 new FsInfo(0, null, nodeFSInfo),
+                null,
                 null,
                 null,
                 null,
@@ -222,7 +224,7 @@ public class DiskUsageTests extends ESTestCase {
                 new FsInfo.Path("/least", "/dev/sda", 100, 90, 70),
                 new FsInfo.Path("/most", "/dev/sda", 100, 90, 80), };
             NodeStats nodeStats = new NodeStats(
-                TestDiscoveryNode.create("node_3", buildNewFakeTransportAddress(), emptyMap(), emptySet()),
+                DiscoveryNodeUtils.builder("node_3").roles(emptySet()).build(),
                 0,
                 null,
                 null,
@@ -230,6 +232,7 @@ public class DiskUsageTests extends ESTestCase {
                 null,
                 null,
                 new FsInfo(0, null, nodeFSInfo),
+                null,
                 null,
                 null,
                 null,
@@ -255,7 +258,7 @@ public class DiskUsageTests extends ESTestCase {
                 new FsInfo.Path("/most", "/dev/sdc", 300, 290, 280), };
 
             NodeStats nodeStats = new NodeStats(
-                TestDiscoveryNode.create("node_1", buildNewFakeTransportAddress(), emptyMap(), emptySet()),
+                DiscoveryNodeUtils.builder("node_1").roles(emptySet()).build(),
                 0,
                 null,
                 null,
@@ -263,6 +266,7 @@ public class DiskUsageTests extends ESTestCase {
                 null,
                 null,
                 new FsInfo(0, null, nodeFSInfo),
+                null,
                 null,
                 null,
                 null,
@@ -283,7 +287,7 @@ public class DiskUsageTests extends ESTestCase {
         {
             FsInfo.Path[] nodeFSInfo = new FsInfo.Path[] { new FsInfo.Path("/least_most", "/dev/sda", -1, -1, -1), };
             NodeStats nodeStats = new NodeStats(
-                TestDiscoveryNode.create("node_2", buildNewFakeTransportAddress(), emptyMap(), emptySet()),
+                DiscoveryNodeUtils.builder("node_2").roles(emptySet()).build(),
                 0,
                 null,
                 null,
@@ -291,6 +295,7 @@ public class DiskUsageTests extends ESTestCase {
                 null,
                 null,
                 new FsInfo(0, null, nodeFSInfo),
+                null,
                 null,
                 null,
                 null,
@@ -312,7 +317,7 @@ public class DiskUsageTests extends ESTestCase {
                 new FsInfo.Path("/most", "/dev/sda", 100, 90, 70),
                 new FsInfo.Path("/least", "/dev/sda", 10, -1, 0), };
             NodeStats nodeStats = new NodeStats(
-                TestDiscoveryNode.create("node_3", buildNewFakeTransportAddress(), emptyMap(), emptySet()),
+                DiscoveryNodeUtils.builder("node_3").roles(emptySet()).build(),
                 0,
                 null,
                 null,
@@ -320,6 +325,7 @@ public class DiskUsageTests extends ESTestCase {
                 null,
                 null,
                 new FsInfo(0, null, node3FSInfo),
+                null,
                 null,
                 null,
                 null,
@@ -341,9 +347,9 @@ public class DiskUsageTests extends ESTestCase {
     private void assertDiskUsage(DiskUsage usage, FsInfo.Path path) {
         assertNotNull(usage);
         assertNotNull(path);
-        assertEquals(usage.toString(), usage.getPath(), path.getPath());
-        assertEquals(usage.toString(), usage.getTotalBytes(), path.getTotal().getBytes());
-        assertEquals(usage.toString(), usage.getFreeBytes(), path.getAvailable().getBytes());
+        assertEquals(usage.toString(), usage.path(), path.getPath());
+        assertEquals(usage.toString(), usage.totalBytes(), path.getTotal().getBytes());
+        assertEquals(usage.toString(), usage.freeBytes(), path.getAvailable().getBytes());
 
     }
 }

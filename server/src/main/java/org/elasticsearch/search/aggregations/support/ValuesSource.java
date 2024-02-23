@@ -35,7 +35,7 @@ import org.elasticsearch.index.fielddata.SortingNumericDoubleValues;
 import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.script.AggregationScript;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
+import org.elasticsearch.search.aggregations.AggregationErrors;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileCellIdSource;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator;
@@ -116,7 +116,7 @@ public abstract class ValuesSource {
 
         @Override
         public final Function<Rounding, Rounding.Prepared> roundingPreparer(AggregationContext context) throws IOException {
-            throw new AggregationExecutionException("can't round a [BYTES]");
+            throw AggregationErrors.unsupportedRounding("BYTES");
         }
 
         /**
@@ -723,7 +723,7 @@ public abstract class ValuesSource {
 
         @Override
         public final Function<Rounding, Rounding.Prepared> roundingPreparer(AggregationContext context) throws IOException {
-            throw new AggregationExecutionException("can't round a [GEO_POINT]");
+            throw AggregationErrors.unsupportedRounding("GEO_POINT");
         }
 
         /**

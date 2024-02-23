@@ -1,5 +1,0 @@
-pr: 94621
-summary: Introduce a _lifecycle/explain API for data stream backing indices
-area: DLM
-type: feature
-issues: []

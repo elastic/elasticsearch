@@ -9,6 +9,7 @@
 package org.elasticsearch.health.metadata;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NamedDiff;
@@ -62,7 +63,7 @@ public final class HealthMetadata extends AbstractNamedDiffable<ClusterState.Cus
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.V_8_5_0;
+        return TransportVersions.V_8_5_0;
     }
 
     @Override
@@ -122,6 +123,34 @@ public final class HealthMetadata extends AbstractNamedDiffable<ClusterState.Cus
         return "HealthMetadata{diskMetadata=" + Strings.toString(diskMetadata) + ", shardLimitsMetadata=" + shardLimitsMetadata + "}";
     }
 
+    public static Builder newBuilder(HealthMetadata healthMetadata) {
+        return new Builder(healthMetadata);
+    }
+
+    public static class Builder {
+        private Disk disk;
+        private ShardLimits shardLimits;
+
+        private Builder(HealthMetadata healthMetadata) {
+            this.disk = healthMetadata.diskMetadata;
+            this.shardLimits = healthMetadata.shardLimitsMetadata;
+        }
+
+        public Builder disk(Disk disk) {
+            this.disk = disk;
+            return this;
+        }
+
+        public Builder shardLimits(ShardLimits shardLimits) {
+            this.shardLimits = shardLimits;
+            return this;
+        }
+
+        public HealthMetadata build() {
+            return new HealthMetadata(disk, shardLimits);
+        }
+    }
+
     /**
      * Contains the thresholds needed to determine the health of a cluster when it comes to the amount of room available to create new
      * shards. These values are determined by the elected master.
@@ -131,7 +160,7 @@ public final class HealthMetadata extends AbstractNamedDiffable<ClusterState.Cus
         private static final String TYPE = "shard_limits";
         private static final ParseField MAX_SHARDS_PER_NODE = new ParseField("max_shards_per_node");
         private static final ParseField MAX_SHARDS_PER_NODE_FROZEN = new ParseField("max_shards_per_node_frozen");
-        static final TransportVersion VERSION_SUPPORTING_SHARD_LIMIT_FIELDS = TransportVersion.V_8_8_0;
+        static final TransportVersion VERSION_SUPPORTING_SHARD_LIMIT_FIELDS = TransportVersions.V_8_8_0;
 
         static ShardLimits readFrom(StreamInput in) throws IOException {
             return new ShardLimits(in.readInt(), in.readInt());
@@ -200,7 +229,7 @@ public final class HealthMetadata extends AbstractNamedDiffable<ClusterState.Cus
     ) implements ToXContentFragment, Writeable {
 
         public static final String TYPE = "disk";
-        public static final TransportVersion VERSION_SUPPORTING_HEADROOM_FIELDS = TransportVersion.V_8_5_0;
+        public static final TransportVersion VERSION_SUPPORTING_HEADROOM_FIELDS = TransportVersions.V_8_5_0;
 
         private static final ParseField HIGH_WATERMARK_FIELD = new ParseField("high_watermark");
         private static final ParseField HIGH_MAX_HEADROOM_FIELD = new ParseField("high_max_headroom");
@@ -262,7 +291,7 @@ public final class HealthMetadata extends AbstractNamedDiffable<ClusterState.Cus
             return builder;
         }
 
-        private ByteSizeValue getFreeBytes(ByteSizeValue total, RelativeByteSizeValue watermark, ByteSizeValue maxHeadroom) {
+        private static ByteSizeValue getFreeBytes(ByteSizeValue total, RelativeByteSizeValue watermark, ByteSizeValue maxHeadroom) {
             if (watermark.isAbsolute()) {
                 return watermark.getAbsolute();
             }
@@ -281,7 +310,7 @@ public final class HealthMetadata extends AbstractNamedDiffable<ClusterState.Cus
             return getFreeBytes(total, frozenFloodStageWatermark, frozenFloodStageMaxHeadroom);
         }
 
-        private String getThresholdStringRep(RelativeByteSizeValue relativeByteSizeValue) {
+        private static String getThresholdStringRep(RelativeByteSizeValue relativeByteSizeValue) {
             if (relativeByteSizeValue.isAbsolute()) {
                 return relativeByteSizeValue.getAbsolute().getStringRep();
             } else {

@@ -32,7 +32,7 @@ public class RobertaTokenizer extends NlpTokenizer {
     public static final String SEPARATOR_TOKEN = "</s>";
     public static final String PAD_TOKEN = "<pad>";
     public static final String CLASS_TOKEN = "<s>";
-    public static final String MASK_TOKEN = "<mask>";
+    public static final String MASK_TOKEN = RobertaTokenization.MASK_TOKEN;
 
     private static final Set<String> NEVER_SPLIT = Set.of(MASK_TOKEN);
 
@@ -107,6 +107,16 @@ public class RobertaTokenizer extends NlpTokenizer {
     }
 
     @Override
+    int defaultSpanForChunking(int maxWindowSize) {
+        return (maxWindowSize - numExtraTokensForSingleSequence()) / 2;
+    }
+
+    @Override
+    int numExtraTokensForSingleSequence() {
+        return 2;
+    }
+
+    @Override
     int clsTokenId() {
         return clsTokenId;
     }
@@ -131,10 +141,10 @@ public class RobertaTokenizer extends NlpTokenizer {
 
     @Override
     public NlpTask.RequestBuilder requestBuilder() {
-        return (inputs, requestId, truncate, span) -> buildTokenizationResult(
+        return (inputs, requestId, truncate, span, windowSize) -> buildTokenizationResult(
             IntStream.range(0, inputs.size())
                 .boxed()
-                .flatMap(seqId -> tokenize(inputs.get(seqId), truncate, span, seqId).stream())
+                .flatMap(seqId -> tokenize(inputs.get(seqId), truncate, span, seqId, windowSize).stream())
                 .collect(Collectors.toList())
         ).buildRequest(requestId, truncate);
     }

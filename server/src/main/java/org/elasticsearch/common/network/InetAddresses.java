@@ -35,6 +35,14 @@ public class InetAddresses {
         return ipStringToBytes(ipString) != null;
     }
 
+    public static String getIpOrHost(String ipString) {
+        byte[] bytes = ipStringToBytes(ipString);
+        if (bytes == null) { // is not InetAddress
+            return ipString;
+        }
+        return NetworkAddress.format(bytesToInetAddress(bytes));
+    }
+
     private static byte[] ipStringToBytes(String ipString) {
         // Make a first pass to categorize the characters in this string.
         boolean hasColon = false;

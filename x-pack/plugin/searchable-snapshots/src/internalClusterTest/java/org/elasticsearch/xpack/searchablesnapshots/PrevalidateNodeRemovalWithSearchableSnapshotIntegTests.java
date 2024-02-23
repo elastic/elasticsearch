@@ -40,7 +40,7 @@ public class PrevalidateNodeRemovalWithSearchableSnapshotIntegTests extends Base
         createIndexWithContent(indexName, indexSettingsNoReplicas(1).put(INDEX_SOFT_DELETES_SETTING.getKey(), true).build());
         createRepository(repoName, "fs");
         createSnapshot(repoName, snapshotName, List.of(indexName));
-        assertAcked(client().admin().indices().prepareDelete(indexName));
+        assertAcked(indicesAdmin().prepareDelete(indexName));
         // Pin the searchable snapshot index to one node
         final String restoredIndexName = mountSnapshot(
             repoName,
@@ -52,9 +52,7 @@ public class PrevalidateNodeRemovalWithSearchableSnapshotIntegTests extends Base
         // Make sure the searchable snapshot index is red
         internalCluster().stopNode(node1);
         assertBusy(() -> {
-            ClusterHealthResponse healthResponse = client().admin()
-                .cluster()
-                .prepareHealth(restoredIndexName)
+            ClusterHealthResponse healthResponse = clusterAdmin().prepareHealth(restoredIndexName)
                 .setWaitForStatus(ClusterHealthStatus.RED)
                 .setWaitForEvents(Priority.LANGUID)
                 .execute()

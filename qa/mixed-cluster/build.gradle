@@ -27,6 +27,36 @@ restResources {
   }
 }
 
+def excludeList = []
+// Excluding these cache aggregation tests from mixed cluster qa,
+// because we can't hit the same node reliable. The qa cluster
+// consists of 4 nodes. Two nodes are on old version and the
+// other two nodes on the current version. The node selector skips
+// the nodes on current version. The rest client then round robins
+// between the two nodes on old version. In order to unmute this,
+// we need a different node selector, that always consistently
+// selects the same node.
+excludeList.add('aggregations/adjacency_matrix/Terms lookup')
+excludeList.add('aggregations/filter/Standard queries get cached')
+excludeList.add('aggregations/filter/Terms lookup gets cached')
+excludeList.add('aggregations/filters_bucket/cache hits')
+
+// These tests check setting validations in the desired_node API.
+// Validation (and associated tests) are supposed to be skipped/have
+// different behaviour for versions before and after 8.10 but mixed
+// cluster tests may not respect that - see the comment above.
+// Same for node version, which has been deprecated (and made optional)
+// starting from 8.13
+excludeList.add('cluster.desired_nodes/11_old_format/Test settings are validated')
+excludeList.add('cluster.desired_nodes/11_old_format/Test unknown settings are forbidden in known versions')
+excludeList.add('cluster.desired_nodes/11_old_format/Test unknown settings are allowed in future versions')
+excludeList.add('cluster.desired_nodes/11_old_format/Test some settings can be overridden')
+excludeList.add('cluster.desired_nodes/11_old_format/Test node version must be at least the current master version')
+excludeList.add('cluster.desired_nodes/11_old_format/Test node version is required')
+excludeList.add('cluster.desired_nodes/11_old_format/Test node version must have content')
+excludeList.add('cluster.desired_nodes/11_old_format/Test node version can not be null')
+excludeList.add('cluster.desired_nodes/20_dry_run/Test validation works for dry run updates')
+
 BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
 
   if (bwcVersion != VersionProperties.getElasticsearchVersion()) {
@@ -55,8 +85,13 @@ BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
         baseCluster.get().nextNodeToNextVersion()
         nonInputProperties.systemProperty('tests.rest.cluster', baseCluster.map(c -> c.allHttpSocketURI.join(",")))
         nonInputProperties.systemProperty('tests.clustername', baseName)
+        if (excludeList.isEmpty() == false) {
+          systemProperty 'tests.rest.blacklist', excludeList.join(',')
+        }
       }
       systemProperty 'tests.path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
+      systemProperty 'tests.bwc_nodes_version', bwcVersion.toString().replace('-SNAPSHOT', '')
+      systemProperty 'tests.new_nodes_version', project.version.toString().replace('-SNAPSHOT', '')
       onlyIf("BWC tests disabled") { project.bwc_tests_enabled }
     }
 

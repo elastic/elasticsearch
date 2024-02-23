@@ -6,11 +6,10 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -42,7 +41,7 @@ public class GetDatafeedRunningStateAction extends ActionType<GetDatafeedRunning
     public static final String NAME = "cluster:internal/xpack/ml/datafeed/running_state";
 
     private GetDatafeedRunningStateAction() {
-        super(NAME, GetDatafeedRunningStateAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends BaseTasksRequest<Request> {
@@ -55,7 +54,7 @@ public class GetDatafeedRunningStateAction extends ActionType<GetDatafeedRunning
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            this.datafeedTaskIds = in.readSet(StreamInput::readString);
+            this.datafeedTaskIds = in.readCollectionAsSet(StreamInput::readString);
         }
 
         @Override
@@ -101,7 +100,7 @@ public class GetDatafeedRunningStateAction extends ActionType<GetDatafeedRunning
             public RunningState(StreamInput in) throws IOException {
                 this.realTimeConfigured = in.readBoolean();
                 this.realTimeRunning = in.readBoolean();
-                if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_1_0)) {
+                if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0)) {
                     this.searchInterval = in.readOptionalWriteable(SearchInterval::new);
                 } else {
                     this.searchInterval = null;
@@ -127,7 +126,7 @@ public class GetDatafeedRunningStateAction extends ActionType<GetDatafeedRunning
             public void writeTo(StreamOutput out) throws IOException {
                 out.writeBoolean(realTimeConfigured);
                 out.writeBoolean(realTimeRunning);
-                if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_1_0)) {
+                if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0)) {
                     out.writeOptionalWriteable(searchInterval);
                 }
             }
@@ -157,12 +156,12 @@ public class GetDatafeedRunningStateAction extends ActionType<GetDatafeedRunning
         }
 
         public static Response fromTaskAndState(String datafeedId, RunningState runningState) {
-            return new Response(MapBuilder.<String, RunningState>newMapBuilder().put(datafeedId, runningState).map());
+            return new Response(Map.of(datafeedId, runningState));
         }
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            datafeedRunningState = in.readMap(StreamInput::readString, RunningState::new);
+            datafeedRunningState = in.readMap(RunningState::new);
         }
 
         public Response(Map<String, RunningState> runtimeStateMap) {
@@ -181,7 +180,7 @@ public class GetDatafeedRunningStateAction extends ActionType<GetDatafeedRunning
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeMap(datafeedRunningState, StreamOutput::writeString, (o, w) -> w.writeTo(o));
+            out.writeMap(datafeedRunningState, StreamOutput::writeWriteable);
         }
 
         @Override

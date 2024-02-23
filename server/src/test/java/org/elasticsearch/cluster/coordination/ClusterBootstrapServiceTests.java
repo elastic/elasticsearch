@@ -12,7 +12,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
@@ -36,7 +36,6 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Collections.emptyList;
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.BOOTSTRAP_PLACEHOLDER_PREFIX;
@@ -89,13 +88,7 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
     }
 
     private DiscoveryNode newDiscoveryNode(String nodeName) {
-        return TestDiscoveryNode.create(
-            nodeName,
-            randomAlphaOfLength(10),
-            buildNewFakeTransportAddress(),
-            emptyMap(),
-            Set.of(DiscoveryNodeRole.MASTER_ROLE)
-        );
+        return DiscoveryNodeUtils.builder(randomAlphaOfLength(10)).name(nodeName).roles(Set.of(DiscoveryNodeRole.MASTER_ROLE)).build();
     }
 
     public void testBootstrapsAutomaticallyWithDefaultConfiguration() {
@@ -152,7 +145,7 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
     }
 
     public void testDoesNothingByDefaultOnMasterIneligibleNodes() {
-        localNode = TestDiscoveryNode.create("local", randomAlphaOfLength(10), buildNewFakeTransportAddress(), emptyMap(), emptySet());
+        localNode = DiscoveryNodeUtils.builder(randomAlphaOfLength(10)).name("local").roles(emptySet()).build();
         testDoesNothingWithSettings(Settings.builder());
     }
 
@@ -379,7 +372,7 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
     }
 
     public void testDoesNotBootstrapsOnNonMasterNode() {
-        localNode = TestDiscoveryNode.create("local", randomAlphaOfLength(10), buildNewFakeTransportAddress(), emptyMap(), emptySet());
+        localNode = DiscoveryNodeUtils.builder(randomAlphaOfLength(10)).name("local").roles(emptySet()).build();
         ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(
             Settings.builder()
                 .putList(INITIAL_MASTER_NODES_SETTING.getKey(), localNode.getName(), otherNode1.getName(), otherNode2.getName())
@@ -473,7 +466,7 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
     }
 
     public void testCancelsBootstrapIfNodeMatchesMultipleRequirements() {
-        AtomicReference<Iterable<DiscoveryNode>> discoveredNodes = new AtomicReference<>(Stream.of(otherNode1, otherNode2).toList());
+        AtomicReference<Iterable<DiscoveryNode>> discoveredNodes = new AtomicReference<>(List.of(otherNode1, otherNode2));
         ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(
             Settings.builder()
                 .putList(INITIAL_MASTER_NODES_SETTING.getKey(), otherNode1.getAddress().toString(), otherNode1.getName())
@@ -491,22 +484,17 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
         deterministicTaskQueue.runAllTasks();
 
         discoveredNodes.set(
-            Stream.of(
-                TestDiscoveryNode.create(
-                    otherNode1.getName(),
-                    randomAlphaOfLength(10),
-                    buildNewFakeTransportAddress(),
-                    emptyMap(),
-                    Set.of(DiscoveryNodeRole.MASTER_ROLE)
-                ),
-                TestDiscoveryNode.create(
-                    "yet-another-node",
-                    randomAlphaOfLength(10),
-                    otherNode1.getAddress(),
-                    emptyMap(),
-                    Set.of(DiscoveryNodeRole.MASTER_ROLE)
-                )
-            ).toList()
+            List.of(
+                DiscoveryNodeUtils.builder(randomAlphaOfLength(10))
+                    .name(otherNode1.getName())
+                    .roles(Set.of(DiscoveryNodeRole.MASTER_ROLE))
+                    .build(),
+                DiscoveryNodeUtils.builder(randomAlphaOfLength(10))
+                    .name("yet-another-node")
+                    .address(otherNode1.getAddress())
+                    .roles(Set.of(DiscoveryNodeRole.MASTER_ROLE))
+                    .build()
+            )
         );
 
         clusterBootstrapService.onFoundPeersUpdated();
@@ -585,7 +573,7 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
                 .putList(INITIAL_MASTER_NODES_SETTING.getKey(), localNode.getName(), otherNode1.getName(), otherNode2.getName())
                 .build(),
             transportService,
-            () -> Stream.of(otherNode1, otherNode2, extraNode).toList(),
+            () -> List.of(otherNode1, otherNode2, extraNode),
             () -> false,
             vc -> {
                 assertTrue(bootstrapped.compareAndSet(false, true));
@@ -689,12 +677,14 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
 
             mockAppender.assertAllExpectationsMatched();
 
+            final String infoMessagePattern = """
+                this node is locked into cluster UUID [test-uuid] and will not attempt further cluster bootstrapping""";
             mockAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "bootstrapped node message",
                     ClusterBootstrapService.class.getCanonicalName(),
                     Level.INFO,
-                    "this node is locked into cluster UUID [test-uuid] and will not attempt further cluster bootstrapping"
+                    infoMessagePattern
                 )
             );
 
@@ -747,6 +737,41 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
             }
 
             mockAppender.assertAllExpectationsMatched();
+
+            mockAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "bootstrapped node message if discovery type is single node ",
+                    ClusterBootstrapService.class.getCanonicalName(),
+                    Level.INFO,
+                    infoMessagePattern
+                )
+            );
+
+            new ClusterBootstrapService(
+                Settings.builder().put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), DiscoveryModule.SINGLE_NODE_DISCOVERY_TYPE).build(),
+                transportService,
+                Collections::emptyList,
+                () -> false,
+                vc -> {
+                    throw new AssertionError("should not be called");
+                }
+            ).logBootstrapState(Metadata.builder().clusterUUID("test-uuid").clusterUUIDCommitted(true).build());
+
+            mockAppender.assertAllExpectationsMatched();
         }
+    }
+
+    public void testNoRepeatedLoggingWithSingleNodeDiscoveryType() {
+        new ClusterBootstrapService(
+            Settings.builder().put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), DiscoveryModule.SINGLE_NODE_DISCOVERY_TYPE).build(),
+            transportService,
+            Collections::emptyList,
+            () -> false,
+            vc -> {
+                throw new AssertionError("should not be called");
+            }
+        ).logBootstrapState(Metadata.builder().clusterUUID("test-uuid").clusterUUIDCommitted(true).build());
+
+        assertFalse((deterministicTaskQueue.hasDeferredTasks() || deterministicTaskQueue.hasRunnableTasks()));
     }
 }

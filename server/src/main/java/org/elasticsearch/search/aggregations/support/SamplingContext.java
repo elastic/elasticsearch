@@ -21,7 +21,7 @@ import java.util.Optional;
  * This provides information around the current sampling context for aggregations
  */
 public record SamplingContext(double probability, int seed) {
-    public static SamplingContext NONE = new SamplingContext(1.0, 0);
+    public static final SamplingContext NONE = new SamplingContext(1.0, 0);
 
     public boolean isSampled() {
         return probability < 1.0;

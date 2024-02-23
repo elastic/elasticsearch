@@ -12,11 +12,13 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.ExecutorNames;
 import org.elasticsearch.indices.SystemIndexDescriptor;
-import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -36,8 +38,11 @@ import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECU
 public class SecuritySystemIndices {
 
     public static final int INTERNAL_MAIN_INDEX_FORMAT = 6;
+    private static final int INTERNAL_MAIN_INDEX_MAPPINGS_FORMAT = 1;
     private static final int INTERNAL_TOKENS_INDEX_FORMAT = 7;
+    private static final int INTERNAL_TOKENS_INDEX_MAPPINGS_FORMAT = 1;
     private static final int INTERNAL_PROFILE_INDEX_FORMAT = 8;
+    private static final int INTERNAL_PROFILE_INDEX_MAPPINGS_FORMAT = 2;
 
     public static final String SECURITY_MAIN_ALIAS = ".security";
     private static final String MAIN_INDEX_CONCRETE_NAME = ".security-7";
@@ -47,8 +52,9 @@ public class SecuritySystemIndices {
     public static final String INTERNAL_SECURITY_PROFILE_INDEX_8 = ".security-profile-8";
     public static final String SECURITY_PROFILE_ALIAS = ".security-profile";
     public static final Version VERSION_SECURITY_PROFILE_ORIGIN = Version.V_8_3_0;
+    public static final NodeFeature SECURITY_PROFILE_ORIGIN_FEATURE = new NodeFeature("security.security_profile_origin");
 
-    private final Logger logger = LogManager.getLogger(SecuritySystemIndices.class);
+    private static final Logger logger = LogManager.getLogger(SecuritySystemIndices.class);
 
     private final SystemIndexDescriptor mainDescriptor;
     private final SystemIndexDescriptor tokenDescriptor;
@@ -58,10 +64,10 @@ public class SecuritySystemIndices {
     private SecurityIndexManager tokenIndexManager;
     private SecurityIndexManager profileIndexManager;
 
-    public SecuritySystemIndices() {
+    public SecuritySystemIndices(Settings settings) {
         this.mainDescriptor = getSecurityMainIndexDescriptor();
         this.tokenDescriptor = getSecurityTokenIndexDescriptor();
-        this.profileDescriptor = getSecurityProfileIndexDescriptor();
+        this.profileDescriptor = getSecurityProfileIndexDescriptor(settings);
         this.initialized = new AtomicBoolean(false);
         this.mainIndexManager = null;
         this.tokenIndexManager = null;
@@ -125,7 +131,6 @@ public class SecuritySystemIndices {
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
             .put(IndexMetadata.SETTING_PRIORITY, 1000)
-            .put("index.refresh_interval", "1s")
             .put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), INTERNAL_MAIN_INDEX_FORMAT)
             .put("analysis.filter.email.type", "pattern_capture")
             .put("analysis.filter.email.preserve_original", true)
@@ -142,6 +147,7 @@ public class SecuritySystemIndices {
             {
                 builder.startObject("_meta");
                 builder.field(SECURITY_VERSION_STRING, Version.CURRENT.toString());
+                builder.field(SystemIndexDescriptor.VERSION_META_KEY, INTERNAL_MAIN_INDEX_MAPPINGS_FORMAT);
                 builder.endObject();
 
                 builder.field("dynamic", "strict");
@@ -244,52 +250,50 @@ public class SecuritySystemIndices {
                     }
                     builder.endObject();
 
-                    if (TcpTransport.isUntrustedRemoteClusterEnabled()) {
-                        builder.startObject("remote_indices");
+                    builder.startObject("remote_indices");
+                    {
+                        builder.field("type", "object");
+                        builder.startObject("properties");
                         {
-                            builder.field("type", "object");
-                            builder.startObject("properties");
+                            builder.startObject("field_security");
                             {
-                                builder.startObject("field_security");
+                                builder.startObject("properties");
                                 {
-                                    builder.startObject("properties");
-                                    {
-                                        builder.startObject("grant");
-                                        builder.field("type", "keyword");
-                                        builder.endObject();
+                                    builder.startObject("grant");
+                                    builder.field("type", "keyword");
+                                    builder.endObject();
 
-                                        builder.startObject("except");
-                                        builder.field("type", "keyword");
-                                        builder.endObject();
-                                    }
+                                    builder.startObject("except");
+                                    builder.field("type", "keyword");
                                     builder.endObject();
                                 }
                                 builder.endObject();
-
-                                builder.startObject("names");
-                                builder.field("type", "keyword");
-                                builder.endObject();
-
-                                builder.startObject("privileges");
-                                builder.field("type", "keyword");
-                                builder.endObject();
-
-                                builder.startObject("query");
-                                builder.field("type", "keyword");
-                                builder.endObject();
-
-                                builder.startObject("allow_restricted_indices");
-                                builder.field("type", "boolean");
-                                builder.endObject();
-
-                                builder.startObject("clusters");
-                                builder.field("type", "keyword");
-                                builder.endObject();
                             }
+                            builder.endObject();
+
+                            builder.startObject("names");
+                            builder.field("type", "keyword");
+                            builder.endObject();
+
+                            builder.startObject("privileges");
+                            builder.field("type", "keyword");
+                            builder.endObject();
+
+                            builder.startObject("query");
+                            builder.field("type", "keyword");
+                            builder.endObject();
+
+                            builder.startObject("allow_restricted_indices");
+                            builder.field("type", "boolean");
+                            builder.endObject();
+
+                            builder.startObject("clusters");
+                            builder.field("type", "keyword");
                             builder.endObject();
                         }
                         builder.endObject();
                     }
+                    builder.endObject();
 
                     builder.startObject("applications");
                     {
@@ -617,7 +621,6 @@ public class SecuritySystemIndices {
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
             .put(IndexMetadata.SETTING_PRIORITY, 1000)
-            .put("index.refresh_interval", "1s")
             .put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), INTERNAL_TOKENS_INDEX_FORMAT)
             .build();
     }
@@ -630,6 +633,7 @@ public class SecuritySystemIndices {
             {
                 builder.startObject("_meta");
                 builder.field(SECURITY_VERSION_STRING, Version.CURRENT);
+                builder.field(SystemIndexDescriptor.VERSION_META_KEY, INTERNAL_TOKENS_INDEX_MAPPINGS_FORMAT);
                 builder.endObject();
 
                 builder.field("dynamic", "strict");
@@ -756,6 +760,10 @@ public class SecuritySystemIndices {
                             builder.field("type", "boolean");
                             builder.endObject();
 
+                            builder.startObject("token");
+                            builder.field("type", "keyword");
+                            builder.endObject();
+
                             builder.startObject("realm");
                             builder.field("type", "keyword");
                             builder.endObject();
@@ -776,13 +784,13 @@ public class SecuritySystemIndices {
         }
     }
 
-    private SystemIndexDescriptor getSecurityProfileIndexDescriptor() {
+    private SystemIndexDescriptor getSecurityProfileIndexDescriptor(Settings settings) {
         return SystemIndexDescriptor.builder()
             .setIndexPattern(".security-profile-[0-9]+*")
             .setPrimaryIndex(INTERNAL_SECURITY_PROFILE_INDEX_8)
             .setDescription("Contains user profile documents")
-            .setMappings(getProfileIndexMappings())
-            .setSettings(getProfileIndexSettings())
+            .setMappings(getProfileIndexMappings(INTERNAL_PROFILE_INDEX_MAPPINGS_FORMAT))
+            .setSettings(getProfileIndexSettings(settings))
             .setAliasName(SECURITY_PROFILE_ALIAS)
             .setIndexFormat(INTERNAL_PROFILE_INDEX_FORMAT)
             .setVersionMetaKey(SECURITY_VERSION_STRING)
@@ -795,8 +803,8 @@ public class SecuritySystemIndices {
                         .setIndexPattern(".security-profile-[0-9]+*")
                         .setPrimaryIndex(INTERNAL_SECURITY_PROFILE_INDEX_8)
                         .setDescription("Contains user profile documents")
-                        .setMappings(getProfileIndexMappings())
-                        .setSettings(getProfileIndexSettings())
+                        .setMappings(getProfileIndexMappings(INTERNAL_PROFILE_INDEX_MAPPINGS_FORMAT - 1))
+                        .setSettings(getProfileIndexSettings(settings))
                         .setAliasName(SECURITY_PROFILE_ALIAS)
                         .setIndexFormat(INTERNAL_PROFILE_INDEX_FORMAT)
                         .setVersionMetaKey(SECURITY_VERSION_STRING)
@@ -808,29 +816,36 @@ public class SecuritySystemIndices {
             .build();
     }
 
-    private static Settings getProfileIndexSettings() {
-        return Settings.builder()
+    private static Settings getProfileIndexSettings(Settings settings) {
+        final Settings.Builder settingsBuilder = Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
             .put(IndexMetadata.SETTING_PRIORITY, 1000)
-            .put("index.refresh_interval", "1s")
             .put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), INTERNAL_PROFILE_INDEX_FORMAT)
             .put("analysis.filter.email.type", "pattern_capture")
             .put("analysis.filter.email.preserve_original", true)
             .putList("analysis.filter.email.patterns", List.of("([^@]+)", "(\\p{L}+)", "(\\d+)", "@(.+)"))
             .put("analysis.analyzer.email.tokenizer", "uax_url_email")
-            .putList("analysis.analyzer.email.filter", List.of("email", "lowercase", "unique"))
-            .build();
+            .putList("analysis.analyzer.email.filter", List.of("email", "lowercase", "unique"));
+        if (DiscoveryNode.isStateless(settings)) {
+            // The profiles functionality is intrinsically related to Kibana. Only Kibana uses this index (via dedicated APIs).
+            // Since the regular ".kibana" index is marked "fast_refresh", we opt to mark the user profiles index as "fast_refresh" too.
+            // This way the profiles index has the same availability and latency characteristics as the regular ".kibana" index, so APIs
+            // touching either of the two indices are more predictable.
+            settingsBuilder.put(IndexSettings.INDEX_FAST_REFRESH_SETTING.getKey(), true);
+        }
+        return settingsBuilder.build();
     }
 
-    private XContentBuilder getProfileIndexMappings() {
+    private XContentBuilder getProfileIndexMappings(int mappingsVersion) {
         try {
             final XContentBuilder builder = jsonBuilder();
             builder.startObject();
             {
                 builder.startObject("_meta");
                 builder.field(SECURITY_VERSION_STRING, Version.CURRENT.toString());
+                builder.field(SystemIndexDescriptor.VERSION_META_KEY, mappingsVersion);
                 builder.endObject();
 
                 builder.field("dynamic", "strict");

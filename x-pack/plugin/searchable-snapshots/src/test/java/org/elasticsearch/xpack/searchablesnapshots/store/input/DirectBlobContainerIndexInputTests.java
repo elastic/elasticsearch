@@ -6,9 +6,9 @@
  */
 package org.elasticsearch.xpack.searchablesnapshots.store.input;
 
-import org.apache.lucene.store.BufferedIndexInput;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.lucene.store.ESIndexInputTestCase;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -34,6 +34,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.startsWith;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
@@ -75,10 +76,10 @@ public class DirectBlobContainerIndexInputTests extends ESIndexInputTestCase {
         );
 
         final BlobContainer blobContainer = mock(BlobContainer.class);
-        when(blobContainer.readBlob(anyString(), anyLong(), anyLong())).thenAnswer(invocationOnMock -> {
-            String name = (String) invocationOnMock.getArguments()[0];
-            long position = (long) invocationOnMock.getArguments()[1];
-            long length = (long) invocationOnMock.getArguments()[2];
+        when(blobContainer.readBlob(any(OperationPurpose.class), anyString(), anyLong(), anyLong())).thenAnswer(invocationOnMock -> {
+            String name = (String) invocationOnMock.getArguments()[1];
+            long position = (long) invocationOnMock.getArguments()[2];
+            long length = (long) invocationOnMock.getArguments()[3];
             assertThat(
                 "Reading [" + length + "] bytes from [" + name + "] at [" + position + "] exceeds part size [" + partSize + "]",
                 position + length,
@@ -143,6 +144,25 @@ public class DirectBlobContainerIndexInputTests extends ESIndexInputTestCase {
         }
     }
 
+    public void testCloneAndLargeRead() throws IOException {
+        final Tuple<String, byte[]> bytes = randomChecksumBytes(between(ByteSizeUnit.KB.toIntBytes(2), ByteSizeUnit.KB.toIntBytes(10)));
+        try (var indexInput = createIndexInput(bytes)) {
+            indexInput.readLong();
+
+            final var clone = indexInput.clone();
+
+            // do a read which is large enough to exercise the path which bypasses the buffer and fills the output directly
+
+            final var originalBytes = new byte[2048];
+            indexInput.readBytes(originalBytes, 0, originalBytes.length);
+
+            final var cloneBytes = new byte[originalBytes.length];
+            clone.readBytes(cloneBytes, 0, cloneBytes.length);
+
+            assertArrayEquals(originalBytes, cloneBytes);
+        }
+    }
+
     public void testRandomOverflow() throws IOException {
         for (int i = 0; i < 100; i++) {
             final Tuple<String, byte[]> bytes = randomChecksumBytes(randomIntBetween(1, 1000));
@@ -188,7 +208,7 @@ public class DirectBlobContainerIndexInputTests extends ESIndexInputTestCase {
             final String checksum = bytes.v1();
 
             final AtomicInteger readBlobCount = new AtomicInteger();
-            final BufferedIndexInput indexInput = createIndexInput(
+            final DirectBlobContainerIndexInput indexInput = createIndexInput(
                 input,
                 partSize,
                 minimumReadSize,

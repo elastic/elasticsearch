@@ -20,14 +20,15 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -64,7 +65,9 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static org.apache.lucene.tests.util.LuceneTestCase.random;
+import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
+import static org.elasticsearch.test.ESTestCase.randomValueOtherThan;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasKey;
@@ -98,12 +101,12 @@ public final class BlobStoreTestUtil {
      * Same as {@link #assertConsistency(BlobStoreRepository)} but async so it can be used in tests that don't allow blocking.
      */
     public static PlainActionFuture<AssertionError> assertConsistencyAsync(BlobStoreRepository repository) {
-        final PlainActionFuture<AssertionError> future = PlainActionFuture.newFuture();
+        final PlainActionFuture<AssertionError> future = new PlainActionFuture<>();
         repository.threadPool().generic().execute(ActionRunnable.wrap(future, listener -> {
             try {
                 final BlobContainer blobContainer = repository.blobContainer();
                 final long latestGen;
-                try (DataInputStream inputStream = new DataInputStream(blobContainer.readBlob("index.latest"))) {
+                try (DataInputStream inputStream = new DataInputStream(blobContainer.readBlob(randomNonDataPurpose(), "index.latest"))) {
                     latestGen = inputStream.readLong();
                 } catch (NoSuchFileException e) {
                     throw new AssertionError("Could not find index.latest blob for repo [" + repository + "]");
@@ -111,7 +114,7 @@ public final class BlobStoreTestUtil {
                 assertIndexGenerations(blobContainer, latestGen);
                 final RepositoryData repositoryData;
                 try (
-                    InputStream blob = blobContainer.readBlob(BlobStoreRepository.INDEX_FILE_PREFIX + latestGen);
+                    InputStream blob = blobContainer.readBlob(randomNonDataPurpose(), BlobStoreRepository.INDEX_FILE_PREFIX + latestGen);
                     XContentParser parser = XContentType.JSON.xContent()
                         .createParser(XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE), blob)
                 ) {
@@ -152,7 +155,7 @@ public final class BlobStoreTestUtil {
     }
 
     private static void assertIndexGenerations(BlobContainer repoRoot, long latestGen) throws IOException {
-        final long[] indexGenerations = repoRoot.listBlobsByPrefix(BlobStoreRepository.INDEX_FILE_PREFIX)
+        final long[] indexGenerations = repoRoot.listBlobsByPrefix(randomPurpose(), BlobStoreRepository.INDEX_FILE_PREFIX)
             .keySet()
             .stream()
             .map(s -> s.replace(BlobStoreRepository.INDEX_FILE_PREFIX, ""))
@@ -164,12 +167,12 @@ public final class BlobStoreTestUtil {
     }
 
     private static void assertShardIndexGenerations(BlobContainer repoRoot, ShardGenerations shardGenerations) throws IOException {
-        final BlobContainer indicesContainer = repoRoot.children().get("indices");
+        final BlobContainer indicesContainer = repoRoot.children(randomPurpose()).get("indices");
         for (IndexId index : shardGenerations.indices()) {
             final List<ShardGeneration> gens = shardGenerations.getGens(index);
             if (gens.isEmpty() == false) {
-                final BlobContainer indexContainer = indicesContainer.children().get(index.getId());
-                final Map<String, BlobContainer> shardContainers = indexContainer.children();
+                final BlobContainer indexContainer = indicesContainer.children(randomPurpose()).get(index.getId());
+                final Map<String, BlobContainer> shardContainers = indexContainer.children(randomPurpose());
                 for (int i = 0; i < gens.size(); i++) {
                     final ShardGeneration generation = gens.get(i);
                     assertThat(generation, not(ShardGenerations.DELETED_SHARD_GEN));
@@ -177,7 +180,7 @@ public final class BlobStoreTestUtil {
                         final String shardId = Integer.toString(i);
                         assertThat(shardContainers, hasKey(shardId));
                         assertThat(
-                            shardContainers.get(shardId).listBlobsByPrefix(BlobStoreRepository.INDEX_FILE_PREFIX),
+                            shardContainers.get(shardId).listBlobsByPrefix(randomPurpose(), BlobStoreRepository.INDEX_FILE_PREFIX),
                             hasKey(BlobStoreRepository.INDEX_FILE_PREFIX + generation)
                         );
                     }
@@ -187,18 +190,14 @@ public final class BlobStoreTestUtil {
     }
 
     private static void assertIndexUUIDs(BlobStoreRepository repository, RepositoryData repositoryData) throws IOException {
-        final List<String> expectedIndexUUIDs = repositoryData.getIndices()
-            .values()
-            .stream()
-            .map(IndexId::getId)
-            .collect(Collectors.toList());
-        final BlobContainer indicesContainer = repository.blobContainer().children().get("indices");
+        final List<String> expectedIndexUUIDs = repositoryData.getIndices().values().stream().map(IndexId::getId).toList();
+        final BlobContainer indicesContainer = repository.blobContainer().children(randomPurpose()).get("indices");
         final List<String> foundIndexUUIDs;
         if (indicesContainer == null) {
             foundIndexUUIDs = Collections.emptyList();
         } else {
             // Skip Lucene MockFS extraN directory
-            foundIndexUUIDs = indicesContainer.children()
+            foundIndexUUIDs = indicesContainer.children(randomPurpose())
                 .keySet()
                 .stream()
                 .filter(s -> s.startsWith("extra") == false)
@@ -206,9 +205,9 @@ public final class BlobStoreTestUtil {
         }
         assertThat(foundIndexUUIDs, containsInAnyOrder(expectedIndexUUIDs.toArray(Strings.EMPTY_ARRAY)));
         for (String indexId : foundIndexUUIDs) {
-            final Set<String> indexMetaGenerationsFound = indicesContainer.children()
+            final Set<String> indexMetaGenerationsFound = indicesContainer.children(randomPurpose())
                 .get(indexId)
-                .listBlobsByPrefix(BlobStoreRepository.METADATA_PREFIX)
+                .listBlobsByPrefix(randomPurpose(), BlobStoreRepository.METADATA_PREFIX)
                 .keySet()
                 .stream()
                 .map(p -> p.replace(BlobStoreRepository.METADATA_PREFIX, "").replace(".dat", ""))
@@ -231,9 +230,9 @@ public final class BlobStoreTestUtil {
     ) throws IOException {
         final BlobContainer repoRoot = repository.blobContainer();
         final Collection<SnapshotId> snapshotIds = repositoryData.getSnapshotIds();
-        final List<String> expectedSnapshotUUIDs = snapshotIds.stream().map(SnapshotId::getUUID).collect(Collectors.toList());
+        final List<String> expectedSnapshotUUIDs = snapshotIds.stream().map(SnapshotId::getUUID).toList();
         for (String prefix : new String[] { BlobStoreRepository.SNAPSHOT_PREFIX, BlobStoreRepository.METADATA_PREFIX }) {
-            final Collection<String> foundSnapshotUUIDs = repoRoot.listBlobs()
+            final Collection<String> foundSnapshotUUIDs = repoRoot.listBlobs(randomPurpose())
                 .keySet()
                 .stream()
                 .filter(p -> p.startsWith(prefix))
@@ -242,12 +241,12 @@ public final class BlobStoreTestUtil {
             assertThat(foundSnapshotUUIDs, containsInAnyOrder(expectedSnapshotUUIDs.toArray(Strings.EMPTY_ARRAY)));
         }
 
-        final BlobContainer indicesContainer = repository.getBlobContainer().children().get("indices");
+        final BlobContainer indicesContainer = repository.getBlobContainer().children(randomPurpose()).get("indices");
         final Map<String, BlobContainer> indices;
         if (indicesContainer == null) {
             indices = Collections.emptyMap();
         } else {
-            indices = indicesContainer.children();
+            indices = indicesContainer.children(randomPurpose());
         }
         if (snapshotIds.isEmpty()) {
             listener.onResponse(null);
@@ -300,7 +299,7 @@ public final class BlobStoreTestUtil {
                 assertThat(indices, hasKey(indexId.getId()));
                 final BlobContainer indexContainer = indices.get(indexId.getId());
                 assertThat(
-                    indexContainer.listBlobs(),
+                    indexContainer.listBlobs(randomPurpose()),
                     hasKey(
                         String.format(
                             Locale.ROOT,
@@ -310,7 +309,7 @@ public final class BlobStoreTestUtil {
                     )
                 );
                 final IndexMetadata indexMetadata = repository.getSnapshotIndexMetaData(repositoryData, snapshotId, indexId);
-                for (Map.Entry<String, BlobContainer> entry : indexContainer.children().entrySet()) {
+                for (Map.Entry<String, BlobContainer> entry : indexContainer.children(randomPurpose()).entrySet()) {
                     // Skip Lucene MockFS extraN directory
                     if (entry.getKey().startsWith("extra")) {
                         continue;
@@ -324,7 +323,7 @@ public final class BlobStoreTestUtil {
                     final BlobContainer shardContainer = entry.getValue();
                     // TODO: we shouldn't be leaking empty shard directories when a shard (but not all of the index it belongs to)
                     // becomes unreferenced. We should fix that and remove this conditional once its fixed.
-                    if (shardContainer.listBlobs().keySet().stream().anyMatch(blob -> blob.startsWith("extra") == false)) {
+                    if (shardContainer.listBlobs(randomPurpose()).keySet().stream().anyMatch(blob -> blob.startsWith("extra") == false)) {
                         final int impliedCount = shardId - 1;
                         maxShardCountsSeen.compute(
                             indexId,
@@ -335,7 +334,7 @@ public final class BlobStoreTestUtil {
                         && snapshotInfo.shardFailures()
                             .stream()
                             .noneMatch(shardFailure -> shardFailure.index().equals(index) && shardFailure.shardId() == shardId)) {
-                        final Map<String, BlobMetadata> shardPathContents = shardContainer.listBlobs();
+                        final Map<String, BlobMetadata> shardPathContents = shardContainer.listBlobs(randomPurpose());
                         assertThat(
                             shardPathContents,
                             hasKey(String.format(Locale.ROOT, BlobStoreRepository.SNAPSHOT_NAME_FORMAT, snapshotId.getUUID()))
@@ -371,10 +370,12 @@ public final class BlobStoreTestUtil {
     }
 
     public static void assertBlobsByPrefix(BlobStoreRepository repository, BlobPath path, String prefix, Map<String, BlobMetadata> blobs) {
-        final PlainActionFuture<Map<String, BlobMetadata>> future = PlainActionFuture.newFuture();
+        final PlainActionFuture<Map<String, BlobMetadata>> future = new PlainActionFuture<>();
         repository.threadPool()
             .generic()
-            .execute(ActionRunnable.supply(future, () -> repository.blobStore().blobContainer(path).listBlobsByPrefix(prefix)));
+            .execute(
+                ActionRunnable.supply(future, () -> repository.blobStore().blobContainer(path).listBlobsByPrefix(randomPurpose(), prefix))
+            );
         Map<String, BlobMetadata> foundBlobs = future.actionGet();
         if (blobs.isEmpty()) {
             assertThat(foundBlobs.keySet(), empty());
@@ -431,7 +432,7 @@ public final class BlobStoreTestUtil {
         final ClusterApplierService clusterApplierService = mock(ClusterApplierService.class);
         when(clusterService.getClusterApplierService()).thenReturn(clusterApplierService);
         // Setting local node as master so it may update the repository metadata in the cluster state
-        final DiscoveryNode localNode = TestDiscoveryNode.create("");
+        final DiscoveryNode localNode = DiscoveryNodeUtils.create("");
         when(clusterService.localNode()).thenReturn(localNode);
         final AtomicReference<ClusterState> currentState = new AtomicReference<>(
             ClusterState.builder(initialState)
@@ -457,5 +458,13 @@ public final class BlobStoreTestUtil {
         }).when(clusterService).addStateApplier(any(ClusterStateApplier.class));
         when(clusterApplierService.threadPool()).thenReturn(threadPool);
         return clusterService;
+    }
+
+    public static OperationPurpose randomPurpose() {
+        return randomFrom(OperationPurpose.values());
+    }
+
+    public static OperationPurpose randomNonDataPurpose() {
+        return randomValueOtherThan(OperationPurpose.SNAPSHOT_DATA, BlobStoreTestUtil::randomPurpose);
     }
 }

@@ -142,4 +142,12 @@ public final class EqlTestUtils {
             settings
         );
     }
+
+    public static boolean[] booleanArrayOf(int size, boolean value) {
+        boolean[] missing = new boolean[size];
+        for (int i = 0; i < size; i++) {
+            missing[i] = value;
+        }
+        return missing;
+    }
 }

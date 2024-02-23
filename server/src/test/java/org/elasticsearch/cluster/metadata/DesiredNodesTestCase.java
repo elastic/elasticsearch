@@ -8,13 +8,12 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.desirednodes.UpdateDesiredNodesRequest;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -44,38 +43,32 @@ public abstract class DesiredNodesTestCase extends ESTestCase {
     }
 
     public static DesiredNode randomDesiredNode() {
-        return randomDesiredNode(Version.CURRENT, Settings.EMPTY);
+        return randomDesiredNode(Settings.EMPTY);
     }
 
     public static DesiredNode randomDesiredNode(Settings settings) {
-        return randomDesiredNode(Version.CURRENT, settings);
-    }
-
-    public static DesiredNode randomDesiredNode(Version version, Settings settings) {
         if (randomBoolean()) {
-            return randomDesiredNode(version, settings, randomProcessorRange());
+            return randomDesiredNode(settings, randomProcessorRange());
         } else {
-            return randomDesiredNode(version, settings, randomNumberOfProcessors());
+            return randomDesiredNode(settings, randomNumberOfProcessors());
         }
     }
 
-    public static DesiredNode randomDesiredNode(Version version, Settings settings, double processors) {
+    public static DesiredNode randomDesiredNode(Settings settings, double processors) {
         return new DesiredNode(
             addExternalIdIfMissing(settings),
             processors,
             ByteSizeValue.ofGb(randomIntBetween(1, 1024)),
-            ByteSizeValue.ofTb(randomIntBetween(1, 40)),
-            version
+            ByteSizeValue.ofTb(randomIntBetween(1, 40))
         );
     }
 
-    public static DesiredNode randomDesiredNode(Version version, Settings settings, DesiredNode.ProcessorsRange processorsRange) {
+    public static DesiredNode randomDesiredNode(Settings settings, DesiredNode.ProcessorsRange processorsRange) {
         return new DesiredNode(
             addExternalIdIfMissing(settings),
             processorsRange,
             ByteSizeValue.ofGb(randomIntBetween(1, 1024)),
-            ByteSizeValue.ofTb(randomIntBetween(1, 40)),
-            version
+            ByteSizeValue.ofTb(randomIntBetween(1, 40))
         );
     }
 
@@ -174,7 +167,7 @@ public abstract class DesiredNodesTestCase extends ESTestCase {
     }
 
     public static DiscoveryNode newDiscoveryNode(String nodeName) {
-        return TestDiscoveryNode.create(nodeName, UUIDs.randomBase64UUID(random()));
+        return DiscoveryNodeUtils.create(nodeName, UUIDs.randomBase64UUID(random()));
     }
 
     public static double randomNumberOfProcessors() {

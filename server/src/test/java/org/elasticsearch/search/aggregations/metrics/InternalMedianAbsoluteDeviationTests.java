@@ -9,11 +9,9 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.test.InternalAggregationTestCase;
 
-import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -24,7 +22,7 @@ public class InternalMedianAbsoluteDeviationTests extends InternalAggregationTes
 
     @Override
     protected InternalMedianAbsoluteDeviation createTestInstance(String name, Map<String, Object> metadata) {
-        final TDigestState valuesSketch = new TDigestState(randomDoubleBetween(20, 1000, true));
+        final TDigestState valuesSketch = TDigestState.create(randomFrom(50.0, 100.0, 200.0, 500.0, 1000.0));
         final int numberOfValues = frequently() ? randomIntBetween(0, 1000) : 0;
         for (int i = 0; i < numberOfValues; i++) {
             valuesSketch.add(randomDouble());
@@ -35,7 +33,7 @@ public class InternalMedianAbsoluteDeviationTests extends InternalAggregationTes
 
     @Override
     protected void assertReduced(InternalMedianAbsoluteDeviation reduced, List<InternalMedianAbsoluteDeviation> inputs) {
-        final TDigestState expectedValuesSketch = new TDigestState(reduced.getValuesSketch().compression());
+        final TDigestState expectedValuesSketch = TDigestState.createUsingParamsFrom(reduced.getValuesSketch());
 
         long totalCount = 0;
         for (InternalMedianAbsoluteDeviation input : inputs) {
@@ -65,14 +63,6 @@ public class InternalMedianAbsoluteDeviationTests extends InternalAggregationTes
     }
 
     @Override
-    protected void assertFromXContent(InternalMedianAbsoluteDeviation internalMAD, ParsedAggregation parsedAggregation) throws IOException {
-        assertTrue(parsedAggregation instanceof ParsedMedianAbsoluteDeviation);
-        ParsedMedianAbsoluteDeviation parsedMAD = (ParsedMedianAbsoluteDeviation) parsedAggregation;
-        // Double.compare handles NaN, which we use for no result
-        assertEquals(internalMAD.getMedianAbsoluteDeviation(), parsedMAD.getMedianAbsoluteDeviation(), 0);
-    }
-
-    @Override
     protected InternalMedianAbsoluteDeviation mutateInstance(InternalMedianAbsoluteDeviation instance) {
         String name = instance.getName();
         TDigestState valuesSketch = instance.getValuesSketch();
@@ -81,7 +71,7 @@ public class InternalMedianAbsoluteDeviationTests extends InternalAggregationTes
         switch (between(0, 2)) {
             case 0 -> name += randomAlphaOfLengthBetween(2, 10);
             case 1 -> {
-                final TDigestState newValuesSketch = new TDigestState(instance.getValuesSketch().compression());
+                final TDigestState newValuesSketch = TDigestState.createUsingParamsFrom(instance.getValuesSketch());
                 final int numberOfValues = between(10, 100);
                 for (int i = 0; i < numberOfValues; i++) {
                     newValuesSketch.add(randomDouble());

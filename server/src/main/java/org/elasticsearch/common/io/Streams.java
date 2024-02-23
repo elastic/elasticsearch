@@ -290,11 +290,6 @@ public abstract class Streams {
         }
 
         @Override
-        public void close() throws IOException {
-            in.close();
-        }
-
-        @Override
         public synchronized void mark(int readlimit) {
             in.mark(readlimit);
             limitOnLastMark = currentLimit;

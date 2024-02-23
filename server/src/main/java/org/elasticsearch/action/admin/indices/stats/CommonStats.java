@@ -10,6 +10,7 @@ package org.elasticsearch.action.admin.indices.stats;
 
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -27,6 +28,7 @@ import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
+import org.elasticsearch.index.shard.DenseVectorStats;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexingStats;
@@ -45,7 +47,8 @@ import java.util.Objects;
 
 public class CommonStats implements Writeable, ToXContentFragment {
 
-    private static final TransportVersion VERSION_SUPPORTING_NODE_MAPPINGS = TransportVersion.V_8_5_0;
+    private static final TransportVersion VERSION_SUPPORTING_NODE_MAPPINGS = TransportVersions.V_8_5_0;
+    private static final TransportVersion VERSION_SUPPORTING_DENSE_VECTOR_STATS = TransportVersions.V_8_10_X;
 
     @Nullable
     public DocsStats docs;
@@ -104,6 +107,9 @@ public class CommonStats implements Writeable, ToXContentFragment {
     @Nullable
     public NodeMappingStats nodeMappings;
 
+    @Nullable
+    public DenseVectorStats denseVectorStats;
+
     public CommonStats() {
         this(CommonStatsFlags.NONE);
     }
@@ -132,6 +138,7 @@ public class CommonStats implements Writeable, ToXContentFragment {
                 case Bulk -> bulk = new BulkStats();
                 case Shards -> shards = new ShardCountStats();
                 case Mappings -> nodeMappings = new NodeMappingStats();
+                case DenseVector -> denseVectorStats = new DenseVectorStats();
                 default -> throw new IllegalStateException("Unknown Flag: " + flag);
             }
         }
@@ -174,6 +181,7 @@ public class CommonStats implements Writeable, ToXContentFragment {
                     case Shards ->
                         // Setting to 1 because the single IndexShard passed to this method implies 1 shard
                         stats.shards = new ShardCountStats(1);
+                    case DenseVector -> stats.denseVectorStats = indexShard.denseVectorStats();
                     default -> throw new IllegalStateException("Unknown or invalid flag for shard-level stats: " + flag);
                 }
             } catch (AlreadyClosedException e) {
@@ -201,12 +209,15 @@ public class CommonStats implements Writeable, ToXContentFragment {
         translog = in.readOptionalWriteable(TranslogStats::new);
         requestCache = in.readOptionalWriteable(RequestCacheStats::new);
         recoveryStats = in.readOptionalWriteable(RecoveryStats::new);
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
             bulk = in.readOptionalWriteable(BulkStats::new);
         }
         shards = in.readOptionalWriteable(ShardCountStats::new);
         if (in.getTransportVersion().onOrAfter(VERSION_SUPPORTING_NODE_MAPPINGS)) {
             nodeMappings = in.readOptionalWriteable(NodeMappingStats::new);
+        }
+        if (in.getTransportVersion().onOrAfter(VERSION_SUPPORTING_DENSE_VECTOR_STATS)) {
+            denseVectorStats = in.readOptionalWriteable(DenseVectorStats::new);
         }
     }
 
@@ -228,12 +239,15 @@ public class CommonStats implements Writeable, ToXContentFragment {
         out.writeOptionalWriteable(translog);
         out.writeOptionalWriteable(requestCache);
         out.writeOptionalWriteable(recoveryStats);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
             out.writeOptionalWriteable(bulk);
         }
         out.writeOptionalWriteable(shards);
         if (out.getTransportVersion().onOrAfter(VERSION_SUPPORTING_NODE_MAPPINGS)) {
             out.writeOptionalWriteable(nodeMappings);
+        }
+        if (out.getTransportVersion().onOrAfter(VERSION_SUPPORTING_DENSE_VECTOR_STATS)) {
+            out.writeOptionalWriteable(denseVectorStats);
         }
     }
 
@@ -260,7 +274,8 @@ public class CommonStats implements Writeable, ToXContentFragment {
             && Objects.equals(recoveryStats, that.recoveryStats)
             && Objects.equals(bulk, that.bulk)
             && Objects.equals(shards, that.shards)
-            && Objects.equals(nodeMappings, that.nodeMappings);
+            && Objects.equals(nodeMappings, that.nodeMappings)
+            && Objects.equals(denseVectorStats, that.denseVectorStats);
     }
 
     @Override
@@ -284,7 +299,8 @@ public class CommonStats implements Writeable, ToXContentFragment {
             recoveryStats,
             bulk,
             shards,
-            nodeMappings
+            nodeMappings,
+            denseVectorStats
         );
     }
 
@@ -441,6 +457,14 @@ public class CommonStats implements Writeable, ToXContentFragment {
                 nodeMappings.add(stats.getNodeMappings());
             }
         }
+        if (denseVectorStats == null) {
+            if (stats.getDenseVectorStats() != null) {
+                denseVectorStats = new DenseVectorStats();
+                denseVectorStats.add(stats.getDenseVectorStats());
+            }
+        } else {
+            denseVectorStats.add(stats.getDenseVectorStats());
+        }
     }
 
     @Nullable
@@ -538,6 +562,11 @@ public class CommonStats implements Writeable, ToXContentFragment {
         return nodeMappings;
     }
 
+    @Nullable
+    public DenseVectorStats getDenseVectorStats() {
+        return denseVectorStats;
+    }
+
     /**
      * Utility method which computes total memory by adding
      * FieldData, PercolatorCache, Segments (index writer, version map)
@@ -579,6 +608,7 @@ public class CommonStats implements Writeable, ToXContentFragment {
         addIfNonNull(builder, params, recoveryStats);
         addIfNonNull(builder, params, bulk);
         addIfNonNull(builder, params, nodeMappings);
+        addIfNonNull(builder, params, denseVectorStats);
         return builder;
     }
 

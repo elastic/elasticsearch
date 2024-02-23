@@ -19,6 +19,7 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ToXContent;
@@ -52,7 +53,13 @@ public class TransportUpdateModelSnapshotAction extends HandledTransportAction<
         JobResultsProvider jobResultsProvider,
         Client client
     ) {
-        super(UpdateModelSnapshotAction.NAME, transportService, actionFilters, UpdateModelSnapshotAction.Request::new);
+        super(
+            UpdateModelSnapshotAction.NAME,
+            transportService,
+            actionFilters,
+            UpdateModelSnapshotAction.Request::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         this.jobResultsProvider = jobResultsProvider;
         this.client = client;
     }
@@ -64,7 +71,8 @@ public class TransportUpdateModelSnapshotAction extends HandledTransportAction<
         ActionListener<UpdateModelSnapshotAction.Response> listener
     ) {
         logger.debug("Received request to update model snapshot [{}] for job [{}]", request.getSnapshotId(), request.getJobId());
-        jobResultsProvider.getModelSnapshot(request.getJobId(), request.getSnapshotId(), modelSnapshot -> {
+        // Even though the quantiles can be large we have to fetch them initially so that the updated document is complete
+        jobResultsProvider.getModelSnapshot(request.getJobId(), request.getSnapshotId(), true, modelSnapshot -> {
             if (modelSnapshot == null) {
                 listener.onFailure(
                     new ResourceNotFoundException(
@@ -74,8 +82,7 @@ public class TransportUpdateModelSnapshotAction extends HandledTransportAction<
             } else {
                 Result<ModelSnapshot> updatedSnapshot = applyUpdate(request, modelSnapshot);
                 indexModelSnapshot(updatedSnapshot, b -> {
-                    // The quantiles can be large, and totally dominate the output -
-                    // it's clearer to remove them
+                    // The quantiles can be large, and totally dominate the output - it's clearer to remove them at this stage
                     listener.onResponse(
                         new UpdateModelSnapshotAction.Response(new ModelSnapshot.Builder(updatedSnapshot.result).setQuantiles(null).build())
                     );

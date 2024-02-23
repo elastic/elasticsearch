@@ -25,11 +25,6 @@ import static org.hamcrest.Matchers.nullValue;
 public class PutAutoFollowPatternRequestTests extends AbstractXContentSerializingTestCase<PutAutoFollowPatternAction.Request> {
 
     @Override
-    protected boolean supportsUnknownFields() {
-        return false;
-    }
-
-    @Override
     protected PutAutoFollowPatternAction.Request doParseInstance(XContentParser parser) throws IOException {
         return PutAutoFollowPatternAction.Request.fromXContent(parser, null);
     }

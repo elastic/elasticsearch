@@ -22,12 +22,12 @@ class MultiPassStats {
     private final String fieldBKey;
 
     private long count;
-    private Map<String, Double> means = new HashMap<>();
-    private Map<String, Double> variances = new HashMap<>();
-    private Map<String, Double> skewness = new HashMap<>();
-    private Map<String, Double> kurtosis = new HashMap<>();
-    private Map<String, Map<String, Double>> covariances = new HashMap<>();
-    private Map<String, Map<String, Double>> correlations = new HashMap<>();
+    private final Map<String, Double> means = new HashMap<>();
+    private final Map<String, Double> variances = new HashMap<>();
+    private final Map<String, Double> skewness = new HashMap<>();
+    private final Map<String, Double> kurtosis = new HashMap<>();
+    private final Map<String, Map<String, Double>> covariances = new HashMap<>();
+    private final Map<String, Map<String, Double>> correlations = new HashMap<>();
 
     MultiPassStats(String fieldAName, String fieldBName) {
         this.fieldAKey = fieldAName;

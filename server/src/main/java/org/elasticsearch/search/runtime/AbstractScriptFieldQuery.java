@@ -41,7 +41,7 @@ public abstract class AbstractScriptFieldQuery<S extends AbstractFieldScript> ex
     private final String fieldName;
     private final Function<LeafReaderContext, S> scriptContextFunction;
 
-    AbstractScriptFieldQuery(Script script, String fieldName, Function<LeafReaderContext, S> scriptContextFunction) {
+    protected AbstractScriptFieldQuery(Script script, String fieldName, Function<LeafReaderContext, S> scriptContextFunction) {
         this.script = Objects.requireNonNull(script);
         this.fieldName = Objects.requireNonNull(fieldName);
         this.scriptContextFunction = scriptContextFunction;
@@ -51,11 +51,11 @@ public abstract class AbstractScriptFieldQuery<S extends AbstractFieldScript> ex
         return scriptContextFunction;
     }
 
-    final Script script() {
+    public final Script script() {
         return script;
     }
 
-    final String fieldName() {
+    public final String fieldName() {
         return fieldName;
     }
 

@@ -9,10 +9,10 @@ package org.elasticsearch.xpack.snapshotbasedrecoveries.recovery.plan;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.index.store.Store;
@@ -37,7 +37,7 @@ import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.indices.recovery.RecoverySettings.SEQ_NO_SNAPSHOT_RECOVERIES_SUPPORTED_VERSION;
 
 public class SnapshotsRecoveryPlannerService implements RecoveryPlannerService {
-    private final Logger logger = LogManager.getLogger(SnapshotsRecoveryPlannerService.class);
+    private static final Logger logger = LogManager.getLogger(SnapshotsRecoveryPlannerService.class);
 
     private final ShardSnapshotsService shardSnapshotsService;
     private final BooleanSupplier isLicenseActive;
@@ -54,7 +54,7 @@ public class SnapshotsRecoveryPlannerService implements RecoveryPlannerService {
         Store.MetadataSnapshot targetMetadata,
         long startingSeqNo,
         int translogOps,
-        Version targetVersion,
+        IndexVersion targetVersion,
         boolean useSnapshots,
         boolean primaryRelocation,
         ActionListener<ShardRecoveryPlan> listener
@@ -62,7 +62,7 @@ public class SnapshotsRecoveryPlannerService implements RecoveryPlannerService {
         // Fallback to source only recovery if the target node is in an incompatible version
         boolean canUseSnapshots = isLicenseActive.getAsBoolean()
             && useSnapshots
-            && targetVersion.onOrAfter(RecoverySettings.SNAPSHOT_RECOVERIES_SUPPORTED_VERSION);
+            && targetVersion.onOrAfter(RecoverySettings.SNAPSHOT_RECOVERIES_SUPPORTED_INDEX_VERSION);
 
         fetchLatestSnapshotsIgnoringErrors(
             shardId,
@@ -180,20 +180,20 @@ public class SnapshotsRecoveryPlannerService implements RecoveryPlannerService {
         );
     }
 
-    private boolean isSnapshotVersionCompatible(ShardSnapshot snapshot) {
-        Version commitVersion = snapshot.getCommitVersion();
+    private static boolean isSnapshotVersionCompatible(ShardSnapshot snapshot) {
+        IndexVersion commitVersion = snapshot.getCommitVersion();
         // if the snapshotVersion == null that means that the snapshot was taken in a version <= 7.15,
         // therefore we can safely use that snapshot. Since this runs on the shard primary and
         // NodeVersionAllocationDecider ensures that we only recover to a node that has newer or
         // same version.
         if (commitVersion == null) {
-            assert SEQ_NO_SNAPSHOT_RECOVERIES_SUPPORTED_VERSION.luceneVersion.onOrAfter(snapshot.getCommitLuceneVersion());
-            return Version.CURRENT.luceneVersion.onOrAfter(snapshot.getCommitLuceneVersion());
+            assert SEQ_NO_SNAPSHOT_RECOVERIES_SUPPORTED_VERSION.luceneVersion().onOrAfter(snapshot.getCommitLuceneVersion());
+            return IndexVersion.current().luceneVersion().onOrAfter(snapshot.getCommitLuceneVersion());
         }
-        return commitVersion.onOrBefore(Version.CURRENT);
+        return commitVersion.onOrBefore(IndexVersion.current());
     }
 
-    private ShardRecoveryPlan getRecoveryPlanUsingSourceNode(
+    private static ShardRecoveryPlan getRecoveryPlanUsingSourceNode(
         Store.MetadataSnapshot sourceMetadata,
         Store.RecoveryDiff sourceTargetDiff,
         List<StoreFileMetadata> filesMissingInTarget,
@@ -233,7 +233,7 @@ public class SnapshotsRecoveryPlannerService implements RecoveryPlannerService {
         shardSnapshotsService.fetchLatestSnapshotsForShard(shardId, listenerIgnoringErrors);
     }
 
-    private Store.MetadataSnapshot toMetadataSnapshot(List<StoreFileMetadata> files) {
+    private static Store.MetadataSnapshot toMetadataSnapshot(List<StoreFileMetadata> files) {
         return new Store.MetadataSnapshot(
             files.stream().collect(Collectors.toMap(StoreFileMetadata::name, Function.identity())),
             emptyMap(),

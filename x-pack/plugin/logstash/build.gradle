@@ -8,7 +8,9 @@ esplugin {
   extendedPlugins = ['x-pack-core']
 }
 
-archivesBaseName = 'x-pack-logstash'
+base {
+  archivesName = 'x-pack-logstash'
+}
 
 dependencies {
   compileOnly project(path: xpackModule('core'))

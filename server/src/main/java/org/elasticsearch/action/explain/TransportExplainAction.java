@@ -11,6 +11,7 @@ package org.elasticsearch.action.explain;
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
 import org.elasticsearch.cluster.ClusterState;
@@ -39,6 +40,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.function.LongSupplier;
 
 /**
@@ -47,6 +49,7 @@ import java.util.function.LongSupplier;
 // TODO: AggregatedDfs. Currently the idf can be different then when executing a normal search with explain.
 public class TransportExplainAction extends TransportSingleShardAction<ExplainRequest, ExplainResponse> {
 
+    public static final ActionType<ExplainResponse> TYPE = new ActionType<>("indices:data/read/explain");
     private final SearchService searchService;
 
     @Inject
@@ -59,14 +62,14 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
-            ExplainAction.NAME,
+            TYPE.name(),
             threadPool,
             clusterService,
             transportService,
             actionFilters,
             indexNameExpressionResolver,
             ExplainRequest::new,
-            ThreadPool.Names.GET
+            threadPool.executor(ThreadPool.Names.GET)
         );
         this.searchService = searchService;
     }
@@ -74,10 +77,10 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
     @Override
     protected void doExecute(Task task, ExplainRequest request, ActionListener<ExplainResponse> listener) {
         request.nowInMillis = System.currentTimeMillis();
-        ActionListener<QueryBuilder> rewriteListener = ActionListener.wrap(rewrittenQuery -> {
+        ActionListener<QueryBuilder> rewriteListener = listener.delegateFailureAndWrap((l, rewrittenQuery) -> {
             request.query(rewrittenQuery);
-            super.doExecute(task, request, listener);
-        }, listener::onFailure);
+            super.doExecute(task, request, l);
+        });
 
         assert request.query() != null;
         LongSupplier timeProvider = () -> request.nowInMillis;
@@ -101,7 +104,7 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
         throws IOException {
         IndexService indexService = searchService.getIndicesService().indexServiceSafe(shardId.getIndex());
         IndexShard indexShard = indexService.getShard(shardId.id());
-        indexShard.awaitShardSearchActive(b -> {
+        indexShard.ensureShardSearchActive(b -> {
             try {
                 super.asyncShardOperation(request, shardId, listener);
             } catch (Exception ex) {
@@ -165,10 +168,10 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
     }
 
     @Override
-    protected String getExecutor(ExplainRequest request, ShardId shardId) {
+    protected Executor getExecutor(ExplainRequest request, ShardId shardId) {
         IndexService indexService = searchService.getIndicesService().indexServiceSafe(shardId.getIndex());
         return indexService.getIndexSettings().isSearchThrottled()
-            ? ThreadPool.Names.SEARCH_THROTTLED
+            ? threadPool.executor(ThreadPool.Names.SEARCH_THROTTLED)
             : super.getExecutor(request, shardId);
     }
 }

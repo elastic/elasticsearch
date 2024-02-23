@@ -53,7 +53,7 @@ public class GetIndexActionTests extends ESSingleNodeTestCase {
     public void setUp() throws Exception {
         super.setUp();
 
-        settingsFilter = new SettingsModule(Settings.EMPTY, emptyList(), emptyList(), emptySet()).getSettingsFilter();
+        settingsFilter = new SettingsModule(Settings.EMPTY, emptyList(), emptyList()).getSettingsFilter();
         threadPool = new TestThreadPool("GetIndexActionTests");
         clusterService = getInstanceFromNode(ClusterService.class);
         indicesService = getInstanceFromNode(IndicesService.class);
@@ -84,14 +84,11 @@ public class GetIndexActionTests extends ESSingleNodeTestCase {
             getIndexAction,
             null,
             defaultsRequest,
-            ActionListener.wrap(
+            ActionTestUtils.assertNoFailureListener(
                 defaultsResponse -> assertNotNull(
                     "index.refresh_interval should be set as we are including defaults",
                     defaultsResponse.getSetting(indexName, "index.refresh_interval")
-                ),
-                exception -> {
-                    throw new AssertionError(exception);
-                }
+                )
             )
         );
     }
@@ -102,14 +99,11 @@ public class GetIndexActionTests extends ESSingleNodeTestCase {
             getIndexAction,
             null,
             noDefaultsRequest,
-            ActionListener.wrap(
+            ActionTestUtils.assertNoFailureListener(
                 noDefaultsResponse -> assertNull(
                     "index.refresh_interval should be null as it was never set",
                     noDefaultsResponse.getSetting(indexName, "index.refresh_interval")
-                ),
-                exception -> {
-                    throw new AssertionError(exception);
-                }
+                )
             )
         );
     }

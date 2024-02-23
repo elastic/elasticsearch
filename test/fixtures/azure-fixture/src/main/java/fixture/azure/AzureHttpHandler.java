@@ -34,7 +34,6 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.repositories.azure.AzureFixtureHelper.assertValidBlockId;
 
@@ -77,7 +76,7 @@ public class AzureHttpHandler implements HttpHandler {
                 final List<String> blockIds = Arrays.stream(blockList.split("<Latest>"))
                     .filter(line -> line.contains("</Latest>"))
                     .map(line -> line.substring(0, line.indexOf("</Latest>")))
-                    .collect(Collectors.toList());
+                    .toList();
 
                 final ByteArrayOutputStream blob = new ByteArrayOutputStream();
                 for (String blockId : blockIds) {

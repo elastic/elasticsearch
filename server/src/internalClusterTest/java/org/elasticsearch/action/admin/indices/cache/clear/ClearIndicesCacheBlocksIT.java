@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.indices.cache.clear;
 
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 
@@ -33,14 +34,11 @@ public class ClearIndicesCacheBlocksIT extends ESIntegTestCase {
         for (String blockSetting : Arrays.asList(SETTING_BLOCKS_READ, SETTING_BLOCKS_WRITE)) {
             try {
                 enableIndexBlock("test", blockSetting);
-                ClearIndicesCacheResponse clearIndicesCacheResponse = client().admin()
-                    .indices()
-                    .prepareClearCache("test")
+                BroadcastResponse clearIndicesCacheResponse = indicesAdmin().prepareClearCache("test")
                     .setFieldDataCache(true)
                     .setQueryCache(true)
                     .setFieldDataCache(true)
-                    .execute()
-                    .actionGet();
+                    .get();
                 assertNoFailures(clearIndicesCacheResponse);
                 assertThat(clearIndicesCacheResponse.getSuccessfulShards(), equalTo(numShards.totalNumShards));
             } finally {
@@ -51,9 +49,7 @@ public class ClearIndicesCacheBlocksIT extends ESIntegTestCase {
         for (String blockSetting : Arrays.asList(SETTING_READ_ONLY, SETTING_BLOCKS_METADATA)) {
             try {
                 enableIndexBlock("test", blockSetting);
-                assertBlocked(
-                    client().admin().indices().prepareClearCache("test").setFieldDataCache(true).setQueryCache(true).setFieldDataCache(true)
-                );
+                assertBlocked(indicesAdmin().prepareClearCache("test").setFieldDataCache(true).setQueryCache(true).setFieldDataCache(true));
             } finally {
                 disableIndexBlock("test", blockSetting);
             }

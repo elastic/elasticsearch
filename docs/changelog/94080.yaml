@@ -1,6 +1,0 @@
-pr: 94080
-summary: Fix `_terms_enum` display values
-area: Search
-type: bug
-issues:
- - 94041

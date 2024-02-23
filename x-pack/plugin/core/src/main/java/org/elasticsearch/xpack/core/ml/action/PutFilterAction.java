@@ -29,7 +29,7 @@ public class PutFilterAction extends ActionType<PutFilterAction.Response> {
     public static final String NAME = "cluster:admin/xpack/ml/filters/put";
 
     private PutFilterAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
     public static class Request extends ActionRequest implements ToXContentObject {

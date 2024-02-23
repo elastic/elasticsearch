@@ -3,8 +3,6 @@ setup:
       indices.create:
           index: test_1
           body:
-            settings:
-              number_of_replicas: 0
             mappings:
               properties:
                 int_field:
@@ -47,8 +45,6 @@ setup:
       indices.create:
         index: test_2
         body:
-          settings:
-            number_of_replicas: 0
           mappings:
             properties:
               other_field:

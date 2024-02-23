@@ -99,7 +99,7 @@ public class VectorScoreScriptUtils {
 
             if (normalizeQuery) {
                 for (int dim = 0; dim < this.queryVector.length; dim++) {
-                    this.queryVector[dim] /= queryMagnitude;
+                    this.queryVector[dim] /= (float) queryMagnitude;
                 }
             }
         }

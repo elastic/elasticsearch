@@ -8,7 +8,6 @@
 
 package org.elasticsearch.cluster;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.desirednodes.GetDesiredNodesAction;
 import org.elasticsearch.action.admin.cluster.desirednodes.UpdateDesiredNodesAction;
 import org.elasticsearch.action.admin.cluster.desirednodes.UpdateDesiredNodesRequest;
@@ -36,7 +35,7 @@ public class DesiredNodesSnapshotsIT extends AbstractSnapshotIntegTestCase {
         final var snapshotName = "snapshot";
         createFullSnapshot(repositoryName, snapshotName);
 
-        client().admin().indices().prepareDelete(indexName).get();
+        indicesAdmin().prepareDelete(indexName).get();
 
         final var updateDesiredNodesWithNewHistoryRequest = randomUpdateDesiredNodesRequest();
         final var updateDesiredNodesResponse = updateDesiredNodes(updateDesiredNodesWithNewHistoryRequest);
@@ -70,8 +69,7 @@ public class DesiredNodesSnapshotsIT extends AbstractSnapshotIntegTestCase {
                     Settings.builder().put(NODE_NAME_SETTING.getKey(), randomAlphaOfLength(10)).build(),
                     randomIntBetween(1, 10),
                     ByteSizeValue.ofGb(randomIntBetween(16, 64)),
-                    ByteSizeValue.ofGb(randomIntBetween(128, 256)),
-                    Version.CURRENT
+                    ByteSizeValue.ofGb(randomIntBetween(128, 256))
                 )
             ),
             false

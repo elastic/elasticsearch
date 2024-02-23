@@ -1,3 +1,4 @@
+
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
@@ -10,6 +11,7 @@ package org.elasticsearch.action.admin.indices.flush;
 
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportBroadcastReplicationAction;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -27,7 +29,7 @@ import java.util.List;
  */
 public class TransportFlushAction extends TransportBroadcastReplicationAction<
     FlushRequest,
-    FlushResponse,
+    BroadcastResponse,
     ShardFlushRequest,
     ReplicationResponse> {
 
@@ -48,7 +50,7 @@ public class TransportFlushAction extends TransportBroadcastReplicationAction<
             actionFilters,
             indexNameExpressionResolver,
             TransportShardFlushAction.TYPE,
-            ThreadPool.Names.FLUSH
+            transportService.getThreadPool().executor(ThreadPool.Names.FLUSH)
         );
     }
 
@@ -58,12 +60,12 @@ public class TransportFlushAction extends TransportBroadcastReplicationAction<
     }
 
     @Override
-    protected FlushResponse newResponse(
+    protected BroadcastResponse newResponse(
         int successfulShards,
         int failedShards,
         int totalNumCopies,
         List<DefaultShardOperationFailedException> shardFailures
     ) {
-        return new FlushResponse(totalNumCopies, successfulShards, failedShards, shardFailures);
+        return new BroadcastResponse(totalNumCopies, successfulShards, failedShards, shardFailures);
     }
 }

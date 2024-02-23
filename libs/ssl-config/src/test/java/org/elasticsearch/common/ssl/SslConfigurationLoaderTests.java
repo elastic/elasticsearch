@@ -29,7 +29,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class SslConfigurationLoaderTests extends ESTestCase {
+public final class SslConfigurationLoaderTests extends ESTestCase {
 
     private final Path certRoot = getDataPath("/certs/ca1/ca.crt").getParent().getParent();
 

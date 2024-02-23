@@ -27,7 +27,6 @@ import org.apache.lucene.store.BufferedChecksum;
 import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
@@ -35,9 +34,9 @@ import org.apache.lucene.store.Lock;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -46,21 +45,21 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
-import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
-import org.elasticsearch.core.Streams;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.env.ShardLockObtainFailedException;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.engine.CombinedDeletionPolicy;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -73,7 +72,6 @@ import java.io.Closeable;
 import java.io.EOFException;
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.PrintStream;
 import java.io.UncheckedIOException;
 import java.nio.file.NoSuchFileException;
@@ -164,10 +162,10 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
     public Store(ShardId shardId, IndexSettings indexSettings, Directory directory, ShardLock shardLock, OnClose onClose) {
         super(shardId, indexSettings);
-        final TimeValue refreshInterval = indexSettings.getValue(INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING);
-        logger.debug("store stats are refreshed with refresh_interval [{}]", refreshInterval);
-        ByteSizeCachingDirectory sizeCachingDir = new ByteSizeCachingDirectory(directory, refreshInterval);
-        this.directory = new StoreDirectory(sizeCachingDir, Loggers.getLogger("index.store.deletes", shardId));
+        this.directory = new StoreDirectory(
+            byteSizeDirectory(directory, indexSettings, logger),
+            Loggers.getLogger("index.store.deletes", shardId)
+        );
         this.shardLock = shardLock;
         this.onClose = onClose;
 
@@ -357,8 +355,9 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      */
     public StoreStats stats(long reservedBytes, LongUnaryOperator localSizeFunction) throws IOException {
         ensureOpen();
-        long sizeInBytes = directory.estimateSize();
-        return new StoreStats(localSizeFunction.applyAsLong(sizeInBytes), sizeInBytes, reservedBytes);
+        long sizeInBytes = directory.estimateSizeInBytes();
+        long dataSetSizeInBytes = directory.estimateDataSetSizeInBytes();
+        return new StoreStats(localSizeFunction.applyAsLong(sizeInBytes), dataSetSizeInBytes, reservedBytes);
     }
 
     /**
@@ -445,6 +444,16 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         }
     }
 
+    private static ByteSizeDirectory byteSizeDirectory(Directory directory, IndexSettings indexSettings, Logger logger) {
+        if (directory instanceof ByteSizeDirectory byteSizeDirectory) {
+            return byteSizeDirectory;
+        } else {
+            final TimeValue refreshInterval = indexSettings.getValue(INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING);
+            logger.debug("store stats are refreshed with {} [{}]", INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING.getKey(), refreshInterval);
+            return new ByteSizeCachingDirectory(directory, refreshInterval);
+        }
+    }
+
     /**
      * Reads a MetadataSnapshot from the given index locations or returns an empty snapshot if it can't be read.
      *
@@ -503,7 +512,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         boolean success = false;
         try {
             assert metadata.writtenBy() != null;
-            output = new LuceneVerifyingIndexOutput(metadata, output);
+            output = new VerifyingIndexOutput(metadata, output);
             success = true;
         } finally {
             if (success == false) {
@@ -514,8 +523,8 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     }
 
     public static void verify(IndexOutput output) throws IOException {
-        if (output instanceof VerifyingIndexOutput) {
-            ((VerifyingIndexOutput) output).verify();
+        if (output instanceof VerifyingIndexOutput verifyingIndexOutput) {
+            verifyingIndexOutput.verify();
         }
     }
 
@@ -722,18 +731,23 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         shardLock.setDetails("closing shard");
     }
 
-    static final class StoreDirectory extends FilterDirectory {
+    static final class StoreDirectory extends ByteSizeDirectory {
 
         private final Logger deletesLogger;
 
-        StoreDirectory(ByteSizeCachingDirectory delegateDirectory, Logger deletesLogger) {
+        StoreDirectory(ByteSizeDirectory delegateDirectory, Logger deletesLogger) {
             super(delegateDirectory);
             this.deletesLogger = deletesLogger;
         }
 
-        /** Estimate the cumulative size of all files in this directory in bytes. */
-        long estimateSize() throws IOException {
-            return ((ByteSizeCachingDirectory) getDelegate()).estimateSizeInBytes();
+        @Override
+        public long estimateSizeInBytes() throws IOException {
+            return ((ByteSizeDirectory) getDelegate()).estimateSizeInBytes();
+        }
+
+        @Override
+        public long estimateDataSetSizeInBytes() throws IOException {
+            return ((ByteSizeDirectory) getDelegate()).estimateDataSetSizeInBytes();
         }
 
         @Override
@@ -817,7 +831,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                     }
                 }
                 if (maxVersion == null) {
-                    maxVersion = org.elasticsearch.Version.CURRENT.minimumIndexCompatibilityVersion().luceneVersion;
+                    maxVersion = IndexVersions.MINIMUM_COMPATIBLE.luceneVersion();
                 }
                 final String segmentsFile = segmentCommitInfos.getSegmentsFileName();
                 checksumFromLuceneFile(
@@ -839,7 +853,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                     // TODO we should check the checksum in lucene if we hit an exception
                     logger.warn(
                         () -> format(
-                            "failed to build store metadata. checking segment info integrity " + "(with commit [%s])",
+                            "failed to build store metadata. checking segment info integrity (with commit [%s])",
                             commit == null ? "no" : "yes"
                         ),
                         ex
@@ -859,7 +873,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
         public static MetadataSnapshot readFrom(StreamInput in) throws IOException {
             final Map<String, StoreFileMetadata> metadata = in.readMapValues(StoreFileMetadata::new, StoreFileMetadata::name);
-            final var commitUserData = in.readMap(StreamInput::readString, StreamInput::readString);
+            final var commitUserData = in.readMap(StreamInput::readString);
             final var numDocs = in.readLong();
 
             if (metadata.size() == 0 && commitUserData.size() == 0 && numDocs == 0) {
@@ -872,14 +886,18 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeMapValues(fileMetadataMap);
-            out.writeMap(commitUserData, StreamOutput::writeString, StreamOutput::writeString);
+            out.writeMap(commitUserData, StreamOutput::writeString);
             out.writeLong(numDocs);
         }
 
         @Nullable
-        public org.elasticsearch.Version getCommitVersion() {
+        public IndexVersion getCommitVersion() {
             String version = commitUserData.get(ES_VERSION);
-            return version == null ? null : org.elasticsearch.Version.fromString(version);
+            return version == null ? null : Engine.readIndexVersion(version);
+        }
+
+        public static boolean isReadAsHash(String file) {
+            return SEGMENT_INFO_EXTENSION.equals(IndexFileNames.getExtension(file)) || file.startsWith(IndexFileNames.SEGMENTS + "_");
         }
 
         private static void checksumFromLuceneFile(
@@ -891,51 +909,47 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             boolean readFileAsHash,
             BytesRef writerUuid
         ) throws IOException {
-            final String checksum;
-            final BytesRefBuilder fileHash = new BytesRefBuilder();
             try (IndexInput in = directory.openInput(file, READONCE_CHECKSUM)) {
-                final long length;
-                try {
-                    length = in.length();
-                    if (length < CodecUtil.footerLength()) {
-                        // truncated files trigger IAE if we seek negative... these files are really corrupted though
+                final long length = in.length();
+                if (length < CodecUtil.footerLength()) {
+                    // If the file isn't long enough to contain the footer then verifying it triggers an IAE, but really it's corrupted
+                    throw new CorruptIndexException(
+                        Strings.format(
+                            "Cannot retrieve checksum from file: %s file length must be >= %d but was: %d",
+                            file,
+                            CodecUtil.footerLength(),
+                            length
+                        ),
+                        in
+                    );
+                }
+                final BytesRef fileHash; // not really a "hash", it's either the exact contents of certain small files or it's empty
+                final long footerChecksum;
+                assert readFileAsHash == isReadAsHash(file) : file;
+                if (readFileAsHash) {
+                    assert length <= ByteSizeUnit.MB.toIntBytes(1) : file + " has length " + length;
+                    fileHash = new BytesRef(Math.toIntExact(length));
+                    fileHash.length = fileHash.bytes.length;
+                    in.readBytes(fileHash.bytes, fileHash.offset, fileHash.length);
+                    final var crc32 = new CRC32();
+                    crc32.update(fileHash.bytes, fileHash.offset, fileHash.length - 8);
+                    final var computedChecksum = crc32.getValue();
+                    footerChecksum = CodecUtil.retrieveChecksum(in);
+                    if (computedChecksum != footerChecksum) {
                         throw new CorruptIndexException(
-                            "Can't retrieve checksum from file: "
-                                + file
-                                + " file length must be >= "
-                                + CodecUtil.footerLength()
-                                + " but was: "
-                                + in.length(),
+                            Strings.format("Checksum from footer=%d did not match computed checksum=%d", footerChecksum, computedChecksum),
                             in
                         );
                     }
-                    if (readFileAsHash) {
-                        // additional safety we checksum the entire file we read the hash for...
-                        final VerifyingIndexInput verifyingIndexInput = new VerifyingIndexInput(in);
-                        hashFile(fileHash, new InputStreamIndexInput(verifyingIndexInput, length), length);
-                        checksum = digestToString(verifyingIndexInput.verify());
-                    } else {
-                        checksum = digestToString(CodecUtil.retrieveChecksum(in));
-                    }
-
-                } catch (Exception ex) {
-                    logger.debug(() -> "Can retrieve checksum from file [" + file + "]", ex);
-                    throw ex;
+                } else {
+                    fileHash = new BytesRef(BytesRef.EMPTY_BYTES);
+                    footerChecksum = CodecUtil.retrieveChecksum(in);
                 }
-                builder.put(file, new StoreFileMetadata(file, length, checksum, version, fileHash.get(), writerUuid));
+                builder.put(file, new StoreFileMetadata(file, length, digestToString(footerChecksum), version, fileHash, writerUuid));
+            } catch (Exception ex) {
+                logger.debug(() -> "Failed computing metadata for file [" + file + "]", ex);
+                throw ex;
             }
-        }
-
-        /**
-         * Computes a strong hash value for small files. Note that this method should only be used for files &lt; 1MB
-         */
-        public static void hashFile(BytesRefBuilder fileHash, InputStream in, long size) throws IOException {
-            final int len = (int) Math.min(1024 * 1024, size); // for safety we limit this to 1MB
-            fileHash.grow(len);
-            fileHash.setLength(len);
-            final int readBytes = Streams.readFully(in, fileHash.bytes(), 0, len);
-            assert readBytes == len : Integer.toString(readBytes) + " != " + Integer.toString(len);
-            assert fileHash.length() == len : Integer.toString(fileHash.length()) + " != " + Integer.toString(len);
         }
 
         @Override
@@ -1177,98 +1191,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         return Long.toString(digest, Character.MAX_RADIX);
     }
 
-    static class LuceneVerifyingIndexOutput extends VerifyingIndexOutput {
-
-        private final StoreFileMetadata metadata;
-        private long writtenBytes;
-        private final long checksumPosition;
-        private String actualChecksum;
-        private final byte[] footerChecksum = new byte[8]; // this holds the actual footer checksum data written by to this output
-
-        LuceneVerifyingIndexOutput(StoreFileMetadata metadata, IndexOutput out) {
-            super(out);
-            this.metadata = metadata;
-            checksumPosition = metadata.length() - 8; // the last 8 bytes are the checksum - we store it in footerChecksum
-        }
-
-        @Override
-        public void verify() throws IOException {
-            String footerDigest = null;
-            if (metadata.checksum().equals(actualChecksum) && writtenBytes == metadata.length()) {
-                ByteArrayIndexInput indexInput = new ByteArrayIndexInput("checksum", this.footerChecksum);
-                footerDigest = digestToString(CodecUtil.readBELong(indexInput));
-                if (metadata.checksum().equals(footerDigest)) {
-                    return;
-                }
-            }
-            throw new CorruptIndexException(
-                "verification failed (hardware problem?) : expected="
-                    + metadata.checksum()
-                    + " actual="
-                    + actualChecksum
-                    + " footer="
-                    + footerDigest
-                    + " writtenLength="
-                    + writtenBytes
-                    + " expectedLength="
-                    + metadata.length()
-                    + " (resource="
-                    + metadata.toString()
-                    + ")",
-                "VerifyingIndexOutput(" + metadata.name() + ")"
-            );
-        }
-
-        @Override
-        public void writeByte(byte b) throws IOException {
-            final long writtenBytes = this.writtenBytes++;
-            if (writtenBytes >= checksumPosition) { // we are writing parts of the checksum....
-                if (writtenBytes == checksumPosition) {
-                    readAndCompareChecksum();
-                }
-                final int index = Math.toIntExact(writtenBytes - checksumPosition);
-                if (index < footerChecksum.length) {
-                    footerChecksum[index] = b;
-                    if (index == footerChecksum.length - 1) {
-                        verify(); // we have recorded the entire checksum
-                    }
-                } else {
-                    verify(); // fail if we write more than expected
-                    throw new AssertionError("write past EOF expected length: " + metadata.length() + " writtenBytes: " + writtenBytes);
-                }
-            }
-            out.writeByte(b);
-        }
-
-        private void readAndCompareChecksum() throws IOException {
-            actualChecksum = digestToString(getChecksum());
-            if (metadata.checksum().equals(actualChecksum) == false) {
-                throw new CorruptIndexException(
-                    "checksum failed (hardware problem?) : expected="
-                        + metadata.checksum()
-                        + " actual="
-                        + actualChecksum
-                        + " (resource="
-                        + metadata.toString()
-                        + ")",
-                    "VerifyingIndexOutput(" + metadata.name() + ")"
-                );
-            }
-        }
-
-        @Override
-        public void writeBytes(byte[] b, int offset, int length) throws IOException {
-            if (writtenBytes + length > checksumPosition) {
-                for (int i = 0; i < length; i++) { // don't optimize writing the last block of bytes
-                    writeByte(b[offset + i]);
-                }
-            } else {
-                out.writeBytes(b, offset, length);
-                writtenBytes += length;
-            }
-        }
-    }
-
     /**
      * Index input that calculates checksum as data is read from the input.
      * <p>
@@ -1470,7 +1392,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * creates an empty lucene index and a corresponding empty translog. Any existing data will be deleted.
      */
     public void createEmpty() throws IOException {
-        Version luceneVersion = indexSettings.getIndexVersionCreated().luceneVersion;
+        Version luceneVersion = indexSettings.getIndexVersionCreated().luceneVersion();
         metadataLock.writeLock().lock();
         try (IndexWriter writer = newTemporaryEmptyIndexWriter(directory, luceneVersion)) {
             final Map<String, String> map = new HashMap<>();
@@ -1578,7 +1500,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                     final Map<String, String> userData = startingIndexCommit.getUserData();
                     writer.setLiveCommitData(() -> {
                         Map<String, String> updatedUserData = new HashMap<>(userData);
-                        updatedUserData.put(ES_VERSION, org.elasticsearch.Version.CURRENT.toString());
+                        updatedUserData.put(ES_VERSION, IndexVersion.current().toString());
                         return updatedUserData.entrySet().iterator();
                     });
                     writer.commit();
@@ -1607,7 +1529,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
     private static void updateCommitData(IndexWriter writer, Map<String, String> keysToUpdate) throws IOException {
         final Map<String, String> userData = getUserData(writer);
-        userData.put(Engine.ES_VERSION, org.elasticsearch.Version.CURRENT.toString());
+        userData.put(Engine.ES_VERSION, IndexVersion.current().toString());
         userData.putAll(keysToUpdate);
         writer.setLiveCommitData(userData.entrySet());
         writer.commit();

@@ -12,7 +12,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -20,6 +20,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ObjectPath;
@@ -55,20 +56,23 @@ public class WatcherInfoTransportActionTests extends ESTestCase {
 
     private MockLicenseState licenseState;
     private Client client;
+    private ThreadPool threadPool;
+    private TransportService transportService;
 
     @Before
     public void init() throws Exception {
         licenseState = mock(MockLicenseState.class);
         client = mock(Client.class);
-        ThreadPool threadPool = mock(ThreadPool.class);
+        threadPool = mock(ThreadPool.class);
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
         when(client.threadPool()).thenReturn(threadPool);
+        transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
     }
 
     public void testAvailable() {
         WatcherInfoTransportAction featureSet = new WatcherInfoTransportAction(
-            mock(TransportService.class),
+            transportService,
             mock(ActionFilters.class),
             Settings.EMPTY,
             licenseState
@@ -89,7 +93,7 @@ public class WatcherInfoTransportActionTests extends ESTestCase {
             settings.put("xpack.watcher.enabled", enabled);
         }
         WatcherInfoTransportAction featureSet = new WatcherInfoTransportAction(
-            mock(TransportService.class),
+            transportService,
             mock(ActionFilters.class),
             settings.build(),
             licenseState
@@ -103,7 +107,7 @@ public class WatcherInfoTransportActionTests extends ESTestCase {
             ActionListener<WatcherStatsResponse> listener = (ActionListener<WatcherStatsResponse>) mock.getArguments()[2];
 
             List<WatcherStatsResponse.Node> nodes = new ArrayList<>();
-            DiscoveryNode first = TestDiscoveryNode.create("first");
+            DiscoveryNode first = DiscoveryNodeUtils.create("first");
             WatcherStatsResponse.Node firstNode = new WatcherStatsResponse.Node(first);
             Counters firstCounters = new Counters();
             firstCounters.inc("foo.foo", 1);
@@ -111,7 +115,7 @@ public class WatcherInfoTransportActionTests extends ESTestCase {
             firstNode.setStats(firstCounters);
             nodes.add(firstNode);
 
-            DiscoveryNode second = TestDiscoveryNode.create("second");
+            DiscoveryNode second = DiscoveryNodeUtils.create("second");
             WatcherStatsResponse.Node secondNode = new WatcherStatsResponse.Node(second);
             Counters secondCounters = new Counters();
             secondCounters.inc("spam", 1);
@@ -130,9 +134,9 @@ public class WatcherInfoTransportActionTests extends ESTestCase {
         when(clusterService.localNode()).thenReturn(mockNode);
 
         var usageAction = new WatcherUsageTransportAction(
-            mock(TransportService.class),
+            transportService,
             clusterService,
-            null,
+            threadPool,
             mock(ActionFilters.class),
             null,
             Settings.EMPTY,

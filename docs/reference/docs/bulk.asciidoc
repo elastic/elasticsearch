@@ -231,7 +231,7 @@ participate in the `_bulk` request at all.
 [[bulk-security]]
 ===== Security
 
-See <<url-access-control>>.
+See <<api-url-access-control>>.
 
 [[docs-bulk-api-path-params]]
 ==== {api-path-parms-title}
@@ -243,6 +243,11 @@ on.
 
 [[docs-bulk-api-query-params]]
 ==== {api-query-parms-title}
+
+`list_executed_pipelines`::
+(Optional, Boolean) If `true`, the response will include the ingest pipelines that
+were executed for each `index` or `create`.
+Defaults to `false`.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=pipeline]
 
@@ -292,6 +297,8 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bulk-index-ds]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bulk-id]
 
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bulk-list-executed-pipelines]
+
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bulk-require-alias]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bulk-dynamic-templates]
@@ -320,6 +327,8 @@ The following line must contain the source data to be indexed.
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bulk-index]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bulk-id]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bulk-list-executed-pipelines]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bulk-require-alias]
 

@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.admin.cluster.stats;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
@@ -48,7 +47,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class ClusterStatsNodes implements ToXContentFragment {
 
     private final Counts counts;
-    private final Set<Version> versions;
+    private final Set<String> versions;
     private final OsStats os;
     private final ProcessStats process;
     private final JvmStats jvm;
@@ -95,7 +94,7 @@ public class ClusterStatsNodes implements ToXContentFragment {
         return this.counts;
     }
 
-    public Set<Version> getVersions() {
+    public Set<String> getVersions() {
         return versions;
     }
 
@@ -137,8 +136,8 @@ public class ClusterStatsNodes implements ToXContentFragment {
         builder.endObject();
 
         builder.startArray(Fields.VERSIONS);
-        for (Version v : versions) {
-            builder.value(v.toString());
+        for (var v : versions) {
+            builder.value(v);
         }
         builder.endArray();
 
@@ -715,23 +714,23 @@ public class ClusterStatsNodes implements ToXContentFragment {
                 if (nodeStat.getIngestStats() != null) {
                     for (Map.Entry<String, List<org.elasticsearch.ingest.IngestStats.ProcessorStat>> processorStats : nodeStat
                         .getIngestStats()
-                        .getProcessorStats()
+                        .processorStats()
                         .entrySet()) {
                         pipelineIds.add(processorStats.getKey());
                         for (org.elasticsearch.ingest.IngestStats.ProcessorStat stat : processorStats.getValue()) {
-                            stats.compute(stat.getType(), (k, v) -> {
-                                org.elasticsearch.ingest.IngestStats.Stats nodeIngestStats = stat.getStats();
+                            stats.compute(stat.type(), (k, v) -> {
+                                org.elasticsearch.ingest.IngestStats.Stats nodeIngestStats = stat.stats();
                                 if (v == null) {
                                     return new long[] {
-                                        nodeIngestStats.getIngestCount(),
-                                        nodeIngestStats.getIngestFailedCount(),
-                                        nodeIngestStats.getIngestCurrent(),
-                                        nodeIngestStats.getIngestTimeInMillis() };
+                                        nodeIngestStats.ingestCount(),
+                                        nodeIngestStats.ingestFailedCount(),
+                                        nodeIngestStats.ingestCurrent(),
+                                        nodeIngestStats.ingestTimeInMillis() };
                                 } else {
-                                    v[0] += nodeIngestStats.getIngestCount();
-                                    v[1] += nodeIngestStats.getIngestFailedCount();
-                                    v[2] += nodeIngestStats.getIngestCurrent();
-                                    v[3] += nodeIngestStats.getIngestTimeInMillis();
+                                    v[0] += nodeIngestStats.ingestCount();
+                                    v[1] += nodeIngestStats.ingestFailedCount();
+                                    v[2] += nodeIngestStats.ingestCurrent();
+                                    v[3] += nodeIngestStats.ingestTimeInMillis();
                                     return v;
                                 }
                             });

@@ -213,7 +213,7 @@ public class ScriptClassInfo {
      */
     public record MethodArgument(Class<?> clazz, String name) {}
 
-    private MethodArgument methodArgument(PainlessLookup painlessLookup, Class<?> clazz, String argName) {
+    private static MethodArgument methodArgument(PainlessLookup painlessLookup, Class<?> clazz, String argName) {
         Class<?> defClass = definitionTypeForClass(
             painlessLookup,
             clazz,

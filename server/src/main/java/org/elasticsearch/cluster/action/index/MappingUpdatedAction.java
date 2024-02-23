@@ -9,8 +9,8 @@
 package org.elasticsearch.cluster.action.index;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.mapping.put.AutoPutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.elasticsearch.action.admin.indices.mapping.put.TransportAutoPutMappingAction;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.IndicesAdminClient;
@@ -79,7 +79,7 @@ public class MappingUpdatedAction {
      * potentially waiting for a master node to be available.
      */
     public void updateMappingOnMaster(Index index, Mapping mappingUpdate, ActionListener<Void> listener) {
-        final RunOnce release = new RunOnce(() -> semaphore.release());
+        final RunOnce release = new RunOnce(semaphore::release);
         try {
             semaphore.acquire();
         } catch (InterruptedException e) {
@@ -111,9 +111,9 @@ public class MappingUpdatedAction {
         putMappingRequest.masterNodeTimeout(dynamicMappingUpdateTimeout);
         putMappingRequest.timeout(TimeValue.ZERO);
         client.execute(
-            AutoPutMappingAction.INSTANCE,
+            TransportAutoPutMappingAction.TYPE,
             putMappingRequest,
-            ActionListener.wrap(r -> listener.onResponse(null), listener::onFailure)
+            listener.delegateFailureAndWrap((l, r) -> l.onResponse(null))
         );
     }
 }

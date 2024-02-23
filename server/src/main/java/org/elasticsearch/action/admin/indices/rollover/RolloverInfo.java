@@ -61,7 +61,7 @@ public class RolloverInfo implements SimpleDiffable<RolloverInfo>, Writeable, To
     public RolloverInfo(StreamInput in) throws IOException {
         this.alias = in.readString();
         this.time = in.readVLong();
-        this.metConditions = (List) in.readNamedWriteableList(Condition.class);
+        this.metConditions = (List) in.readNamedWriteableCollectionAsList(Condition.class);
     }
 
     public static RolloverInfo parse(XContentParser parser, String alias) {
@@ -88,7 +88,7 @@ public class RolloverInfo implements SimpleDiffable<RolloverInfo>, Writeable, To
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(alias);
         out.writeVLong(time);
-        out.writeNamedWriteableList(metConditions);
+        out.writeNamedWriteableCollection(metConditions);
     }
 
     @Override

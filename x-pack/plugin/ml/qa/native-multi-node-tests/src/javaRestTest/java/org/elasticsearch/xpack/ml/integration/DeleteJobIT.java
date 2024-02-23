@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
-import org.elasticsearch.xpack.core.security.user.XPackUser;
+import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.junit.After;
 import org.junit.Before;
 
@@ -55,14 +55,14 @@ public class DeleteJobIT extends MlNativeAutodetectIntegTestCase {
         assertThatNumberOfAnnotationsIsEqualTo(0);
 
         runJob(jobIdA, datafeedIdA);
-        client().index(randomAnnotationIndexRequest(jobIdA, XPackUser.NAME)).actionGet();
-        client().index(randomAnnotationIndexRequest(jobIdA, XPackUser.NAME)).actionGet();
+        client().index(randomAnnotationIndexRequest(jobIdA, InternalUsers.XPACK_USER.principal())).actionGet();
+        client().index(randomAnnotationIndexRequest(jobIdA, InternalUsers.XPACK_USER.principal())).actionGet();
         client().index(randomAnnotationIndexRequest(jobIdA, "real_user")).actionGet();
         // 3 jobA annotations (2 _xpack, 1 real_user)
         assertThatNumberOfAnnotationsIsEqualTo(3);
 
         runJob(jobIdB, datafeedIdB);
-        client().index(randomAnnotationIndexRequest(jobIdB, XPackUser.NAME)).actionGet();
+        client().index(randomAnnotationIndexRequest(jobIdB, InternalUsers.XPACK_USER.principal())).actionGet();
         client().index(randomAnnotationIndexRequest(jobIdB, "other_real_user")).actionGet();
         // 3 jobA annotations (2 _xpack, 1 real_user) and 2 jobB annotations (1 _xpack, 1 real_user)
         assertThatNumberOfAnnotationsIsEqualTo(5);

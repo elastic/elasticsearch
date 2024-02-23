@@ -88,7 +88,7 @@ public class ESToParentBlockJoinQueryTests extends ESTestCase {
             ScoreMode.Avg,
             "nested"
         );
-        Query rewritten = q.rewrite(new MultiReader());
+        Query rewritten = q.rewrite(newSearcher(new MultiReader()));
         assertEquals(expected, rewritten);
     }
 }

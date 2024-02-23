@@ -11,7 +11,7 @@ package org.elasticsearch.plugins;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Build;
-import org.elasticsearch.Version;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.jdk.JarHell;
 
@@ -30,6 +30,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
@@ -77,41 +79,109 @@ public class PluginsUtils {
      * Verify the given plugin is compatible with the current Elasticsearch installation.
      */
     public static void verifyCompatibility(PluginDescriptor info) {
-        if (info.isStable()) {
-            if (info.getElasticsearchVersion().major != Version.CURRENT.major) {
-                throw new IllegalArgumentException(
-                    "Stable Plugin ["
-                        + info.getName()
-                        + "] was built for Elasticsearch major version "
-                        + info.getElasticsearchVersion().major
-                        + " but version "
-                        + Version.CURRENT
-                        + " is running"
+        final String currentVersion = Build.current().version();
+        Matcher buildVersionMatcher = SemanticVersion.semanticPattern.matcher(currentVersion);
+        // If we're not on a semantic version, assume plugins are compatible
+        if (buildVersionMatcher.matches()) {
+            SemanticVersion currentElasticsearchSemanticVersion;
+            try {
+                currentElasticsearchSemanticVersion = new SemanticVersion(
+                    Integer.parseInt(buildVersionMatcher.group(1)),
+                    Integer.parseInt(buildVersionMatcher.group(2)),
+                    Integer.parseInt(buildVersionMatcher.group(3))
                 );
+            } catch (NumberFormatException e) {
+                throw new IllegalArgumentException("Couldn't parse integers from build version [" + currentVersion + "]", e);
             }
-            if (info.getElasticsearchVersion().after(Version.CURRENT)) {
+            if (info.isStable()) {
+                Matcher pluginEsVersionMatcher = SemanticVersion.semanticPattern.matcher(info.getElasticsearchVersion());
+                if (pluginEsVersionMatcher.matches() == false) {
+                    throw new IllegalArgumentException(
+                        "Expected semantic version for plugin [" + info.getName() + "] but was [" + info.getElasticsearchVersion() + "]"
+                    );
+                }
+                SemanticVersion pluginElasticsearchSemanticVersion;
+                try {
+                    pluginElasticsearchSemanticVersion = new SemanticVersion(
+                        Integer.parseInt(pluginEsVersionMatcher.group(1)),
+                        Integer.parseInt(pluginEsVersionMatcher.group(2)),
+                        Integer.parseInt(pluginEsVersionMatcher.group(3))
+                    );
+                } catch (NumberFormatException e) {
+                    throw new IllegalArgumentException(
+                        "Expected integer version for plugin [" + info.getName() + "] but found [" + info.getElasticsearchVersion() + "]",
+                        e
+                    );
+                }
+
+                // case: Major version mismatch
+                if (pluginElasticsearchSemanticVersion.major != currentElasticsearchSemanticVersion.major) {
+                    throw new IllegalArgumentException(
+                        "Stable Plugin ["
+                            + info.getName()
+                            + "] was built for Elasticsearch major version "
+                            + pluginElasticsearchSemanticVersion.major
+                            + " but version "
+                            + currentVersion
+                            + " is running"
+                    );
+                }
+
+                // case: stable plugin from the future
+                if (pluginElasticsearchSemanticVersion.after(currentElasticsearchSemanticVersion)) {
+                    throw new IllegalArgumentException(
+                        "Stable Plugin ["
+                            + info.getName()
+                            + "] was built for Elasticsearch version "
+                            + info.getElasticsearchVersion()
+                            + " but earlier version "
+                            + currentVersion
+                            + " is running"
+                    );
+                }
+            } else if (info.getElasticsearchVersion().equals(currentVersion) == false) {
                 throw new IllegalArgumentException(
-                    "Stable Plugin ["
+                    "Plugin ["
                         + info.getName()
                         + "] was built for Elasticsearch version "
                         + info.getElasticsearchVersion()
-                        + " but earlier version "
-                        + Version.CURRENT
+                        + " but version "
+                        + currentVersion
                         + " is running"
                 );
             }
-        } else if (info.getElasticsearchVersion().equals(Version.CURRENT) == false) {
-            throw new IllegalArgumentException(
-                "Plugin ["
-                    + info.getName()
-                    + "] was built for Elasticsearch version "
-                    + info.getElasticsearchVersion()
-                    + " but version "
-                    + Version.CURRENT
-                    + " is running"
-            );
         }
         JarHell.checkJavaVersion(info.getName(), info.getJavaVersion());
+    }
+
+    private record SemanticVersion(int major, int minor, int bugfix) {
+
+        static final Pattern semanticPattern = Pattern.compile("^(\\d+)\\.(\\d+)\\.(\\d+)$");
+
+        // does not compare anything after the semantic version
+        boolean after(SemanticVersion other) {
+            // major
+            if (this.major < other.major) {
+                return false;
+            }
+            if (this.major > other.major) {
+                return true;
+            }
+            // minor
+            if (this.minor < other.minor) {
+                return false;
+            }
+            if (this.minor > other.minor) {
+                return true;
+            }
+            // bugfix
+            return this.bugfix > other.bugfix;
+        }
+
+        @Override
+        public String toString() {
+            return Strings.format("%d.%d.%d", this.major, this.minor, this.bugfix);
+        }
     }
 
     /**
@@ -126,7 +196,7 @@ public class PluginsUtils {
             if (iterator.hasNext()) {
                 final Path removing = iterator.next();
                 final String fileName = removing.getFileName().toString();
-                final String name = fileName.substring(1 + fileName.indexOf("-"));
+                final String name = fileName.substring(1 + fileName.indexOf('-'));
                 final String message = String.format(
                     Locale.ROOT,
                     "found file [%s] from a failed attempt to remove the plugin [%s]; execute [elasticsearch-plugin remove %2$s]",
@@ -168,7 +238,7 @@ public class PluginsUtils {
             if (bundles.add(bundle) == false) {
                 throw new IllegalStateException("duplicate " + type + ": " + bundle.plugin);
             }
-            if (type.equals("module") && bundle.plugin.getName().startsWith("test-") && Build.CURRENT.isSnapshot() == false) {
+            if (type.equals("module") && bundle.plugin.getName().startsWith("test-") && Build.current().isSnapshot() == false) {
                 throw new IllegalStateException("external test module [" + plugin.getFileName() + "] found in non-snapshot build");
             }
         }

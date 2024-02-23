@@ -127,6 +127,6 @@ double the size of your cluster so it will only work if you have the capacity to
 expand your cluster like this.
 
 If you currently use multiple data paths but your cluster is not highly
-available then the you can migrate to a non-deprecated configuration by taking
+available then you can migrate to a non-deprecated configuration by taking
 a snapshot, creating a new cluster with the desired configuration and restoring
 the snapshot into it.

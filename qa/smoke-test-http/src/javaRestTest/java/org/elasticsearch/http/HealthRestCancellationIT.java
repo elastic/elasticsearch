@@ -53,9 +53,7 @@ public class HealthRestCancellationIT extends HttpSmokeTestCase {
     private void runTest(Request request) throws Exception {
         List<Semaphore> blocks = new ArrayList<>();
         for (PluginsService pluginsService : internalCluster().getInstances(PluginsService.class)) {
-            for (BlockingHealthPlugin plugin : pluginsService.filterPlugins(BlockingHealthPlugin.class)) {
-                blocks.add(plugin.operationBlock);
-            }
+            pluginsService.filterPlugins(BlockingHealthPlugin.class).map(p -> p.operationBlock).forEach(blocks::add);
         }
 
         assertThat(blocks, not(empty()));

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.searchablesnapshots.store.input;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.IOContext;
+import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheFile;
@@ -19,8 +20,8 @@ import org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirec
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
-import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
 
@@ -99,13 +100,6 @@ public class CachedBlobContainerIndexInput extends MetadataCachingIndexInput {
     }
 
     @Override
-    protected long getDefaultRangeSize() {
-        return (context != CACHE_WARMING_CONTEXT) ? (directory.isRecoveryFinalized() ? defaultRangeSize : recoveryRangeSize)
-            : fileInfo.numberOfParts() == 1 ? Long.MAX_VALUE
-            : fileInfo.partSize().getBytes();
-    }
-
-    @Override
     protected void readWithoutBlobCache(ByteBuffer b) throws Exception {
         ensureContext(ctx -> ctx != CACHE_WARMING_CONTEXT);
         final long position = getAbsolutePosition();
@@ -113,18 +107,25 @@ public class CachedBlobContainerIndexInput extends MetadataCachingIndexInput {
 
         final CacheFile cacheFile = cacheFileReference.get();
 
-        final ByteRange startRangeToWrite = computeRange(position);
-        final ByteRange endRangeToWrite = computeRange(position + length - 1);
-        assert startRangeToWrite.end() <= endRangeToWrite.end() : startRangeToWrite + " vs " + endRangeToWrite;
-        final ByteRange rangeToWrite = startRangeToWrite.minEnvelope(endRangeToWrite);
-
+        final ByteRange rangeToWrite = BlobCacheUtils.computeRange(
+            directory.isRecoveryFinalized() ? defaultRangeSize : recoveryRangeSize,
+            position,
+            length,
+            fileInfo.length()
+        );
         final ByteRange rangeToRead = ByteRange.of(position, position + length);
         assert rangeToRead.isSubRangeOf(rangeToWrite) : rangeToRead + " vs " + rangeToWrite;
         assert rangeToRead.length() == b.remaining() : b.remaining() + " vs " + rangeToRead;
 
-        final Future<Integer> populateCacheFuture = populateAndRead(b, position, length, cacheFile, rangeToWrite);
-        final int bytesRead = populateCacheFuture.get();
+        final int bytesRead = populateAndRead(b, position, cacheFile, rangeToWrite).get();
         assert bytesRead == length : bytesRead + " vs " + length;
+    }
+
+    /**
+     * @return Returns the number of bytes already cached for the file in the cold persistent cache
+     */
+    public long getPersistentCacheInitialLength() throws Exception {
+        return cacheFileReference.get().getInitialLength();
     }
 
     /**
@@ -144,7 +145,14 @@ public class CachedBlobContainerIndexInput extends MetadataCachingIndexInput {
         if (isCancelled.get()) {
             return -1L;
         }
-        final ByteRange partRange = computeRange(IntStream.range(0, part).mapToLong(fileInfo::partBytes).sum());
+        final ByteRange partRange;
+        if (fileInfo.numberOfParts() == 1) {
+            partRange = ByteRange.of(0, fileInfo.length());
+        } else {
+            long rangeSize = fileInfo.partSize().getBytes();
+            long rangeStart = (IntStream.range(0, part).mapToLong(fileInfo::partBytes).sum() / rangeSize) * rangeSize;
+            partRange = ByteRange.of(rangeStart, Math.min(rangeStart + rangeSize, fileInfo.length()));
+        }
         assert assertRangeIsAlignedWithPart(partRange);
 
         try {
@@ -181,7 +189,7 @@ public class CachedBlobContainerIndexInput extends MetadataCachingIndexInput {
                     if (isCancelled.get()) {
                         return -1L;
                     }
-                    final int bytesRead = readSafe(input, copyBuffer, range.start(), remainingBytes, cacheFileReference);
+                    final int bytesRead = readSafe(input, copyBuffer, range.start(), remainingBytes);
                     // The range to prewarm in cache
                     final long readStart = range.start() + totalBytesRead;
                     final ByteRange rangeToWrite = ByteRange.of(readStart, readStart + bytesRead);
@@ -235,9 +243,11 @@ public class CachedBlobContainerIndexInput extends MetadataCachingIndexInput {
         return true;
     }
 
-    @Override
-    public CachedBlobContainerIndexInput clone() {
-        return (CachedBlobContainerIndexInput) super.clone();
+    private void ensureContext(Predicate<IOContext> predicate) throws IOException {
+        if (predicate.test(context) == false) {
+            assert false : "this method should not be used with this context " + context;
+            throw new IOException("Cannot read the index input using context [context=" + context + ", input=" + this + ']');
+        }
     }
 
     @Override
@@ -255,7 +265,7 @@ public class CachedBlobContainerIndexInput extends MetadataCachingIndexInput {
             fileInfo,
             context,
             stats,
-            this.offset + sliceOffset,
+            sliceOffset,
             sliceCompoundFileOffset,
             sliceLength,
             cacheFileReference,

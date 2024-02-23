@@ -11,7 +11,7 @@ package org.elasticsearch.index.mapper.vectors;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReader;
-import org.elasticsearch.Version;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
@@ -27,12 +27,12 @@ final class VectorDVLeafFieldData implements LeafFieldData {
 
     private final LeafReader reader;
     private final String field;
-    private final Version indexVersion;
+    private final IndexVersion indexVersion;
     private final ElementType elementType;
     private final int dims;
     private final boolean indexed;
 
-    VectorDVLeafFieldData(LeafReader reader, String field, Version indexVersion, ElementType elementType, int dims, boolean indexed) {
+    VectorDVLeafFieldData(LeafReader reader, String field, IndexVersion indexVersion, ElementType elementType, int dims, boolean indexed) {
         this.reader = reader;
         this.field = field;
         this.indexVersion = indexVersion;

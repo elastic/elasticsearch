@@ -1,0 +1,5 @@
+pr: 102078
+summary: Derive expected replica size from primary
+area: Allocation
+type: enhancement
+issues: []

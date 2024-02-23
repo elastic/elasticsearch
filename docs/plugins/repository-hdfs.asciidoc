@@ -2,7 +2,7 @@
 === Hadoop HDFS repository plugin
 
 The HDFS repository plugin adds support for using HDFS File System as a repository for
-{ref}/modules-snapshots.html[Snapshot/Restore].
+{ref}/snapshot-restore.html[Snapshot/Restore].
 
 :plugin_name: repository-hdfs
 include::install_remove.asciidoc[]
@@ -23,7 +23,7 @@ plugin folder and point `HADOOP_HOME` variable to it; this should minimize the a
 ==== Configuration properties
 
 Once installed, define the configuration for the `hdfs` repository through the
-{ref}/modules-snapshots.html[REST API]:
+{ref}/snapshot-restore.html[REST API]:
 
 [source,console]
 ----
@@ -76,6 +76,12 @@ include::repository-shared-settings.asciidoc[]
     use the `_HOST` pattern in the principal name and the plugin will replace
     the pattern with the hostname of the node at runtime (see
     link:repository-hdfs-security-runtime[Creating the Secure Repository]).
+
+`replication_factor`::
+
+    The replication factor for all new HDFS files created by this repository.
+    Must be greater or equal to `dfs.replication.min` and less or equal to `dfs.replication.max` HDFS option.
+    Defaults to using HDFS cluster setting.
 
 [[repository-hdfs-availability]]
 [discrete]

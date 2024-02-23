@@ -9,7 +9,7 @@
 package org.elasticsearch.cluster.serialization;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.ClusterModule;
@@ -35,7 +35,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.TransportVersionUtils;
@@ -56,7 +56,7 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
 
     public void testClusterStateSerialization() throws Exception {
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(10).numberOfReplicas(1))
+            .put(IndexMetadata.builder("test").settings(settings(IndexVersion.current())).numberOfShards(10).numberOfReplicas(1))
             .build();
 
         RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
@@ -95,7 +95,7 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
 
     public void testRoutingTableSerialization() throws Exception {
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(10).numberOfReplicas(1))
+            .put(IndexMetadata.builder("test").settings(settings(IndexVersion.current())).numberOfShards(10).numberOfReplicas(1))
             .build();
 
         RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
@@ -104,7 +104,7 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
 
         DiscoveryNodes nodes = DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")).add(newNode("node3")).build();
 
-        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(nodes)
             .metadata(metadata)
             .routingTable(routingTable)
@@ -131,8 +131,8 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
                 SnapshotDeletionsInProgress.of(
                     List.of(
                         new SnapshotDeletionsInProgress.Entry(
-                            Collections.singletonList(new SnapshotId("snap1", UUIDs.randomBase64UUID())),
                             "repo1",
+                            Collections.singletonList(new SnapshotId("snap1", UUIDs.randomBase64UUID())),
                             randomNonNegativeLong(),
                             randomNonNegativeLong(),
                             SnapshotDeletionsInProgress.State.STARTED
@@ -164,8 +164,8 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
         BytesStreamOutput outStream = new BytesStreamOutput();
         TransportVersion version = TransportVersionUtils.randomVersionBetween(
             random(),
-            TransportVersion.MINIMUM_COMPATIBLE,
-            TransportVersion.CURRENT
+            TransportVersions.MINIMUM_COMPATIBLE,
+            TransportVersion.current()
         );
         outStream.setTransportVersion(version);
         diffs.writeTo(outStream);
@@ -193,7 +193,7 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
 
     private ClusterState updateUsingSerialisedDiff(ClusterState original, Diff<ClusterState> diff) throws IOException {
         BytesStreamOutput outStream = new BytesStreamOutput();
-        outStream.setTransportVersion(TransportVersion.CURRENT);
+        outStream.setTransportVersion(TransportVersion.current());
         diff.writeTo(outStream);
         StreamInput inStream = new NamedWriteableAwareStreamInput(
             outStream.bytes().streamInput(),
@@ -205,7 +205,7 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
 
     public void testObjectReuseWhenApplyingClusterStateDiff() throws Exception {
         IndexMetadata indexMetadata = IndexMetadata.builder("test")
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(10)
             .numberOfReplicas(1)
             .build();
@@ -223,7 +223,7 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
             .routingTable(routingTable)
             .build();
         BytesStreamOutput outStream = new BytesStreamOutput();
-        outStream.setTransportVersion(TransportVersion.CURRENT);
+        outStream.setTransportVersion(TransportVersion.current());
         clusterState1.writeTo(outStream);
         StreamInput inStream = new NamedWriteableAwareStreamInput(
             outStream.bytes().streamInput(),
@@ -318,7 +318,7 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersion.CURRENT;
+            return TransportVersion.current();
         }
 
     }
@@ -361,7 +361,7 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersion.MINIMUM_COMPATIBLE;
+            return TransportVersions.MINIMUM_COMPATIBLE;
         }
 
     }
@@ -384,7 +384,7 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
 
         // serialize with current version
         BytesStreamOutput outStream = new BytesStreamOutput();
-        TransportVersion version = TransportVersion.CURRENT;
+        TransportVersion version = TransportVersion.current();
         outStream.setTransportVersion(version);
         diffs.writeTo(outStream);
         StreamInput inStream = outStream.bytes().streamInput();
@@ -400,7 +400,7 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
 
         // serialize with minimum compatibile version
         outStream = new BytesStreamOutput();
-        version = TransportVersion.MINIMUM_COMPATIBLE;
+        version = TransportVersions.MINIMUM_COMPATIBLE;
         outStream.setTransportVersion(version);
         diffs.writeTo(outStream);
         inStream = outStream.bytes().streamInput();

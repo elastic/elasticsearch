@@ -148,19 +148,19 @@ public class PainlessContextInfo implements Writeable, ToXContentObject {
 
     public PainlessContextInfo(StreamInput in) throws IOException {
         name = in.readString();
-        classes = in.readImmutableList(PainlessContextClassInfo::new);
-        importedMethods = in.readImmutableList(PainlessContextMethodInfo::new);
-        classBindings = in.readImmutableList(PainlessContextClassBindingInfo::new);
-        instanceBindings = in.readImmutableList(PainlessContextInstanceBindingInfo::new);
+        classes = in.readCollectionAsImmutableList(PainlessContextClassInfo::new);
+        importedMethods = in.readCollectionAsImmutableList(PainlessContextMethodInfo::new);
+        classBindings = in.readCollectionAsImmutableList(PainlessContextClassBindingInfo::new);
+        instanceBindings = in.readCollectionAsImmutableList(PainlessContextInstanceBindingInfo::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
-        out.writeList(classes);
-        out.writeList(importedMethods);
-        out.writeList(classBindings);
-        out.writeList(instanceBindings);
+        out.writeCollection(classes);
+        out.writeCollection(importedMethods);
+        out.writeCollection(classBindings);
+        out.writeCollection(instanceBindings);
     }
 
     public static PainlessContextInfo fromXContent(XContentParser parser) {

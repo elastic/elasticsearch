@@ -7,7 +7,8 @@
 
 package org.elasticsearch.xpack.core.transform.transforms;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Strings;
@@ -29,6 +30,7 @@ import org.elasticsearch.xpack.core.common.validation.SourceDestValidator.Source
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue.Level;
 import org.elasticsearch.xpack.core.security.xcontent.XContentUtils;
+import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 import org.elasticsearch.xpack.core.transform.TransformDeprecations;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
@@ -51,18 +53,18 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 /**
  * This class holds the configuration details of a data frame transform
  */
-public class TransformConfig implements SimpleDiffable<TransformConfig>, Writeable, ToXContentObject {
+public final class TransformConfig implements SimpleDiffable<TransformConfig>, Writeable, ToXContentObject {
 
     /**
      * Version of the last time the config defaults have been changed.
      * Whenever defaults change, we must re-write the config on update in a way it
      * does not change behavior.
      */
-    public static final Version CONFIG_VERSION_LAST_DEFAULTS_CHANGED = Version.V_7_15_0;
+    public static final TransformConfigVersion CONFIG_VERSION_LAST_DEFAULTS_CHANGED = TransformConfigVersion.V_7_15_0;
     public static final String NAME = "data_frame_transform_config";
     public static final ParseField HEADERS = new ParseField("headers");
     /** Version in which {@code FieldCapabilitiesRequest.runtime_fields} field was introduced. */
-    private static final Version FIELD_CAPS_RUNTIME_MAPPINGS_INTRODUCED_VERSION = Version.V_7_12_0;
+    private static final TransportVersion FIELD_CAPS_RUNTIME_MAPPINGS_INTRODUCED_TRANSPORT_VERSION = TransportVersions.V_7_12_0;
 
     /** Specifies all the possible transform functions. */
     public enum Function {
@@ -96,7 +98,7 @@ public class TransformConfig implements SimpleDiffable<TransformConfig>, Writeab
     // headers store the user context from the creating user, which allows us to run the transform as this user
     // the header only contains name, groups and other context but no authorization keys
     private Map<String, String> headers;
-    private Version transformVersion;
+    private TransformConfigVersion transformVersion;
     private Instant createTime;
 
     private final PivotConfig pivotConfig;
@@ -239,7 +241,7 @@ public class TransformConfig implements SimpleDiffable<TransformConfig>, Writeab
             throw new IllegalArgumentException("[description] must be less than 1000 characters in length.");
         }
         this.createTime = createTime == null ? null : Instant.ofEpochMilli(createTime.toEpochMilli());
-        this.transformVersion = version == null ? null : Version.fromString(version);
+        this.transformVersion = version == null ? null : TransformConfigVersion.fromString(version);
     }
 
     public TransformConfig(final StreamInput in) throws IOException {
@@ -247,15 +249,15 @@ public class TransformConfig implements SimpleDiffable<TransformConfig>, Writeab
         source = new SourceConfig(in);
         dest = new DestConfig(in);
         frequency = in.readOptionalTimeValue();
-        setHeaders(in.readMap(StreamInput::readString, StreamInput::readString));
+        setHeaders(in.readMap(StreamInput::readString));
         pivotConfig = in.readOptionalWriteable(PivotConfig::new);
         latestConfig = in.readOptionalWriteable(LatestConfig::new);
         description = in.readOptionalString();
         syncConfig = in.readOptionalNamedWriteable(SyncConfig.class);
         createTime = in.readOptionalInstant();
-        transformVersion = in.readBoolean() ? Version.readVersion(in) : null;
+        transformVersion = in.readBoolean() ? TransformConfigVersion.readVersion(in) : null;
         settings = new SettingsConfig(in);
-        metadata = in.readMap();
+        metadata = in.readGenericMap();
         retentionPolicyConfig = in.readOptionalNamedWriteable(RetentionPolicyConfig.class);
     }
 
@@ -288,11 +290,11 @@ public class TransformConfig implements SimpleDiffable<TransformConfig>, Writeab
         return this;
     }
 
-    public Version getVersion() {
+    public TransformConfigVersion getVersion() {
         return transformVersion;
     }
 
-    public TransformConfig setVersion(Version version) {
+    public TransformConfig setVersion(TransformConfigVersion version) {
         this.transformVersion = version;
         return this;
     }
@@ -341,7 +343,7 @@ public class TransformConfig implements SimpleDiffable<TransformConfig>, Writeab
     public List<SourceDestValidation> getAdditionalSourceDestValidations() {
         if ((source.getRuntimeMappings() == null || source.getRuntimeMappings().isEmpty()) == false) {
             SourceDestValidation validation = new SourceDestValidator.RemoteClusterMinimumVersionValidation(
-                FIELD_CAPS_RUNTIME_MAPPINGS_INTRODUCED_VERSION,
+                FIELD_CAPS_RUNTIME_MAPPINGS_INTRODUCED_TRANSPORT_VERSION,
                 "source.runtime_mappings field was set"
             );
             return Collections.singletonList(validation);
@@ -411,7 +413,7 @@ public class TransformConfig implements SimpleDiffable<TransformConfig>, Writeab
         source.writeTo(out);
         dest.writeTo(out);
         out.writeOptionalTimeValue(frequency);
-        out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeString);
+        out.writeMap(headers, StreamOutput::writeString);
         out.writeOptionalWriteable(pivotConfig);
         out.writeOptionalWriteable(latestConfig);
         out.writeOptionalString(description);
@@ -419,7 +421,7 @@ public class TransformConfig implements SimpleDiffable<TransformConfig>, Writeab
         out.writeOptionalInstant(createTime);
         if (transformVersion != null) {
             out.writeBoolean(true);
-            Version.writeVersion(transformVersion, out);
+            TransformConfigVersion.writeVersion(transformVersion, out);
         } else {
             out.writeBoolean(false);
         }
@@ -604,7 +606,7 @@ public class TransformConfig implements SimpleDiffable<TransformConfig>, Writeab
         }
 
         // 2. set dates_as_epoch_millis to true for transforms < 7.11 to keep BWC
-        if (builder.getVersion() != null && builder.getVersion().before(Version.V_7_11_0)) {
+        if (builder.getVersion() != null && builder.getVersion().before(TransformConfigVersion.V_7_11_0)) {
             builder.setSettings(
                 new SettingsConfig(
                     builder.getSettings().getMaxPageSearchSize(),
@@ -620,7 +622,7 @@ public class TransformConfig implements SimpleDiffable<TransformConfig>, Writeab
         }
 
         // 3. set align_checkpoints to false for transforms < 7.15 to keep BWC
-        if (builder.getVersion() != null && builder.getVersion().before(Version.V_7_15_0)) {
+        if (builder.getVersion() != null && builder.getVersion().before(TransformConfigVersion.V_7_15_0)) {
             builder.setSettings(
                 new SettingsConfig(
                     builder.getSettings().getMaxPageSearchSize(),
@@ -635,7 +637,7 @@ public class TransformConfig implements SimpleDiffable<TransformConfig>, Writeab
             );
         }
 
-        return builder.setVersion(Version.CURRENT).build();
+        return builder.setVersion(TransformConfigVersion.CURRENT).build();
     }
 
     public static Builder builder() {
@@ -650,7 +652,7 @@ public class TransformConfig implements SimpleDiffable<TransformConfig>, Writeab
         private SyncConfig syncConfig;
         private String description;
         private Map<String, String> headers;
-        private Version transformVersion;
+        private TransformConfigVersion transformVersion;
         private Instant createTime;
         private PivotConfig pivotConfig;
         private LatestConfig latestConfig;
@@ -775,12 +777,12 @@ public class TransformConfig implements SimpleDiffable<TransformConfig>, Writeab
             return latestConfig;
         }
 
-        Builder setVersion(Version version) {
+        Builder setVersion(TransformConfigVersion version) {
             this.transformVersion = version;
             return this;
         }
 
-        Version getVersion() {
+        TransformConfigVersion getVersion() {
             return transformVersion;
         }
 

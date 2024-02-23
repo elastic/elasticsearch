@@ -9,13 +9,14 @@
 package org.elasticsearch.systemd;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.hamcrest.OptionalMatchers;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.tracing.Tracer;
 
 import java.io.IOException;
 import java.util.Optional;
@@ -24,12 +25,15 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 
+import static org.elasticsearch.test.hamcrest.OptionalMatchers.isPresentWith;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -47,34 +51,45 @@ public class SystemdPluginTests extends ESTestCase {
 
     {
         when(extender.cancel()).thenReturn(true);
-        when(threadPool.scheduleWithFixedDelay(any(Runnable.class), eq(TimeValue.timeValueSeconds(15)), eq(ThreadPool.Names.SAME)))
-            .thenReturn(extender);
+        when(
+            threadPool.scheduleWithFixedDelay(
+                any(Runnable.class),
+                eq(TimeValue.timeValueSeconds(15)),
+                same(EsExecutors.DIRECT_EXECUTOR_SERVICE)
+            )
+        ).thenReturn(extender);
+    }
+
+    private void startPlugin(SystemdPlugin plugin) {
+        Plugin.PluginServices services = mock(Plugin.PluginServices.class);
+        when(services.threadPool()).thenReturn(threadPool);
+        plugin.createComponents(services);
     }
 
     public void testIsEnabled() {
         final SystemdPlugin plugin = new SystemdPlugin(false, randomPackageBuildType, Boolean.TRUE.toString());
-        plugin.createComponents(null, null, threadPool, null, null, null, null, null, null, null, null, Tracer.NOOP, null);
+        startPlugin(plugin);
         assertTrue(plugin.isEnabled());
         assertNotNull(plugin.extender());
     }
 
     public void testIsNotPackageDistribution() {
         final SystemdPlugin plugin = new SystemdPlugin(false, randomNonPackageBuildType, Boolean.TRUE.toString());
-        plugin.createComponents(null, null, threadPool, null, null, null, null, null, null, null, null, Tracer.NOOP, null);
+        startPlugin(plugin);
         assertFalse(plugin.isEnabled());
         assertNull(plugin.extender());
     }
 
     public void testIsImplicitlyNotEnabled() {
         final SystemdPlugin plugin = new SystemdPlugin(false, randomPackageBuildType, null);
-        plugin.createComponents(null, null, threadPool, null, null, null, null, null, null, null, null, Tracer.NOOP, null);
+        startPlugin(plugin);
         assertFalse(plugin.isEnabled());
         assertNull(plugin.extender());
     }
 
     public void testIsExplicitlyNotEnabled() {
         final SystemdPlugin plugin = new SystemdPlugin(false, randomPackageBuildType, Boolean.FALSE.toString());
-        plugin.createComponents(null, null, threadPool, null, null, null, null, null, null, null, null, Tracer.NOOP, null);
+        startPlugin(plugin);
         assertFalse(plugin.isEnabled());
         assertNull(plugin.extender());
     }
@@ -97,12 +112,16 @@ public class SystemdPluginTests extends ESTestCase {
 
     public void testOnNodeStartedFailure() {
         final int rc = randomIntBetween(Integer.MIN_VALUE, -1);
-        runTestOnNodeStarted(Boolean.TRUE.toString(), rc, (maybe, plugin) -> {
-            assertThat(maybe, OptionalMatchers.isPresent());
-            // noinspection OptionalGetWithoutIsPresent
-            assertThat(maybe.get(), instanceOf(RuntimeException.class));
-            assertThat(maybe.get(), hasToString(containsString("sd_notify returned error [" + rc + "]")));
-        });
+        runTestOnNodeStarted(
+            Boolean.TRUE.toString(),
+            rc,
+            (maybe, plugin) -> assertThat(
+                maybe,
+                isPresentWith(
+                    allOf(instanceOf(RuntimeException.class), hasToString(containsString("sd_notify returned error [" + rc + "]")))
+                )
+            )
+        );
     }
 
     public void testOnNodeStartedNotEnabled() {
@@ -162,7 +181,7 @@ public class SystemdPluginTests extends ESTestCase {
             }
 
         };
-        plugin.createComponents(null, null, threadPool, null, null, null, null, null, null, null, null, Tracer.NOOP, null);
+        startPlugin(plugin);
         if (Boolean.TRUE.toString().equals(esSDNotify)) {
             assertNotNull(plugin.extender());
         } else {

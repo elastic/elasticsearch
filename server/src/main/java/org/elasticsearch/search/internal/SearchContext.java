@@ -7,18 +7,18 @@
  */
 package org.elasticsearch.search.internal;
 
-import org.apache.lucene.search.Collector;
-import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
+import org.elasticsearch.index.mapper.IdLoader;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardException;
@@ -45,6 +45,7 @@ import org.elasticsearch.search.rank.RankShardContext;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
+import org.elasticsearch.transport.LeakTracker;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -67,7 +68,14 @@ public abstract class SearchContext implements Releasable {
     public static final int DEFAULT_TRACK_TOTAL_HITS_UP_TO = 10000;
 
     protected final List<Releasable> releasables = new CopyOnWriteArrayList<>();
+
     private final AtomicBoolean closed = new AtomicBoolean(false);
+
+    {
+        if (Assertions.ENABLED) {
+            releasables.add(LeakTracker.wrap(() -> { assert closed.get(); }));
+        }
+    }
     private InnerHitsContext innerHitsContext;
 
     private Query rewriteQuery;
@@ -182,8 +190,6 @@ public abstract class SearchContext implements Releasable {
      * A shortcut function to see whether there is a fetchSourceContext and it says the source is requested.
      */
     public abstract boolean sourceRequested();
-
-    public abstract boolean hasFetchSourceContext();
 
     public abstract FetchSourceContext fetchSourceContext();
 
@@ -316,10 +322,6 @@ public abstract class SearchContext implements Releasable {
     /** controls whether the sequence number and primary term of the last modification to each hit should be returned */
     public abstract void seqNoAndPrimaryTerm(boolean seqNoAndPrimaryTerm);
 
-    public abstract int[] docIdsToLoad();
-
-    public abstract SearchContext docIdsToLoad(int[] docIdsToLoad);
-
     public abstract DfsSearchResult dfsResult();
 
     /**
@@ -375,16 +377,6 @@ public abstract class SearchContext implements Releasable {
      */
     public abstract long getRelativeTimeInMillis();
 
-    /**
-     * Registers the collector to be run for the aggregations phase
-     */
-    public abstract void registerAggsCollectorManager(CollectorManager<Collector, Void> collectorManager);
-
-    /**
-     * Returns the collector to be run for the aggregations phase
-     */
-    public abstract CollectorManager<Collector, Void> getAggsCollectorManager();
-
     public abstract SearchExecutionContext getSearchExecutionContext();
 
     @Override
@@ -410,4 +402,6 @@ public abstract class SearchContext implements Releasable {
      * Build something to load source {@code _source}.
      */
     public abstract SourceLoader newSourceLoader();
+
+    public abstract IdLoader newIdLoader();
 }

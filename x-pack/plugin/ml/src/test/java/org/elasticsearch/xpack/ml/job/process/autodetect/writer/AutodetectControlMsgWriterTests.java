@@ -58,6 +58,9 @@ public class AutodetectControlMsgWriterTests extends ESTestCase {
         inOrder.verify(lengthEncodedWriter).writeNumFields(4);
         inOrder.verify(lengthEncodedWriter, times(3)).writeField("");
         inOrder.verify(lengthEncodedWriter).writeField("t1234567890");
+        inOrder.verify(lengthEncodedWriter).writeNumFields(4);
+        inOrder.verify(lengthEncodedWriter, times(3)).writeField("");
+        inOrder.verify(lengthEncodedWriter).writeField("ztrue");
         verifyNoMoreInteractions(lengthEncodedWriter);
     }
 
@@ -71,6 +74,9 @@ public class AutodetectControlMsgWriterTests extends ESTestCase {
         inOrder.verify(lengthEncodedWriter).writeNumFields(4);
         inOrder.verify(lengthEncodedWriter, times(3)).writeField("");
         inOrder.verify(lengthEncodedWriter).writeField("s1234567890");
+        inOrder.verify(lengthEncodedWriter).writeNumFields(4);
+        inOrder.verify(lengthEncodedWriter, times(3)).writeField("");
+        inOrder.verify(lengthEncodedWriter).writeField("ztrue");
         verifyNoMoreInteractions(lengthEncodedWriter);
     }
 
@@ -95,6 +101,9 @@ public class AutodetectControlMsgWriterTests extends ESTestCase {
         inOrder.verify(lengthEncodedWriter).writeNumFields(4);
         inOrder.verify(lengthEncodedWriter, times(3)).writeField("");
         inOrder.verify(lengthEncodedWriter).writeField("i");
+        inOrder.verify(lengthEncodedWriter).writeNumFields(4);
+        inOrder.verify(lengthEncodedWriter, times(3)).writeField("");
+        inOrder.verify(lengthEncodedWriter).writeField("ztrue");
         verifyNoMoreInteractions(lengthEncodedWriter);
     }
 
@@ -104,6 +113,27 @@ public class AutodetectControlMsgWriterTests extends ESTestCase {
 
         writer.writeFlushControlMessage(flushJobParams);
 
+        // Even a plain flush message contains the "refreshRequired" flag, which
+        // is set to "true" by default
+        InOrder inOrder = inOrder(lengthEncodedWriter);
+        inOrder.verify(lengthEncodedWriter).writeNumFields(4);
+        inOrder.verify(lengthEncodedWriter, times(3)).writeField("");
+        inOrder.verify(lengthEncodedWriter).writeField("ztrue");
+        verifyNoMoreInteractions(lengthEncodedWriter);
+    }
+
+    public void testWriteFlushControlMessage_GivenShouldRefreshFalse() throws IOException {
+        AutodetectControlMsgWriter writer = new AutodetectControlMsgWriter(lengthEncodedWriter, 4);
+        FlushJobParams flushJobParams = FlushJobParams.builder().refreshRequired(false).build();
+
+        writer.writeFlushControlMessage(flushJobParams);
+
+        // Even a plain flush message contains the "refreshRequired" flag, which
+        // is set to "true" by default
+        InOrder inOrder = inOrder(lengthEncodedWriter);
+        inOrder.verify(lengthEncodedWriter).writeNumFields(4);
+        inOrder.verify(lengthEncodedWriter, times(3)).writeField("");
+        inOrder.verify(lengthEncodedWriter).writeField("zfalse");
         verifyNoMoreInteractions(lengthEncodedWriter);
     }
 
@@ -120,6 +150,9 @@ public class AutodetectControlMsgWriterTests extends ESTestCase {
         inOrder.verify(lengthEncodedWriter).writeNumFields(4);
         inOrder.verify(lengthEncodedWriter, times(3)).writeField("");
         inOrder.verify(lengthEncodedWriter).writeField("i120 180");
+        inOrder.verify(lengthEncodedWriter).writeNumFields(4);
+        inOrder.verify(lengthEncodedWriter, times(3)).writeField("");
+        inOrder.verify(lengthEncodedWriter).writeField("ztrue");
         verifyNoMoreInteractions(lengthEncodedWriter);
     }
 
@@ -140,6 +173,9 @@ public class AutodetectControlMsgWriterTests extends ESTestCase {
         inOrder.verify(lengthEncodedWriter).writeNumFields(4);
         inOrder.verify(lengthEncodedWriter, times(3)).writeField("");
         inOrder.verify(lengthEncodedWriter).writeField("i50 100");
+        inOrder.verify(lengthEncodedWriter).writeNumFields(4);
+        inOrder.verify(lengthEncodedWriter, times(3)).writeField("");
+        inOrder.verify(lengthEncodedWriter).writeField("ztrue");
         verifyNoMoreInteractions(lengthEncodedWriter);
     }
 

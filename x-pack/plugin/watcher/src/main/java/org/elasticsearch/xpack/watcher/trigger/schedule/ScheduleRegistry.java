@@ -18,7 +18,7 @@ public class ScheduleRegistry {
     private final Map<String, Schedule.Parser<? extends Schedule>> parsers = new HashMap<>();
 
     public ScheduleRegistry(Set<Schedule.Parser<? extends Schedule>> parsers) {
-        parsers.stream().forEach(parser -> this.parsers.put(parser.type(), parser));
+        parsers.forEach(parser -> this.parsers.put(parser.type(), parser));
     }
 
     public Set<String> types() {

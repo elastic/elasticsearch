@@ -6,11 +6,11 @@ their values is not sufficient. For this use case, {es} provides a
 keystore and the <<elasticsearch-keystore,`elasticsearch-keystore` tool>> to
 manage the settings in the keystore.
 
-IMPORTANT: Only some settings are designed to be read from the keystore. However,
-the keystore has no validation to block unsupported settings. Adding unsupported
-settings to the keystore causes {es} to fail to start. To see whether a setting
-is supported in the keystore, look for a "Secure" qualifier the setting
-reference.
+IMPORTANT: Only some settings are designed to be read from the keystore.
+Adding unsupported settings to the keystore causes the validation in the
+`_nodes/reload_secure_settings` API to fail and if not addressed, will
+cause {es} to fail to start. To see whether a setting is supported in the
+keystore, look for a "Secure" qualifier in the setting reference.
 
 All the modifications to the keystore take effect only after restarting {es}.
 
@@ -42,12 +42,12 @@ POST _nodes/reload_secure_settings
 
 <1> The password that the {es} keystore is encrypted with.
 
-This API decrypts and re-reads the entire keystore, on every cluster node,
-but only the *reloadable* secure settings are applied. Changes to other
-settings do not go into effect until the next restart. Once the call returns,
-the reload has been completed, meaning that all internal data structures
-dependent on these settings have been changed. Everything should look as if the
-settings had the new value from the start.
+This API decrypts, re-reads the entire keystore and validates all settings on
+every cluster node, but only the *reloadable* secure settings are applied.
+Changes to other settings do not go into effect until the next restart. Once
+the call returns, the reload has been completed, meaning that all internal data
+structures dependent on these settings have been changed. Everything should
+look as if the settings had the new value from the start.
 
 When changing multiple *reloadable* secure settings, modify all of them on each
 cluster node, then issue a <<cluster-nodes-reload-secure-settings, `reload_secure_settings`>>
@@ -61,3 +61,7 @@ There are reloadable secure settings for:
 * <<repository-s3,The S3 repository plugin>>
 * <<monitoring-settings>>
 * <<notification-settings>>
+* <<ref-jwt-settings, JWT realm>>
+* <<ref-ad-settings, Active Directory realm>>
+* <<ref-ldap-settings, LDAP realm>>
+* <<remote-cluster-credentials-setting, Remote cluster credentials for the API key based security model>>

@@ -39,9 +39,9 @@ public class StoredExpressionIT extends ESIntegTestCase {
     }
 
     public void testAllOpsDisabledIndexedScripts() throws IOException {
-        client().admin().cluster().preparePutStoredScript().setId("script1").setContent(new BytesArray("""
+        clusterAdmin().preparePutStoredScript().setId("script1").setContent(new BytesArray("""
             {"script": {"lang": "expression", "source": "2"} }"""), XContentType.JSON).get();
-        client().prepareIndex("test").setId("1").setSource("{\"theField\":\"foo\"}", XContentType.JSON).get();
+        prepareIndex("test").setId("1").setSource("{\"theField\":\"foo\"}", XContentType.JSON).get();
         try {
             client().prepareUpdate("test", "1").setScript(new Script(ScriptType.STORED, null, "script1", Collections.emptyMap())).get();
             fail("update script should have been rejected");
@@ -50,24 +50,19 @@ public class StoredExpressionIT extends ESIntegTestCase {
             assertThat(e.getCause().getMessage(), containsString("Failed to compile stored script [script1] using lang [expression]"));
         }
         try {
-            client().prepareSearch()
-                .setSource(
-                    new SearchSourceBuilder().scriptField("test1", new Script(ScriptType.STORED, null, "script1", Collections.emptyMap()))
-                )
-                .setIndices("test")
-                .get();
+            prepareSearch().setSource(
+                new SearchSourceBuilder().scriptField("test1", new Script(ScriptType.STORED, null, "script1", Collections.emptyMap()))
+            ).setIndices("test").get();
             fail("search script should have been rejected");
         } catch (Exception e) {
             assertThat(e.toString(), containsString("cannot execute scripts using [field] context"));
         }
         try {
-            client().prepareSearch("test")
-                .setSource(
-                    new SearchSourceBuilder().aggregation(
-                        AggregationBuilders.terms("test").script(new Script(ScriptType.STORED, null, "script1", Collections.emptyMap()))
-                    )
+            prepareSearch("test").setSource(
+                new SearchSourceBuilder().aggregation(
+                    AggregationBuilders.terms("test").script(new Script(ScriptType.STORED, null, "script1", Collections.emptyMap()))
                 )
-                .get();
+            ).get();
         } catch (Exception e) {
             assertThat(e.toString(), containsString("cannot execute scripts using [aggs] context"));
         }

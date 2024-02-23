@@ -66,11 +66,14 @@ class Mapper extends RuleExecutor<PhysicalPlan> {
         protected PhysicalPlan map(LogicalPlan p) {
             if (p instanceof AbstractJoin join) {
                 List<List<Attribute>> keys = new ArrayList<>(join.children().size());
+                boolean[] missing = new boolean[join.children().size()];
                 List<PhysicalPlan> matches = new ArrayList<>(keys.size());
 
-                for (KeyedFilter keyed : join.queries()) {
+                for (int i = 0; i < join.queries().size(); i++) {
+                    KeyedFilter keyed = join.queries().get(i);
                     keys.add(Expressions.asAttributes(keyed.keys()));
                     matches.add(map(keyed.child()));
+                    missing[i] = keyed.isMissingEventFilter();
                 }
 
                 if (p instanceof Sample sample) {
@@ -87,7 +90,8 @@ class Mapper extends RuleExecutor<PhysicalPlan> {
                     s.timestamp(),
                     s.tiebreaker(),
                     s.direction(),
-                    s.maxSpan()
+                    s.maxSpan(),
+                    missing
                 );
             }
 

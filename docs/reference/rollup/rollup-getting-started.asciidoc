@@ -5,10 +5,7 @@
 <titleabbrev>Getting started</titleabbrev>
 ++++
 
-experimental[]
-
-NOTE: For version 8.5 and above we recommend <<downsampling,downsampling>> over
-rollups as a way to reduce your storage costs for time series data.
+deprecated::[8.11.0,"Rollups will be removed in a future version. Use <<downsampling,downsampling>> instead."]
 
 To use the Rollup feature, you need to create one or more "Rollup Jobs". These jobs run continuously in the background
 and rollup the index or indices that you specify, placing the rolled documents in a secondary index (also of your choosing).

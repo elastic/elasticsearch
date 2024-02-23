@@ -114,7 +114,7 @@ public class RestClusterInfoActionCancellationIT extends HttpSmokeTestCase {
             }
         };
 
-        PlainActionFuture<AcknowledgedResponse> future = PlainActionFuture.newFuture();
+        PlainActionFuture<AcknowledgedResponse> future = new PlainActionFuture<>();
         internalCluster().getAnyMasterNodeInstance(ClusterService.class)
             .submitUnbatchedStateUpdateTask("get_mappings_cancellation_test", new AckedClusterStateUpdateTask(ackedRequest, future) {
                 @Override

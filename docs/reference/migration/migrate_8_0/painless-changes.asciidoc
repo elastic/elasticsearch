@@ -2,10 +2,6 @@
 [[breaking_80_painless_changes]]
 ==== Painless changes
 
-//NOTE: The notable-breaking-changes tagged regions are re-used in the
-//Installation and Upgrade Guide
-
-//tag::notable-breaking-changes[]
 .The `JodaCompatibleZonedDateTime` class has been removed.
 [%collapsible]
 ====
@@ -44,4 +40,3 @@ The following `JodaCompatibleZonedDateTime` methods must be replaced using
 * `toString(String)` -> a DateTimeFormatter
 * `toString(String, Locale)` -> a DateTimeFormatter
 ====
-//end::notable-breaking-changes[]

@@ -8,11 +8,11 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -149,7 +149,7 @@ public abstract class MetadataFieldMapper extends FieldMapper {
                 Parameter<?> parameter = paramsMap.get(propName);
                 if (parameter == null) {
                     if (UNSUPPORTED_PARAMETERS_8_6_0.contains(propName)) {
-                        if (parserContext.indexVersionCreated().onOrAfter(Version.V_8_6_0)) {
+                        if (parserContext.indexVersionCreated().onOrAfter(IndexVersions.V_8_6_0)) {
                             // silently ignore type, and a few other parameters: sadly we've been doing this for a long time
                             deprecationLogger.warn(
                                 DeprecationCategory.API,

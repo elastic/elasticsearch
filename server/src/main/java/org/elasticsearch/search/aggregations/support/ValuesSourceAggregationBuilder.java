@@ -115,6 +115,7 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
             super(name);
         }
 
+        @SuppressWarnings("this-escape")
         protected LeafOnly(LeafOnly<AB> clone, Builder factoriesBuilder, Map<String, Object> metadata) {
             super(clone, factoriesBuilder, metadata);
             if (factoriesBuilder.count() > 0) {
@@ -191,7 +192,6 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
     private String format = null;
     private Object missing = null;
     private ZoneId timeZone = null;
-    protected ValuesSourceConfig config;
 
     protected ValuesSourceAggregationBuilder(String name) {
         super(name);
@@ -208,13 +208,13 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
         this.format = clone.format;
         this.missing = clone.missing;
         this.timeZone = clone.timeZone;
-        this.config = clone.config;
         this.script = clone.script;
     }
 
     /**
      * Read from a stream.
      */
+    @SuppressWarnings("this-escape")
     protected ValuesSourceAggregationBuilder(StreamInput in) throws IOException {
         super(in);
         if (serializeTargetValueType(in.getTransportVersion())) {
@@ -373,14 +373,6 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
     }
 
     /**
-     * Gets the value to use when the aggregation finds a missing value in a
-     * document
-     */
-    public Object missing() {
-        return missing;
-    }
-
-    /**
      * Sets the time zone to use for this aggregation
      */
     @SuppressWarnings("unchecked")
@@ -419,8 +411,6 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
         factory = innerBuild(context, config, parent, subFactoriesBuilder);
         return factory;
     }
-
-    protected abstract ValuesSourceRegistry.RegistryKey<?> getRegistryKey();
 
     /**
      * Aggregations should use this method to define a {@link ValuesSourceType} of last resort.  This will only be used when the resolver

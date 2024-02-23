@@ -23,6 +23,9 @@ teardown:
 
 ---
 "Test first matching router terminates pipeline":
+  - skip:
+      version: all
+      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/102144"
   - do:
       ingest.put_pipeline:
         id: "pipeline-with-two-data-stream-processors"
@@ -46,6 +49,8 @@ teardown:
   - do:
       index:
         index: logs-generic-default
+        refresh: true
+        op_type: create
         id: "1"
         pipeline: "pipeline-with-two-data-stream-processors"
         body: {
@@ -53,10 +58,13 @@ teardown:
         }
 
   - do:
-      get:
+      search:
         index: logs-first-default
-        id: "1"
-  - match: { _source.foo: "bar" }
+        body:
+          query:
+            match: {"_id": "1"}
+  - match: { hits.hits.0._source.foo: "bar" }
+
 ---
 "Test two stage routing":
   - skip:
@@ -110,21 +118,13 @@ teardown:
             ]
           }
   - match: { acknowledged: true }
-  - do:
-      allowed_warnings:
-        - "index template [logs-nginx] has index patterns [logs-nginx-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logs-nginx] will take precedence during new index creation"
-      indices.put_index_template:
-        name: logs-nginx
-        body:
-          index_patterns: [ "logs-nginx-*" ]
-          template:
-            settings:
-              index.default_pipeline: "logs-nginx"
 
   - do:
       index:
+        refresh: true
         index: logs-nginx-default
         id: "example-log"
+        pipeline: "logs-nginx"
         op_type: create
         body:
           "@timestamp": "2022-04-13"
@@ -134,7 +134,9 @@ teardown:
               path: "nginx-error.log"
 
   - do:
-      get:
+      search:
         index: logs-nginx.error-default
-        id: "example-log"
-  - match: { _source.message: "this is an error log" }
+        body:
+          query:
+            match: {"_id": "example-log"}
+  - match: { hits.hits.0._source.message: "this is an error log" }

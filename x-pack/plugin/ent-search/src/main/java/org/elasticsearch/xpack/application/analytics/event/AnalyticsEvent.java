@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.application.analytics.event;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -22,6 +21,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.application.analytics.AnalyticsCollection;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -168,11 +168,6 @@ public class AnalyticsEvent implements Writeable, ToXContentObject {
     }
 
     @Override
-    public boolean isFragment() {
-        return false;
-    }
-
-    @Override
     public int hashCode() {
         return Objects.hash(eventCollectionName, eventTime, xContentType, payloadAsMap());
     }
@@ -205,7 +200,7 @@ public class AnalyticsEvent implements Writeable, ToXContentObject {
     }
 
     public static class Builder {
-        private final MapBuilder<String, Object> payloadBuilder = new MapBuilder<>();
+        private final Map<String, Object> payloadBuilder = new HashMap<>();
 
         private final Context context;
 
@@ -215,7 +210,7 @@ public class AnalyticsEvent implements Writeable, ToXContentObject {
 
         public AnalyticsEvent build() throws IOException {
             try (XContentBuilder builder = JsonXContent.contentBuilder()) {
-                BytesReference payload = BytesReference.bytes(builder.map(payloadBuilder.map()));
+                BytesReference payload = BytesReference.bytes(builder.map(payloadBuilder));
                 return new AnalyticsEvent(
                     context.eventCollectionName(),
                     context.eventTime(),

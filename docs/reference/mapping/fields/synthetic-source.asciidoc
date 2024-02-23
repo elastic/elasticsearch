@@ -4,7 +4,7 @@
 IMPORTANT: Synthetic `_source` is Generally Available only for TSDB indices
 (indices that have `index.mode` set to `time_series`). For other indices
 synthetic `_source` is in technical preview. Features in technical preview may
-be changed or removed in a future release. Elastic will apply best effort to fix
+be changed or removed in a future release. Elastic will work to fix
 any issues, but features in technical preview are not subject to the support SLA
 of official GA features.
 
@@ -28,12 +28,15 @@ PUT idx
 
 While this on the fly reconstruction is *generally* slower than saving the source
 documents verbatim and loading them at query time, it saves a lot of storage
-space. There are a couple of restrictions to be aware of:
+space.
+
+[[synthetic-source-restrictions]]
+===== Synthetic `_source` restrictions
+
+There are a couple of restrictions to be aware of:
 
 * When you retrieve synthetic `_source` content it undergoes minor
 <<synthetic-source-modifications,modifications>> compared to the original JSON.
-* The `params._source` is unavailable in scripts. Instead use the
-{painless}/painless-field-context.html[`doc`] API or the <<script-fields-api, `field`>>.
 * Synthetic `_source` can be used with indices that contain only these field
 types:
 
@@ -58,8 +61,6 @@ types:
 ** <<text-synthetic-source,`text`>>
 ** <<version-synthetic-source,`version`>>
 ** <<wildcard-synthetic-source,`wildcard`>>
-
-Runtime fields cannot, at this stage, use synthetic `_source`.
 
 [[synthetic-source-modifications]]
 ===== Synthetic `_source` modifications

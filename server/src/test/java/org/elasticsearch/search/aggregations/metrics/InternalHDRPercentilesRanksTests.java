@@ -30,9 +30,13 @@ public class InternalHDRPercentilesRanksTests extends InternalPercentilesRanksTe
         boolean keyed,
         DocValueFormat format,
         double[] percents,
-        double[] values
+        double[] values,
+        boolean empty
     ) {
 
+        if (empty) {
+            return new InternalHDRPercentileRanks(name, percents, null, keyed, format, metadata);
+        }
         final DoubleHistogram state = new DoubleHistogram(3);
         Arrays.stream(values).forEach(state::recordValue);
 
@@ -61,11 +65,6 @@ public class InternalHDRPercentilesRanksTests extends InternalPercentilesRanksTe
         while (it1.hasNext() && it2.hasNext()) {
             assertThat(it1.next(), equalTo(it2.next()));
         }
-    }
-
-    @Override
-    protected Class<? extends ParsedPercentiles> implementationClass() {
-        return ParsedHDRPercentileRanks.class;
     }
 
     @Override

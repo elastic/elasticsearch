@@ -20,6 +20,7 @@ import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.RemoteClusterClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -29,6 +30,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.Index;
@@ -48,6 +50,7 @@ import org.elasticsearch.xpack.core.ccr.action.UnfollowAction;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.Executor;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -56,6 +59,7 @@ public class TransportUnfollowAction extends AcknowledgedTransportMasterNodeActi
     private static final Logger logger = LogManager.getLogger(TransportUnfollowAction.class);
 
     private final Client client;
+    private final Executor remoteClientResponseExecutor;
 
     @Inject
     public TransportUnfollowAction(
@@ -74,9 +78,10 @@ public class TransportUnfollowAction extends AcknowledgedTransportMasterNodeActi
             actionFilters,
             UnfollowAction.Request::new,
             indexNameExpressionResolver,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.client = Objects.requireNonNull(client);
+        this.remoteClientResponseExecutor = threadPool.executor(Ccr.CCR_THREAD_POOL_NAME);
     }
 
     @Override
@@ -116,9 +121,9 @@ public class TransportUnfollowAction extends AcknowledgedTransportMasterNodeActi
                 );
                 final int numberOfShards = IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.get(indexMetadata.getSettings());
 
-                final Client remoteClient;
+                final RemoteClusterClient remoteClient;
                 try {
-                    remoteClient = client.getRemoteClusterClient(remoteClusterName);
+                    remoteClient = client.getRemoteClusterClient(remoteClusterName, remoteClientResponseExecutor);
                 } catch (Exception e) {
                     onLeaseRemovalFailure(indexMetadata.getIndex(), retentionLeaseId, e);
                     return;
@@ -174,7 +179,7 @@ public class TransportUnfollowAction extends AcknowledgedTransportMasterNodeActi
                 final ShardId followerShardId,
                 final ShardId leaderShardId,
                 final String retentionLeaseId,
-                final Client remoteClient,
+                final RemoteClusterClient remoteClient,
                 final ActionListener<ActionResponse.Empty> listener
             ) {
                 logger.trace("{} removing retention lease [{}] while unfollowing leader index", followerShardId, retentionLeaseId);

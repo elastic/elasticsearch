@@ -69,7 +69,7 @@ public class ReservedRealmElasticAutoconfigIntegTests extends SecuritySingleNode
             // prevents the .security index from being created automatically (after elastic user authentication)
             ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
             updateSettingsRequest.transientSettings(Settings.builder().put(Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), true));
-            assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+            assertAcked(clusterAdmin().updateSettings(updateSettingsRequest).actionGet());
 
             // delete the security index, if it exist
             GetIndexRequest getIndexRequest = new GetIndexRequest();
@@ -123,7 +123,7 @@ public class ReservedRealmElasticAutoconfigIntegTests extends SecuritySingleNode
             updateSettingsRequest.transientSettings(
                 Settings.builder().put(Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), (String) null)
             );
-            assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+            assertAcked(clusterAdmin().updateSettings(updateSettingsRequest).actionGet());
         }
     }
 
@@ -141,7 +141,7 @@ public class ReservedRealmElasticAutoconfigIntegTests extends SecuritySingleNode
             // but then make the cluster read-only
             ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
             updateSettingsRequest.transientSettings(Settings.builder().put(Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), true));
-            assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+            assertAcked(clusterAdmin().updateSettings(updateSettingsRequest).actionGet());
 
             // elastic user now gets 503 for the good password
             Request restRequest = randomFrom(
@@ -166,7 +166,7 @@ public class ReservedRealmElasticAutoconfigIntegTests extends SecuritySingleNode
             updateSettingsRequest.transientSettings(
                 Settings.builder().put(Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), (String) null)
             );
-            assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+            assertAcked(clusterAdmin().updateSettings(updateSettingsRequest).actionGet());
 
             if (randomBoolean()) {
                 Request restRequest2 = randomFrom(
@@ -208,7 +208,7 @@ public class ReservedRealmElasticAutoconfigIntegTests extends SecuritySingleNode
             updateSettingsRequest.transientSettings(
                 Settings.builder().put(Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), (String) null)
             );
-            assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+            assertAcked(clusterAdmin().updateSettings(updateSettingsRequest).actionGet());
         }
     }
 }

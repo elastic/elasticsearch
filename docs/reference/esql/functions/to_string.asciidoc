@@ -1,0 +1,45 @@
+[discrete]
+[[esql-to_string]]
+=== `TO_STRING`
+
+*Alias*
+
+`TO_STR`
+
+[.text-center]
+image::esql/functions/signature/to_string.svg[Embedded,opts=inline]
+
+*Parameters*
+
+`v`::
+Input value. The input can be a single- or multi-valued column or an expression.
+
+*Description*
+
+Converts an input value into a string.
+
+*Supported types*
+
+include::types/to_string.asciidoc[]
+
+*Example*
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/string.csv-spec[tag=to_string]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/string.csv-spec[tag=to_string-result]
+|===
+
+It also works fine on multivalued fields:
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/string.csv-spec[tag=to_string_multivalue]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/string.csv-spec[tag=to_string_multivalue-result]
+|===

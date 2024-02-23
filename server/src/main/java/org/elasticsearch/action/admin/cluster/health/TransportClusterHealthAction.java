@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -37,6 +38,7 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.node.NodeClosedException;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -46,6 +48,8 @@ import java.util.function.Predicate;
 
 public class TransportClusterHealthAction extends TransportMasterNodeReadAction<ClusterHealthRequest, ClusterHealthResponse> {
 
+    public static final String NAME = "cluster:monitor/health";
+    public static final ActionType<ClusterHealthResponse> TYPE = new ActionType<ClusterHealthResponse>(NAME);
     private static final Logger logger = LogManager.getLogger(TransportClusterHealthAction.class);
 
     private final AllocationService allocationService;
@@ -60,7 +64,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
         AllocationService allocationService
     ) {
         super(
-            ClusterHealthAction.NAME,
+            NAME,
             false,
             transportService,
             clusterService,
@@ -69,7 +73,8 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
             ClusterHealthRequest::new,
             indexNameExpressionResolver,
             ClusterHealthResponse::new,
-            ThreadPool.Names.MANAGEMENT // fork to management since the health computation can become expensive for large cluster states
+            // fork to management since the health computation can become expensive for large cluster states.
+            threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.allocationService = allocationService;
     }
@@ -87,28 +92,42 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
         final ClusterState unusedState,
         final ActionListener<ClusterHealthResponse> listener
     ) {
+        assert task instanceof CancellableTask;
+        final CancellableTask cancellableTask = (CancellableTask) task;
 
         final int waitCount = getWaitCount(request);
 
         if (request.waitForEvents() != null) {
-            waitForEventsAndExecuteHealth(request, listener, waitCount, threadPool.relativeTimeInMillis() + request.timeout().millis());
+            waitForEventsAndExecuteHealth(
+                cancellableTask,
+                request,
+                listener,
+                waitCount,
+                threadPool.relativeTimeInMillis() + request.timeout().millis()
+            );
         } else {
             executeHealth(
+                cancellableTask,
                 request,
                 clusterService.state(),
                 listener,
                 waitCount,
-                clusterState -> listener.onResponse(getResponse(request, clusterState, waitCount, TimeoutState.OK))
+                clusterState -> sendResponse(cancellableTask, request, clusterState, waitCount, TimeoutState.OK, listener)
             );
         }
     }
 
     private void waitForEventsAndExecuteHealth(
+        final CancellableTask task,
         final ClusterHealthRequest request,
         final ActionListener<ClusterHealthResponse> listener,
         final int waitCount,
         final long endTimeRelativeMillis
     ) {
+        if (task.notifyIfCancelled(listener)) {
+            return;
+        }
+
         assert request.waitForEvents() != null;
         final String source = "cluster_health (wait_for_events [" + request.waitForEvents() + "])";
         if (request.local()) {
@@ -118,12 +137,17 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
                     final long timeoutInMillis = Math.max(0, endTimeRelativeMillis - threadPool.relativeTimeInMillis());
                     final TimeValue newTimeout = TimeValue.timeValueMillis(timeoutInMillis);
                     request.timeout(newTimeout);
-                    executeHealth(
-                        request,
-                        clusterService.state(),
-                        listener,
-                        waitCount,
-                        observedState -> waitForEventsAndExecuteHealth(request, listener, waitCount, endTimeRelativeMillis)
+
+                    // Move the heavy work off of the master service and back onto a MANAGEMENT thread.
+                    executor.execute(
+                        () -> executeHealth(
+                            task,
+                            request,
+                            clusterService.state(),
+                            listener,
+                            waitCount,
+                            observedState -> waitForEventsAndExecuteHealth(task, request, listener, waitCount, endTimeRelativeMillis)
+                        )
                     );
                 }
 
@@ -136,6 +160,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
         } else {
             final TimeValue taskTimeout = TimeValue.timeValueMillis(Math.max(0, endTimeRelativeMillis - threadPool.relativeTimeInMillis()));
             submitUnbatchedTask(source, new ClusterStateUpdateTask(request.waitForEvents(), taskTimeout) {
+
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     return currentState;
@@ -151,19 +176,26 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
                     // applier service has a different view of the cluster state from the one supplied here
                     final ClusterState appliedState = clusterService.state();
                     assert newState.stateUUID().equals(appliedState.stateUUID()) : newState.stateUUID() + " vs " + appliedState.stateUUID();
-                    executeHealth(
-                        request,
-                        appliedState,
-                        listener,
-                        waitCount,
-                        observedState -> waitForEventsAndExecuteHealth(request, listener, waitCount, endTimeRelativeMillis)
+
+                    // Move the heavy work off of the master service and back onto a MANAGEMENT thread.
+                    executor.execute(
+                        () -> executeHealth(
+                            task,
+                            request,
+                            appliedState,
+                            listener,
+                            waitCount,
+                            observedState -> waitForEventsAndExecuteHealth(task, request, listener, waitCount, endTimeRelativeMillis)
+                        )
                     );
                 }
 
                 @Override
                 public void onFailure(Exception e) {
                     if (e instanceof ProcessClusterEventTimeoutException) {
-                        listener.onResponse(getResponse(request, clusterService.state(), waitCount, TimeoutState.TIMED_OUT));
+                        executor.execute(
+                            () -> sendResponse(task, request, clusterService.state(), waitCount, TimeoutState.TIMED_OUT, listener)
+                        );
                     } else {
                         final Level level = isExpectedFailure(e) ? Level.TRACE : Level.ERROR;
                         logger.log(level, () -> "unexpected failure during [" + source + "]", e);
@@ -179,6 +211,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
                             && e.getCause() instanceof EsRejectedExecutionException esre
                             && esre.isExecutorShutdown();
                 }
+
             });
         }
     }
@@ -189,21 +222,25 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
     }
 
     private void executeHealth(
+        final CancellableTask task,
         final ClusterHealthRequest request,
         final ClusterState currentState,
         final ActionListener<ClusterHealthResponse> listener,
         final int waitCount,
         final Consumer<ClusterState> onNewClusterStateAfterDelay
     ) {
+        if (task.notifyIfCancelled(listener)) {
+            return;
+        }
 
         if (request.timeout().millis() == 0) {
-            listener.onResponse(getResponse(request, currentState, waitCount, TimeoutState.ZERO_TIMEOUT));
+            sendResponse(task, request, currentState, waitCount, TimeoutState.ZERO_TIMEOUT, listener);
             return;
         }
 
         final Predicate<ClusterState> validationPredicate = newState -> validateRequest(request, newState, waitCount);
         if (validationPredicate.test(currentState)) {
-            listener.onResponse(getResponse(request, currentState, waitCount, TimeoutState.OK));
+            sendResponse(task, request, currentState, waitCount, TimeoutState.OK, listener);
         } else {
             final ClusterStateObserver observer = new ClusterStateObserver(
                 currentState,
@@ -215,7 +252,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
             final ClusterStateObserver.Listener stateListener = new ClusterStateObserver.Listener() {
                 @Override
                 public void onNewClusterState(ClusterState newState) {
-                    onNewClusterStateAfterDelay.accept(newState);
+                    executor.execute(() -> onNewClusterStateAfterDelay.accept(newState));
                 }
 
                 @Override
@@ -225,7 +262,9 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
 
                 @Override
                 public void onTimeout(TimeValue timeout) {
-                    listener.onResponse(getResponse(request, observer.setAndGetObservedState(), waitCount, TimeoutState.TIMED_OUT));
+                    executor.execute(
+                        () -> sendResponse(task, request, observer.setAndGetObservedState(), waitCount, TimeoutState.TIMED_OUT, listener)
+                    );
                 }
             };
             observer.waitForNextChange(stateListener, validationPredicate, request.timeout());
@@ -272,27 +311,36 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
         ZERO_TIMEOUT
     }
 
-    private ClusterHealthResponse getResponse(
+    private void sendResponse(
+        final CancellableTask task,
         final ClusterHealthRequest request,
-        ClusterState clusterState,
+        final ClusterState clusterState,
         final int waitFor,
-        TimeoutState timeoutState
+        final TimeoutState timeoutState,
+        final ActionListener<ClusterHealthResponse> listener
     ) {
-        ClusterHealthResponse response = clusterHealth(
-            request,
-            clusterState,
-            clusterService.getMasterService().numberOfPendingTasks(),
-            allocationService.getNumberOfInFlightFetches(),
-            clusterService.getMasterService().getMaxTaskWaitTime()
-        );
-        int readyCounter = prepareResponse(request, response, clusterState, indexNameExpressionResolver);
-        boolean valid = (readyCounter == waitFor);
-        assert valid || (timeoutState != TimeoutState.OK);
-        // If valid && timeoutState == TimeoutState.ZERO_TIMEOUT then we immediately found **and processed** a valid state, so we don't
-        // consider this a timeout. However if timeoutState == TimeoutState.TIMED_OUT then we didn't process a valid state (perhaps we
-        // failed on wait_for_events) so this does count as a timeout.
-        response.setTimedOut(valid == false || timeoutState == TimeoutState.TIMED_OUT);
-        return response;
+        // Creating the ClusterHealthResponse below can be computationally heavy. Ensure this thread is not running on a time-critical
+        // thread, like the master service or cluster state update applier threads.
+        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.MANAGEMENT);
+
+        ActionListener.completeWith(listener, () -> {
+            task.ensureNotCancelled();
+            ClusterHealthResponse response = clusterHealth(
+                request,
+                clusterState,
+                clusterService.getMasterService().numberOfPendingTasks(),
+                allocationService.getNumberOfInFlightFetches(),
+                clusterService.getMasterService().getMaxTaskWaitTime()
+            );
+            int readyCounter = prepareResponse(request, response, clusterState, indexNameExpressionResolver);
+            boolean valid = (readyCounter == waitFor);
+            assert valid || (timeoutState != TimeoutState.OK);
+            // If valid && timeoutState == TimeoutState.ZERO_TIMEOUT then we immediately found **and processed** a valid state, so we don't
+            // consider this a timeout. However if timeoutState == TimeoutState.TIMED_OUT then we didn't process a valid state (perhaps we
+            // failed on wait_for_events) so this does count as a timeout.
+            response.setTimedOut(valid == false || timeoutState == TimeoutState.TIMED_OUT);
+            return response;
+        });
     }
 
     static int prepareResponse(

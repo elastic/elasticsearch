@@ -137,5 +137,5 @@ if fields always occur in the same order.
 === Roll up historical data
 
 Keeping older data can be useful for later analysis but is often avoided due to
-storage costs. You can use data rollups to summarize and store historical data
-at a fraction of the raw data's storage cost. See <<xpack-rollup>>.
+storage costs. You can use downsampling to summarize and store historical data
+at a fraction of the raw data's storage cost. See <<downsampling>>.

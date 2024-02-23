@@ -89,7 +89,7 @@ public class TransportLoggerTests extends ESTestCase {
             OutboundMessage.Request request = new OutboundMessage.Request(
                 new ThreadContext(Settings.EMPTY),
                 new ClusterStatsRequest(),
-                TransportVersion.CURRENT,
+                TransportVersion.current(),
                 ClusterStatsAction.NAME,
                 randomInt(30),
                 false,

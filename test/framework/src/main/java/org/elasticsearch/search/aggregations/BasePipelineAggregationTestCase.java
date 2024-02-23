@@ -220,18 +220,7 @@ public abstract class BasePipelineAggregationTestCase<AF extends AbstractPipelin
      * Helper for testing validation.
      */
     protected String validate(Collection<AggregationBuilder> siblingAggregations, AF builder) {
-        return validate(siblingAggregations, emptyList(), builder);
-    }
-
-    /**
-     * Helper for testing validation.
-     */
-    protected String validate(
-        Collection<AggregationBuilder> siblingAggregations,
-        Collection<PipelineAggregationBuilder> siblingPipelineAggregations,
-        AF builder
-    ) {
-        return validate(ValidationContext.forTreeRoot(siblingAggregations, siblingPipelineAggregations, null), builder);
+        return validate(ValidationContext.forTreeRoot(siblingAggregations, null), builder);
     }
 
     /**

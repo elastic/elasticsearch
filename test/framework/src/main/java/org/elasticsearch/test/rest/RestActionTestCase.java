@@ -13,13 +13,16 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpNodeClient;
-import org.elasticsearch.tracing.Tracer;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.usage.UsageService;
 import org.junit.After;
 import org.junit.Before;
@@ -35,17 +38,19 @@ import java.util.function.BiFunction;
  */
 public abstract class RestActionTestCase extends ESTestCase {
     private RestController controller;
+    private TestThreadPool threadPool;
     protected VerifyingClient verifyingClient;
 
     @Before
     public void setUpController() {
-        verifyingClient = new VerifyingClient(this.getTestName());
-        controller = new RestController(null, verifyingClient, new NoneCircuitBreakerService(), new UsageService(), Tracer.NOOP, false);
+        threadPool = createThreadPool();
+        verifyingClient = new VerifyingClient(threadPool);
+        controller = new RestController(null, verifyingClient, new NoneCircuitBreakerService(), new UsageService(), Tracer.NOOP);
     }
 
     @After
     public void tearDownController() {
-        verifyingClient.close();
+        threadPool.close();
     }
 
     /**
@@ -64,6 +69,8 @@ public abstract class RestActionTestCase extends ESTestCase {
         ThreadContext threadContext = verifyingClient.threadPool().getThreadContext();
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             controller.dispatchRequest(request, channel, threadContext);
+        } finally {
+            Releasables.close(channel.capturedResponse());
         }
     }
 
@@ -74,12 +81,12 @@ public abstract class RestActionTestCase extends ESTestCase {
      * By default, will throw {@link AssertionError} when any execution method is called, unless configured otherwise using
      * {@link #setExecuteVerifier} or {@link #setExecuteLocallyVerifier}.
      */
-    public static class VerifyingClient extends NoOpNodeClient {
+    public static final class VerifyingClient extends NoOpNodeClient {
         AtomicReference<BiFunction<ActionType<?>, ActionRequest, ActionResponse>> executeVerifier = new AtomicReference<>();
         AtomicReference<BiFunction<ActionType<?>, ActionRequest, ActionResponse>> executeLocallyVerifier = new AtomicReference<>();
 
-        public VerifyingClient(String testName) {
-            super(testName);
+        public VerifyingClient(ThreadPool threadPool) {
+            super(threadPool);
             reset();
         }
 
@@ -150,7 +157,7 @@ public abstract class RestActionTestCase extends ESTestCase {
         ) {
             @SuppressWarnings("unchecked") // Callers are responsible for lining this up
             Response response = (Response) executeLocallyVerifier.get().apply(action, request);
-            listener.onResponse(response);
+            ActionListener.respondAndRelease(listener, response);
             return request.createTask(
                 taskIdGenerator.incrementAndGet(),
                 "transport",

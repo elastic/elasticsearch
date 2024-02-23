@@ -1399,13 +1399,13 @@ public class BCrypt {
             c2 = char64(s.charAt(off++));
             if (c1 == -1 || c2 == -1) break;
             o = (byte) (c1 << 2);
-            o |= (c2 & 0x30) >> 4;
+            o |= (byte) ((c2 & 0x30) >> 4);
             rs.append((char) o);
             if (++olen >= maxolen || off >= slen) break;
             c3 = char64(s.charAt(off++));
             if (c3 == -1) break;
             o = (byte) ((c2 & 0x0f) << 4);
-            o |= (c3 & 0x3c) >> 2;
+            o |= (byte) ((c3 & 0x3c) >> 2);
             rs.append((char) o);
             if (++olen >= maxolen || off >= slen) break;
             c4 = char64(s.charAt(off++));
@@ -1416,8 +1416,9 @@ public class BCrypt {
         }
 
         ret = new byte[olen];
-        for (off = 0; off < olen; off++)
+        for (off = 0; off < olen; off++) {
             ret[off] = (byte) rs.charAt(off);
+        }
         return ret;
     }
 
@@ -1489,8 +1490,9 @@ public class BCrypt {
         int lr[] = { 0, 0 };
         int plen = P.length, slen = S.length;
 
-        for (i = 0; i < plen; i++)
+        for (i = 0; i < plen; i++) {
             P[i] = P[i] ^ streamtoword(key, koffp);
+        }
 
         for (i = 0; i < plen; i += 2) {
             encipher(lr, 0);
@@ -1518,8 +1520,9 @@ public class BCrypt {
         int lr[] = { 0, 0 };
         int plen = P.length, slen = S.length;
 
-        for (i = 0; i < plen; i++)
+        for (i = 0; i < plen; i++) {
             P[i] = P[i] ^ streamtoword(key, koffp);
+        }
 
         for (i = 0; i < plen; i += 2) {
             lr[0] ^= streamtoword(data, doffp);
@@ -1565,8 +1568,9 @@ public class BCrypt {
         }
 
         for (i = 0; i < 64; i++) {
-            for (j = 0; j < (clen >> 1); j++)
+            for (j = 0; j < (clen >> 1); j++) {
                 encipher(cdata, j << 1);
+            }
         }
 
         ret = new byte[clen * 4];

@@ -12,9 +12,9 @@ dependencies {
   compileOnly project(':x-pack:plugin:core')
   testImplementation project(':x-pack:plugin:core')
   javaRestTestImplementation project(':x-pack:plugin:core')
-  javaRestTestImplementation project(':client:rest-high-level')
   // let the javaRestTest see the classpath of main
   javaRestTestImplementation project.sourceSets.main.runtimeClasspath
+  javaRestTestImplementation project(':modules:rest-root')
 }
 
 testClusters.configureEach {

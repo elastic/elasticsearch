@@ -38,7 +38,7 @@ import static org.hamcrest.Matchers.instanceOf;
 @ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, minNumDataNodes = 2)
 public class AwarenessAllocationIT extends ESIntegTestCase {
 
-    private final Logger logger = LogManager.getLogger(AwarenessAllocationIT.class);
+    private static final Logger logger = LogManager.getLogger(AwarenessAllocationIT.class);
 
     @Override
     protected int numberOfReplicas() {
@@ -62,7 +62,7 @@ public class AwarenessAllocationIT extends ESIntegTestCase {
         ensureGreen();
 
         final List<String> indicesToClose = randomSubsetOf(Arrays.asList("test1", "test2"));
-        indicesToClose.forEach(indexToClose -> assertAcked(client().admin().indices().prepareClose(indexToClose).get()));
+        indicesToClose.forEach(indexToClose -> assertAcked(indicesAdmin().prepareClose(indexToClose).get()));
 
         logger.info("--> starting 1 node on a different rack");
         final String node3 = internalCluster().startNode(Settings.builder().put(commonSettings).put("node.attr.rack_id", "rack_2").build());
@@ -81,7 +81,7 @@ public class AwarenessAllocationIT extends ESIntegTestCase {
             assertThat("Cluster health request timed out", clusterHealth.isTimedOut(), equalTo(false));
 
             logger.info("--> checking current state");
-            ClusterState clusterState = clusterAdmin().prepareState().execute().actionGet().getState();
+            ClusterState clusterState = clusterAdmin().prepareState().get().getState();
 
             // check that closed indices are effectively closed
             final List<String> notClosedIndices = indicesToClose.stream()
@@ -114,13 +114,13 @@ public class AwarenessAllocationIT extends ESIntegTestCase {
         String A_1 = nodes.get(3);
 
         logger.info("--> waiting for nodes to form a cluster");
-        ClusterHealthResponse health = clusterAdmin().prepareHealth().setWaitForNodes("4").execute().actionGet();
+        ClusterHealthResponse health = clusterAdmin().prepareHealth().setWaitForNodes("4").get();
         assertThat(health.isTimedOut(), equalTo(false));
 
         createIndex("test", 5, 1);
 
         if (randomBoolean()) {
-            assertAcked(client().admin().indices().prepareClose("test"));
+            assertAcked(indicesAdmin().prepareClose("test"));
         }
 
         logger.info("--> waiting for shards to be allocated");
@@ -129,11 +129,10 @@ public class AwarenessAllocationIT extends ESIntegTestCase {
             .setWaitForEvents(Priority.LANGUID)
             .setWaitForGreenStatus()
             .setWaitForNoRelocatingShards(true)
-            .execute()
-            .actionGet();
+            .get();
         assertThat(health.isTimedOut(), equalTo(false));
 
-        ClusterState clusterState = clusterAdmin().prepareState().execute().actionGet().getState();
+        ClusterState clusterState = clusterAdmin().prepareState().get().getState();
         Map<String, Integer> counts = computeShardCounts(clusterState);
 
         assertThat(counts.get(A_1), anyOf(equalTo(2), equalTo(3)));
@@ -159,7 +158,7 @@ public class AwarenessAllocationIT extends ESIntegTestCase {
         createIndex("test", 5, 1);
 
         if (randomBoolean()) {
-            assertAcked(client().admin().indices().prepareClose("test"));
+            assertAcked(indicesAdmin().prepareClose("test"));
         }
 
         ClusterHealthResponse health = clusterAdmin().prepareHealth()
@@ -168,10 +167,9 @@ public class AwarenessAllocationIT extends ESIntegTestCase {
             .setWaitForGreenStatus()
             .setWaitForNodes("2")
             .setWaitForNoRelocatingShards(true)
-            .execute()
-            .actionGet();
+            .get();
         assertThat(health.isTimedOut(), equalTo(false));
-        ClusterState clusterState = clusterAdmin().prepareState().execute().actionGet().getState();
+        ClusterState clusterState = clusterAdmin().prepareState().get().getState();
         Map<String, Integer> counts = computeShardCounts(clusterState);
 
         assertThat(counts.get(A_0), equalTo(5));
@@ -184,8 +182,7 @@ public class AwarenessAllocationIT extends ESIntegTestCase {
             .setWaitForEvents(Priority.LANGUID)
             .setWaitForGreenStatus()
             .setWaitForNodes("3")
-            .execute()
-            .actionGet();
+            .get();
         assertThat(health.isTimedOut(), equalTo(false));
         clusterAdmin().prepareReroute().get();
         health = clusterAdmin().prepareHealth()
@@ -195,11 +192,10 @@ public class AwarenessAllocationIT extends ESIntegTestCase {
             .setWaitForNodes("3")
             .setWaitForActiveShards(10)
             .setWaitForNoRelocatingShards(true)
-            .execute()
-            .actionGet();
+            .get();
 
         assertThat(health.isTimedOut(), equalTo(false));
-        clusterState = clusterAdmin().prepareState().execute().actionGet().getState();
+        clusterState = clusterAdmin().prepareState().get().getState();
         counts = computeShardCounts(clusterState);
 
         assertThat(counts.get(A_0), equalTo(5));
@@ -212,8 +208,7 @@ public class AwarenessAllocationIT extends ESIntegTestCase {
             .setWaitForEvents(Priority.LANGUID)
             .setWaitForGreenStatus()
             .setWaitForNodes("4")
-            .execute()
-            .actionGet();
+            .get();
         assertThat(health.isTimedOut(), equalTo(false));
         clusterAdmin().prepareReroute().get();
         health = clusterAdmin().prepareHealth()
@@ -223,11 +218,10 @@ public class AwarenessAllocationIT extends ESIntegTestCase {
             .setWaitForNodes("4")
             .setWaitForActiveShards(10)
             .setWaitForNoRelocatingShards(true)
-            .execute()
-            .actionGet();
+            .get();
 
         assertThat(health.isTimedOut(), equalTo(false));
-        clusterState = clusterAdmin().prepareState().execute().actionGet().getState();
+        clusterState = clusterAdmin().prepareState().get().getState();
         counts = computeShardCounts(clusterState);
 
         assertThat(counts.get(A_0), equalTo(5));
@@ -242,11 +236,10 @@ public class AwarenessAllocationIT extends ESIntegTestCase {
             .setWaitForNodes("4")
             .setWaitForActiveShards(10)
             .setWaitForNoRelocatingShards(true)
-            .execute()
-            .actionGet();
+            .get();
 
         assertThat(health.isTimedOut(), equalTo(false));
-        clusterState = clusterAdmin().prepareState().execute().actionGet().getState();
+        clusterState = clusterAdmin().prepareState().get().getState();
         counts = computeShardCounts(clusterState);
 
         assertThat(counts.get(A_0), equalTo(3));
@@ -260,7 +253,7 @@ public class AwarenessAllocationIT extends ESIntegTestCase {
 
         final IllegalArgumentException illegalArgumentException = expectThrows(
             IllegalArgumentException.class,
-            () -> clusterAdmin().prepareUpdateSettings().setPersistentSettings(Settings.builder().put(prefix + "nonsense", "foo")).get()
+            clusterAdmin().prepareUpdateSettings().setPersistentSettings(Settings.builder().put(prefix + "nonsense", "foo"))
         );
         assertThat(illegalArgumentException.getMessage(), containsString("[cluster.routing.allocation.awareness.force.]"));
         assertThat(illegalArgumentException.getCause(), instanceOf(SettingsException.class));
@@ -269,9 +262,7 @@ public class AwarenessAllocationIT extends ESIntegTestCase {
         assertThat(
             expectThrows(
                 IllegalArgumentException.class,
-                () -> clusterAdmin().prepareUpdateSettings()
-                    .setPersistentSettings(Settings.builder().put(prefix + "attr.not_values", "foo"))
-                    .get()
+                clusterAdmin().prepareUpdateSettings().setPersistentSettings(Settings.builder().put(prefix + "attr.not_values", "foo"))
             ).getMessage(),
             containsString("[cluster.routing.allocation.awareness.force.attr.not_values]")
         );
@@ -279,9 +270,7 @@ public class AwarenessAllocationIT extends ESIntegTestCase {
         assertThat(
             expectThrows(
                 IllegalArgumentException.class,
-                () -> clusterAdmin().prepareUpdateSettings()
-                    .setPersistentSettings(Settings.builder().put(prefix + "attr.values.junk", "foo"))
-                    .get()
+                clusterAdmin().prepareUpdateSettings().setPersistentSettings(Settings.builder().put(prefix + "attr.values.junk", "foo"))
             ).getMessage(),
             containsString("[cluster.routing.allocation.awareness.force.attr.values.junk]")
         );

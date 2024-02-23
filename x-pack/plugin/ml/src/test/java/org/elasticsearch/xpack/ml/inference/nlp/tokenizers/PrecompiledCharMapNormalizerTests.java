@@ -46,6 +46,17 @@ public class PrecompiledCharMapNormalizerTests extends ESTestCase {
         assertNormalization("​​από", parsed, "  από");
     }
 
+    public void testSurrogatePairScenario() throws IOException {
+        PrecompiledCharMapNormalizer.Config parsed = loadTestCharMap();
+        assertNormalization("🇸🇴", parsed, "🇸🇴");
+        assertNormalization("🇸🇴", parsed, "\uD83C\uDDF8\uD83C\uDDF4");
+    }
+
+    public void testEmoji() throws IOException {
+        PrecompiledCharMapNormalizer.Config parsed = loadTestCharMap();
+        assertNormalization("😀", parsed, "😀");
+    }
+
     private void assertNormalization(String input, PrecompiledCharMapNormalizer.Config config, String expected) throws IOException {
         PrecompiledCharMapNormalizer normalizer = new PrecompiledCharMapNormalizer(
             config.offsets(),
@@ -62,9 +73,8 @@ public class PrecompiledCharMapNormalizerTests extends ESTestCase {
     }
 
     static PrecompiledCharMapNormalizer.Config loadTestCharMap() throws IOException {
-        PreCompiledCharMap map = PreCompiledCharMap.fromResource(
-            "/org.elasticsearch.xpack.ml.inference.nlp.tokenizers/precompiled_char_map.json"
+        return PrecompiledCharMapNormalizer.fromBase64EncodedResource(
+            "/org/elasticsearch/xpack/ml/inference.nlp.tokenizers/spm_precompiled_normalizer.txt"
         );
-        return PrecompiledCharMapNormalizer.fromBase64Str(map.charMapStr());
     }
 }

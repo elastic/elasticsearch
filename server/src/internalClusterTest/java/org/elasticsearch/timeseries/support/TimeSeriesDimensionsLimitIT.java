@@ -8,13 +8,12 @@
 
 package org.elasticsearch.timeseries.support;
 
-import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -44,27 +43,19 @@ public class TimeSeriesDimensionsLimitIT extends ESIntegTestCase {
             () -> List.of("routing_field"),
             dimensionFieldLimit
         );
-        final Exception ex = expectThrows(
-            DocumentParsingException.class,
-            () -> client().prepareIndex("test")
-                .setSource(
-                    "routing_field",
-                    randomAlphaOfLength(10),
-                    dimensionFieldName,
-                    randomAlphaOfLength(1024),
-                    "gauge",
-                    randomIntBetween(10, 20),
-                    "@timestamp",
-                    Instant.now().toEpochMilli()
-                )
-                .get()
-        );
-        assertThat(
-            ex.getCause().getMessage(),
-            equalTo(
-                "Dimension name must be less than [512] bytes but [" + dimensionFieldName + "] was [" + dimensionFieldName.length() + "]."
+        final DocWriteResponse response = client().prepareIndex("test")
+            .setSource(
+                "routing_field",
+                randomAlphaOfLength(10),
+                dimensionFieldName,
+                randomAlphaOfLength(1024),
+                "gauge",
+                randomIntBetween(10, 20),
+                "@timestamp",
+                Instant.now().toEpochMilli()
             )
-        );
+            .get();
+        assertEquals(RestStatus.CREATED.getStatus(), response.status().getStatus());
     }
 
     public void testDimensionFieldValueLimit() throws IOException {
@@ -76,16 +67,14 @@ public class TimeSeriesDimensionsLimitIT extends ESIntegTestCase {
             dimensionFieldLimit
         );
         long startTime = Instant.now().toEpochMilli();
-        client().prepareIndex("test")
+        final DocWriteResponse response1 = client().prepareIndex("test")
             .setSource("field", randomAlphaOfLength(1024), "gauge", randomIntBetween(10, 20), "@timestamp", startTime)
             .get();
-        final Exception ex = expectThrows(
-            DocumentParsingException.class,
-            () -> client().prepareIndex("test")
-                .setSource("field", randomAlphaOfLength(1025), "gauge", randomIntBetween(10, 20), "@timestamp", startTime + 1)
-                .get()
-        );
-        assertThat(ex.getCause().getMessage(), equalTo("Dimension fields must be less than [1024] bytes but was [1025]."));
+        final DocWriteResponse response2 = client().prepareIndex("test")
+            .setSource("field", randomAlphaOfLength(1025), "gauge", randomIntBetween(10, 20), "@timestamp", startTime + 1)
+            .get();
+        assertEquals(RestStatus.CREATED.getStatus(), response1.status().getStatus());
+        assertEquals(RestStatus.CREATED.getStatus(), response2.status().getStatus());
     }
 
     public void testTotalNumberOfDimensionFieldsLimit() {
@@ -105,7 +94,7 @@ public class TimeSeriesDimensionsLimitIT extends ESIntegTestCase {
     }
 
     public void testTotalNumberOfDimensionFieldsDefaultLimit() {
-        int dimensionFieldLimit = 21;
+        int dimensionFieldLimit = 32 * 1024;
         final Exception ex = expectThrows(IllegalArgumentException.class, () -> createTimeSeriesIndex(mapping -> {
             mapping.startObject("routing_field").field("type", "keyword").field("time_series_dimension", true).endObject();
             for (int i = 0; i < dimensionFieldLimit; i++) {
@@ -141,7 +130,7 @@ public class TimeSeriesDimensionsLimitIT extends ESIntegTestCase {
         for (int i = 0; i < dimensionFieldLimit; i++) {
             source.put(dimensionFieldNames.get(i), randomAlphaOfLength(1024));
         }
-        final IndexResponse indexResponse = client().prepareIndex("test").setSource(source).get();
+        final DocWriteResponse indexResponse = prepareIndex("test").setSource(source).get();
         assertEquals(RestStatus.CREATED.getStatus(), indexResponse.status().getStatus());
     }
 
@@ -167,8 +156,8 @@ public class TimeSeriesDimensionsLimitIT extends ESIntegTestCase {
         for (int i = 0; i < dimensionFieldLimit; i++) {
             source.put(dimensionFieldNames.get(i), randomAlphaOfLength(1024));
         }
-        final Exception ex = expectThrows(DocumentParsingException.class, () -> client().prepareIndex("test").setSource(source).get());
-        assertEquals("_tsid longer than [32766] bytes [33903].", ex.getCause().getMessage());
+        final DocWriteResponse response = client().prepareIndex("test").setSource(source).get();
+        assertEquals(RestStatus.CREATED.getStatus(), response.status().getStatus());
     }
 
     private void createTimeSeriesIndex(
@@ -186,6 +175,7 @@ public class TimeSeriesDimensionsLimitIT extends ESIntegTestCase {
 
         Settings.Builder settings = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+            .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), 38 * 1024)
             .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), routingPaths.get())
             .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2000-01-08T23:40:53.384Z")
             .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2106-01-08T23:40:53.384Z");
@@ -194,7 +184,7 @@ public class TimeSeriesDimensionsLimitIT extends ESIntegTestCase {
             settings.put(MapperService.INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING.getKey(), dimensionsFieldLimit);
         }
 
-        client().admin().indices().prepareCreate("test").setSettings(settings.build()).setMapping(mapping).get();
+        indicesAdmin().prepareCreate("test").setSettings(settings.build()).setMapping(mapping).get();
     }
 
 }

@@ -44,7 +44,7 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
 
         createIndex("test");
         ensureSearchable("test");
-        RecoveryResponse r = client().admin().indices().prepareRecoveries("test").get();
+        RecoveryResponse r = indicesAdmin().prepareRecoveries("test").get();
         int numRecoveriesBeforeNewMaster = r.shardRecoveryStates().get("test").size();
 
         final String oldMaster = internalCluster().getMasterName();
@@ -56,7 +56,7 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
         });
         ensureSearchable("test");
 
-        r = client().admin().indices().prepareRecoveries("test").get();
+        r = indicesAdmin().prepareRecoveries("test").get();
         int numRecoveriesAfterNewMaster = r.shardRecoveryStates().get("test").size();
         assertThat(numRecoveriesAfterNewMaster, equalTo(numRecoveriesBeforeNewMaster));
     }

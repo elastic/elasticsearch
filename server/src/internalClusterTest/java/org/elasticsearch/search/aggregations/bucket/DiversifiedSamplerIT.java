@@ -8,7 +8,6 @@
 package org.elasticsearch.search.aggregations.bucket;
 
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.aggregations.BucketOrder;
@@ -28,7 +27,8 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.max;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sampler;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -40,7 +40,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 @ESIntegTestCase.SuiteScopeTestCase
 public class DiversifiedSamplerIT extends ESIntegTestCase {
 
-    public static final int NUM_SHARDS = 2;
+    private static final int NUM_SHARDS = 1;
 
     public String randomExecutionHint() {
         return randomBoolean() ? null : randomFrom(SamplerAggregator.ExecutionMode.values()).toString();
@@ -77,48 +77,47 @@ public class DiversifiedSamplerIT extends ESIntegTestCase {
 
         for (int i = 0; i < data.length; i++) {
             String[] parts = data[i].split(",");
-            client().prepareIndex("test")
-                .setId("" + i)
+            prepareIndex("test").setId("" + i)
                 .setSource("author", parts[5], "name", parts[2], "genre", parts[8], "price", Float.parseFloat(parts[3]))
                 .get();
-            client().prepareIndex("idx_unmapped_author")
-                .setId("" + i)
+            prepareIndex("idx_unmapped_author").setId("" + i)
                 .setSource("name", parts[2], "genre", parts[8], "price", Float.parseFloat(parts[3]))
                 .get();
+            // frequent refresh makes it more likely that more segments are created, hence we may parallelize the search across slices
+            indicesAdmin().refresh(new RefreshRequest()).get();
         }
-        client().admin().indices().refresh(new RefreshRequest("test")).get();
     }
 
     public void testIssue10719() throws Exception {
         // Tests that we can refer to nested elements under a sample in a path
         // statement
         boolean asc = randomBoolean();
-        SearchResponse response = client().prepareSearch("test")
-            .setSearchType(SearchType.QUERY_THEN_FETCH)
-            .addAggregation(
-                terms("genres").field("genre")
-                    .order(BucketOrder.aggregation("sample>max_price.value", asc))
-                    .subAggregation(sampler("sample").shardSize(100).subAggregation(max("max_price").field("price")))
-            )
-            .get();
-        assertSearchResponse(response);
-        Terms genres = response.getAggregations().get("genres");
-        Collection<? extends Bucket> genreBuckets = genres.getBuckets();
-        // For this test to be useful we need >1 genre bucket to compare
-        assertThat(genreBuckets.size(), greaterThan(1));
-        double lastMaxPrice = asc ? Double.MIN_VALUE : Double.MAX_VALUE;
-        for (Terms.Bucket genreBucket : genres.getBuckets()) {
-            Sampler sample = genreBucket.getAggregations().get("sample");
-            Max maxPriceInGenre = sample.getAggregations().get("max_price");
-            double price = maxPriceInGenre.value();
-            if (asc) {
-                assertThat(price, greaterThanOrEqualTo(lastMaxPrice));
-            } else {
-                assertThat(price, lessThanOrEqualTo(lastMaxPrice));
+        assertNoFailuresAndResponse(
+            prepareSearch("test").setSearchType(SearchType.QUERY_THEN_FETCH)
+                .addAggregation(
+                    terms("genres").field("genre")
+                        .order(BucketOrder.aggregation("sample>max_price.value", asc))
+                        .subAggregation(sampler("sample").shardSize(100).subAggregation(max("max_price").field("price")))
+                ),
+            response -> {
+                Terms genres = response.getAggregations().get("genres");
+                Collection<? extends Bucket> genreBuckets = genres.getBuckets();
+                // For this test to be useful we need >1 genre bucket to compare
+                assertThat(genreBuckets.size(), greaterThan(1));
+                double lastMaxPrice = asc ? Double.MIN_VALUE : Double.MAX_VALUE;
+                for (Terms.Bucket genreBucket : genres.getBuckets()) {
+                    Sampler sample = genreBucket.getAggregations().get("sample");
+                    Max maxPriceInGenre = sample.getAggregations().get("max_price");
+                    double price = maxPriceInGenre.value();
+                    if (asc) {
+                        assertThat(price, greaterThanOrEqualTo(lastMaxPrice));
+                    } else {
+                        assertThat(price, lessThanOrEqualTo(lastMaxPrice));
+                    }
+                    lastMaxPrice = price;
+                }
             }
-            lastMaxPrice = price;
-        }
-
+        );
     }
 
     public void testSimpleDiversity() throws Exception {
@@ -126,21 +125,22 @@ public class DiversifiedSamplerIT extends ESIntegTestCase {
         DiversifiedAggregationBuilder sampleAgg = new DiversifiedAggregationBuilder("sample").shardSize(100);
         sampleAgg.field("author").maxDocsPerValue(MAX_DOCS_PER_AUTHOR).executionHint(randomExecutionHint());
         sampleAgg.subAggregation(terms("authors").field("author"));
-        SearchResponse response = client().prepareSearch("test")
-            .setSearchType(SearchType.QUERY_THEN_FETCH)
-            .setQuery(new TermQueryBuilder("genre", "fantasy"))
-            .setFrom(0)
-            .setSize(60)
-            .addAggregation(sampleAgg)
-            .get();
-        assertSearchResponse(response);
-        Sampler sample = response.getAggregations().get("sample");
-        Terms authors = sample.getAggregations().get("authors");
-        List<? extends Bucket> testBuckets = authors.getBuckets();
+        assertNoFailuresAndResponse(
+            prepareSearch("test").setSearchType(SearchType.QUERY_THEN_FETCH)
+                .setQuery(new TermQueryBuilder("genre", "fantasy"))
+                .setFrom(0)
+                .setSize(60)
+                .addAggregation(sampleAgg),
+            response -> {
+                Sampler sample = response.getAggregations().get("sample");
+                Terms authors = sample.getAggregations().get("authors");
+                List<? extends Bucket> testBuckets = authors.getBuckets();
 
-        for (Terms.Bucket testBucket : testBuckets) {
-            assertThat(testBucket.getDocCount(), lessThanOrEqualTo((long) NUM_SHARDS * MAX_DOCS_PER_AUTHOR));
-        }
+                for (Terms.Bucket testBucket : testBuckets) {
+                    assertThat(testBucket.getDocCount(), lessThanOrEqualTo((long) NUM_SHARDS * MAX_DOCS_PER_AUTHOR));
+                }
+            }
+        );
     }
 
     public void testNestedDiversity() throws Exception {
@@ -153,19 +153,22 @@ public class DiversifiedSamplerIT extends ESIntegTestCase {
         sampleAgg.subAggregation(terms("authors").field("author"));
 
         rootTerms.subAggregation(sampleAgg);
-        SearchResponse response = client().prepareSearch("test").setSearchType(SearchType.QUERY_THEN_FETCH).addAggregation(rootTerms).get();
-        assertSearchResponse(response);
-        Terms genres = response.getAggregations().get("genres");
-        List<? extends Bucket> genreBuckets = genres.getBuckets();
-        for (Terms.Bucket genreBucket : genreBuckets) {
-            Sampler sample = genreBucket.getAggregations().get("sample");
-            Terms authors = sample.getAggregations().get("authors");
-            List<? extends Bucket> testBuckets = authors.getBuckets();
+        assertNoFailuresAndResponse(
+            prepareSearch("test").setSearchType(SearchType.QUERY_THEN_FETCH).addAggregation(rootTerms),
+            response -> {
+                Terms genres = response.getAggregations().get("genres");
+                List<? extends Bucket> genreBuckets = genres.getBuckets();
+                for (Terms.Bucket genreBucket : genreBuckets) {
+                    Sampler sample = genreBucket.getAggregations().get("sample");
+                    Terms authors = sample.getAggregations().get("authors");
+                    List<? extends Bucket> testBuckets = authors.getBuckets();
 
-            for (Terms.Bucket testBucket : testBuckets) {
-                assertThat(testBucket.getDocCount(), lessThanOrEqualTo((long) NUM_SHARDS * MAX_DOCS_PER_AUTHOR));
+                    for (Terms.Bucket testBucket : testBuckets) {
+                        assertThat(testBucket.getDocCount(), lessThanOrEqualTo((long) NUM_SHARDS * MAX_DOCS_PER_AUTHOR));
+                    }
+                }
             }
-        }
+        );
     }
 
     public void testNestedSamples() throws Exception {
@@ -182,25 +185,25 @@ public class DiversifiedSamplerIT extends ESIntegTestCase {
         sampleAgg.subAggregation(terms("genres").field("genre"));
 
         rootSample.subAggregation(sampleAgg);
-        SearchResponse response = client().prepareSearch("test")
-            .setSearchType(SearchType.QUERY_THEN_FETCH)
-            .addAggregation(rootSample)
-            .get();
-        assertSearchResponse(response);
-        Sampler genreSample = response.getAggregations().get("genreSample");
-        Sampler sample = genreSample.getAggregations().get("sample");
+        assertNoFailuresAndResponse(
+            prepareSearch("test").setSearchType(SearchType.QUERY_THEN_FETCH).addAggregation(rootSample),
+            response -> {
+                Sampler genreSample = response.getAggregations().get("genreSample");
+                Sampler sample = genreSample.getAggregations().get("sample");
 
-        Terms genres = sample.getAggregations().get("genres");
-        List<? extends Bucket> testBuckets = genres.getBuckets();
-        for (Terms.Bucket testBucket : testBuckets) {
-            assertThat(testBucket.getDocCount(), lessThanOrEqualTo((long) NUM_SHARDS * MAX_DOCS_PER_GENRE));
-        }
+                Terms genres = sample.getAggregations().get("genres");
+                List<? extends Bucket> testBuckets = genres.getBuckets();
+                for (Terms.Bucket testBucket : testBuckets) {
+                    assertThat(testBucket.getDocCount(), lessThanOrEqualTo((long) NUM_SHARDS * MAX_DOCS_PER_GENRE));
+                }
 
-        Terms authors = sample.getAggregations().get("authors");
-        testBuckets = authors.getBuckets();
-        for (Terms.Bucket testBucket : testBuckets) {
-            assertThat(testBucket.getDocCount(), lessThanOrEqualTo((long) NUM_SHARDS * MAX_DOCS_PER_AUTHOR));
-        }
+                Terms authors = sample.getAggregations().get("authors");
+                testBuckets = authors.getBuckets();
+                for (Terms.Bucket testBucket : testBuckets) {
+                    assertThat(testBucket.getDocCount(), lessThanOrEqualTo((long) NUM_SHARDS * MAX_DOCS_PER_AUTHOR));
+                }
+            }
+        );
     }
 
     public void testPartiallyUnmappedDiversifyField() throws Exception {
@@ -210,18 +213,19 @@ public class DiversifiedSamplerIT extends ESIntegTestCase {
             .field("author")
             .maxDocsPerValue(1);
         sampleAgg.subAggregation(terms("authors").field("author"));
-        SearchResponse response = client().prepareSearch("idx_unmapped_author", "test")
-            .setSearchType(SearchType.QUERY_THEN_FETCH)
-            .setQuery(new TermQueryBuilder("genre", "fantasy"))
-            .setFrom(0)
-            .setSize(60)
-            .addAggregation(sampleAgg)
-            .get();
-        assertSearchResponse(response);
-        Sampler sample = response.getAggregations().get("sample");
-        assertThat(sample.getDocCount(), greaterThan(0L));
-        Terms authors = sample.getAggregations().get("authors");
-        assertThat(authors.getBuckets().size(), greaterThan(0));
+        assertNoFailuresAndResponse(
+            prepareSearch("idx_unmapped_author", "test").setSearchType(SearchType.QUERY_THEN_FETCH)
+                .setQuery(new TermQueryBuilder("genre", "fantasy"))
+                .setFrom(0)
+                .setSize(60)
+                .addAggregation(sampleAgg),
+            response -> {
+                Sampler sample = response.getAggregations().get("sample");
+                assertThat(sample.getDocCount(), greaterThan(0L));
+                Terms authors = sample.getAggregations().get("authors");
+                assertThat(authors.getBuckets().size(), greaterThan(0));
+            }
+        );
     }
 
     public void testWhollyUnmappedDiversifyField() throws Exception {
@@ -230,18 +234,19 @@ public class DiversifiedSamplerIT extends ESIntegTestCase {
         DiversifiedAggregationBuilder sampleAgg = new DiversifiedAggregationBuilder("sample").shardSize(100);
         sampleAgg.field("author").maxDocsPerValue(MAX_DOCS_PER_AUTHOR).executionHint(randomExecutionHint());
         sampleAgg.subAggregation(terms("authors").field("author"));
-        SearchResponse response = client().prepareSearch("idx_unmapped", "idx_unmapped_author")
-            .setSearchType(SearchType.QUERY_THEN_FETCH)
-            .setQuery(new TermQueryBuilder("genre", "fantasy"))
-            .setFrom(0)
-            .setSize(60)
-            .addAggregation(sampleAgg)
-            .get();
-        assertSearchResponse(response);
-        Sampler sample = response.getAggregations().get("sample");
-        assertThat(sample.getDocCount(), equalTo(0L));
-        Terms authors = sample.getAggregations().get("authors");
-        assertNull(authors);
+        assertNoFailuresAndResponse(
+            prepareSearch("idx_unmapped", "idx_unmapped_author").setSearchType(SearchType.QUERY_THEN_FETCH)
+                .setQuery(new TermQueryBuilder("genre", "fantasy"))
+                .setFrom(0)
+                .setSize(60)
+                .addAggregation(sampleAgg),
+            response -> {
+                Sampler sample = response.getAggregations().get("sample");
+                assertThat(sample.getDocCount(), equalTo(0L));
+                Terms authors = sample.getAggregations().get("authors");
+                assertNull(authors);
+            }
+        );
     }
 
     public void testRidiculousSizeDiversity() throws Exception {
@@ -249,26 +254,23 @@ public class DiversifiedSamplerIT extends ESIntegTestCase {
         DiversifiedAggregationBuilder sampleAgg = new DiversifiedAggregationBuilder("sample").shardSize(Integer.MAX_VALUE);
         sampleAgg.field("author").maxDocsPerValue(MAX_DOCS_PER_AUTHOR).executionHint(randomExecutionHint());
         sampleAgg.subAggregation(terms("authors").field("author"));
-        SearchResponse response = client().prepareSearch("test")
-            .setSearchType(SearchType.QUERY_THEN_FETCH)
-            .setQuery(new TermQueryBuilder("genre", "fantasy"))
-            .setFrom(0)
-            .setSize(60)
-            .addAggregation(sampleAgg)
-            .get();
-        assertSearchResponse(response);
+        assertNoFailures(
+            prepareSearch("test").setSearchType(SearchType.QUERY_THEN_FETCH)
+                .setQuery(new TermQueryBuilder("genre", "fantasy"))
+                .setFrom(0)
+                .setSize(60)
+                .addAggregation(sampleAgg)
+        );
 
         sampleAgg = new DiversifiedAggregationBuilder("sample").shardSize(100);
         sampleAgg.field("author").maxDocsPerValue(Integer.MAX_VALUE).executionHint(randomExecutionHint());
         sampleAgg.subAggregation(terms("authors").field("author"));
-        response = client().prepareSearch("test")
-            .setSearchType(SearchType.QUERY_THEN_FETCH)
-            .setQuery(new TermQueryBuilder("genre", "fantasy"))
-            .setFrom(0)
-            .setSize(60)
-            .addAggregation(sampleAgg)
-            .get();
-        assertSearchResponse(response);
+        assertNoFailures(
+            prepareSearch("test").setSearchType(SearchType.QUERY_THEN_FETCH)
+                .setQuery(new TermQueryBuilder("genre", "fantasy"))
+                .setFrom(0)
+                .setSize(60)
+                .addAggregation(sampleAgg)
+        );
     }
-
 }

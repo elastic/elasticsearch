@@ -20,7 +20,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-public class RestDeleteActionTests extends RestActionTestCase {
+public final class RestDeleteActionTests extends RestActionTestCase {
 
     final List<String> contentTypeHeader = Collections.singletonList(randomCompatibleMediaType(RestApiVersion.V_7));
 

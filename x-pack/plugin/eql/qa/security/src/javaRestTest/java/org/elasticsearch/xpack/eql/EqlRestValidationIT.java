@@ -8,13 +8,22 @@
 package org.elasticsearch.xpack.eql;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.eql.EqlRestValidationTestCase;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 
 import static org.elasticsearch.xpack.eql.SecurityUtils.secureClientSettings;
 
 public class EqlRestValidationIT extends EqlRestValidationTestCase {
+    @ClassRule
+    public static final ElasticsearchCluster cluster = EqlSecurityTestCluster.getCluster();
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
 
     @Override
     protected Settings restClientSettings() {

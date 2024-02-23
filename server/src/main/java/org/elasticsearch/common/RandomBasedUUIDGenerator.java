@@ -70,7 +70,7 @@ class RandomBasedUUIDGenerator implements UUIDGenerator {
          * The high field of th clock sequence multiplexed with the variant.
          * We set only the MSB of the variant*/
         randomBytes[8] &= 0x3f; /* clear the 2 most significant bits */
-        randomBytes[8] |= 0x80; /* set the variant (MSB is set)*/
+        randomBytes[8] |= (byte) 0x80; /* set the variant (MSB is set)*/
         return randomBytes;
     }
 }

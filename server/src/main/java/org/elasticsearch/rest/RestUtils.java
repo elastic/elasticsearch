@@ -19,6 +19,8 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.regex.Pattern;
 
+import static org.elasticsearch.rest.RestRequest.PATH_RESTRICTED;
+
 public class RestUtils {
 
     /**
@@ -36,7 +38,7 @@ public class RestUtils {
             return;
         }
 
-        int queryStringLength = s.contains("#") ? s.indexOf("#") : s.length();
+        int queryStringLength = s.contains("#") ? s.indexOf('#') : s.length();
 
         String name = null;
         int pos = fromIndex; // Beginning of the unprocessed region
@@ -79,6 +81,9 @@ public class RestUtils {
     }
 
     private static void addParam(Map<String, String> params, String name, String value) {
+        if (PATH_RESTRICTED.equalsIgnoreCase(name)) {
+            throw new IllegalArgumentException("parameter [" + PATH_RESTRICTED + "] is reserved and may not set");
+        }
         params.put(name, value);
     }
 

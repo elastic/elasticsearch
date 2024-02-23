@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.transform.action;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 import org.elasticsearch.xpack.core.transform.transforms.QueryConfigTests;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
@@ -44,7 +44,7 @@ public class TransformConfigLinterTests extends ESTestCase {
             AggregationConfigTests.randomAggregationConfig(),
             null
         );
-        Function function = new Pivot(pivotConfig, new SettingsConfig(), Version.CURRENT, Collections.emptySet());
+        Function function = new Pivot(pivotConfig, new SettingsConfig(), TransformConfigVersion.CURRENT, Collections.emptySet());
         SourceConfig sourceConfig = SourceConfigTests.randomSourceConfig();
         assertThat(TransformConfigLinter.getWarnings(function, sourceConfig, null), is(empty()));
 
@@ -117,7 +117,7 @@ public class TransformConfigLinterTests extends ESTestCase {
             AggregationConfigTests.randomAggregationConfig(),
             null
         );
-        Function function = new Pivot(pivotConfig, new SettingsConfig(), Version.CURRENT, Collections.emptySet());
+        Function function = new Pivot(pivotConfig, new SettingsConfig(), TransformConfigVersion.CURRENT, Collections.emptySet());
         SourceConfig sourceConfig = SourceConfigTests.randomSourceConfig();
         SyncConfig syncConfig = TimeSyncConfigTests.randomTimeSyncConfig();
         assertThat(

@@ -1,6 +1,0 @@
-pr: 92684
-summary: Use `LogByteSizeMergePolicy` instead of `TieredMergePolicy` for time-based
-  data
-area: Engine
-type: enhancement
-issues: []

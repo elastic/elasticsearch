@@ -186,12 +186,12 @@ public class DefaultAuthenticationFailureHandler implements AuthenticationFailur
             ese = authenticationError(message, t, args);
             containsNegotiateWithToken = false;
         }
-        defaultFailureResponseHeaders.entrySet().stream().forEach((e) -> {
-            if (containsNegotiateWithToken && e.getKey().equalsIgnoreCase("WWW-Authenticate")) {
+        defaultFailureResponseHeaders.forEach((key, value) -> {
+            if (containsNegotiateWithToken && key.equalsIgnoreCase("WWW-Authenticate")) {
                 return;
             }
             // If it is already present then it will replace the existing header.
-            ese.addHeader(e.getKey(), e.getValue());
+            ese.addHeader(key, value);
         });
         return ese;
     }

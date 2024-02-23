@@ -9,7 +9,7 @@
 package org.elasticsearch.indices.store;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
@@ -22,8 +22,8 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 
 public class IndicesStoreTests extends ESTestCase {
     private static final ShardRoutingState[] NOT_STARTED_STATES;
@@ -39,7 +39,7 @@ public class IndicesStoreTests extends ESTestCase {
 
     @Before
     public void createLocalNode() {
-        localNode = TestDiscoveryNode.create("abc", buildNewFakeTransportAddress(), emptyMap(), emptySet());
+        localNode = DiscoveryNodeUtils.builder("abc").roles(emptySet()).build();
     }
 
     public void testShardCanBeDeletedNoShardStarted() {
@@ -67,7 +67,9 @@ public class IndicesStoreTests extends ESTestCase {
             String currentNodeId = state == ShardRoutingState.UNASSIGNED ? null : randomAlphaOfLength(10);
             String relocatingNodeId = state == ShardRoutingState.RELOCATING ? randomAlphaOfLength(10) : null;
             routingTable.addShard(
-                TestShardRouting.newShardRouting(shardId, currentNodeId, relocatingNodeId, j == 0, state, unassignedInfo)
+                shardRoutingBuilder(shardId, currentNodeId, j == 0, state).withRelocatingNodeId(relocatingNodeId)
+                    .withUnassignedInfo(unassignedInfo)
+                    .build()
             );
         }
         assertFalse(IndicesStore.shardCanBeDeleted(localNode.getId(), routingTable.build()));

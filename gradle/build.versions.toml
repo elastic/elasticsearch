@@ -1,12 +1,13 @@
 [versions]
-asm = "9.4"
+asm = "9.6"
 jackson = "2.15.0"
 junit5 = "5.8.1"
 spock = "2.1-groovy-3.0"
 
 [libraries]
 ant = "org.apache.ant:ant:1.10.12"
-apache-compress = "org.apache.commons:commons-compress:1.21"
+antlrst4 = "org.antlr:ST4:4.3.4"
+apache-compress = "org.apache.commons:commons-compress:1.24.0"
 apache-rat = "org.apache.rat:apache-rat:0.11"
 asm = { group = "org.ow2.asm", name="asm", version.ref="asm" }
 asm-tree = { group = "org.ow2.asm", name="asm-tree", version.ref="asm" }
@@ -14,11 +15,12 @@ bytebuddy = "net.bytebuddy:byte-buddy:1.12.10"
 checkstyle = "com.puppycrawl.tools:checkstyle:10.3"
 commons-codec = "commons-codec:commons-codec:1.11"
 commmons-io = "commons-io:commons-io:2.2"
-docker-compose = "com.avast.gradle:gradle-docker-compose-plugin:0.16.12"
-forbiddenApis = "de.thetaphi:forbiddenapis:3.4"
+docker-compose = "com.avast.gradle:gradle-docker-compose-plugin:0.17.5"
+forbiddenApis = "de.thetaphi:forbiddenapis:3.6"
+gradle-enterprise = "com.gradle:gradle-enterprise-gradle-plugin:3.16.1"
 hamcrest = "org.hamcrest:hamcrest:2.1"
 httpcore = "org.apache.httpcomponents:httpcore:4.4.12"
-httpclient = "org.apache.httpcomponents:httpclient:4.5.10"
+httpclient = "org.apache.httpcomponents:httpclient:4.5.14"
 idea-ext = "gradle.plugin.org.jetbrains.gradle.plugin.idea-ext:gradle-idea-ext:1.1.4"
 json-schema-validator = "com.networknt:json-schema-validator:1.0.72"
 json-assert = "org.skyscreamer:jsonassert:1.5.0"
@@ -35,10 +37,11 @@ junit5-vintage = { group = "org.junit.vintage", name="junit-vintage-engine", ver
 maven-model = "org.apache.maven:maven-model:3.6.2"
 mockito-core = "org.mockito:mockito-core:1.9.5"
 nebula-info = "com.netflix.nebula:gradle-info-plugin:11.3.3"
-shadow-plugin = "gradle.plugin.com.github.johnrengelman:shadow:8.0.0"
+reflections = "org.reflections:reflections:0.9.12"
+shadow-plugin = "com.github.johnrengelman:shadow:8.1.1"
 spock-core = { group = "org.spockframework", name="spock-core", version.ref="spock" }
 spock-junit4 = { group = "org.spockframework", name="spock-junit4", version.ref="spock" }
 spock-platform = { group = "org.spockframework", name="spock-bom", version.ref="spock" }
-spotless-plugin = "com.diffplug.spotless:spotless-plugin-gradle:6.17.0"
+spotless-plugin = "com.diffplug.spotless:spotless-plugin-gradle:6.22.0"
 wiremock = "com.github.tomakehurst:wiremock-jre8-standalone:2.23.2"
 xmlunit-core = "org.xmlunit:xmlunit-core:2.8.2"

@@ -14,6 +14,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.autoscaling.NativeMemoryCapacity;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
@@ -346,7 +347,7 @@ public class JobNodeSelector {
     public static String nodeNameAndVersion(DiscoveryNode node) {
         String nodeNameOrID = nodeNameOrId(node);
         StringBuilder builder = new StringBuilder("{").append(nodeNameOrID).append('}');
-        builder.append('{').append("version=").append(node.getVersion()).append('}');
+        builder.append('{').append("ML config version=").append(MlConfigVersion.fromNode(node)).append('}');
         return builder.toString();
     }
 

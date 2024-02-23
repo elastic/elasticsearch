@@ -44,7 +44,7 @@ public class NodeShutdownPluginsIT extends ESIntegTestCase {
 
         final String shutdownNode;
         final String remainNode;
-        NodesInfoResponse nodes = client().admin().cluster().prepareNodesInfo().clear().get();
+        NodesInfoResponse nodes = clusterAdmin().prepareNodesInfo().clear().get();
         final String node1Id = nodes.getNodes()
             .stream()
             .map(NodeInfo::getNode)
@@ -75,7 +75,7 @@ public class NodeShutdownPluginsIT extends ESIntegTestCase {
         // Mark the node as shutting down
         client().execute(
             PutShutdownNodeAction.INSTANCE,
-            new PutShutdownNodeAction.Request(shutdownNode, SingleNodeShutdownMetadata.Type.REMOVE, "removal for testing", null, null)
+            new PutShutdownNodeAction.Request(shutdownNode, SingleNodeShutdownMetadata.Type.REMOVE, "removal for testing", null, null, null)
         ).get();
 
         GetShutdownStatusAction.Response getResp = client().execute(

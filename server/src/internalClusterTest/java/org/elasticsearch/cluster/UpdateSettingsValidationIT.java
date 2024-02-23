@@ -31,27 +31,17 @@ public class UpdateSettingsValidationIT extends ESIntegTestCase {
             .setWaitForEvents(Priority.LANGUID)
             .setWaitForNodes("3")
             .setWaitForGreenStatus()
-            .execute()
-            .actionGet();
+            .get();
         assertThat(healthResponse.isTimedOut(), equalTo(false));
         assertThat(healthResponse.getIndices().get("test").getActiveShards(), equalTo(test.totalNumShards));
 
         setReplicaCount(0, "test");
-        healthResponse = clusterAdmin().prepareHealth("test")
-            .setWaitForEvents(Priority.LANGUID)
-            .setWaitForGreenStatus()
-            .execute()
-            .actionGet();
+        healthResponse = clusterAdmin().prepareHealth("test").setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
         assertThat(healthResponse.isTimedOut(), equalTo(false));
         assertThat(healthResponse.getIndices().get("test").getActiveShards(), equalTo(test.numPrimaries));
 
         try {
-            client().admin()
-                .indices()
-                .prepareUpdateSettings("test")
-                .setSettings(Settings.builder().put("index.refresh_interval", ""))
-                .execute()
-                .actionGet();
+            indicesAdmin().prepareUpdateSettings("test").setSettings(Settings.builder().put("index.refresh_interval", "")).get();
             fail();
         } catch (IllegalArgumentException ex) {
             logger.info("Error message: [{}]", ex.getMessage());

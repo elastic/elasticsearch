@@ -275,6 +275,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
                 try {
                     Request request = new Request(method, "/" + errorStatusCode);
                     if (false == ignoreParam.isEmpty()) {
+                        // literal "ignore" rather than IGNORE_RESPONSE_CODES_PARAM since this is something on which callers might rely
                         request.addParameter("ignore", ignoreParam);
                     }
                     Response response = restClient.performRequest(request);
@@ -568,6 +569,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
             if (randomBoolean()) {
                 ignore += "," + randomFrom(RestClientTestUtil.getAllErrorStatusCodes());
             }
+            // literal "ignore" rather than IGNORE_RESPONSE_CODES_PARAM since this is something on which callers might rely
             request.addParameter("ignore", ignore);
         }
         URI uri = uriBuilder.build();

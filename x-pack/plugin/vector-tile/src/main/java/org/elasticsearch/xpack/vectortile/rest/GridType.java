@@ -16,6 +16,9 @@ import org.elasticsearch.xpack.vectortile.feature.FeatureFactory;
 import java.io.IOException;
 import java.util.Locale;
 
+import static org.elasticsearch.common.geo.GeoUtils.quantizeLatUp;
+import static org.elasticsearch.common.geo.GeoUtils.quantizeLonDown;
+
 /**
  * Enum containing the basic geometry types for serializing {@link InternalGeoGridBucket}
  */
@@ -42,8 +45,8 @@ enum GridType {
             throws IOException {
             final Rectangle r = gridAggregation.toRectangle(key);
             final InternalGeoCentroid centroid = bucket.getAggregations().get(RestVectorTileAction.CENTROID_AGG_NAME);
-            final double featureLon = Math.min(Math.max(centroid.centroid().getX(), r.getMinLon()), r.getMaxLon());
-            final double featureLat = Math.min(Math.max(centroid.centroid().getY(), r.getMinLat()), r.getMaxLat());
+            final double featureLon = Math.min(Math.max(centroid.centroid().getX(), r.getMinLon()), quantizeLonDown(r.getMaxLon()));
+            final double featureLat = Math.min(Math.max(centroid.centroid().getY(), quantizeLatUp(r.getMinLat())), r.getMaxLat());
             return featureFactory.point(featureLon, featureLat);
         }
     };

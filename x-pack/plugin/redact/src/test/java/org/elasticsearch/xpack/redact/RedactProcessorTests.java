@@ -270,6 +270,50 @@ public class RedactProcessorTests extends ESTestCase {
         }
     }
 
+    public void testLicenseChanges() throws Exception {
+        // initially the license is allowed
+        final boolean allowed[] = new boolean[] { true };
+        MockLicenseState licenseState = TestUtils.newMockLicenceState();
+        when(licenseState.isAllowed(RedactProcessor.REDACT_PROCESSOR_FEATURE)).thenAnswer(invocation -> allowed[0]);
+
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", "to_redact");
+        config.put("patterns", List.of("%{MY_PATTERN:after}"));
+        config.put("pattern_definitions", Map.of("MY_PATTERN", "before"));
+        if (randomBoolean()) {
+            config.put("skip_if_unlicensed", false); // sometimes set to false explicitly, sometimes rely on the default (also false)
+        }
+
+        // constructing the processor is allowed, including extraValidation
+        RedactProcessor.Factory factory = new RedactProcessor.Factory(licenseState, MatcherWatchdog.noop());
+        RedactProcessor processor = factory.create(null, null, null, config);
+        processor.extraValidation();
+
+        // it works great as long as the feature is allowed for the license
+        final int times = randomIntBetween(1, 5);
+        for (int i = 0; i < times; i++) {
+            var ingestDoc = createIngestDoc(Map.of("to_redact", "before"));
+            var redacted = processor.execute(ingestDoc);
+            assertEquals("<after>", redacted.getFieldValue("to_redact", String.class));
+        }
+
+        // but stops working when the feature is not allowed for the license
+        allowed[0] = false;
+        for (int i = 0; i < times; i++) {
+            var ingestDoc = createIngestDoc(Map.of("to_redact", "before"));
+            ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, () -> processor.execute(ingestDoc));
+            assertThat(e.getMessage(), containsString("current license is non-compliant for [redact_processor]"));
+        }
+
+        // and starts working against when the license allows
+        allowed[0] = true;
+        for (int i = 0; i < times; i++) {
+            var ingestDoc = createIngestDoc(Map.of("to_redact", "before"));
+            var redacted = processor.execute(ingestDoc);
+            assertEquals("<after>", redacted.getFieldValue("to_redact", String.class));
+        }
+    }
+
     public void testMergeLongestRegion() {
         var r = List.of(
             new RedactProcessor.RegionTrackingMatchExtractor.Replacement(10, 20, "first"),

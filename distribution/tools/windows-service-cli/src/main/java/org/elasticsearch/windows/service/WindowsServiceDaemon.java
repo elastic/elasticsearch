@@ -17,7 +17,10 @@ import org.elasticsearch.common.cli.EnvironmentAwareCommand;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.server.cli.JvmOptionsParser;
 import org.elasticsearch.server.cli.ServerProcess;
+import org.elasticsearch.server.cli.ServerProcessBuilder;
+import org.elasticsearch.server.cli.ServerProcessUtils;
 
 /**
  * Starts an Elasticsearch process, but does not wait for it to exit.
@@ -37,8 +40,15 @@ class WindowsServiceDaemon extends EnvironmentAwareCommand {
     public void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws Exception {
         // the Windows service daemon doesn't support secure settings implementations other than the keystore
         try (var loadedSecrets = KeyStoreWrapper.bootstrap(env.configFile(), () -> new SecureString(new char[0]))) {
-            var args = new ServerArgs(false, true, null, loadedSecrets, env.settings(), env.configFile());
-            this.server = ServerProcess.start(terminal, processInfo, args);
+            var args = new ServerArgs(false, true, null, loadedSecrets, env.settings(), env.configFile(), env.logsFile());
+            var tempDir = ServerProcessUtils.setupTempDir(processInfo);
+            var jvmOptions = JvmOptionsParser.determineJvmOptions(args, processInfo, tempDir);
+            var serverProcessBuilder = new ServerProcessBuilder().withTerminal(terminal)
+                .withProcessInfo(processInfo)
+                .withServerArgs(args)
+                .withTempDir(tempDir)
+                .withJvmOptions(jvmOptions);
+            this.server = serverProcessBuilder.start();
             // start does not return until the server is ready, and we do not wait for the process
         }
     }

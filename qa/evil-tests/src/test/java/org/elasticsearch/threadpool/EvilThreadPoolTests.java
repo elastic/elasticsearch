@@ -11,6 +11,7 @@ package org.elasticsearch.threadpool;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 import org.elasticsearch.core.TimeValue;
@@ -20,6 +21,7 @@ import org.junit.Before;
 
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -48,7 +50,7 @@ public class EvilThreadPoolTests extends ESTestCase {
         for (String executor : ThreadPool.THREAD_POOL_TYPES.keySet()) {
             checkExecutionError(getExecuteRunner(threadPool.executor(executor)));
             checkExecutionError(getSubmitRunner(threadPool.executor(executor)));
-            checkExecutionError(getScheduleRunner(executor));
+            checkExecutionError(getScheduleRunner(threadPool.executor(executor)));
         }
     }
 
@@ -64,7 +66,7 @@ public class EvilThreadPoolTests extends ESTestCase {
             1,
             EsExecutors.daemonThreadFactory("test"),
             threadPool.getThreadContext(),
-            randomBoolean()
+            randomFrom(TaskTrackingConfig.DEFAULT, TaskTrackingConfig.DO_NOT_TRACK)
         );
         try {
             checkExecutionError(getExecuteRunner(fixedExecutor));
@@ -157,7 +159,7 @@ public class EvilThreadPoolTests extends ESTestCase {
             // here, it's ok for the exception not to bubble up. Accessing the future will yield the exception
             checkExecutionException(getSubmitRunner(threadPool.executor(executor)), false);
 
-            checkExecutionException(getScheduleRunner(executor), true);
+            checkExecutionException(getScheduleRunner(threadPool.executor(executor)), true);
         }
     }
 
@@ -173,7 +175,7 @@ public class EvilThreadPoolTests extends ESTestCase {
             1,
             EsExecutors.daemonThreadFactory("test"),
             threadPool.getThreadContext(),
-            randomBoolean()
+            randomFrom(TaskTrackingConfig.DEFAULT, TaskTrackingConfig.DO_NOT_TRACK)
         );
         try {
             checkExecutionException(getExecuteRunner(fixedExecutor), true);
@@ -309,7 +311,7 @@ public class EvilThreadPoolTests extends ESTestCase {
         };
     }
 
-    Consumer<Runnable> getScheduleRunner(String executor) {
+    Consumer<Runnable> getScheduleRunner(Executor executor) {
         return new Consumer<Runnable>() {
             @Override
             public void accept(Runnable runnable) {

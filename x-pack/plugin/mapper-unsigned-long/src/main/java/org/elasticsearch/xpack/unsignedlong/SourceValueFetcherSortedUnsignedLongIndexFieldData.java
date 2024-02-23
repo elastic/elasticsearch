@@ -128,7 +128,7 @@ public class SourceValueFetcherSortedUnsignedLongIndexFieldData extends SourceVa
             values.sort(Long::compare);
             iterator = values.iterator();
 
-            return true;
+            return values.isEmpty() == false;
         }
 
         @Override

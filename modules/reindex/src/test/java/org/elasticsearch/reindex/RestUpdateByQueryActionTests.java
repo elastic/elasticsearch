@@ -8,6 +8,7 @@
 
 package org.elasticsearch.reindex;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.rest.RestRequest;
@@ -16,22 +17,23 @@ import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.Before;
-import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-public class RestUpdateByQueryActionTests extends RestActionTestCase {
+import static org.mockito.Mockito.mock;
+
+public final class RestUpdateByQueryActionTests extends RestActionTestCase {
 
     final List<String> contentTypeHeader = Collections.singletonList(compatibleMediaType(XContentType.VND_JSON, RestApiVersion.V_7));
 
     @Before
     public void setUpAction() {
-        controller().registerHandler(new RestUpdateByQueryAction());
-        verifyingClient.setExecuteVerifier((actionType, request) -> Mockito.mock(BulkByScrollResponse.class));
-        verifyingClient.setExecuteLocallyVerifier((actionType, request) -> Mockito.mock(BulkByScrollResponse.class));
+        controller().registerHandler(new RestUpdateByQueryAction(mock(NamedWriteableRegistry.class), nf -> false));
+        verifyingClient.setExecuteVerifier((actionType, request) -> mock(BulkByScrollResponse.class));
+        verifyingClient.setExecuteLocallyVerifier((actionType, request) -> mock(BulkByScrollResponse.class));
     }
 
     public void testTypeInPath() throws IOException {

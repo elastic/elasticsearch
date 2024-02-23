@@ -10,11 +10,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -123,7 +123,7 @@ public class WatcherService {
                 1000,
                 daemonThreadFactory(settings, LIFECYCLE_THREADPOOL_NAME),
                 client.threadPool().getThreadContext(),
-                false
+                EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
             )
         );
     }
@@ -385,12 +385,14 @@ public class WatcherService {
                 }
                 SearchScrollRequest request = new SearchScrollRequest(response.getScrollId());
                 request.scroll(scrollTimeout);
+                response.decRef();
                 response = client.searchScroll(request).actionGet(defaultSearchTimeout);
             }
         } finally {
             if (response != null) {
                 ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
                 clearScrollRequest.addScrollId(response.getScrollId());
+                response.decRef();
                 client.clearScroll(clearScrollRequest).actionGet(scrollTimeout);
             }
         }
@@ -402,7 +404,7 @@ public class WatcherService {
 
     // Non private for unit testing purposes
     void refreshWatches(IndexMetadata indexMetadata) {
-        RefreshResponse refreshResponse = client.admin()
+        BroadcastResponse refreshResponse = client.admin()
             .indices()
             .refresh(new RefreshRequest(INDEX))
             .actionGet(TimeValue.timeValueSeconds(5));
@@ -419,7 +421,7 @@ public class WatcherService {
      * @param index           The index of the local shard
      * @return true if the we should parse the watch on this node, false otherwise
      */
-    private boolean parseWatchOnThisNode(String id, int totalShardCount, int index) {
+    private static boolean parseWatchOnThisNode(String id, int totalShardCount, int index) {
         int hash = Murmur3HashFunction.hash(id);
         int shardIndex = Math.floorMod(hash, totalShardCount);
         return shardIndex == index;

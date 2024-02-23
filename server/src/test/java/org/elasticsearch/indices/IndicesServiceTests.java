@@ -10,7 +10,6 @@ package org.elasticsearch.indices;
 import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
@@ -38,6 +37,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineFactory;
@@ -61,7 +61,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
-import org.elasticsearch.test.hamcrest.RegexMatcher;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -88,6 +87,8 @@ import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.matchesRegex;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
@@ -205,7 +206,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
     public void testCanDeleteShardContent() {
         IndicesService indicesService = getIndicesService();
         IndexMetadata meta = IndexMetadata.builder("test")
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(1)
             .numberOfReplicas(1)
             .build();
@@ -267,9 +268,9 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         assertNull(meta.index("test"));
 
         test = createIndex("test");
-        client().prepareIndex("test").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
+        prepareIndex("test").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
         client().admin().indices().prepareFlush("test").get();
-        assertHitCount(client().prepareSearch("test").get(), 1);
+        assertHitCount(client().prepareSearch("test"), 1);
         IndexMetadata secondMetadata = clusterService.state().metadata().index("test");
         assertAcked(client().admin().indices().prepareClose("test"));
         ShardPath secondPath = ShardPath.loadShardPath(
@@ -366,7 +367,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
 
         final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         final Settings idxSettings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID())
             .build();
         final IndexMetadata indexMetadata = new IndexMetadata.Builder(index.getName()).settings(idxSettings)
@@ -404,7 +405,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         // try to import a dangling index with the same name as the alias, it should fail
         final LocalAllocateDangledIndices dangling = getInstanceFromNode(LocalAllocateDangledIndices.class);
         final Settings idxSettings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
             .build();
         final IndexMetadata indexMetadata = new IndexMetadata.Builder(alias).settings(idxSettings)
@@ -435,7 +436,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         // import an index with minor version incremented by one over cluster master version, it should be ignored
         final LocalAllocateDangledIndices dangling = getInstanceFromNode(LocalAllocateDangledIndices.class);
         final Settings idxSettingsLater = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.fromId(Version.CURRENT.id + 10000))
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.fromId(IndexVersion.current().id() + 10000))
             .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
             .build();
         final IndexMetadata indexMetadataLater = new IndexMetadata.Builder(indexNameLater).settings(idxSettingsLater)
@@ -463,7 +464,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         final Index index = new Index(indexName, UUIDs.randomBase64UUID());
         final IndicesService indicesService = getIndicesService();
         final Settings idxSettings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID())
             .build();
         final IndexMetadata indexMetadata = new IndexMetadata.Builder(index.getName()).settings(idxSettings)
@@ -487,7 +488,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         final Index index = new Index(indexName, UUIDs.randomBase64UUID());
         final IndicesService indicesService = getIndicesService();
         final Settings idxSettings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID())
             .put(IndexModule.SIMILARITY_SETTINGS_PREFIX + ".test.type", "fake-similarity")
             .build();
@@ -565,7 +566,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
             final String indexName = "foo-" + value;
             final Index index = new Index(indexName, UUIDs.randomBase64UUID());
             final Settings.Builder builder = Settings.builder()
-                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                 .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID());
             if (value != null) {
                 builder.put(FooEnginePlugin.FOO_INDEX_SETTING.getKey(), value);
@@ -588,7 +589,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         final String indexName = "foobar";
         final Index index = new Index(indexName, UUIDs.randomBase64UUID());
         final Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID())
             .put(FooEnginePlugin.FOO_INDEX_SETTING.getKey(), true)
             .put(BarEnginePlugin.BAR_INDEX_SETTING.getKey(), true)
@@ -605,7 +606,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         );
         final String pattern =
             ".*multiple engine factories provided for \\[foobar/.*\\]: \\[.*FooEngineFactory\\],\\[.*BarEngineFactory\\].*";
-        assertThat(e, hasToString(new RegexMatcher(pattern)));
+        assertThat(e, hasToString(matchesRegex(pattern)));
     }
 
     public void testBuildAliasFilter() {
@@ -733,14 +734,16 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
             assertThat(filter.should(), containsInAnyOrder(QueryBuilders.termQuery("foo", "baz"), QueryBuilders.termQuery("foo", "bax")));
         }
         {
+            // querying an unfiltered and a filtered alias for the same data stream should drop the filters
             String index = backingIndex1.getIndex().getName();
             AliasFilter result = indicesService.buildAliasFilter(state, index, Set.of("logs_foo", "logs", "logs_bar"));
-            assertThat(result.getAliases(), arrayContainingInAnyOrder("logs_foo", "logs"));
-            BoolQueryBuilder filter = (BoolQueryBuilder) result.getQueryBuilder();
-            assertThat(filter.filter(), empty());
-            assertThat(filter.must(), empty());
-            assertThat(filter.mustNot(), empty());
-            assertThat(filter.should(), containsInAnyOrder(QueryBuilders.termQuery("foo", "baz"), QueryBuilders.termQuery("foo", "bar")));
+            assertThat(result, is(AliasFilter.EMPTY));
+        }
+        {
+            // similarly, querying the data stream name and a filtered alias should drop the filter
+            String index = backingIndex1.getIndex().getName();
+            AliasFilter result = indicesService.buildAliasFilter(state, index, Set.of("logs", dataStreamName1));
+            assertThat(result, is(AliasFilter.EMPTY));
         }
     }
 }

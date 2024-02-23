@@ -9,6 +9,7 @@
 package org.elasticsearch.http.snapshots;
 
 import org.apache.http.client.methods.HttpGet;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
@@ -23,6 +24,8 @@ import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -31,6 +34,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -201,15 +205,14 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
         }
         AbstractSnapshotIntegTestCase.awaitNumberOfSnapshotsInProgress(logger, inProgressCount);
         AbstractSnapshotIntegTestCase.awaitClusterState(logger, state -> {
-            boolean firstIndexSuccessfullySnapshot = state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY)
-                .asStream()
+            final var snapshotsInProgress = SnapshotsInProgress.get(state);
+            boolean firstIndexSuccessfullySnapshot = snapshotsInProgress.asStream()
                 .flatMap(s -> s.shards().entrySet().stream())
                 .allMatch(
                     e -> e.getKey().getIndexName().equals("test-index-1") == false
                         || e.getValue().state() == SnapshotsInProgress.ShardState.SUCCESS
                 );
-            boolean secondIndexIsBlocked = state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY)
-                .asStream()
+            boolean secondIndexIsBlocked = snapshotsInProgress.asStream()
                 .flatMap(s -> s.shards().entrySet().stream())
                 .filter(e -> e.getKey().getIndexName().equals("test-index-2"))
                 .map(e -> e.getValue().state())
@@ -445,7 +448,7 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
             InputStream input = response.getEntity().getContent();
             XContentParser parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, input)
         ) {
-            return GetSnapshotsResponse.fromXContent(parser);
+            return GET_SNAPSHOT_PARSER.parse(parser, null);
         }
     }
 
@@ -501,5 +504,36 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
         addIndexNamesParameter(includeIndices, request);
         final Response response = getRestClient().performRequest(request);
         return readSnapshotInfos(response);
+    }
+
+    private static final int UNKNOWN_COUNT = -1;
+
+    @SuppressWarnings("unchecked")
+    private static final ConstructingObjectParser<GetSnapshotsResponse, Void> GET_SNAPSHOT_PARSER = new ConstructingObjectParser<>(
+        GetSnapshotsResponse.class.getName(),
+        true,
+        (args) -> new GetSnapshotsResponse(
+            (List<SnapshotInfo>) args[0],
+            (Map<String, ElasticsearchException>) args[1],
+            (String) args[2],
+            args[3] == null ? UNKNOWN_COUNT : (int) args[3],
+            args[4] == null ? UNKNOWN_COUNT : (int) args[4]
+        )
+    );
+
+    static {
+        GET_SNAPSHOT_PARSER.declareObjectArray(
+            ConstructingObjectParser.constructorArg(),
+            (p, c) -> SnapshotInfo.SNAPSHOT_INFO_PARSER.apply(p, c).build(),
+            new ParseField("snapshots")
+        );
+        GET_SNAPSHOT_PARSER.declareObject(
+            ConstructingObjectParser.optionalConstructorArg(),
+            (p, c) -> p.map(HashMap::new, ElasticsearchException::fromXContent),
+            new ParseField("failures")
+        );
+        GET_SNAPSHOT_PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), new ParseField("next"));
+        GET_SNAPSHOT_PARSER.declareIntOrNull(ConstructingObjectParser.optionalConstructorArg(), UNKNOWN_COUNT, new ParseField("total"));
+        GET_SNAPSHOT_PARSER.declareIntOrNull(ConstructingObjectParser.optionalConstructorArg(), UNKNOWN_COUNT, new ParseField("remaining"));
     }
 }

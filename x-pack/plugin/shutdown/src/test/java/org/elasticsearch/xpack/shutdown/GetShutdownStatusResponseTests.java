@@ -51,6 +51,9 @@ public class GetShutdownStatusResponseTests extends AbstractWireSerializingTestC
         final TimeValue allocationDelay = type == SingleNodeShutdownMetadata.Type.RESTART && randomBoolean()
             ? TimeValue.parseTimeValue(randomPositiveTimeValue(), GetShutdownStatusResponseTests.class.getSimpleName())
             : null;
+        final TimeValue gracefulShutdown = type == SingleNodeShutdownMetadata.Type.SIGTERM
+            ? TimeValue.parseTimeValue(randomPositiveTimeValue(), GetShutdownStatusResponseTests.class.getSimpleName())
+            : null;
         return SingleNodeShutdownMetadata.builder()
             .setNodeId(randomAlphaOfLength(5))
             .setType(type)
@@ -58,13 +61,14 @@ public class GetShutdownStatusResponseTests extends AbstractWireSerializingTestC
             .setStartedAtMillis(randomNonNegativeLong())
             .setTargetNodeName(targetNodeName)
             .setAllocationDelay(allocationDelay)
+            .setGracePeriod(gracefulShutdown)
             .build();
     }
 
     public static SingleNodeShutdownStatus randomNodeShutdownStatus() {
         return new SingleNodeShutdownStatus(
             randomNodeShutdownMetadata(),
-            new ShutdownShardMigrationStatus(randomStatus(), randomNonNegativeLong()),
+            new ShutdownShardMigrationStatus(randomStatus(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong()),
             new ShutdownPersistentTasksStatus(),
             new ShutdownPluginsStatus(randomBoolean())
         );

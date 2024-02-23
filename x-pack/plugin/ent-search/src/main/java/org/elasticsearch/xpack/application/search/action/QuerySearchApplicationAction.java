@@ -10,13 +10,10 @@ package org.elasticsearch.xpack.application.search.action;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.search.SearchResponse;
 
-public class QuerySearchApplicationAction extends ActionType<SearchResponse> {
+public class QuerySearchApplicationAction {
 
-    public static final QuerySearchApplicationAction INSTANCE = new QuerySearchApplicationAction();
-    public static final String NAME = "cluster:admin/xpack/application/search_application/search";
+    public static final String NAME = "indices:data/read/xpack/application/search_application/search";
+    public static final ActionType<SearchResponse> INSTANCE = new ActionType<>(NAME);
 
-    public QuerySearchApplicationAction() {
-        super(NAME, SearchResponse::new);
-    }
-
+    private QuerySearchApplicationAction() {/* no instances */}
 }

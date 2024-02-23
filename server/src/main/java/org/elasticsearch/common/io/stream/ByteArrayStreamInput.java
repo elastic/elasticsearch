@@ -17,7 +17,7 @@ import java.io.IOException;
  * Resettable {@link StreamInput} that wraps a byte array. It is heavily inspired in Lucene's
  * {@link org.apache.lucene.store.ByteArrayDataInput}.
  */
-public class ByteArrayStreamInput extends StreamInput {
+public final class ByteArrayStreamInput extends StreamInput {
 
     private byte[] bytes;
     private int pos;
@@ -32,7 +32,20 @@ public class ByteArrayStreamInput extends StreamInput {
     }
 
     @Override
+    public String readString() throws IOException {
+        final int chars = readArraySize();
+        String string = tryReadStringFromBytes(bytes, pos, limit, chars);
+        if (string != null) {
+            return string;
+        }
+        return doReadString(chars);
+    }
+
+    @Override
     public int read() throws IOException {
+        if (limit - pos <= 0) {
+            return -1;
+        }
         return readByte() & 0xFF;
     }
 
@@ -59,7 +72,21 @@ public class ByteArrayStreamInput extends StreamInput {
     }
 
     public void skipBytes(long count) {
-        pos += count;
+        pos += (int) count;
+    }
+
+    @Override
+    public long skip(long n) throws IOException {
+        if (n <= 0L) {
+            return 0L;
+        }
+        int available = available();
+        if (n < available) {
+            pos += (int) n;
+            return n;
+        }
+        pos = limit;
+        return available;
     }
 
     @Override

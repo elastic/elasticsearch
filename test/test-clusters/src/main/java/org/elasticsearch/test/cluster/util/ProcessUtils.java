@@ -117,7 +117,11 @@ public final class ProcessUtils {
                 if (processHandle.isAlive() == false) {
                     return;
                 }
-                LOGGER.info("Process did not terminate after {}, stopping it forcefully", PROCESS_DESTROY_TIMEOUT);
+                LOGGER.info(
+                    "Process did not terminate after {}, stopping it forcefully: {}",
+                    PROCESS_DESTROY_TIMEOUT,
+                    processHandle.info()
+                );
                 processHandle.destroyForcibly();
             }
 
@@ -147,9 +151,9 @@ public final class ProcessUtils {
                 return processHandle.isAlive() == false;
             });
         } catch (ExecutionException e) {
-            LOGGER.info("Failure while waiting for process to exist", e);
+            LOGGER.info("Failure while waiting for process to exit: {}", processHandle.info(), e);
         } catch (TimeoutException e) {
-            LOGGER.info("Timed out waiting for process to exit", e);
+            LOGGER.info("Timed out waiting for process to exit: {}", processHandle.info(), e);
         }
     }
 
@@ -163,6 +167,6 @@ public final class ProcessUtils {
             } catch (IOException e) {
                 throw new UncheckedIOException("Error reading output from process.", e);
             }
-        }, name).start();
+        }, name + "-log-forwarder").start();
     }
 }

@@ -77,7 +77,7 @@ public class MetadataNodesIT extends ESIntegTestCase {
         assertIndexInMetaState(masterNode, index);
         assertIndexDirectoryDeleted(masterNode, resolveIndex);
 
-        client().admin().indices().prepareDelete(index).get();
+        indicesAdmin().prepareDelete(index).get();
         assertIndexDirectoryDeleted(node1, resolveIndex);
         assertIndexDirectoryDeleted(node2, resolveIndex);
     }
@@ -96,15 +96,13 @@ public class MetadataNodesIT extends ESIntegTestCase {
         assertIndexInMetaState(masterNode, index);
 
         logger.info("--> close index");
-        client().admin().indices().prepareClose(index).get();
+        indicesAdmin().prepareClose(index).get();
         // close the index
         ClusterStateResponse clusterStateResponse = clusterAdmin().prepareState().get();
         assertThat(clusterStateResponse.getState().getMetadata().index(index).getState().name(), equalTo(IndexMetadata.State.CLOSE.name()));
 
         // update the mapping. this should cause the new meta data to be written although index is closed
-        client().admin()
-            .indices()
-            .preparePutMapping(index)
+        indicesAdmin().preparePutMapping(index)
             .setSource(
                 jsonBuilder().startObject()
                     .startObject("properties")
@@ -116,7 +114,7 @@ public class MetadataNodesIT extends ESIntegTestCase {
             )
             .get();
 
-        GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings(index).get();
+        GetMappingsResponse getMappingsResponse = indicesAdmin().prepareGetMappings(index).get();
         assertNotNull(
             ((Map<String, ?>) (getMappingsResponse.getMappings().get(index).getSourceAsMap().get("properties"))).get("integer_field")
         );
@@ -135,9 +133,7 @@ public class MetadataNodesIT extends ESIntegTestCase {
          * what we write. This is why we explicitly test for it.
          */
         internalCluster().restartNode(dataNode, new RestartCallback());
-        client().admin()
-            .indices()
-            .preparePutMapping(index)
+        indicesAdmin().preparePutMapping(index)
             .setSource(
                 jsonBuilder().startObject()
                     .startObject("properties")
@@ -149,7 +145,7 @@ public class MetadataNodesIT extends ESIntegTestCase {
             )
             .get();
 
-        getMappingsResponse = client().admin().indices().prepareGetMappings(index).get();
+        getMappingsResponse = indicesAdmin().prepareGetMappings(index).get();
         assertNotNull(
             ((Map<String, ?>) (getMappingsResponse.getMappings().get(index).getSourceAsMap().get("properties"))).get("float_field")
         );
@@ -160,7 +156,7 @@ public class MetadataNodesIT extends ESIntegTestCase {
         assertThat(indicesMetadata.get(index).getState(), equalTo(IndexMetadata.State.CLOSE));
 
         // finally check that meta data is also written of index opened again
-        assertAcked(client().admin().indices().prepareOpen(index).get());
+        assertAcked(indicesAdmin().prepareOpen(index).get());
         // make sure index is fully initialized and nothing is changed anymore
         ensureGreen();
         indicesMetadata = getIndicesMetadataOnNode(dataNode);

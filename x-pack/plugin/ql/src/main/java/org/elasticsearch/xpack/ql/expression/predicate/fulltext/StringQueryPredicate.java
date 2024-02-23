@@ -15,7 +15,7 @@ import java.util.Map;
 
 import static java.util.Collections.emptyList;
 
-public class StringQueryPredicate extends FullTextPredicate {
+public final class StringQueryPredicate extends FullTextPredicate {
 
     private final Map<String, Float> fields;
 

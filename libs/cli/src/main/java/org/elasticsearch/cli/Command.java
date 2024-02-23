@@ -114,7 +114,7 @@ public abstract class Command implements Closeable {
     protected void printUserException(Terminal terminal, UserException e) {
         if (e.getMessage() != null) {
             terminal.errorPrintln("");
-            terminal.errorPrintln(Terminal.Verbosity.SILENT, "ERROR: " + e.getMessage());
+            terminal.errorPrintln(Terminal.Verbosity.SILENT, "ERROR: " + e.getMessage() + ", with exit code " + e.exitCode);
         }
     }
 

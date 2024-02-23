@@ -20,10 +20,10 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.plain.SortedDoublesIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
@@ -43,8 +43,6 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.InternalSettingsPlugin;
-import org.elasticsearch.threadpool.TestThreadPool;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.mockito.ArgumentMatchers;
 
 import java.util.Arrays;
@@ -59,6 +57,7 @@ import static org.elasticsearch.index.mapper.NumberFieldMapper.NumberType.INTEGE
 import static org.elasticsearch.index.mapper.NumberFieldMapper.NumberType.LONG;
 import static org.elasticsearch.index.mapper.NumberFieldMapper.NumberType.SHORT;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -77,18 +76,21 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
             indicesService.getIndicesFieldDataCache(),
             indicesService.getCircuitBreakerService()
         );
-        MapperBuilderContext context = MapperBuilderContext.root(false);
-        final MappedFieldType stringMapper = new KeywordFieldMapper.Builder("string", Version.CURRENT).build(context).fieldType();
+        MapperBuilderContext context = MapperBuilderContext.root(false, false);
+        final MappedFieldType stringMapper = new KeywordFieldMapper.Builder("string", IndexVersion.current()).build(context).fieldType();
         ifdService.clear();
         IndexFieldData<?> fd = ifdService.getForField(stringMapper, FieldDataContext.noRuntimeFields("test"));
         assertTrue(fd instanceof SortedSetOrdinalsIndexFieldData);
 
         for (MappedFieldType mapper : Arrays.asList(
-            new NumberFieldMapper.Builder("int", BYTE, ScriptCompiler.NONE, false, true, Version.CURRENT, null).build(context).fieldType(),
-            new NumberFieldMapper.Builder("int", SHORT, ScriptCompiler.NONE, false, true, Version.CURRENT, null).build(context).fieldType(),
-            new NumberFieldMapper.Builder("int", INTEGER, ScriptCompiler.NONE, false, true, Version.CURRENT, null).build(context)
+            new NumberFieldMapper.Builder("int", BYTE, ScriptCompiler.NONE, false, true, IndexVersion.current(), null).build(context)
                 .fieldType(),
-            new NumberFieldMapper.Builder("long", LONG, ScriptCompiler.NONE, false, true, Version.CURRENT, null).build(context).fieldType()
+            new NumberFieldMapper.Builder("int", SHORT, ScriptCompiler.NONE, false, true, IndexVersion.current(), null).build(context)
+                .fieldType(),
+            new NumberFieldMapper.Builder("int", INTEGER, ScriptCompiler.NONE, false, true, IndexVersion.current(), null).build(context)
+                .fieldType(),
+            new NumberFieldMapper.Builder("long", LONG, ScriptCompiler.NONE, false, true, IndexVersion.current(), null).build(context)
+                .fieldType()
         )) {
             ifdService.clear();
             fd = ifdService.getForField(mapper, FieldDataContext.noRuntimeFields("test"));
@@ -101,7 +103,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
             ScriptCompiler.NONE,
             false,
             true,
-            Version.CURRENT,
+            IndexVersion.current(),
             null
         ).build(context).fieldType();
         ifdService.clear();
@@ -114,7 +116,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
             ScriptCompiler.NONE,
             false,
             true,
-            Version.CURRENT,
+            IndexVersion.current(),
             null
         ).build(context).fieldType();
         ifdService.clear();
@@ -153,7 +155,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
             indicesService.getCircuitBreakerService()
         );
 
-        final MapperBuilderContext context = MapperBuilderContext.root(false);
+        final MapperBuilderContext context = MapperBuilderContext.root(false, false);
         final MappedFieldType mapper1 = new TextFieldMapper.Builder("field_1", createDefaultIndexAnalyzers()).fielddata(true)
             .build(context)
             .fieldType();
@@ -220,7 +222,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
             indicesService.getCircuitBreakerService()
         );
 
-        final MapperBuilderContext context = MapperBuilderContext.root(false);
+        final MapperBuilderContext context = MapperBuilderContext.root(false, false);
         final MappedFieldType mapper1 = new TextFieldMapper.Builder("s", createDefaultIndexAnalyzers()).fielddata(true)
             .build(context)
             .fieldType();
@@ -277,28 +279,12 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
         );
         // set it the first time...
         shardPrivateService.setListener(new IndexFieldDataCache.Listener() {
-            @Override
-            public void onCache(ShardId shardId, String fieldName, Accountable ramUsage) {
 
-            }
-
-            @Override
-            public void onRemoval(ShardId shardId, String fieldName, boolean wasEvicted, long sizeInBytes) {
-
-            }
         });
         // now set it again and make sure we fail
         try {
             shardPrivateService.setListener(new IndexFieldDataCache.Listener() {
-                @Override
-                public void onCache(ShardId shardId, String fieldName, Accountable ramUsage) {
 
-                }
-
-                @Override
-                public void onRemoval(ShardId shardId, String fieldName, boolean wasEvicted, long sizeInBytes) {
-
-                }
             });
             fail("listener already set");
         } catch (IllegalStateException ex) {
@@ -307,25 +293,17 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
     }
 
     private void doTestRequireDocValues(MappedFieldType ft) {
-        ThreadPool threadPool = new TestThreadPool("random_threadpool_name");
-        try {
-            IndicesFieldDataCache cache = new IndicesFieldDataCache(Settings.EMPTY, null);
-            IndexFieldDataService ifds = new IndexFieldDataService(
-                IndexSettingsModule.newIndexSettings("test", Settings.EMPTY),
-                cache,
-                null
+        Settings settings = Settings.EMPTY;
+        IndicesFieldDataCache cache = new IndicesFieldDataCache(settings, null);
+        IndexFieldDataService ifds = new IndexFieldDataService(IndexSettingsModule.newIndexSettings("test", settings), cache, null);
+        if (ft.hasDocValues()) {
+            ifds.getForField(ft, FieldDataContext.noRuntimeFields("test")); // no exception
+        } else {
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> ifds.getForField(ft, FieldDataContext.noRuntimeFields("test"))
             );
-            if (ft.hasDocValues()) {
-                ifds.getForField(ft, FieldDataContext.noRuntimeFields("test")); // no exception
-            } else {
-                IllegalArgumentException e = expectThrows(
-                    IllegalArgumentException.class,
-                    () -> ifds.getForField(ft, FieldDataContext.noRuntimeFields("test"))
-                );
-                assertThat(e.getMessage(), containsString("doc values"));
-            }
-        } finally {
-            threadPool.shutdown();
+            assertThat(e.getMessage(), containsString("doc values"));
         }
     }
 
@@ -372,5 +350,20 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
     public void testRequireDocValuesOnBools() {
         doTestRequireDocValues(new BooleanFieldMapper.BooleanFieldType("field"));
         doTestRequireDocValues(new BooleanFieldMapper.BooleanFieldType("field", true, false, false, null, null, Collections.emptyMap()));
+    }
+
+    public void testFieldDataCacheExpire() {
+        {
+            Settings settings = Settings.EMPTY;
+            IndicesFieldDataCache cache = new IndicesFieldDataCache(settings, new IndexFieldDataCache.Listener() {
+            });
+            assertThat(cache.getCache().getExpireAfterAccessNanos(), equalTo(3_600_000_000_000L));
+        }
+        {
+            Settings settings = Settings.builder().put(IndicesFieldDataCache.INDICES_FIELDDATA_CACHE_EXPIRE.getKey(), "5s").build();
+            IndicesFieldDataCache cache = new IndicesFieldDataCache(settings, new IndexFieldDataCache.Listener() {
+            });
+            assertThat(cache.getCache().getExpireAfterAccessNanos(), equalTo(5_000_000_000L));
+        }
     }
 }

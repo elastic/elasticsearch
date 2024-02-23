@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.transform.transforms;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfigTests;
 import org.elasticsearch.xpack.core.transform.transforms.latest.LatestConfigTests;
@@ -24,7 +24,7 @@ public class FunctionFactoryTests extends ESTestCase {
     public void testCreatePivotFunction() {
         TransformConfig config = TransformConfigTests.randomTransformConfig(
             randomAlphaOfLengthBetween(1, 10),
-            Version.CURRENT,
+            TransformConfigVersion.CURRENT,
             PivotConfigTests.randomPivotConfig(),
             null
         );
@@ -35,7 +35,7 @@ public class FunctionFactoryTests extends ESTestCase {
     public void testCreateLatestFunction() {
         TransformConfig config = TransformConfigTests.randomTransformConfig(
             randomAlphaOfLengthBetween(1, 10),
-            Version.CURRENT,
+            TransformConfigVersion.CURRENT,
             null,
             LatestConfigTests.randomLatestConfig()
         );

@@ -53,9 +53,7 @@ public class TemplateUpgraderTests extends SecurityIntegTestCase {
             return map;
         };
 
-        AcknowledgedResponse putIndexTemplateResponse = client().admin()
-            .indices()
-            .preparePutTemplate("removed-template")
+        AcknowledgedResponse putIndexTemplateResponse = indicesAdmin().preparePutTemplate("removed-template")
             .setOrder(1)
             .setPatterns(Collections.singletonList(randomAlphaOfLength(10)))
             .get();

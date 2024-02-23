@@ -12,7 +12,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.SearchPhaseResult;
@@ -26,7 +26,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class DfsSearchResult extends SearchPhaseResult {
+public final class DfsSearchResult extends SearchPhaseResult {
 
     private static final Term[] EMPTY_TERMS = new Term[0];
     private static final TermStatistics[] EMPTY_TERM_STATS = new TermStatistics[0];
@@ -46,25 +46,23 @@ public class DfsSearchResult extends SearchPhaseResult {
         } else {
             terms = new Term[termsSize];
             for (int i = 0; i < terms.length; i++) {
-                terms[i] = new Term(in.readString(), in.readBytesRef());
+                terms[i] = new Term(in.readString(), in.readSlicedBytesReference().toBytesRef());
             }
         }
         this.termStatistics = readTermStats(in, terms);
         fieldStatistics = readFieldStats(in);
 
         maxDoc = in.readVInt();
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_10_0)) {
-            setShardSearchRequest(in.readOptionalWriteable(ShardSearchRequest::new));
-        }
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
-                knnResults = in.readOptionalList(DfsKnnResults::new);
+        setShardSearchRequest(in.readOptionalWriteable(ShardSearchRequest::new));
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
+                knnResults = in.readOptionalCollectionAsList(DfsKnnResults::new);
             } else {
                 DfsKnnResults results = in.readOptionalWriteable(DfsKnnResults::new);
                 knnResults = results != null ? List.of(results) : List.of();
             }
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_6_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_6_0)) {
             searchProfileDfsPhaseResult = in.readOptionalWriteable(SearchProfileDfsPhaseResult::new);
         }
     }
@@ -135,11 +133,9 @@ public class DfsSearchResult extends SearchPhaseResult {
         writeTermStats(out, termStatistics);
         writeFieldStats(out, fieldStatistics);
         out.writeVInt(maxDoc);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_10_0)) {
-            out.writeOptionalWriteable(getShardSearchRequest());
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
+        out.writeOptionalWriteable(getShardSearchRequest());
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
                 out.writeOptionalCollection(knnResults);
             } else {
                 if (knnResults != null && knnResults.size() > 1) {
@@ -152,13 +148,13 @@ public class DfsSearchResult extends SearchPhaseResult {
                 out.writeOptionalWriteable(knnResults == null || knnResults.isEmpty() ? null : knnResults.get(0));
             }
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_6_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_6_0)) {
             out.writeOptionalWriteable(searchProfileDfsPhaseResult);
         }
     }
 
     public static void writeFieldStats(StreamOutput out, Map<String, CollectionStatistics> fieldStatistics) throws IOException {
-        out.writeMap(fieldStatistics, StreamOutput::writeString, (o, statistics) -> {
+        out.writeMap(fieldStatistics, (o, statistics) -> {
             assert statistics.maxDoc() >= 0;
             o.writeVLong(statistics.maxDoc());
             // stats are always positive numbers

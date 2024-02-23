@@ -178,6 +178,118 @@ public class ES87TSDBDocValuesEncoder {
         deltaEncode(0, 0, in, out);
     }
 
+    /**
+     * Optimizes for encoding sorted fields where we expect a block to mostly either be the same value
+     * or to make a transition from one value to a second one.
+     * <p>
+     * The header is a vlong where the number of trailing ones defines the encoding strategy:
+     * <ul>
+     *   <li>0: single run</li>
+     *   <li>1: two runs</li>
+     *   <li>2: bit-packed</li>
+     *   <li>3: cycle</li>
+     * </ul>
+     */
+    void encodeOrdinals(long[] in, DataOutput out, int bitsPerOrd) throws IOException {
+        assert in.length == ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE;
+        int numRuns = 1;
+        long firstValue = in[0];
+        long previousValue = firstValue;
+        boolean cyclic = false;
+        int cycleLength = 0;
+        for (int i = 1; i < in.length; ++i) {
+            long currentValue = in[i];
+            if (previousValue != currentValue) {
+                numRuns++;
+            }
+            if (currentValue == firstValue && cycleLength != -1) {
+                if (cycleLength == 0) {
+                    // first candidate cycle detected
+                    cycleLength = i;
+                } else if (cycleLength == 1 || i % cycleLength != 0) {
+                    // if the first two values are the same this isn't a cycle, it might be a run, though
+                    // this also isn't a cycle if the index of the next occurrence of the first value
+                    // isn't a multiple of the candidate cycle length
+                    // we can stop looking for cycles now
+                    cycleLength = -1;
+                }
+            }
+            previousValue = currentValue;
+        }
+        // if the cycle is too long, bit-packing may be more space efficient
+        int maxCycleLength = in.length / 4;
+        if (numRuns > 2 && cycleLength > 1 && cycleLength <= maxCycleLength) {
+            cyclic = true;
+            for (int i = cycleLength; i < in.length; ++i) {
+                if (in[i] != in[i - cycleLength]) {
+                    cyclic = false;
+                    break;
+                }
+            }
+        }
+        if (numRuns == 1 && bitsPerOrd < 63) {
+            long value = in[0];
+            // unset first bit (0 trailing ones) to indicate the block has a single run
+            out.writeVLong(value << 1);
+        } else if (numRuns == 2 && bitsPerOrd < 62) {
+            // set 1 trailing bit to indicate the block has two runs
+            out.writeVLong((in[0] << 2) | 0b01);
+            int firstRunLen = in.length;
+            for (int i = 1; i < in.length; ++i) {
+                if (in[i] != in[0]) {
+                    firstRunLen = i;
+                    break;
+                }
+            }
+            out.writeVInt(firstRunLen);
+            out.writeZLong(in[in.length - 1] - in[0]);
+        } else if (cyclic) {
+            // set 3 trailing bits to indicate the block cycles through the same values
+            long headerAndCycleLength = ((long) cycleLength << 4) | 0b0111;
+            out.writeVLong(headerAndCycleLength);
+            for (int i = 0; i < cycleLength; i++) {
+                out.writeVLong(in[i]);
+            }
+        } else {
+            // set 2 trailing bits to indicate the block is bit-packed
+            out.writeVLong(0b11);
+            forUtil.encode(in, bitsPerOrd, out);
+        }
+    }
+
+    void decodeOrdinals(DataInput in, long[] out, int bitsPerOrd) throws IOException {
+        assert out.length == ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE : out.length;
+
+        long v1 = in.readVLong();
+        int encoding = Long.numberOfTrailingZeros(~v1);
+        v1 >>>= encoding + 1;
+        if (encoding == 0) {
+            // single run
+            Arrays.fill(out, v1);
+        } else if (encoding == 1) {
+            // two runs
+            int runLen = in.readVInt();
+            long v2 = v1 + in.readZLong();
+            Arrays.fill(out, 0, runLen, v1);
+            Arrays.fill(out, runLen, out.length, v2);
+        } else if (encoding == 2) {
+            // bit-packed
+            forUtil.decode(bitsPerOrd, in, out);
+        } else if (encoding == 3) {
+            // cycle encoding
+            int cycleLength = (int) v1;
+            for (int i = 0; i < cycleLength; i++) {
+                out[i] = in.readVLong();
+            }
+            int length = cycleLength;
+            while (length < out.length) {
+                int copyLength = Math.min(length, out.length - length);
+                System.arraycopy(out, 0, out, length, copyLength);
+                length += copyLength;
+            }
+        }
+    }
+
     /** Decode longs that have been encoded with {@link #encode}. */
     void decode(DataInput in, long[] out) throws IOException {
         assert out.length == ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE : out.length;
@@ -217,20 +329,20 @@ public class ES87TSDBDocValuesEncoder {
     }
 
     // this loop should auto-vectorize
-    private void mul(long[] arr, long m) {
+    private static void mul(long[] arr, long m) {
         for (int i = 0; i < ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE; ++i) {
             arr[i] *= m;
         }
     }
 
     // this loop should auto-vectorize
-    private void add(long[] arr, long min) {
+    private static void add(long[] arr, long min) {
         for (int i = 0; i < ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE; ++i) {
             arr[i] += min;
         }
     }
 
-    private void deltaDecode(long[] arr) {
+    private static void deltaDecode(long[] arr) {
         for (int i = 1; i < ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE; ++i) {
             arr[i] += arr[i - 1];
         }

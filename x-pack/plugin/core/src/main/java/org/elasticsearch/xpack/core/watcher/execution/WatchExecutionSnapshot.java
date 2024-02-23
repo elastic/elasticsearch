@@ -112,11 +112,7 @@ public class WatchExecutionSnapshot implements Writeable, ToXContentObject {
         builder.timeField("execution_time", executionTime);
         builder.field("execution_phase", phase);
         if (executedActions != null) {
-            builder.startArray("executed_actions");
-            for (String executedAction : executedActions) {
-                builder.value(executedAction);
-            }
-            builder.endArray();
+            builder.array("executed_actions", executedActions);
         }
         if (params.paramAsBoolean("emit_stacktraces", false)) {
             builder.startArray("stack_trace");

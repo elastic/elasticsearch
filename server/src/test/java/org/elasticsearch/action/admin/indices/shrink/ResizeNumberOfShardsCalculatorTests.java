@@ -8,9 +8,9 @@
 
 package org.elasticsearch.action.admin.indices.shrink;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.test.ESTestCase;
@@ -21,7 +21,7 @@ public class ResizeNumberOfShardsCalculatorTests extends ESTestCase {
 
     public void testShrink() {
         IndexMetadata indexMetadata = IndexMetadata.builder("index")
-            .settings(indexSettings(Version.CURRENT, randomIntBetween(1, 5), randomIntBetween(0, 5)))
+            .settings(indexSettings(IndexVersion.current(), randomIntBetween(1, 5), randomIntBetween(0, 5)))
             .build();
 
         ResizeNumberOfShardsCalculator.ShrinkShardsCalculator shrinkShardsCalculator =
@@ -49,7 +49,7 @@ public class ResizeNumberOfShardsCalculatorTests extends ESTestCase {
 
     public void testCloneInputs() {
         IndexMetadata indexMetadata = IndexMetadata.builder("index")
-            .settings(indexSettings(Version.CURRENT, randomIntBetween(1, 5), randomIntBetween(0, 5)))
+            .settings(indexSettings(IndexVersion.current(), randomIntBetween(1, 5), randomIntBetween(0, 5)))
             .build();
 
         ResizeNumberOfShardsCalculator.CloneShardsCalculator cloneShardsCalculator =
@@ -67,7 +67,7 @@ public class ResizeNumberOfShardsCalculatorTests extends ESTestCase {
 
     public void testSplitInputs() {
         IndexMetadata indexMetadata = IndexMetadata.builder("index")
-            .settings(indexSettings(Version.CURRENT, randomIntBetween(2, 5), randomIntBetween(0, 5)))
+            .settings(indexSettings(IndexVersion.current(), randomIntBetween(2, 5), randomIntBetween(0, 5)))
             .build();
 
         ResizeNumberOfShardsCalculator.SplitShardsCalculator splitShardsCalculator =

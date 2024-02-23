@@ -14,6 +14,7 @@ import org.apache.lucene.queries.spans.SpanTermQuery;
 import org.apache.lucene.sandbox.search.CombinedFieldQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
@@ -45,43 +46,43 @@ public class CustomFieldQuery extends FieldQuery {
     }
 
     @Override
-    protected void flatten(Query sourceQuery, IndexReader reader, Collection<Query> flatQueries, float boost) throws IOException {
+    protected void flatten(Query sourceQuery, IndexSearcher searcher, Collection<Query> flatQueries, float boost) throws IOException {
         if (sourceQuery instanceof BoostQuery bq) {
             sourceQuery = bq.getQuery();
             boost *= bq.getBoost();
-            flatten(sourceQuery, reader, flatQueries, boost);
+            flatten(sourceQuery, searcher, flatQueries, boost);
         } else if (sourceQuery instanceof SpanTermQuery) {
-            super.flatten(new TermQuery(((SpanTermQuery) sourceQuery).getTerm()), reader, flatQueries, boost);
+            super.flatten(new TermQuery(((SpanTermQuery) sourceQuery).getTerm()), searcher, flatQueries, boost);
         } else if (sourceQuery instanceof ConstantScoreQuery) {
-            flatten(((ConstantScoreQuery) sourceQuery).getQuery(), reader, flatQueries, boost);
+            flatten(((ConstantScoreQuery) sourceQuery).getQuery(), searcher, flatQueries, boost);
         } else if (sourceQuery instanceof FunctionScoreQuery) {
-            flatten(((FunctionScoreQuery) sourceQuery).getSubQuery(), reader, flatQueries, boost);
+            flatten(((FunctionScoreQuery) sourceQuery).getSubQuery(), searcher, flatQueries, boost);
         } else if (sourceQuery instanceof MultiPhrasePrefixQuery) {
-            flatten(sourceQuery.rewrite(reader), reader, flatQueries, boost);
+            flatten(sourceQuery.rewrite(searcher), searcher, flatQueries, boost);
         } else if (sourceQuery instanceof MultiPhraseQuery q) {
-            convertMultiPhraseQuery(0, new int[q.getTermArrays().length], q, q.getTermArrays(), q.getPositions(), reader, flatQueries);
+            convertMultiPhraseQuery(0, new int[q.getTermArrays().length], q, q.getTermArrays(), q.getPositions(), searcher, flatQueries);
         } else if (sourceQuery instanceof BlendedTermQuery blendedTermQuery) {
-            flatten(blendedTermQuery.rewrite(reader), reader, flatQueries, boost);
+            flatten(blendedTermQuery.rewrite(searcher), searcher, flatQueries, boost);
         } else if (sourceQuery instanceof org.apache.lucene.queries.function.FunctionScoreQuery funcScoreQuery) {
             // flatten query with query boost
-            flatten(funcScoreQuery.getWrappedQuery(), reader, flatQueries, boost);
+            flatten(funcScoreQuery.getWrappedQuery(), searcher, flatQueries, boost);
         } else if (sourceQuery instanceof SynonymQuery synQuery) {
             // SynonymQuery should be handled by the parent class directly.
             // This statement should be removed when https://issues.apache.org/jira/browse/LUCENE-7484 is merged.
             for (Term term : synQuery.getTerms()) {
-                flatten(new TermQuery(term), reader, flatQueries, boost);
+                flatten(new TermQuery(term), searcher, flatQueries, boost);
             }
         } else if (sourceQuery instanceof CombinedFieldQuery combinedFieldQuery) {
             for (Term term : combinedFieldQuery.getTerms()) {
-                flatten(new TermQuery(term), reader, flatQueries, boost);
+                flatten(new TermQuery(term), searcher, flatQueries, boost);
             }
         } else if (sourceQuery instanceof ESToParentBlockJoinQuery) {
             Query childQuery = ((ESToParentBlockJoinQuery) sourceQuery).getChildQuery();
             if (childQuery != null) {
-                flatten(childQuery, reader, flatQueries, boost);
+                flatten(childQuery, searcher, flatQueries, boost);
             }
         } else {
-            super.flatten(sourceQuery, reader, flatQueries, boost);
+            super.flatten(sourceQuery, searcher, flatQueries, boost);
         }
     }
 
@@ -91,7 +92,7 @@ public class CustomFieldQuery extends FieldQuery {
         MultiPhraseQuery orig,
         Term[][] terms,
         int[] pos,
-        IndexReader reader,
+        IndexSearcher searcher,
         Collection<Query> flatQueries
     ) throws IOException {
         if (currentPos == 0) {
@@ -103,7 +104,7 @@ public class CustomFieldQuery extends FieldQuery {
             if (numTerms > 16) {
                 for (Term[] currentPosTerm : terms) {
                     for (Term term : currentPosTerm) {
-                        super.flatten(new TermQuery(term), reader, flatQueries, 1F);
+                        super.flatten(new TermQuery(term), searcher, flatQueries, 1F);
                     }
                 }
                 return;
@@ -120,12 +121,12 @@ public class CustomFieldQuery extends FieldQuery {
                 queryBuilder.add(terms[i][termsIdx[i]], pos[i]);
             }
             Query query = queryBuilder.build();
-            this.flatten(query, reader, flatQueries, 1F);
+            this.flatten(query, searcher, flatQueries, 1F);
         } else {
             Term[] t = terms[currentPos];
             for (int i = 0; i < t.length; i++) {
                 termsIdx[currentPos] = i;
-                convertMultiPhraseQuery(currentPos + 1, termsIdx, orig, terms, pos, reader, flatQueries);
+                convertMultiPhraseQuery(currentPos + 1, termsIdx, orig, terms, pos, searcher, flatQueries);
             }
         }
     }

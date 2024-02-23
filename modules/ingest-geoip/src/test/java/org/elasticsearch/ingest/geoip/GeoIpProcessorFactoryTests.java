@@ -37,7 +37,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
@@ -45,6 +44,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.instanceOf;
@@ -54,6 +54,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class GeoIpProcessorFactoryTests extends ESTestCase {
+
+    static Set<String> DEFAULT_DATABASE_FILENAMES = Set.of("GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb", "GeoLite2-Country.mmdb");
 
     private Path geoipTmpDir;
     private Path geoIpConfigDir;
@@ -185,7 +187,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         EnumSet<GeoIpProcessor.Property> asnOnlyProperties = EnumSet.copyOf(GeoIpProcessor.Property.ALL_ASN_PROPERTIES);
         asnOnlyProperties.remove(GeoIpProcessor.Property.IP);
         String asnProperty = RandomPicks.randomFrom(Randomness.get(), asnOnlyProperties).toString();
-        config.put("properties", Collections.singletonList(asnProperty));
+        config.put("properties", List.of(asnProperty));
         Exception e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, null, null, config));
         assertThat(
             e.getMessage(),
@@ -205,7 +207,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         EnumSet<GeoIpProcessor.Property> cityOnlyProperties = EnumSet.copyOf(GeoIpProcessor.Property.ALL_CITY_PROPERTIES);
         cityOnlyProperties.remove(GeoIpProcessor.Property.IP);
         String cityProperty = RandomPicks.randomFrom(Randomness.get(), cityOnlyProperties).toString();
-        config.put("properties", Collections.singletonList(cityProperty));
+        config.put("properties", List.of(cityProperty));
         Exception e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, null, null, config));
         assertThat(
             e.getMessage(),
@@ -224,8 +226,8 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
         config.put("database_file", "does-not-exist.mmdb");
-        Exception e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, null, null, config));
-        assertThat(e.getMessage(), equalTo("[database_file] database file [does-not-exist.mmdb] doesn't exist"));
+        Processor processor = factory.create(null, null, null, config);
+        assertThat(processor, instanceOf(GeoIpProcessor.DatabaseUnavailableProcessor.class));
     }
 
     public void testBuildBuiltinDatabaseMissing() throws Exception {
@@ -234,7 +236,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
 
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
-        config.put("database_file", randomFrom(IngestGeoIpPlugin.DEFAULT_DATABASE_FILENAMES));
+        config.put("database_file", randomFrom(DEFAULT_DATABASE_FILENAMES));
         Processor processor = factory.create(null, null, null, config);
         assertThat(processor, instanceOf(GeoIpProcessor.DatabaseUnavailableProcessor.class));
     }
@@ -268,7 +270,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
 
         Map<String, Object> config1 = new HashMap<>();
         config1.put("field", "_field");
-        config1.put("properties", Collections.singletonList("invalid"));
+        config1.put("properties", List.of("invalid"));
         Exception e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, null, null, config1));
         assertThat(
             e.getMessage(),
@@ -311,7 +313,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
             assertNull(lazyLoader.databaseReader.get());
         }
 
-        final Map<String, Object> field = Collections.singletonMap("_field", "1.1.1.1");
+        final Map<String, Object> field = Map.of("_field", "1.1.1.1");
         final IngestDocument document = new IngestDocument("index", "id", 1L, "routing", VersionType.EXTERNAL, field);
 
         Map<String, Object> config = new HashMap<>();
@@ -381,7 +383,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
             assertNull(lazyLoader.databaseReader.get());
         }
 
-        final Map<String, Object> field = Collections.singletonMap("_field", "1.1.1.1");
+        final Map<String, Object> field = Map.of("_field", "1.1.1.1");
         final IngestDocument document = new IngestDocument("index", "id", 1L, "routing", VersionType.EXTERNAL, field);
 
         Map<String, Object> config = new HashMap<>();
@@ -405,6 +407,16 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         config.put("fallback_to_default_databases", randomBoolean());
         factory.create(null, null, null, config);
         assertWarnings(GeoIpProcessor.DEFAULT_DATABASES_DEPRECATION_MESSAGE);
+    }
+
+    public void testDownloadDatabaseOnPipelineCreation() throws IOException {
+        GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(databaseNodeService);
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", randomIdentifier());
+        config.put("download_database_on_pipeline_creation", randomBoolean());
+        factory.create(null, null, null, config);
+        // Check all the config params were consumed.
+        assertThat(config, anEmptyMap());
     }
 
     public void testDefaultDatabaseWithTaskPresent() throws Exception {
@@ -522,14 +534,14 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
     }
 
     static void copyDatabaseFiles(final Path path, ConfigDatabases configDatabases) throws IOException {
-        for (final String databaseFilename : IngestGeoIpPlugin.DEFAULT_DATABASE_FILENAMES) {
+        for (final String databaseFilename : DEFAULT_DATABASE_FILENAMES) {
             copyDatabaseFile(path, databaseFilename);
             configDatabases.updateDatabase(path.resolve(databaseFilename), true);
         }
     }
 
     static void cleanDatabaseFiles(final Path path, ConfigDatabases configDatabases) throws IOException {
-        for (final String databaseFilename : IngestGeoIpPlugin.DEFAULT_DATABASE_FILENAMES) {
+        for (final String databaseFilename : DEFAULT_DATABASE_FILENAMES) {
             configDatabases.updateDatabase(path.resolve(databaseFilename), false);
         }
     }

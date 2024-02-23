@@ -75,7 +75,7 @@ index's name.
 .Use date math with index alias rollovers
 ****
 If you use an index alias for time series data, you can use
-<<date-math-index-names,date math>> in the index name to track the rollover
+<<api-date-math-index-names,date math>> in the index name to track the rollover
 date. For example, you can create an alias that points to an index named
 `<my-index-{now/d}-000001>`. If you create the index on May 6, 2099, the index's
 name is `my-index-2099.05.06-000001`. If you roll over the alias on May 7, 2099,
@@ -98,7 +98,7 @@ Name of the data stream or index alias to roll over.
 
 `<target-index>`::
 (Optional, string)
-Name of the index to create. Supports <<date-math-index-names,date math>>. Data
+Name of the index to create. Supports <<api-date-math-index-names,date math>>. Data
 streams do not support this parameter.
 +
 If the name of the alias's current write index does not end with `-` and a
@@ -113,6 +113,11 @@ include::{es-repo-dir}/indices/create-index.asciidoc[tag=index-name-reqs]
 (Optional, Boolean)
 If `true`, checks whether the current index satisfies the specified
 `conditions` but does not perform a rollover. Defaults to `false`.
+
+`lazy`::
+(Optional, Boolean)
+If `true`, signals that the data stream will be rolled over when the next
+indexing operation occurs. Applies only to data streams. Defaults to `false`.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
 
@@ -204,6 +209,11 @@ conditions were specified, this is an empty object.
 index met the condition.
 ====
 
+`lazy`::
+(Boolean)
+If `true`, {es} did not perform the rollover, but successfully marked the data stream to be rolled
+over at the next indexing event.
+
 [[rollover-index-api-example]]
 ==== {api-examples-title}
 
@@ -217,6 +227,17 @@ The following request rolls over a data stream unconditionally.
 POST my-data-stream/_rollover
 ----
 // TEST[setup:my_data_stream]
+
+The following request rolls over a data stream lazily, meaning that the data stream
+will roll over at the next indexing event. This ensures that mapping and setting changes
+will be applied to the coming data, but it will avoid creating extra backing indices for
+data streams with slow ingestion.
+
+[source,console]
+----
+POST my-data-stream/_rollover?lazy
+----
+// TEST[continued]
 
 :target: data stream
 :index: write index
@@ -257,6 +278,7 @@ The API returns:
   "new_index": ".ds-my-data-stream-2099.05.07-000002",
   "rolled_over": true,
   "dry_run": false,
+  "lazy": false,
   "conditions": {
     "[max_age: 7d]": false,
     "[max_docs: 1000]": true,
@@ -328,6 +350,7 @@ The API returns:
   "new_index": "my-index-2099.05.07-000002",
   "rolled_over": true,
   "dry_run": false,
+  "lazy": false,
   "conditions": {
     "[max_age: 7d]": false,
     "[max_docs: 1000]": true,
@@ -399,6 +422,7 @@ The API returns:
   "new_index": "my-index-2099.05.07-000002",
   "rolled_over": true,
   "dry_run": false,
+  "lazy": false,
   "conditions": {
     "[max_age: 7d]": false,
     "[max_docs: 1000]": true,

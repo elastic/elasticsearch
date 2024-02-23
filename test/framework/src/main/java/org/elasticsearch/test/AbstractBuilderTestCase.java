@@ -13,7 +13,6 @@ import com.carrotsearch.randomizedtesting.SeedUtils;
 
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.util.Accountable;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.get.GetRequest;
@@ -37,15 +36,23 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexService.IndexCreationContext;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.query.CoordinatorRewriteContext;
+import org.elasticsearch.index.query.DataRewriteContext;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.analysis.AnalysisModule;
@@ -68,7 +75,9 @@ import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.junit.After;
@@ -209,7 +218,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
 
     protected Settings createTestIndexSettings() {
         // we have to prefer CURRENT since with the range of versions we support it's rather unlikely to get the current actually.
-        Version indexVersionCreated = randomBoolean() ? Version.CURRENT : VersionUtils.randomIndexCompatibleVersion(random());
+        IndexVersion indexVersionCreated = randomBoolean() ? IndexVersion.current() : IndexVersionUtils.randomCompatibleVersion(random());
         return Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, indexVersionCreated).build();
     }
 
@@ -318,6 +327,18 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
         return serviceHolder.createShardContext(searcher);
     }
 
+    protected static CoordinatorRewriteContext createCoordinatorRewriteContext(
+        DateFieldMapper.DateFieldType dateFieldType,
+        long min,
+        long max
+    ) {
+        return serviceHolder.createCoordinatorContext(dateFieldType, min, max);
+    }
+
+    protected static DataRewriteContext dataRewriteContext() {
+        return serviceHolder.createDataContext();
+    }
+
     /**
      * @return a new {@link SearchExecutionContext} based on an index with no type registered
      */
@@ -330,6 +351,10 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
      */
     protected static SearchExecutionContext createSearchExecutionContext() {
         return createSearchExecutionContext(null);
+    }
+
+    protected static QueryRewriteContext createQueryRewriteContext() {
+        return serviceHolder.createQueryRewriteContext();
     }
 
     private static class ClientInvocationHandler implements InvocationHandler {
@@ -408,15 +433,14 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 new Class<?>[] { Client.class },
                 clientInvocationHandler
             );
-            ScriptModule scriptModule = createScriptModule(pluginsService.filterPlugins(ScriptPlugin.class));
+            ScriptModule scriptModule = createScriptModule(pluginsService.filterPlugins(ScriptPlugin.class).toList());
             SettingsModule settingsModule = new SettingsModule(
                 nodeSettings,
                 pluginsService.flatMap(Plugin::getSettings).toList(),
-                pluginsService.flatMap(Plugin::getSettingsFilter).toList(),
-                Collections.emptySet()
+                pluginsService.flatMap(Plugin::getSettingsFilter).toList()
             );
-            searchModule = new SearchModule(nodeSettings, pluginsService.filterPlugins(SearchPlugin.class));
-            IndicesModule indicesModule = new IndicesModule(pluginsService.filterPlugins(MapperPlugin.class));
+            searchModule = new SearchModule(nodeSettings, pluginsService.filterPlugins(SearchPlugin.class).toList());
+            IndicesModule indicesModule = new IndicesModule(pluginsService.filterPlugins(MapperPlugin.class).toList());
             List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
             entries.addAll(IndicesModule.getNamedWriteables());
             entries.addAll(searchModule.getNamedWriteables());
@@ -433,7 +457,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 emptyList(),
                 new StablePluginsRegistry()
             );
-            IndexAnalyzers indexAnalyzers = analysisModule.getAnalysisRegistry().build(idxSettings);
+            IndexAnalyzers indexAnalyzers = analysisModule.getAnalysisRegistry().build(IndexCreationContext.CREATE_INDEX, idxSettings);
             scriptService = new MockScriptService(Settings.EMPTY, scriptModule.engines, scriptModule.contexts);
             similarityService = new SimilarityService(idxSettings, null, Collections.emptyMap());
             MapperRegistry mapperRegistry = indicesModule.getMapperRegistry();
@@ -557,6 +581,42 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 null,
                 emptyMap()
             );
+        }
+
+        QueryRewriteContext createQueryRewriteContext() {
+            return new QueryRewriteContext(
+                parserConfiguration,
+                client,
+                () -> nowInMillis,
+                mapperService,
+                mapperService.mappingLookup(),
+                emptyMap(),
+                null,
+                idxSettings,
+                new Index(
+                    RemoteClusterAware.buildRemoteIndexName(null, idxSettings.getIndex().getName()),
+                    idxSettings.getIndex().getUUID()
+                ),
+                indexNameMatcher(),
+                namedWriteableRegistry,
+                null,
+                () -> true,
+                scriptService
+            );
+        }
+
+        CoordinatorRewriteContext createCoordinatorContext(DateFieldMapper.DateFieldType dateFieldType, long min, long max) {
+            return new CoordinatorRewriteContext(
+                parserConfiguration,
+                this.client,
+                () -> nowInMillis,
+                IndexLongFieldRange.NO_SHARDS.extendWithShardRange(0, 1, ShardLongFieldRange.of(min, max)),
+                dateFieldType
+            );
+        }
+
+        DataRewriteContext createDataContext() {
+            return new DataRewriteContext(parserConfiguration, this.client, () -> nowInMillis);
         }
 
         ScriptModule createScriptModule(List<ScriptPlugin> scriptPlugins) {

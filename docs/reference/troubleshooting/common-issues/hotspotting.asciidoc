@@ -259,8 +259,14 @@ direct indices:data/read/eql 10m           node_1  true
 // TEST[skip:illustrative response only]
 
 This surfaces a problematic <<eql-search-api,EQL query>>. We can gain 
-further insight on it via <<tasks,the task management API>>. Its response 
-contains a `description` that reports this query:
+further insight on it via <<tasks,the task management API>>,
+
+[source,console]
+----
+GET _tasks?human&detailed
+----
+
+Its response contains a `description` that reports this query:
 
 [source,eql]
 ----

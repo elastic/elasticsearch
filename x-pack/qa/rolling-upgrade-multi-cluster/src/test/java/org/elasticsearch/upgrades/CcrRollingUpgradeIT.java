@@ -13,17 +13,22 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ObjectPath;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HITS_AS_INT_PARAM;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/102000")
     public void testUniDirectionalIndexFollowing() throws Exception {
         logger.info("clusterName={}, upgradeState={}", clusterName, upgradeState);
 
@@ -128,7 +133,6 @@ public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
                     createLeaderIndex(leaderClient(), leaderIndex1);
                     index(leaderClient(), leaderIndex1, 64);
                     assertBusy(() -> {
-
                         String followerIndex = "copy-" + leaderIndex1;
                         assertThat(getNumberOfSuccessfulFollowedIndices(), equalTo(1));
                         assertTotalHitCount(followerIndex, 64, followerClient());
@@ -202,6 +206,7 @@ public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/104620")
     public void testCannotFollowLeaderInUpgradedCluster() throws Exception {
         if (upgradeState != UpgradeState.ALL) {
             return;
@@ -222,8 +227,24 @@ public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
                 ResponseException.class,
                 () -> followIndex(leaderClient(), "follower", "not_supported", "not_supported")
             );
-            assertThat(e.getMessage(), containsString("the snapshot was created with Elasticsearch version ["));
-            assertThat(e.getMessage(), containsString("] which is higher than the version of this node ["));
+
+            assertThat(
+                e.getMessage(),
+                anyOf(
+                    allOf(
+                        containsString("the snapshot was created with index version ["),
+                        containsString("] which is higher than the version used by this node [")
+                    ),
+                    allOf(
+                        containsString("the snapshot was created with version ["),
+                        containsString("] which is higher than the version of this node [")
+                    ),
+                    allOf(
+                        containsString("the snapshot was created with Elasticsearch version ["),
+                        containsString("] which is higher than the version of this node [")
+                    )
+                )
+            );
         } else if (clusterName == ClusterName.LEADER) {
             // At this point all nodes in both clusters have been updated and
             // the leader cluster can now follow not_supported index in the follower cluster:
@@ -235,7 +256,6 @@ public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/91458")
     public void testBiDirectionalIndexFollowing() throws Exception {
         logger.info("clusterName={}, upgradeState={}", clusterName, upgradeState);
 
@@ -244,8 +264,8 @@ public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
                 case NONE -> {
                     createLeaderIndex(leaderClient(), "leader_index5");
                     index(leaderClient(), "leader_index5", 128);
-                    followIndex(followerClient(), "leader", "leader_index5", "follower_index5");
-                    followIndex(leaderClient(), "follower", "follower_index5", "follower_index6");
+                    followIndexIgnoringBadRequests(followerClient(), "leader", "leader_index5", "follower_index5");
+                    followIndexIgnoringBadRequests(leaderClient(), "follower", "follower_index5", "follower_index6");
                     assertTotalHitCount("follower_index5", 128, followerClient());
                     assertTotalHitCount("follower_index6", 128, leaderClient());
                     index(leaderClient(), "leader_index5", 128);
@@ -300,6 +320,26 @@ public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
         assertOK(client.performRequest(request));
     }
 
+    private static void followIndexIgnoringBadRequests(RestClient client, String leaderCluster, String leaderIndex, String followIndex)
+        throws Exception {
+        assertBusy(() -> {
+            try {
+                followIndex(client, leaderCluster, leaderIndex, followIndex);
+            } catch (ResponseException e) {
+                if (e.getResponse().getStatusLine().getStatusCode() == RestStatus.BAD_REQUEST.getStatus()) {
+                    // Following a CCR leader index requires to retrieve the index stats at some point, which can return a Bad Request
+                    // response if the coordinating node on the remote cluster doesn't know about the leader index yet. It often fails in
+                    // bi-directionnal CCR test so we work around this issue by retrying with some assertBusy backoff.
+                    throw new AssertionError(
+                        "Receive bad request response after trying to follow index [" + leaderIndex + "], retrying",
+                        e
+                    );
+                }
+                throw e;
+            }
+        }, 30L, TimeUnit.SECONDS);
+    }
+
     private static void putAutoFollowPattern(RestClient client, String name, String remoteCluster, String pattern) throws IOException {
         Request request = new Request("PUT", "/_ccr/auto_follow/" + name);
         request.setJsonEntity(Strings.format("""
@@ -347,7 +387,8 @@ public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
     private static void verifyTotalHitCount(final String index, final int expectedTotalHits, final RestClient client) throws IOException {
         final Request request = new Request("GET", "/" + index + "/_search");
         request.addParameter(TOTAL_HITS_AS_INT_PARAM, "true");
-        Map<?, ?> response = toMap(client.performRequest(request));
+        setIgnoredErrorResponseCodes(request, RestStatus.NOT_FOUND); // trip the assertOK (i.e. retry an assertBusy) rather than throwing
+        Map<?, ?> response = toMap(assertOK(client.performRequest(request)));
         final int totalHits = (int) XContentMapValues.extractValue("hits.total", response);
         assertThat(totalHits, equalTo(expectedTotalHits));
     }

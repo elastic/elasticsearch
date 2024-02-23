@@ -327,7 +327,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
             final CollatorParams params = collatorParams();
             final Collator collator = params.buildCollator();
             CollationFieldType ft = new CollationFieldType(
-                context.buildFullName(name),
+                context.buildFullName(name()),
                 indexed.getValue(),
                 stored.getValue(),
                 hasDocValues.getValue(),
@@ -337,11 +337,11 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
                 meta.getValue()
             );
             return new ICUCollationKeywordFieldMapper(
-                name,
+                name(),
                 buildFieldType(),
                 ft,
                 multiFieldsBuilder.build(this, context),
-                copyTo.build(),
+                copyTo,
                 collator,
                 this
             );
@@ -481,7 +481,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
     ) {
         super(simpleName, mappedFieldType, multiFields, copyTo, false, null);
         assert collator.isFrozen();
-        this.fieldType = fieldType;
+        this.fieldType = freezeAndDeduplicateFieldType(fieldType);
         this.params = builder.collatorParams();
         this.ignoreAbove = builder.ignoreAbove.getValue();
         this.collator = collator;

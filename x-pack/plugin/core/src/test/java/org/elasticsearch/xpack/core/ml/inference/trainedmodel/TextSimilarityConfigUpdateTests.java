@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xcontent.XContentParser;
@@ -40,15 +41,10 @@ public class TextSimilarityConfigUpdateTests extends AbstractNlpConfigUpdateTest
     }
 
     public static TextSimilarityConfigUpdate mutateForVersion(TextSimilarityConfigUpdate instance, TransportVersion version) {
-        if (version.before(TransportVersion.V_8_1_0)) {
+        if (version.before(TransportVersions.V_8_1_0)) {
             return new TextSimilarityConfigUpdate(instance.getText(), instance.getResultsField(), null, null);
         }
         return instance;
-    }
-
-    @Override
-    protected boolean supportsUnknownFields() {
-        return false;
     }
 
     @Override
@@ -131,7 +127,7 @@ public class TextSimilarityConfigUpdateTests extends AbstractNlpConfigUpdateTest
                 originalConfig.getResultsField(),
                 originalConfig.getSpanScoreFunction()
             ),
-            equalTo(new TextSimilarityConfigUpdate.Builder().setText("Are you my mother?").build().apply(originalConfig))
+            equalTo(originalConfig.apply(new TextSimilarityConfigUpdate.Builder().setText("Are you my mother?").build()))
         );
         assertThat(
             new TextSimilarityConfig(
@@ -142,10 +138,9 @@ public class TextSimilarityConfigUpdateTests extends AbstractNlpConfigUpdateTest
                 originalConfig.getSpanScoreFunction()
             ),
             equalTo(
-                new TextSimilarityConfigUpdate.Builder().setText("Are you my mother?")
-                    .setResultsField("updated-field")
-                    .build()
-                    .apply(originalConfig)
+                originalConfig.apply(
+                    new TextSimilarityConfigUpdate.Builder().setText("Are you my mother?").setResultsField("updated-field").build()
+                )
             )
         );
 
@@ -160,10 +155,11 @@ public class TextSimilarityConfigUpdateTests extends AbstractNlpConfigUpdateTest
                 originalConfig.getSpanScoreFunction()
             ),
             equalTo(
-                new TextSimilarityConfigUpdate.Builder().setText("Are you my mother?")
-                    .setTokenizationUpdate(createTokenizationUpdate(originalConfig.getTokenization(), truncate, null))
-                    .build()
-                    .apply(originalConfig)
+                originalConfig.apply(
+                    new TextSimilarityConfigUpdate.Builder().setText("Are you my mother?")
+                        .setTokenizationUpdate(createTokenizationUpdate(originalConfig.getTokenization(), truncate, null))
+                        .build()
+                )
             )
         );
     }

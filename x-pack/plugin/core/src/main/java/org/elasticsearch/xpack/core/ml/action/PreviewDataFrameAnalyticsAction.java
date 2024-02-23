@@ -37,7 +37,7 @@ public class PreviewDataFrameAnalyticsAction extends ActionType<PreviewDataFrame
     public static final String NAME = "cluster:admin/xpack/ml/data_frame/analytics/preview";
 
     private PreviewDataFrameAnalyticsAction() {
-        super(NAME, PreviewDataFrameAnalyticsAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends ActionRequest {
@@ -143,7 +143,7 @@ public class PreviewDataFrameAnalyticsAction extends ActionType<PreviewDataFrame
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            this.featureValues = in.readList(StreamInput::readMap);
+            this.featureValues = in.readCollectionAsList(StreamInput::readGenericMap);
         }
 
         public List<Map<String, Object>> getFeatureValues() {

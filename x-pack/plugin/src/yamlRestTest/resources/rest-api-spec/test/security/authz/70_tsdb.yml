@@ -104,13 +104,13 @@ document level security on tag:
 
   - match: {hits.total.value: 4}
   - length: {aggregations.tsids.buckets: 1}
-  - match: {aggregations.tsids.buckets.0.key: {k8s.pod.uid: 947e4ced-1786-4e53-9e0c-5c447e959507, metricset: pod}}
+  - match: {aggregations.tsids.buckets.0.key: "KCjEJ9R_BgO8TRX2QOd6dpR12oDh--qoyNZRQPy43y34Qdy2dpsyG0o"}
   - match: {aggregations.tsids.buckets.0.doc_count: 4}
 
 ---
 document level security on dimension:
   - skip:
-      version: " - 8.0.99"
+      version: " - 8.11.99"
       reason: _tsid support introduced in 8.1.0
       features: headers
 
@@ -151,7 +151,7 @@ document level security on dimension:
 
   - match: { hits.total.value: 4 }
   - length: { aggregations.tsids.buckets: 1 }
-  - match: {aggregations.tsids.buckets.0.key: {k8s.pod.uid: 947e4ced-1786-4e53-9e0c-5c447e959507, metricset: pod}}
+  - match: {aggregations.tsids.buckets.0.key: "KCjEJ9R_BgO8TRX2QOd6dpR12oDh--qoyNZRQPy43y34Qdy2dpsyG0o"}
   - match: {aggregations.tsids.buckets.0.doc_count: 4}
 
 ---
@@ -232,7 +232,6 @@ create_doc permission can create:
   - do:
       headers: { Authorization: "Basic bGltaXRlZDp4LXBhY2stdGVzdC1wYXNzd29yZA==" } # limited - user
       bulk:
-        refresh: true
         index: test
         body:
           - '{"create": {}}'
@@ -242,7 +241,6 @@ create_doc permission can create:
   - do:
       headers: { Authorization: "Basic bGltaXRlZDp4LXBhY2stdGVzdC1wYXNzd29yZA==" } # limited - user
       index:
-        refresh: true
         index: test
         body:
           "@timestamp": "2021-04-28T23:51:03.142Z"
@@ -256,6 +254,16 @@ create_doc permission can create:
                 tx: 111434595272
                 rx: 430605511
   - match: { _version: 1 }
+
+  - do: # superuser
+      indices.refresh:
+        index: test
+  - do:
+      search:
+        index: test
+    # Original 8 docs ("setup") + 2 more (above)
+  - match: { hits.total.value: 10 }
+  - match: { hits.total.relation: "eq" }
 
 ---
 create_doc permission can't overwrite:
@@ -290,7 +298,6 @@ create_doc permission can't overwrite:
   - do:
       headers: { Authorization: "Basic bGltaXRlZDp4LXBhY2stdGVzdC1wYXNzd29yZA==" } # limited - user
       bulk:
-        refresh: true
         index: test
         body:
           - '{"index": {}}'
@@ -301,7 +308,6 @@ create_doc permission can't overwrite:
       headers: { Authorization: "Basic bGltaXRlZDp4LXBhY2stdGVzdC1wYXNzd29yZA==" } # limited - user
       catch: "/is\ unauthorized\ for\ user\ \\[limited\\]/"
       index:
-        refresh: true
         index: test
         op_type: index
         body:
@@ -315,6 +321,16 @@ create_doc permission can't overwrite:
               network:
                 tx: 111434595272
                 rx: 430605511
+
+  - do: # superuser
+      indices.refresh:
+        index: test
+  - do:
+      search:
+        index: test
+    # Original 8 docs ("setup") but no more (above)
+  - match: { hits.total.value: 8 }
+  - match: { hits.total.relation: "eq" }
 
 ---
 index permission can create:
@@ -349,7 +365,6 @@ index permission can create:
   - do:
       headers: { Authorization: "Basic bGltaXRlZDp4LXBhY2stdGVzdC1wYXNzd29yZA==" } # limited - user
       bulk:
-        refresh: true
         index: test
         body:
           - '{"create": {}}'
@@ -359,7 +374,6 @@ index permission can create:
   - do:
       headers: { Authorization: "Basic bGltaXRlZDp4LXBhY2stdGVzdC1wYXNzd29yZA==" } # limited - user
       index:
-        refresh: true
         index: test
         body:
           "@timestamp": "2021-04-28T23:51:03.142Z"
@@ -373,6 +387,16 @@ index permission can create:
                 tx: 111434595272
                 rx: 430605511
   - match: { _version: 1 }
+
+  - do: # superuser
+      indices.refresh:
+        index: test
+  - do:
+      search:
+        index: test
+    # Original 8 docs ("setup") + 2 more (above)
+  - match: { hits.total.value: 10 }
+  - match: { hits.total.relation: "eq" }
 
 ---
 index permission can overwrite:
@@ -407,7 +431,6 @@ index permission can overwrite:
   - do:
       headers: { Authorization: "Basic bGltaXRlZDp4LXBhY2stdGVzdC1wYXNzd29yZA==" } # limited - user
       bulk:
-        refresh: true
         index: test
         body:
           - '{"index": {}}'
@@ -417,7 +440,6 @@ index permission can overwrite:
   - do:
       headers: { Authorization: "Basic bGltaXRlZDp4LXBhY2stdGVzdC1wYXNzd29yZA==" } # limited - user
       index:
-        refresh: true
         index: test
         op_type: index
         body:
@@ -432,3 +454,13 @@ index permission can overwrite:
                 tx: 111434595272
                 rx: 430605511
   - match: { _version: 2 }
+
+  - do: # superuser
+      indices.refresh:
+        index: test
+  - do:
+      search:
+        index: test
+    # Original 8 docs ("setup") even though 2 have been overwritten (above)
+  - match: { hits.total.value: 8 }
+  - match: { hits.total.relation: "eq" }

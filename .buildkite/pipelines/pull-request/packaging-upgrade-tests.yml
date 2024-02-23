@@ -1,0 +1,22 @@
+config:
+  allow-labels: ":Delivery/Packaging"
+steps:
+  - group: packaging-tests-upgrade
+    steps:
+      - label: "{{matrix.image}} / $BWC_VERSION / packaging-tests-upgrade"
+        key: "packaging-tests-upgrade:$BWC_VERSION_SNAKE"
+        command: ./.ci/scripts/packaging-test.sh destructiveDistroUpgradeTest.v$BWC_VERSION
+        timeout_in_minutes: 300
+        bwc_template: true
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: $BWC_VERSION

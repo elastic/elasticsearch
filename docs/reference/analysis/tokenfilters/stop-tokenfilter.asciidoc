@@ -356,6 +356,10 @@ parameter and a link to their predefined stop words in Lucene.
 `_russian_`::
 {lucene-stop-word-link}/snowball/russian_stop.txt[Russian stop words]
 
+[[serbian-stop-words]]
+`_serbian_`::
+{lucene-stop-word-link}/sr/stopwords.txt[Serbian stop words]
+
 [[sorani-stop-words]]
 `_sorani_`::
 {lucene-stop-word-link}/ckb/stopwords.txt[Sorani stop words]

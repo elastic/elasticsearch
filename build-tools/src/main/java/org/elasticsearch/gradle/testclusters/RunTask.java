@@ -31,7 +31,7 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-public class RunTask extends DefaultTestClustersTask {
+public abstract class RunTask extends DefaultTestClustersTask {
 
     public static final String CUSTOM_SETTINGS_PREFIX = "tests.es.";
     private static final Logger logger = Logging.getLogger(RunTask.class);
@@ -40,6 +40,8 @@ public class RunTask extends DefaultTestClustersTask {
     private static final String transportCertificate = "private-cert2.p12";
 
     private Boolean debug = false;
+    private Boolean cliDebug = false;
+    private Boolean apmServerEnabled = false;
 
     private Boolean preserveData = false;
 
@@ -54,15 +56,36 @@ public class RunTask extends DefaultTestClustersTask {
     private final Path tlsBasePath = Path.of(
         new File(getProject().getRootDir(), "build-tools-internal/src/main/resources/run.ssl").toURI()
     );
+    private MockApmServer mockServer;
 
     @Option(option = "debug-jvm", description = "Enable debugging configuration, to allow attaching a debugger to elasticsearch.")
     public void setDebug(boolean enabled) {
         this.debug = enabled;
     }
 
+    @Option(option = "debug-cli-jvm", description = "Enable debugging configuration, to allow attaching a debugger to the cli launcher.")
+    public void setCliDebug(boolean enabled) {
+        this.cliDebug = enabled;
+    }
+
     @Input
     public Boolean getDebug() {
         return debug;
+    }
+
+    @Input
+    public Boolean getCliDebug() {
+        return cliDebug;
+    }
+
+    @Input
+    public Boolean getApmServerEnabled() {
+        return apmServerEnabled;
+    }
+
+    @Option(option = "with-apm-server", description = "Run simple logging http server to accept apm requests")
+    public void setApmServerEnabled(Boolean apmServerEnabled) {
+        this.apmServerEnabled = apmServerEnabled;
     }
 
     @Option(option = "data-dir", description = "Override the base data directory used by the testcluster")
@@ -136,7 +159,7 @@ public class RunTask extends DefaultTestClustersTask {
                     entry -> entry.getValue().toString()
                 )
             );
-        boolean singleNode = getClusters().stream().flatMap(c -> c.getNodes().stream()).count() == 1;
+        boolean singleNode = getClusters().stream().mapToLong(c -> c.getNodes().size()).sum() == 1;
         final Function<ElasticsearchNode, Path> getDataPath;
         if (singleNode) {
             getDataPath = n -> dataDir;
@@ -172,10 +195,36 @@ public class RunTask extends DefaultTestClustersTask {
                     node.setting("xpack.security.transport.ssl.keystore.path", "transport.keystore");
                     node.setting("xpack.security.transport.ssl.certificate_authorities", "transport.ca");
                 }
+
+                if (apmServerEnabled) {
+                    mockServer = new MockApmServer(9999);
+                    try {
+                        mockServer.start();
+                        node.setting("telemetry.metrics.enabled", "true");
+                        node.setting("telemetry.tracing.enabled", "true");
+                        node.setting("telemetry.agent.transaction_sample_rate", "0.10");
+                        node.setting("telemetry.agent.metrics_interval", "10s");
+                        node.setting("telemetry.agent.server_url", "http://127.0.0.1:" + mockServer.getPort());
+                    } catch (IOException e) {
+                        logger.warn("Unable to start APM server", e);
+                    }
+                }
+                // in serverless metrics are enabled by default
+                // if metrics were not enabled explicitly for gradlew run we should disable them
+                else if (node.getSettingKeys().contains("telemetry.metrics.enabled") == false) { // metrics
+                    node.setting("telemetry.metrics.enabled", "false");
+                } else if (node.getSettingKeys().contains("telemetry.tracing.enabled") == false
+                    && node.getSettingKeys().contains("tracing.apm.enabled") == false) { // tracing
+                        node.setting("telemetry.tracing.enable", "false");
+                    }
+
             }
         }
         if (debug) {
             enableDebug();
+        }
+        if (cliDebug) {
+            enableCliDebug();
         }
     }
 
@@ -241,6 +290,10 @@ public class RunTask extends DefaultTestClustersTask {
 
             if (thrown != null) {
                 logger.debug("exception occurred during close of stdout file readers", thrown);
+            }
+
+            if (apmServerEnabled && mockServer != null) {
+                mockServer.stop();
             }
         }
     }

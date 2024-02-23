@@ -169,7 +169,7 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
 
         void scheduleNextCheck() {
             if (connectionChecker == this) {
-                threadPool.scheduleUnlessShuttingDown(reconnectInterval, ThreadPool.Names.GENERIC, this);
+                threadPool.scheduleUnlessShuttingDown(reconnectInterval, threadPool.generic(), this);
             }
         }
 

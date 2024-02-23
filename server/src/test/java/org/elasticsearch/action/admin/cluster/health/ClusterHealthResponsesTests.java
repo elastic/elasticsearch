@@ -19,28 +19,122 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
 
+import static java.util.Collections.emptyMap;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.hamcrest.CoreMatchers.allOf;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class ClusterHealthResponsesTests extends AbstractXContentSerializingTestCase<ClusterHealthResponse> {
+
+    private static final ConstructingObjectParser<ClusterHealthResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "cluster_health_response",
+        true,
+        parsedObjects -> {
+            int i = 0;
+            // ClusterStateHealth fields
+            int numberOfNodes = (int) parsedObjects[i++];
+            int numberOfDataNodes = (int) parsedObjects[i++];
+            int activeShards = (int) parsedObjects[i++];
+            int relocatingShards = (int) parsedObjects[i++];
+            int activePrimaryShards = (int) parsedObjects[i++];
+            int initializingShards = (int) parsedObjects[i++];
+            int unassignedShards = (int) parsedObjects[i++];
+            double activeShardsPercent = (double) parsedObjects[i++];
+            String statusStr = (String) parsedObjects[i++];
+            ClusterHealthStatus status = ClusterHealthStatus.fromString(statusStr);
+            @SuppressWarnings("unchecked")
+            List<ClusterIndexHealth> indexList = (List<ClusterIndexHealth>) parsedObjects[i++];
+            final Map<String, ClusterIndexHealth> indices;
+            if (indexList == null || indexList.isEmpty()) {
+                indices = emptyMap();
+            } else {
+                indices = Maps.newMapWithExpectedSize(indexList.size());
+                for (ClusterIndexHealth indexHealth : indexList) {
+                    indices.put(indexHealth.getIndex(), indexHealth);
+                }
+            }
+            ClusterStateHealth stateHealth = new ClusterStateHealth(
+                activePrimaryShards,
+                activeShards,
+                relocatingShards,
+                initializingShards,
+                unassignedShards,
+                numberOfNodes,
+                numberOfDataNodes,
+                activeShardsPercent,
+                status,
+                indices
+            );
+
+            // ClusterHealthResponse fields
+            String clusterName = (String) parsedObjects[i++];
+            int numberOfPendingTasks = (int) parsedObjects[i++];
+            int numberOfInFlightFetch = (int) parsedObjects[i++];
+            int delayedUnassignedShards = (int) parsedObjects[i++];
+            long taskMaxWaitingTimeMillis = (long) parsedObjects[i++];
+            boolean timedOut = (boolean) parsedObjects[i];
+            return new ClusterHealthResponse(
+                clusterName,
+                numberOfPendingTasks,
+                numberOfInFlightFetch,
+                delayedUnassignedShards,
+                TimeValue.timeValueMillis(taskMaxWaitingTimeMillis),
+                timedOut,
+                stateHealth
+            );
+        }
+    );
+
+    private static final ObjectParser.NamedObjectParser<ClusterIndexHealth, Void> INDEX_PARSER = (
+        XContentParser parser,
+        Void context,
+        String index) -> ClusterIndexHealth.innerFromXContent(parser, index);
+
+    static {
+        // ClusterStateHealth fields
+        PARSER.declareInt(constructorArg(), new ParseField(ClusterHealthResponse.NUMBER_OF_NODES));
+        PARSER.declareInt(constructorArg(), new ParseField(ClusterHealthResponse.NUMBER_OF_DATA_NODES));
+        PARSER.declareInt(constructorArg(), new ParseField(ClusterHealthResponse.ACTIVE_SHARDS));
+        PARSER.declareInt(constructorArg(), new ParseField(ClusterHealthResponse.RELOCATING_SHARDS));
+        PARSER.declareInt(constructorArg(), new ParseField(ClusterHealthResponse.ACTIVE_PRIMARY_SHARDS));
+        PARSER.declareInt(constructorArg(), new ParseField(ClusterHealthResponse.INITIALIZING_SHARDS));
+        PARSER.declareInt(constructorArg(), new ParseField(ClusterHealthResponse.UNASSIGNED_SHARDS));
+        PARSER.declareDouble(constructorArg(), new ParseField(ClusterHealthResponse.ACTIVE_SHARDS_PERCENT_AS_NUMBER));
+        PARSER.declareString(constructorArg(), new ParseField(ClusterHealthResponse.STATUS));
+        // Can be absent if LEVEL == 'cluster'
+        PARSER.declareNamedObjects(optionalConstructorArg(), INDEX_PARSER, new ParseField(ClusterHealthResponse.INDICES));
+
+        // ClusterHealthResponse fields
+        PARSER.declareString(constructorArg(), new ParseField(ClusterHealthResponse.CLUSTER_NAME));
+        PARSER.declareInt(constructorArg(), new ParseField(ClusterHealthResponse.NUMBER_OF_PENDING_TASKS));
+        PARSER.declareInt(constructorArg(), new ParseField(ClusterHealthResponse.NUMBER_OF_IN_FLIGHT_FETCH));
+        PARSER.declareInt(constructorArg(), new ParseField(ClusterHealthResponse.DELAYED_UNASSIGNED_SHARDS));
+        PARSER.declareLong(constructorArg(), new ParseField(ClusterHealthResponse.TASK_MAX_WAIT_TIME_IN_QUEUE_IN_MILLIS));
+        PARSER.declareBoolean(constructorArg(), new ParseField(ClusterHealthResponse.TIMED_OUT));
+    }
+
     private final ClusterStatsLevel level = randomFrom(ClusterStatsLevel.values());
 
     public void testIsTimeout() {
@@ -56,7 +150,7 @@ public class ClusterHealthResponsesTests extends AbstractXContentSerializingTest
     }
 
     public void testClusterHealth() throws IOException {
-        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).build();
         int pendingTasks = randomIntBetween(0, 200);
         int inFlight = randomIntBetween(0, 200);
         int delayedUnassigned = randomIntBetween(0, 200);
@@ -103,7 +197,7 @@ public class ClusterHealthResponsesTests extends AbstractXContentSerializingTest
 
     @Override
     protected ClusterHealthResponse doParseInstance(XContentParser parser) {
-        return ClusterHealthResponse.fromXContent(parser);
+        return PARSER.apply(parser, null);
     }
 
     @Override

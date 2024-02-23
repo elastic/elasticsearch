@@ -22,7 +22,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalAggregationsTests;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ShardSearchContextId;
@@ -97,28 +97,38 @@ public class QuerySearchResultTests extends ESTestCase {
 
     public void testSerialization() throws Exception {
         QuerySearchResult querySearchResult = createTestInstance();
-        boolean delayed = randomBoolean();
-        QuerySearchResult deserialized = copyWriteable(
-            querySearchResult,
-            namedWriteableRegistry,
-            delayed ? in -> new QuerySearchResult(in, true) : QuerySearchResult::new,
-            TransportVersion.CURRENT
-        );
-        assertEquals(querySearchResult.getContextId().getId(), deserialized.getContextId().getId());
-        assertNull(deserialized.getSearchShardTarget());
-        assertEquals(querySearchResult.topDocs().maxScore, deserialized.topDocs().maxScore, 0f);
-        assertEquals(querySearchResult.topDocs().topDocs.totalHits, deserialized.topDocs().topDocs.totalHits);
-        assertEquals(querySearchResult.from(), deserialized.from());
-        assertEquals(querySearchResult.size(), deserialized.size());
-        assertEquals(querySearchResult.hasAggs(), deserialized.hasAggs());
-        if (deserialized.hasAggs()) {
-            assertThat(deserialized.aggregations().isSerialized(), is(delayed));
-            Aggregations aggs = querySearchResult.consumeAggs();
-            Aggregations deserializedAggs = deserialized.consumeAggs();
-            assertEquals(aggs.asList(), deserializedAggs.asList());
-            assertThat(deserialized.aggregations(), is(nullValue()));
+        try {
+            boolean delayed = randomBoolean();
+            QuerySearchResult deserialized = copyWriteable(
+                querySearchResult,
+                namedWriteableRegistry,
+                delayed ? in -> new QuerySearchResult(in, true) : QuerySearchResult::new,
+                TransportVersion.current()
+            );
+            try {
+                assertEquals(querySearchResult.getContextId().getId(), deserialized.getContextId().getId());
+                assertNull(deserialized.getSearchShardTarget());
+                assertEquals(querySearchResult.topDocs().maxScore, deserialized.topDocs().maxScore, 0f);
+                assertEquals(querySearchResult.topDocs().topDocs.totalHits, deserialized.topDocs().topDocs.totalHits);
+                assertEquals(querySearchResult.from(), deserialized.from());
+                assertEquals(querySearchResult.size(), deserialized.size());
+                assertEquals(querySearchResult.hasAggs(), deserialized.hasAggs());
+                if (deserialized.hasAggs()) {
+                    assertThat(deserialized.aggregations().isSerialized(), is(delayed));
+                    InternalAggregations aggs = querySearchResult.getAggs().expand();
+                    querySearchResult.releaseAggs();
+                    InternalAggregations deserializedAggs = deserialized.getAggs().expand();
+                    deserialized.releaseAggs();
+                    assertEquals(aggs.asList(), deserializedAggs.asList());
+                    assertThat(deserialized.aggregations(), is(nullValue()));
+                }
+                assertEquals(querySearchResult.terminatedEarly(), deserialized.terminatedEarly());
+            } finally {
+                deserialized.decRef();
+            }
+        } finally {
+            querySearchResult.decRef();
         }
-        assertEquals(querySearchResult.terminatedEarly(), deserialized.terminatedEarly());
     }
 
     public void testNullResponse() throws Exception {
@@ -127,7 +137,7 @@ public class QuerySearchResultTests extends ESTestCase {
             querySearchResult,
             namedWriteableRegistry,
             QuerySearchResult::new,
-            TransportVersion.CURRENT
+            TransportVersion.current()
         );
         assertEquals(querySearchResult.isNull(), deserialized.isNull());
     }

@@ -10,6 +10,7 @@ package org.elasticsearch.common.bytes;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
+import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.EOFException;
@@ -84,34 +85,27 @@ class BytesReferenceStreamInput extends StreamInput {
     }
 
     @Override
+    public String readString() throws IOException {
+        final int chars = readArraySize();
+        if (slice.hasArray()) {
+            // attempt reading bytes directly into a string to minimize copying
+            final String string = tryReadStringFromBytes(
+                slice.array(),
+                slice.position() + slice.arrayOffset(),
+                slice.limit() + slice.arrayOffset(),
+                chars
+            );
+            if (string != null) {
+                return string;
+            }
+        }
+        return doReadString(chars);
+    }
+
+    @Override
     public int readVInt() throws IOException {
         if (slice.remaining() >= 5) {
-            byte b = slice.get();
-            if (b >= 0) {
-                return b;
-            }
-            int i = b & 0x7F;
-            b = slice.get();
-            i |= (b & 0x7F) << 7;
-            if (b >= 0) {
-                return i;
-            }
-            b = slice.get();
-            i |= (b & 0x7F) << 14;
-            if (b >= 0) {
-                return i;
-            }
-            b = slice.get();
-            i |= (b & 0x7F) << 21;
-            if (b >= 0) {
-                return i;
-            }
-            b = slice.get();
-            i |= (b & 0x0F) << 28;
-            if ((b & 0xF0) == 0) {
-                return i;
-            }
-            throwOnBrokenVInt(b, i);
+            return ByteBufferStreamInput.readVInt(slice);
         }
         return super.readVInt();
     }
@@ -119,57 +113,7 @@ class BytesReferenceStreamInput extends StreamInput {
     @Override
     public long readVLong() throws IOException {
         if (slice.remaining() >= 10) {
-            byte b = slice.get();
-            long i = b & 0x7FL;
-            if ((b & 0x80) == 0) {
-                return i;
-            }
-            b = slice.get();
-            i |= (b & 0x7FL) << 7;
-            if ((b & 0x80) == 0) {
-                return i;
-            }
-            b = slice.get();
-            i |= (b & 0x7FL) << 14;
-            if ((b & 0x80) == 0) {
-                return i;
-            }
-            b = slice.get();
-            i |= (b & 0x7FL) << 21;
-            if ((b & 0x80) == 0) {
-                return i;
-            }
-            b = slice.get();
-            i |= (b & 0x7FL) << 28;
-            if ((b & 0x80) == 0) {
-                return i;
-            }
-            b = slice.get();
-            i |= (b & 0x7FL) << 35;
-            if ((b & 0x80) == 0) {
-                return i;
-            }
-            b = slice.get();
-            i |= (b & 0x7FL) << 42;
-            if ((b & 0x80) == 0) {
-                return i;
-            }
-            b = slice.get();
-            i |= (b & 0x7FL) << 49;
-            if ((b & 0x80) == 0) {
-                return i;
-            }
-            b = slice.get();
-            i |= ((b & 0x7FL) << 56);
-            if ((b & 0x80) == 0) {
-                return i;
-            }
-            b = slice.get();
-            if (b != 0 && b != 1) {
-                throwOnBrokenVLong(b, i);
-            }
-            i |= ((long) b) << 63;
-            return i;
+            return ByteBufferStreamInput.readVLong(slice);
         } else {
             return super.readVLong();
         }
@@ -217,6 +161,14 @@ class BytesReferenceStreamInput extends StreamInput {
 
     @Override
     public int read(final byte[] b, final int bOffset, final int len) throws IOException {
+        if (slice.remaining() >= len) {
+            slice.get(b, bOffset, len);
+            return len;
+        }
+        return readFromMultipleSlices(b, bOffset, len);
+    }
+
+    private int readFromMultipleSlices(byte[] b, int bOffset, int len) throws IOException {
         final int length = bytesReference.length();
         final int offset = offset();
         if (offset >= length) {
@@ -260,6 +212,14 @@ class BytesReferenceStreamInput extends StreamInput {
         if (n <= 0L) {
             return 0L;
         }
+        if (n <= slice.remaining()) {
+            slice.position(slice.position() + (int) n);
+            return n;
+        }
+        return skipMultiple(n);
+    }
+
+    private int skipMultiple(long n) throws IOException {
         assert offset() <= bytesReference.length() : offset() + " vs " + bytesReference.length();
         // definitely >= 0 and <= Integer.MAX_VALUE so casting is ok
         final int numBytesSkipped = (int) Math.min(n, bytesReference.length() - offset());
@@ -285,6 +245,16 @@ class BytesReferenceStreamInput extends StreamInput {
             final long skipped = skip(mark);
             assert skipped == mark : skipped + " vs " + mark;
         }
+    }
+
+    @Override
+    public BytesReference readSlicedBytesReference() throws IOException {
+        int len = readVInt();
+        int pos = offset();
+        if (len != skip(len)) {
+            throw new EOFException();
+        }
+        return bytesReference.slice(pos, len);
     }
 
     @Override

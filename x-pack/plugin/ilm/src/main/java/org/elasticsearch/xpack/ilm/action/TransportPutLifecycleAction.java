@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.license.XPackLicenseState;
@@ -39,8 +40,8 @@ import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.ilm.Phase;
 import org.elasticsearch.xpack.core.ilm.SearchableSnapshotAction;
 import org.elasticsearch.xpack.core.ilm.WaitForSnapshotAction;
-import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
-import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction.Request;
+import org.elasticsearch.xpack.core.ilm.action.ILMActions;
+import org.elasticsearch.xpack.core.ilm.action.PutLifecycleRequest;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 
 import java.time.Instant;
@@ -60,7 +61,7 @@ import static org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapsho
  * This class is responsible for bootstrapping {@link IndexLifecycleMetadata} into the cluster-state, as well
  * as adding the desired new policy to be inserted.
  */
-public class TransportPutLifecycleAction extends TransportMasterNodeAction<Request, AcknowledgedResponse> {
+public class TransportPutLifecycleAction extends TransportMasterNodeAction<PutLifecycleRequest, AcknowledgedResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportPutLifecycleAction.class);
     private final NamedXContentRegistry xContentRegistry;
@@ -79,15 +80,15 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
         Client client
     ) {
         super(
-            PutLifecycleAction.NAME,
+            ILMActions.PUT.name(),
             transportService,
             clusterService,
             threadPool,
             actionFilters,
-            Request::new,
+            PutLifecycleRequest::new,
             indexNameExpressionResolver,
             AcknowledgedResponse::readFrom,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.xContentRegistry = namedXContentRegistry;
         this.licenseState = licenseState;
@@ -95,7 +96,12 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
     }
 
     @Override
-    protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<AcknowledgedResponse> listener) {
+    protected void masterOperation(
+        Task task,
+        PutLifecycleRequest request,
+        ClusterState state,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
         // headers from the thread context stored by the AuthenticationService to be shared between the
         // REST layer and the Transport layer here must be accessed within this thread and not in the
         // cluster state thread in the ClusterStateUpdateTask below since that thread does not share the
@@ -121,7 +127,7 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
     }
 
     public static class UpdateLifecyclePolicyTask extends AckedClusterStateUpdateTask {
-        private final Request request;
+        private final PutLifecycleRequest request;
         private final XPackLicenseState licenseState;
         private final Map<String, String> filteredHeaders;
         private final NamedXContentRegistry xContentRegistry;
@@ -129,7 +135,7 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
         private final boolean verboseLogging;
 
         public UpdateLifecyclePolicyTask(
-            Request request,
+            PutLifecycleRequest request,
             ActionListener<AcknowledgedResponse> listener,
             XPackLicenseState licenseState,
             Map<String, String> filteredHeaders,
@@ -151,7 +157,12 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
          * <p>
          * It disables verbose logging and has no filtered headers.
          */
-        UpdateLifecyclePolicyTask(Request request, XPackLicenseState licenseState, NamedXContentRegistry xContentRegistry, Client client) {
+        UpdateLifecyclePolicyTask(
+            PutLifecycleRequest request,
+            XPackLicenseState licenseState,
+            NamedXContentRegistry xContentRegistry,
+            Client client
+        ) {
             super(request, null);
             this.request = request;
             this.licenseState = licenseState;
@@ -263,7 +274,7 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
         for (Phase phase : phasesWithSearchableSnapshotActions) {
             SearchableSnapshotAction action = (SearchableSnapshotAction) phase.getActions().get(SearchableSnapshotAction.NAME);
             String repository = action.getSnapshotRepository();
-            if (state.metadata().custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY).repository(repository) == null) {
+            if (RepositoriesMetadata.get(state).repository(repository) == null) {
                 throw new IllegalArgumentException(
                     "no such repository ["
                         + repository
@@ -307,7 +318,7 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
     }
 
     @Override
-    protected ClusterBlockException checkBlock(Request request, ClusterState state) {
+    protected ClusterBlockException checkBlock(PutLifecycleRequest request, ClusterState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 
@@ -317,7 +328,7 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
     }
 
     @Override
-    public Set<String> modifiedKeys(Request request) {
+    public Set<String> modifiedKeys(PutLifecycleRequest request) {
         return Set.of(request.getPolicy().getName());
     }
 }

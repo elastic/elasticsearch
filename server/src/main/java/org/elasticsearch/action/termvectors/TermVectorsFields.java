@@ -131,7 +131,7 @@ public final class TermVectorsFields extends Fields {
             hasTermStatistic = header.readBoolean();
             hasFieldStatistic = header.readBoolean();
             hasScores = header.readBoolean();
-            fieldMap = header.readMap(StreamInput::readString, StreamInput::readVLong);
+            fieldMap = header.readMap(StreamInput::readVLong);
         }
         // reference to the term vector data
         this.termVectors = termVectors;

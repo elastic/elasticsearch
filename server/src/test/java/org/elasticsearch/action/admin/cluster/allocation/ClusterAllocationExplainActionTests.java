@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
@@ -35,6 +36,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import java.time.Instant;
 import java.util.Collections;
 import java.util.Locale;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.admin.cluster.allocation.TransportClusterAllocationExplainAction.findShardToExplain;
 import static org.hamcrest.Matchers.allOf;
@@ -87,7 +89,7 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
         assertFalse(cae.getShardAllocationDecision().getAllocateDecision().isDecisionTaken());
         assertFalse(cae.getShardAllocationDecision().getMoveDecision().isDecisionTaken());
         XContentBuilder builder = XContentFactory.jsonBuilder();
-        cae.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        ChunkedToXContent.wrapAsToXContent(cae).toXContent(builder, ToXContent.EMPTY_PARAMS);
         String explanation;
         if (shardRoutingState == ShardRoutingState.RELOCATING) {
             explanation = "the shard is in the process of relocating from node [] to node [], wait until " + "relocation has completed";
@@ -109,6 +111,7 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
             cae.getCurrentNode().getId(),
             cae.getCurrentNode().getName(),
             cae.getCurrentNode().getAddress(),
+            cae.getCurrentNode().getRoles().stream().map(r -> '"' + r.roleName() + '"').collect(Collectors.joining(", ", "[", "]")),
             explanation };
         assertEquals(XContentHelper.stripWhitespace(Strings.format("""
             {
@@ -120,7 +123,8 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
               "current_node": {
                 "id": "%s",
                 "name": "%s",
-                "transport_address": "%s"
+                "transport_address": "%s",
+                "roles": %s
               },
               "explanation": "%s"
             }""", args)), Strings.toString(builder));

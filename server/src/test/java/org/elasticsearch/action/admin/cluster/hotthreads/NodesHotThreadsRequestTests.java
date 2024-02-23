@@ -32,11 +32,11 @@ public class NodesHotThreadsRequestTests extends ESTestCase {
         request.interval(sampleInterval);
         request.snapshots(3);
 
-        TransportVersion latest = TransportVersion.CURRENT;
+        TransportVersion latest = TransportVersion.current();
         TransportVersion previous = TransportVersionUtils.randomVersionBetween(
             random(),
             TransportVersionUtils.getFirstVersion(),
-            TransportVersionUtils.getPreviousVersion(TransportVersion.CURRENT)
+            TransportVersionUtils.getPreviousVersion(TransportVersion.current())
         );
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {

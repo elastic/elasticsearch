@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.AssociatedIndexDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.indices.SystemIndexDescriptorUtils;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.rest.RestStatus;
@@ -278,7 +279,7 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertThat(getDocCount(AssociatedIndicesTestPlugin.SYSTEM_INDEX_NAME), equalTo(2L));
 
         // And delete the associated index so we can restore it
-        assertAcked(client().admin().indices().prepareDelete(AssociatedIndicesTestPlugin.ASSOCIATED_INDEX_NAME).get());
+        assertAcked(indicesAdmin().prepareDelete(AssociatedIndicesTestPlugin.ASSOCIATED_INDEX_NAME).get());
 
         // restore the feature state and its associated index
         RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot(REPO_NAME, "test-snap")
@@ -311,10 +312,9 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
         final String fakeFeatureStateName = "NonExistentTestPlugin";
         SnapshotRestoreException exception = expectThrows(
             SnapshotRestoreException.class,
-            () -> clusterAdmin().prepareRestoreSnapshot(REPO_NAME, "test-snap")
+            clusterAdmin().prepareRestoreSnapshot(REPO_NAME, "test-snap")
                 .setWaitForCompletion(true)
                 .setFeatureStates("SystemIndexTestPlugin", fakeFeatureStateName)
-                .get()
         );
 
         assertThat(
@@ -331,11 +331,10 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         IllegalArgumentException error = expectThrows(
             IllegalArgumentException.class,
-            () -> clusterAdmin().prepareCreateSnapshot(REPO_NAME, "test-snap")
+            clusterAdmin().prepareCreateSnapshot(REPO_NAME, "test-snap")
                 .setIndices(SystemIndexTestPlugin.SYSTEM_INDEX_NAME)
                 .setWaitForCompletion(true)
                 .setIncludeGlobalState(randomBoolean())
-                .get()
         );
         assertThat(
             error.getMessage(),
@@ -375,10 +374,9 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
-            () -> clusterAdmin().prepareRestoreSnapshot(REPO_NAME, "test-snap")
+            clusterAdmin().prepareRestoreSnapshot(REPO_NAME, "test-snap")
                 .setWaitForCompletion(true)
                 .setIndices(SystemIndexTestPlugin.SYSTEM_INDEX_NAME)
-                .get()
         );
         assertThat(
             ex.getMessage(),
@@ -406,7 +404,7 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
             .get();
         assertSnapshotSuccess(createSnapshotResponse);
 
-        assertAcked(client().admin().indices().prepareDelete(SystemIndexTestPlugin.SYSTEM_INDEX_NAME, nonSystemIndex).get());
+        assertAcked(indicesAdmin().prepareDelete(SystemIndexTestPlugin.SYSTEM_INDEX_NAME, nonSystemIndex).get());
 
         // Restore using a rename pattern that matches both the regular and the system index
         clusterAdmin().prepareRestoreSnapshot(REPO_NAME, "test-snap")
@@ -480,7 +478,7 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
         indexDoc(SystemIndexTestPlugin.SYSTEM_INDEX_NAME, "2", "purpose", "post-snapshot doc");
         refresh(SystemIndexTestPlugin.SYSTEM_INDEX_NAME);
 
-        assertAcked(client().admin().indices().prepareDelete(regularIndex).get());
+        assertAcked(indicesAdmin().prepareDelete(regularIndex).get());
         assertThat(getDocCount(SystemIndexTestPlugin.SYSTEM_INDEX_NAME), equalTo(2L));
 
         // restore with global state and all indices but explicitly no feature states.
@@ -566,14 +564,7 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         // And make sure they both have aliases
         final String systemIndexAlias = SystemIndexTestPlugin.SYSTEM_INDEX_NAME + "-alias";
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareAliases()
-                .addAlias(systemIndexName, systemIndexAlias)
-                .addAlias(regularIndex, regularAlias)
-                .get()
-        );
+        assertAcked(indicesAdmin().prepareAliases().addAlias(systemIndexName, systemIndexAlias).addAlias(regularIndex, regularAlias).get());
 
         // run a snapshot including global state
         CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(REPO_NAME, "test-snap")
@@ -617,11 +608,10 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
         // run a snapshot including global state
         IllegalArgumentException createEx = expectThrows(
             IllegalArgumentException.class,
-            () -> clusterAdmin().prepareCreateSnapshot(REPO_NAME, "test-snap")
+            clusterAdmin().prepareCreateSnapshot(REPO_NAME, "test-snap")
                 .setWaitForCompletion(true)
                 .setIncludeGlobalState(randomBoolean())
                 .setFeatureStates("SystemIndexTestPlugin", "none", "AnotherSystemIndexTestPlugin")
-                .get()
         );
         assertThat(
             createEx.getMessage(),
@@ -640,11 +630,10 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         SnapshotRestoreException restoreEx = expectThrows(
             SnapshotRestoreException.class,
-            () -> clusterAdmin().prepareRestoreSnapshot(REPO_NAME, "test-snap")
+            clusterAdmin().prepareRestoreSnapshot(REPO_NAME, "test-snap")
                 .setWaitForCompletion(true)
                 .setRestoreGlobalState(randomBoolean())
                 .setFeatureStates("SystemIndexTestPlugin", "none")
-                .get()
         );
         assertThat(
             restoreEx.getMessage(),
@@ -726,9 +715,7 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         // Now get the snapshot and do our checks
         assertBusy(() -> {
-            GetSnapshotsResponse snapshotsStatusResponse = client().admin()
-                .cluster()
-                .prepareGetSnapshots(REPO_NAME)
+            GetSnapshotsResponse snapshotsStatusResponse = clusterAdmin().prepareGetSnapshots(REPO_NAME)
                 .setSnapshots(partialSnapName)
                 .get();
             SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots().get(0);
@@ -812,7 +799,7 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
     }
 
     private long getDocCount(String indexName) {
-        return client().admin().indices().prepareStats(indexName).get().getPrimaries().getDocs().getCount();
+        return indicesAdmin().prepareStats(indexName).get().getPrimaries().getDocs().getCount();
     }
 
     public static class SystemIndexTestPlugin extends Plugin implements SystemIndexPlugin {
@@ -821,7 +808,9 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         @Override
         public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-            return Collections.singletonList(new SystemIndexDescriptor(SYSTEM_INDEX_NAME + "*", "System indices for tests"));
+            return Collections.singletonList(
+                SystemIndexDescriptorUtils.createUnmanaged(SYSTEM_INDEX_NAME + "*", "System indices for tests")
+            );
         }
 
         @Override
@@ -841,7 +830,9 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         @Override
         public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-            return Collections.singletonList(new SystemIndexDescriptor(SYSTEM_INDEX_NAME + "*", "System indices for tests"));
+            return Collections.singletonList(
+                SystemIndexDescriptorUtils.createUnmanaged(SYSTEM_INDEX_NAME + "*", "System indices for tests")
+            );
         }
 
         @Override
@@ -862,7 +853,9 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         @Override
         public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-            return Collections.singletonList(new SystemIndexDescriptor(SYSTEM_INDEX_NAME + "*", "System & associated indices for tests"));
+            return Collections.singletonList(
+                SystemIndexDescriptorUtils.createUnmanaged(SYSTEM_INDEX_NAME + "*", "System & associated indices for tests")
+            );
         }
 
         @Override

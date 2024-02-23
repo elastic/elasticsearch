@@ -258,7 +258,6 @@ public class RestClientMultipleHostsIntegTests extends RestClientTestCase {
         }
     }
 
-    @Ignore("https://github.com/elastic/elasticsearch/issues/45577")
     public void testCancelAsyncRequests() throws Exception {
         int numRequests = randomIntBetween(5, 20);
         final List<Response> responses = new CopyOnWriteArrayList<>();

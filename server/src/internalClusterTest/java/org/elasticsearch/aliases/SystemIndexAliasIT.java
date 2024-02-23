@@ -37,12 +37,11 @@ public class SystemIndexAliasIT extends ESIntegTestCase {
     public void testCreateAliasForSystemIndex() throws Exception {
         createIndex(PRIMARY_INDEX_NAME);
         ensureGreen();
-        assertAcked(admin().indices().prepareAliases().addAlias(PRIMARY_INDEX_NAME, INDEX_NAME + "-system-alias"));
+        assertAcked(indicesAdmin().prepareAliases().addAlias(PRIMARY_INDEX_NAME, INDEX_NAME + "-system-alias"));
 
-        final GetAliasesResponse getAliasesResponse = client().admin()
-            .indices()
-            .getAliases(new GetAliasesRequest().indicesOptions(IndicesOptions.strictExpandHidden()))
-            .get();
+        final GetAliasesResponse getAliasesResponse = indicesAdmin().getAliases(
+            new GetAliasesRequest().indicesOptions(IndicesOptions.strictExpandHidden())
+        ).get();
 
         assertThat(getAliasesResponse.getAliases().size(), equalTo(1));
         assertThat(getAliasesResponse.getAliases().get(PRIMARY_INDEX_NAME).size(), equalTo(2));
@@ -52,6 +51,6 @@ public class SystemIndexAliasIT extends ESIntegTestCase {
         );
         getAliasesResponse.getAliases().get(PRIMARY_INDEX_NAME).forEach(alias -> assertThat(alias.isHidden(), is(true)));
 
-        assertAcked(client().admin().indices().prepareDeleteTemplate("*").get());
+        assertAcked(indicesAdmin().prepareDeleteTemplate("*").get());
     }
 }

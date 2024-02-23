@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.enrich.action;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -29,7 +28,7 @@ public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
     public static final String NAME = "cluster:monitor/xpack/enrich/stats";
 
     private EnrichStatsAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
     public static class Request extends MasterNodeRequest<Request> {
@@ -60,9 +59,9 @@ public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            executingPolicies = in.readList(ExecutingPolicy::new);
-            coordinatorStats = in.readList(CoordinatorStats::new);
-            cacheStats = in.getTransportVersion().onOrAfter(TransportVersion.V_7_16_0) ? in.readList(CacheStats::new) : null;
+            executingPolicies = in.readCollectionAsList(ExecutingPolicy::new);
+            coordinatorStats = in.readCollectionAsList(CoordinatorStats::new);
+            cacheStats = in.readCollectionAsList(CacheStats::new);
         }
 
         public List<ExecutingPolicy> getExecutingPolicies() {
@@ -79,11 +78,9 @@ public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeList(executingPolicies);
-            out.writeList(coordinatorStats);
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_16_0)) {
-                out.writeList(cacheStats);
-            }
+            out.writeCollection(executingPolicies);
+            out.writeCollection(coordinatorStats);
+            out.writeCollection(cacheStats);
         }
 
         @Override

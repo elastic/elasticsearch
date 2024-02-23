@@ -11,7 +11,6 @@ import com.wdtinc.mapbox_vector_tile.build.MvtLayerProps;
 
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchResponseSections;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.geo.GeoBoundingBox;
@@ -19,6 +18,7 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStream;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -27,12 +27,14 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestResponseListener;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.Aggregation;
-import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoGridAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.geogrid.InternalGeoGrid;
@@ -61,6 +63,7 @@ import static org.elasticsearch.transport.RemoteClusterAware.buildRemoteIndexNam
 /**
  * Main class handling a call to the _mvt API.
  */
+@ServerlessScope(Scope.PUBLIC)
 public class RestVectorTileAction extends BaseRestHandler {
 
     private static final String META_LAYER = "meta";
@@ -133,9 +136,9 @@ public class RestVectorTileAction extends BaseRestHandler {
                     final InternalGeoBounds bounds = searchResponse.getAggregations() != null
                         ? searchResponse.getAggregations().get(BOUNDS_FIELD)
                         : null;
-                    final Aggregations aggsWithoutGridAndBounds = searchResponse.getAggregations() == null
+                    final InternalAggregations aggsWithoutGridAndBounds = searchResponse.getAggregations() == null
                         ? null
-                        : new Aggregations(
+                        : InternalAggregations.from(
                             searchResponse.getAggregations()
                                 .asList()
                                 .stream()
@@ -143,21 +146,14 @@ public class RestVectorTileAction extends BaseRestHandler {
                                 .collect(Collectors.toList())
                         );
                     final SearchResponse meta = new SearchResponse(
-                        new SearchResponseSections(
-                            new SearchHits(
-                                SearchHits.EMPTY,
-                                searchResponse.getHits().getTotalHits(),
-                                searchResponse.getHits().getMaxScore()
-                            ), // remove actual hits
-                            aggsWithoutGridAndBounds,
-                            searchResponse.getSuggest(),
-                            searchResponse.isTimedOut(),
-                            searchResponse.isTerminatedEarly(),
-                            searchResponse.getProfileResults() == null
-                                ? null
-                                : new SearchProfileResults(searchResponse.getProfileResults()),
-                            searchResponse.getNumReducePhases()
-                        ),
+                        // remove actual hits
+                        SearchHits.empty(searchResponse.getHits().getTotalHits(), searchResponse.getHits().getMaxScore()),
+                        aggsWithoutGridAndBounds,
+                        searchResponse.getSuggest(),
+                        searchResponse.isTimedOut(),
+                        searchResponse.isTerminatedEarly(),
+                        searchResponse.getProfileResults() == null ? null : new SearchProfileResults(searchResponse.getProfileResults()),
+                        searchResponse.getNumReducePhases(),
                         searchResponse.getScrollId(),
                         searchResponse.getTotalShards(),
                         searchResponse.getSuccessfulShards(),
@@ -414,7 +410,7 @@ public class RestVectorTileAction extends BaseRestHandler {
             final Rectangle tile = request.getBoundingBox();
             featureBuilder.mergeFrom(featureFactory.box(tile.getMinLon(), tile.getMaxLon(), tile.getMinLat(), tile.getMaxLat()));
         }
-        VectorTileUtils.addToXContentToFeature(featureBuilder, layerProps, response);
+        VectorTileUtils.addToXContentToFeature(featureBuilder, layerProps, ChunkedToXContent.wrapAsToXContent(response));
         metaLayerBuilder.addFeatures(featureBuilder);
         VectorTileUtils.addPropertiesToLayer(metaLayerBuilder, layerProps);
         return metaLayerBuilder;

@@ -6,7 +6,12 @@
  */
 
 module org.elasticsearch.application {
+    requires com.fasterxml.jackson.annotation;
+    requires com.fasterxml.jackson.core;
+    requires com.fasterxml.jackson.databind;
+    requires json.schema.validator;
     requires org.apache.lucene.core;
+    requires org.slf4j;
 
     requires org.elasticsearch.base;
     requires org.elasticsearch.logging;
@@ -14,7 +19,8 @@ module org.elasticsearch.application {
     requires org.elasticsearch.server;
     requires org.elasticsearch.xcontent;
     requires org.elasticsearch.xcore;
-    requires com.fasterxml.jackson.databind;
+    requires org.elasticsearch.searchbusinessrules;
+    requires org.apache.lucene.suggest;
 
     exports org.elasticsearch.xpack.application;
     exports org.elasticsearch.xpack.application.analytics;
@@ -23,7 +29,16 @@ module org.elasticsearch.application {
     exports org.elasticsearch.xpack.application.analytics.event.parser.field;
     exports org.elasticsearch.xpack.application.analytics.event.parser.event;
     exports org.elasticsearch.xpack.application.analytics.ingest;
-
     exports org.elasticsearch.xpack.application.search;
     exports org.elasticsearch.xpack.application.search.action;
+    exports org.elasticsearch.xpack.application.rules;
+    exports org.elasticsearch.xpack.application.rules.action;
+    exports org.elasticsearch.xpack.application.connector;
+    exports org.elasticsearch.xpack.application.connector.action;
+    exports org.elasticsearch.xpack.application.connector.syncjob;
+    exports org.elasticsearch.xpack.application.connector.syncjob.action;
+
+    provides org.elasticsearch.features.FeatureSpecification with org.elasticsearch.xpack.application.EnterpriseSearchFeatures;
+
+    exports org.elasticsearch.xpack.application.connector.secrets.action to org.elasticsearch.server;
 }

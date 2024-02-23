@@ -10,48 +10,41 @@ package org.elasticsearch.health.node;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
-import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.RoutingNode;
-import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.RunOnce;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.health.HealthStatus;
+import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.health.HealthFeatures;
 import org.elasticsearch.health.metadata.HealthMetadata;
 import org.elasticsearch.health.node.action.HealthNodeNotDiscoveredException;
 import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.health.node.selection.HealthNodeTaskExecutor;
-import org.elasticsearch.node.NodeService;
+import org.elasticsearch.health.node.tracker.HealthTracker;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.NodeNotConnectedException;
 
+import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.core.Strings.format;
 
 /**
- * This class monitors the health of the node regarding the load on several resources.
- * Currently, it only checks for available disk space. Furthermore, it informs the health
- * node about the local health upon change or when a new node is detected or when the
- * master node changed.
+ * This class monitors the local health of the node, such as the load and any errors that can be specific to a node
+ * (as opposed to errors that are cluster-wide). It informs the health node about the local health upon change, or
+ * when a new node is detected, or when the master node changed.
  */
 public class LocalHealthMonitor implements ClusterStateListener {
 
@@ -67,8 +60,8 @@ public class LocalHealthMonitor implements ClusterStateListener {
 
     private final ClusterService clusterService;
     private final ThreadPool threadPool;
-    private final DiskCheck diskCheck;
     private final Client client;
+    private final FeatureService featureService;
 
     private volatile TimeValue monitorInterval;
     private volatile boolean enabled;
@@ -76,10 +69,10 @@ public class LocalHealthMonitor implements ClusterStateListener {
     // Signals that all the prerequisites have been fulfilled and the monitoring can be started.
     private volatile boolean prerequisitesFulfilled;
 
-    // Keeps the latest health state that was successfully reported to the current health node.
-    private final AtomicReference<DiskHealthInfo> lastReportedDiskHealthInfo = new AtomicReference<>();
+    // List of health trackers to be executed in each monitoring cycle.
+    private final List<HealthTracker<?>> healthTrackers;
     // Keeps the last seen health node. We use this variable to ensure that there wasn't a health node
-    // change between the time we send an update until the time we update the lastReportedDiskHealthInfo.
+    // change between the time we send an update until the time we record the last health state that was successfully reported.
     private final AtomicReference<String> lastSeenHealthNode = new AtomicReference<>();
     // Using a volatile reference to ensure that there is a single instance of monitoring running at all times.
     // No need for extra synchronization because all the writes are executed on the cluster applier thread.
@@ -88,26 +81,36 @@ public class LocalHealthMonitor implements ClusterStateListener {
     private LocalHealthMonitor(
         Settings settings,
         ClusterService clusterService,
-        NodeService nodeService,
         ThreadPool threadPool,
-        Client client
+        Client client,
+        FeatureService featureService,
+        List<HealthTracker<?>> healthTrackers
     ) {
         this.threadPool = threadPool;
         this.monitorInterval = POLL_INTERVAL_SETTING.get(settings);
         this.enabled = HealthNodeTaskExecutor.ENABLED_SETTING.get(settings);
         this.clusterService = clusterService;
         this.client = client;
-        this.diskCheck = new DiskCheck(nodeService);
+        this.featureService = featureService;
+        this.healthTrackers = healthTrackers;
     }
 
     public static LocalHealthMonitor create(
         Settings settings,
         ClusterService clusterService,
-        NodeService nodeService,
         ThreadPool threadPool,
-        Client client
+        Client client,
+        FeatureService featureService,
+        List<HealthTracker<?>> healthTrackers
     ) {
-        LocalHealthMonitor localHealthMonitor = new LocalHealthMonitor(settings, clusterService, nodeService, threadPool, client);
+        LocalHealthMonitor localHealthMonitor = new LocalHealthMonitor(
+            settings,
+            clusterService,
+            threadPool,
+            client,
+            featureService,
+            healthTrackers
+        );
         localHealthMonitor.registerListeners();
         return localHealthMonitor;
     }
@@ -149,15 +152,7 @@ public class LocalHealthMonitor implements ClusterStateListener {
     private void startMonitoringIfNecessary() {
         if (prerequisitesFulfilled && enabled) {
             if (isMonitorRunning() == false) {
-                monitoring = Monitoring.start(
-                    monitorInterval,
-                    threadPool,
-                    lastReportedDiskHealthInfo,
-                    lastSeenHealthNode,
-                    diskCheck,
-                    clusterService,
-                    client
-                );
+                monitoring = Monitoring.start(monitorInterval, threadPool, lastSeenHealthNode, healthTrackers, clusterService, client);
                 logger.debug("Local health monitoring started {}", monitoring);
             } else {
                 logger.trace("Local health monitoring already started {}, skipping", monitoring);
@@ -180,7 +175,8 @@ public class LocalHealthMonitor implements ClusterStateListener {
             // On health node or on master node changes, the health node might be reset so the reported
             // health info gets reset to null, to ensure it will be resent.
             lastSeenHealthNode.set(currentHealthNode == null ? null : currentHealthNode.getId());
-            lastReportedDiskHealthInfo.set(null);
+            // Reset the reference of each HealthTracker.
+            healthTrackers.forEach(HealthTracker::reset);
             if (logger.isDebugEnabled()) {
                 String reason;
                 if (healthNodeChanged && masterNodeChanged) {
@@ -197,7 +193,8 @@ public class LocalHealthMonitor implements ClusterStateListener {
                 );
             }
         }
-        prerequisitesFulfilled = event.state().nodesIfRecovered().getMinNodeVersion().onOrAfter(Version.V_8_5_0)
+        prerequisitesFulfilled = event.state().clusterRecovered()
+            && featureService.clusterHasFeature(event.state(), HealthFeatures.SUPPORTS_HEALTH)
             && HealthMetadata.getFromClusterState(event.state()) != null
             && currentHealthNode != null
             && currentMasterNode != null;
@@ -209,7 +206,7 @@ public class LocalHealthMonitor implements ClusterStateListener {
         }
     }
 
-    private boolean hasMasterNodeChanged(DiscoveryNode currentMasterNode, ClusterChangedEvent event) {
+    private static boolean hasMasterNodeChanged(DiscoveryNode currentMasterNode, ClusterChangedEvent event) {
         DiscoveryNode previousMasterNode = event.previousState().nodes().getMasterNode();
         if (currentMasterNode == null || previousMasterNode == null) {
             return currentMasterNode != previousMasterNode;
@@ -226,11 +223,6 @@ public class LocalHealthMonitor implements ClusterStateListener {
             || Objects.equals(previousHealthNode, currentHealthNode) == false;
     }
 
-    @Nullable
-    DiskHealthInfo getLastReportedDiskHealthInfo() {
-        return lastReportedDiskHealthInfo.get();
-    }
-
     /**
      * This class is responsible for running the health monitoring. It evaluates and checks the health info of this node
      * in the configured intervals. The first run happens upon initialization. If there is an exception, it will log it
@@ -239,14 +231,13 @@ public class LocalHealthMonitor implements ClusterStateListener {
     static class Monitoring implements Runnable, Scheduler.Cancellable {
 
         private final TimeValue interval;
-        private final String executor;
+        private final Executor executor;
         private final Scheduler scheduler;
         private final ClusterService clusterService;
-        private final DiskCheck diskCheck;
         private final Client client;
 
-        private final AtomicReference<DiskHealthInfo> lastReportedDiskHealthInfo;
         private final AtomicReference<String> lastSeenHealthNode;
+        private final List<HealthTracker<?>> healthTrackers;
 
         private volatile boolean cancelled = false;
         private volatile Scheduler.ScheduledCancellable scheduledRun;
@@ -254,20 +245,18 @@ public class LocalHealthMonitor implements ClusterStateListener {
         private Monitoring(
             TimeValue interval,
             Scheduler scheduler,
-            String executor,
-            AtomicReference<DiskHealthInfo> lastReportedDiskHealthInfo,
+            Executor executor,
             AtomicReference<String> lastSeenHealthNode,
-            DiskCheck diskCheck,
+            List<HealthTracker<?>> healthTrackers,
             ClusterService clusterService,
             Client client
         ) {
             this.interval = interval;
             this.executor = executor;
             this.scheduler = scheduler;
-            this.lastReportedDiskHealthInfo = lastReportedDiskHealthInfo;
             this.lastSeenHealthNode = lastSeenHealthNode;
             this.clusterService = clusterService;
-            this.diskCheck = diskCheck;
+            this.healthTrackers = healthTrackers;
             this.client = client;
         }
 
@@ -276,24 +265,22 @@ public class LocalHealthMonitor implements ClusterStateListener {
          */
         static Monitoring start(
             TimeValue interval,
-            Scheduler scheduler,
-            AtomicReference<DiskHealthInfo> lastReportedDiskHealthInfo,
+            ThreadPool threadPool,
             AtomicReference<String> lastSeenHealthNode,
-            DiskCheck diskCheck,
+            List<HealthTracker<?>> healthTrackers,
             ClusterService clusterService,
             Client client
         ) {
             Monitoring monitoring = new Monitoring(
                 interval,
-                scheduler,
-                ThreadPool.Names.MANAGEMENT,
-                lastReportedDiskHealthInfo,
+                threadPool,
+                threadPool.executor(ThreadPool.Names.MANAGEMENT),
                 lastSeenHealthNode,
-                diskCheck,
+                healthTrackers,
                 clusterService,
                 client
             );
-            monitoring.scheduledRun = scheduler.schedule(monitoring, TimeValue.ZERO, monitoring.executor);
+            monitoring.scheduledRun = threadPool.schedule(monitoring, TimeValue.ZERO, monitoring.executor);
             return monitoring;
         }
 
@@ -334,43 +321,31 @@ public class LocalHealthMonitor implements ClusterStateListener {
             boolean nextRunScheduled = false;
             Runnable scheduleNextRun = new RunOnce(this::scheduleNextRunIfNecessary);
             try {
-                ClusterState clusterState = clusterService.state();
-                HealthMetadata healthMetadata = HealthMetadata.getFromClusterState(clusterState);
-                if (healthMetadata != null) {
-                    DiskHealthInfo previousHealth = this.lastReportedDiskHealthInfo.get();
-                    DiskHealthInfo currentHealth = diskCheck.getHealth(healthMetadata, clusterState);
-                    if (currentHealth.equals(previousHealth) == false) {
-                        String nodeId = clusterService.localNode().getId();
-                        String healthNodeId = lastSeenHealthNode.get();
-                        ActionListener<AcknowledgedResponse> listener = ActionListener.wrap(response -> {
-                            // Update the last reported value only if the health node hasn't changed.
-                            if (Objects.equals(healthNodeId, lastSeenHealthNode.get())
-                                && lastReportedDiskHealthInfo.compareAndSet(previousHealth, currentHealth)) {
-                                logger.debug(
-                                    "Health info [{}] successfully sent, last reported value: {}.",
-                                    currentHealth,
-                                    lastReportedDiskHealthInfo.get()
-                                );
-                            }
-                        }, e -> {
-                            if (e.getCause() instanceof NodeNotConnectedException
-                                || e.getCause() instanceof HealthNodeNotDiscoveredException) {
-                                logger.debug("Failed to connect to the health node [{}], will try again.", e.getCause().getMessage());
-                            } else {
-                                logger.debug(
-                                    () -> format("Failed to send health info [%s] to health node, will try again.", currentHealth),
-                                    e
-                                );
-                            }
-                        });
-                        client.execute(
-                            UpdateHealthInfoCacheAction.INSTANCE,
-                            new UpdateHealthInfoCacheAction.Request(nodeId, currentHealth),
-                            ActionListener.runAfter(listener, scheduleNextRun)
-                        );
-                        nextRunScheduled = true;
-                    }
+                List<HealthTracker.HealthProgress<?>> healthProgresses = getHealthProgresses();
+                if (healthProgresses.isEmpty()) {
+                    // Next run will still be scheduled in the `finally` block.
+                    return;
                 }
+                // Create builder and add the current value of each (changed) health tracker to the request.
+                var builder = new UpdateHealthInfoCacheAction.Request.Builder().nodeId(clusterService.localNode().getId());
+                healthProgresses.forEach(changedHealthInfo -> changedHealthInfo.updateRequestBuilder(builder));
+
+                var healthNodeId = lastSeenHealthNode.get();
+                var listener = ActionListener.<AcknowledgedResponse>wrap(response -> {
+                    // Don't update the latest health info if the health node has changed while this request was being processed.
+                    if (Objects.equals(healthNodeId, lastSeenHealthNode.get()) == false) {
+                        return;
+                    }
+                    healthProgresses.forEach(HealthTracker.HealthProgress::recordProgressIfRelevant);
+                }, e -> {
+                    if (e.getCause() instanceof NodeNotConnectedException || e.getCause() instanceof HealthNodeNotDiscoveredException) {
+                        logger.debug("Failed to connect to the health node [{}], will try again.", e.getCause().getMessage());
+                    } else {
+                        logger.debug(() -> format("Failed to send health info to health node, will try again."), e);
+                    }
+                });
+                client.execute(UpdateHealthInfoCacheAction.INSTANCE, builder.build(), ActionListener.runAfter(listener, scheduleNextRun));
+                nextRunScheduled = true;
             } catch (Exception e) {
                 logger.warn(() -> format("Failed to run scheduled health monitoring on thread pool [%s]", executor), e);
             } finally {
@@ -379,6 +354,24 @@ public class LocalHealthMonitor implements ClusterStateListener {
                     scheduleNextRun.run();
                 }
             }
+        }
+
+        /**
+         * Retrieve the current health of each tracker and return a list of the ones that have changed.
+         *
+         * @return a list of changed health info's.
+         */
+        private List<HealthTracker.HealthProgress<?>> getHealthProgresses() {
+            var healthMetadata = HealthMetadata.getFromClusterState(clusterService.state());
+            // Don't try to run the health trackers if the HealthMetadata is not available.
+            if (healthMetadata == null) {
+                return List.of();
+            }
+
+            return healthTrackers.stream().<HealthTracker.HealthProgress<?>>map(HealthTracker::trackHealth)
+                // Only return changed values.
+                .filter(HealthTracker.HealthProgress::hasChanged)
+                .toList();
         }
 
         private void scheduleNextRunIfNecessary() {
@@ -395,89 +388,6 @@ public class LocalHealthMonitor implements ClusterStateListener {
         @Override
         public String toString() {
             return "Monitoring{interval=" + interval + ", cancelled=" + cancelled + "}";
-        }
-    }
-
-    /**
-     * Determines the disk health of this node by checking if it exceeds the thresholds defined in the health metadata.
-     */
-    static class DiskCheck {
-        private final NodeService nodeService;
-
-        DiskCheck(NodeService nodeService) {
-            this.nodeService = nodeService;
-        }
-
-        DiskHealthInfo getHealth(HealthMetadata healthMetadata, ClusterState clusterState) {
-            DiscoveryNode node = clusterState.getNodes().getLocalNode();
-            HealthMetadata.Disk diskMetadata = healthMetadata.getDiskMetadata();
-            DiskUsage usage = getDiskUsage();
-            if (usage == null) {
-                return new DiskHealthInfo(HealthStatus.UNKNOWN, DiskHealthInfo.Cause.NODE_HAS_NO_DISK_STATS);
-            }
-
-            ByteSizeValue totalBytes = ByteSizeValue.ofBytes(usage.getTotalBytes());
-
-            if (node.isDedicatedFrozenNode()) {
-                long frozenFloodStageThreshold = diskMetadata.getFreeBytesFrozenFloodStageWatermark(totalBytes).getBytes();
-                if (usage.getFreeBytes() < frozenFloodStageThreshold) {
-                    logger.debug("Flood stage disk watermark [{}] exceeded on {}", frozenFloodStageThreshold, usage);
-                    return new DiskHealthInfo(HealthStatus.RED, DiskHealthInfo.Cause.FROZEN_NODE_OVER_FLOOD_STAGE_THRESHOLD);
-                }
-                return new DiskHealthInfo(HealthStatus.GREEN);
-            }
-
-            long floodStageThreshold = diskMetadata.getFreeBytesFloodStageWatermark(totalBytes).getBytes();
-            if (usage.getFreeBytes() < floodStageThreshold) {
-                logger.debug("Flood stage disk watermark [{}] exceeded on {}", floodStageThreshold, usage);
-                return new DiskHealthInfo(HealthStatus.RED, DiskHealthInfo.Cause.NODE_OVER_THE_FLOOD_STAGE_THRESHOLD);
-            }
-
-            long highThreshold = diskMetadata.getFreeBytesHighWatermark(totalBytes).getBytes();
-            if (usage.getFreeBytes() < highThreshold) {
-                if (node.canContainData()) {
-                    // for data nodes only report YELLOW if shards can't move away from the node
-                    if (DiskCheck.hasRelocatingShards(clusterState, node) == false) {
-                        logger.debug("High disk watermark [{}] exceeded on {}", highThreshold, usage);
-                        return new DiskHealthInfo(HealthStatus.YELLOW, DiskHealthInfo.Cause.NODE_OVER_HIGH_THRESHOLD);
-                    }
-                } else {
-                    // for non-data nodes report YELLOW when the disk high watermark is breached
-                    logger.debug("High disk watermark [{}] exceeded on {}", highThreshold, usage);
-                    return new DiskHealthInfo(HealthStatus.YELLOW, DiskHealthInfo.Cause.NODE_OVER_HIGH_THRESHOLD);
-                }
-            }
-            return new DiskHealthInfo(HealthStatus.GREEN);
-        }
-
-        private DiskUsage getDiskUsage() {
-            NodeStats nodeStats = nodeService.stats(
-                CommonStatsFlags.NONE,
-                false,
-                false,
-                false,
-                false,
-                true,
-                false,
-                false,
-                false,
-                false,
-                false,
-                false,
-                false,
-                false,
-                false
-            );
-            return DiskUsage.findLeastAvailablePath(nodeStats);
-        }
-
-        static boolean hasRelocatingShards(ClusterState clusterState, DiscoveryNode node) {
-            RoutingNode routingNode = clusterState.getRoutingNodes().node(node.getId());
-            if (routingNode == null) {
-                // routing node will be null for non-data nodes
-                return false;
-            }
-            return routingNode.numberOfShardsWithState(ShardRoutingState.RELOCATING) > 0;
         }
     }
 }

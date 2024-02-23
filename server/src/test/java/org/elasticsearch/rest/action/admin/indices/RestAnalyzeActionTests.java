@@ -8,7 +8,6 @@
 package org.elasticsearch.rest.action.admin.indices;
 
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction;
-import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.index.analysis.NameOrDefinition;
 import org.elasticsearch.rest.RestRequest;
@@ -95,7 +94,8 @@ public class RestAnalyzeActionTests extends ESTestCase {
             new BytesArray("{invalid_json}"),
             XContentType.JSON
         ).build();
-        try (NodeClient client = new NoOpNodeClient(this.getClass().getSimpleName())) {
+        try (var threadPool = createThreadPool()) {
+            final var client = new NoOpNodeClient(threadPool);
             var e = expectThrows(XContentParseException.class, () -> action.handleRequest(request, null, client));
             assertThat(e.getMessage(), containsString("expecting double-quote"));
         }

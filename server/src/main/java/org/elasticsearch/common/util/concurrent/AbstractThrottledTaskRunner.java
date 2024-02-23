@@ -17,6 +17,7 @@ import org.elasticsearch.core.Strings;
 
 import java.util.Queue;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -155,4 +156,54 @@ public class AbstractThrottledTaskRunner<T extends ActionListener<Releasable>> {
         return runningTasks.get();
     }
 
+    /**
+     * Run a single task on the given executor which eagerly pulls tasks from the queue and executes them. This must only be used if the
+     * tasks in the queue are all synchronous, i.e. they release their ref before returning from {@code onResponse()}.
+     */
+    public void runSyncTasksEagerly(Executor executor) {
+        executor.execute(new AbstractRunnable() {
+            @Override
+            protected void doRun() {
+                final AtomicBoolean isDone = new AtomicBoolean(true);
+                final Releasable ref = () -> isDone.set(true);
+                ActionListener<Releasable> task;
+                while ((task = tasks.poll()) != null) {
+                    isDone.set(false);
+                    try {
+                        logger.trace("[{}] eagerly running task {}", taskRunnerName, task);
+                        task.onResponse(ref);
+                    } catch (Exception e) {
+                        logger.error(Strings.format("[%s] task %s failed", taskRunnerName, task), e);
+                        assert false : e;
+                        task.onFailure(e);
+                        return;
+                    }
+                    if (isDone.get() == false) {
+                        logger.error(
+                            "runSyncTasksEagerly() was called on a queue [{}] containing an async task: [{}]",
+                            taskRunnerName,
+                            task
+                        );
+                        assert false;
+                        return;
+                    }
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.error("unexpected failure in runSyncTasksEagerly", e);
+                assert false : e;
+            }
+
+            @Override
+            public void onRejection(Exception e) {
+                if (e instanceof EsRejectedExecutionException) {
+                    logger.debug("runSyncTasksEagerly was rejected", e);
+                } else {
+                    onFailure(e);
+                }
+            }
+        });
+    }
 }

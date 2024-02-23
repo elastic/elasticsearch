@@ -12,7 +12,6 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.SortedSetSortField;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Setting;
@@ -62,7 +61,8 @@ public final class IndexSortConfig {
     public static final Setting<List<String>> INDEX_SORT_FIELD_SETTING = Setting.stringListSetting(
         "index.sort.field",
         Setting.Property.IndexScope,
-        Setting.Property.Final
+        Setting.Property.Final,
+        Setting.Property.ServerlessPublic
     );
 
     /**
@@ -73,7 +73,8 @@ public final class IndexSortConfig {
         Collections.emptyList(),
         IndexSortConfig::parseOrderMode,
         Setting.Property.IndexScope,
-        Setting.Property.Final
+        Setting.Property.Final,
+        Setting.Property.ServerlessPublic
     );
 
     /**
@@ -84,7 +85,8 @@ public final class IndexSortConfig {
         Collections.emptyList(),
         IndexSortConfig::parseMultiValueMode,
         Setting.Property.IndexScope,
-        Setting.Property.Final
+        Setting.Property.Final,
+        Setting.Property.ServerlessPublic
     );
 
     /**
@@ -95,7 +97,8 @@ public final class IndexSortConfig {
         Collections.emptyList(),
         IndexSortConfig::validateMissingValue,
         Setting.Property.IndexScope,
-        Setting.Property.Final
+        Setting.Property.Final,
+        Setting.Property.ServerlessPublic
     );
 
     public static final FieldSortSpec[] TIME_SERIES_SORT;
@@ -133,7 +136,7 @@ public final class IndexSortConfig {
 
     // visible for tests
     final FieldSortSpec[] sortSpecs;
-    private final Version indexCreatedVersion;
+    private final IndexVersion indexCreatedVersion;
     private final String indexName;
     private final IndexMode indexMode;
 
@@ -221,7 +224,7 @@ public final class IndexSortConfig {
                 throw new IllegalArgumentException(err);
             }
             if (Objects.equals(ft.name(), sortSpec.field) == false) {
-                if (this.indexCreatedVersion.onOrAfter(Version.V_7_13_0)) {
+                if (this.indexCreatedVersion.onOrAfter(IndexVersions.V_7_13_0)) {
                     throw new IllegalArgumentException("Cannot use alias [" + sortSpec.field + "] as an index sort field");
                 } else {
                     DEPRECATION_LOGGER.warn(

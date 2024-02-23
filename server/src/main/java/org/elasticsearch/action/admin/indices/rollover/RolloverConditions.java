@@ -29,7 +29,7 @@ import java.util.Objects;
 
 /**
  * Contains the conditions that determine if an index can be rolled over or not. It is used by the {@link RolloverRequest},
- * the Index Lifecycle Management and the Data Lifecycle Management.
+ * the Index Lifecycle Management and the Data Stream Lifecycle.
  */
 public class RolloverConditions implements Writeable, ToXContentObject {
     public static final ObjectParser<RolloverConditions.Builder, Void> PARSER = new ObjectParser<>("rollover_conditions");
@@ -113,11 +113,17 @@ public class RolloverConditions implements Writeable, ToXContentObject {
         return conditions.values().stream().anyMatch(c -> Condition.Type.MIN == c.type());
     }
 
+    /**
+     * Returns true if there is at least one condition of any type
+     */
+    public boolean hasConditions() {
+        return conditions.isEmpty() == false;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeCollection(
-            conditions.values().stream().filter(c -> c.includedInVersion(out.getTransportVersion())).toList(),
-            StreamOutput::writeNamedWriteable
+        out.writeNamedWriteableCollection(
+            conditions.values().stream().filter(c -> c.includedInVersion(out.getTransportVersion())).toList()
         );
     }
 

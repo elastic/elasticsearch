@@ -6,12 +6,15 @@ esplugin {
     classname 'org.elasticsearch.xpack.search.AsyncSearch'
     extendedPlugins = ['x-pack-core']
 }
-archivesBaseName = 'x-pack-async-search'
+base {
+  archivesName = 'x-pack-async-search'
+}
 
 addQaCheckDependencies(project)
 
 dependencies {
   compileOnly project(":server")
+  testImplementation testArtifact(project(':server'))
 
   compileOnly project(path: xpackModule('core'))
   testImplementation(testArtifact(project(xpackModule('core'))))

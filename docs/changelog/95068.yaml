@@ -1,6 +1,0 @@
-pr: 95068
-summary: "[Ingest Processor] Add `ignore_missing` param to the `uri_parts` ingest\
-  \ processor"
-area: Ingest Node
-type: enhancement
-issues: []

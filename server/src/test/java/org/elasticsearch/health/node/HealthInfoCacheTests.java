@@ -13,16 +13,18 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.health.node.HealthInfoTests.randomDslHealthInfo;
+import static org.elasticsearch.health.node.HealthInfoTests.randomRepoHealthInfo;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 
@@ -34,36 +36,37 @@ public class HealthInfoCacheTests extends ESTestCase {
         DiskHealthInfo.Cause.FROZEN_NODE_OVER_FLOOD_STAGE_THRESHOLD
     );
     private final ClusterService clusterService = mock(ClusterService.class);
-    private final DiscoveryNode node1 = TestDiscoveryNode.create(
-        "node_1",
-        buildNewFakeTransportAddress(),
-        Collections.emptyMap(),
-        Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE)
-    );
-    private final DiscoveryNode node2 = TestDiscoveryNode.create(
-        "node_2",
-        buildNewFakeTransportAddress(),
-        Collections.emptyMap(),
-        Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE)
-    );
+    private final DiscoveryNode node1 = DiscoveryNodeUtils.builder("node_1")
+        .roles(Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE))
+        .build();
+    private final DiscoveryNode node2 = DiscoveryNodeUtils.builder("node_2")
+        .roles(Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE))
+        .build();
     private final DiscoveryNode[] allNodes = new DiscoveryNode[] { node1, node2 };
 
     public void testAddHealthInfo() {
         HealthInfoCache healthInfoCache = HealthInfoCache.create(clusterService);
-        healthInfoCache.updateNodeHealth(node1.getId(), GREEN);
-        healthInfoCache.updateNodeHealth(node2.getId(), RED);
+        DataStreamLifecycleHealthInfo latestDslHealthInfo = randomDslHealthInfo();
+        var repoHealthInfo = randomRepoHealthInfo();
+        healthInfoCache.updateNodeHealth(node1.getId(), GREEN, latestDslHealthInfo, repoHealthInfo);
+        healthInfoCache.updateNodeHealth(node2.getId(), RED, null, null);
 
         Map<String, DiskHealthInfo> diskHealthInfo = healthInfoCache.getHealthInfo().diskInfoByNode();
-        healthInfoCache.updateNodeHealth(node1.getId(), RED);
+        // Ensure that HealthInfoCache#getHealthInfo() returns a copy of the health info.
+        healthInfoCache.updateNodeHealth(node1.getId(), RED, null, null);
 
         assertThat(diskHealthInfo.get(node1.getId()), equalTo(GREEN));
         assertThat(diskHealthInfo.get(node2.getId()), equalTo(RED));
+        // dsl health info has not changed as a new value has not been reported
+        assertThat(healthInfoCache.getHealthInfo().dslHealthInfo(), is(latestDslHealthInfo));
     }
 
     public void testRemoveNodeFromTheCluster() {
         HealthInfoCache healthInfoCache = HealthInfoCache.create(clusterService);
-        healthInfoCache.updateNodeHealth(node1.getId(), GREEN);
-        healthInfoCache.updateNodeHealth(node2.getId(), RED);
+        healthInfoCache.updateNodeHealth(node1.getId(), GREEN, null, null);
+        DataStreamLifecycleHealthInfo latestDslHealthInfo = randomDslHealthInfo();
+        var repoHealthInfo = randomRepoHealthInfo();
+        healthInfoCache.updateNodeHealth(node2.getId(), RED, latestDslHealthInfo, repoHealthInfo);
 
         ClusterState previous = ClusterStateCreationUtils.state(node1, node1, node1, allNodes);
         ClusterState current = ClusterStateCreationUtils.state(node1, node1, node1, new DiscoveryNode[] { node1 });
@@ -72,12 +75,15 @@ public class HealthInfoCacheTests extends ESTestCase {
         Map<String, DiskHealthInfo> diskHealthInfo = healthInfoCache.getHealthInfo().diskInfoByNode();
         assertThat(diskHealthInfo.get(node1.getId()), equalTo(GREEN));
         assertThat(diskHealthInfo.get(node2.getId()), nullValue());
+        // the dsl info is not removed when the node that reported it leaves the cluster as the next DSL run will report it and
+        // override it (if the health node stops being the designated health node the health cache nullifies the existing DSL info)
+        assertThat(healthInfoCache.getHealthInfo().dslHealthInfo(), is(latestDslHealthInfo));
     }
 
     public void testNotAHealthNode() {
         HealthInfoCache healthInfoCache = HealthInfoCache.create(clusterService);
-        healthInfoCache.updateNodeHealth(node1.getId(), GREEN);
-        healthInfoCache.updateNodeHealth(node2.getId(), RED);
+        healthInfoCache.updateNodeHealth(node1.getId(), GREEN, randomDslHealthInfo(), randomRepoHealthInfo());
+        healthInfoCache.updateNodeHealth(node2.getId(), RED, null, null);
 
         ClusterState previous = ClusterStateCreationUtils.state(node1, node1, node1, allNodes);
         ClusterState current = ClusterStateCreationUtils.state(node1, node1, node2, allNodes);
@@ -85,5 +91,8 @@ public class HealthInfoCacheTests extends ESTestCase {
 
         Map<String, DiskHealthInfo> diskHealthInfo = healthInfoCache.getHealthInfo().diskInfoByNode();
         assertThat(diskHealthInfo.isEmpty(), equalTo(true));
+        assertThat(healthInfoCache.getHealthInfo().dslHealthInfo(), is(nullValue()));
+        Map<String, RepositoriesHealthInfo> repoHealthInfo = healthInfoCache.getHealthInfo().repositoriesInfoByNode();
+        assertThat(repoHealthInfo.isEmpty(), equalTo(true));
     }
 }

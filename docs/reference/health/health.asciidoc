@@ -73,7 +73,7 @@ for health status set `verbose` to `false` to disable the more expensive analysi
 
   `repository_integrity`::
       Tracks repository integrity and reports health issues
-      that arise if repositories become corrupted.
+      that arise if repositories become corrupted, unknown, or invalid.
 
   `slm`::
       Reports health issues related to
@@ -356,6 +356,14 @@ watermark threshold>>.
     (Optional, array of strings) If corrupted repositories have been detected in the system, the names of up to ten of
     them are displayed in this field. If no corrupted repositories are found, this detail is omitted.
 
+`unknown_repositories`::
+    (Optional, int) The number of repositories that have been determined to be unknown by at least one node.
+    If there are no unknown repositories detected, this detail is omitted.
+
+`invalid_repositories`::
+    (Optional, int) The number of repositories that have been determined to be invalid by at least one node.
+    If there are no invalid repositories detected, this detail is omitted.
+
 [[health-api-response-details-ilm]]
 ===== ilm
 
@@ -364,6 +372,43 @@ watermark threshold>>.
 
 `policies`::
     (int) The number of index lifecycle policies that the system is managing.
+
+`stagnating_indices`::
+    (int) the number of indices managed by {ilm} that has been stagnant longer than expected.
+
+`stagnating_indices_per_action`::
+    (optional, map) Summary of the number of indices, grouped by action, that have been stagnant longer than
+    expected.
++
+.Properties of `stagnating_indices_per_action`
+[%collapsible%open]
+=======
+`downsample`::
+(int) The number of stagnant indices in the `downsample` action.
+
+`allocate`::
+(int) The number of stagnant indices in the `allocate` action.
+
+`shrink`::
+(int) The number of stagnant indices in the `shrink` action.
+
+`searchable_snapshot`::
+(int) The number of stagnant indices in the `searchable_snapshot` action.
+
+`rollover`::
+(int) The number of stagnant indices in the `rollver` action.
+
+`forcemerge`::
+(int) The number of stagnant indices in the `forcemerge` action.
+
+`delete`::
+(int) The number of stagnant indices in the `delete` action.
+
+`migrate`::
+(int) The number of stagnant indices in the `migrate` action.
+
+
+=======
 
 [[health-api-response-details-slm]]
 ===== slm
@@ -376,7 +421,7 @@ watermark threshold>>.
 
 `unhealthy_policies`::
     (map) A detailed view on the policies that are considered unhealthy due to having
-    several consecutive unssuccesful invocations.
+    several consecutive unsuccessful invocations.
     The `count` key represents the number of unhealthy policies (int).
     The `invocations_since_last_success` key will report a map where the unhealthy policy
     name is the key and it's corresponding number of failed invocations is the value.

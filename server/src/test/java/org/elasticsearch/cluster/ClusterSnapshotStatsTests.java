@@ -8,7 +8,6 @@
 
 package org.elasticsearch.cluster;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
@@ -16,6 +15,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.ShardGeneration;
@@ -49,7 +49,8 @@ public class ClusterSnapshotStatsTests extends AbstractWireSerializingTestCase<C
         "ABORTED",
         "MISSING",
         "WAITING",
-        "QUEUED" };
+        "QUEUED",
+        "PAUSED_FOR_NODE_REMOVAL" };
 
     @Override
     protected ClusterSnapshotStats createTestInstance() {
@@ -370,7 +371,9 @@ public class ClusterSnapshotStatsTests extends AbstractWireSerializingTestCase<C
                                 SnapshotsInProgress.ShardState.WAITING,
                                 0,
                                 SnapshotsInProgress.ShardState.QUEUED,
-                                1
+                                1,
+                                SnapshotsInProgress.ShardState.PAUSED_FOR_NODE_REMOVAL,
+                                0
                             )
                         )
                     )
@@ -392,7 +395,7 @@ public class ClusterSnapshotStatsTests extends AbstractWireSerializingTestCase<C
                                 new Snapshot("test-repo", new SnapshotId("snapshot", "uuid")),
                                 randomBoolean(),
                                 randomBoolean(),
-                                SnapshotsInProgress.State.INIT,
+                                SnapshotsInProgress.State.STARTED,
                                 Map.of("index", new IndexId("index", "uuid")),
                                 List.of(),
                                 List.of(),
@@ -411,7 +414,7 @@ public class ClusterSnapshotStatsTests extends AbstractWireSerializingTestCase<C
                                 ),
                                 null,
                                 Map.of(),
-                                Version.CURRENT
+                                IndexVersion.current()
                             )
                         )
                             .withAddedEntry(
@@ -421,7 +424,7 @@ public class ClusterSnapshotStatsTests extends AbstractWireSerializingTestCase<C
                                     Map.of("index", new IndexId("index", "index-id")),
                                     startTimes[1],
                                     randomNonNegativeLong(),
-                                    Version.CURRENT
+                                    IndexVersion.current()
                                 )
                             )
                     )
@@ -430,8 +433,8 @@ public class ClusterSnapshotStatsTests extends AbstractWireSerializingTestCase<C
                         SnapshotDeletionsInProgress.of(
                             List.of(
                                 new SnapshotDeletionsInProgress.Entry(
-                                    List.of(new SnapshotId("deleting", "uuid")),
                                     "test-repo",
+                                    List.of(new SnapshotId("deleting", "uuid")),
                                     startTimes[2],
                                     randomNonNegativeLong(),
                                     SnapshotDeletionsInProgress.State.WAITING

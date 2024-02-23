@@ -9,11 +9,11 @@
 package org.elasticsearch.action.admin.indices.create;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -41,7 +41,7 @@ import java.util.function.BiFunction;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_WAIT_FOR_ACTIVE_SHARDS;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertRequestBuilderThrows;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -97,7 +97,7 @@ public class CreateIndexIT extends ESIntegTestCase {
             )
         );
 
-        GetMappingsResponse response = client().admin().indices().prepareGetMappings("test").get();
+        GetMappingsResponse response = indicesAdmin().prepareGetMappings("test").get();
 
         MappingMetadata mappings = response.mappings().get("test");
         assertNotNull(mappings);
@@ -107,7 +107,7 @@ public class CreateIndexIT extends ESIntegTestCase {
     public void testEmptyNestedMappings() throws Exception {
         assertAcked(prepareCreate("test").setMapping(XContentFactory.jsonBuilder().startObject().endObject()));
 
-        GetMappingsResponse response = client().admin().indices().prepareGetMappings("test").get();
+        GetMappingsResponse response = indicesAdmin().prepareGetMappings("test").get();
 
         MappingMetadata mappings = response.mappings().get("test");
         assertNotNull(mappings);
@@ -117,8 +117,7 @@ public class CreateIndexIT extends ESIntegTestCase {
     public void testMappingParamAndNestedMismatch() throws Exception {
         MapperParsingException e = expectThrows(
             MapperParsingException.class,
-            () -> prepareCreate("test").setMapping(XContentFactory.jsonBuilder().startObject().startObject("type2").endObject().endObject())
-                .get()
+            prepareCreate("test").setMapping(XContentFactory.jsonBuilder().startObject().startObject("type2").endObject().endObject())
         );
         assertThat(e.getMessage(), startsWith("Failed to parse mapping: Root mapping definition has unsupported parameters"));
     }
@@ -128,7 +127,7 @@ public class CreateIndexIT extends ESIntegTestCase {
             prepareCreate("test").setMapping(XContentFactory.jsonBuilder().startObject().startObject("_doc").endObject().endObject())
         );
 
-        GetMappingsResponse response = client().admin().indices().prepareGetMappings("test").get();
+        GetMappingsResponse response = indicesAdmin().prepareGetMappings("test").get();
 
         MappingMetadata mappings = response.mappings().get("test");
         assertNotNull(mappings);
@@ -164,7 +163,7 @@ public class CreateIndexIT extends ESIntegTestCase {
 
     public void testCreateIndexWithMetadataBlocks() {
         assertAcked(prepareCreate("test").setSettings(Settings.builder().put(IndexMetadata.SETTING_BLOCKS_METADATA, true)));
-        assertBlocked(client().admin().indices().prepareGetSettings("test"), IndexMetadata.INDEX_METADATA_BLOCK);
+        assertBlocked(indicesAdmin().prepareGetSettings("test"), IndexMetadata.INDEX_METADATA_BLOCK);
         disableIndexBlock("test", IndexMetadata.SETTING_BLOCKS_METADATA);
     }
 
@@ -213,12 +212,12 @@ public class CreateIndexIT extends ESIntegTestCase {
         final CountDownLatch latch = new CountDownLatch(1);
         int numDocs = randomIntBetween(1, 10);
         for (int i = 0; i < numDocs; i++) {
-            client().prepareIndex("test").setSource("index_version", indexVersion.get()).get();
+            prepareIndex("test").setSource("index_version", indexVersion.get()).get();
         }
         synchronized (indexVersionLock) { // not necessarily needed here but for completeness we lock here too
             indexVersion.incrementAndGet();
         }
-        client().admin().indices().prepareDelete("test").execute(new ActionListener<AcknowledgedResponse>() { // this happens async!!!
+        indicesAdmin().prepareDelete("test").execute(new ActionListener<AcknowledgedResponse>() { // this happens async!!!
             @Override
             public void onResponse(AcknowledgedResponse deleteIndexResponse) {
                 Thread thread = new Thread() {
@@ -226,7 +225,7 @@ public class CreateIndexIT extends ESIntegTestCase {
                     public void run() {
                         try {
                             // recreate that index
-                            client().prepareIndex("test").setSource("index_version", indexVersion.get()).get();
+                            prepareIndex("test").setSource("index_version", indexVersion.get()).get();
                             synchronized (indexVersionLock) {
                                 // we sync here since we have to ensure that all indexing operations below for a given ID are done before
                                 // we increment the index version otherwise a doc that is in-flight could make it into an index that it
@@ -234,7 +233,7 @@ public class CreateIndexIT extends ESIntegTestCase {
                                 indexVersion.incrementAndGet();
                             }
                             // from here on all docs with index_version == 0|1 must be gone!!!! only 2 are ok;
-                            assertAcked(client().admin().indices().prepareDelete("test").get());
+                            assertAcked(indicesAdmin().prepareDelete("test").get());
                         } finally {
                             latch.countDown();
                         }
@@ -252,10 +251,7 @@ public class CreateIndexIT extends ESIntegTestCase {
         for (int i = 0; i < numDocs; i++) {
             try {
                 synchronized (indexVersionLock) {
-                    client().prepareIndex("test")
-                        .setSource("index_version", indexVersion.get())
-                        .setTimeout(TimeValue.timeValueSeconds(10))
-                        .get();
+                    prepareIndex("test").setSource("index_version", indexVersion.get()).setTimeout(TimeValue.timeValueSeconds(10)).get();
                 }
             } catch (IndexNotFoundException inf) {
                 // fine
@@ -269,20 +265,21 @@ public class CreateIndexIT extends ESIntegTestCase {
 
         // we only really assert that we never reuse segments of old indices or anything like this here and that nothing fails with
         // crazy exceptions
-        SearchResponse expected = client().prepareSearch("test")
-            .setIndicesOptions(IndicesOptions.lenientExpandOpen())
-            .setQuery(new RangeQueryBuilder("index_version").from(indexVersion.get(), true))
-            .get();
-        SearchResponse all = client().prepareSearch("test").setIndicesOptions(IndicesOptions.lenientExpandOpen()).get();
-        assertEquals(expected + " vs. " + all, expected.getHits().getTotalHits().value, all.getHits().getTotalHits().value);
-        logger.info("total: {}", expected.getHits().getTotalHits().value);
+        assertNoFailuresAndResponse(
+            prepareSearch("test").setIndicesOptions(IndicesOptions.lenientExpandOpen())
+                .setQuery(new RangeQueryBuilder("index_version").from(indexVersion.get(), true)),
+            expected -> assertNoFailuresAndResponse(prepareSearch("test").setIndicesOptions(IndicesOptions.lenientExpandOpen()), all -> {
+                assertEquals(expected + " vs. " + all, expected.getHits().getTotalHits().value, all.getHits().getTotalHits().value);
+                logger.info("total: {}", expected.getHits().getTotalHits().value);
+            })
+        );
     }
 
     public void testRestartIndexCreationAfterFullClusterRestart() throws Exception {
         clusterAdmin().prepareUpdateSettings()
             .setTransientSettings(Settings.builder().put("cluster.routing.allocation.enable", "none"))
             .get();
-        client().admin().indices().prepareCreate("test").setWaitForActiveShards(ActiveShardCount.NONE).setSettings(indexSettings()).get();
+        indicesAdmin().prepareCreate("test").setWaitForActiveShards(ActiveShardCount.NONE).setSettings(indexSettings()).get();
         internalCluster().fullRestart();
         ensureGreen("test");
     }
@@ -293,19 +290,12 @@ public class CreateIndexIT extends ESIntegTestCase {
             .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
             .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), numReplicas)
             .build();
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("test-idx-1")
-                .setSettings(settings)
-                .addAlias(new Alias("alias1").writeIndex(true))
-                .get()
-        );
+        assertAcked(indicesAdmin().prepareCreate("test-idx-1").setSettings(settings).addAlias(new Alias("alias1").writeIndex(true)).get());
 
-        assertRequestBuilderThrows(
-            client().admin().indices().prepareCreate("test-idx-2").setSettings(settings).addAlias(new Alias("alias1").writeIndex(true)),
-            IllegalStateException.class
-        );
+        ActionRequestBuilder<?, ?> builder = indicesAdmin().prepareCreate("test-idx-2")
+            .setSettings(settings)
+            .addAlias(new Alias("alias1").writeIndex(true));
+        expectThrows(IllegalStateException.class, builder);
 
         IndicesService indicesService = internalCluster().getInstance(IndicesService.class, internalCluster().getMasterName());
         for (IndexService indexService : indicesService) {
@@ -323,19 +313,15 @@ public class CreateIndexIT extends ESIntegTestCase {
             .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
             .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), numReplicas)
             .build();
-        assertAcked(client().admin().indices().prepareCreate("test-idx-1").setSettings(settings).get());
+        assertAcked(indicesAdmin().prepareCreate("test-idx-1").setSettings(settings).get());
 
         // all should fail
         settings = Settings.builder().put(settings).put(SETTING_WAIT_FOR_ACTIVE_SHARDS.getKey(), "all").build();
-        assertFalse(
-            client().admin().indices().prepareCreate("test-idx-2").setSettings(settings).setTimeout("100ms").get().isShardsAcknowledged()
-        );
+        assertFalse(indicesAdmin().prepareCreate("test-idx-2").setSettings(settings).setTimeout("100ms").get().isShardsAcknowledged());
 
         // the numeric equivalent of all should also fail
         settings = Settings.builder().put(settings).put(SETTING_WAIT_FOR_ACTIVE_SHARDS.getKey(), Integer.toString(numReplicas + 1)).build();
-        assertFalse(
-            client().admin().indices().prepareCreate("test-idx-3").setSettings(settings).setTimeout("100ms").get().isShardsAcknowledged()
-        );
+        assertFalse(indicesAdmin().prepareCreate("test-idx-3").setSettings(settings).setTimeout("100ms").get().isShardsAcknowledged());
     }
 
     public void testInvalidPartitionSize() {
@@ -348,7 +334,7 @@ public class CreateIndexIT extends ESIntegTestCase {
                         .put("index.number_of_shards", shards)
                         .put("index.number_of_routing_shards", shards)
                         .put("index.routing_partition_size", partitionSize)
-                ).execute().actionGet();
+                ).get();
             } catch (IllegalStateException | IllegalArgumentException e) {
                 return false;
             }

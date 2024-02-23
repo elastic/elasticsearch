@@ -18,7 +18,6 @@ import java.lang.management.GarbageCollectorMXBean;
 import java.lang.management.ManagementFactory;
 import java.util.Arrays;
 import java.util.List;
-import java.util.stream.Collectors;
 
 public abstract class AbstractBenchmark<T extends Closeable> {
     private static final int SEARCH_BENCHMARK_ITERATIONS = 10_000;
@@ -92,7 +91,7 @@ public abstract class AbstractBenchmark<T extends Closeable> {
         String benchmarkTargetHost = args[1];
         String indexName = args[2];
         String searchBody = args[3];
-        List<Integer> throughputRates = Arrays.asList(args[4].split(",")).stream().map(Integer::valueOf).collect(Collectors.toList());
+        List<Integer> throughputRates = Arrays.stream(args[4].split(",")).map(Integer::valueOf).toList();
 
         T client = client(benchmarkTargetHost);
 

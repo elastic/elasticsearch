@@ -1,0 +1,5 @@
+pr: 104665
+summary: Restrict usage of certain aggregations when in sort order execution is required
+area: TSDB
+type: enhancement
+issues: []

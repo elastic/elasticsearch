@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ml.inference.nlp.tokenizers;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.BertTokenization;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.Tokenization;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.inference.nlp.NlpTask;
@@ -39,7 +40,7 @@ public class BertTokenizer extends NlpTokenizer {
     public static final String SEPARATOR_TOKEN = "[SEP]";
     public static final String PAD_TOKEN = "[PAD]";
     public static final String CLASS_TOKEN = "[CLS]";
-    public static final String MASK_TOKEN = "[MASK]";
+    public static final String MASK_TOKEN = BertTokenization.MASK_TOKEN;
 
     private static final Set<String> NEVER_SPLIT = Set.of(MASK_TOKEN);
 
@@ -98,7 +99,7 @@ public class BertTokenizer extends NlpTokenizer {
         String maskToken,
         String unknownToken
     ) {
-        wordPieceAnalyzer = new WordPieceAnalyzer(
+        wordPieceAnalyzer = createWordPieceAnalyzer(
             originalVocab,
             new ArrayList<>(neverSplit),
             doLowerCase,
@@ -135,6 +136,24 @@ public class BertTokenizer extends NlpTokenizer {
         this.unknownToken = unknownToken;
     }
 
+    protected WordPieceAnalyzer createWordPieceAnalyzer(
+        List<String> vocabulary,
+        List<String> neverSplit,
+        boolean doLowerCase,
+        boolean doTokenizeCjKChars,
+        boolean doStripAccents,
+        String unknownToken
+    ) {
+        return new WordPieceAnalyzer(
+            vocabulary,
+            new ArrayList<>(neverSplit),
+            doLowerCase,
+            doTokenizeCjKChars,
+            doStripAccents,
+            unknownToken
+        );
+    }
+
     @Override
     int sepTokenId() {
         return sepTokenId;
@@ -148,6 +167,21 @@ public class BertTokenizer extends NlpTokenizer {
     @Override
     boolean isWithSpecialTokens() {
         return withSpecialTokens;
+    }
+
+    @Override
+    int defaultSpanForChunking(int maxWindowSize) {
+        return (maxWindowSize - numExtraTokensForSingleSequence()) / 2;
+    }
+
+    @Override
+    int getNumExtraTokensForSeqPair() {
+        return 3;
+    }
+
+    @Override
+    int numExtraTokensForSingleSequence() {
+        return 2;
     }
 
     @Override
@@ -194,17 +228,12 @@ public class BertTokenizer extends NlpTokenizer {
 
     @Override
     public NlpTask.RequestBuilder requestBuilder() {
-        return (inputs, requestId, truncate, span) -> buildTokenizationResult(
+        return (inputs, requestId, truncate, span, windowSize) -> buildTokenizationResult(
             IntStream.range(0, inputs.size())
                 .boxed()
-                .flatMap(seqId -> tokenize(inputs.get(seqId), truncate, span, seqId).stream())
+                .flatMap(seqId -> tokenize(inputs.get(seqId), truncate, span, seqId, windowSize).stream())
                 .collect(Collectors.toList())
         ).buildRequest(requestId, truncate);
-    }
-
-    @Override
-    int getNumExtraTokensForSeqPair() {
-        return 3;
     }
 
     @Override
@@ -227,10 +256,6 @@ public class BertTokenizer extends NlpTokenizer {
     @Override
     public void close() {
         wordPieceAnalyzer.close();
-    }
-
-    public int getMaxSequenceLength() {
-        return maxSequenceLength;
     }
 
     public static Builder builder(List<String> vocab, Tokenization tokenization) {

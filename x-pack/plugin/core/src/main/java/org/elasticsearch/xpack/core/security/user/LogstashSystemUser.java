@@ -6,17 +6,14 @@
  */
 package org.elasticsearch.xpack.core.security.user;
 
-import org.elasticsearch.xpack.core.security.support.MetadataUtils;
-
 /**
  * Built in user for logstash internals. Currently used for Logstash monitoring.
  */
-public class LogstashSystemUser extends User {
+public class LogstashSystemUser extends ReservedUser {
 
     public static final String NAME = UsernamesField.LOGSTASH_NAME;
-    public static final String ROLE_NAME = UsernamesField.LOGSTASH_ROLE;
 
     public LogstashSystemUser(boolean enabled) {
-        super(NAME, new String[] { ROLE_NAME }, null, null, MetadataUtils.DEFAULT_RESERVED_METADATA, enabled);
+        super(NAME, UsernamesField.LOGSTASH_ROLE, enabled);
     }
 }

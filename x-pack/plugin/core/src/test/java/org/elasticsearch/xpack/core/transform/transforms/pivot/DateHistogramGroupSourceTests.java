@@ -7,8 +7,7 @@
 
 package org.elasticsearch.xpack.core.transform.transforms.pivot;
 
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -18,8 +17,9 @@ import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
-import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
+import org.elasticsearch.xpack.core.transform.utils.TransformConfigVersionUtils;
 
 import java.io.IOException;
 import java.time.ZoneOffset;
@@ -31,38 +31,42 @@ import static org.hamcrest.Matchers.notNullValue;
 public class DateHistogramGroupSourceTests extends AbstractXContentSerializingTestCase<DateHistogramGroupSource> {
 
     public static DateHistogramGroupSource randomDateHistogramGroupSource() {
-        return randomDateHistogramGroupSource(Version.CURRENT);
+        return randomDateHistogramGroupSource(TransformConfigVersion.CURRENT);
     }
 
     public static DateHistogramGroupSource randomDateHistogramGroupSourceNoScript() {
-        return randomDateHistogramGroupSource(Version.CURRENT, false);
+        return randomDateHistogramGroupSource(TransformConfigVersion.CURRENT, false);
     }
 
     public static DateHistogramGroupSource randomDateHistogramGroupSourceNoScript(String fieldPrefix) {
-        return randomDateHistogramGroupSource(Version.CURRENT, false, fieldPrefix);
+        return randomDateHistogramGroupSource(TransformConfigVersion.CURRENT, false, fieldPrefix);
     }
 
-    public static DateHistogramGroupSource randomDateHistogramGroupSource(Version version) {
+    public static DateHistogramGroupSource randomDateHistogramGroupSource(TransformConfigVersion version) {
         return randomDateHistogramGroupSource(version, randomBoolean());
     }
 
-    public static DateHistogramGroupSource randomDateHistogramGroupSource(Version version, boolean withScript) {
+    public static DateHistogramGroupSource randomDateHistogramGroupSource(TransformConfigVersion version, boolean withScript) {
         return randomDateHistogramGroupSource(version, withScript, "");
     }
 
-    public static DateHistogramGroupSource randomDateHistogramGroupSource(Version version, boolean withScript, String fieldPrefix) {
+    public static DateHistogramGroupSource randomDateHistogramGroupSource(
+        TransformConfigVersion version,
+        boolean withScript,
+        String fieldPrefix
+    ) {
         ScriptConfig scriptConfig = null;
         String field;
 
         // either a field or a script must be specified, it's possible to have both, but disallowed to have none
-        if (version.onOrAfter(Version.V_7_7_0) && withScript) {
+        if (version.onOrAfter(TransformConfigVersion.V_7_7_0) && withScript) {
             scriptConfig = ScriptConfigTests.randomScriptConfig();
             field = randomBoolean() ? null : fieldPrefix + randomAlphaOfLengthBetween(1, 20);
         } else {
             field = fieldPrefix + randomAlphaOfLengthBetween(1, 20);
         }
-        boolean missingBucket = version.onOrAfter(Version.V_7_10_0) ? randomBoolean() : false;
-        Long offset = version.onOrAfter(Version.V_8_7_0) ? randomOffset() : null;
+        boolean missingBucket = version.onOrAfter(TransformConfigVersion.V_7_10_0) ? randomBoolean() : false;
+        Long offset = version.onOrAfter(TransformConfigVersion.V_8_7_0) ? randomOffset() : null;
 
         DateHistogramGroupSource dateHistogramGroupSource;
         if (randomBoolean()) {
@@ -93,14 +97,14 @@ public class DateHistogramGroupSourceTests extends AbstractXContentSerializingTe
     public void testBackwardsSerialization72() throws IOException {
         // version 7.7 introduced scripts, so test before that
         DateHistogramGroupSource groupSource = randomDateHistogramGroupSource(
-            VersionUtils.randomVersionBetween(random(), Version.V_7_3_0, Version.V_7_6_2)
+            TransformConfigVersionUtils.randomVersionBetween(random(), TransformConfigVersion.V_7_3_0, TransformConfigVersion.V_7_6_2)
         );
 
         try (BytesStreamOutput output = new BytesStreamOutput()) {
-            output.setTransportVersion(TransportVersion.V_7_2_0);
+            output.setTransportVersion(TransportVersions.V_7_2_0);
             groupSource.writeTo(output);
             try (StreamInput in = output.bytes().streamInput()) {
-                in.setTransportVersion(TransportVersion.V_7_2_0);
+                in.setTransportVersion(TransportVersions.V_7_2_0);
                 DateHistogramGroupSource streamedGroupSource = new DateHistogramGroupSource(in);
                 assertEquals(groupSource, streamedGroupSource);
             }

@@ -7,11 +7,10 @@
 
 package org.elasticsearch.xpack.cluster.routing.allocation;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.desirednodes.UpdateDesiredNodesAction;
 import org.elasticsearch.action.admin.cluster.desirednodes.UpdateDesiredNodesRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
-import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DesiredNode;
@@ -26,9 +25,9 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.xpack.core.DataTiersFeatureSetUsage;
 import org.elasticsearch.xpack.core.action.XPackUsageRequestBuilder;
 import org.elasticsearch.xpack.core.action.XPackUsageResponse;
+import org.elasticsearch.xpack.core.datatiers.DataTiersFeatureSetUsage;
 import org.junit.Before;
 
 import java.util.ArrayList;
@@ -69,16 +68,13 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
         startColdOnlyNode();
         ensureGreen();
 
-        client().admin().indices().prepareCreate(index).setWaitForActiveShards(0).get();
+        indicesAdmin().prepareCreate(index).setWaitForActiveShards(0).get();
 
-        Settings idxSettings = client().admin().indices().prepareGetIndex().addIndices(index).get().getSettings().get(index);
+        Settings idxSettings = indicesAdmin().prepareGetIndex().addIndices(index).get().getSettings().get(index);
         assertThat(DataTier.TIER_PREFERENCE_SETTING.get(idxSettings), equalTo(DataTier.DATA_CONTENT));
 
         // index should be red
-        assertThat(
-            client().admin().cluster().prepareHealth(index).get().getIndices().get(index).getStatus(),
-            equalTo(ClusterHealthStatus.RED)
-        );
+        assertThat(clusterAdmin().prepareHealth(index).get().getIndices().get(index).getStatus(), equalTo(ClusterHealthStatus.RED));
 
         if (randomBoolean()) {
             logger.info("--> starting content node");
@@ -237,9 +233,7 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
 
         updateDesiredNodes(desiredNodesWithWarmAndColdTier);
 
-        client().admin()
-            .indices()
-            .prepareCreate(index)
+        indicesAdmin().prepareCreate(index)
             .setWaitForActiveShards(0)
             .setSettings(
                 Settings.builder()
@@ -249,9 +243,7 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
             )
             .get();
 
-        var replicas = client().admin()
-            .indices()
-            .prepareGetIndex()
+        var replicas = indicesAdmin().prepareGetIndex()
             .setIndices(index)
             .get()
             .getSetting(index, INDEX_NUMBER_OF_REPLICAS_SETTING.getKey());
@@ -264,9 +256,7 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
         updateDesiredNodes(desiredNodesWithoutColdTier);
 
         assertBusy(() -> {
-            var newReplicaCount = client().admin()
-                .indices()
-                .prepareGetIndex()
+            var newReplicaCount = indicesAdmin().prepareGetIndex()
                 .setIndices(index)
                 .get()
                 .getSetting(index, INDEX_NUMBER_OF_REPLICAS_SETTING.getKey());
@@ -280,14 +270,12 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
         startColdOnlyNode();
         ensureGreen();
 
-        client().admin()
-            .indices()
-            .prepareCreate(index)
+        indicesAdmin().prepareCreate(index)
             .setWaitForActiveShards(0)
             .setSettings(Settings.builder().put(DataTier.TIER_PREFERENCE, DataTier.DATA_WARM))
             .get();
 
-        Settings idxSettings = client().admin().indices().prepareGetIndex().addIndices(index).get().getSettings().get(index);
+        Settings idxSettings = indicesAdmin().prepareGetIndex().addIndices(index).get().getSettings().get(index);
         assertThat(idxSettings.get(DataTier.TIER_PREFERENCE), equalTo(DataTier.DATA_WARM));
 
         // index should be yellow
@@ -299,14 +287,12 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
         startContentOnlyNode();
         ensureGreen();
 
-        client().admin()
-            .indices()
-            .prepareCreate(index)
+        indicesAdmin().prepareCreate(index)
             .setWaitForActiveShards(0)
             .setSettings(Settings.builder().putNull(DataTier.TIER_PREFERENCE)) // will be overridden to data_content
             .get();
 
-        Settings idxSettings = client().admin().indices().prepareGetIndex().addIndices(index).get().getSettings().get(index);
+        Settings idxSettings = indicesAdmin().prepareGetIndex().addIndices(index).get().getSettings().get(index);
         assertThat(DataTier.TIER_PREFERENCE_SETTING.get(idxSettings), equalTo("data_content"));
 
         // index should be yellow
@@ -322,9 +308,7 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
         startWarmOnlyNode();
         startHotOnlyNode();
 
-        client().admin()
-            .indices()
-            .prepareCreate(index)
+        indicesAdmin().prepareCreate(index)
             .setWaitForActiveShards(0)
             .setSettings(
                 Settings.builder()
@@ -334,10 +318,8 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
             )
             .get();
 
-        client().admin().indices().prepareAddBlock(IndexMetadata.APIBlock.READ_ONLY, index).get();
-        client().admin()
-            .indices()
-            .prepareResizeIndex(index, index + "-shrunk")
+        indicesAdmin().prepareAddBlock(IndexMetadata.APIBlock.READ_ONLY, index).get();
+        indicesAdmin().prepareResizeIndex(index, index + "-shrunk")
             .setResizeType(ResizeType.SHRINK)
             .setSettings(
                 Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
@@ -346,13 +328,7 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
 
         ensureGreen(index + "-shrunk");
 
-        Settings idxSettings = client().admin()
-            .indices()
-            .prepareGetIndex()
-            .addIndices(index + "-shrunk")
-            .get()
-            .getSettings()
-            .get(index + "-shrunk");
+        Settings idxSettings = indicesAdmin().prepareGetIndex().addIndices(index + "-shrunk").get().getSettings().get(index + "-shrunk");
         // It should inherit the setting of its originator
         assertThat(DataTier.TIER_PREFERENCE_SETTING.get(idxSettings), equalTo(DataTier.DATA_WARM));
 
@@ -364,17 +340,15 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
         startContentOnlyNode();
 
         Template t = new Template(Settings.builder().putNull(DataTier.TIER_PREFERENCE).build(), null, null);
-        ComposableIndexTemplate ct = new ComposableIndexTemplate.Builder().indexPatterns(Collections.singletonList(index))
-            .template(t)
-            .build();
+        ComposableIndexTemplate ct = ComposableIndexTemplate.builder().indexPatterns(Collections.singletonList(index)).template(t).build();
         client().execute(
-            PutComposableIndexTemplateAction.INSTANCE,
-            new PutComposableIndexTemplateAction.Request("template").indexTemplate(ct)
+            TransportPutComposableIndexTemplateAction.TYPE,
+            new TransportPutComposableIndexTemplateAction.Request("template").indexTemplate(ct)
         ).actionGet();
 
-        client().admin().indices().prepareCreate(index).setWaitForActiveShards(0).get();
+        indicesAdmin().prepareCreate(index).setWaitForActiveShards(0).get();
 
-        Settings idxSettings = client().admin().indices().prepareGetIndex().addIndices(index).get().getSettings().get(index);
+        Settings idxSettings = indicesAdmin().prepareGetIndex().addIndices(index).get().getSettings().get(index);
         assertThat(DataTier.TIER_PREFERENCE_SETTING.get(idxSettings), equalTo("data_content"));
 
         // index should be yellow
@@ -386,19 +360,17 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
         startContentOnlyNode();
         startHotOnlyNode();
 
-        client().admin()
-            .indices()
-            .prepareCreate(index)
+        indicesAdmin().prepareCreate(index)
             .setSettings(indexSettings(2, 0).put(DataTier.TIER_PREFERENCE, "data_hot"))
             .setWaitForActiveShards(0)
             .get();
 
-        client().admin().indices().prepareCreate(index + "2").setSettings(indexSettings(1, 1)).setWaitForActiveShards(0).get();
+        indicesAdmin().prepareCreate(index + "2").setSettings(indexSettings(1, 1)).setWaitForActiveShards(0).get();
 
         ensureGreen();
-        client().prepareIndex(index).setSource("foo", "bar").get();
-        client().prepareIndex(index + "2").setSource("foo", "bar").get();
-        client().prepareIndex(index + "2").setSource("foo", "bar").get();
+        prepareIndex(index).setSource("foo", "bar").get();
+        prepareIndex(index + "2").setSource("foo", "bar").get();
+        prepareIndex(index + "2").setSource("foo", "bar").get();
         refresh(index, index + "2");
 
         DataTiersFeatureSetUsage usage = getUsage();
@@ -444,7 +416,7 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
     }
 
     private DataTiersFeatureSetUsage getUsage() {
-        XPackUsageResponse usages = new XPackUsageRequestBuilder(client()).execute().actionGet();
+        XPackUsageResponse usages = new XPackUsageRequestBuilder(client()).get();
         return usages.getUsages()
             .stream()
             .filter(u -> u instanceof DataTiersFeatureSetUsage)
@@ -533,7 +505,7 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
             .put(NODE_EXTERNAL_ID_SETTING.getKey(), externalId)
             .put(NODE_NAME_SETTING.getKey(), externalId)
             .build();
-        return new DesiredNode(settings, 1, ByteSizeValue.ONE, ByteSizeValue.ONE, Version.CURRENT);
+        return new DesiredNode(settings, 1, ByteSizeValue.ONE, ByteSizeValue.ONE);
     }
 
     private void updateDesiredNodes(DesiredNode... desiredNodes) {
@@ -559,7 +531,7 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
     }
 
     private DiscoveryNode getPrimaryShardAssignedNode(int shard) {
-        final var state = client().admin().cluster().prepareState().get().getState();
+        final var state = clusterAdmin().prepareState().get().getState();
         final var routingTable = state.routingTable().index(index).shard(shard);
         final var primaryShard = routingTable.primaryShard();
         final var discoveryNode = state.nodes().get(primaryShard.currentNodeId());
@@ -569,7 +541,7 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
 
     private String explainAllocation(int shard) {
         return Strings.toString(
-            client().admin().cluster().prepareAllocationExplain().setIndex(index).setShard(shard).setPrimary(true).get().getExplanation(),
+            clusterAdmin().prepareAllocationExplain().setIndex(index).setShard(shard).setPrimary(true).get().getExplanation(),
             true,
             true
         );
@@ -578,9 +550,7 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
     private void createIndexWithTierPreference(String... tiers) {
         assertThat(tiers.length, is(greaterThan(0)));
 
-        client().admin()
-            .indices()
-            .prepareCreate(index)
+        indicesAdmin().prepareCreate(index)
             .setWaitForActiveShards(0)
             .setSettings(
                 Settings.builder().put(DataTier.TIER_PREFERENCE, String.join(",", tiers)).put(INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)

@@ -11,9 +11,9 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.MinimizationOperations;
 import org.apache.lucene.util.automaton.Operations;
+import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
-import org.elasticsearch.common.lucene.RegExp;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
@@ -80,6 +80,7 @@ public final class Automatons {
     /**
      * Builds and returns an automaton that will represent the union of all the given patterns.
      */
+    @SuppressWarnings("unchecked")
     public static Automaton patterns(Collection<String> patterns) {
         if (patterns.isEmpty()) {
             return EMPTY;
@@ -88,7 +89,7 @@ public final class Automatons {
             return buildAutomaton(patterns);
         } else {
             try {
-                return cache.computeIfAbsent(Sets.newHashSet(patterns), ignore -> buildAutomaton(patterns));
+                return cache.computeIfAbsent(Sets.newHashSet(patterns), p -> buildAutomaton((Set<String>) p));
             } catch (ExecutionException e) {
                 throw unwrapCacheException(e);
             }
@@ -184,7 +185,7 @@ public final class Automatons {
             return buildAutomaton(pattern);
         } else {
             try {
-                return cache.computeIfAbsent(pattern, ignore -> buildAutomaton(pattern));
+                return cache.computeIfAbsent(pattern, p -> buildAutomaton((String) p));
             } catch (ExecutionException e) {
                 throw unwrapCacheException(e);
             }

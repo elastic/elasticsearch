@@ -15,8 +15,8 @@ import org.elasticsearch.cluster.coordination.Coordinator.Mode;
 import org.elasticsearch.cluster.coordination.FollowersChecker.FollowerCheckRequest;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -46,6 +46,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -73,7 +74,7 @@ import static org.hamcrest.core.IsInstanceOf.instanceOf;
 public class FollowersCheckerTests extends ESTestCase {
 
     public void testChecksExpectedNodes() {
-        final DiscoveryNode localNode = TestDiscoveryNode.create("local-node");
+        final DiscoveryNode localNode = DiscoveryNodeUtils.create("local-node");
         final Settings settings = Settings.builder().put(NODE_NAME_SETTING.getKey(), localNode.getName()).build();
 
         final DiscoveryNodes[] discoveryNodesHolder = new DiscoveryNodes[] {
@@ -124,7 +125,7 @@ public class FollowersCheckerTests extends ESTestCase {
         assertThat(checkedNodes, empty());
         assertThat(followersChecker.getFaultyNodes(), empty());
 
-        final DiscoveryNode otherNode1 = TestDiscoveryNode.create("other-node-1");
+        final DiscoveryNode otherNode1 = DiscoveryNodeUtils.create("other-node-1");
         followersChecker.setCurrentNodes(discoveryNodesHolder[0] = DiscoveryNodes.builder(discoveryNodesHolder[0]).add(otherNode1).build());
         while (checkCount.get() < 10) {
             if (deterministicTaskQueue.hasRunnableTasks()) {
@@ -138,7 +139,7 @@ public class FollowersCheckerTests extends ESTestCase {
 
         checkedNodes.clear();
         checkCount.set(0);
-        final DiscoveryNode otherNode2 = TestDiscoveryNode.create("other-node-2");
+        final DiscoveryNode otherNode2 = DiscoveryNodeUtils.create("other-node-2");
         followersChecker.setCurrentNodes(discoveryNodesHolder[0] = DiscoveryNodes.builder(discoveryNodesHolder[0]).add(otherNode2).build());
         while (checkCount.get() < 10) {
             if (deterministicTaskQueue.hasRunnableTasks()) {
@@ -299,8 +300,8 @@ public class FollowersCheckerTests extends ESTestCase {
     }
 
     public void testFailsNodeThatDisconnects() {
-        final DiscoveryNode localNode = TestDiscoveryNode.create("local-node");
-        final DiscoveryNode otherNode = TestDiscoveryNode.create("other-node");
+        final DiscoveryNode localNode = DiscoveryNodeUtils.create("local-node");
+        final DiscoveryNode otherNode = DiscoveryNodeUtils.create("other-node");
         final Settings settings = Settings.builder().put(NODE_NAME_SETTING.getKey(), localNode.getName()).build();
         final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue();
 
@@ -311,7 +312,7 @@ public class FollowersCheckerTests extends ESTestCase {
                 if (action.equals(HANDSHAKE_ACTION_NAME)) {
                     handleResponse(
                         requestId,
-                        new TransportService.HandshakeResponse(Version.CURRENT, Build.CURRENT.hash(), node, ClusterName.DEFAULT)
+                        new TransportService.HandshakeResponse(Version.CURRENT, Build.current().hash(), node, ClusterName.DEFAULT)
                     );
                     return;
                 }
@@ -380,8 +381,8 @@ public class FollowersCheckerTests extends ESTestCase {
         long expectedFailureTime,
         NodeHealthService nodeHealthService
     ) {
-        final DiscoveryNode localNode = TestDiscoveryNode.create("local-node");
-        final DiscoveryNode otherNode = TestDiscoveryNode.create("other-node");
+        final DiscoveryNode localNode = DiscoveryNodeUtils.create("local-node");
+        final DiscoveryNode otherNode = DiscoveryNodeUtils.create("other-node");
         final Settings settings = Settings.builder().put(NODE_NAME_SETTING.getKey(), localNode.getName()).put(testSettings).build();
         final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue();
 
@@ -453,7 +454,7 @@ public class FollowersCheckerTests extends ESTestCase {
         deterministicTaskQueue.runAllTasks();
 
         // add another node and see that it schedules checks for this new node but keeps on considering the old one faulty
-        final DiscoveryNode otherNode2 = TestDiscoveryNode.create("other-node-2");
+        final DiscoveryNode otherNode2 = DiscoveryNodeUtils.create("other-node-2");
         discoveryNodes = DiscoveryNodes.builder(discoveryNodes).add(otherNode2).build();
         followersChecker.setCurrentNodes(discoveryNodes);
         deterministicTaskQueue.runAllRunnableTasks();
@@ -487,11 +488,11 @@ public class FollowersCheckerTests extends ESTestCase {
     public void testFollowerCheckRequestEqualsHashCodeSerialization() {
         // Note: the explicit cast of the CopyFunction is needed for some IDE (specifically Eclipse 4.8.0) to infer the right type
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(
-            new FollowerCheckRequest(randomNonNegativeLong(), TestDiscoveryNode.create(randomAlphaOfLength(10))),
+            new FollowerCheckRequest(randomNonNegativeLong(), DiscoveryNodeUtils.create(randomAlphaOfLength(10))),
             (CopyFunction<FollowerCheckRequest>) rq -> copyWriteable(rq, writableRegistry(), FollowerCheckRequest::new),
             rq -> {
                 if (randomBoolean()) {
-                    return new FollowerCheckRequest(rq.getTerm(), TestDiscoveryNode.create(randomAlphaOfLength(10)));
+                    return new FollowerCheckRequest(rq.getTerm(), DiscoveryNodeUtils.create(randomAlphaOfLength(10)));
                 } else {
                     return new FollowerCheckRequest(randomNonNegativeLong(), rq.getSender());
                 }
@@ -501,8 +502,8 @@ public class FollowersCheckerTests extends ESTestCase {
 
     public void testUnhealthyNodeRejectsImmediately() {
 
-        final DiscoveryNode leader = TestDiscoveryNode.create("leader");
-        final DiscoveryNode follower = TestDiscoveryNode.create("follower");
+        final DiscoveryNode leader = DiscoveryNodeUtils.create("leader");
+        final DiscoveryNode follower = DiscoveryNodeUtils.create("follower");
         final Settings settings = Settings.builder().put(NODE_NAME_SETTING.getKey(), follower.getName()).build();
         final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue();
 
@@ -545,7 +546,12 @@ public class FollowersCheckerTests extends ESTestCase {
             new FollowerCheckRequest(leaderTerm, leader),
             new TransportResponseHandler.Empty() {
                 @Override
-                public void handleResponse(TransportResponse.Empty response) {
+                public Executor executor() {
+                    return TransportResponseHandler.TRANSPORT_WORKER;
+                }
+
+                @Override
+                public void handleResponse() {
                     fail("unexpected success");
                 }
 
@@ -562,8 +568,8 @@ public class FollowersCheckerTests extends ESTestCase {
     }
 
     public void testResponder() {
-        final DiscoveryNode leader = TestDiscoveryNode.create("leader");
-        final DiscoveryNode follower = TestDiscoveryNode.create("follower");
+        final DiscoveryNode leader = DiscoveryNodeUtils.create("leader");
+        final DiscoveryNode follower = DiscoveryNodeUtils.create("follower");
         final Settings settings = Settings.builder().put(NODE_NAME_SETTING.getKey(), follower.getName()).build();
         final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue();
 
@@ -629,7 +635,12 @@ public class FollowersCheckerTests extends ESTestCase {
                 new FollowerCheckRequest(leaderTerm, leader),
                 new TransportResponseHandler.Empty() {
                     @Override
-                    public void handleResponse(TransportResponse.Empty response) {
+                    public Executor executor() {
+                        return TransportResponseHandler.TRANSPORT_WORKER;
+                    }
+
+                    @Override
+                    public void handleResponse() {
                         fail("unexpected success");
                     }
 
@@ -691,7 +702,12 @@ public class FollowersCheckerTests extends ESTestCase {
                 new FollowerCheckRequest(term, leader),
                 new TransportResponseHandler.Empty() {
                     @Override
-                    public void handleResponse(TransportResponse.Empty response) {
+                    public Executor executor() {
+                        return TransportResponseHandler.TRANSPORT_WORKER;
+                    }
+
+                    @Override
+                    public void handleResponse() {
                         fail("unexpected success");
                     }
 
@@ -722,7 +738,12 @@ public class FollowersCheckerTests extends ESTestCase {
                 new FollowerCheckRequest(term, leader),
                 new TransportResponseHandler.Empty() {
                     @Override
-                    public void handleResponse(TransportResponse.Empty response) {
+                    public Executor executor() {
+                        return TransportResponseHandler.TRANSPORT_WORKER;
+                    }
+
+                    @Override
+                    public void handleResponse() {
                         fail("unexpected success");
                     }
 
@@ -785,7 +806,7 @@ public class FollowersCheckerTests extends ESTestCase {
     }
 
     private static DiscoveryNode newNode(int nodeId, Map<String, String> attributes, Set<DiscoveryNodeRole> roles) {
-        return TestDiscoveryNode.create("name_" + nodeId, "node_" + nodeId, buildNewFakeTransportAddress(), attributes, roles);
+        return DiscoveryNodeUtils.builder("node_" + nodeId).name("name_" + nodeId).attributes(attributes).roles(roles).build();
     }
 
     private static Settings randomSettings() {
@@ -806,13 +827,18 @@ public class FollowersCheckerTests extends ESTestCase {
         private final AtomicBoolean responseReceived = new AtomicBoolean();
 
         @Override
-        public void handleResponse(TransportResponse.Empty response) {
+        public Executor executor() {
+            return TransportResponseHandler.TRANSPORT_WORKER;
+        }
+
+        @Override
+        public void handleResponse() {
             assertTrue(responseReceived.compareAndSet(false, true));
         }
 
         @Override
         public void handleException(TransportException exp) {
-            throw new AssertionError("unexpected", exp);
+            fail(exp);
         }
 
         public boolean succeeded() {

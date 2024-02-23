@@ -1,4 +1,7 @@
 setup:
+  - skip:
+      features: warnings
+
   - do:
       indices.create:
         index: test-index1
@@ -9,6 +12,7 @@ setup:
               number_of_replicas: 0
 
   - do:
+
       indices.create:
         index: test-index2
         body:
@@ -29,8 +33,13 @@ setup:
                 query:
                   query_string:
                     query: "{{query_string}}"
+            dictionary:
+              query_string:
+                type: string
 
   - do:
+      warnings:
+        - "Using default search application template which is subject to change. We recommend storing a template to avoid breaking changes."
       search_application.put:
         name: test-search-application-2
         body:
@@ -71,14 +80,24 @@ teardown:
         options: {
           content_type: "application/json;charset=utf-8"
         }
+      },
+      dictionary: {
+        query_string: {
+          type: string
+        }
       }
     }
   }
   - gte: { updated_at_millis: 0 }
 
 ---
-"Get Search Application with no template specified returns default template":
+"Get Search Application with no template specified returns default template with warning header":
+  - skip:
+      features: warnings
+
   - do:
+      warnings:
+        - "Using default search application template which is subject to change. We recommend storing a template to avoid breaking changes."
       search_application.get:
         name: test-search-application-2
 
@@ -88,10 +107,10 @@ teardown:
   - match: {
     template: {
       script: {
-        source:  "{\n  \"query\": {\n    \"query_string\": {\n        \"query\": \"{{query_string}}\",\n        \"default_field\": \"{{default_field}}\"\n        }\n    }\n}\n",
+        source: "{\n  \"query\": {\n    \"query_string\": {\n        \"query\": \"{{query_string}}\",\n        \"default_field\": \"{{default_field}}\"\n        }\n    }\n}\n",
         params: {
-            query_string: "*",
-            default_field: "*"
+          query_string: "*",
+          default_field: "*"
         },
         lang: "mustache"
       }
@@ -106,3 +125,13 @@ teardown:
       search_application.get:
         name: test-nonexistent-search-application
 
+---
+"Get search application fails for unprivileged user":
+  - skip:
+      features: headers
+
+  - do:
+      catch: unauthorized
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVucHJpdmlsZWdlZDplbnRzZWFyY2gtdW5wcml2aWxlZ2VkLXVzZXI=" }  # unprivileged
+      search_application.get:
+        name: test-search-application-1

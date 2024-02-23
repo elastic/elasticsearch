@@ -15,6 +15,6 @@ public class PutLicenseAction extends ActionType<PutLicenseResponse> {
     public static final String NAME = "cluster:admin/xpack/license/put";
 
     private PutLicenseAction() {
-        super(NAME, PutLicenseResponse::new);
+        super(NAME);
     }
 }

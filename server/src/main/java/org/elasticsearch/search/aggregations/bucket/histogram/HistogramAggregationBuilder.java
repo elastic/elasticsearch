@@ -9,6 +9,7 @@
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -25,7 +26,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.xcontent.ObjectParser;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -44,15 +44,6 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
         NAME,
         HistogramAggregatorSupplier.class
     );
-
-    private static final ObjectParser<double[], Void> EXTENDED_BOUNDS_PARSER = new ObjectParser<>(
-        Histogram.EXTENDED_BOUNDS_FIELD.getPreferredName(),
-        () -> new double[] { Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY }
-    );
-    static {
-        EXTENDED_BOUNDS_PARSER.declareDouble((bounds, d) -> bounds[0] = d, new ParseField("min"));
-        EXTENDED_BOUNDS_PARSER.declareDouble((bounds, d) -> bounds[1] = d, new ParseField("max"));
-    }
 
     public static final ObjectParser<HistogramAggregationBuilder, String> PARSER = ObjectParser.fromBuilder(
         NAME,
@@ -145,18 +136,8 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
         minDocCount = in.readVLong();
         interval = in.readDouble();
         offset = in.readDouble();
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_10_0)) {
-            extendedBounds = in.readOptionalWriteable(DoubleBounds::new);
-            hardBounds = in.readOptionalWriteable(DoubleBounds::new);
-        } else {
-            double minBound = in.readDouble();
-            double maxBound = in.readDouble();
-            if (minBound == Double.POSITIVE_INFINITY && maxBound == Double.NEGATIVE_INFINITY) {
-                extendedBounds = null;
-            } else {
-                extendedBounds = new DoubleBounds(minBound, maxBound);
-            }
-        }
+        extendedBounds = in.readOptionalWriteable(DoubleBounds::new);
+        hardBounds = in.readOptionalWriteable(DoubleBounds::new);
     }
 
     @Override
@@ -166,18 +147,8 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
         out.writeVLong(minDocCount);
         out.writeDouble(interval);
         out.writeDouble(offset);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_10_0)) {
-            out.writeOptionalWriteable(extendedBounds);
-            out.writeOptionalWriteable(hardBounds);
-        } else {
-            if (extendedBounds != null) {
-                out.writeDouble(extendedBounds.getMin());
-                out.writeDouble(extendedBounds.getMax());
-            } else {
-                out.writeDouble(Double.POSITIVE_INFINITY);
-                out.writeDouble(Double.NEGATIVE_INFINITY);
-            }
-        }
+        out.writeOptionalWriteable(extendedBounds);
+        out.writeOptionalWriteable(hardBounds);
     }
 
     /** Get the current interval that is set on this builder. */
@@ -213,10 +184,6 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
     /** Get the current maximum bound that is set on this builder. */
     public double maxBound() {
         return DoubleBounds.getEffectiveMax(extendedBounds);
-    }
-
-    protected DoubleBounds extendedBounds() {
-        return extendedBounds;
     }
 
     /**
@@ -364,11 +331,6 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
     }
 
     @Override
-    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
-        return REGISTRY_KEY;
-    }
-
-    @Override
     protected ValuesSourceAggregatorFactory innerBuild(
         AggregationContext context,
         ValuesSourceConfig config,
@@ -442,7 +404,7 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.ZERO;
+        return TransportVersions.ZERO;
     }
 
     @Override

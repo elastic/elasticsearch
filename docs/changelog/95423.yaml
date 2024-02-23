@@ -1,5 +1,0 @@
-pr: 95423
-summary: Introduce the `index.lifecycle.prefer_ilm` setting
-area: DLM
-type: feature
-issues: []

@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Setting;
@@ -41,6 +42,7 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
     private static final Logger logger = LogManager.getLogger(ReadinessService.class);
 
     private final Environment environment;
+    private final CheckedSupplier<ServerSocketChannel, IOException> socketChannelFactory;
 
     private volatile boolean active; // false;
     private volatile ServerSocketChannel serverChannel;
@@ -55,8 +57,18 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
     public static final Setting<Integer> PORT = Setting.intSetting("readiness.port", -1, Setting.Property.NodeScope);
 
     public ReadinessService(ClusterService clusterService, Environment environment) {
+        this(clusterService, environment, ServerSocketChannel::open);
+    }
+
+    // package private to enable mocking (for testing)
+    ReadinessService(
+        ClusterService clusterService,
+        Environment environment,
+        CheckedSupplier<ServerSocketChannel, IOException> socketChannelFactory
+    ) {
         this.serverChannel = null;
         this.environment = environment;
+        this.socketChannelFactory = socketChannelFactory;
         clusterService.addListener(this);
     }
 
@@ -119,7 +131,7 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
         });
 
         try {
-            serverChannel = ServerSocketChannel.open();
+            serverChannel = socketChannelFactory.get();
 
             AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
                 try {
@@ -230,8 +242,11 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
         this.shuttingDown = shutdownNodeIds.contains(clusterState.nodes().getLocalNodeId());
 
         if (shuttingDown) {
-            setReady(false);
-            logger.info("marking node as not ready because it's shutting down");
+            // only disable the probe and log if the probe is running
+            if (ready()) {
+                setReady(false);
+                logger.info("marking node as not ready because it's shutting down");
+            }
         } else {
             if (clusterState.nodes().getLocalNodeId().equals(clusterState.nodes().getMasterNodeId())) {
                 setReady(fileSettingsApplied);

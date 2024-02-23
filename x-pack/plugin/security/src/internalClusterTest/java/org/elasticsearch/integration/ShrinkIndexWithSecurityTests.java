@@ -24,11 +24,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 public class ShrinkIndexWithSecurityTests extends SecurityIntegTestCase {
 
     @Override
-    protected final boolean ignoreExternalCluster() {
-        return true;
-    }
-
-    @Override
     protected int minimumNumberOfShards() {
         return 2;
     }
@@ -36,10 +31,10 @@ public class ShrinkIndexWithSecurityTests extends SecurityIntegTestCase {
     public void testShrinkIndex() throws Exception {
         final int randomNumberOfDocs = scaledRandomIntBetween(2, 12);
         for (int i = 0; i < randomNumberOfDocs; i++) {
-            client().prepareIndex("bigindex").setSource("foo", "bar").get();
+            prepareIndex("bigindex").setSource("foo", "bar").get();
         }
 
-        Map<String, DiscoveryNode> dataNodes = client().admin().cluster().prepareState().get().getState().nodes().getDataNodes();
+        Map<String, DiscoveryNode> dataNodes = clusterAdmin().prepareState().get().getState().nodes().getDataNodes();
         DiscoveryNode[] discoveryNodes = dataNodes.values().toArray(DiscoveryNode[]::new);
         final String mergeNode = discoveryNodes[0].getName();
         ensureGreen();
@@ -51,13 +46,10 @@ public class ShrinkIndexWithSecurityTests extends SecurityIntegTestCase {
 
         // wait for green and then shrink
         ensureGreen();
-        assertAcked(client().admin().indices().prepareResizeIndex("bigindex", "shrunk_bigindex").setSettings(indexSettings(1, 0).build()));
+        assertAcked(indicesAdmin().prepareResizeIndex("bigindex", "shrunk_bigindex").setSettings(indexSettings(1, 0).build()));
 
         // verify all docs
         ensureGreen();
-        assertHitCount(
-            client().prepareSearch("shrunk_bigindex").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(),
-            randomNumberOfDocs
-        );
+        assertHitCount(prepareSearch("shrunk_bigindex").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")), randomNumberOfDocs);
     }
 }

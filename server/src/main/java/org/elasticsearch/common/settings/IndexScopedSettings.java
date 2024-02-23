@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.common.settings;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
@@ -22,6 +21,8 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.IndexingSlowLog;
 import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.MergeSchedulerConfig;
@@ -37,7 +38,6 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.indices.ShardLimitValidator;
 
-import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 
@@ -73,7 +73,10 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         IndexMetadata.INDEX_FORMAT_SETTING,
         IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME,
         IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_UUID,
+        IndexMetadata.INDEX_DOWNSAMPLE_ORIGIN_NAME,
+        IndexMetadata.INDEX_DOWNSAMPLE_ORIGIN_UUID,
         IndexMetadata.INDEX_DOWNSAMPLE_STATUS,
+        IndexMetadata.INDEX_DOWNSAMPLE_INTERVAL,
         SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_DEBUG_SETTING,
         SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_WARN_SETTING,
         SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_INFO_SETTING,
@@ -105,6 +108,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING,
         IndexSettings.INDEX_WARMER_ENABLED_SETTING,
         IndexSettings.INDEX_REFRESH_INTERVAL_SETTING,
+        IndexSettings.INDEX_FAST_REFRESH_SETTING,
         IndexSettings.MAX_RESULT_WINDOW_SETTING,
         IndexSettings.MAX_INNER_RESULT_WINDOW_SETTING,
         IndexSettings.MAX_TOKEN_COUNT_SETTING,
@@ -114,6 +118,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         IndexSettings.MAX_SHINGLE_DIFF_SETTING,
         IndexSettings.MAX_RESCORE_WINDOW_SETTING,
         IndexSettings.MAX_ANALYZED_OFFSET_SETTING,
+        IndexSettings.WEIGHT_MATCHES_MODE_ENABLED_SETTING,
         IndexSettings.MAX_TERMS_COUNT_SETTING,
         IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING,
         IndexSettings.DEFAULT_FIELD_SETTING,
@@ -146,6 +151,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         Store.INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING,
         MapperService.INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING,
         MapperService.INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING,
+        MapperService.INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_LIMIT_SETTING,
         MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING,
         MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING,
         MapperService.INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING,
@@ -181,8 +187,9 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                     );
                 }
             }
-        }, Property.IndexScope), // this allows similarity settings to be passed
-        Setting.groupSetting("index.analysis.", Property.IndexScope), // this allows analysis settings to be passed
+        }, Property.IndexScope, Property.ServerlessPublic), // this allows similarity settings to be passed
+        Setting.groupSetting("index.analysis.", Property.IndexScope, Property.ServerlessPublic), // this allows analysis settings to be
+                                                                                                 // passed
 
         // TSDB index settings
         IndexSettings.MODE,
@@ -203,7 +210,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
     public static final IndexScopedSettings DEFAULT_SCOPED_SETTINGS = new IndexScopedSettings(Settings.EMPTY, BUILT_IN_INDEX_SETTINGS);
 
     public IndexScopedSettings(Settings settings, Set<Setting<?>> settingsSet) {
-        super(settings, settingsSet, Collections.emptySet(), Property.IndexScope);
+        super(settings, settingsSet, Property.IndexScope);
     }
 
     private IndexScopedSettings(Settings settings, IndexScopedSettings other, IndexMetadata metadata) {
@@ -245,12 +252,13 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
 
     @Override
     protected void validateDeprecatedAndRemovedSettingV7(Settings settings, Setting<?> setting) {
-        Version indexVersion = IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings);
+        IndexVersion indexVersion = IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings);
         // At various stages in settings verification we will perform validation without having the
         // IndexMetadata at hand, in which case the setting version will be empty. We don't want to
         // error out on those validations, we will check with the creation version present at index
         // creation time, as well as on index update settings.
-        if (indexVersion.equals(Version.V_EMPTY) == false && indexVersion.major != Version.V_7_0_0.major) {
+        if (indexVersion.equals(IndexVersions.ZERO) == false
+            && (indexVersion.before(IndexVersions.V_7_0_0) || indexVersion.onOrAfter(IndexVersions.V_8_0_0))) {
             throw new IllegalArgumentException("unknown setting [" + setting.getKey() + "]");
         }
     }

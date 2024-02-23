@@ -20,7 +20,6 @@ import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSelector;
 import org.apache.lucene.search.SortedNumericSortField;
@@ -41,7 +40,6 @@ import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -408,7 +406,7 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
         FieldSortBuilder sortBuilder = new FieldSortBuilder(MAPPED_STRING_FIELDNAME);
         RangeQueryBuilder rangeQuery = new RangeQueryBuilder("fieldName") {
             @Override
-            public QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+            public QueryBuilder doSearchRewrite(SearchExecutionContext context) {
                 return new MatchNoneQueryBuilder();
             }
         };
@@ -426,7 +424,7 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
         FieldSortBuilder sortBuilder = new FieldSortBuilder(MAPPED_STRING_FIELDNAME);
         RangeQueryBuilder rangeQuery = new RangeQueryBuilder("fieldName") {
             @Override
-            public QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+            public QueryBuilder doSearchRewrite(SearchExecutionContext context) {
                 return new MatchNoneQueryBuilder();
             }
         };
@@ -576,7 +574,7 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
             try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir, new KeywordAnalyzer())) {
                 FieldSortBuilder fieldSort = SortBuilders.fieldSort("custom-date");
                 try (DirectoryReader reader = writer.getReader()) {
-                    SearchExecutionContext context = createMockSearchExecutionContext(new IndexSearcher(reader));
+                    SearchExecutionContext context = createMockSearchExecutionContext(newSearcher(reader));
                     DocValueFormat[] dateValueFormat = new DocValueFormat[] {
                         context.getFieldType("custom-date").docValueFormat(null, null) };
                     assertTrue(
@@ -593,7 +591,7 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
                     minValue = Math.min(minValue, value);
                 }
                 try (DirectoryReader reader = writer.getReader()) {
-                    SearchExecutionContext context = createMockSearchExecutionContext(new IndexSearcher(reader));
+                    SearchExecutionContext context = createMockSearchExecutionContext(newSearcher(reader));
                     DocValueFormat[] dateValueFormat = new DocValueFormat[] {
                         context.getFieldType("custom-date").docValueFormat(null, null) };
                     assertFalse(fieldSort.isBottomSortShardDisjoint(context, null));

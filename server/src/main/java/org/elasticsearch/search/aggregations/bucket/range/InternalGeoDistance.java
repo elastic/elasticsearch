@@ -11,7 +11,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
@@ -27,25 +26,12 @@ public class InternalGeoDistance extends InternalRange<InternalGeoDistance.Bucke
             super(key, from, to, docCount, aggregations, keyed, DocValueFormat.RAW);
         }
 
-        @Override
-        protected InternalRange.Factory<Bucket, ?> getFactory() {
-            return FACTORY;
-        }
-
-        boolean keyed() {
-            return keyed;
-        }
     }
 
     public static class Factory extends InternalRange.Factory<InternalGeoDistance.Bucket, InternalGeoDistance> {
         @Override
         public ValuesSourceType getValueSourceType() {
             return CoreValuesSourceType.GEOPOINT;
-        }
-
-        @Override
-        public ValueType getValueType() {
-            return ValueType.GEOPOINT;
         }
 
         @Override

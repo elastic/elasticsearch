@@ -9,6 +9,7 @@
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -24,7 +25,7 @@ import org.elasticsearch.xcontent.ObjectParser;
 import java.io.IOException;
 import java.util.Map;
 
-public class GeoTileGridAggregationBuilder extends GeoGridAggregationBuilder {
+public final class GeoTileGridAggregationBuilder extends GeoGridAggregationBuilder {
     public static final String NAME = "geotile_grid";
     public static final int DEFAULT_PRECISION = 7;
     private static final int DEFAULT_MAX_NUM_CELLS = 10000;
@@ -106,12 +107,7 @@ public class GeoTileGridAggregationBuilder extends GeoGridAggregationBuilder {
     }
 
     @Override
-    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
-        return REGISTRY_KEY;
-    }
-
-    @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.V_7_0_0;
+        return TransportVersions.V_7_0_0;
     }
 }

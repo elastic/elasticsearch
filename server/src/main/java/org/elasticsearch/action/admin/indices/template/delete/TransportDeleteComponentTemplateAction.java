@@ -9,27 +9,41 @@
 package org.elasticsearch.action.admin.indices.template.delete;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.indices.template.reservedstate.ReservedComposableIndexTemplateAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
+import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.Arrays;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-public class TransportDeleteComponentTemplateAction extends AcknowledgedTransportMasterNodeAction<DeleteComponentTemplateAction.Request> {
+import static org.elasticsearch.action.ValidateActions.addValidationError;
+
+public class TransportDeleteComponentTemplateAction extends AcknowledgedTransportMasterNodeAction<
+    TransportDeleteComponentTemplateAction.Request> {
+
+    public static final ActionType<AcknowledgedResponse> TYPE = new ActionType<>("cluster:admin/component_template/delete");
 
     private final MetadataIndexTemplateService indexTemplateService;
 
@@ -43,27 +57,27 @@ public class TransportDeleteComponentTemplateAction extends AcknowledgedTranspor
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
-            DeleteComponentTemplateAction.NAME,
+            TYPE.name(),
             transportService,
             clusterService,
             threadPool,
             actionFilters,
-            DeleteComponentTemplateAction.Request::new,
+            Request::new,
             indexNameExpressionResolver,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.indexTemplateService = indexTemplateService;
     }
 
     @Override
-    protected ClusterBlockException checkBlock(DeleteComponentTemplateAction.Request request, ClusterState state) {
+    protected ClusterBlockException checkBlock(Request request, ClusterState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 
     @Override
     protected void masterOperation(
         Task task,
-        final DeleteComponentTemplateAction.Request request,
+        final Request request,
         final ClusterState state,
         final ActionListener<AcknowledgedResponse> listener
     ) {
@@ -76,9 +90,48 @@ public class TransportDeleteComponentTemplateAction extends AcknowledgedTranspor
     }
 
     @Override
-    public Set<String> modifiedKeys(DeleteComponentTemplateAction.Request request) {
+    public Set<String> modifiedKeys(Request request) {
         return Arrays.stream(request.names())
             .map(n -> ReservedComposableIndexTemplateAction.reservedComponentName(n))
             .collect(Collectors.toSet());
+    }
+
+    public static class Request extends MasterNodeRequest<Request> {
+
+        private final String[] names;
+
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            names = in.readStringArray();
+        }
+
+        /**
+         * Constructs a new delete index request for the specified name.
+         */
+        public Request(String... names) {
+            this.names = Objects.requireNonNull(names, "component templates to delete must not be null");
+        }
+
+        @Override
+        public ActionRequestValidationException validate() {
+            ActionRequestValidationException validationException = null;
+            if (Arrays.stream(names).anyMatch(Strings::hasLength) == false) {
+                validationException = addValidationError("no component template names specified", validationException);
+            }
+            return validationException;
+        }
+
+        /**
+         * The index template names to delete.
+         */
+        public String[] names() {
+            return names;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeStringArray(names);
+        }
     }
 }

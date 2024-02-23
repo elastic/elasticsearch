@@ -8,7 +8,6 @@
 
 package org.elasticsearch.cluster.shards;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
@@ -20,6 +19,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotState;
@@ -117,19 +117,13 @@ public class ClusterShardLimitIT extends ESIntegTestCase {
         }
 
         assertAcked(
-            client().admin()
-                .indices()
-                .preparePutTemplate("should-fail")
+            indicesAdmin().preparePutTemplate("should-fail")
                 .setPatterns(Collections.singletonList("should-fail"))
                 .setOrder(1)
                 .setSettings(indexSettings(counts.getFailingIndexShards(), counts.getFailingIndexReplicas()))
-                .get()
         );
 
-        final IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> client().admin().indices().prepareCreate("should-fail").get()
-        );
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, indicesAdmin().prepareCreate("should-fail"));
         verifyException(dataNodes, counts, e);
         ClusterState clusterState = clusterAdmin().prepareState().get().getState();
         assertFalse(clusterState.getMetadata().hasIndex("should-fail"));
@@ -147,9 +141,7 @@ public class ClusterShardLimitIT extends ESIntegTestCase {
         prepareCreate("growing-should-fail", indexSettings(firstShardCount, 0)).get();
 
         try {
-            client().admin()
-                .indices()
-                .prepareUpdateSettings("growing-should-fail")
+            indicesAdmin().prepareUpdateSettings("growing-should-fail")
                 .setSettings(Settings.builder().put("number_of_replicas", dataNodes))
                 .get();
             fail("shouldn't be able to increase the number of replicas");
@@ -204,9 +196,7 @@ public class ClusterShardLimitIT extends ESIntegTestCase {
                 .build()
         );
         try {
-            client().admin()
-                .indices()
-                .prepareUpdateSettings(randomFrom("_all", "test-*", "*-index"))
+            indicesAdmin().prepareUpdateSettings(randomFrom("_all", "test-*", "*-index"))
                 .setSettings(Settings.builder().put("number_of_replicas", dataNodes - 1))
                 .get();
             fail("should not have been able to increase shards above limit");
@@ -246,12 +236,9 @@ public class ClusterShardLimitIT extends ESIntegTestCase {
         // Since a request with preserve_existing can't change the number of
         // replicas, we should never get an error here.
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareUpdateSettings("test-index")
+            indicesAdmin().prepareUpdateSettings("test-index")
                 .setPreserveExisting(true)
                 .setSettings(Settings.builder().put("number_of_replicas", dataNodes))
-                .get()
         );
         ClusterState clusterState = clusterAdmin().prepareState().get().getState();
         assertEquals(0, clusterState.getMetadata().index("test-index").getNumberOfReplicas());
@@ -302,7 +289,7 @@ public class ClusterShardLimitIT extends ESIntegTestCase {
         assertThat(snapshotInfos.size(), equalTo(1));
         SnapshotInfo snapshotInfo = snapshotInfos.get(0);
         assertThat(snapshotInfo.state(), equalTo(SnapshotState.SUCCESS));
-        assertThat(snapshotInfo.version(), equalTo(Version.CURRENT));
+        assertThat(snapshotInfo.version(), equalTo(IndexVersion.current()));
 
         // Test restore after index deletion
         logger.info("--> delete indices");
@@ -326,8 +313,7 @@ public class ClusterShardLimitIT extends ESIntegTestCase {
                 .prepareRestoreSnapshot("test-repo", "test-snap")
                 .setWaitForCompletion(true)
                 .setIndices("snapshot-index")
-                .execute()
-                .actionGet();
+                .get();
             fail("Should not have been able to restore snapshot in full cluster");
         } catch (IllegalArgumentException e) {
             verifyException(dataNodes, counts, e);
@@ -351,10 +337,10 @@ public class ClusterShardLimitIT extends ESIntegTestCase {
                 .build()
         );
 
-        ClusterHealthResponse healthResponse = client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        ClusterHealthResponse healthResponse = client.admin().cluster().prepareHealth().setWaitForGreenStatus().get();
         assertFalse(healthResponse.isTimedOut());
 
-        AcknowledgedResponse closeIndexResponse = client.admin().indices().prepareClose("test-index-1").execute().actionGet();
+        AcknowledgedResponse closeIndexResponse = client.admin().indices().prepareClose("test-index-1").get();
         assertTrue(closeIndexResponse.isAcknowledged());
 
         // Fill up the cluster
@@ -369,7 +355,7 @@ public class ClusterShardLimitIT extends ESIntegTestCase {
         );
 
         try {
-            client.admin().indices().prepareOpen("test-index-1").execute().actionGet();
+            client.admin().indices().prepareOpen("test-index-1").get();
             fail("should not have been able to open index");
         } catch (IllegalArgumentException e) {
             verifyException(dataNodes, counts, e);
@@ -382,13 +368,7 @@ public class ClusterShardLimitIT extends ESIntegTestCase {
         if (dataNodes == 1) {
             internalCluster().startNode(dataNode());
             assertThat(
-                clusterAdmin().prepareHealth()
-                    .setWaitForEvents(Priority.LANGUID)
-                    .setWaitForNodes(">=2")
-                    .setLocal(true)
-                    .execute()
-                    .actionGet()
-                    .isTimedOut(),
+                clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNodes(">=2").setLocal(true).get().isTimedOut(),
                 equalTo(false)
             );
             dataNodes = clusterAdmin().prepareState().get().getState().getNodes().getDataNodes().size();

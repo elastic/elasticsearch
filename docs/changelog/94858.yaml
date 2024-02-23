@@ -1,5 +1,0 @@
-pr: 94858
-summary: Leverage Weight#count when size is set to 0
-area: Search
-type: enhancement
-issues: []

@@ -35,6 +35,8 @@ import java.net.URL;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
+
 @SuppressForbidden(reason = "use http server")
 public class HttpURLBlobStoreTests extends AbstractURLBlobStoreTests {
     private static final Pattern RANGE_PATTERN = Pattern.compile("bytes=(\\d+)-(\\d+)$");
@@ -126,8 +128,8 @@ public class HttpURLBlobStoreTests extends AbstractURLBlobStoreTests {
 
     public void testRangeReadOutsideOfLegalRange() {
         BlobContainer container = getBlobContainer();
-        expectThrows(IllegalArgumentException.class, () -> container.readBlob(blobName, -1, content.length).read());
-        expectThrows(IOException.class, () -> container.readBlob(blobName, content.length + 1, content.length).read());
+        expectThrows(IllegalArgumentException.class, () -> container.readBlob(randomPurpose(), blobName, -1, content.length).read());
+        expectThrows(IOException.class, () -> container.readBlob(randomPurpose(), blobName, content.length + 1, content.length).read());
     }
 
     private String getEndpointForServer() {

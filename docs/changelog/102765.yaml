@@ -1,0 +1,5 @@
+pr: 102765
+summary: "Add APM metrics to `HealthPeriodicLogger`"
+area: Health
+type: enhancement
+issues: []

@@ -1,0 +1,6 @@
+pr: 105693
+summary: Fix error 500 on invalid `ParentIdQuery`
+area: Search
+type: bug
+issues:
+ - 105366

@@ -46,6 +46,10 @@
         ],
         "default":"open",
         "description":"Whether to expand wildcard expression to concrete indices that are open, closed or both."
+      },
+      "resource" : {
+        "type" : "string",
+        "description" : "changed resource to reload analyzers from if applicable"
       }
     }
   }

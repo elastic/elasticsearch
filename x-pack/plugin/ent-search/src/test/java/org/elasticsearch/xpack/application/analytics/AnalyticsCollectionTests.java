@@ -50,7 +50,7 @@ public class AnalyticsCollectionTests extends ESTestCase {
     public final void testRandomSerialization() throws IOException {
         for (int runs = 0; runs < 10; runs++) {
             AnalyticsCollection collection = randomAnalyticsCollection();
-            assertTransportSerialization(collection, TransportVersion.CURRENT);
+            assertTransportSerialization(collection, TransportVersion.current());
             assertXContent(collection, randomBoolean());
         }
     }

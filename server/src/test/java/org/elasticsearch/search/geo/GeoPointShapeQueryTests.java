@@ -8,7 +8,6 @@
 
 package org.elasticsearch.search.geo;
 
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoJson;
 import org.elasticsearch.common.settings.Settings;
@@ -16,18 +15,15 @@ import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.index.query.GeoShapeQueryBuilder;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.Map;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.index.query.QueryBuilders.geoShapeQuery;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
 public class GeoPointShapeQueryTests extends BasePointShapeQueryTestCase<GeoShapeQueryBuilder> {
@@ -42,12 +38,6 @@ public class GeoPointShapeQueryTests extends BasePointShapeQueryTestCase<GeoShap
     @Override
     protected String fieldTypeName() {
         return "geo_shape";
-    }
-
-    @SuppressWarnings("deprecation")
-    @Override
-    protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Collections.singleton(TestGeoShapeFieldMapperPlugin.class);
     }
 
     @Override
@@ -83,14 +73,12 @@ public class GeoPointShapeQueryTests extends BasePointShapeQueryTestCase<GeoShap
         ensureGreen();
 
         Point point = GeometryTestUtils.randomPoint(false);
-        client().prepareIndex(defaultIndexName)
-            .setId("1")
+        prepareIndex(defaultIndexName).setId("1")
             .setSource(jsonBuilder().startObject().field(defaultFieldName, WellKnownText.toWKT(point)).endObject())
             .setRefreshPolicy(IMMEDIATE)
             .get();
 
-        SearchResponse response = client().prepareSearch(defaultIndexName).setQuery(geoShapeQuery("alias", point)).get();
-        assertEquals(1, response.getHits().getTotalHits().value);
+        assertHitCount(client().prepareSearch(defaultIndexName).setQuery(geoShapeQuery("alias", point)), 1);
     }
 
     private final DatelinePointShapeQueryTestCase dateline = new DatelinePointShapeQueryTestCase();

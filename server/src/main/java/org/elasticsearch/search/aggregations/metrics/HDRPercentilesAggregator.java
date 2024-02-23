@@ -12,7 +12,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 
 import java.io.IOException;
 import java.util.Map;
@@ -21,7 +21,7 @@ class HDRPercentilesAggregator extends AbstractHDRPercentilesAggregator {
 
     HDRPercentilesAggregator(
         String name,
-        ValuesSource valuesSource,
+        ValuesSourceConfig config,
         AggregationContext context,
         Aggregator parent,
         double[] percents,
@@ -30,7 +30,7 @@ class HDRPercentilesAggregator extends AbstractHDRPercentilesAggregator {
         DocValueFormat formatter,
         Map<String, Object> metadata
     ) throws IOException {
-        super(name, valuesSource, context, parent, percents, numberOfSignificantValueDigits, keyed, formatter, metadata);
+        super(name, config, context, parent, percents, numberOfSignificantValueDigits, keyed, formatter, metadata);
     }
 
     @Override
@@ -55,6 +55,6 @@ class HDRPercentilesAggregator extends AbstractHDRPercentilesAggregator {
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalHDRPercentiles(name, keys, null, keyed, format, metadata());
+        return InternalHDRPercentiles.empty(name, keys, keyed, format, metadata());
     }
 }

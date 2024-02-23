@@ -21,10 +21,6 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.time.Instant;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -32,6 +28,7 @@ import java.util.Set;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInRelativeOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -63,7 +60,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
     @Before
     public void createIndexes() throws IOException {
         setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME);
-        setupUser(TEST_USER_NAME, Arrays.asList("transform_admin", DATA_ACCESS_ROLE));
+        setupUser(TEST_USER_NAME, List.of("transform_admin", DATA_ACCESS_ROLE));
 
         // it's not possible to run it as @BeforeClass as clients aren't initialized then, so we need this little hack
         if (indicesCreated) {
@@ -894,6 +891,15 @@ public class TransformPivotRestIT extends TransformRestTestCase {
                       }
                     }
                   },
+                  "common_users_desc": {
+                    "terms": {
+                      "field": "user_id",
+                      "size": 3,
+                      "order": {
+                        "_key": "desc"
+                      }
+                    }
+                  },
                   "rare_users": {
                     "rare_terms": {
                       "field": "user_id"
@@ -915,40 +921,38 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         assertEquals(3, XContentMapValues.extractValue("_all.total.docs.count", indexStats));
 
         // get and check some term results
-        Map<String, Object> searchResult = getAsMap(transformIndex + "/_search?q=every_2:2.0");
+        Map<String, Object> searchResult = getAsOrderedMap(transformIndex + "/_search?q=every_2:2.0");
 
         assertEquals(1, XContentMapValues.extractValue("hits.total.value", searchResult));
         Map<String, Integer> commonUsers = (Map<String, Integer>) ((List<?>) XContentMapValues.extractValue(
             "hits.hits._source.common_users",
             searchResult
         )).get(0);
+        assertThat(commonUsers, is(not(nullValue())));
+        assertThat(
+            commonUsers,
+            equalTo(
+                Map.of(
+                    "user_10",
+                    Map.of("common_businesses", Map.of("business_12", 6, "business_9", 4)),
+                    "user_0",
+                    Map.of("common_businesses", Map.of("business_0", 35))
+                )
+            )
+        );
+        Map<String, Integer> commonUsersDesc = (Map<String, Integer>) ((List<?>) XContentMapValues.extractValue(
+            "hits.hits._source.common_users_desc",
+            searchResult
+        )).get(0);
+        assertThat(commonUsersDesc, is(not(nullValue())));
+        // 3 user names latest in lexicographic order (user_9, user_8, user_7) are selected properly and their order is preserved.
+        assertThat(commonUsersDesc.keySet(), containsInRelativeOrder("user_9", "user_8", "user_7"));
         Map<String, Integer> rareUsers = (Map<String, Integer>) ((List<?>) XContentMapValues.extractValue(
             "hits.hits._source.rare_users",
             searchResult
         )).get(0);
-        assertThat(commonUsers, is(not(nullValue())));
-        assertThat(commonUsers, equalTo(new HashMap<>() {
-            {
-                put("user_10", Collections.singletonMap("common_businesses", new HashMap<>() {
-                    {
-                        put("business_12", 6);
-                        put("business_9", 4);
-                    }
-                }));
-                put("user_0", Collections.singletonMap("common_businesses", new HashMap<>() {
-                    {
-                        put("business_0", 35);
-                    }
-                }));
-            }
-        }));
         assertThat(rareUsers, is(not(nullValue())));
-        assertThat(rareUsers, equalTo(new HashMap<>() {
-            {
-                put("user_5", 1);
-                put("user_12", 1);
-            }
-        }));
+        assertThat(rareUsers, is(equalTo(Map.of("user_5", 1, "user_12", 1))));
     }
 
     private void assertDateHistogramPivot(String indexName) throws Exception {
@@ -1000,10 +1004,147 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         Map<String, Object> indexStats = getAsMap(transformIndex + "/_stats");
         assertEquals(104, XContentMapValues.extractValue("_all.total.docs.count", indexStats));
         assertOnePivotValue(transformIndex + "/_search?q=by_hr:1484499600000", 4.0833333333);
+
+    }
+
+    // test that docs in same date bucket with a later date than the updated doc are not ignored by the transform.
+    @SuppressWarnings("unchecked")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/98377")
+    public void testContinuousDateHistogramPivot() throws Exception {
+        String indexName = "continuous_reviews_date_histogram";
+
+        // ingest timestamp used to allow grouped on timestamp field to remain the same on update
+        Request createIngestPipeLine = new Request("PUT", "/_ingest/pipeline/es-timeadd");
+        createIngestPipeLine.setJsonEntity("""
+            {
+              "processors":[
+                    {
+                       "set":{
+                          "field":"_source.es_timestamp",
+                          "value":"{{_ingest.timestamp}}"
+                       }
+                    }
+                 ]
+            }""");
+        client().performRequest(createIngestPipeLine);
+
+        Request setDefaultPipeline = new Request("PUT", indexName);
+        setDefaultPipeline.setJsonEntity("""
+            {
+               "settings":{
+                  "index.default_pipeline":"es-timeadd"
+               }
+            }""");
+        client().performRequest(setDefaultPipeline);
+
+        Request createIndex = new Request("PUT", indexName + "/_doc/1");
+        createIndex.setJsonEntity("""
+            {
+                "user_id" : "user_1",
+                "timestamp": "2023-07-24T17:10:00.000Z",
+                "stars": 5
+            }""");
+        client().performRequest(createIndex);
+
+        var putRequest = new Request("PUT", indexName + "/_doc/2");
+        putRequest.setJsonEntity("""
+            {
+                "user_id" : "user_2",
+                "timestamp": "2023-07-24T17:55:00.000Z",
+                "stars": 5
+            }""");
+        client().performRequest(putRequest);
+
+        String transformId = "continuous_date_histogram_pivot";
+        String transformIndex = "pivot_reviews_via_date_continuous_histogram";
+        setupDataAccessRole(DATA_ACCESS_ROLE, indexName, transformIndex);
+
+        final Request createTransformRequest = createRequestWithAuth(
+            "PUT",
+            getTransformEndpoint() + transformId,
+            BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS
+        );
+
+        String config = Strings.format("""
+            {
+              "source": {
+                "index": "%s"
+              },
+              "dest": {
+                "index": "%s"
+              },
+              "frequency": "1s",
+              "sync": {
+                "time": {
+                  "field": "es_timestamp",
+                  "delay": "1s"
+                }
+              },
+              "pivot": {
+                "group_by": {
+                  "by_hr": {
+                    "date_histogram": {
+                      "fixed_interval": "1h",
+                      "field": "timestamp"
+                    }
+                  }
+                },
+                "aggregations": {
+                  "total_rating": {
+                    "sum": {
+                      "field": "stars"
+                    }
+                  }
+                }
+              }
+            }""", indexName, transformIndex);
+
+        createTransformRequest.setJsonEntity(config);
+        var createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
+        assertThat(createTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
+
+        startAndWaitForContinuousTransform(transformId, transformIndex, null);
+        assertTrue(indexExists(transformIndex));
+
+        // update stars field in first doc
+        Request updateDoc = new Request("PUT", indexName + "/_doc/1");
+        updateDoc.setJsonEntity("""
+            {
+                "user_id" : "user_1",
+                "timestamp": "2023-07-24T17:10:00.000Z",
+                "stars": 6
+            }""");
+        updateDoc.addParameter("refresh", "true");
+        client().performRequest(updateDoc);
+
+        waitForTransformCheckpoint(transformId, 2);
+        stopTransform(transformId, false);
+        refreshIndex(transformIndex);
+
+        var searchResponse = getAsMap(transformIndex + "/_search");
+        var hits = ((List<Map<String, Object>>) XContentMapValues.extractValue("hits.hits", searchResponse)).get(0);
+        var totalStars = (double) XContentMapValues.extractValue("_source.total_rating", hits);
+        assertEquals(11, totalStars, 0);
+    }
+
+    public void testPreviewTransform() throws Exception {
+        testPreviewTransform("");
+    }
+
+    public void testPreviewTransformWithQuery() throws Exception {
+        testPreviewTransform("""
+            ,
+            "query": {
+              "range": {
+                "timestamp": {
+                  "gte": 123456789
+                }
+              }
+            }""");
     }
 
     @SuppressWarnings("unchecked")
-    public void testPreviewTransform() throws Exception {
+    private void testPreviewTransform(String queryJson) throws Exception {
         setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME);
         final Request createPreviewRequest = createRequestWithAuth(
             "POST",
@@ -1015,6 +1156,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
             {
               "source": {
                 "index": "%s"
+                %s
               },
               "pivot": {
                 "group_by": {
@@ -1038,7 +1180,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
                   }
                 }
               }
-            }""", REVIEWS_INDEX_NAME);
+            }""", REVIEWS_INDEX_NAME, queryJson);
 
         createPreviewRequest.setJsonEntity(config);
 
@@ -1046,8 +1188,8 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         List<Map<String, Object>> preview = (List<Map<String, Object>>) previewTransformResponse.get("preview");
         // preview is limited to 100
         assertThat(preview.size(), equalTo(100));
-        Set<String> expectedTopLevelFields = new HashSet<>(Arrays.asList("user", "by_day"));
-        Set<String> expectedNestedFields = new HashSet<>(Arrays.asList("id", "avg_rating"));
+        Set<String> expectedTopLevelFields = Set.of("user", "by_day");
+        Set<String> expectedNestedFields = Set.of("id", "avg_rating");
         preview.forEach(p -> {
             Set<String> keys = p.keySet();
             assertThat(keys, equalTo(expectedTopLevelFields));
@@ -1117,8 +1259,8 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         List<Map<String, Object>> preview = (List<Map<String, Object>>) previewTransformResponse.get("preview");
         // preview is limited to 100
         assertThat(preview.size(), equalTo(100));
-        Set<String> expectedTopLevelFields = new HashSet<>(Arrays.asList("user", "by_day", "pipeline_field"));
-        Set<String> expectedNestedFields = new HashSet<>(Arrays.asList("id", "avg_rating"));
+        Set<String> expectedTopLevelFields = Set.of("user", "by_day", "pipeline_field");
+        Set<String> expectedNestedFields = Set.of("id", "avg_rating");
         preview.forEach(p -> {
             Set<String> keys = p.keySet();
             assertThat(keys, equalTo(expectedTopLevelFields));
@@ -1245,8 +1387,11 @@ public class TransformPivotRestIT extends TransformRestTestCase {
                     }
                   }
                 }
+              },
+              "settings": {
+                "deduce_mappings": %s
               }
-            }""", REVIEWS_INDEX_NAME, offset);
+            }""", REVIEWS_INDEX_NAME, offset, randomBoolean());
         createPreviewRequest.setJsonEntity(config);
 
         Map<String, Object> previewTransformResponse = entityAsMap(client().performRequest(createPreviewRequest));
@@ -1844,6 +1989,96 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         assertEquals(1, XContentMapValues.extractValue("hits.total.value", searchResult));
         actual = (String) ((List<?>) XContentMapValues.extractValue("hits.hits._source.top_business.business_id", searchResult)).get(0);
         assertEquals("business_3", actual);
+    }
+
+    public void testPivotWithBoxplot() throws Exception {
+        String transformId = "boxplot_transform";
+        String transformIndex = "boxplot_pivot_reviews";
+        setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, transformIndex);
+
+        final Request createTransformRequest = createRequestWithAuth(
+            "PUT",
+            getTransformEndpoint() + transformId,
+            BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS
+        );
+
+        String config = Strings.format("""
+            {
+              "source": {
+                "index": "%s"
+              },
+              "dest": {
+                "index": "%s"
+              },
+              "pivot": {
+                "group_by": {
+                  "reviewer": {
+                    "terms": {
+                      "field": "user_id"
+                    }
+                  }
+                },
+                "aggregations": {
+                  "stars_boxplot": {
+                    "boxplot": {
+                       "field": "stars"
+                    }
+                  }
+                }
+              }
+            }""", REVIEWS_INDEX_NAME, transformIndex);
+
+        createTransformRequest.setJsonEntity(config);
+        Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
+        assertThat(createTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
+
+        startAndWaitForTransform(transformId, transformIndex, BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS);
+        assertTrue(indexExists(transformIndex));
+
+        Map<String, Object> searchResult = getAsMap(transformIndex + "/_search?q=reviewer:user_4");
+        assertEquals(1, XContentMapValues.extractValue("hits.total.value", searchResult));
+        assertThat(
+            ((List<?>) XContentMapValues.extractValue("hits.hits._source.stars_boxplot.min", searchResult)).get(0),
+            is(equalTo(1.0))
+        );
+        assertThat(
+            ((List<?>) XContentMapValues.extractValue("hits.hits._source.stars_boxplot.max", searchResult)).get(0),
+            is(equalTo(5.0))
+        );
+        assertThat(((List<?>) XContentMapValues.extractValue("hits.hits._source.stars_boxplot.q1", searchResult)).get(0), is(equalTo(3.0)));
+        assertThat(((List<?>) XContentMapValues.extractValue("hits.hits._source.stars_boxplot.q2", searchResult)).get(0), is(equalTo(5.0)));
+        assertThat(((List<?>) XContentMapValues.extractValue("hits.hits._source.stars_boxplot.q3", searchResult)).get(0), is(equalTo(5.0)));
+        assertThat(
+            ((List<?>) XContentMapValues.extractValue("hits.hits._source.stars_boxplot.lower", searchResult)).get(0),
+            is(equalTo(1.0))
+        );
+        assertThat(
+            ((List<?>) XContentMapValues.extractValue("hits.hits._source.stars_boxplot.upper", searchResult)).get(0),
+            is(equalTo(5.0))
+        );
+
+        searchResult = getAsMap(transformIndex + "/_search?q=reviewer:user_1");
+        assertEquals(1, XContentMapValues.extractValue("hits.total.value", searchResult));
+        assertThat(
+            ((List<?>) XContentMapValues.extractValue("hits.hits._source.stars_boxplot.min", searchResult)).get(0),
+            is(equalTo(1.0))
+        );
+        assertThat(
+            ((List<?>) XContentMapValues.extractValue("hits.hits._source.stars_boxplot.max", searchResult)).get(0),
+            is(equalTo(5.0))
+        );
+        assertThat(((List<?>) XContentMapValues.extractValue("hits.hits._source.stars_boxplot.q1", searchResult)).get(0), is(equalTo(3.0)));
+        assertThat(((List<?>) XContentMapValues.extractValue("hits.hits._source.stars_boxplot.q2", searchResult)).get(0), is(equalTo(5.0)));
+        assertThat(((List<?>) XContentMapValues.extractValue("hits.hits._source.stars_boxplot.q3", searchResult)).get(0), is(equalTo(5.0)));
+        assertThat(
+            ((List<?>) XContentMapValues.extractValue("hits.hits._source.stars_boxplot.lower", searchResult)).get(0),
+            is(equalTo(1.0))
+        );
+        assertThat(
+            ((List<?>) XContentMapValues.extractValue("hits.hits._source.stars_boxplot.upper", searchResult)).get(0),
+            is(equalTo(5.0))
+        );
+
     }
 
     public void testPivotWithAggregateMetricDouble() throws Exception {

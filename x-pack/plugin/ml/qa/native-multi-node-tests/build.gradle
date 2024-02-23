@@ -1,4 +1,3 @@
-import org.elasticsearch.gradle.internal.info.BuildParams
 apply plugin: 'elasticsearch.legacy-java-rest-test'
 
 dependencies {
@@ -6,14 +5,16 @@ dependencies {
   javaRestTestImplementation(testArtifact(project(xpackModule('ml'))))
   javaRestTestImplementation(testArtifact(project(xpackModule('security'))))
   javaRestTestImplementation project(path: ':modules:ingest-common')
+  javaRestTestImplementation(project(':modules:lang-mustache'))
   javaRestTestImplementation project(path: ':modules:reindex')
   javaRestTestImplementation project(path: ':modules:transport-netty4')
   javaRestTestImplementation project(path: xpackModule('autoscaling'))
   javaRestTestImplementation project(':modules:data-streams')
   javaRestTestImplementation project(path: xpackModule('ilm'))
+  javaRestTestImplementation project(path: xpackModule('slm'))
   javaRestTestImplementation project(path: xpackModule('monitoring'))
   javaRestTestImplementation project(path: xpackModule('transform'))
-  javaRestTestImplementation project(":client:rest-high-level")
+  javaRestTestImplementation project(path: xpackModule('rank-rrf'))
 }
 
 // location for keys and certificates

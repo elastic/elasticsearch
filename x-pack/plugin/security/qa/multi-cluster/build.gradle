@@ -20,6 +20,10 @@ dependencies {
   clusterModules project(':x-pack:plugin:ccr')
   clusterModules(project(":modules:reindex")) // need for deleting transform jobs
   clusterModules(project(":x-pack:plugin:transform"))
+  // esql with enrich
+  clusterModules project(':x-pack:plugin:esql')
+  clusterModules project(':x-pack:plugin:enrich')
+  clusterModules(project(":modules:ingest-common"))
 }
 
 tasks.named("javaRestTest") {
@@ -28,7 +32,7 @@ tasks.named("javaRestTest") {
   exclude '**/RemoteClusterSecurityBwcRestIT.class'
 }
 
-BuildParams.bwcVersions.withWireCompatible(v -> v.before('8.8.0')) { bwcVersion, baseName ->
+BuildParams.bwcVersions.withWireCompatible(v -> v.before(BuildParams.isSnapshotBuild() ? '8.8.0' : '8.9.1')) { bwcVersion, baseName ->
   tasks.register(bwcTaskName(bwcVersion), StandaloneRestIntegTestTask) {
     usesBwcDistribution(bwcVersion)
     systemProperty("tests.old_cluster_version", bwcVersion)

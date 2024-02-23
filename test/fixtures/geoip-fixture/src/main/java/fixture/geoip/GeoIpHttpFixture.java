@@ -25,6 +25,7 @@ import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 
 public class GeoIpHttpFixture extends ExternalResource {
 
@@ -106,11 +107,25 @@ public class GeoIpHttpFixture extends ExternalResource {
     }
 
     private void copyFiles() throws Exception {
-        Files.copy(GeoIpHttpFixture.class.getResourceAsStream("/geoip-fixture/GeoLite2-ASN.tgz"), source.resolve("GeoLite2-ASN.tgz"));
-        Files.copy(GeoIpHttpFixture.class.getResourceAsStream("/geoip-fixture/GeoLite2-City.mmdb"), source.resolve("GeoLite2-City.mmdb"));
+        Files.copy(
+            GeoIpHttpFixture.class.getResourceAsStream("/geoip-fixture/GeoLite2-ASN.tgz"),
+            source.resolve("GeoLite2-ASN.tgz"),
+            StandardCopyOption.REPLACE_EXISTING
+        );
+        Files.copy(
+            GeoIpHttpFixture.class.getResourceAsStream("/geoip-fixture/GeoLite2-City.mmdb"),
+            source.resolve("GeoLite2-City.mmdb"),
+            StandardCopyOption.REPLACE_EXISTING
+        );
         Files.copy(
             GeoIpHttpFixture.class.getResourceAsStream("/geoip-fixture/GeoLite2-Country.mmdb"),
-            source.resolve("GeoLite2-Country.mmdb")
+            source.resolve("GeoLite2-Country.mmdb"),
+            StandardCopyOption.REPLACE_EXISTING
+        );
+        Files.copy(
+            GeoIpHttpFixture.class.getResourceAsStream("/geoip-fixture/MyCustomGeoLite2-City.mmdb"),
+            source.resolve("MyCustomGeoLite2-City.mmdb"),
+            StandardCopyOption.REPLACE_EXISTING
         );
 
         new GeoIpCli().main(

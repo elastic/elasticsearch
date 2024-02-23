@@ -12,7 +12,6 @@ import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.SecurityIntegTestCase;
-import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateAction;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateRequest;
@@ -47,8 +46,6 @@ public class AuthorizationServiceIntegTests extends SecurityIntegTestCase {
     }
 
     public void testGetRoleDescriptorsIntersectionForRemoteCluster() throws IOException, InterruptedException {
-        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
-
         final String concreteClusterAlias = randomAlphaOfLength(10);
         final String roleName = randomAlphaOfLength(5);
         getSecurityClient().putRole(
@@ -75,7 +72,8 @@ public class AuthorizationServiceIntegTests extends SecurityIntegTestCase {
                             .privileges(shuffledList(List.of("read", "write")))
                             .build(),
                         randomNonEmptySubsetOf(List.of(concreteClusterAlias, "*")).toArray(new String[0])
-                    ) }
+                    ) },
+                null
             )
         );
         final String nodeName = internalCluster().getRandomNodeName();

@@ -108,7 +108,7 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
             .collect(toUnmodifiableMap(k -> k.getKey().prefix(), Map.Entry::getValue));
         Map<String, JarMeta> map = new HashMap<>();
         for (var jarMeta : prefixToCodeBase.keySet()) {
-            jarMeta.packages().stream().forEach(pkg -> {
+            jarMeta.packages().forEach(pkg -> {
                 var prev = map.put(pkg, jarMeta);
                 assert prev == null;
             });
@@ -185,7 +185,7 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
      * url or null if not found. Iterates over all known package specific multi-release versions,
      * then the root, for the given jar prefix.
      */
-    <T> T findResourceInLoaderPkgOrNull(JarMeta jarMeta, String pkg, String name, Function<String, T> finder) {
+    static <T> T findResourceInLoaderPkgOrNull(JarMeta jarMeta, String pkg, String name, Function<String, T> finder) {
         List<Integer> releaseVersions = jarMeta.pkgToVersions().getOrDefault(pkg, List.of());
         for (int releaseVersion : releaseVersions) {
             String fullName = jarMeta.prefix() + "/" + MRJAR_VERSION_PREFIX + releaseVersion + "/" + name;

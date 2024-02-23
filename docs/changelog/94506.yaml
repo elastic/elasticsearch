@@ -1,6 +1,0 @@
-pr: 94506
-summary: Add permissions to kibana_system for TI package transforms to support IOC expiration
-area: Authorization
-type: enhancement
-issues:
-  - 94505

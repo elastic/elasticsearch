@@ -174,7 +174,7 @@ public class MovingFunctions {
 
         int counter = 0;
 
-        Double last;
+        double last;
         for (double v : values) {
             if (Double.isNaN(v) == false) {
                 last = v;

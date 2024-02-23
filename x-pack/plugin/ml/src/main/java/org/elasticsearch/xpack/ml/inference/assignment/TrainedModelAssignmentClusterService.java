@@ -11,9 +11,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -33,6 +35,7 @@ import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
@@ -41,8 +44,11 @@ import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingInfo;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
+import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.ml.utils.MlPlatformArchitecturesUtil;
+import org.elasticsearch.xpack.core.ml.utils.TransportVersionUtils;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.autoscaling.NodeAvailabilityZoneMapper;
 import org.elasticsearch.xpack.ml.inference.assignment.planning.AllocationReducer;
@@ -62,24 +68,28 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentUtils.NODES_CHANGED_REASON;
+import static org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentUtils.createShuttingDownRoute;
 
 public class TrainedModelAssignmentClusterService implements ClusterStateListener {
 
     private static final Logger logger = LogManager.getLogger(TrainedModelAssignmentClusterService.class);
 
-    private static final Version RENAME_ALLOCATION_TO_ASSIGNMENT_VERSION = Version.V_8_3_0;
-    public static final Version DISTRIBUTED_MODEL_ALLOCATION_VERSION = Version.V_8_4_0;
+    private static final TransportVersion RENAME_ALLOCATION_TO_ASSIGNMENT_TRANSPORT_VERSION = TransportVersions.V_8_3_0;
+    public static final TransportVersion DISTRIBUTED_MODEL_ALLOCATION_TRANSPORT_VERSION = TransportVersions.V_8_4_0;
 
     private final ClusterService clusterService;
     private final ThreadPool threadPool;
     private final NodeLoadDetector nodeLoadDetector;
     private final SystemAuditor systemAuditor;
     private final NodeAvailabilityZoneMapper nodeAvailabilityZoneMapper;
+    private final Client client;
     private volatile int maxMemoryPercentage;
     private volatile boolean useAuto;
     private volatile int maxOpenJobs;
     protected volatile int maxLazyMLNodes;
     protected volatile long maxMLNodeSize;
+    protected volatile int allocatedProcessorsScale;
 
     public TrainedModelAssignmentClusterService(
         Settings settings,
@@ -87,7 +97,8 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         ThreadPool threadPool,
         NodeLoadDetector nodeLoadDetector,
         SystemAuditor systemAuditor,
-        NodeAvailabilityZoneMapper nodeAvailabilityZoneMapper
+        NodeAvailabilityZoneMapper nodeAvailabilityZoneMapper,
+        Client client
     ) {
         this.clusterService = Objects.requireNonNull(clusterService);
         this.threadPool = Objects.requireNonNull(threadPool);
@@ -95,20 +106,24 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         this.systemAuditor = Objects.requireNonNull(systemAuditor);
         this.nodeAvailabilityZoneMapper = Objects.requireNonNull(nodeAvailabilityZoneMapper);
         this.maxMemoryPercentage = MachineLearning.MAX_MACHINE_MEMORY_PERCENT.get(settings);
-        this.useAuto = MachineLearning.USE_AUTO_MACHINE_MEMORY_PERCENT.get(settings);
+        this.useAuto = MachineLearningField.USE_AUTO_MACHINE_MEMORY_PERCENT.get(settings);
         this.maxOpenJobs = MachineLearning.MAX_OPEN_JOBS_PER_NODE.get(settings);
         this.maxLazyMLNodes = MachineLearning.MAX_LAZY_ML_NODES.get(settings);
         this.maxMLNodeSize = MachineLearning.MAX_ML_NODE_SIZE.get(settings).getBytes();
+        this.allocatedProcessorsScale = MachineLearning.ALLOCATED_PROCESSORS_SCALE.get(settings);
+        this.client = client;
         // Only nodes that can possibly be master nodes really need this service running
         if (DiscoveryNode.isMasterNode(settings)) {
             clusterService.addListener(this);
             clusterService.getClusterSettings()
                 .addSettingsUpdateConsumer(MachineLearning.MAX_MACHINE_MEMORY_PERCENT, this::setMaxMemoryPercentage);
             clusterService.getClusterSettings()
-                .addSettingsUpdateConsumer(MachineLearning.USE_AUTO_MACHINE_MEMORY_PERCENT, this::setUseAuto);
+                .addSettingsUpdateConsumer(MachineLearningField.USE_AUTO_MACHINE_MEMORY_PERCENT, this::setUseAuto);
             clusterService.getClusterSettings().addSettingsUpdateConsumer(MachineLearning.MAX_OPEN_JOBS_PER_NODE, this::setMaxOpenJobs);
             clusterService.getClusterSettings().addSettingsUpdateConsumer(MachineLearning.MAX_LAZY_ML_NODES, this::setMaxLazyMLNodes);
             clusterService.getClusterSettings().addSettingsUpdateConsumer(MachineLearning.MAX_ML_NODE_SIZE, this::setMaxMLNodeSize);
+            clusterService.getClusterSettings()
+                .addSettingsUpdateConsumer(MachineLearning.ALLOCATED_PROCESSORS_SCALE, this::setAllocatedProcessorsScale);
         }
     }
 
@@ -132,6 +147,10 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         this.maxMLNodeSize = value.getBytes();
     }
 
+    private void setAllocatedProcessorsScale(int scale) {
+        this.allocatedProcessorsScale = scale;
+    }
+
     @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
     private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
         clusterService.submitUnbatchedStateUpdateTask(source, task);
@@ -139,19 +158,23 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        if (event.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
+        if (eventStateHasGlobalBlockStateNotRecoveredBlock(event)) {
             return;
         }
         if (event.localNodeMaster() == false) {
             return;
         }
 
-        if (event.state().nodes().getMinNodeVersion().before(DISTRIBUTED_MODEL_ALLOCATION_VERSION)) {
+        if (eventStateMinTransportVersionIsBeforeDistributedModelAllocationTransportVersion(event)) {
             // we should not try to rebalance assignments while there may be nodes running on a version
             // prior to introducing distributed model allocation.
             // But we should remove routing to removed or shutting down nodes.
             removeRoutingToRemovedOrShuttingDownNodes(event);
             return;
+        }
+
+        if (event.nodesAdded()) {
+            logMlNodeHeterogeneity();
         }
 
         Optional<String> rebalanceReason = detectReasonToRebalanceModels(event);
@@ -174,6 +197,46 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
                 )
             );
         }
+    }
+
+    boolean eventStateMinTransportVersionIsBeforeDistributedModelAllocationTransportVersion(ClusterChangedEvent event) {
+        return event.state().getMinTransportVersion().before(DISTRIBUTED_MODEL_ALLOCATION_TRANSPORT_VERSION);
+    }
+
+    boolean eventStateHasGlobalBlockStateNotRecoveredBlock(ClusterChangedEvent event) {
+        return event.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK);
+    }
+
+    void logMlNodeHeterogeneity() {
+        ActionListener<Set<String>> architecturesListener = getArchitecturesSetActionListener();
+        MlPlatformArchitecturesUtil.getMlNodesArchitecturesSet(
+            architecturesListener,
+            client,
+            threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
+        );
+    }
+
+    static ActionListener<Set<String>> getArchitecturesSetActionListener() {
+        ActionListener<Set<String>> architecturesListener = new ActionListener<Set<String>>() {
+            @Override
+            public void onResponse(Set<String> architectures) {
+                if (architectures.size() > 1) {
+                    logger.warn(
+                        format(
+                            "Heterogeneous platform architectures were detected among ML nodes. "
+                                + "This will prevent the deployment of some trained models. Distinct platform architectures detected: %s",
+                            architectures
+                        )
+                    );
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.error("Failed to detect heterogeneity among ML nodes with exception: ", e);
+            }
+        };
+        return architecturesListener;
     }
 
     private void removeRoutingToRemovedOrShuttingDownNodes(ClusterChangedEvent event) {
@@ -224,6 +287,8 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         Set<String> assignableNodes = getAssignableNodes(currentState).stream().map(DiscoveryNode::getId).collect(Collectors.toSet());
         TrainedModelAssignmentMetadata metadata = TrainedModelAssignmentMetadata.fromState(currentState);
         TrainedModelAssignmentMetadata.Builder builder = TrainedModelAssignmentMetadata.builder(currentState);
+        Set<String> shuttingDownNodes = currentState.metadata().nodeShutdowns().getAllNodeIds();
+
         for (TrainedModelAssignment assignment : metadata.allAssignments().values()) {
             Set<String> routedNodeIdsToRemove = Sets.difference(assignment.getNodeRoutingTable().keySet(), assignableNodes);
             if (routedNodeIdsToRemove.isEmpty() == false) {
@@ -234,12 +299,67 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
                         routedNodeIdsToRemove
                     )
                 );
-                TrainedModelAssignment.Builder assignmentBuilder = TrainedModelAssignment.Builder.fromAssignment(assignment);
-                routedNodeIdsToRemove.forEach(assignmentBuilder::removeRoutingEntry);
+
+                /*
+                 * This code is to handle the following edge case.
+                 *
+                 * This code was added in 8.11.0. This code path is hit if the version of a node in the cluster is less than 8.4.0.
+                 * - A rolling upgrade is performed from a version less than 8.4.0
+                 * - The versions of the nodes in the cluster is mixed between 8.11.0 and less than 8.4.0
+                 * - The master node upgrades to 8.11.0 (which will have this code change)
+                 * - An ML node upgrades to 8.11.0 and begins shutting down
+                 * - A data node exists on a version less than 8.4.0
+                 *
+                 * The ML node that is shutting down will go through the graceful shutdown by having any routes referencing it, set to
+                 * stopping. The TrainedModelAssignmentNodeService will be notified of the change and see that the route is in stopping
+                 * and complete any remaining work in the processes before stopping them.
+                 *
+                 * If in the future we can simplify and remove this edge case code that'd be ideal.
+                 */
+                TrainedModelAssignment.Builder assignmentBuilder = removeRoutingBuilder(
+                    routedNodeIdsToRemove,
+                    shuttingDownNodes,
+                    assignment
+                );
+
                 builder.updateAssignment(assignment.getDeploymentId(), assignmentBuilder.calculateAndSetAssignmentState());
             }
         }
         return update(currentState, builder);
+    }
+
+    private static TrainedModelAssignment.Builder removeRoutingBuilder(
+        Set<String> nodeIds,
+        Set<String> shuttingDownNodes,
+        TrainedModelAssignment assignment
+    ) {
+        TrainedModelAssignment.Builder assignmentBuilder = TrainedModelAssignment.Builder.fromAssignment(assignment);
+
+        for (String nodeIdToRemove : nodeIds) {
+            RoutingInfo routingInfoToRemove = assignment.getNodeRoutingTable().get(nodeIdToRemove);
+
+            if (shuttingDownNodes.contains(nodeIdToRemove) == false) {
+                logger.debug(
+                    () -> format("[%s] Removing route for unassignable node id [%s]", assignment.getDeploymentId(), nodeIdToRemove)
+                );
+
+                assignmentBuilder.removeRoutingEntry(nodeIdToRemove);
+            } else if (routingInfoToRemove != null && routingInfoToRemove.getState().isAnyOf(RoutingState.STARTED, RoutingState.STARTING)) {
+                logger.debug(
+                    () -> format(
+                        "[%s] Found assignment with route to shutting down node id [%s], adding stopping route",
+                        assignment.getDeploymentId(),
+                        nodeIdToRemove
+                    )
+                );
+
+                RoutingInfo stoppingRouteInfo = createShuttingDownRoute(assignment.getNodeRoutingTable().get(nodeIdToRemove));
+                assignmentBuilder.addOrOverwriteRoutingEntry(nodeIdToRemove, stoppingRouteInfo);
+            }
+
+        }
+
+        return assignmentBuilder;
     }
 
     public void updateModelRoutingTable(
@@ -276,14 +396,13 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         StartTrainedModelDeploymentAction.TaskParams params,
         ActionListener<TrainedModelAssignment> listener
     ) {
-        if (clusterService.state().nodes().getMinNodeVersion().before(DISTRIBUTED_MODEL_ALLOCATION_VERSION)) {
+        if (clusterService.state().getMinTransportVersion().before(DISTRIBUTED_MODEL_ALLOCATION_TRANSPORT_VERSION)) {
             listener.onFailure(
                 new ElasticsearchStatusException(
-                    "cannot create new assignment [{}] for model [{}] while there are nodes older than version [{}]",
+                    "cannot create new assignment [{}] for model [{}] while cluster upgrade is in progress",
                     RestStatus.CONFLICT,
                     params.getDeploymentId(),
-                    params.getModelId(),
-                    DISTRIBUTED_MODEL_ALLOCATION_VERSION
+                    params.getModelId()
                 )
             );
             return;
@@ -400,7 +519,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
     private static ClusterState forceUpdate(ClusterState currentState, TrainedModelAssignmentMetadata.Builder modelAssignments) {
         logger.debug(() -> format("updated assignments: %s", modelAssignments.build()));
         Metadata.Builder metadata = Metadata.builder(currentState.metadata());
-        if (currentState.getNodes().getMinNodeVersion().onOrAfter(RENAME_ALLOCATION_TO_ASSIGNMENT_VERSION)) {
+        if (currentState.getMinTransportVersion().onOrAfter(RENAME_ALLOCATION_TO_ASSIGNMENT_TRANSPORT_VERSION)) {
             metadata.putCustom(TrainedModelAssignmentMetadata.NAME, modelAssignments.build())
                 .removeCustom(TrainedModelAssignmentMetadata.DEPRECATED_NAME);
         } else {
@@ -419,51 +538,93 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         String reason,
         ActionListener<TrainedModelAssignmentMetadata> listener
     ) {
-        threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> {
-            logger.debug(() -> format("Rebalancing model allocations because [%s]", reason));
-            TrainedModelAssignmentMetadata.Builder rebalancedMetadata;
-            try {
-                rebalancedMetadata = rebalanceAssignments(clusterState, modelToAdd);
-            } catch (Exception e) {
-                listener.onFailure(e);
-                return;
-            }
+        ActionListener<Set<String>> architecturesListener = ActionListener.wrap((mlNodesArchitectures) -> {
+            threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> {
+                logger.debug(() -> format("Rebalancing model allocations because [%s]", reason));
 
-            submitUnbatchedTask(reason, new ClusterStateUpdateTask() {
-
-                private volatile boolean isUpdated;
-                private volatile boolean isChanged;
-
-                @Override
-                public ClusterState execute(ClusterState currentState) {
-
-                    if (areClusterStatesCompatibleForRebalance(clusterState, currentState)) {
-                        isUpdated = true;
-                        ClusterState updatedState = update(currentState, rebalancedMetadata);
-                        isChanged = updatedState != currentState;
-                        return updatedState;
-                    }
-                    rebalanceAssignments(currentState, modelToAdd, reason, listener);
-                    return currentState;
-                }
-
-                @Override
-                public void onFailure(Exception e) {
+                TrainedModelAssignmentMetadata.Builder rebalancedMetadata;
+                try {
+                    rebalancedMetadata = rebalanceAssignments(clusterState, modelToAdd);
+                } catch (Exception e) {
                     listener.onFailure(e);
+                    return;
                 }
 
-                @Override
-                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-                    if (isUpdated) {
-                        if (isChanged) {
-                            threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
-                                .execute(() -> systemAuditor.info(Messages.getMessage(Messages.INFERENCE_DEPLOYMENT_REBALANCED, reason)));
+                submitUnbatchedTask(reason, new ClusterStateUpdateTask() {
+
+                    private volatile boolean isUpdated;
+                    private volatile boolean isChanged;
+
+                    @Override
+                    public ClusterState execute(ClusterState currentState) {
+
+                        currentState = stopPlatformSpecificModelsInHeterogeneousClusters(
+                            currentState,
+                            mlNodesArchitectures,
+                            modelToAdd,
+                            clusterState
+                        );
+
+                        if (areClusterStatesCompatibleForRebalance(clusterState, currentState)) {
+                            isUpdated = true;
+                            ClusterState updatedState = update(currentState, rebalancedMetadata);
+                            isChanged = updatedState != currentState;
+                            return updatedState;
                         }
-                        listener.onResponse(TrainedModelAssignmentMetadata.fromState(newState));
+
+                        rebalanceAssignments(currentState, modelToAdd, reason, listener);
+                        return currentState;
                     }
-                }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        listener.onFailure(e);
+                    }
+
+                    @Override
+                    public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
+                        if (isUpdated) {
+                            if (isChanged) {
+                                threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
+                                    .execute(
+                                        () -> systemAuditor.info(Messages.getMessage(Messages.INFERENCE_DEPLOYMENT_REBALANCED, reason))
+                                    );
+                            }
+                            listener.onResponse(TrainedModelAssignmentMetadata.fromState(newState));
+                        }
+                    }
+                });
             });
-        });
+        }, listener::onFailure);
+
+        MlPlatformArchitecturesUtil.getMlNodesArchitecturesSet(
+            architecturesListener,
+            client,
+            threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
+        );
+    }
+
+    ClusterState stopPlatformSpecificModelsInHeterogeneousClusters(
+        ClusterState updatedState,
+        Set<String> mlNodesArchitectures,
+        Optional<StartTrainedModelDeploymentAction.TaskParams> modelToAdd,
+        ClusterState clusterState
+    ) {
+        if (mlNodesArchitectures.size() > 1 && modelToAdd.isPresent()) {
+            String reasonToStop = format(
+                "ML nodes in this cluster have multiple platform architectures, "
+                    + "but can only have one for this model ([%s]); "
+                    + "detected architectures: %s",
+                modelToAdd.get().getModelId(),
+                mlNodesArchitectures
+            );
+            updatedState = callSetToStopping(reasonToStop, modelToAdd.get().getDeploymentId(), clusterState);
+        }
+        return updatedState;
+    }
+
+    ClusterState callSetToStopping(String reasonToStop, String deploymentId, ClusterState clusterState) {
+        return setToStopping(clusterState, deploymentId, reasonToStop);
     }
 
     private boolean areClusterStatesCompatibleForRebalance(ClusterState source, ClusterState target) {
@@ -483,17 +644,92 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         List<DiscoveryNode> nodes = getAssignableNodes(currentState);
         logger.debug(() -> format("assignable nodes are %s", nodes.stream().map(DiscoveryNode::getId).toList()));
         Map<DiscoveryNode, NodeLoad> nodeLoads = detectNodeLoads(nodes, currentState);
+        TrainedModelAssignmentMetadata currentMetadata = TrainedModelAssignmentMetadata.fromState(currentState);
+
+        boolean useNewMemoryFields = TrainedModelAssignment.useNewMemoryFields(TransportVersionUtils.getMinTransportVersion(currentState));
         TrainedModelAssignmentRebalancer rebalancer = new TrainedModelAssignmentRebalancer(
-            TrainedModelAssignmentMetadata.fromState(currentState),
+            currentMetadata,
             nodeLoads,
             nodeAvailabilityZoneMapper.buildMlNodesByAvailabilityZone(currentState),
-            modelToAdd
+            modelToAdd,
+            allocatedProcessorsScale,
+            useNewMemoryFields
         );
-        TrainedModelAssignmentMetadata.Builder rebalanced = rebalancer.rebalance();
+
+        Set<String> shuttingDownNodeIds = currentState.metadata().nodeShutdowns().getAllNodeIds();
+        /*
+         * To signal that we should gracefully stop the deployments routed to a particular node we set the routing state to stopping.
+         * The TrainedModelAssignmentNodeService will see that the route is in stopping for a shutting down node and gracefully shut down
+         * the native process after draining the queues.
+         */
+        TrainedModelAssignmentMetadata.Builder rebalanced = setShuttingDownNodeRoutesToStopping(
+            currentMetadata,
+            shuttingDownNodeIds,
+            rebalancer.rebalance()
+        );
+
         if (modelToAdd.isPresent()) {
             checkModelIsFullyAllocatedIfScalingIsNotPossible(modelToAdd.get().getDeploymentId(), rebalanced, nodes);
         }
+
         return rebalanced;
+    }
+
+    // Default for testing
+    static TrainedModelAssignmentMetadata.Builder setShuttingDownNodeRoutesToStopping(
+        TrainedModelAssignmentMetadata currentMetadata,
+        Set<String> shuttingDownNodeIds,
+        TrainedModelAssignmentMetadata.Builder builder
+    ) {
+        if (shuttingDownNodeIds.isEmpty()) {
+            return builder;
+        }
+
+        for (TrainedModelAssignment existingAssignment : currentMetadata.allAssignments().values()) {
+            boolean foundShuttingDownNodeForAssignment = false;
+
+            String existingDeploymentId = existingAssignment.getDeploymentId();
+            TrainedModelAssignment.Builder assignmentBuilder = builder.hasModelDeployment(existingAssignment.getDeploymentId())
+                ? builder.getAssignment(existingDeploymentId)
+                : TrainedModelAssignment.Builder.fromAssignment(existingAssignment)
+                    /*
+                     * If this code path happens that means that the assignment originally existed prior to the rebalance and then
+                     * disappeared. This would be an anomaly so we'll set the assignment to stopping and attempt to gracefully shut down
+                     * the native process.
+                     */
+                    .stopAssignment(NODES_CHANGED_REASON)
+                    // If there are other routes that are now outdated after the rebalance we don't want to include them, so let's start
+                    // with a fresh table
+                    .clearNodeRoutingTable();
+
+            for (String nodeId : shuttingDownNodeIds) {
+                if (existingAssignment.isRoutedToNode(nodeId)
+                    && existingAssignment.getNodeRoutingTable()
+                        .get(nodeId)
+                        .getState()
+                        .isAnyOf(RoutingState.STARTED, RoutingState.STARTING)) {
+                    logger.debug(
+                        () -> format(
+                            "Found assignment deployment id: [%s] with route to shutting down node id: [%s], adding stopping route",
+                            existingDeploymentId,
+                            nodeId
+                        )
+                    );
+
+                    foundShuttingDownNodeForAssignment = true;
+                    RoutingInfo stoppingRouteInfo = createShuttingDownRoute(existingAssignment.getNodeRoutingTable().get(nodeId));
+
+                    assignmentBuilder.addOrOverwriteRoutingEntry(nodeId, stoppingRouteInfo);
+                }
+            }
+
+            // if we didn't find a shutting down routing info then we don't want to add an empty assignment here
+            if (foundShuttingDownNodeForAssignment) {
+                builder.addOrOverwriteAssignment(existingDeploymentId, assignmentBuilder);
+            }
+        }
+
+        return builder;
     }
 
     private void checkModelIsFullyAllocatedIfScalingIsNotPossible(
@@ -589,13 +825,12 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
             );
             return;
         }
-        if (clusterState.nodes().getMinNodeVersion().before(DISTRIBUTED_MODEL_ALLOCATION_VERSION)) {
+        if (clusterState.getMinTransportVersion().before(DISTRIBUTED_MODEL_ALLOCATION_TRANSPORT_VERSION)) {
             listener.onFailure(
                 new ElasticsearchStatusException(
-                    "cannot update number_of_allocations for deployment with model id [{}] while there are nodes older than version [{}]",
+                    "cannot update number_of_allocations for deployment with model id [{}] while cluster upgrade is in progress.",
                     RestStatus.CONFLICT,
-                    deploymentId,
-                    DISTRIBUTED_MODEL_ALLOCATION_VERSION
+                    deploymentId
                 )
             );
             return;
@@ -800,7 +1035,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         return detectReasonIfMlJobsStopped(event).or(() -> {
             String reason = null;
             if (haveMlNodesChanged(event, newMetadata)) {
-                reason = "nodes changed";
+                reason = NODES_CHANGED_REASON;
             } else if (newMetadata.hasOutdatedAssignments()) {
                 reason = "outdated assignments detected";
             }
@@ -863,31 +1098,61 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         // it may get re-allocated to that node when another node is added/removed...
         boolean nodesShutdownChanged = event.changedCustomMetadataSet().contains(NodesShutdownMetadata.TYPE);
         if (event.nodesChanged() || nodesShutdownChanged) {
+            // This is just to track the various log messages that happen in this function to help with debugging in the future
+            // so that we can reasonably assume they're all related
+            // If the log messages printed from this method get interlaced across nodes it can make debugging difficult
+            var eventIdentity = Long.toHexString(System.nanoTime());
+
             Set<String> shuttingDownNodes = nodesShuttingDown(event.state());
             DiscoveryNodes.Delta nodesDelta = event.nodesDelta();
 
             Set<String> removedNodes = nodesDelta.removedNodes().stream().map(DiscoveryNode::getId).collect(Collectors.toSet());
             Set<String> addedNodes = nodesDelta.addedNodes().stream().map(DiscoveryNode::getId).collect(Collectors.toSet());
 
+            logger.debug(
+                () -> format(
+                    "Initial node change info; identity: %s; removed nodes: %s; added nodes: %s; shutting down nodes: %s",
+                    eventIdentity,
+                    removedNodes,
+                    addedNodes,
+                    shuttingDownNodes
+                )
+            );
+
             Set<String> exitingShutDownNodes;
             if (nodesShutdownChanged) {
                 Set<String> previousShuttingDownNodes = nodesShuttingDown(event.previousState());
+                Set<String> presentNodes = event.state().nodes().stream().map(DiscoveryNode::getId).collect(Collectors.toSet());
 
                 // Add nodes that where marked for shutdown in the previous state
                 // but are no longer marked as shutdown in the current state.
-                Set<String> returningShutDownNodes = Sets.difference(previousShuttingDownNodes, shuttingDownNodes);
+                // The intersection is to only include the nodes that actually exist
+                Set<String> returningShutDownNodes = Sets.intersection(
+                    presentNodes,
+                    Sets.difference(previousShuttingDownNodes, shuttingDownNodes)
+                );
                 addedNodes.addAll(returningShutDownNodes);
 
                 // and nodes that are marked for shutdown in this event only
                 exitingShutDownNodes = Sets.difference(shuttingDownNodes, previousShuttingDownNodes);
                 removedNodes.addAll(exitingShutDownNodes);
+
+                logger.debug(
+                    () -> format(
+                        "Shutting down nodes were changed; identity: %s; previous shutting down nodes: %s; returning nodes: %s",
+                        eventIdentity,
+                        previousShuttingDownNodes,
+                        returningShutDownNodes
+                    )
+                );
             } else {
                 exitingShutDownNodes = Collections.emptySet();
             }
 
             logger.debug(
                 () -> format(
-                    "added nodes %s; removed nodes %s; shutting down nodes %s; exiting shutdown nodes %s",
+                    "identity: %s; added nodes %s; removed nodes %s; shutting down nodes %s; exiting shutdown nodes %s",
+                    eventIdentity,
                     addedNodes,
                     removedNodes,
                     shuttingDownNodes,
@@ -899,7 +1164,10 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
                     continue;
                 }
                 for (var nodeId : exitingShutDownNodes) {
-                    if (trainedModelAssignment.isRoutedToNode(nodeId)) {
+                    if (trainedModelAssignment.isRoutedToNode(nodeId)
+                        // If the route is stopping then it's draining its queue or being forced to stop so let that continue
+                        // and don't try to rebalance until it has completely finished
+                        && trainedModelAssignment.getNodeRoutingTable().get(nodeId).getState() != RoutingState.STOPPING) {
                         logger.debug(
                             () -> format(
                                 "should rebalance because model deployment [%s] has allocations on shutting down node [%s]",
@@ -939,9 +1207,6 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
      * Returns the set of nodes that are currently shutting down
      */
     static Set<String> nodesShuttingDown(final ClusterState state) {
-        return NodesShutdownMetadata.getShutdowns(state)
-            .map(NodesShutdownMetadata::getAllNodeMetadataMap)
-            .map(Map::keySet)
-            .orElse(Collections.emptySet());
+        return state.metadata().nodeShutdowns().getAllNodeIds();
     }
 }

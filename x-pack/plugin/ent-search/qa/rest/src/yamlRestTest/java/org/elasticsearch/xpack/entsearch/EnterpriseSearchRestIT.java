@@ -9,14 +9,12 @@ package org.elasticsearch.xpack.entsearch;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/95917")
 public class EnterpriseSearchRestIT extends ESClientYamlSuiteTestCase {
 
     public EnterpriseSearchRestIT(final ClientYamlTestCandidate testCandidate) {
@@ -30,14 +28,13 @@ public class EnterpriseSearchRestIT extends ESClientYamlSuiteTestCase {
 
     @Override
     protected Settings restAdminSettings() {
-        final String value = basicAuthHeaderValue("entsearch-admin", new SecureString("entsearch-admin-password".toCharArray()));
+        final String value = basicAuthHeaderValue("entsearch-superuser", new SecureString("entsearch-superuser-password".toCharArray()));
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", value).build();
     }
 
     @Override
     protected Settings restClientSettings() {
-        final String value = basicAuthHeaderValue("entsearch-user", new SecureString("entsearch-user-password".toCharArray()));
+        final String value = basicAuthHeaderValue("entsearch-admin", new SecureString("entsearch-admin-password".toCharArray()));
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", value).build();
     }
-
 }

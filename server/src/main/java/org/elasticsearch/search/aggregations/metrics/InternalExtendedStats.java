@@ -11,13 +11,13 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
+import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -48,6 +48,15 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
 
         public static Metrics resolve(String name) {
             return Metrics.valueOf(name);
+        }
+
+        public static boolean hasMetric(String name) {
+            try {
+                InternalExtendedStats.Metrics.resolve(name);
+                return true;
+            } catch (IllegalArgumentException iae) {
+                return false;
+            }
         }
     }
 
@@ -92,6 +101,10 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
     @Override
     public String getWriteableName() {
         return ExtendedStatsAggregationBuilder.NAME;
+    }
+
+    static InternalExtendedStats empty(String name, double sigma, DocValueFormat format, Map<String, Object> metadata) {
+        return new InternalExtendedStats(name, 0, 0d, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, 0d, sigma, format, metadata);
     }
 
     @Override
@@ -242,36 +255,47 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
     }
 
     @Override
-    public InternalExtendedStats reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
-        double sumOfSqrs = 0;
-        double compensationOfSqrs = 0;
-        for (InternalAggregation aggregation : aggregations) {
-            InternalExtendedStats stats = (InternalExtendedStats) aggregation;
-            if (stats.sigma != sigma) {
-                throw new IllegalStateException("Cannot reduce other stats aggregations that have a different sigma");
+    protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
+        final AggregatorReducer statsReducer = InternalStats.getReducer(name, format, getMetadata());
+        return new AggregatorReducer() {
+
+            double sumOfSqrs = 0;
+            double compensationOfSqrs = 0;
+
+            @Override
+            public void accept(InternalAggregation aggregation) {
+                InternalExtendedStats stats = (InternalExtendedStats) aggregation;
+                if (stats.sigma != sigma) {
+                    throw new IllegalStateException("Cannot reduce other stats aggregations that have a different sigma");
+                }
+                double value = stats.getSumOfSquares();
+                if (Double.isFinite(value) == false) {
+                    sumOfSqrs += value;
+                } else if (Double.isFinite(sumOfSqrs)) {
+                    double correctedOfSqrs = value - compensationOfSqrs;
+                    double newSumOfSqrs = sumOfSqrs + correctedOfSqrs;
+                    compensationOfSqrs = (newSumOfSqrs - sumOfSqrs) - correctedOfSqrs;
+                    sumOfSqrs = newSumOfSqrs;
+                }
+                statsReducer.accept(aggregation);
             }
-            double value = stats.getSumOfSquares();
-            if (Double.isFinite(value) == false) {
-                sumOfSqrs += value;
-            } else if (Double.isFinite(sumOfSqrs)) {
-                double correctedOfSqrs = value - compensationOfSqrs;
-                double newSumOfSqrs = sumOfSqrs + correctedOfSqrs;
-                compensationOfSqrs = (newSumOfSqrs - sumOfSqrs) - correctedOfSqrs;
-                sumOfSqrs = newSumOfSqrs;
+
+            @Override
+            public InternalAggregation get() {
+                InternalStats stats = (InternalStats) statsReducer.get();
+                return new InternalExtendedStats(
+                    name,
+                    stats.getCount(),
+                    stats.getSum(),
+                    stats.getMin(),
+                    stats.getMax(),
+                    sumOfSqrs,
+                    sigma,
+                    format,
+                    getMetadata()
+                );
             }
-        }
-        final InternalStats stats = super.reduce(aggregations, reduceContext);
-        return new InternalExtendedStats(
-            name,
-            stats.getCount(),
-            stats.getSum(),
-            stats.getMin(),
-            stats.getMax(),
-            sumOfSqrs,
-            sigma,
-            format,
-            getMetadata()
-        );
+        };
     }
 
     @Override

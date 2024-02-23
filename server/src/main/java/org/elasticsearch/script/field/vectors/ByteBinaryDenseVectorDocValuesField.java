@@ -17,18 +17,22 @@ import java.io.IOException;
 
 public class ByteBinaryDenseVectorDocValuesField extends DenseVectorDocValuesField {
 
-    protected final BinaryDocValues input;
-    protected final int dims;
-    protected BytesRef value;
+    private final BinaryDocValues input;
+    private final int dims;
+    private final byte[] vectorValue;
+    private boolean decoded;
+    private BytesRef value;
 
     public ByteBinaryDenseVectorDocValuesField(BinaryDocValues input, String name, ElementType elementType, int dims) {
         super(name, elementType);
         this.input = input;
         this.dims = dims;
+        this.vectorValue = new byte[dims];
     }
 
     @Override
     public void setNextDocId(int docId) throws IOException {
+        decoded = false;
         if (input.advanceExact(docId)) {
             value = input.binaryValue();
         } else {
@@ -51,8 +55,8 @@ public class ByteBinaryDenseVectorDocValuesField extends DenseVectorDocValuesFie
         if (isEmpty()) {
             return DenseVector.EMPTY;
         }
-
-        return new ByteBinaryDenseVector(value, dims);
+        decodeVectorIfNecessary();
+        return new ByteBinaryDenseVector(vectorValue, value, dims);
     }
 
     @Override
@@ -60,11 +64,19 @@ public class ByteBinaryDenseVectorDocValuesField extends DenseVectorDocValuesFie
         if (isEmpty()) {
             return defaultValue;
         }
-        return new ByteBinaryDenseVector(value, dims);
+        decodeVectorIfNecessary();
+        return new ByteBinaryDenseVector(vectorValue, value, dims);
     }
 
     @Override
     public DenseVector getInternal() {
         return get(null);
+    }
+
+    private void decodeVectorIfNecessary() {
+        if (decoded == false && value != null) {
+            System.arraycopy(value.bytes, value.offset, vectorValue, 0, dims);
+            decoded = true;
+        }
     }
 }

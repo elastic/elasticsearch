@@ -19,12 +19,12 @@ import com.maxmind.geoip2.record.Location;
 import com.maxmind.geoip2.record.Subdivision;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
@@ -48,7 +48,7 @@ import static org.elasticsearch.ingest.ConfigurationUtils.readStringProperty;
 
 public final class GeoIpProcessor extends AbstractProcessor {
 
-    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(GeoIpProcessor.class);
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(GeoIpProcessor.class);
     static final String DEFAULT_DATABASES_DEPRECATION_MESSAGE = "the [fallback_to_default_databases] has been deprecated, because "
         + "Elasticsearch no longer includes the default Maxmind geoip databases. This setting will be removed in Elasticsearch 9.0";
 
@@ -172,10 +172,8 @@ public final class GeoIpProcessor extends AbstractProcessor {
             geoData = retrieveCityGeoData(geoIpDatabase, ipAddress);
         } else if (databaseType.endsWith(COUNTRY_DB_SUFFIX)) {
             geoData = retrieveCountryGeoData(geoIpDatabase, ipAddress);
-
         } else if (databaseType.endsWith(ASN_DB_SUFFIX)) {
             geoData = retrieveAsnGeoData(geoIpDatabase, ipAddress);
-
         } else {
             throw new ElasticsearchParseException(
                 "Unsupported database type [" + geoIpDatabase.getDatabaseType() + "]",
@@ -329,24 +327,22 @@ public final class GeoIpProcessor extends AbstractProcessor {
         Map<String, Object> geoData = new HashMap<>();
         for (Property property : this.properties) {
             switch (property) {
-                case IP:
-                    geoData.put("ip", NetworkAddress.format(ipAddress));
-                    break;
-                case ASN:
+                case IP -> geoData.put("ip", NetworkAddress.format(ipAddress));
+                case ASN -> {
                     if (asn != null) {
                         geoData.put("asn", asn);
                     }
-                    break;
-                case ORGANIZATION_NAME:
+                }
+                case ORGANIZATION_NAME -> {
                     if (organization_name != null) {
                         geoData.put("organization_name", organization_name);
                     }
-                    break;
-                case NETWORK:
+                }
+                case NETWORK -> {
                     if (network != null) {
                         geoData.put("network", network.toString());
                     }
-                    break;
+                }
             }
         }
         return geoData;
@@ -370,18 +366,19 @@ public final class GeoIpProcessor extends AbstractProcessor {
         @Override
         public GeoIpDatabase get() throws IOException {
             GeoIpDatabase loader = geoIpDatabaseProvider.getDatabase(databaseFile);
-            if (Factory.useDatabaseUnavailableProcessor(loader, databaseFile)) {
+            if (loader == null) {
                 return null;
-            } else if (loader == null) {
-                throw new ResourceNotFoundException("database file [" + databaseFile + "] doesn't exist");
             }
-            // Only check whether the suffix has changed and not the entire database type.
-            // To sanity check whether a city db isn't overwriting with a country or asn db.
-            // For example overwriting a geoip lite city db with geoip city db is a valid change, but the db type is slightly different,
-            // by checking just the suffix this assertion doesn't fail.
-            String expectedSuffix = databaseType.substring(databaseType.lastIndexOf('-'));
-            assert loader.getDatabaseType().endsWith(expectedSuffix)
-                : "database type [" + loader.getDatabaseType() + "] doesn't match with expected suffix [" + expectedSuffix + "]";
+
+            if (Assertions.ENABLED) {
+                // Only check whether the suffix has changed and not the entire database type.
+                // To sanity check whether a city db isn't overwriting with a country or asn db.
+                // For example overwriting a geoip lite city db with geoip city db is a valid change, but the db type is slightly different,
+                // by checking just the suffix this assertion doesn't fail.
+                String expectedSuffix = databaseType.substring(databaseType.lastIndexOf('-'));
+                assert loader.getDatabaseType().endsWith(expectedSuffix)
+                    : "database type [" + loader.getDatabaseType() + "] doesn't match with expected suffix [" + expectedSuffix + "]";
+            }
             return loader;
         }
     }
@@ -425,17 +422,23 @@ public final class GeoIpProcessor extends AbstractProcessor {
             boolean ignoreMissing = readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
             boolean firstOnly = readBooleanProperty(TYPE, processorTag, config, "first_only", true);
 
+            // Validating the download_database_on_pipeline_creation even if the result
+            // is not used directly by the factory.
+            downloadDatabaseOnPipelineCreation(config, processorTag);
+
             // noop, should be removed in 9.0
             Object value = config.remove("fallback_to_default_databases");
             if (value != null) {
-                DEPRECATION_LOGGER.warn(DeprecationCategory.OTHER, "default_databases_message", DEFAULT_DATABASES_DEPRECATION_MESSAGE);
+                deprecationLogger.warn(DeprecationCategory.OTHER, "default_databases_message", DEFAULT_DATABASES_DEPRECATION_MESSAGE);
             }
 
             GeoIpDatabase geoIpDatabase = geoIpDatabaseProvider.getDatabase(databaseFile);
-            if (useDatabaseUnavailableProcessor(geoIpDatabase, databaseFile)) {
+            if (geoIpDatabase == null) {
+                // It's possible that the database could be downloaded via the GeoipDownloader process and could become available
+                // at a later moment, so a processor impl is returned that tags documents instead. If a database cannot be sourced then the
+                // processor will continue to tag documents with a warning until it is remediated by providing a database or changing the
+                // pipeline.
                 return new DatabaseUnavailableProcessor(processorTag, description, databaseFile);
-            } else if (geoIpDatabase == null) {
-                throw newConfigurationException(TYPE, processorTag, "database_file", "database file [" + databaseFile + "] doesn't exist");
             }
             final String databaseType;
             try {
@@ -485,12 +488,12 @@ public final class GeoIpProcessor extends AbstractProcessor {
             );
         }
 
-        private static boolean useDatabaseUnavailableProcessor(GeoIpDatabase database, String databaseName) {
-            // If there is no instance for a database we should fail with a config error, but
-            // if there is no instance for a builtin database that we manage via GeoipDownloader then don't fail.
-            // In the latter case the database should become available at a later moment, so a processor impl
-            // is returned that tags documents instead.
-            return database == null && IngestGeoIpPlugin.DEFAULT_DATABASE_FILENAMES.contains(databaseName);
+        public static boolean downloadDatabaseOnPipelineCreation(Map<String, Object> config) {
+            return downloadDatabaseOnPipelineCreation(config, null);
+        }
+
+        public static boolean downloadDatabaseOnPipelineCreation(Map<String, Object> config, String processorTag) {
+            return readBooleanProperty(GeoIpProcessor.TYPE, processorTag, config, "download_database_on_pipeline_creation", true);
         }
 
     }

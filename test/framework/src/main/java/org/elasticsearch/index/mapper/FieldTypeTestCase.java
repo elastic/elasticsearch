@@ -7,7 +7,14 @@
  */
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.Version;
+import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.FieldInfos;
+import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.VectorEncoding;
+import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.search.Query;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.lookup.FieldLookup;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
@@ -20,6 +27,7 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Set;
 
@@ -42,7 +50,7 @@ public abstract class FieldTypeTestCase extends ESTestCase {
         when(searchExecutionContext.isSourceEnabled()).thenReturn(true);
         SearchLookup searchLookup = mock(SearchLookup.class);
         when(searchExecutionContext.lookup()).thenReturn(searchLookup);
-        when(searchExecutionContext.indexVersionCreated()).thenReturn(Version.CURRENT);
+        when(searchExecutionContext.indexVersionCreated()).thenReturn(IndexVersion.current());
         return searchExecutionContext;
     }
 
@@ -88,5 +96,57 @@ public abstract class FieldTypeTestCase extends ESTestCase {
         ValueFetcher fetcher = fieldType.valueFetcher(searchExecutionContext, format);
         fetcher.setNextReader(null);
         return fetcher.fetchValues(null, -1, new ArrayList<>());
+    }
+
+    public void testFieldHasValue() {
+        MappedFieldType fieldType = getMappedFieldType();
+        FieldInfos fieldInfos = new FieldInfos(new FieldInfo[] { getFieldInfoWithName("field") });
+        assertTrue(fieldType.fieldHasValue(fieldInfos));
+    }
+
+    public void testFieldHasValueWithEmptyFieldInfos() {
+        MappedFieldType fieldType = getMappedFieldType();
+        assertFalse(fieldType.fieldHasValue(FieldInfos.EMPTY));
+    }
+
+    public MappedFieldType getMappedFieldType() {
+        return new MappedFieldType("field", false, false, false, TextSearchInfo.NONE, Collections.emptyMap()) {
+
+            @Override
+            public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+                return null;
+            }
+
+            @Override
+            public String typeName() {
+                return null;
+            }
+
+            @Override
+            public Query termQuery(Object value, SearchExecutionContext context) {
+                return null;
+            }
+        };
+    }
+
+    public FieldInfo getFieldInfoWithName(String name) {
+        return new FieldInfo(
+            name,
+            1,
+            randomBoolean(),
+            randomBoolean(),
+            randomBoolean(),
+            IndexOptions.NONE,
+            DocValuesType.NONE,
+            -1,
+            new HashMap<>(),
+            1,
+            1,
+            1,
+            1,
+            VectorEncoding.BYTE,
+            VectorSimilarityFunction.COSINE,
+            randomBoolean()
+        );
     }
 }

@@ -18,12 +18,14 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
@@ -56,7 +58,6 @@ import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.threadpool.Scheduler.Cancellable;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.After;
 import org.junit.Before;
@@ -157,7 +158,7 @@ public class RefreshListenersTests extends ESTestCase {
             true
         );
         engine = new InternalEngine(config);
-        engine.recoverFromTranslog((e, s) -> 0, Long.MAX_VALUE);
+        EngineTestCase.recoverFromTranslog(engine, (e, s) -> 0, Long.MAX_VALUE);
         listeners.setCurrentRefreshLocationSupplier(engine::getTranslogLastWriteLocation);
         listeners.setCurrentProcessedCheckpointSupplier(engine::getProcessedLocalCheckpoint);
         listeners.setMaxIssuedSeqNoSupplier(engine::getMaxSeqNo);
@@ -178,7 +179,7 @@ public class RefreshListenersTests extends ESTestCase {
         assertEquals(1, listeners.pendingCount());
 
         TestSeqNoListener seqNoListener = new TestSeqNoListener();
-        assertFalse(listeners.addOrNotify(index.getSeqNo(), seqNoListener));
+        assertFalse(listeners.addOrNotify(index.getSeqNo(), randomBoolean(), seqNoListener));
         assertEquals(2, listeners.pendingCount());
         engine.refresh("I said so");
         assertFalse(listener.forcedRefresh.get());
@@ -201,7 +202,7 @@ public class RefreshListenersTests extends ESTestCase {
         assertTrue(listeners.addOrNotify(index.getTranslogLocation(), listener));
         assertFalse(listener.forcedRefresh.get());
         TestSeqNoListener seqNoListener = new TestSeqNoListener();
-        assertTrue(listeners.addOrNotify(index.getSeqNo(), seqNoListener));
+        assertTrue(listeners.addOrNotify(index.getSeqNo(), randomBoolean(), seqNoListener));
         assertTrue(seqNoListener.isDone.get());
         listener.assertNoError();
         assertEquals(0, listeners.pendingCount());
@@ -217,18 +218,10 @@ public class RefreshListenersTests extends ESTestCase {
                 assertEquals("foobar", threadPool.getThreadContext().getHeader("test"));
                 latch.countDown();
             }));
-            assertFalse(listeners.addOrNotify(index.getSeqNo(), new ActionListener<>() {
-                @Override
-                public void onResponse(Void unused) {
-                    assertEquals("foobar", threadPool.getThreadContext().getHeader("test"));
-                    latch.countDown();
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    throw new AssertionError(e);
-                }
-            }));
+            assertFalse(listeners.addOrNotify(index.getSeqNo(), randomBoolean(), ActionTestUtils.assertNoFailureListener(ignored -> {
+                assertEquals("foobar", threadPool.getThreadContext().getHeader("test"));
+                latch.countDown();
+            })));
         }
         assertNull(threadPool.getThreadContext().getHeader("test"));
         assertEquals(2, latch.getCount());
@@ -252,7 +245,7 @@ public class RefreshListenersTests extends ESTestCase {
             } else {
                 TestSeqNoListener listener = new TestSeqNoListener();
                 nonSeqNoLocationListeners.add(listener);
-                listeners.addOrNotify(index.getSeqNo(), listener);
+                listeners.addOrNotify(index.getSeqNo(), randomBoolean(), listener);
             }
             assertTrue(listeners.refreshNeeded());
         }
@@ -268,7 +261,7 @@ public class RefreshListenersTests extends ESTestCase {
 
         // Checkpoint version produces error if too many listeners registered
         TestSeqNoListener rejectedListener = new TestSeqNoListener();
-        listeners.addOrNotify(index.getSeqNo(), rejectedListener);
+        listeners.addOrNotify(index.getSeqNo(), randomBoolean(), rejectedListener);
         Exception error = rejectedListener.error;
         assertThat(error, instanceOf(IllegalStateException.class));
 
@@ -303,7 +296,7 @@ public class RefreshListenersTests extends ESTestCase {
             assertNull(listener.forcedRefresh.get());
 
             TestSeqNoListener seqNoListener = new TestSeqNoListener();
-            assertFalse(listeners.addOrNotify(unrefreshedOperation.getSeqNo(), seqNoListener));
+            assertFalse(listeners.addOrNotify(unrefreshedOperation.getSeqNo(), randomBoolean(), seqNoListener));
             assertFalse(seqNoListener.isDone.get());
 
             listeners.close();
@@ -321,7 +314,7 @@ public class RefreshListenersTests extends ESTestCase {
             assertFalse(listener.forcedRefresh.get());
             listener.assertNoError();
             TestSeqNoListener seqNoListener = new TestSeqNoListener();
-            assertTrue(listeners.addOrNotify(refreshedOperation.getSeqNo(), seqNoListener));
+            assertTrue(listeners.addOrNotify(refreshedOperation.getSeqNo(), randomBoolean(), seqNoListener));
             assertTrue(seqNoListener.isDone.get());
 
             assertFalse(listeners.refreshNeeded());
@@ -339,7 +332,7 @@ public class RefreshListenersTests extends ESTestCase {
 
             // But adding a seqNo listener to a non-refreshed location will fail listener
             TestSeqNoListener seqNoListener = new TestSeqNoListener();
-            listeners.addOrNotify(unrefreshedOperation.getSeqNo(), seqNoListener);
+            listeners.addOrNotify(unrefreshedOperation.getSeqNo(), randomBoolean(), seqNoListener);
             assertEquals("can't wait for refresh on a closed index", seqNoListener.error.getMessage());
 
             assertFalse(listeners.refreshNeeded());
@@ -376,7 +369,7 @@ public class RefreshListenersTests extends ESTestCase {
                     }
                 } else {
                     TestSeqNoListener seqNoListener = new TestSeqNoListener();
-                    immediate = listeners.addOrNotify(index.getSeqNo(), seqNoListener);
+                    immediate = listeners.addOrNotify(index.getSeqNo(), randomBoolean(), seqNoListener);
                     doneSupplier = seqNoListener.isDone::get;
                 }
                 if (immediate == false) {
@@ -398,7 +391,11 @@ public class RefreshListenersTests extends ESTestCase {
         maxListeners = between(1, threadCount * 2);
 
         // This thread just refreshes every once in a while to cause trouble.
-        Cancellable refresher = threadPool.scheduleWithFixedDelay(() -> engine.refresh("because test"), timeValueMillis(100), Names.SAME);
+        Cancellable refresher = threadPool.scheduleWithFixedDelay(
+            () -> engine.refresh("because test"),
+            timeValueMillis(100),
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
 
         // These threads add and block until the refresh makes the change visible and then do a non-realtime get.
         Thread[] indexers = new Thread[threadCount];
@@ -415,7 +412,7 @@ public class RefreshListenersTests extends ESTestCase {
                         listeners.addOrNotify(index.getTranslogLocation(), listener);
                         TestSeqNoListener seqNoListener = new TestSeqNoListener();
                         long processedLocalCheckpoint = engine.getProcessedLocalCheckpoint();
-                        listeners.addOrNotify(processedLocalCheckpoint, seqNoListener);
+                        listeners.addOrNotify(processedLocalCheckpoint, randomBoolean(), seqNoListener);
                         assertBusy(() -> {
                             assertNotNull("location listener never called", listener.forcedRefresh.get());
                             assertTrue("seqNo listener never called", seqNoListener.isDone.get() || seqNoListener.error != null);
@@ -461,7 +458,7 @@ public class RefreshListenersTests extends ESTestCase {
         TestLocationListener listener = new TestLocationListener();
         assertFalse(listeners.addOrNotify(index("1").getTranslogLocation(), listener));
         TestSeqNoListener seqNoListener = new TestSeqNoListener();
-        assertFalse(listeners.addOrNotify(index("1").getSeqNo(), seqNoListener));
+        assertFalse(listeners.addOrNotify(index("1").getSeqNo(), randomBoolean(), seqNoListener));
         engine.refresh("I said so");
         assertFalse(listener.forcedRefresh.get());
         listener.assertNoError();
@@ -474,7 +471,7 @@ public class RefreshListenersTests extends ESTestCase {
             listener.assertNoError();
             seqNoListener = new TestSeqNoListener();
             // SeqNo listeners are not forced
-            assertFalse(listeners.addOrNotify(index("1").getSeqNo(), seqNoListener));
+            assertFalse(listeners.addOrNotify(index("1").getSeqNo(), randomBoolean(), seqNoListener));
             assertFalse(seqNoListener.isDone.get());
             assertEquals(1, listeners.pendingCount());
 
@@ -485,7 +482,7 @@ public class RefreshListenersTests extends ESTestCase {
                 listener.assertNoError();
                 seqNoListener = new TestSeqNoListener();
                 // SeqNo listeners are not forced
-                assertFalse(listeners.addOrNotify(index("1").getSeqNo(), seqNoListener));
+                assertFalse(listeners.addOrNotify(index("1").getSeqNo(), randomBoolean(), seqNoListener));
                 assertFalse(seqNoListener.isDone.get());
                 assertEquals(1, listeners.pendingCount());
             }
@@ -496,7 +493,7 @@ public class RefreshListenersTests extends ESTestCase {
             listener.assertNoError();
             seqNoListener = new TestSeqNoListener();
             // SeqNo listeners are not forced
-            assertFalse(listeners.addOrNotify(index("1").getSeqNo(), seqNoListener));
+            assertFalse(listeners.addOrNotify(index("1").getSeqNo(), randomBoolean(), seqNoListener));
             assertFalse(seqNoListener.isDone.get());
             assertEquals(1, listeners.pendingCount());
         }
@@ -506,12 +503,12 @@ public class RefreshListenersTests extends ESTestCase {
         if (listeners.pendingCount() == maxListeners) {
             // Rejected
             TestSeqNoListener rejected = new TestSeqNoListener();
-            assertTrue(listeners.addOrNotify(index("1").getSeqNo(), rejected));
+            assertTrue(listeners.addOrNotify(index("1").getSeqNo(), randomBoolean(), rejected));
             assertNotNull(rejected.error);
             expectedPending = 2;
         } else {
             TestSeqNoListener acceptedListener = new TestSeqNoListener();
-            assertFalse(listeners.addOrNotify(index("1").getSeqNo(), acceptedListener));
+            assertFalse(listeners.addOrNotify(index("1").getSeqNo(), randomBoolean(), acceptedListener));
             assertFalse(acceptedListener.isDone.get());
             assertNull(acceptedListener.error);
             expectedPending = 3;
@@ -523,7 +520,7 @@ public class RefreshListenersTests extends ESTestCase {
         assertEquals(0, listeners.pendingCount());
         TestSeqNoListener seqNoListener = new TestSeqNoListener();
         long issued = index("1").getSeqNo();
-        assertTrue(listeners.addOrNotify(issued + 1, seqNoListener));
+        assertTrue(listeners.addOrNotify(issued + 1, false, seqNoListener));
         assertThat(seqNoListener.error, instanceOf(IllegalArgumentException.class));
         String message = "Cannot wait for unissued seqNo checkpoint [wait_for_checkpoint="
             + (issued + 1)
@@ -531,6 +528,17 @@ public class RefreshListenersTests extends ESTestCase {
             + issued
             + "]";
         assertThat(seqNoListener.error.getMessage(), equalTo(message));
+    }
+
+    public void testSkipSequenceNumberMustBeIssuedCheck() throws Exception {
+        assertEquals(0, listeners.pendingCount());
+        TestSeqNoListener seqNoListener = new TestSeqNoListener();
+        long issued = index("1").getSeqNo();
+        assertFalse(listeners.addOrNotify(issued + 1, true, seqNoListener));
+        index("2");
+        assertFalse(seqNoListener.isDone.get());
+        engine.refresh("test");
+        assertTrue(seqNoListener.isDone.get());
     }
 
     private Engine.IndexResult index(String id) throws IOException {

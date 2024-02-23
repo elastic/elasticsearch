@@ -169,7 +169,7 @@ public class StratifiedTrainTestSplitterTests extends ESTestCase {
 
         long expectedTotalTrainingCount = 0;
         for (long classCount : classCounts.values()) {
-            expectedTotalTrainingCount += trainingFraction * classCount;
+            expectedTotalTrainingCount += (long) (trainingFraction * classCount);
         }
         assertThat(actualTotalTrainingCount, greaterThanOrEqualTo(expectedTotalTrainingCount - 2));
         assertThat(actualTotalTrainingCount, lessThanOrEqualTo(expectedTotalTrainingCount));

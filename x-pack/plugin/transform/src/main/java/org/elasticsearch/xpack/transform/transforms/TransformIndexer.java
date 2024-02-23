@@ -333,6 +333,9 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             }
         }, listener::onFailure);
 
+        var shouldMaybeCreateDestIndexForUnattended = context.getCheckpoint() == 0
+            && Boolean.TRUE.equals(transformConfig.getSettings().getUnattended());
+
         ActionListener<Map<String, String>> fieldMappingsListener = ActionListener.wrap(destIndexMappings -> {
             if (destIndexMappings.isEmpty() == false) {
                 // If we managed to fetch destination index mappings, we use them from now on ...
@@ -344,9 +347,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             // Since the unattended transform could not have created the destination index yet, we do it here.
             // This is important to create the destination index explicitly before indexing first documents. Otherwise, the destination
             // index aliases may be missing.
-            if (destIndexMappings.isEmpty()
-                && context.getCheckpoint() == 0
-                && Boolean.TRUE.equals(transformConfig.getSettings().getUnattended())) {
+            if (destIndexMappings.isEmpty() && shouldMaybeCreateDestIndexForUnattended) {
                 doMaybeCreateDestIndex(deducedDestIndexMappings.get(), configurationReadyListener);
             } else {
                 configurationReadyListener.onResponse(null);
@@ -364,7 +365,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             deducedDestIndexMappings.set(validationResponse.getDestIndexMappings());
             if (isContinuous()) {
                 transformsConfigManager.getTransformConfiguration(getJobId(), ActionListener.wrap(config -> {
-                    if (transformConfig.equals(config) && fieldMappings != null) {
+                    if (transformConfig.equals(config) && fieldMappings != null && shouldMaybeCreateDestIndexForUnattended == false) {
                         logger.trace("[{}] transform config has not changed.", getJobId());
                         configurationReadyListener.onResponse(null);
                     } else {

@@ -274,28 +274,24 @@ public class BitSetFilterCacheTests extends ESTestCase {
                 for (var loadFiltersEagerly : values) {
                     for (var isStateless : values) {
                         if (isStateless && hasIndexRole) {
-                            assertEquals(loadFiltersEagerly && indexFastRefresh,
-                                BitsetFilterCache.shouldLoadRandomAccessFiltersEagerly(bitsetFilterCacheSettings(
-                                        isStateless,
-                                        hasIndexRole,
-                                        loadFiltersEagerly,
-                                        indexFastRefresh
-                                    )
-                                ));
+                            assertEquals(
+                                loadFiltersEagerly && indexFastRefresh,
+                                BitsetFilterCache.shouldLoadRandomAccessFiltersEagerly(
+                                    bitsetFilterCacheSettings(isStateless, hasIndexRole, loadFiltersEagerly, indexFastRefresh)
+                                )
+                            );
                         } else if (loadFiltersEagerly) {
-                            assertTrue(BitsetFilterCache.shouldLoadRandomAccessFiltersEagerly(bitsetFilterCacheSettings(
-                                isStateless,
-                                hasIndexRole,
-                                loadFiltersEagerly,
-                                indexFastRefresh
-                            )));
+                            assertTrue(
+                                BitsetFilterCache.shouldLoadRandomAccessFiltersEagerly(
+                                    bitsetFilterCacheSettings(isStateless, hasIndexRole, loadFiltersEagerly, indexFastRefresh)
+                                )
+                            );
                         } else {
-                            assertFalse(BitsetFilterCache.shouldLoadRandomAccessFiltersEagerly(bitsetFilterCacheSettings(
-                                isStateless,
-                                hasIndexRole,
-                                loadFiltersEagerly,
-                                indexFastRefresh
-                            )));
+                            assertFalse(
+                                BitsetFilterCache.shouldLoadRandomAccessFiltersEagerly(
+                                    bitsetFilterCacheSettings(isStateless, hasIndexRole, loadFiltersEagerly, indexFastRefresh)
+                                )
+                            );
                         }
                     }
                 }
@@ -309,8 +305,7 @@ public class BitSetFilterCacheTests extends ESTestCase {
         boolean loadFiltersEagerly,
         boolean indexFastRefresh
     ) {
-        var indexSettingsBuilder = Settings.builder()
-            .put(INDEX_LOAD_RANDOM_ACCESS_FILTERS_EAGERLY_SETTING.getKey(), loadFiltersEagerly);
+        var indexSettingsBuilder = Settings.builder().put(INDEX_LOAD_RANDOM_ACCESS_FILTERS_EAGERLY_SETTING.getKey(), loadFiltersEagerly);
         if (isStateless) indexSettingsBuilder.put(INDEX_FAST_REFRESH_SETTING.getKey(), indexFastRefresh);
 
         var nodeSettingsBuilder = Settings.builder()

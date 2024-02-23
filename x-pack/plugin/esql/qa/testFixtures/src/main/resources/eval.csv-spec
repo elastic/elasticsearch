@@ -374,7 +374,7 @@ FROM employees
 | EVAL full_name = concat(first_name, " ", last_name)
 | EVAL emp_no = concat(full_name, " ", to_string(emp_no))
 | KEEP full_name, emp_no
-| lIMIT 3;
+| LIMIT 3;
 
 full_name:keyword | emp_no:keyword
 Georgi Facello    | Georgi Facello 10001

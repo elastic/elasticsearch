@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.test.hamcrest;
+package org.elasticsearch.test.rest.yaml.section;
 
 import org.hamcrest.Description;
 import org.hamcrest.TypeSafeMatcher;
@@ -16,17 +16,17 @@ import java.util.regex.Pattern;
 /**
  * Matcher that supports regular expression and allows to provide optional flags
  */
-public class RegexMatcher extends TypeSafeMatcher<String> {
+class RegexMatcher extends TypeSafeMatcher<String> {
 
     private final String regex;
     private final Pattern pattern;
 
-    public RegexMatcher(String regex) {
+    RegexMatcher(String regex) {
         this.regex = regex;
         this.pattern = Pattern.compile(regex);
     }
 
-    public RegexMatcher(String regex, int flag) {
+    RegexMatcher(String regex, int flag) {
         this.regex = regex;
         this.pattern = Pattern.compile(regex, flag);
     }

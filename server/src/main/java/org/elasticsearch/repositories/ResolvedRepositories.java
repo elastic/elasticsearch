@@ -37,9 +37,9 @@ public record ResolvedRepositories(List<RepositoryMetadata> repositoryMetadata, 
             || (patterns.length == 1 && (ALL_PATTERN.equalsIgnoreCase(patterns[0]) || Regex.isMatchAllPattern(patterns[0])));
     }
 
-    public static ResolvedRepositories resolve(ClusterState state, String[] repoNames) {
+    public static ResolvedRepositories resolve(ClusterState state, String[] patterns) {
         final var repositories = RepositoriesMetadata.get(state);
-        if (isMatchAll(repoNames)) {
+        if (isMatchAll(patterns)) {
             return new ResolvedRepositories(repositories.repositories(), List.of());
         }
 
@@ -47,18 +47,18 @@ public record ResolvedRepositories(List<RepositoryMetadata> repositoryMetadata, 
         final List<String> includePatterns = new ArrayList<>();
         final List<String> excludePatterns = new ArrayList<>();
         boolean seenWildcard = false;
-        for (final var repositoryOrPattern : repoNames) {
-            if (seenWildcard && repositoryOrPattern.length() > 1 && repositoryOrPattern.startsWith("-")) {
-                excludePatterns.add(repositoryOrPattern.substring(1));
+        for (final var pattern : patterns) {
+            if (seenWildcard && pattern.length() > 1 && pattern.startsWith("-")) {
+                excludePatterns.add(pattern.substring(1));
             } else {
-                if (Regex.isSimpleMatchPattern(repositoryOrPattern)) {
+                if (Regex.isSimpleMatchPattern(pattern)) {
                     seenWildcard = true;
                 } else {
-                    if (repositories.repository(repositoryOrPattern) == null) {
-                        missingRepositories.add(repositoryOrPattern);
+                    if (repositories.repository(pattern) == null) {
+                        missingRepositories.add(pattern);
                     }
                 }
-                includePatterns.add(repositoryOrPattern);
+                includePatterns.add(pattern);
             }
         }
         final var excludes = excludePatterns.toArray(Strings.EMPTY_ARRAY);

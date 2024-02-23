@@ -845,6 +845,86 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         }
     }
 
+    protected static class PushDownEval extends OptimizerRules.OptimizerRule<Eval> {
+        @Override
+        protected LogicalPlan rule(Eval eval) {
+            return pushGeneratingPlanPastProjectAndOrderBy(eval, asAttributes(eval.fields()));
+        }
+    }
+
+    protected static class PushDownRegexExtract extends OptimizerRules.OptimizerRule<RegexExtract> {
+        @Override
+        protected LogicalPlan rule(RegexExtract re) {
+            return pushGeneratingPlanPastProjectAndOrderBy(re, re.extractedFields());
+        }
+    }
+
+    protected static class PushDownEnrich extends OptimizerRules.OptimizerRule<Enrich> {
+        @Override
+        protected LogicalPlan rule(Enrich en) {
+            return pushGeneratingPlanPastProjectAndOrderBy(en, asAttributes(en.enrichFields()));
+        }
+    }
+
+    /**
+     * Pushes LogicalPlans which generate new attributes (Eval, Grok/Dissect, Enrich), past OrderBys and Projections.
+     * Although it seems arbitrary whether the OrderBy or the Eval is executed first, this transformation ensures that OrderBys only
+     * separated by an eval can be combined by PushDownAndCombineOrderBy.
+     *
+     * E.g.:
+     *
+     * ... | sort a | eval x = b + 1 | sort x
+     *
+     * becomes
+     *
+     * ... | eval x = b + 1 | sort a | sort x
+     *
+     * Ordering the Evals before the OrderBys has the advantage that it's always possible to order the plans like this.
+     * E.g., in the example above it would not be possible to put the eval after the two orderBys.
+     *
+     * In case one of the Eval's fields would shadow the orderBy's attributes, we rename the attribute first.
+     *
+     * E.g.
+     *
+     * ... | sort a | eval a = b + 1 | ...
+     *
+     * becomes
+     *
+     * ... | eval $$a = a | eval a = b + 1 | sort $$a | drop $$a
+     */
+    private static LogicalPlan pushGeneratingPlanPastProjectAndOrderBy(UnaryPlan generatingPlan, List<Attribute> generatedAttributes) {
+        LogicalPlan child = generatingPlan.child();
+
+        if (child instanceof OrderBy orderBy) {
+            Set<String> evalFieldNames = generatedAttributes.stream().map(NamedExpression::name).collect(Collectors.toSet());
+
+            // Look for attributes in the OrderBy's expressions and create aliases with temporary names for them.
+            AttributeReplacement nonShadowedOrders = renameAttributesInExpressions(evalFieldNames, orderBy.order());
+
+            AttributeMap<Alias> aliasesForShadowedOrderByAttrs = nonShadowedOrders.replacedAttributes;
+            @SuppressWarnings("unchecked")
+            List<Order> newOrder = (List<Order>) (Object) nonShadowedOrders.rewrittenExpressions;
+
+            if (aliasesForShadowedOrderByAttrs.isEmpty() == false) {
+                List<Alias> newAliases = aliasesForShadowedOrderByAttrs.values().stream().toList();
+
+                LogicalPlan plan = new Eval(Source.EMPTY, orderBy.child(), newAliases);
+                plan = generatingPlan.replaceChild(plan);
+                plan = new OrderBy(orderBy.source(), plan, newOrder);
+                plan = new EsqlProject(Source.EMPTY, plan, generatingPlan.output());
+
+                return plan;
+            }
+
+            return orderBy.replaceChild(generatingPlan.replaceChild(orderBy.child()));
+        } else if (child instanceof Project) {
+            var projectWithEvalChild = pushDownPastProject(generatingPlan);
+            return projectWithEvalChild.withProjections(mergeOutputExpressions(generatedAttributes, projectWithEvalChild.projections()));
+        }
+
+        return generatingPlan;
+    }
+
     private record AttributeReplacement(List<Expression> rewrittenExpressions, AttributeMap<Alias> replacedAttributes) {};
 
     /**
@@ -880,143 +960,6 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         }
 
         return new AttributeReplacement(rewrittenExpressions, aliasesForReplacedAttributes);
-    }
-
-    /**
-     * Pushes Evals past OrderBys. Although it seems arbitrary whether the OrderBy or the Eval is executed first,
-     * this transformation ensures that OrderBys only separated by an eval can be combined by PushDownAndCombineOrderBy.
-     *
-     * E.g.:
-     *
-     * ... | sort a | eval x = b + 1 | sort x
-     *
-     * becomes
-     *
-     * ... | eval x = b + 1 | sort a | sort x
-     *
-     * Ordering the evals before the orderBys has the advantage that it's always possible to order the plans like this.
-     * E.g., in the example above it would not be possible to put the eval after the two orderBys.
-     *
-     * In case one of the eval's fields would shadow the orderBy's attributes, we rename the attribute first.
-     *
-     * E.g.
-     *
-     * ... | sort a | eval a = b + 1 | ...
-     *
-     * becomes
-     *
-     * ... | eval $$a = a | eval a = b + 1 | sort $$a | drop $$a
-     */
-    protected static class PushDownEval extends OptimizerRules.OptimizerRule<Eval> {
-        @Override
-        protected LogicalPlan rule(Eval eval) {
-            LogicalPlan child = eval.child();
-
-            if (child instanceof OrderBy orderBy) {
-                Set<String> evalFieldNames = eval.fields().stream().map(NamedExpression::name).collect(Collectors.toSet());
-
-                // Look for attributes in the OrderBy's expressions and create aliases with temporary names for them.
-                AttributeReplacement nonShadowedOrders = renameAttributesInExpressions(evalFieldNames, orderBy.order());
-
-                AttributeMap<Alias> aliasesForShadowedOrderByAttrs = nonShadowedOrders.replacedAttributes;
-                @SuppressWarnings("unchecked")
-                List<Order> newOrder = (List<Order>) (Object) nonShadowedOrders.rewrittenExpressions;
-
-                if (aliasesForShadowedOrderByAttrs.isEmpty() == false) {
-                    List<Alias> newAliases = aliasesForShadowedOrderByAttrs.values().stream().toList();
-
-                    LogicalPlan plan = new Eval(Source.EMPTY, orderBy.child(), newAliases);
-                    plan = eval.replaceChild(plan);
-                    plan = new OrderBy(orderBy.source(), plan, newOrder);
-                    plan = new EsqlProject(Source.EMPTY, plan, eval.output());
-
-                    return plan;
-                }
-
-                return orderBy.replaceChild(eval.replaceChild(orderBy.child()));
-            } else if (child instanceof Project) {
-                var projectWithEvalChild = pushDownPastProject(eval);
-                var fieldProjections = asAttributes(eval.fields());
-                return projectWithEvalChild.withProjections(mergeOutputExpressions(fieldProjections, projectWithEvalChild.projections()));
-            }
-
-            return eval;
-        }
-    }
-
-    // same as for PushDownEval
-    protected static class PushDownRegexExtract extends OptimizerRules.OptimizerRule<RegexExtract> {
-        @Override
-        protected LogicalPlan rule(RegexExtract re) {
-            LogicalPlan child = re.child();
-
-            if (child instanceof OrderBy orderBy) {
-                Set<String> extractedFieldNames = re.extractedFields().stream().map(NamedExpression::name).collect(Collectors.toSet());
-
-                // Look for attributes in the OrderBy's expressions and create aliases with temporary names for them.
-                AttributeReplacement nonShadowedOrders = renameAttributesInExpressions(extractedFieldNames, orderBy.order());
-
-                AttributeMap<Alias> aliasesForShadowedOrderByAttrs = nonShadowedOrders.replacedAttributes;
-                @SuppressWarnings("unchecked")
-                List<Order> newOrder = (List<Order>) (Object) nonShadowedOrders.rewrittenExpressions;
-
-                if (aliasesForShadowedOrderByAttrs.isEmpty() == false) {
-                    List<Alias> newAliases = aliasesForShadowedOrderByAttrs.values().stream().toList();
-
-                    LogicalPlan plan = new Eval(Source.EMPTY, orderBy.child(), newAliases);
-                    plan = re.replaceChild(plan);
-                    plan = new OrderBy(orderBy.source(), plan, newOrder);
-                    plan = new EsqlProject(Source.EMPTY, plan, re.output());
-
-                    return plan;
-                }
-
-                return orderBy.replaceChild(re.replaceChild(orderBy.child()));
-            } else if (child instanceof Project) {
-                var projectWithChild = pushDownPastProject(re);
-                return projectWithChild.withProjections(mergeOutputExpressions(re.extractedFields(), projectWithChild.projections()));
-            }
-
-            return re;
-        }
-    }
-
-    // TODO double-check: this should be the same as EVAL and GROK/DISSECT, needed to avoid unbounded sort
-    protected static class PushDownEnrich extends OptimizerRules.OptimizerRule<Enrich> {
-        @Override
-        protected LogicalPlan rule(Enrich en) {
-            LogicalPlan child = en.child();
-
-            if (child instanceof OrderBy orderBy) {
-                Set<String> extractedFieldNames = en.enrichFields().stream().map(NamedExpression::name).collect(Collectors.toSet());
-
-                // Look for attributes in the OrderBy's expressions and create aliases with temporary names for them.
-                AttributeReplacement nonShadowedOrders = renameAttributesInExpressions(extractedFieldNames, orderBy.order());
-
-                AttributeMap<Alias> aliasesForShadowedOrderByAttrs = nonShadowedOrders.replacedAttributes;
-                @SuppressWarnings("unchecked")
-                List<Order> newOrder = (List<Order>) (Object) nonShadowedOrders.rewrittenExpressions;
-
-                if (aliasesForShadowedOrderByAttrs.isEmpty() == false) {
-                    List<Alias> newAliases = aliasesForShadowedOrderByAttrs.values().stream().toList();
-
-                    LogicalPlan plan = new Eval(Source.EMPTY, orderBy.child(), newAliases);
-                    plan = en.replaceChild(plan);
-                    plan = new OrderBy(orderBy.source(), plan, newOrder);
-                    plan = new EsqlProject(Source.EMPTY, plan, en.output());
-
-                    return plan;
-                }
-
-                return orderBy.replaceChild(en.replaceChild(orderBy.child()));
-            } else if (child instanceof Project) {
-                var projectWithChild = pushDownPastProject(en);
-                var attrs = asAttributes(en.enrichFields());
-                return projectWithChild.withProjections(mergeOutputExpressions(attrs, projectWithChild.projections()));
-            }
-
-            return en;
-        }
     }
 
     protected static class PushDownAndCombineOrderBy extends OptimizerRules.OptimizerRule<OrderBy> {

@@ -77,6 +77,16 @@ abbrev:keyword | name:text      | location:geo_shape                     | count
 HOD            | Hodeidah Int'l | POINT(42.97109630194 14.7552534413725) | Yemen           | Al Ḩudaydah  | POINT(42.9511 14.8022)
 ;
 
+polygonIntersectsLiteralPolygon#[skip:-8.13.99, reason:st_intersects added in 8.14]
+FROM airport_city_boundaries
+| WHERE ST_INTERSECTS(city_boundary, TO_GEOSHAPE("POLYGON((109.4 18.1, 109.6 18.1, 109.6 18.3, 109.4 18.3, 109.4 18.1))"))
+| KEEP abbrev, airport, region, city, city_location
+;
+
+abbrev:keyword | airport:text         | region:text | city:keyword | city_location:geo_point
+SYX            | Sanya Phoenix Int'l  | 天涯区       | Sanya        | POINT(109.5036 18.2533)
+;
+
 pointIntersectsStringPolygonReversed#[skip:-8.13.99, reason:st_intersects added in 8.14]
 FROM airports
 | EVAL location = TO_GEOSHAPE(location)

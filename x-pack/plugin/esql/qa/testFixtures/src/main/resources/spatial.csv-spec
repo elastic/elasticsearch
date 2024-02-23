@@ -330,7 +330,7 @@ centroid:geo_point                              | count:long
 POINT (-2.597342072712148 54.33551226578214)    | 17
 ;
 
-centroidFromAirportsAfterIntersectsPredicateCountryUK#[skip:-8.12.99, reason:st_centroid added in 8.13]
+centroidFromAirportsAfterIntersectsPredicateCountryUK#[skip:-8.13.99, reason:st_intersects added in 8.14]
 FROM airports
 | WHERE ST_INTERSECTS(location, "POLYGON((1.2305 60.8449, -1.582 61.6899, -10.7227 58.4017, -7.1191 55.3291, -7.9102 54.2139, -5.4492 54.0078, -5.2734 52.3756, -7.8223 49.6676, -5.0977 49.2678, 0.9668 50.5134, 2.5488 52.1065, 2.6367 54.0078, -0.9668 56.4625, 1.2305 60.8449))")
 | STATS centroid=ST_CENTROID(location), count=COUNT()
@@ -340,7 +340,7 @@ centroid:geo_point                              | count:long
 POINT (-2.597342072712148 54.33551226578214)    | 17
 ;
 
-intersectsAfterCentroidFromAirportsAfterKeywordPredicateCountryUK#[skip:-8.12.99, reason:st_centroid added in 8.13]
+intersectsAfterCentroidFromAirportsAfterKeywordPredicateCountryUK#[skip:-8.13.99, reason:st_intersects added in 8.14]
 FROM airports
 | WHERE country == "United Kingdom"
 | STATS centroid = ST_CENTROID(location), count=COUNT()
@@ -353,7 +353,7 @@ centroid:geo_point                              | count:long | centroid_in_uk:bo
 POINT (-2.597342072712148 54.33551226578214)    | 17         | true                   | false
 ;
 
-centroidFromAirportsAfterIntersectsPredicate#[skip:-8.12.99, reason:st_centroid added in 8.13]
+centroidFromAirportsAfterIntersectsPredicate#[skip:-8.13.99, reason:st_intersects added in 8.14]
 FROM airports
 | WHERE ST_INTERSECTS(location, "POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))")
 | STATS centroid=ST_CENTROID(location), count=COUNT()
@@ -363,7 +363,7 @@ centroid:geo_point                            | count:long
 POINT (42.97109629958868 14.7552534006536)    | 1
 ;
 
-centroidFromAirportsAfterIntersectsCompoundPredicate#[skip:-8.12.99, reason:st_centroid added in 8.13]
+centroidFromAirportsAfterIntersectsCompoundPredicate#[skip:-8.13.99, reason:st_intersects added in 8.14]
 FROM airports
 | WHERE scalerank == 9 AND ST_INTERSECTS(location, "POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))") AND country == "Yemen"
 | STATS centroid=ST_CENTROID(location), count=COUNT()
@@ -662,7 +662,7 @@ centroid:cartesian_point                    | count:long
 POINT (726480.0130685265 3359566.331716279) | 849
 ;
 
-cartesianCentroidFromAirportsAfterIntersectsPredicate#[skip:-8.12.99, reason:st_centroid added in 8.13]
+cartesianCentroidFromAirportsAfterIntersectsPredicate#[skip:-8.13.99, reason:st_intersects added in 8.14]
 FROM airports_web
 | WHERE ST_INTERSECTS(location, "POLYGON((4700000 1600000, 4800000 1600000, 4800000 1700000, 4700000 1700000, 4700000 1600000))")
 | STATS centroid=ST_CENTROID(location), count=COUNT()

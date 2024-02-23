@@ -418,16 +418,14 @@ public class TransformInsufficientPermissionsIT extends TransformRestTestCase {
         );
         assertRed(transformId, authIssue);
 
-        startTransform(config.getId(), RequestOptions.DEFAULT);
-
-        // Give the transform indexer enough time to try creating destination index
-        Thread.sleep(5_000);
+        startTransform(transformId, RequestOptions.DEFAULT);
 
         String destIndexIssue = Strings.format("Could not create destination index [%s] for transform [%s]", destIndexName, transformId);
         // transform's auth state status is still RED due to:
         // - lacking permissions
         // - and the inability to create destination index in the indexer (which is also a consequence of lacking permissions)
-        assertRed(transformId, authIssue, destIndexIssue);
+        // wait for 10 seconds to give the transform indexer enough time to try creating destination index
+        assertBusy(() -> { assertRed(transformId, authIssue, destIndexIssue); });
 
         // update transform's credentials so that the transform has permission to access source/dest indices
         updateConfig(transformId, "{}", RequestOptions.DEFAULT.toBuilder().addHeader(AUTH_KEY, Users.SENIOR.header).build());
@@ -593,5 +591,7 @@ public class TransformInsufficientPermissionsIT extends TransformRestTestCase {
             .map(issue -> (String) extractValue((Map<String, Object>) issue, "details"))
             .collect(toSet());
         assertThat("Stats were: " + stats, actualHealthIssueDetailsSet, containsInAnyOrder(expectedHealthIssueDetails));
+        // We should not progress beyond the 0th checkpoint until we correctly configure the Transform.
+        assertThat("Stats were: " + stats, getCheckpoint(stats), equalTo(0L));
     }
 }

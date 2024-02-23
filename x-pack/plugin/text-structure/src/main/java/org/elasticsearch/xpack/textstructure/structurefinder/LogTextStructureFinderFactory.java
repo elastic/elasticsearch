@@ -71,6 +71,6 @@ public class LogTextStructureFinderFactory implements TextStructureFinderFactory
         TextStructureOverrides overrides,
         TimeoutChecker timeoutChecker
     ) {
-        return LogTextStructureFinder.makeLogTextStructureFinder(explanation, messages, "utf-8", null, overrides, timeoutChecker);
+        return LogTextStructureFinder.makeLogTextStructureFinder(explanation, messages, "UTF-8", null, overrides, timeoutChecker);
     }
 }

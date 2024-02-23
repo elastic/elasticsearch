@@ -112,7 +112,7 @@ public class NdJsonTextStructureFinderFactory implements TextStructureFinderFact
         // checked that every line contains a single valid JSON message,
         // so we can safely concatenate and run the logic for a sample.
         String sample = String.join("\n", messages);
-        return NdJsonTextStructureFinder.makeNdJsonTextStructureFinder(explanation, sample, "utf-8", null, overrides, timeoutChecker);
+        return NdJsonTextStructureFinder.makeNdJsonTextStructureFinder(explanation, sample, "UTF-8", null, overrides, timeoutChecker);
     }
 
     private static class ContextPrintingStringReader extends StringReader {

@@ -197,6 +197,6 @@ public class XmlTextStructureFinderFactory implements TextStructureFinderFactory
         // checked that every message contains a single valid XML document,
         // so we can safely concatenate and run the logic for a sample.
         String sample = String.join("\n", messages);
-        return XmlTextStructureFinder.makeXmlTextStructureFinder(explanation, sample, "utf-8", null, overrides, timeoutChecker);
+        return XmlTextStructureFinder.makeXmlTextStructureFinder(explanation, sample, "UTF-8", null, overrides, timeoutChecker);
     }
 }

@@ -119,7 +119,7 @@ public class DelimitedTextStructureFinderFactory implements TextStructureFinderF
         return DelimitedTextStructureFinder.createFromSample(
             explanation,
             sample,
-            "utf-8",
+            "UTF-8",
             null,
             csvPreference,
             trimFields,

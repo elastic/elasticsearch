@@ -1,0 +1,42 @@
+[[troubleshooting-unbalanced-cluster]]
+== Troubleshooting an unbalanced cluster
+
+Elasticsearch is balancing shards across data tier to achieve a good compromise between
+* shard count
+* disk usage
+* ingest load forecast for write indices
+
+Please note, elasticsearch does not take into account amount or complexity of search queries when rebalancing shards.
+
+There is no guarantee that individual components are going to be evenly spread across the nodes.
+This might appear as some of the nodes have less shards allocated or using less disk
+as long as they are assigned with the shards with greater ingest load forecast.
+
+You might get a detailed output of assigned workloads per node using <<cat-allocation,cat allocation command>>.
+
+Please note that some operations such as node restarting or decommissioning or changing cluster allocation settings
+are disruptive and might require multiple shards to move or rebalance.
+
+Shard movement order is not deterministic and mostly determined by the source and target node readiness to move a shard.
+As a result some nodes might appear busier then others while rebalancing is in progress.
+
+You might monitor rebalancing progress using <<get-desired-balance,desired balance api>>.
+
+[source,console,id=get-desired-balance-request-example]
+--------------------------------------------------
+GET /_internal/desired_balance
+--------------------------------------------------
+
+The API returns the following response:
+
+[source,json]
+--------------------------------------------------
+...
+  "cluster_balance_stats" : {
+    "shard_count": 42,                        <1>
+    "undesired_shard_allocation_count": 3,    <2>
+...
+--------------------------------------------------
+
+<1> The total number of shards in cluster.
+<2> The number of shards that needs to be moved to finish balancing.

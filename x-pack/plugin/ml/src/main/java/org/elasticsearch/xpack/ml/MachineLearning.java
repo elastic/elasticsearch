@@ -627,6 +627,12 @@ public class MachineLearning extends Plugin
     }
 
     public static boolean isMlNode(DiscoveryNode node) {
+        // Post 7.3.0 nodes will have this role, so if the ML nodes have been upgraded we can use this information.
+        if (node.getRoles().contains(ML_ROLE)) {
+            return true;
+        }
+        // Pre 7.3.0 nodes might still be ML nodes despite not having the ML role (as pluggable roles didn't exist
+        // then). So we use the old method to detect ML nodes for this case.
         Map<String, String> nodeAttributes = node.getAttributes();
         try {
             return Integer.parseInt(nodeAttributes.get(MAX_OPEN_JOBS_NODE_ATTR)) > 0;

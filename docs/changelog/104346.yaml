@@ -1,5 +1,0 @@
-pr: 104346
-summary: "[7x] upgrade aws client depdencies"
-area: Snapshot/Restore
-type: upgrade
-issues: []

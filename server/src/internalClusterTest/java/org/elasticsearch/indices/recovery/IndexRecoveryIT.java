@@ -815,7 +815,11 @@ public class IndexRecoveryIT extends ESIntegTestCase {
      */
     public void testTargetThrottling() throws Exception {
         logger.info("--> starting node A with default settings");
-        final String nodeA = internalCluster().startNode();
+        final String nodeA = internalCluster().startNode(
+            Settings.builder()
+                // Use a high value so that when unthrottling recoveries we do not cause accidental throttling on the source node.
+                .put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), "200mb")
+        );
 
         logger.info("--> creating index on node A");
         ByteSizeValue shardSize = createAndPopulateIndex(INDEX_NAME, 1, SHARD_COUNT, REPLICA_COUNT).getShards()[0].getStats()

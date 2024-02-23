@@ -36,7 +36,6 @@ public class LogTextStructureFinder implements TextStructureFinder {
         String[] sampleLines,
         String charsetName,
         Boolean hasByteOrderMarker,
-        int lineMergeSizeLimit,
         TextStructureOverrides overrides,
         TimeoutChecker timeoutChecker
     ) {
@@ -108,15 +107,7 @@ public class LogTextStructureFinder implements TextStructureFinder {
         return new LogTextStructureFinder(sampleMessages, structure);
     }
 
-    private static LogTextStructureFinder makeMultiLineLogTextStructureFinder(
-        List<String> explanation,
-        String[] sampleLines,
-        String charsetName,
-        Boolean hasByteOrderMarker,
-        int lineMergeSizeLimit,
-        TextStructureOverrides overrides,
-        TimeoutChecker timeoutChecker
-    ) {
+    private static TimestampFormatFinder getTimestampFormatFinder(List<String> explanation, String[] sampleLines, TextStructureOverrides overrides, TimeoutChecker timeoutChecker) {
         TimestampFormatFinder timestampFormatFinder = populateTimestampFormatFinder(explanation, sampleLines, overrides, timeoutChecker);
         switch (timestampFormatFinder.getNumMatchedFormats()) {
             case 0:
@@ -145,15 +136,15 @@ public class LogTextStructureFinder implements TextStructureFinder {
                 + timestampFormatFinder.getJavaTimestampFormats()
         );
 
+        return timestampFormatFinder;
+    }
+
+    private static Tuple<List<String>, Integer> getSampleMessages(String multiLineRegex, String[] sampleLines, int lineMergeSizeLimit, TimeoutChecker timeoutChecker) {
         List<String> sampleMessages = new ArrayList<>();
-        StringBuilder preamble = new StringBuilder();
         int linesConsumed = 0;
         StringBuilder message = null;
         int linesInMessage = 0;
-        String multiLineRegex = createMultiLineMessageStartRegex(
-            timestampFormatFinder.getPrefaces(),
-            timestampFormatFinder.getSimplePattern().pattern()
-        );
+
         Pattern multiLinePattern = Pattern.compile(multiLineRegex);
         for (String sampleLine : sampleLines) {
             if (multiLinePattern.matcher(sampleLine).find()) {
@@ -195,9 +186,6 @@ public class LogTextStructureFinder implements TextStructureFinder {
                 }
             }
             timeoutChecker.check("multi-line message determination");
-            if (sampleMessages.size() < 2) {
-                preamble.append(sampleLine).append('\n');
-            }
         }
         // Don't add the last message, as it might be partial and mess up subsequent pattern finding
 
@@ -209,12 +197,28 @@ public class LogTextStructureFinder implements TextStructureFinder {
             );
         }
 
-        // null to allow GC before Grok pattern search
-        sampleLines = null;
+        return new Tuple<>(sampleMessages, linesConsumed);
+    }
+
+    private static LogTextStructureFinder makeMultiLineLogTextStructureFinder(
+        List<String> explanation,
+        List<String> sampleMessages,
+        String charsetName,
+        Boolean hasByteOrderMarker,
+        TextStructureOverrides overrides,
+        int linesConsumed,
+        TimestampFormatFinder timestampFormatFinder,
+        String multiLineRegex,
+        TimeoutChecker timeoutChecker
+    ) {
+        StringBuilder preamble = new StringBuilder();
+        for (int i = 0; i < sampleMessages.size() && i < 2; i++) {
+            preamble.append(sampleMessages.get(i)).append('\n');
+        }
 
         TextStructure.Builder structureBuilder = new TextStructure.Builder(TextStructure.Format.SEMI_STRUCTURED_TEXT).setCharset(
-            charsetName
-        )
+                charsetName
+            )
             .setHasByteOrderMarker(hasByteOrderMarker)
             .setSampleStart(preamble.toString())
             .setNumLinesAnalyzed(linesConsumed)
@@ -300,6 +304,70 @@ public class LogTextStructureFinder implements TextStructureFinder {
         return new LogTextStructureFinder(sampleMessages, structure);
     }
 
+    private static LogTextStructureFinder makeMultiLineLogTextStructureFinder(
+        List<String> explanation,
+        String[] sampleLines,
+        String charsetName,
+        Boolean hasByteOrderMarker,
+        int lineMergeSizeLimit,
+        TextStructureOverrides overrides,
+        TimeoutChecker timeoutChecker
+    ) {
+        TimestampFormatFinder timestampFormatFinder = getTimestampFormatFinder(explanation, sampleLines, overrides, timeoutChecker);
+
+        String multiLineRegex = createMultiLineMessageStartRegex(
+            timestampFormatFinder.getPrefaces(),
+            timestampFormatFinder.getSimplePattern().pattern()
+        );
+
+        Tuple<List<String>, Integer> sampleMessagesAndLinesConsumed = getSampleMessages(multiLineRegex, sampleLines, lineMergeSizeLimit, timeoutChecker);
+        List<String> sampleMessages = sampleMessagesAndLinesConsumed.v1();
+        int linesConsumed = sampleMessagesAndLinesConsumed.v2();
+
+        // null to allow GC before Grok pattern search
+        sampleLines = null;
+
+        return makeMultiLineLogTextStructureFinder(
+            explanation,
+            sampleMessages,
+            charsetName,
+            hasByteOrderMarker,
+            overrides,
+            linesConsumed,
+            timestampFormatFinder,
+            multiLineRegex,
+            timeoutChecker
+        );
+    }
+
+    private static LogTextStructureFinder makeMultiLineLogTextStructureFinder(
+        List<String> explanation,
+        List<String> messages,
+        String charsetName,
+        Boolean hasByteOrderMarker,
+        TextStructureOverrides overrides,
+        TimeoutChecker timeoutChecker
+    ) {
+        TimestampFormatFinder timestampFormatFinder = getTimestampFormatFinder(explanation, messages.toArray(new String[0]), overrides, timeoutChecker);
+
+        String multiLineRegex = createMultiLineMessageStartRegex(
+            timestampFormatFinder.getPrefaces(),
+            timestampFormatFinder.getSimplePattern().pattern()
+        );
+
+        return makeMultiLineLogTextStructureFinder(
+            explanation,
+            messages,
+            charsetName,
+            hasByteOrderMarker,
+            overrides,
+            messages.size(),
+            timestampFormatFinder,
+            multiLineRegex,
+            timeoutChecker
+        );
+    }
+
     static LogTextStructureFinder makeLogTextStructureFinder(
         List<String> explanation,
         String sample,
@@ -316,7 +384,6 @@ public class LogTextStructureFinder implements TextStructureFinder {
                 sampleLines,
                 charsetName,
                 hasByteOrderMarker,
-                lineMergeSizeLimit,
                 overrides,
                 timeoutChecker
             );
@@ -327,6 +394,35 @@ public class LogTextStructureFinder implements TextStructureFinder {
                 charsetName,
                 hasByteOrderMarker,
                 lineMergeSizeLimit,
+                overrides,
+                timeoutChecker
+            );
+        }
+    }
+
+    static LogTextStructureFinder makeLogTextStructureFinder(
+        List<String> explanation,
+        List<String> messages,
+        String charsetName,
+        Boolean hasByteOrderMarker,
+        TextStructureOverrides overrides,
+        TimeoutChecker timeoutChecker
+    ) {
+        if (TextStructureUtils.NULL_TIMESTAMP_FORMAT.equals(overrides.getTimestampFormat())) {
+            return makeSingleLineLogTextStructureFinder(
+                explanation,
+                messages.toArray(new String[0]),
+                charsetName,
+                hasByteOrderMarker,
+                overrides,
+                timeoutChecker
+            );
+        } else {
+            return makeMultiLineLogTextStructureFinder(
+                explanation,
+                messages,
+                charsetName,
+                hasByteOrderMarker,
                 overrides,
                 timeoutChecker
             );

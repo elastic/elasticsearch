@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.textstructure.structurefinder;
 
 import org.elasticsearch.xpack.core.textstructure.structurefinder.TextStructure;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.regex.Pattern;
 
@@ -40,6 +41,10 @@ public class LogTextStructureFinderFactory implements TextStructureFinderFactory
         return true;
     }
 
+    public boolean canCreateFromMessages(List<String> explanation, List<String> messages, double allowedFractionOfBadLines) {
+        return true;
+    }
+
     @Override
     public TextStructureFinder createFromSample(
         List<String> explanation,
@@ -56,6 +61,22 @@ public class LogTextStructureFinderFactory implements TextStructureFinderFactory
             charsetName,
             hasByteOrderMarker,
             lineMergeSizeLimit,
+            overrides,
+            timeoutChecker
+        );
+    }
+
+    public TextStructureFinder createFromMessages(
+        List<String> explanation,
+        List<String> messages,
+        TextStructureOverrides overrides,
+        TimeoutChecker timeoutChecker
+    )  {
+        return LogTextStructureFinder.makeLogTextStructureFinder(
+            explanation,
+            messages,
+            "utf-8",
+            null,
             overrides,
             timeoutChecker
         );

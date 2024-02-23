@@ -3274,13 +3274,13 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      *
      * For DISSECT expects the following; the others are similar.
      *
-     * EsqlProject[[emp_no{r}#29, salary{r}#30]]
-     * \_TopN[[Order[$$emp_no$temp_name$34{r}#44 + $$salary$temp_name$39{r}#45 * 13[INTEGER],ASC,LAST], Order[NEG($$salary$t
-     * emp_name$39{r}#45),DESC,FIRST]],3[INTEGER]]
-     *   \_Dissect[first_name{f}#35,Parser[pattern=%{emp_no} %{salary}, appendSeparator=, parser=org.elasticsearch.dissect.Dissect
-     * Parser@39042612],[emp_no{r}#29, salary{r}#30]]
-     *     \_Eval[[emp_no{f}#34 AS $$emp_no$temp_name$34, salary{f}#39 AS $$salary$temp_name$39]]
-     *       \_EsRelation[test][_meta_field{f}#40, emp_no{f}#34, first_name{f}#35, ..]
+     * EsqlProject[[first_name{f}#37, emp_no{r}#33, salary{r}#34]]
+     * \_TopN[[Order[$$emp_no$temp_name$36{r}#46 + $$salary$temp_name$41{r}#47 * 13[INTEGER],ASC,LAST], Order[NEG($$salary$t
+     * emp_name$41{r}#47),DESC,FIRST]],3[INTEGER]]
+     *   \_Dissect[first_name{f}#37,Parser[pattern=%{emp_no} %{salary}, appendSeparator=, parser=org.elasticsearch.dissect.Dissect
+     * Parser@b6858b],[emp_no{r}#33, salary{r}#34]]
+     *     \_Eval[[emp_no{f}#36 AS $$emp_no$temp_name$36, salary{f}#41 AS $$salary$temp_name$41]]
+     *       \_EsRelation[test][_meta_field{f}#42, emp_no{f}#36, first_name{f}#37, ..]
      */
     public void testPushdownWithOverwrittenName() throws Exception {
         List<String> overwritingCommands = List.of(
@@ -3290,16 +3290,32 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             "ENRICH languages_idx ON first_name WITH emp_no = language_code, salary = language_code"
         );
 
+        String queryTemplateKeepAfter = """
+            FROM test
+            | SORT 13*(emp_no+salary) ASC, -salary DESC
+            | {}
+            | KEEP first_name, emp_no, salary
+            | LIMIT 3
+            """;
+        // Equivalent but with KEEP first - ensures that attributes in the final projection are correct after pushdown rules were applied.
+        String queryTemplateKeepFirst = """
+            FROM test
+            | KEEP emp_no, salary, first_name
+            | SORT 13*(emp_no+salary) ASC, -salary DESC
+            | {}
+            | LIMIT 3
+            """;
+
         for (String overwritingCommand : overwritingCommands) {
-            var plan = optimizedPlan(LoggerMessageFormat.format(null, """
-                FROM test
-                | SORT 13*(emp_no+salary) ASC, -salary DESC
-                | {}
-                | LIMIT 3
-                | KEEP emp_no, salary
-                """, overwritingCommand));
+            String queryTemplate = randomBoolean() ? queryTemplateKeepFirst : queryTemplateKeepAfter;
+            var plan = optimizedPlan(LoggerMessageFormat.format(null, queryTemplate, overwritingCommand));
 
             var project = as(plan, EsqlProject.class);
+            var projections = project.projections();
+            assertThat(projections.size(), equalTo(3));
+            assertThat(projections.get(0).name(), equalTo("first_name"));
+            assertThat(projections.get(1).name(), equalTo("emp_no"));
+            assertThat(projections.get(2).name(), equalTo("salary"));
 
             var topN = as(project.child(), TopN.class);
             assertThat(topN.order().size(), is(2));

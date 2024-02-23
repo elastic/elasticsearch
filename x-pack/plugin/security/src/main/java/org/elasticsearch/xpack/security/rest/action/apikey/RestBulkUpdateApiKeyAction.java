@@ -16,6 +16,7 @@ import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyRequestTranslator;
 
 import java.io.IOException;
 import java.util.List;
@@ -25,12 +26,12 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 @ServerlessScope(Scope.PUBLIC)
 public final class RestBulkUpdateApiKeyAction extends ApiKeyBaseRestHandler {
 
-    private final BulkUpdateApiKeyRequest.RequestTranslator requestTranslator;
+    private final BulkUpdateApiKeyRequestTranslator requestTranslator;
 
     public RestBulkUpdateApiKeyAction(
         final Settings settings,
         final XPackLicenseState licenseState,
-        final BulkUpdateApiKeyRequest.RequestTranslator requestTranslator
+        final BulkUpdateApiKeyRequestTranslator requestTranslator
     ) {
         super(settings, licenseState);
         this.requestTranslator = requestTranslator;

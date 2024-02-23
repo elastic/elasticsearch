@@ -119,7 +119,7 @@ import org.elasticsearch.xpack.core.security.action.ActionTypes;
 import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheAction;
 import org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationAction;
 import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyAction;
-import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyRequestTranslator;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequestBuilderFactory;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClusterApiKeyAction;
@@ -128,7 +128,7 @@ import org.elasticsearch.xpack.core.security.action.apikey.GrantApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.UpdateApiKeyAction;
-import org.elasticsearch.xpack.core.security.action.apikey.UpdateApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.UpdateApiKeyRequestTranslator;
 import org.elasticsearch.xpack.core.security.action.apikey.UpdateCrossClusterApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.enrollment.KibanaEnrollmentAction;
 import org.elasticsearch.xpack.core.security.action.enrollment.NodeEnrollmentAction;
@@ -565,8 +565,8 @@ public class Security extends Plugin
     private final SetOnce<OperatorOnlyRegistry> operatorOnlyRegistry = new SetOnce<>();
     private final SetOnce<PutRoleRequestBuilderFactory> putRoleRequestBuilderFactory = new SetOnce<>();
     private final SetOnce<CreateApiKeyRequestBuilderFactory> createApiKeyRequestBuilderFactory = new SetOnce<>();
-    private final SetOnce<UpdateApiKeyRequest.RequestTranslator> updateApiKeyRequestTranslator = new SetOnce<>();
-    private final SetOnce<BulkUpdateApiKeyRequest.RequestTranslator> bulkUpdateApiKeyRequestTranslator = new SetOnce<>();
+    private final SetOnce<UpdateApiKeyRequestTranslator> updateApiKeyRequestTranslator = new SetOnce<>();
+    private final SetOnce<BulkUpdateApiKeyRequestTranslator> bulkUpdateApiKeyRequestTranslator = new SetOnce<>();
     private final SetOnce<GetBuiltinPrivilegesResponseTranslator> getBuiltinPrivilegesResponseTranslator = new SetOnce<>();
     private final SetOnce<FileRolesStore> fileRolesStore = new SetOnce<>();
     private final SetOnce<OperatorPrivileges.OperatorPrivilegesService> operatorPrivilegesService = new SetOnce<>();
@@ -834,10 +834,10 @@ public class Security extends Plugin
             getBuiltinPrivilegesResponseTranslator.set(new GetBuiltinPrivilegesResponseTranslator.Default());
         }
         if (updateApiKeyRequestTranslator.get() == null) {
-            updateApiKeyRequestTranslator.set(new UpdateApiKeyRequest.RequestTranslator.Default());
+            updateApiKeyRequestTranslator.set(new UpdateApiKeyRequestTranslator.Default());
         }
         if (bulkUpdateApiKeyRequestTranslator.get() == null) {
-            bulkUpdateApiKeyRequestTranslator.set(new BulkUpdateApiKeyRequest.RequestTranslator.Default());
+            bulkUpdateApiKeyRequestTranslator.set(new BulkUpdateApiKeyRequestTranslator.Default());
         }
 
         final Map<String, List<BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>>>> customRoleProviders = new LinkedHashMap<>();
@@ -2053,8 +2053,8 @@ public class Security extends Plugin
         loadSingletonExtensionAndSetOnce(loader, operatorOnlyRegistry, OperatorOnlyRegistry.class);
         loadSingletonExtensionAndSetOnce(loader, putRoleRequestBuilderFactory, PutRoleRequestBuilderFactory.class);
         loadSingletonExtensionAndSetOnce(loader, getBuiltinPrivilegesResponseTranslator, GetBuiltinPrivilegesResponseTranslator.class);
-        loadSingletonExtensionAndSetOnce(loader, updateApiKeyRequestTranslator, UpdateApiKeyRequest.RequestTranslator.class);
-        loadSingletonExtensionAndSetOnce(loader, bulkUpdateApiKeyRequestTranslator, BulkUpdateApiKeyRequest.RequestTranslator.class);
+        loadSingletonExtensionAndSetOnce(loader, updateApiKeyRequestTranslator, UpdateApiKeyRequestTranslator.class);
+        loadSingletonExtensionAndSetOnce(loader, bulkUpdateApiKeyRequestTranslator, BulkUpdateApiKeyRequestTranslator.class);
         loadSingletonExtensionAndSetOnce(loader, createApiKeyRequestBuilderFactory, CreateApiKeyRequestBuilderFactory.class);
     }
 

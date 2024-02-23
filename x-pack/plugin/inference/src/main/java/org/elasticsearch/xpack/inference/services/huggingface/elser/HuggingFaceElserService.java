@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.huggingface.elser;
 
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
@@ -24,7 +23,7 @@ import java.util.Map;
 public class HuggingFaceElserService extends HuggingFaceBaseService {
     public static final String NAME = "hugging_face_elser";
 
-    public HuggingFaceElserService(SetOnce<HttpRequestSenderFactory> factory, SetOnce<ServiceComponents> serviceComponents) {
+    public HuggingFaceElserService(HttpRequestSenderFactory factory, ServiceComponents serviceComponents) {
         super(factory, serviceComponents);
     }
 
@@ -49,6 +48,6 @@ public class HuggingFaceElserService extends HuggingFaceBaseService {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_TASK_SETTINGS_OPTIONAL_ADDED;
+        return TransportVersions.V_8_12_0;
     }
 }

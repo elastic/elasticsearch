@@ -345,6 +345,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                     MlTasks.datafeedTaskId(params.getDatafeedId()),
                     MlTasks.DATAFEED_TASK_NAME,
                     params,
+                    null,
                     listener
                 ),
                 listener::onFailure
@@ -407,7 +408,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         Exception exception,
         ActionListener<NodeAcknowledgedResponse> listener
     ) {
-        persistentTasksService.sendRemoveRequest(persistentTask.getId(), new ActionListener<>() {
+        persistentTasksService.sendRemoveRequest(persistentTask.getId(), null, new ActionListener<>() {
             @Override
             public void onResponse(PersistentTasksCustomMetadata.PersistentTask<?> task) {
                 // We succeeded in cancelling the persistent task, but the
@@ -473,8 +474,12 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         private final DatafeedRunner datafeedRunner;
         private final IndexNameExpressionResolver resolver;
 
-        public StartDatafeedPersistentTasksExecutor(DatafeedRunner datafeedRunner, IndexNameExpressionResolver resolver) {
-            super(MlTasks.DATAFEED_TASK_NAME, MachineLearning.UTILITY_THREAD_POOL_NAME);
+        public StartDatafeedPersistentTasksExecutor(
+            DatafeedRunner datafeedRunner,
+            IndexNameExpressionResolver resolver,
+            ThreadPool threadPool
+        ) {
+            super(MlTasks.DATAFEED_TASK_NAME, threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME));
             this.datafeedRunner = datafeedRunner;
             this.resolver = resolver;
         }

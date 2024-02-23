@@ -8,9 +8,8 @@
 package org.elasticsearch.xpack.core.security.action.apikey;
 
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -19,7 +18,6 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
@@ -29,14 +27,9 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  * Response for get API keys.<br>
  * The result contains information about the API keys that were found.
  */
-public final class GetApiKeyResponse extends ActionResponse implements ToXContentObject, Writeable {
+public final class GetApiKeyResponse extends ActionResponse implements ToXContentObject {
 
     private final ApiKey[] foundApiKeysInfo;
-
-    public GetApiKeyResponse(StreamInput in) throws IOException {
-        super(in);
-        this.foundApiKeysInfo = in.readArray(ApiKey::new, ApiKey[]::new);
-    }
 
     public GetApiKeyResponse(Collection<ApiKey> foundApiKeysInfo) {
         Objects.requireNonNull(foundApiKeysInfo, "found_api_keys_info must be provided");
@@ -44,7 +37,7 @@ public final class GetApiKeyResponse extends ActionResponse implements ToXConten
     }
 
     public static GetApiKeyResponse emptyResponse() {
-        return new GetApiKeyResponse(Collections.emptyList());
+        return new GetApiKeyResponse(List.of());
     }
 
     public ApiKey[] getApiKeyInfos() {
@@ -59,7 +52,7 @@ public final class GetApiKeyResponse extends ActionResponse implements ToXConten
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeArray(foundApiKeysInfo);
+        TransportAction.localOnly();
     }
 
     @SuppressWarnings("unchecked")

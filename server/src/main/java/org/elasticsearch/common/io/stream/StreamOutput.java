@@ -216,7 +216,7 @@ public abstract class StreamOutput extends OutputStream {
         writeBytes(buffer, 0, index);
     }
 
-    private static int putVInt(byte[] buffer, int i, int off) {
+    public static int putVInt(byte[] buffer, int i, int off) {
         if (Integer.numberOfLeadingZeros(i) >= 25) {
             buffer[off] = (byte) i;
             return 1;
@@ -596,10 +596,13 @@ public abstract class StreamOutput extends OutputStream {
      * @param valueWriter The value writer
      */
     public final <K, V> void writeMap(final Map<K, V> map, final Writer<K> keyWriter, final Writer<V> valueWriter) throws IOException {
-        writeVInt(map.size());
-        for (final Map.Entry<K, V> entry : map.entrySet()) {
-            keyWriter.write(this, entry.getKey());
-            valueWriter.write(this, entry.getValue());
+        int size = map.size();
+        writeVInt(size);
+        if (size > 0) {
+            for (final Map.Entry<K, V> entry : map.entrySet()) {
+                keyWriter.write(this, entry.getKey());
+                valueWriter.write(this, entry.getValue());
+            }
         }
     }
 
@@ -784,8 +787,10 @@ public abstract class StreamOutput extends OutputStream {
         })
     );
 
+    public static final byte GENERIC_LIST_HEADER = (byte) 7;
+
     public <T> void writeGenericList(List<T> v, Writer<T> writer) throws IOException {
-        writeByte((byte) 7);
+        writeByte(GENERIC_LIST_HEADER);
         writeCollection(v, writer);
     }
 

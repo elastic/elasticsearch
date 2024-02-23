@@ -23,6 +23,7 @@ import org.elasticsearch.action.ingest.GetPipelineAction;
 import org.elasticsearch.action.ingest.SimulatePipelineAction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.action.XPackInfoAction;
@@ -335,7 +336,11 @@ public class ClusterPrivilegeResolver {
 
     public static final NamedClusterPrivilege WRITE_CONNECTOR_SECRETS = new ActionClusterPrivilege(
         "write_connector_secrets",
-        Set.of("cluster:admin/xpack/connector/secret/post", "cluster:admin/xpack/connector/secret/delete")
+        Set.of(
+            "cluster:admin/xpack/connector/secret/delete",
+            "cluster:admin/xpack/connector/secret/post",
+            "cluster:admin/xpack/connector/secret/put"
+        )
     );
 
     private static final Map<String, NamedClusterPrivilege> VALUES = sortByAccessLevel(
@@ -426,6 +431,11 @@ public class ClusterPrivilegeResolver {
 
     }
 
+    @Nullable
+    public static NamedClusterPrivilege getNamedOrNull(String name) {
+        return VALUES.get(Objects.requireNonNull(name).toLowerCase(Locale.ROOT));
+    }
+
     public static Set<String> names() {
         return Collections.unmodifiableSet(VALUES.keySet());
     }
@@ -457,7 +467,7 @@ public class ClusterPrivilegeResolver {
      * Sorts the collection of privileges from least-privilege to most-privilege (to the extent possible),
      * returning them in a sorted map keyed by name.
      */
-    static SortedMap<String, NamedClusterPrivilege> sortByAccessLevel(Collection<NamedClusterPrivilege> privileges) {
+    public static SortedMap<String, NamedClusterPrivilege> sortByAccessLevel(Collection<NamedClusterPrivilege> privileges) {
         // How many other privileges does this privilege imply. Those with a higher count are considered to be a higher privilege
         final Map<String, Long> impliesCount = Maps.newMapWithExpectedSize(privileges.size());
         privileges.forEach(

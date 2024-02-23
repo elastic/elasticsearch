@@ -14,6 +14,7 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
@@ -40,6 +41,7 @@ public class ObjectMapper extends Mapper {
     public static class Defaults {
         public static final boolean ENABLED = true;
         public static final Explicit<Boolean> SUBOBJECTS = Explicit.IMPLICIT_TRUE;
+        public static final Dynamic DYNAMIC = Dynamic.TRUE;
     }
 
     public enum Dynamic {
@@ -69,7 +71,7 @@ public class ObjectMapper extends Mapper {
          */
         static Dynamic getRootDynamic(MappingLookup mappingLookup) {
             ObjectMapper.Dynamic rootDynamic = mappingLookup.getMapping().getRoot().dynamic;
-            return rootDynamic == null ? ObjectMapper.Dynamic.TRUE : rootDynamic;
+            return rootDynamic == null ? Defaults.DYNAMIC : rootDynamic;
         }
     }
 
@@ -127,7 +129,7 @@ public class ObjectMapper extends Mapper {
             // of the mapper name. So for a mapper 'foo.bar.baz', we locate 'foo' and then
             // call addDynamic on it with the name 'bar.baz', and next call addDynamic on 'bar' with the name 'baz'.
             else {
-                int firstDotIndex = name.indexOf(".");
+                int firstDotIndex = name.indexOf('.');
                 String immediateChild = name.substring(0, firstDotIndex);
                 String immediateChildFullName = prefix == null ? immediateChild : prefix + "." + immediateChild;
                 ObjectMapper.Builder parentBuilder = findObjectBuilder(immediateChildFullName, context);
@@ -154,7 +156,6 @@ public class ObjectMapper extends Mapper {
             Map<String, Mapper> mappers = new HashMap<>();
             for (Mapper.Builder builder : mappersBuilders) {
                 Mapper mapper = builder.build(mapperBuilderContext);
-                assert mapper instanceof ObjectMapper == false || subobjects.value() : "unexpected object while subobjects are disabled";
                 Mapper existing = mappers.get(mapper.simpleName());
                 if (existing != null) {
                     // The same mappings or document may hold the same field twice, either because duplicated JSON keys are allowed or
@@ -164,7 +165,12 @@ public class ObjectMapper extends Mapper {
                     // mix of object notation and dot notation.
                     mapper = existing.merge(mapper, MapperMergeContext.from(mapperBuilderContext, Long.MAX_VALUE));
                 }
-                mappers.put(mapper.simpleName(), mapper);
+                if (subobjects.value() == false && mapper instanceof ObjectMapper objectMapper) {
+                    // We're parsing a mapping that has set `subobjects: false` but has defined sub-objects
+                    objectMapper.asFlattenedFieldMappers(mapperBuilderContext).forEach(m -> mappers.put(m.simpleName(), m));
+                } else {
+                    mappers.put(mapper.simpleName(), mapper);
+                }
             }
             return mappers;
         }
@@ -172,14 +178,19 @@ public class ObjectMapper extends Mapper {
         @Override
         public ObjectMapper build(MapperBuilderContext context) {
             return new ObjectMapper(
-                name,
-                context.buildFullName(name),
+                name(),
+                context.buildFullName(name()),
                 enabled,
                 subobjects,
                 dynamic,
-                buildMappers(context.createChildContext(name))
+                buildMappers(context.createChildContext(name(), dynamic))
             );
         }
+    }
+
+    @Override
+    public int getTotalFieldsCount() {
+        return 1 + mappers.values().stream().mapToInt(Mapper::getTotalFieldsCount).sum();
     }
 
     public static class TypeParser implements Mapper.TypeParser {
@@ -295,15 +306,6 @@ public class ObjectMapper extends Mapper {
                         }
                     }
 
-                    if (objBuilder.subobjects.value() == false && type.equals(ObjectMapper.CONTENT_TYPE)) {
-                        throw new MapperParsingException(
-                            "Tried to add subobject ["
-                                + fieldName
-                                + "] to object ["
-                                + objBuilder.name()
-                                + "] which does not support subobjects"
-                        );
-                    }
                     if (objBuilder.subobjects.value() == false && type.equals(NestedObjectMapper.CONTENT_TYPE)) {
                         throw new MapperParsingException(
                             "Tried to add nested object ["
@@ -313,21 +315,12 @@ public class ObjectMapper extends Mapper {
                                 + "] which does not support subobjects"
                         );
                     }
-                    if (type.equals(PassThroughObjectMapper.CONTENT_TYPE) && objBuilder instanceof RootObjectMapper.Builder == false) {
-                        throw new MapperParsingException(
-                            "Tried to add passthrough subobject ["
-                                + fieldName
-                                + "] to object ["
-                                + objBuilder.name()
-                                + "], passthrough is not supported as a subobject"
-                        );
-                    }
                     Mapper.TypeParser typeParser = parserContext.typeParser(type);
                     if (typeParser == null) {
                         throw new MapperParsingException("No handler for type [" + type + "] declared on field [" + fieldName + "]");
                     }
                     Mapper.Builder fieldBuilder;
-                    if (objBuilder.subobjects.value() == false || type.equals(FieldAliasMapper.CONTENT_TYPE)) {
+                    if (objBuilder.subobjects.value() == false) {
                         fieldBuilder = typeParser.parse(fieldName, propNode, parserContext);
                     } else {
                         String[] fieldNameParts = fieldName.split("\\.");
@@ -400,6 +393,8 @@ public class ObjectMapper extends Mapper {
         } else {
             this.mappers = Map.copyOf(mappers);
         }
+        assert subobjects.value() || this.mappers.values().stream().noneMatch(m -> m instanceof ObjectMapper)
+            : "When subobjects is false, mappers must not contain an ObjectMapper";
     }
 
     /**
@@ -472,7 +467,7 @@ public class ObjectMapper extends Mapper {
     }
 
     protected MapperMergeContext createChildContext(MapperMergeContext mapperMergeContext, String name) {
-        return mapperMergeContext.createChildContext(name);
+        return mapperMergeContext.createChildContext(name, dynamic);
     }
 
     public ObjectMapper merge(Mapper mergeWith, MergeReason reason, MapperMergeContext parentMergeContext) {
@@ -537,7 +532,13 @@ public class ObjectMapper extends Mapper {
                 subObjects = existing.subobjects;
             }
             MapperMergeContext objectMergeContext = existing.createChildContext(parentMergeContext, existing.simpleName());
-            Map<String, Mapper> mergedMappers = buildMergedMappers(existing, mergeWithObject, reason, objectMergeContext);
+            Map<String, Mapper> mergedMappers = buildMergedMappers(
+                existing,
+                mergeWithObject,
+                reason,
+                objectMergeContext,
+                subObjects.value()
+            );
             return new MergeResult(
                 enabled,
                 subObjects,
@@ -550,25 +551,36 @@ public class ObjectMapper extends Mapper {
             ObjectMapper existing,
             ObjectMapper mergeWithObject,
             MergeReason reason,
-            MapperMergeContext objectMergeContext
+            MapperMergeContext objectMergeContext,
+            boolean subobjects
         ) {
-            Iterator<Mapper> iterator = mergeWithObject.iterator();
-            if (iterator.hasNext() == false) {
-                return Map.copyOf(existing.mappers);
+            Map<String, Mapper> mergedMappers = new HashMap<>();
+            for (Mapper childOfExistingMapper : existing.mappers.values()) {
+                if (subobjects == false && childOfExistingMapper instanceof ObjectMapper objectMapper) {
+                    // An existing mapping with sub-objects is merged with a mapping that has set `subobjects: false`
+                    objectMapper.asFlattenedFieldMappers(objectMergeContext.getMapperBuilderContext())
+                        .forEach(m -> mergedMappers.put(m.simpleName(), m));
+                } else {
+                    putMergedMapper(mergedMappers, childOfExistingMapper);
+                }
             }
-            Map<String, Mapper> mergedMappers = new HashMap<>(existing.mappers);
-            while (iterator.hasNext()) {
-                Mapper mergeWithMapper = iterator.next();
+            for (Mapper mergeWithMapper : mergeWithObject) {
                 Mapper mergeIntoMapper = mergedMappers.get(mergeWithMapper.simpleName());
-                Mapper merged = null;
                 if (mergeIntoMapper == null) {
-                    if (objectMergeContext.decrementFieldBudgetIfPossible(mergeWithMapper.mapperSize())) {
-                        merged = mergeWithMapper;
+                    if (subobjects == false && mergeWithMapper instanceof ObjectMapper objectMapper) {
+                        // An existing mapping that has set `subobjects: false` is merged with a mapping with sub-objects
+                        objectMapper.asFlattenedFieldMappers(objectMergeContext.getMapperBuilderContext())
+                            .stream()
+                            .filter(m -> objectMergeContext.decrementFieldBudgetIfPossible(m.getTotalFieldsCount()))
+                            .forEach(m -> putMergedMapper(mergedMappers, m));
+                    } else if (objectMergeContext.decrementFieldBudgetIfPossible(mergeWithMapper.getTotalFieldsCount())) {
+                        putMergedMapper(mergedMappers, mergeWithMapper);
                     } else if (mergeWithMapper instanceof ObjectMapper om) {
-                        merged = truncateObjectMapper(reason, objectMergeContext, om);
+                        putMergedMapper(mergedMappers, truncateObjectMapper(reason, objectMergeContext, om));
                     }
                 } else if (mergeIntoMapper instanceof ObjectMapper objectMapper) {
-                    merged = objectMapper.merge(mergeWithMapper, reason, objectMergeContext);
+                    assert subobjects : "existing object mappers are supposed to be flattened if subobjects is false";
+                    putMergedMapper(mergedMappers, objectMapper.merge(mergeWithMapper, reason, objectMergeContext));
                 } else {
                     assert mergeIntoMapper instanceof FieldMapper || mergeIntoMapper instanceof FieldAliasMapper;
                     if (mergeWithMapper instanceof NestedObjectMapper) {
@@ -580,28 +592,90 @@ public class ObjectMapper extends Mapper {
                     // If we're merging template mappings when creating an index, then a field definition always
                     // replaces an existing one.
                     if (reason == MergeReason.INDEX_TEMPLATE) {
-                        merged = mergeWithMapper;
+                        putMergedMapper(mergedMappers, mergeWithMapper);
                     } else {
-                        merged = mergeIntoMapper.merge(mergeWithMapper, objectMergeContext);
+                        putMergedMapper(mergedMappers, mergeIntoMapper.merge(mergeWithMapper, objectMergeContext));
                     }
-                }
-                if (merged != null) {
-                    mergedMappers.put(merged.simpleName(), merged);
                 }
             }
             return Map.copyOf(mergedMappers);
+        }
+
+        private static void putMergedMapper(Map<String, Mapper> mergedMappers, @Nullable Mapper merged) {
+            if (merged != null) {
+                mergedMappers.put(merged.simpleName(), merged);
+            }
         }
 
         private static ObjectMapper truncateObjectMapper(MergeReason reason, MapperMergeContext context, ObjectMapper objectMapper) {
             // there's not enough capacity for the whole object mapper,
             // so we're just trying to add the shallow object, without it's sub-fields
             ObjectMapper shallowObjectMapper = objectMapper.withoutMappers();
-            if (context.decrementFieldBudgetIfPossible(shallowObjectMapper.mapperSize())) {
+            if (context.decrementFieldBudgetIfPossible(shallowObjectMapper.getTotalFieldsCount())) {
                 // now trying to add the sub-fields one by one via a merge, until we hit the limit
                 return shallowObjectMapper.merge(objectMapper, reason, context);
             }
             return null;
         }
+    }
+
+    /**
+     * Returns all FieldMappers this ObjectMapper or its children hold.
+     * The name of the FieldMappers will be updated to reflect the hierarchy.
+     *
+     * @throws IllegalArgumentException if the mapper cannot be flattened
+     */
+    List<FieldMapper> asFlattenedFieldMappers(MapperBuilderContext context) {
+        List<FieldMapper> flattenedMappers = new ArrayList<>();
+        ContentPath path = new ContentPath();
+        asFlattenedFieldMappers(context, flattenedMappers, path);
+        return flattenedMappers;
+    }
+
+    private void asFlattenedFieldMappers(MapperBuilderContext context, List<FieldMapper> flattenedMappers, ContentPath path) {
+        ensureFlattenable(context, path);
+        path.add(simpleName());
+        for (Mapper mapper : mappers.values()) {
+            if (mapper instanceof FieldMapper fieldMapper) {
+                FieldMapper.Builder fieldBuilder = fieldMapper.getMergeBuilder();
+                fieldBuilder.setName(path.pathAsText(mapper.simpleName()));
+                flattenedMappers.add(fieldBuilder.build(context));
+            } else if (mapper instanceof ObjectMapper objectMapper) {
+                objectMapper.asFlattenedFieldMappers(context, flattenedMappers, path);
+            }
+        }
+        path.remove();
+    }
+
+    private void ensureFlattenable(MapperBuilderContext context, ContentPath path) {
+        if (dynamic != null && context.getDynamic() != dynamic) {
+            throwAutoFlatteningException(
+                path,
+                "the value of [dynamic] ("
+                    + dynamic
+                    + ") is not compatible with the value from its parent context ("
+                    + context.getDynamic()
+                    + ")"
+            );
+        }
+        if (isEnabled() == false) {
+            throwAutoFlatteningException(path, "the value of [enabled] is [false]");
+        }
+        if (subobjects.explicit() && subobjects()) {
+            throwAutoFlatteningException(path, "the value of [subobjects] is [true]");
+        }
+    }
+
+    private void throwAutoFlatteningException(ContentPath path, String reason) {
+        throw new IllegalArgumentException(
+            "Object mapper ["
+                + path.pathAsText(simpleName())
+                + "] was found in a context where subobjects is set to false. "
+                + "Auto-flattening ["
+                + path.pathAsText(simpleName())
+                + "] failed because "
+                + reason
+        );
     }
 
     @Override

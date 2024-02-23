@@ -335,7 +335,7 @@ public abstract class DocumentParserContext {
         if (mappingLookup.getMapper(mapper.name()) == null
             && mappingLookup.objectMappers().containsKey(mapper.name()) == false
             && dynamicMappers.containsKey(mapper.name()) == false) {
-            int mapperSize = mapper.mapperSize();
+            int mapperSize = mapper.getTotalFieldsCount();
             int additionalFieldsToAdd = getNewFieldsSize() + mapperSize;
             if (indexSettings().isIgnoreDynamicFieldsBeyondLimit()) {
                 if (mappingLookup.exceedsLimit(indexSettings().getMappingTotalFieldsLimit(), additionalFieldsToAdd)) {
@@ -613,7 +613,7 @@ public abstract class DocumentParserContext {
         if (objectMapper instanceof PassThroughObjectMapper passThroughObjectMapper) {
             containsDimensions = passThroughObjectMapper.containsDimensions();
         }
-        return new MapperBuilderContext(p, mappingLookup().isSourceSynthetic(), false, containsDimensions);
+        return new MapperBuilderContext(p, mappingLookup().isSourceSynthetic(), false, containsDimensions, dynamic);
     }
 
     public abstract XContentParser parser();

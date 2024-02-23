@@ -441,7 +441,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         request.setJsonEntity("{\"a\": 3}");
         assertEquals(201, client().performRequest(request).getStatusLine().getStatusCode());
 
-        var query = fromIndex() + "* [metadata _index, _version, _id] | sort _version";
+        var query = fromIndex() + "* metadata _index, _version, _id | sort _version";
         Map<String, Object> result = runEsql(new RequestObjectBuilder().query(query));
         var columns = List.of(
             Map.of("name", "a", "type", "long"),
@@ -817,7 +817,10 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     }
 
     private static Set<String> mutedWarnings() {
-        return Set.of("No limit defined, adding default limit of [500]");
+        return Set.of(
+            "No limit defined, adding default limit of [1000]",
+            "No limit defined, adding default limit of [500]" // this is for bwc tests, the limit in v 8.12.x is 500
+        );
     }
 
     private static void bulkLoadTestData(int count) throws IOException {

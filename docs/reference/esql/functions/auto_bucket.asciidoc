@@ -2,6 +2,8 @@
 [[esql-auto_bucket]]
 === `AUTO_BUCKET`
 
+experimental::[]
+
 *Syntax*
 
 [source,esql]

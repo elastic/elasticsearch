@@ -181,11 +181,6 @@ public final class RuntimeUtils {
         return searchRequest;
     }
 
-    public static List<SearchHit> searchHits(SearchResponse response) {
-        // TODO remove unpooled usage
-        return Arrays.asList(response.getHits().asUnpooled().getHits());
-    }
-
     /**
      * optimized method that adds filter to existing bool queries without additional wrapping
      * additionally checks whether the given query exists for safe decoration

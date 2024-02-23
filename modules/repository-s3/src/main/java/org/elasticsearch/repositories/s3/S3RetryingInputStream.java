@@ -27,8 +27,10 @@ import java.io.InputStream;
 import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.repositories.s3.S3BlobStore.configureRequestForMetrics;
 
 /**
  * Wrapper around an S3 object that will retry the {@link GetObjectRequest} if the download fails part-way through, resuming from where
@@ -79,14 +81,14 @@ class S3RetryingInputStream extends InputStream {
         this.end = end;
         final int initialAttempt = attempt;
         openStreamWithRetry();
-        maybeLogForSuccessAfterRetries(initialAttempt, "opened");
+        maybeLogAndRecordMetricsForSuccess(initialAttempt, "open");
     }
 
     private void openStreamWithRetry() throws IOException {
         while (true) {
             try (AmazonS3Reference clientReference = blobStore.clientReference()) {
                 final GetObjectRequest getObjectRequest = new GetObjectRequest(blobStore.bucket(), blobKey);
-                getObjectRequest.setRequestMetricCollector(blobStore.getMetricCollector(Operation.GET_OBJECT, purpose));
+                configureRequestForMetrics(getObjectRequest, blobStore, Operation.GET_OBJECT, purpose);
                 if (currentOffset > 0 || start > 0 || end < Long.MAX_VALUE - 1) {
                     assert start + currentOffset <= end
                         : "requesting beyond end, start = " + start + " offset=" + currentOffset + " end=" + end;
@@ -104,6 +106,9 @@ class S3RetryingInputStream extends InputStream {
                     );
                 }
 
+                if (attempt == 1) {
+                    blobStore.getS3RepositoriesMetrics().retryStartedCounter().incrementBy(1, metricAttributes("open"));
+                }
                 final long delayInMillis = maybeLogAndComputeRetryDelay("opening", e);
                 delayBeforeRetry(delayInMillis);
             }
@@ -141,9 +146,12 @@ class S3RetryingInputStream extends InputStream {
                 } else {
                     currentOffset += 1;
                 }
-                maybeLogForSuccessAfterRetries(initialAttempt, "read");
+                maybeLogAndRecordMetricsForSuccess(initialAttempt, "read");
                 return result;
             } catch (IOException e) {
+                if (attempt == initialAttempt) {
+                    blobStore.getS3RepositoriesMetrics().retryStartedCounter().incrementBy(1, metricAttributes("read"));
+                }
                 reopenStreamOrFail(e);
             }
         }
@@ -161,9 +169,12 @@ class S3RetryingInputStream extends InputStream {
                 } else {
                     currentOffset += bytesRead;
                 }
-                maybeLogForSuccessAfterRetries(initialAttempt, "read");
+                maybeLogAndRecordMetricsForSuccess(initialAttempt, "read");
                 return bytesRead;
             } catch (IOException e) {
+                if (attempt == initialAttempt) {
+                    blobStore.getS3RepositoriesMetrics().retryStartedCounter().incrementBy(1, metricAttributes("read"));
+                }
                 reopenStreamOrFail(e);
             }
         }
@@ -245,16 +256,20 @@ class S3RetryingInputStream extends InputStream {
         );
     }
 
-    private void maybeLogForSuccessAfterRetries(int initialAttempt, String action) {
+    private void maybeLogAndRecordMetricsForSuccess(int initialAttempt, String action) {
         if (attempt > initialAttempt) {
+            final int numberOfRetries = attempt - initialAttempt;
             logger.info(
                 "successfully {} input stream for [{}/{}] with purpose [{}] after [{}] retries",
                 action,
                 blobStore.bucket(),
                 blobKey,
                 purpose.getKey(),
-                attempt - initialAttempt
+                numberOfRetries
             );
+            final Map<String, Object> attributes = metricAttributes(action);
+            blobStore.getS3RepositoriesMetrics().retryCompletedCounter().incrementBy(1, attributes);
+            blobStore.getS3RepositoriesMetrics().retryHistogram().record(numberOfRetries, attributes);
         }
     }
 
@@ -291,6 +306,21 @@ class S3RetryingInputStream extends InputStream {
     protected long getRetryDelayInMillis() {
         // Initial delay is 10 ms and cap max delay at 10 * 1024 millis, i.e. it retries every ~10 seconds at a minimum
         return 10L << (Math.min(attempt - 1, 10));
+    }
+
+    private Map<String, Object> metricAttributes(String action) {
+        return Map.of(
+            "repo_type",
+            S3Repository.TYPE,
+            "repo_name",
+            blobStore.getRepositoryMetadata().name(),
+            "operation",
+            Operation.GET_OBJECT.getKey(),
+            "purpose",
+            purpose.getKey(),
+            "action",
+            action
+        );
     }
 
     @Override

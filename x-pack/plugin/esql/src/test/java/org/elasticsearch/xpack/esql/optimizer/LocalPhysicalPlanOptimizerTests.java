@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.optimizer;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -54,10 +55,14 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.EsField;
 import org.junit.Before;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static java.util.Arrays.asList;
+import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
@@ -139,7 +144,7 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
 
     private Analyzer makeAnalyzer(String mappingFileName, EnrichResolution enrichResolution) {
         var mapping = loadMapping(mappingFileName);
-        EsIndex test = new EsIndex("test", mapping);
+        EsIndex test = new EsIndex("test", mapping, Set.of("test"));
         IndexResolution getIndexResult = IndexResolution.valid(test);
 
         return new Analyzer(new AnalyzerContext(config, functionRegistry, getIndexResult, enrichResolution), new Verifier(new Metrics()));
@@ -147,7 +152,7 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
 
     /**
      * Expects
-     * LimitExec[500[INTEGER]]
+     * LimitExec[1000[INTEGER]]
      * \_AggregateExec[[],[COUNT([2a][KEYWORD]) AS c],FINAL,null]
      *   \_ExchangeExec[[count{r}#24, seen{r}#25],true]
      *     \_EsStatsQueryExec[test], stats[Stat[name=*, type=COUNT, query=null]]], query[{"esql_single_value":{"field":"emp_no","next":
@@ -166,7 +171,7 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
 
     /**
      * Expects
-     * LimitExec[500[INTEGER]]
+     * LimitExec[1000[INTEGER]]
      * \_AggregateExec[[],[COUNT([2a][KEYWORD]) AS c],FINAL,null]
      *   \_ExchangeExec[[count{r}#14, seen{r}#15],true]
      *     \_EsStatsQueryExec[test], stats[Stat[name=*, type=COUNT, query=null]]],
@@ -182,7 +187,7 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
 
     /**
      * Expects
-     * LimitExec[500[INTEGER]]
+     * LimitExec[1000[INTEGER]]
      * \_AggregateExec[[],[COUNT(emp_no{f}#5) AS c],FINAL,null]
      *   \_ExchangeExec[[count{r}#15, seen{r}#16],true]
      *     \_EsStatsQueryExec[test], stats[Stat[name=emp_no, type=COUNT, query={
@@ -202,7 +207,7 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
 
     /**
      * Expects
-     * LimitExec[500[INTEGER]]
+     * LimitExec[1000[INTEGER]]
      * \_AggregateExec[[],[COUNT(salary{f}#20) AS c],FINAL,null]
      *   \_ExchangeExec[[count{r}#25, seen{r}#26],true]
      *     \_EsStatsQueryExec[test], stats[Stat[name=salary, type=COUNT, query={
@@ -297,7 +302,7 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
     /**
      * Expected
      * ProjectExec[[c{r}#3, c{r}#3 AS call, c_literal{r}#7]]
-     * \_LimitExec[500[INTEGER]]
+     * \_LimitExec[1000[INTEGER]]
      *   \_AggregateExec[[],[COUNT([2a][KEYWORD]) AS c, COUNT(1[INTEGER]) AS c_literal],FINAL,null]
      *     \_ExchangeExec[[count{r}#18, seen{r}#19, count{r}#20, seen{r}#21],true]
      *       \_EsStatsQueryExec[test], stats[Stat[name=*, type=COUNT, query=null], Stat[name=*, type=COUNT, query=null]]],
@@ -341,7 +346,7 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
 
     /**
      * Expecting
-     * LimitExec[500[INTEGER]]
+     * LimitExec[1000[INTEGER]]
      * \_AggregateExec[[],[COUNT([2a][KEYWORD]) AS c],FINAL,null]
      *   \_ExchangeExec[[count{r}#14, seen{r}#15],true]
      *     \_LocalSourceExec[[c{r}#3],[LongVectorBlock[vector=ConstantLongVector[positions=1, value=0]]]]
@@ -372,12 +377,12 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
 
     /**
      * Expects
-     * LimitExec[500[INTEGER]]
+     * LimitExec[1000[INTEGER]]
      * \_ExchangeExec[[],false]
      *   \_ProjectExec[[_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gender{f}#5, job{f}#10, job.raw{f}#11, languages{f}#6, last_n
      * ame{f}#7, long_noidx{f}#12, salary{f}#8]]
      *     \_FieldExtractExec[_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gen..]
-     *       \_EsQueryExec[test], query[{"exists":{"field":"emp_no","boost":1.0}}][_doc{f}#13], limit[500], sort[] estimatedRowSize[324]
+     *       \_EsQueryExec[test], query[{"exists":{"field":"emp_no","boost":1.0}}][_doc{f}#13], limit[1000], sort[] estimatedRowSize[324]
      */
     public void testIsNotNullPushdownFilter() {
         var plan = plan("from test | where emp_no is not null");
@@ -387,20 +392,20 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
         var project = as(exchange.child(), ProjectExec.class);
         var field = as(project.child(), FieldExtractExec.class);
         var query = as(field.child(), EsQueryExec.class);
-        assertThat(query.limit().fold(), is(500));
+        assertThat(query.limit().fold(), is(1000));
         var expected = QueryBuilders.existsQuery("emp_no");
         assertThat(query.query().toString(), is(expected.toString()));
     }
 
     /**
      * Expects
-     * LimitExec[500[INTEGER]]
+     * LimitExec[1000[INTEGER]]
      * \_ExchangeExec[[],false]
      *   \_ProjectExec[[_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gender{f}#5, job{f}#10, job.raw{f}#11, languages{f}#6, last_n
      * ame{f}#7, long_noidx{f}#12, salary{f}#8]]
      *     \_FieldExtractExec[_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gen..]
      *       \_EsQueryExec[test], query[{"bool":{"must_not":[{"exists":{"field":"emp_no","boost":1.0}}],"boost":1.0}}][_doc{f}#13],
-     *         limit[500], sort[] estimatedRowSize[324]
+     *         limit[1000], sort[] estimatedRowSize[324]
      */
     public void testIsNullPushdownFilter() {
         var plan = plan("from test | where emp_no is null");
@@ -410,9 +415,47 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
         var project = as(exchange.child(), ProjectExec.class);
         var field = as(project.child(), FieldExtractExec.class);
         var query = as(field.child(), EsQueryExec.class);
-        assertThat(query.limit().fold(), is(500));
+        assertThat(query.limit().fold(), is(1000));
         var expected = QueryBuilders.boolQuery().mustNot(QueryBuilders.existsQuery("emp_no"));
         assertThat(query.query().toString(), is(expected.toString()));
+    }
+
+    /**
+     * Expects
+     * LimitExec[1000[INTEGER]]
+     * \_ExchangeExec[[],false]
+     *   \_ProjectExec[[!alias_integer, boolean{f}#4, byte{f}#5, constant_keyword-foo{f}#6, date{f}#7, double{f}#8, float{f}#9,
+     *     half_float{f}#10, integer{f}#12, ip{f}#13, keyword{f}#14, long{f}#15, scaled_float{f}#11, short{f}#17, text{f}#18,
+     *     unsigned_long{f}#16, version{f}#19, wildcard{f}#20]]
+     *     \_FieldExtractExec[!alias_integer, boolean{f}#4, byte{f}#5, constant_k..][]
+     *       \_EsQueryExec[test], query[{"esql_single_value":{"field":"ip","next":{"terms":{"ip":["127.0.0.0/24"],"boost":1.0}},"source":
+     *         "cidr_match(ip, \"127.0.0.0/24\")@1:19"}}][_doc{f}#21], limit[1000], sort[] estimatedRowSize[389]
+     */
+    public void testCidrMatchPushdownFilter() {
+        var allTypeMappingAnalyzer = makeAnalyzer("mapping-ip.json", new EnrichResolution());
+        final String fieldName = "ip_addr";
+
+        int cidrBlockCount = randomIntBetween(1, 10);
+        ArrayList<String> cidrBlocks = new ArrayList<>();
+        for (int i = 0; i < cidrBlockCount; i++) {
+            cidrBlocks.add(randomCidrBlock());
+        }
+        String cidrBlocksString = cidrBlocks.stream().map((s) -> "\"" + s + "\"").collect(Collectors.joining(","));
+        String cidrMatch = format(null, "cidr_match({}, {})", fieldName, cidrBlocksString);
+
+        var query = "from test | where " + cidrMatch;
+        var plan = plan(query, EsqlTestUtils.TEST_SEARCH_STATS, allTypeMappingAnalyzer);
+
+        var limit = as(plan, LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var field = as(project.child(), FieldExtractExec.class);
+        var queryExec = as(field.child(), EsQueryExec.class);
+        assertThat(queryExec.limit().fold(), is(1000));
+
+        var expectedInnerQuery = QueryBuilders.termsQuery(fieldName, cidrBlocks);
+        var expectedQuery = wrapWithSingleQuery(expectedInnerQuery, fieldName, new Source(1, 18, cidrMatch));
+        assertThat(queryExec.query().toString(), is(expectedQuery.toString()));
     }
 
     private record OutOfRangeTestCase(String fieldName, String tooLow, String tooHigh) {};
@@ -506,7 +549,7 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
 
     /**
      * Expects e.g.
-     * LimitExec[500[INTEGER]]
+     * LimitExec[1000[INTEGER]]
      * \_ExchangeExec[[],false]
      *   \_ProjectExec[[!alias_integer, boolean{f}#190, byte{f}#191, constant_keyword-foo{f}#192, date{f}#193, double{f}#194, ...]]
      *     \_FieldExtractExec[!alias_integer, boolean{f}#190, byte{f}#191, consta..][]
@@ -526,13 +569,13 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
 
     /**
      * Expects
-     * LimitExec[500[INTEGER]]
+     * LimitExec[1000[INTEGER]]
      * \_ExchangeExec[[],false]
      *   \_ProjectExec[[_meta_field{f}#8, emp_no{r}#2, first_name{r}#3, gender{f}#4, job{f}#9, job.raw{f}#10, languages{f}#5, first_n
      * ame{r}#3 AS last_name, long_noidx{f}#11, emp_no{r}#2 AS salary]]
      *     \_FieldExtractExec[_meta_field{f}#8, gender{f}#4, job{f}#9, job.raw{f}..]
      *       \_EvalExec[[null[INTEGER] AS emp_no, null[KEYWORD] AS first_name]]
-     *         \_EsQueryExec[test], query[][_doc{f}#12], limit[500], sort[] estimatedRowSize[270]
+     *         \_EsQueryExec[test], query[][_doc{f}#12], limit[1000], sort[] estimatedRowSize[270]
      */
     public void testMissingFieldsDoNotGetExtracted() {
         var stats = EsqlTestUtils.statsForMissingField("first_name", "last_name", "emp_no", "salary");
@@ -620,5 +663,14 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
     @Override
     protected List<String> filteredWarnings() {
         return withDefaultLimitWarning(super.filteredWarnings());
+    }
+
+    private String randomCidrBlock() {
+        boolean ipv4 = randomBoolean();
+
+        String address = NetworkAddress.format(randomIp(ipv4));
+        int cidrPrefixLength = ipv4 ? randomIntBetween(0, 32) : randomIntBetween(0, 128);
+
+        return format(null, "{}/{}", address, cidrPrefixLength);
     }
 }

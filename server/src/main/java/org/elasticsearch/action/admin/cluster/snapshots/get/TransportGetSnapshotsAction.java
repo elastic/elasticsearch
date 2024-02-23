@@ -33,6 +33,7 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryMissingException;
+import org.elasticsearch.repositories.ResolvedRepositories;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
@@ -111,7 +112,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
 
         new GetSnapshotsOperation(
             (CancellableTask) task,
-            TransportGetRepositoriesAction.getRepositories(state, request.repositories()),
+            ResolvedRepositories.resolve(state, request.repositories()),
             request.isSingleRepositoryRequest() == false,
             request.snapshots(),
             request.ignoreUnavailable(),
@@ -172,7 +173,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
 
         GetSnapshotsOperation(
             CancellableTask cancellableTask,
-            TransportGetRepositoriesAction.RepositoriesResult repositoriesResult,
+            ResolvedRepositories resolvedRepositories,
             boolean isMultiRepoRequest,
             String[] snapshots,
             boolean ignoreUnavailable,
@@ -188,7 +189,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             boolean indices
         ) {
             this.cancellableTask = cancellableTask;
-            this.repositories = repositoriesResult.metadata();
+            this.repositories = resolvedRepositories.repositoryMetadata();
             this.isMultiRepoRequest = isMultiRepoRequest;
             this.snapshots = snapshots;
             this.ignoreUnavailable = ignoreUnavailable;
@@ -203,7 +204,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             this.verbose = verbose;
             this.indices = indices;
 
-            for (final var missingRepo : repositoriesResult.missing()) {
+            for (final var missingRepo : resolvedRepositories.missing()) {
                 failuresByRepository.put(missingRepo, new RepositoryMissingException(missingRepo));
             }
         }

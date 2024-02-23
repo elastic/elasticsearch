@@ -87,12 +87,18 @@ public class AggProviderTests extends AbstractXContentSerializingTestCase<AggPro
         assertThat(e.getMessage(), equalTo("Datafeed aggregations are not parsable"));
     }
 
-    private static <K, V> HashMap<K, V> hashMapOf(K k1, V v1) {
-        return new HashMap<>(Map.of(k1, v1));
+    private static <K, V> HashMap<K, V> hashMapOf(K key, V value) {
+        HashMap<K, V> map = new HashMap<>();
+        map.put(key, value);
+        return map;
     }
 
     private static <K, V> HashMap<K, V> hashMapOf(K k1, V v1, K k2, V v2, K k3, V v3) {
-        return new HashMap<>(Map.of(k1, v1, k2, v2, k3, v3));
+        HashMap<K, V> map = new HashMap<>();
+        map.put(k1, v1);
+        map.put(k2, v2);
+        map.put(k3, v3);
+        return map;
     }
 
     public void testRewriteBadNumericInterval() {
@@ -115,7 +121,7 @@ public class AggProviderTests extends AbstractXContentSerializingTestCase<AggPro
         Map<String, Object> maxTime = Map.of("max", Map.of("field", "time"));
         Map<String, Object> calendarDeprecated = hashMapOf("interval", calendarInterval, "field", "foo", "aggs", Map.of("time", maxTime));
         Map<String, Object> expected = Map.of("calendar_interval", calendarInterval, "field", "foo", "aggs", Map.of("time", maxTime));
-        Map<String, Object> deprecated = hashMapOf("buckets", new HashMap<>(Map.of("date_histogram", calendarDeprecated)));
+        Map<String, Object> deprecated = hashMapOf("buckets", hashMapOf("date_histogram", calendarDeprecated));
         assertTrue(AggProvider.rewriteDateHistogramInterval(deprecated, false));
         assertThat(deprecated, equalTo(Map.of("buckets", Map.of("date_histogram", expected))));
 

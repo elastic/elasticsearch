@@ -248,14 +248,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
             } else if (exp instanceof Not not) {
                 return canPushToSource(not.field(), hasIdenticalDelegate);
             } else if (exp instanceof UnaryScalarFunction usf) {
-                if (usf instanceof RegexMatch<?> || usf instanceof IsNull || usf instanceof IsNotNull) {
-                    if (usf instanceof IsNotNull) {
-                        if (usf.field() instanceof FieldAttribute fa && fa.dataType() == DataTypes.TEXT) {
-                            return true;
-                        }
-                    }
-                    return isAttributePushable(usf.field(), usf, hasIdenticalDelegate);
-                }
+                return isAttributePushable(usf.field(), usf, hasIdenticalDelegate);
             } else if (exp instanceof CIDRMatch cidrMatch) {
                 return isAttributePushable(cidrMatch.ipField(), cidrMatch, hasIdenticalDelegate)
                     && Expressions.foldable(cidrMatch.matches());
@@ -268,6 +261,11 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
             Expression operation,
             Predicate<FieldAttribute> hasIdenticalDelegate
         ) {
+            if (operation instanceof RegexMatch<?> || operation instanceof IsNull || operation instanceof IsNotNull) {
+                if (expression instanceof FieldAttribute fa && fa.dataType() == DataTypes.TEXT) {
+                    return true;
+                }
+            }
             if (isPushableFieldAttribute(expression, hasIdenticalDelegate)) {
                 return true;
             }

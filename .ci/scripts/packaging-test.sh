@@ -69,8 +69,6 @@ sudo mkdir -p /elasticsearch/qa/ && sudo chown jenkins /elasticsearch/qa/ && ln 
 # See: https://git-scm.com/docs/git-config/2.35.2#Documentation/git-config.txt-safedirectory
 git config --global --add safe.directory $WORKSPACE
 
-for attempt in 1 2 3 4 5; do ./gradlew --version && break; echo "Failed to download gradle wrapper - attempt $attempt/5" && sleep 5; done
-
 # sudo sets it's own PATH thus we use env to override that and call sudo annother time so we keep the secure root PATH
 # run with --continue to run both bats and java tests even if one fails
 # be explicit about Gradle home dir so we use the same even with sudo
@@ -78,6 +76,7 @@ sudo -E env \
   PATH=$BUILD_JAVA_HOME/bin:`sudo bash -c 'echo -n $PATH'` \
   --unset=ES_JAVA_HOME \
   --unset=JAVA_HOME \
-  SYSTEM_JAVA_HOME=`readlink -f -n $BUILD_JAVA_HOME` \
-  ./gradlew -g $HOME/.gradle --scan --parallel --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ --continue $@
+  SYSTEM_JAVA_HOME=`readlink -f -n $BUILD_JAVA_HOME`; \
+  for attempt in 1 2 3 4 5; do ./gradlew -g "$HOME/.gradle" --version && break; echo "Failed to download gradle wrapper - attempt $attempt/5" && sleep 5; done; \
+  ./gradlew -g "$HOME/.gradle" --scan --parallel --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ --continue $@
 

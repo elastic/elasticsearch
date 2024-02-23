@@ -119,12 +119,6 @@ public final class EsqlExpressionTranslators {
     }
 
     // TODO: Probably don't need this; I just pulled everything form the QL version for a first draft
-    public static Object valueOf(Expression e) {
-        if (e.foldable()) {
-            return e.fold();
-        }
-        throw new QlIllegalArgumentException("Cannot determine value for {}", e);
-    }
 
     public static class BinaryComparisons extends ExpressionTranslator<BinaryComparison> {
         @Override
@@ -138,7 +132,10 @@ public final class EsqlExpressionTranslators {
             if (translated != null) {
                 return handler.wrapFunctionQuery(bc, bc.left(), () -> translated);
             }
-            // return ExpressionTranslators.BinaryComparisons.doTranslate(bc, handler);
+            return handler.wrapFunctionQuery(bc, bc.left(), () -> translate(bc, handler));
+        }
+
+        static Query translate(BinaryComparison bc, TranslatorHandler handler) {
             Check.isTrue(
                 bc.right().foldable(),
                 "Line {}:{}: Comparisons against fields are not (currently) supported; offender [{}] in [{}]",
@@ -147,15 +144,11 @@ public final class EsqlExpressionTranslators {
                 Expressions.name(bc.right()),
                 bc.symbol()
             );
-            return handler.wrapFunctionQuery(bc, bc.left(), () -> translate(bc, handler));
-        }
-
-        static Query translate(BinaryComparison bc, TranslatorHandler handler) {
             TypedAttribute attribute = checkIsPushableAttribute(bc.left());
             Source source = bc.source();
             String name = handler.nameOf(attribute);
-            // TODO: The check here is redundant, since doTranslate already checked that the right was foldable
-            Object value = valueOf(bc.right());
+            Object result = bc.right().fold();
+            Object value = result;
             String format = null;
             boolean isDateLiteralComparison = false;
 

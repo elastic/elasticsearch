@@ -83,18 +83,7 @@ public class SecuritySlowLogIT extends ESRestTestCase {
             indexSomeData(testData.name);
         }
 
-        Map<String, Object> expectedUser = Map.of(
-            "user.name",
-            "api_user",
-            "user.effective.name",
-            "api_user",
-            "user.realm",
-            "default_file",
-            "user.effective.realm",
-            "default_file",
-            "auth.type",
-            "REALM"
-        );
+        Map<String, Object> expectedUser = Map.of("user.name", "api_user", "user.realm", "default_file", "auth.type", "REALM");
 
         verifySearchSlowLogMatchesTestData(testIndices, expectedUser);
         verifyIndexSlowLogMatchesTestData(testIndices, expectedUser);
@@ -123,11 +112,7 @@ public class SecuritySlowLogIT extends ESRestTestCase {
         Map<String, Object> expectedUser = Map.of(
             "user.name",
             "admin_user",
-            "user.effective.name",
-            "admin_user",
             "user.realm",
-            "_es_api_key",
-            "user.effective.realm",
             "_es_api_key",
             "auth.type",
             "API_KEY",
@@ -187,11 +172,7 @@ public class SecuritySlowLogIT extends ESRestTestCase {
         Map<String, Object> expectedUser = Map.of(
             "user.name",
             "elastic/enterprise-search-server",
-            "user.effective.name",
-            "elastic/enterprise-search-server",
             "user.realm",
-            "_service_account",
-            "user.effective.realm",
             "_service_account",
             "auth.type",
             "TOKEN"

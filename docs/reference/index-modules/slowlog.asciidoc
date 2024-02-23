@@ -79,7 +79,7 @@ This will result in user information being included in the slow log.
   "@timestamp": "2024-02-21T12:42:37.255Z",
   "log.level": "WARN",
   "auth.type": "REALM",
-  "elasticsearch.slowlog.id": null,
+  "elasticsearch.slowlog.id": "1eb56087c321442e8c9040dbe51fbcdf",
   "elasticsearch.slowlog.message": "[index6][0]",
   "elasticsearch.slowlog.search_type": "QUERY_THEN_FETCH",
   "elasticsearch.slowlog.source": "{\"query\":{\"match_all\":{\"boost\":1.0}}}",
@@ -88,8 +88,6 @@ This will result in user information being included in the slow log.
   "elasticsearch.slowlog.took_millis": 0,
   "elasticsearch.slowlog.total_hits": "1 hits",
   "elasticsearch.slowlog.total_shards": 1,
-  "user.effective.name": "elastic",
-  "user.effective.realm": "reserved",
   "user.name": "elastic",
   "user.realm": "reserved",
   "ecs.version": "1.2.0",
@@ -106,40 +104,8 @@ This will result in user information being included in the slow log.
 ---------------------------
 // NOTCONSOLE
 
-If a call was initiated with an `X-Opaque-ID` header, then the ID is also included
-in Search Slow logs as an additional **elasticsearch.slowlog.id** field
-
-[source,js]
----------------------------
-{
-  "@timestamp": "2024-02-21T12:42:37.255Z",
-  "log.level": "WARN",
-  "auth.type": "REALM",
-  "elasticsearch.slowlog.id": "MY_USER_ID",
-  "elasticsearch.slowlog.message": "[index6][0]",
-  "elasticsearch.slowlog.search_type": "QUERY_THEN_FETCH",
-  "elasticsearch.slowlog.source": "{\"query\":{\"match_all\":{\"boost\":1.0}}}",
-  "elasticsearch.slowlog.stats": "[]",
-  "elasticsearch.slowlog.took": "747.3micros",
-  "elasticsearch.slowlog.took_millis": 0,
-  "elasticsearch.slowlog.total_hits": "1 hits",
-  "elasticsearch.slowlog.total_shards": 1,
-  "user.effective.name": "elastic",
-  "user.effective.realm": "reserved",
-  "user.name": "elastic",
-  "user.realm": "reserved",
-  "ecs.version": "1.2.0",
-  "service.name": "ES_ECS",
-  "event.dataset": "elasticsearch.index_search_slowlog",
-  "process.thread.name": "elasticsearch[runTask-0][search][T#5]",
-  "log.logger": "index.search.slowlog.query",
-  "elasticsearch.cluster.uuid": "Ui23kfF1SHKJwu_hI1iPPQ",
-  "elasticsearch.node.id": "JK-jn-XpQ3OsDUsq5ZtfGg",
-  "elasticsearch.node.name": "node-0",
-  "elasticsearch.cluster.name": "distribution_run"
-}
----------------------------
-// NOTCONSOLE
+If a call was initiated with an `X-Opaque-ID` header, then the ID is included
+in Search Slow logs in the **elasticsearch.slowlog.id** field.
 
 [discrete]
 [[index-slow-log]]

@@ -574,7 +574,7 @@ public class DesiredBalanceReconciler {
                         // logging after that if the undesiredAllocations value moves in a healthy descending direction.
                         undesiredAllocations > lastNumberOfUndesiredAllocations ? Level.WARN : Level.INFO,
                         "[{}] of assigned shards ({}/{}) are not on their desired nodes, which exceeds the logging threshold of [{}]."
-                            + " Read [{}] for more information.",
+                            + " If the number of shards on undesired nodes does not decrease over time, see [{}] for more information.",
                         Strings.format1Decimals(100.0 * undesiredAllocations / allAllocations, "%"),
                         undesiredAllocations,
                         allAllocations,

@@ -35,6 +35,7 @@ public class XmlTextStructureFinderFactoryTests extends TextStructureTestCase {
         List<String> messages = List.of("", "", "");
         assertFalse(factory.canCreateFromMessages(explanation, messages, 0.0));
     }
+
     public void testCanCreateFromSampleGivenCsv() {
 
         assertFalse(factory.canCreateFromSample(explanation, CSV_SAMPLE, 0.0));

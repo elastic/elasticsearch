@@ -798,7 +798,8 @@ public class DelimitedTextStructureFinderTests extends TextStructureTestCase {
             explanation,
             messages,
             TextStructureOverrides.EMPTY_OVERRIDES,
-            NOOP_TIMEOUT_CHECKER);
+            NOOP_TIMEOUT_CHECKER
+        );
         TextStructure structure = structureFinder.getStructure();
         assertEquals(TextStructure.Format.DELIMITED, structure.getFormat());
         assertEquals(3, structure.getNumMessagesAnalyzed());

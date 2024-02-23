@@ -14,7 +14,12 @@ public class DelimitedTextStructureFinderFactoryTests extends TextStructureTestC
     // TODO: revert
     private final DelimitedTextStructureFinderFactory csvFactory = new DelimitedTextStructureFinderFactory(',', '"', 2, false);
     private final DelimitedTextStructureFinderFactory tsvFactory = new DelimitedTextStructureFinderFactory('\t', '"', 2, false);
-    private final DelimitedTextStructureFinderFactory semiColonDelimitedfactory = new DelimitedTextStructureFinderFactory(';', '"', 4, false);
+    private final DelimitedTextStructureFinderFactory semiColonDelimitedfactory = new DelimitedTextStructureFinderFactory(
+        ';',
+        '"',
+        4,
+        false
+    );
     private final DelimitedTextStructureFinderFactory pipeDelimitedFactory = new DelimitedTextStructureFinderFactory('|', '"', 5, true);
 
     // CSV - no need to check NDJSON or XML because they come earlier in the order we check formats

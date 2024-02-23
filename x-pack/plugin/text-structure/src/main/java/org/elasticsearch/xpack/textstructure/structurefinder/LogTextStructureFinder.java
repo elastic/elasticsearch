@@ -107,7 +107,12 @@ public class LogTextStructureFinder implements TextStructureFinder {
         return new LogTextStructureFinder(sampleMessages, structure);
     }
 
-    private static TimestampFormatFinder getTimestampFormatFinder(List<String> explanation, String[] sampleLines, TextStructureOverrides overrides, TimeoutChecker timeoutChecker) {
+    private static TimestampFormatFinder getTimestampFormatFinder(
+        List<String> explanation,
+        String[] sampleLines,
+        TextStructureOverrides overrides,
+        TimeoutChecker timeoutChecker
+    ) {
         TimestampFormatFinder timestampFormatFinder = populateTimestampFormatFinder(explanation, sampleLines, overrides, timeoutChecker);
         switch (timestampFormatFinder.getNumMatchedFormats()) {
             case 0:
@@ -139,7 +144,12 @@ public class LogTextStructureFinder implements TextStructureFinder {
         return timestampFormatFinder;
     }
 
-    private static Tuple<List<String>, Integer> getSampleMessages(String multiLineRegex, String[] sampleLines, int lineMergeSizeLimit, TimeoutChecker timeoutChecker) {
+    private static Tuple<List<String>, Integer> getSampleMessages(
+        String multiLineRegex,
+        String[] sampleLines,
+        int lineMergeSizeLimit,
+        TimeoutChecker timeoutChecker
+    ) {
         List<String> sampleMessages = new ArrayList<>();
         int linesConsumed = 0;
         StringBuilder message = null;
@@ -217,8 +227,8 @@ public class LogTextStructureFinder implements TextStructureFinder {
         }
 
         TextStructure.Builder structureBuilder = new TextStructure.Builder(TextStructure.Format.SEMI_STRUCTURED_TEXT).setCharset(
-                charsetName
-            )
+            charsetName
+        )
             .setHasByteOrderMarker(hasByteOrderMarker)
             .setSampleStart(preamble.toString())
             .setNumLinesAnalyzed(linesConsumed)
@@ -320,7 +330,12 @@ public class LogTextStructureFinder implements TextStructureFinder {
             timestampFormatFinder.getSimplePattern().pattern()
         );
 
-        Tuple<List<String>, Integer> sampleMessagesAndLinesConsumed = getSampleMessages(multiLineRegex, sampleLines, lineMergeSizeLimit, timeoutChecker);
+        Tuple<List<String>, Integer> sampleMessagesAndLinesConsumed = getSampleMessages(
+            multiLineRegex,
+            sampleLines,
+            lineMergeSizeLimit,
+            timeoutChecker
+        );
         List<String> sampleMessages = sampleMessagesAndLinesConsumed.v1();
         int linesConsumed = sampleMessagesAndLinesConsumed.v2();
 
@@ -348,7 +363,12 @@ public class LogTextStructureFinder implements TextStructureFinder {
         TextStructureOverrides overrides,
         TimeoutChecker timeoutChecker
     ) {
-        TimestampFormatFinder timestampFormatFinder = getTimestampFormatFinder(explanation, messages.toArray(new String[0]), overrides, timeoutChecker);
+        TimestampFormatFinder timestampFormatFinder = getTimestampFormatFinder(
+            explanation,
+            messages.toArray(new String[0]),
+            overrides,
+            timeoutChecker
+        );
 
         String multiLineRegex = createMultiLineMessageStartRegex(
             timestampFormatFinder.getPrefaces(),
@@ -418,14 +438,7 @@ public class LogTextStructureFinder implements TextStructureFinder {
                 timeoutChecker
             );
         } else {
-            return makeMultiLineLogTextStructureFinder(
-                explanation,
-                messages,
-                charsetName,
-                hasByteOrderMarker,
-                overrides,
-                timeoutChecker
-            );
+            return makeMultiLineLogTextStructureFinder(explanation, messages, charsetName, hasByteOrderMarker, overrides, timeoutChecker);
         }
     }
 

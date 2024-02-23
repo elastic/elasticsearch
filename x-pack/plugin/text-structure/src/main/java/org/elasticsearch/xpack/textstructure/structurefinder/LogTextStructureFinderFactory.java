@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.textstructure.structurefinder;
 
 import org.elasticsearch.xpack.core.textstructure.structurefinder.TextStructure;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.regex.Pattern;
 
@@ -71,14 +70,7 @@ public class LogTextStructureFinderFactory implements TextStructureFinderFactory
         List<String> messages,
         TextStructureOverrides overrides,
         TimeoutChecker timeoutChecker
-    )  {
-        return LogTextStructureFinder.makeLogTextStructureFinder(
-            explanation,
-            messages,
-            "utf-8",
-            null,
-            overrides,
-            timeoutChecker
-        );
+    ) {
+        return LogTextStructureFinder.makeLogTextStructureFinder(explanation, messages, "utf-8", null, overrides, timeoutChecker);
     }
 }

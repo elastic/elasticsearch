@@ -221,8 +221,6 @@ public class GetFlamegraphResponse extends ActionResponse implements ChunkedToXC
                 return b.endArray();
             }),
             ChunkedToXContentHelper.singleChunk((b, p) -> {
-                // TODO:In the test data this array has 152537 items. Standard serialization (Double.toString()) takes 45ns, our custom
-                // one takes 24ns. This change saves an additional 3.2 ms in total.
                 b.startArray("AnnualCO2TonsInclusive");
                 for (double co2Tons : annualCO2TonsInclusive) {
                     // write as raw value - we need direct control over the output representation (here: limit to 4 decimal places)

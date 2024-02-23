@@ -46,6 +46,7 @@ import java.util.function.Consumer;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singletonMap;
+import static java.util.Map.entry;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.allOf;
@@ -56,29 +57,27 @@ import static org.hamcrest.Matchers.is;
 public class SchemaUtilTests extends ESTestCase {
 
     public void testInsertNestedObjectMappings() {
-        Map<String, String> fieldMappings = new HashMap<>() {
-            {
-                // creates: a.b, a
-                put("a.b.c", "long");
-                put("a.b.d", "double");
-                // creates: c.b, c
-                put("c.b.a", "double");
-                // creates: c.d
-                put("c.d.e", "object");
-                put("d", "long");
-                put("e.f.g", "long");
-                // cc: already there
-                put("e.f", "object");
-                // cc: already there but different type (should not be possible)
-                put("e", "long");
-                // cc: start with . (should not be possible)
-                put(".x", "long");
-                // cc: start and ends with . (should not be possible), creates: .y
-                put(".y.", "long");
-                // cc: ends with . (should not be possible), creates: .z
-                put(".z.", "long");
-            }
-        };
+        Map<String, String> fieldMappings = Map.ofEntries(
+            // creates: a.b, a
+            entry("a.b.c", "long"),
+            entry("a.b.d", "double"),
+            // creates: c.b, c
+            entry("c.b.a", "double"),
+            // creates: c.d
+            entry("c.d.e", "object"),
+            entry("d", "long"),
+            entry("e.f.g", "long"),
+            // cc: already there
+            entry("e.f", "object"),
+            // cc: already there but different type (should not be possible)
+            entry("e", "long"),
+            // cc: start with . (should not be possible)
+            entry(".x", "long"),
+            // cc: start and ends with . (should not be possible), creates: .y
+            entry(".y.", "long"),
+            // cc: ends with . (should not be possible), creates: .z
+            entry(".z.", "long")
+        );
 
         SchemaUtil.insertNestedObjectMappings(fieldMappings);
 
@@ -163,12 +162,7 @@ public class SchemaUtilTests extends ESTestCase {
     }
 
     public void testGetSourceFieldMappingsWithRuntimeMappings() throws InterruptedException {
-        Map<String, Object> runtimeMappings = new HashMap<>() {
-            {
-                put("field-2", singletonMap("type", "keyword"));
-                put("field-3", singletonMap("type", "boolean"));
-            }
-        };
+        Map<String, Object> runtimeMappings = Map.of("field-2", Map.of("type", "keyword"), "field-3", Map.of("type", "boolean"));
         try (var threadPool = createThreadPool()) {
             final var client = new FieldCapsMockClient(threadPool, emptySet());
             this.<Map<String, String>>assertAsync(

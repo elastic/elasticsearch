@@ -33,20 +33,7 @@ public class NetworkDirectionProcessorTests extends ESTestCase {
     }
 
     private Map<String, Object> buildEvent(String source, String destination) {
-        return new HashMap<>() {
-            {
-                put("source", new HashMap<String, Object>() {
-                    {
-                        put("ip", source);
-                    }
-                });
-                put("destination", new HashMap<String, Object>() {
-                    {
-                        put("ip", destination);
-                    }
-                });
-            }
-        };
+        return Map.of("source", Map.of("ip", source), "destination", Map.of("ip", destination));
     }
 
     public void testNoInternalNetworks() throws Exception {

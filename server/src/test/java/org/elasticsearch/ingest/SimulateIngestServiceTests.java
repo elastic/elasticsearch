@@ -63,32 +63,13 @@ public class SimulateIngestServiceTests extends ESTestCase {
         }
         {
             // Here we make sure that if we have a substitution with the same name as the original pipeline that we get the new one back
-            Map<String, Map<String, Object>> pipelineSubstitutions = new HashMap<>() {
-                {
-                    put("pipeline1", new HashMap<>() {
-                        {
-                            put("processors", List.of(new HashMap<>() {
-                                {
-                                    put("processor2", new HashMap<>());
-                                }
-                            }, new HashMap<>() {
-                                {
-                                    put("processor3", new HashMap<>());
-                                }
-                            }));
-                        }
-                    });
-                    put("pipeline2", new HashMap<>() {
-                        {
-                            put("processors", List.of(new HashMap<>() {
-                                {
-                                    put("processor3", new HashMap<>());
-                                }
-                            }));
-                        }
-                    });
-                }
-            };
+            Map<String, Map<String, Object>> pipelineSubstitutions = Map.of(
+                "pipeline1",
+                Map.of("processors", List.of(Map.of("processor2", Map.of()), Map.of("processor3", Map.of()))),
+                "pipeline2",
+                Map.of("processors", List.of(Map.of("processor3", Map.of())))
+            );
+
             SimulateBulkRequest simulateBulkRequest = new SimulateBulkRequest(pipelineSubstitutions);
             SimulateIngestService simulateIngestService = new SimulateIngestService(ingestService, simulateBulkRequest);
             Pipeline pipeline1 = simulateIngestService.getPipeline("pipeline1");
@@ -104,19 +85,10 @@ public class SimulateIngestServiceTests extends ESTestCase {
              * Here we make sure that if we have a substitution for a new pipeline we still get the original one back (as well as the new
              * one).
              */
-            Map<String, Map<String, Object>> pipelineSubstitutions = new HashMap<>() {
-                {
-                    put("pipeline2", new HashMap<>() {
-                        {
-                            put("processors", List.of(new HashMap<>() {
-                                {
-                                    put("processor3", new HashMap<>());
-                                }
-                            }));
-                        }
-                    });
-                }
-            };
+            Map<String, Map<String, Object>> pipelineSubstitutions = Map.of(
+                "pipeline2",
+                Map.of("processors", List.of(Map.of("processor3", Map.of())))
+            );
             SimulateBulkRequest simulateBulkRequest = new SimulateBulkRequest(pipelineSubstitutions);
             SimulateIngestService simulateIngestService = new SimulateIngestService(ingestService, simulateBulkRequest);
             Pipeline pipeline1 = simulateIngestService.getPipeline("pipeline1");

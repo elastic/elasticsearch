@@ -73,11 +73,11 @@ import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.singleton;
@@ -896,17 +896,17 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         LogicalPlan child = generatingPlan.child();
 
         if (child instanceof OrderBy orderBy) {
-            Set<String> evalFieldNames = generatedAttributes.stream().map(NamedExpression::name).collect(Collectors.toSet());
+            Set<String> evalFieldNames = new LinkedHashSet<>(Expressions.names(generatedAttributes));
 
             // Look for attributes in the OrderBy's expressions and create aliases with temporary names for them.
             AttributeReplacement nonShadowedOrders = renameAttributesInExpressions(evalFieldNames, orderBy.order());
 
             AttributeMap<Alias> aliasesForShadowedOrderByAttrs = nonShadowedOrders.replacedAttributes;
             @SuppressWarnings("unchecked")
-            List<Order> newOrder = (List<Order>) (Object) nonShadowedOrders.rewrittenExpressions;
+            List<Order> newOrder = (List<Order>) (List<?>) nonShadowedOrders.rewrittenExpressions;
 
             if (aliasesForShadowedOrderByAttrs.isEmpty() == false) {
-                List<Alias> newAliases = aliasesForShadowedOrderByAttrs.values().stream().toList();
+                List<Alias> newAliases = new ArrayList<>(aliasesForShadowedOrderByAttrs.values());
 
                 LogicalPlan plan = new Eval(orderBy.source(), orderBy.child(), newAliases);
                 plan = generatingPlan.replaceChild(plan);

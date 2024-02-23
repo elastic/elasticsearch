@@ -88,17 +88,7 @@ class OptimizerRules {
                 return new AttributeSet(mvExpand.expanded());
             }
             if (logicalPlan instanceof Enrich enrich) {
-                List<NamedExpression> enrichFields = enrich.enrichFields();
-                AttributeSet generates = new AttributeSet(Expressions.asAttributes(enrichFields));
-                // In case of aliases we generate both the alias and its target.
-                // E.g. in ENRICH policy ON field WITH alias = enrich_field
-                // we generate both `alias` and `enrich_field`.
-                for (NamedExpression enrichField : enrichFields) {
-                    if (enrichField instanceof Alias alias && alias.child() instanceof Attribute attr) {
-                        generates.add(attr);
-                    }
-                }
-                return generates;
+                return new AttributeSet(Expressions.asAttributes(enrich.enrichFields()));
             }
 
             return AttributeSet.EMPTY;

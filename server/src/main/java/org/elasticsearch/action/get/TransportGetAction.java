@@ -296,11 +296,11 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
     }
 
     static DiscoveryNode getCurrentNodeOfPrimary(ClusterState clusterState, ShardId shardId) {
-        var shardRoutingTable = clusterState.routingTable().shardRoutingTable(shardId);
-        if (shardRoutingTable.primaryShard() == null || shardRoutingTable.primaryShard().active() == false) {
+        final var primaryShard = clusterState.routingTable().shardRoutingTable(shardId).primaryShard();
+        if (primaryShard.active() == false) {
             throw new NoShardAvailableActionException(shardId, "primary shard is not active");
         }
-        DiscoveryNode node = clusterState.nodes().get(shardRoutingTable.primaryShard().currentNodeId());
+        DiscoveryNode node = clusterState.nodes().get(primaryShard.currentNodeId());
         assert node != null;
         return node;
     }

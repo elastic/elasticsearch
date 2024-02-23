@@ -21,9 +21,9 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
 
-import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasToString;
+import static org.hamcrest.Matchers.matchesRegex;
 
 public class IndexStorePluginTests extends ESTestCase {
 
@@ -112,7 +112,7 @@ public class IndexStorePluginTests extends ESTestCase {
         assertThat(
             e,
             hasToString(
-                matches(
+                matchesRegex(
                     "java.lang.IllegalStateException: Duplicate key store \\(attempted merging values "
                         + "org.elasticsearch.index.store.FsDirectoryFactory@[\\w\\d]+ "
                         + "and org.elasticsearch.index.store.FsDirectoryFactory@[\\w\\d]+\\)"

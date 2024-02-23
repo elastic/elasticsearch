@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.security.action.apikey;
 
+import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -17,11 +18,9 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.function.BiFunction;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -63,17 +62,13 @@ public final class BulkUpdateApiKeyRequest extends BaseBulkUpdateApiKeyRequest {
         BulkUpdateApiKeyRequest translate(RestRequest request) throws IOException;
 
         class Default implements RequestTranslator {
-            private static final ConstructingObjectParser<BulkUpdateApiKeyRequest, Void> PARSER = initParser((n, p) -> {
-                try {
-                    return RoleDescriptor.parse(n, p, false);
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                }
-            });
+            private static final ConstructingObjectParser<BulkUpdateApiKeyRequest, Void> PARSER = initParser(
+                (n, p) -> RoleDescriptor.parse(n, p, false)
+            );
 
             @SuppressWarnings("unchecked")
             protected static ConstructingObjectParser<BulkUpdateApiKeyRequest, Void> initParser(
-                BiFunction<String, XContentParser, RoleDescriptor> roleDescriptorParser
+                CheckedBiFunction<String, XContentParser, RoleDescriptor, IOException> roleDescriptorParser
             ) {
                 final ConstructingObjectParser<BulkUpdateApiKeyRequest, Void> parser = new ConstructingObjectParser<>(
                     "bulk_update_api_key_request",

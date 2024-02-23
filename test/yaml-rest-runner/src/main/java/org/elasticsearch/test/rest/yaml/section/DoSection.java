@@ -87,6 +87,16 @@ import static org.junit.Assert.fail;
  */
 public class DoSection implements ExecutableSection {
     public static DoSection parse(XContentParser parser) throws IOException {
+        return parse(parser, false);
+    }
+
+    @UpdateForV9
+    @Deprecated
+    public static DoSection parseWithLegacyNodeSelectorSupport(XContentParser parser) throws IOException {
+        return parse(parser, true);
+    }
+
+    private static DoSection parse(XContentParser parser, boolean enableLegacyNodeSelectorSupport) throws IOException {
         String currentFieldName = null;
         XContentParser.Token token;
 
@@ -176,7 +186,7 @@ public class DoSection implements ExecutableSection {
                         if (token == XContentParser.Token.FIELD_NAME) {
                             selectorName = parser.currentName();
                         } else {
-                            NodeSelector newSelector = buildNodeSelector(selectorName, parser);
+                            NodeSelector newSelector = buildNodeSelector(selectorName, parser, enableLegacyNodeSelectorSupport);
                             nodeSelector = nodeSelector == NodeSelector.ANY
                                 ? newSelector
                                 : new ComposeNodeSelector(nodeSelector, newSelector);
@@ -611,17 +621,13 @@ public class DoSection implements ExecutableSection {
         )
     );
 
-    private static NodeSelector buildNodeSelector(String name, XContentParser parser) throws IOException {
-        try {
-            return switch (name) {
-                case "attribute" -> parseAttributeValuesSelector(parser);
-                case "version" -> parseVersionSelector(parser);
-                default -> throw new XContentParseException(parser.getTokenLocation(), "unknown node_selector [" + name + "]");
-            };
-        } catch (XContentParseException e) {
-            parser.nextToken();
-            throw e;
-        }
+    private static NodeSelector buildNodeSelector(String name, XContentParser parser, boolean enableLegacyVersionSupport)
+        throws IOException {
+        return switch (name) {
+            case "attribute" -> parseAttributeValuesSelector(parser);
+            case "version" -> parseVersionSelector(parser, enableLegacyVersionSupport);
+            default -> throw new XContentParseException(parser.getTokenLocation(), "unknown node_selector [" + name + "]");
+        };
     }
 
     private static NodeSelector parseAttributeValuesSelector(XContentParser parser) throws IOException {
@@ -668,7 +674,23 @@ public class DoSection implements ExecutableSection {
         return result;
     }
 
-    private static NodeSelector parseVersionSelector(XContentParser parser) throws IOException {
+    private static boolean matchWithRange(
+        String nodeVersionString,
+        List<Predicate<Set<String>>> acceptedVersionRanges,
+        XContentLocation location
+    ) {
+        try {
+            return acceptedVersionRanges.stream().anyMatch(v -> v.test(Set.of(nodeVersionString)));
+        } catch (IllegalArgumentException e) {
+            throw new XContentParseException(
+                location,
+                "[version] range node selector expects a semantic version format (x.y.z), but found " + nodeVersionString,
+                e
+            );
+        }
+    }
+
+    private static NodeSelector parseVersionSelector(XContentParser parser, boolean enableLegacyVersionSupport) throws IOException {
         if (false == parser.currentToken().isValue()) {
             throw new XContentParseException(parser.getTokenLocation(), "expected [version] to be a value");
         }
@@ -682,10 +704,16 @@ public class DoSection implements ExecutableSection {
             nodeMatcher = nodeVersion -> Build.current().version().equals(nodeVersion) == false;
             versionSelectorString = "version is not current (original)";
         } else {
-            throw new XContentParseException(
-                parser.getTokenLocation(),
-                "unknown version selector [" + parser.text() + "]. Only [current] and [original] are allowed."
-            );
+            if (enableLegacyVersionSupport) {
+                var acceptedVersionRange = VersionRange.parseVersionRanges(parser.text());
+                nodeMatcher = nodeVersion -> matchWithRange(nodeVersion, acceptedVersionRange, parser.getTokenLocation());
+                versionSelectorString = "version ranges " + acceptedVersionRange;
+            } else {
+                throw new XContentParseException(
+                    parser.getTokenLocation(),
+                    "unknown version selector [" + parser.text() + "]. Only [current] and [original] are allowed."
+                );
+            }
         }
 
         return new NodeSelector() {

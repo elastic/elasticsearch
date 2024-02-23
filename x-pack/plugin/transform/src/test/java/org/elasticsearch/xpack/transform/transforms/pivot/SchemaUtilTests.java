@@ -46,10 +46,11 @@ import java.util.function.Consumer;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singletonMap;
-import static java.util.Map.entry;
+import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.is;
@@ -57,27 +58,26 @@ import static org.hamcrest.Matchers.is;
 public class SchemaUtilTests extends ESTestCase {
 
     public void testInsertNestedObjectMappings() {
-        Map<String, String> fieldMappings = Map.ofEntries(
-            // creates: a.b, a
-            entry("a.b.c", "long"),
-            entry("a.b.d", "double"),
-            // creates: c.b, c
-            entry("c.b.a", "double"),
-            // creates: c.d
-            entry("c.d.e", "object"),
-            entry("d", "long"),
-            entry("e.f.g", "long"),
-            // cc: already there
-            entry("e.f", "object"),
-            // cc: already there but different type (should not be possible)
-            entry("e", "long"),
-            // cc: start with . (should not be possible)
-            entry(".x", "long"),
-            // cc: start and ends with . (should not be possible), creates: .y
-            entry(".y.", "long"),
-            // cc: ends with . (should not be possible), creates: .z
-            entry(".z.", "long")
-        );
+        Map<String, String> fieldMappings = new HashMap<>();
+        // creates: a.b, a
+        fieldMappings.put("a.b.c", "long");
+        fieldMappings.put("a.b.d", "double");
+        // creates: c.b, c
+        fieldMappings.put("c.b.a", "double");
+        // creates: c.d
+        fieldMappings.put("c.d.e", "object");
+        fieldMappings.put("d", "long");
+        fieldMappings.put("e.f.g", "long");
+        // cc: already there
+        fieldMappings.put("e.f", "object");
+        // cc: already there but different type (should not be possible)
+        fieldMappings.put("e", "long");
+        // cc: start with . (should not be possible)
+        fieldMappings.put(".x", "long");
+        // cc: start and ends with . (should not be possible), creates: .y
+        fieldMappings.put(".y.", "long");
+        // cc: ends with . (should not be possible), creates: .z
+        fieldMappings.put(".z.", "long");
 
         SchemaUtil.insertNestedObjectMappings(fieldMappings);
 
@@ -121,10 +121,7 @@ public class SchemaUtilTests extends ESTestCase {
                     null,
                     listener
                 ),
-                mappings -> {
-                    assertNotNull(mappings);
-                    assertTrue(mappings.isEmpty());
-                }
+                mappings -> assertThat(mappings, anEmptyMap())
             );
 
             // fields is empty
@@ -136,10 +133,7 @@ public class SchemaUtilTests extends ESTestCase {
                     new String[] {},
                     listener
                 ),
-                mappings -> {
-                    assertNotNull(mappings);
-                    assertTrue(mappings.isEmpty());
-                }
+                mappings -> assertThat(mappings, anEmptyMap())
             );
 
             // good use
@@ -151,12 +145,7 @@ public class SchemaUtilTests extends ESTestCase {
                     new String[] { "field-1", "field-2" },
                     listener
                 ),
-                mappings -> {
-                    assertNotNull(mappings);
-                    assertEquals(2, mappings.size());
-                    assertEquals("long", mappings.get("field-1"));
-                    assertEquals("long", mappings.get("field-2"));
-                }
+                mappings -> assertThat(mappings, matchesMap(Map.of("field-1", "long", "field-2", "long")))
             );
         }
     }

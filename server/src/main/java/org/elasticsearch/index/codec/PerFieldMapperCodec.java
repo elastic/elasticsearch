@@ -26,6 +26,8 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 
+import java.util.List;
+
 /**
  * {@link PerFieldMapperCodec This Lucene codec} provides the default
  * {@link PostingsFormat} and {@link KnnVectorsFormat} for Elasticsearch. It utilizes the
@@ -36,6 +38,7 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
  */
 public final class PerFieldMapperCodec extends Lucene99Codec {
 
+    private static final List<String> LOGGING_DATASETS = List.of("");
     private final MapperService mapperService;
     private final DocValuesFormat docValuesFormat = new Lucene90DocValuesFormat();
     private final ES87BloomFilterPostingsFormat bloomFilterPostingsFormat;
@@ -110,7 +113,7 @@ public final class PerFieldMapperCodec extends Lucene99Codec {
             return false;
         }
 
-        return mapperService != null && isTimeSeriesModeIndex() && mapperService.getIndexSettings().isES87TSDBCodecEnabled();
+        return mapperService != null && isLoggingDataset() && mapperService.getIndexSettings().isES87TSDBCodecEnabled();
     }
 
     private boolean excludeFields(String fieldName) {
@@ -119,8 +122,16 @@ public final class PerFieldMapperCodec extends Lucene99Codec {
         return fieldName.startsWith("_") && fieldName.equals("_tsid") == false;
     }
 
-    private boolean isTimeSeriesModeIndex() {
-        return IndexMode.TIME_SERIES == mapperService.getIndexSettings().getMode();
+    private boolean isLoggingDataset() {
+        return mapperService.getIndexSettings().getIndex().getName().contains("apache")
+            || mapperService.getIndexSettings().getIndex().getName().contains("k8-application")
+            || mapperService.getIndexSettings().getIndex().getName().contains("kafka")
+            || mapperService.getIndexSettings().getIndex().getName().contains("mysql")
+            || mapperService.getIndexSettings().getIndex().getName().contains("nginx")
+            || mapperService.getIndexSettings().getIndex().getName().contains("postgresql")
+            || mapperService.getIndexSettings().getIndex().getName().contains("redis")
+            || mapperService.getIndexSettings().getIndex().getName().contains("system.auth")
+            || mapperService.getIndexSettings().getIndex().getName().contains("system.slowlog");
     }
 
 }

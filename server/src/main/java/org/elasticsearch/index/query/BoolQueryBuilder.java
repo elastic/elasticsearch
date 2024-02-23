@@ -206,7 +206,7 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
     }
 
     /**
-     * Returns <code>true</code> iff this query builder has at least one should, must, must not or filter clause.
+     * Returns <code>true</code> if this query builder has at least one should, must, must not or filter clause.
      * Otherwise <code>false</code>.
      */
     public boolean hasClauses() {

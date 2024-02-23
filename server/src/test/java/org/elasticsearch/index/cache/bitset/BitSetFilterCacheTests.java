@@ -280,11 +280,7 @@ public class BitSetFilterCacheTests extends ESTestCase {
         assertFalse(BitsetFilterCache.shouldLoadRandomAccessFiltersEagerly(bitsetFilterCacheSettings(false, false, false)));
     }
 
-    private IndexSettings bitsetFilterCacheSettings(
-        boolean isIndexNode,
-        boolean indexFastRefresh,
-        boolean loadFiltersEagerly
-    ) {
+    private IndexSettings bitsetFilterCacheSettings(boolean isIndexNode, boolean indexFastRefresh, boolean loadFiltersEagerly) {
         var indexSettings = Settings.builder()
             .put(INDEX_FAST_REFRESH_SETTING.getKey(), indexFastRefresh)
             .put(INDEX_LOAD_RANDOM_ACCESS_FILTERS_EAGERLY_SETTING.getKey(), loadFiltersEagerly)

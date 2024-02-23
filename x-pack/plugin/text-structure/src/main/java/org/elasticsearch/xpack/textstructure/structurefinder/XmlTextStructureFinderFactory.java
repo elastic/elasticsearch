@@ -69,7 +69,7 @@ public class XmlTextStructureFinderFactory implements TextStructureFinderFactory
                 return false;
             }
             if (completeDocCount > 1) {
-                explanation.add("Not XML because a message contains a mulitple documents");
+                explanation.add("Not XML because a message contains a multiple documents");
                 return false;
             }
         }

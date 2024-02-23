@@ -1019,17 +1019,21 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
     //
     // BigDecimal fetching testing
     //
-    static final Map<Class<? extends Number>, Integer> JAVA_TO_SQL_NUMERIC_TYPES_MAP = new HashMap<>() {
-        {
-            put(Byte.class, Types.TINYINT);
-            put(Short.class, Types.SMALLINT);
-            put(Integer.class, Types.INTEGER);
-            put(Long.class, Types.BIGINT);
-            put(Float.class, Types.REAL);
-            put(Double.class, Types.DOUBLE);
-            // TODO: no half & scaled float testing
-        }
-    };
+    static final Map<Class<? extends Number>, Integer> JAVA_TO_SQL_NUMERIC_TYPES_MAP = Map.of(
+        Byte.class,
+        Types.TINYINT,
+        Short.class,
+        Types.SMALLINT,
+        Integer.class,
+        Types.INTEGER,
+        Long.class,
+        Types.BIGINT,
+        Float.class,
+        Types.REAL,
+        Double.class,
+        Types.DOUBLE
+        // TODO: no half & scaled float testing
+    );
 
     private static <T extends Number> void validateBigDecimalWithoutCasting(ResultSet results, List<T> testValues) throws SQLException {
 

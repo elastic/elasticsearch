@@ -136,6 +136,7 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
         });
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-serverless/issues/1461")
     public void testShouldRetryMoreThanMaxRetriesForIndicesData() throws IOException {
         s3HttpHandler.setInterceptor(new Interceptor() {
             private final int errorsPerRequest = randomIntBetween(3, 5); // More than the default attempts of 2 (1 original + 1 retry)

@@ -37,8 +37,6 @@ import java.util.List;
  * configured for a specific field the default postings or vector format is used.
  */
 public final class PerFieldMapperCodec extends Lucene99Codec {
-
-    private static final List<String> LOGGING_DATASETS = List.of("");
     private final MapperService mapperService;
     private final DocValuesFormat docValuesFormat = new Lucene90DocValuesFormat();
     private final ES87BloomFilterPostingsFormat bloomFilterPostingsFormat;

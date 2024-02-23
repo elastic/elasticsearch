@@ -58,7 +58,7 @@ import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.internal.DocumentParsingObserver;
+import org.elasticsearch.plugins.internal.DocumentSizeObserver;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -72,7 +72,6 @@ import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.BucketedSort.ExtraData;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.FieldMaskingReader;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -101,7 +100,7 @@ import static org.mockito.Mockito.mock;
  * mapping. Useful when you don't need to spin up an entire index but do
  * need most of the trapping of the mapping.
  */
-public abstract class MapperServiceTestCase extends ESTestCase {
+public abstract class MapperServiceTestCase extends FieldTypeTestCase {
 
     protected static final Settings SETTINGS = Settings.builder()
         .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
@@ -220,8 +219,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
                 throw new UnsupportedOperationException();
             },
             indexSettings.getMode().buildIdFieldMapper(idFieldDataEnabled),
-            this::compileScript,
-            () -> DocumentParsingObserver.EMPTY_INSTANCE
+            this::compileScript
         );
     }
 
@@ -285,7 +283,14 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         XContentBuilder builder = JsonXContent.contentBuilder().startObject();
         build.accept(builder);
         builder.endObject();
-        return new SourceToParse(id, BytesReference.bytes(builder), XContentType.JSON, routing, dynamicTemplates, false);
+        return new SourceToParse(
+            id,
+            BytesReference.bytes(builder),
+            XContentType.JSON,
+            routing,
+            dynamicTemplates,
+            DocumentSizeObserver.EMPTY_INSTANCE
+        );
     }
 
     /**
@@ -710,7 +715,16 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         try (Directory roundTripDirectory = newDirectory()) {
             RandomIndexWriter roundTripIw = new RandomIndexWriter(random(), roundTripDirectory);
             roundTripIw.addDocument(
-                mapper.parse(new SourceToParse("1", new BytesArray(syntheticSource), XContentType.JSON, null, Map.of(), false)).rootDoc()
+                mapper.parse(
+                    new SourceToParse(
+                        "1",
+                        new BytesArray(syntheticSource),
+                        XContentType.JSON,
+                        null,
+                        Map.of(),
+                        DocumentSizeObserver.EMPTY_INSTANCE
+                    )
+                ).rootDoc()
             );
             roundTripIw.close();
             try (DirectoryReader roundTripReader = DirectoryReader.open(roundTripDirectory)) {

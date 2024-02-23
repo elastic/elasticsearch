@@ -9,7 +9,6 @@
 package org.elasticsearch.action.admin.cluster.desirednodes;
 
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
@@ -60,23 +59,19 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
     }
 
     public void testDryRunUpdateDoesNotUpdateEmptyDesiredNodes() {
-        UpdateDesiredNodesResponse dryRunResponse = updateDesiredNodes(
-            randomDryRunUpdateDesiredNodesRequest(Version.CURRENT, Settings.EMPTY)
-        );
+        UpdateDesiredNodesResponse dryRunResponse = updateDesiredNodes(randomDryRunUpdateDesiredNodesRequest(Settings.EMPTY));
         assertThat(dryRunResponse.dryRun(), is(equalTo(true)));
 
         expectThrows(ResourceNotFoundException.class, this::getLatestDesiredNodes);
     }
 
     public void testDryRunUpdateDoesNotUpdateExistingDesiredNodes() {
-        UpdateDesiredNodesResponse response = updateDesiredNodes(randomUpdateDesiredNodesRequest(Version.CURRENT, Settings.EMPTY));
+        UpdateDesiredNodesResponse response = updateDesiredNodes(randomUpdateDesiredNodesRequest(Settings.EMPTY));
         assertThat(response.dryRun(), is(equalTo(false)));
 
         DesiredNodes desiredNodes = getLatestDesiredNodes();
 
-        UpdateDesiredNodesResponse dryRunResponse = updateDesiredNodes(
-            randomDryRunUpdateDesiredNodesRequest(Version.CURRENT, Settings.EMPTY)
-        );
+        UpdateDesiredNodesResponse dryRunResponse = updateDesiredNodes(randomDryRunUpdateDesiredNodesRequest(Settings.EMPTY));
         assertThat(dryRunResponse.dryRun(), is(equalTo(true)));
 
         assertEquals(getLatestDesiredNodes(), desiredNodes);
@@ -183,7 +178,6 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
 
     public void testUnknownSettingsAreAllowedInFutureVersions() {
         final var updateDesiredNodesRequest = randomUpdateDesiredNodesRequest(
-            Version.fromString("99.9.0"),
             Settings.builder().put("desired_nodes.random_setting", Integer.MIN_VALUE).build()
         );
 
@@ -203,11 +197,7 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
             randomList(
                 1,
                 20,
-                () -> randomDesiredNode(
-                    Version.CURRENT,
-                    Settings.builder().put(NODE_PROCESSORS_SETTING.getKey(), numProcessors).build(),
-                    numProcessors
-                )
+                () -> randomDesiredNode(Settings.builder().put(NODE_PROCESSORS_SETTING.getKey(), numProcessors).build(), numProcessors)
             ),
             false
         );
@@ -222,19 +212,6 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
             final var desiredNode = desiredNodeWithStatus.desiredNode();
             assertThat(desiredNode.settings().get(NODE_PROCESSORS_SETTING.getKey()), is(equalTo(Integer.toString(numProcessors))));
         }
-    }
-
-    public void testNodeVersionIsValidated() {
-        final var updateDesiredNodesRequest = randomUpdateDesiredNodesRequest(Version.CURRENT.previousMajor(), Settings.EMPTY);
-
-        final IllegalArgumentException exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> updateDesiredNodes(updateDesiredNodesRequest)
-        );
-        assertThat(exception.getMessage(), containsString("Nodes with ids"));
-        assertThat(exception.getMessage(), containsString("contain invalid settings"));
-        assertThat(exception.getSuppressed().length > 0, is(equalTo(true)));
-        assertThat(exception.getSuppressed()[0].getMessage(), containsString("Illegal node version"));
     }
 
     public void testUpdateDesiredNodesTasksAreBatchedCorrectly() throws Exception {
@@ -326,23 +303,19 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
     }
 
     private UpdateDesiredNodesRequest randomUpdateDesiredNodesRequest(Settings settings) {
-        return randomUpdateDesiredNodesRequest(Version.CURRENT, settings);
-    }
-
-    private UpdateDesiredNodesRequest randomUpdateDesiredNodesRequest(Version version, Settings settings) {
         return new UpdateDesiredNodesRequest(
             UUIDs.randomBase64UUID(),
             randomIntBetween(2, 20),
-            randomList(2, 10, () -> randomDesiredNode(version, settings)),
+            randomList(2, 10, () -> randomDesiredNode(settings)),
             false
         );
     }
 
-    private UpdateDesiredNodesRequest randomDryRunUpdateDesiredNodesRequest(Version version, Settings settings) {
+    private UpdateDesiredNodesRequest randomDryRunUpdateDesiredNodesRequest(Settings settings) {
         return new UpdateDesiredNodesRequest(
             UUIDs.randomBase64UUID(),
             randomIntBetween(2, 20),
-            randomList(2, 10, () -> randomDesiredNode(version, settings)),
+            randomList(2, 10, () -> randomDesiredNode(settings)),
             true
         );
     }

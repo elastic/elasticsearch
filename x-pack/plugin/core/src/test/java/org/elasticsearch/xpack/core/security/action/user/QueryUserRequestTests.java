@@ -18,7 +18,8 @@ public class QueryUserRequestTests extends ESTestCase {
             randomIntBetween(0, Integer.MAX_VALUE),
             randomIntBetween(0, Integer.MAX_VALUE),
             null,
-            null
+            null,
+            false
         );
         assertThat(request1.validate(), nullValue());
 
@@ -27,7 +28,8 @@ public class QueryUserRequestTests extends ESTestCase {
             randomIntBetween(Integer.MIN_VALUE, -1),
             randomIntBetween(0, Integer.MAX_VALUE),
             null,
-            null
+            null,
+            false
         );
         assertThat(request2.validate().getMessage(), containsString("[from] parameter cannot be negative"));
 
@@ -36,7 +38,8 @@ public class QueryUserRequestTests extends ESTestCase {
             randomIntBetween(0, Integer.MAX_VALUE),
             randomIntBetween(Integer.MIN_VALUE, -1),
             null,
-            null
+            null,
+            false
         );
         assertThat(request3.validate().getMessage(), containsString("[size] parameter cannot be negative"));
     }

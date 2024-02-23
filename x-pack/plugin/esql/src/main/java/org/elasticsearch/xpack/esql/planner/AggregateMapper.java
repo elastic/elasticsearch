@@ -254,15 +254,18 @@ public class AggregateMapper {
             return "Long";
         } else if (type.equals(DataTypes.DOUBLE)) {
             return "Double";
-        } else if (type.equals(DataTypes.KEYWORD) || type.equals(DataTypes.IP) || type.equals(DataTypes.TEXT)) {
-            return "BytesRef";
-        } else if (type.equals(GEO_POINT)) {
-            return "GeoPoint";
-        } else if (type.equals(CARTESIAN_POINT)) {
-            return "CartesianPoint";
-        } else {
-            throw new EsqlIllegalArgumentException("illegal agg type: " + type.typeName());
-        }
+        } else if (type.equals(DataTypes.KEYWORD)
+            || type.equals(DataTypes.IP)
+            || type.equals(DataTypes.VERSION)
+            || type.equals(DataTypes.TEXT)) {
+                return "BytesRef";
+            } else if (type.equals(GEO_POINT)) {
+                return "GeoPoint";
+            } else if (type.equals(CARTESIAN_POINT)) {
+                return "CartesianPoint";
+            } else {
+                throw new EsqlIllegalArgumentException("illegal agg type: " + type.typeName());
+            }
     }
 
     private static Expression unwrapAlias(Expression expression) {

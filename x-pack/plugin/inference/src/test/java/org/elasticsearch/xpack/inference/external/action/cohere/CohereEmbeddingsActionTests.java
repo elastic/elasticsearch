@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderFactory;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
+import org.elasticsearch.xpack.inference.external.request.cohere.CohereUtils;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.results.TextEmbeddingByteResultsTests;
 import org.elasticsearch.xpack.inference.services.cohere.CohereTruncation;
@@ -130,6 +131,10 @@ public class CohereEmbeddingsActionTests extends ESTestCase {
                 equalTo(XContentType.JSON.mediaType())
             );
             MatcherAssert.assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
+            MatcherAssert.assertThat(
+                webServer.requests().get(0).getHeader(CohereUtils.REQUEST_SOURCE_HEADER),
+                equalTo(CohereUtils.ELASTIC_REQUEST_SOURCE)
+            );
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
             MatcherAssert.assertThat(
@@ -210,6 +215,10 @@ public class CohereEmbeddingsActionTests extends ESTestCase {
                 equalTo(XContentType.JSON.mediaType())
             );
             MatcherAssert.assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
+            MatcherAssert.assertThat(
+                webServer.requests().get(0).getHeader(CohereUtils.REQUEST_SOURCE_HEADER),
+                equalTo(CohereUtils.ELASTIC_REQUEST_SOURCE)
+            );
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
             MatcherAssert.assertThat(

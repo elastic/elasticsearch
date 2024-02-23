@@ -110,7 +110,7 @@ public class CohereActionCreatorTests extends ESTestCase {
             );
             var actionCreator = new CohereActionCreator(sender, createWithEmptySettings(threadPool));
             var overriddenTaskSettings = CohereEmbeddingsTaskSettingsTests.getTaskSettingsMap(InputType.SEARCH, CohereTruncation.END);
-            var action = actionCreator.create(model, overriddenTaskSettings);
+            var action = actionCreator.create(model, overriddenTaskSettings, InputType.UNSPECIFIED);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(List.of("abc"), listener);

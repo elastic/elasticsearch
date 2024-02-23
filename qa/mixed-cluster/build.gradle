@@ -45,10 +45,16 @@ excludeList.add('aggregations/filters_bucket/cache hits')
 // Validation (and associated tests) are supposed to be skipped/have
 // different behaviour for versions before and after 8.10 but mixed
 // cluster tests may not respect that - see the comment above.
-excludeList.add('cluster.desired_nodes/10_basic/Test settings are validated')
-excludeList.add('cluster.desired_nodes/10_basic/Test unknown settings are forbidden in known versions')
-excludeList.add('cluster.desired_nodes/10_basic/Test unknown settings are allowed in future versions')
-excludeList.add('cluster.desired_nodes/10_basic/Test some settings can be overridden')
+// Same for node version, which has been deprecated (and made optional)
+// starting from 8.13
+excludeList.add('cluster.desired_nodes/11_old_format/Test settings are validated')
+excludeList.add('cluster.desired_nodes/11_old_format/Test unknown settings are forbidden in known versions')
+excludeList.add('cluster.desired_nodes/11_old_format/Test unknown settings are allowed in future versions')
+excludeList.add('cluster.desired_nodes/11_old_format/Test some settings can be overridden')
+excludeList.add('cluster.desired_nodes/11_old_format/Test node version must be at least the current master version')
+excludeList.add('cluster.desired_nodes/11_old_format/Test node version is required')
+excludeList.add('cluster.desired_nodes/11_old_format/Test node version must have content')
+excludeList.add('cluster.desired_nodes/11_old_format/Test node version can not be null')
 excludeList.add('cluster.desired_nodes/20_dry_run/Test validation works for dry run updates')
 
 BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->

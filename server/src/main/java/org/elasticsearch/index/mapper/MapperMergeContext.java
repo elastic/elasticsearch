@@ -46,8 +46,8 @@ public final class MapperMergeContext {
      * @param name the name of the child context
      * @return a new {@link MapperMergeContext} with this context as its parent
      */
-    MapperMergeContext createChildContext(String name) {
-        return createChildContext(mapperBuilderContext.createChildContext(name));
+    MapperMergeContext createChildContext(String name, ObjectMapper.Dynamic dynamic) {
+        return createChildContext(mapperBuilderContext.createChildContext(name, dynamic));
     }
 
     /**
@@ -96,7 +96,6 @@ public final class MapperMergeContext {
             public boolean decrementIfPossible(long fieldSize) {
                 return true;
             }
-
         }
 
         final class Limited implements NewFieldsBudget {
@@ -115,7 +114,6 @@ public final class MapperMergeContext {
                 }
                 return false;
             }
-
         }
     }
 }

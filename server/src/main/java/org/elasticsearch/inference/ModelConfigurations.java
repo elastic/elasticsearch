@@ -13,13 +13,12 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
-import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
 
-public class ModelConfigurations implements ToXContentObject, VersionedNamedWriteable {
+public class ModelConfigurations implements ToFilteredXContentObject, VersionedNamedWriteable {
 
     public static final String MODEL_ID = "model_id";
     public static final String SERVICE = "service";
@@ -32,7 +31,7 @@ public class ModelConfigurations implements ToXContentObject, VersionedNamedWrit
         Objects.requireNonNull(taskSettings);
 
         return new ModelConfigurations(
-            model.getConfigurations().getModelId(),
+            model.getConfigurations().getInferenceEntityId(),
             model.getConfigurations().getTaskType(),
             model.getConfigurations().getService(),
             model.getServiceSettings(),
@@ -45,7 +44,7 @@ public class ModelConfigurations implements ToXContentObject, VersionedNamedWrit
         Objects.requireNonNull(serviceSettings);
 
         return new ModelConfigurations(
-            model.getConfigurations().getModelId(),
+            model.getConfigurations().getInferenceEntityId(),
             model.getConfigurations().getTaskType(),
             model.getConfigurations().getService(),
             serviceSettings,
@@ -53,7 +52,7 @@ public class ModelConfigurations implements ToXContentObject, VersionedNamedWrit
         );
     }
 
-    private final String modelId;
+    private final String inferenceEntityId;
     private final TaskType taskType;
     private final String service;
     private final ServiceSettings serviceSettings;
@@ -62,18 +61,18 @@ public class ModelConfigurations implements ToXContentObject, VersionedNamedWrit
     /**
      * Allows no task settings to be defined. This will default to the {@link EmptyTaskSettings} object.
      */
-    public ModelConfigurations(String modelId, TaskType taskType, String service, ServiceSettings serviceSettings) {
-        this(modelId, taskType, service, serviceSettings, EmptyTaskSettings.INSTANCE);
+    public ModelConfigurations(String inferenceEntityId, TaskType taskType, String service, ServiceSettings serviceSettings) {
+        this(inferenceEntityId, taskType, service, serviceSettings, EmptyTaskSettings.INSTANCE);
     }
 
     public ModelConfigurations(
-        String modelId,
+        String inferenceEntityId,
         TaskType taskType,
         String service,
         ServiceSettings serviceSettings,
         TaskSettings taskSettings
     ) {
-        this.modelId = Objects.requireNonNull(modelId);
+        this.inferenceEntityId = Objects.requireNonNull(inferenceEntityId);
         this.taskType = Objects.requireNonNull(taskType);
         this.service = Objects.requireNonNull(service);
         this.serviceSettings = Objects.requireNonNull(serviceSettings);
@@ -81,7 +80,7 @@ public class ModelConfigurations implements ToXContentObject, VersionedNamedWrit
     }
 
     public ModelConfigurations(StreamInput in) throws IOException {
-        this.modelId = in.readString();
+        this.inferenceEntityId = in.readString();
         this.taskType = in.readEnum(TaskType.class);
         this.service = in.readString();
         this.serviceSettings = in.readNamedWriteable(ServiceSettings.class);
@@ -90,15 +89,15 @@ public class ModelConfigurations implements ToXContentObject, VersionedNamedWrit
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(modelId);
+        out.writeString(inferenceEntityId);
         out.writeEnum(taskType);
         out.writeString(service);
         out.writeNamedWriteable(serviceSettings);
         out.writeNamedWriteable(taskSettings);
     }
 
-    public String getModelId() {
-        return modelId;
+    public String getInferenceEntityId() {
+        return inferenceEntityId;
     }
 
     public TaskType getTaskType() {
@@ -120,10 +119,22 @@ public class ModelConfigurations implements ToXContentObject, VersionedNamedWrit
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(MODEL_ID, modelId);
+        builder.field(MODEL_ID, inferenceEntityId);
         builder.field(TaskType.NAME, taskType.toString());
         builder.field(SERVICE, service);
         builder.field(SERVICE_SETTINGS, serviceSettings);
+        builder.field(TASK_SETTINGS, taskSettings);
+        builder.endObject();
+        return builder;
+    }
+
+    @Override
+    public XContentBuilder toFilteredXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        builder.field(MODEL_ID, inferenceEntityId);
+        builder.field(TaskType.NAME, taskType.toString());
+        builder.field(SERVICE, service);
+        builder.field(SERVICE_SETTINGS, serviceSettings.getFilteredXContentObject());
         builder.field(TASK_SETTINGS, taskSettings);
         builder.endObject();
         return builder;
@@ -136,7 +147,7 @@ public class ModelConfigurations implements ToXContentObject, VersionedNamedWrit
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_500_074;
+        return TransportVersions.V_8_11_X;
     }
 
     @Override
@@ -144,7 +155,7 @@ public class ModelConfigurations implements ToXContentObject, VersionedNamedWrit
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         ModelConfigurations model = (ModelConfigurations) o;
-        return Objects.equals(modelId, model.modelId)
+        return Objects.equals(inferenceEntityId, model.inferenceEntityId)
             && taskType == model.taskType
             && Objects.equals(service, model.service)
             && Objects.equals(serviceSettings, model.serviceSettings)
@@ -153,6 +164,6 @@ public class ModelConfigurations implements ToXContentObject, VersionedNamedWrit
 
     @Override
     public int hashCode() {
-        return Objects.hash(modelId, taskType, service, serviceSettings, taskSettings);
+        return Objects.hash(inferenceEntityId, taskType, service, serviceSettings, taskSettings);
     }
 }

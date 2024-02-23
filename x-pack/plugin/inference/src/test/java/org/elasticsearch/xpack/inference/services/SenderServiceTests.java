@@ -7,12 +7,14 @@
 
 package org.elasticsearch.xpack.inference.services;
 
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.ChunkedInferenceServiceResults;
+import org.elasticsearch.inference.ChunkingOptions;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
@@ -58,7 +60,7 @@ public class SenderServiceTests extends ESTestCase {
         var factory = mock(HttpRequestSenderFactory.class);
         when(factory.createSender(anyString())).thenReturn(sender);
 
-        try (var service = new TestSenderService(new SetOnce<>(factory), new SetOnce<>(createWithEmptySettings(threadPool)))) {
+        try (var service = new TestSenderService(factory, createWithEmptySettings(threadPool))) {
             PlainActionFuture<Boolean> listener = new PlainActionFuture<>();
             service.start(mock(Model.class), listener);
 
@@ -78,7 +80,7 @@ public class SenderServiceTests extends ESTestCase {
         var factory = mock(HttpRequestSenderFactory.class);
         when(factory.createSender(anyString())).thenReturn(sender);
 
-        try (var service = new TestSenderService(new SetOnce<>(factory), new SetOnce<>(createWithEmptySettings(threadPool)))) {
+        try (var service = new TestSenderService(factory, createWithEmptySettings(threadPool))) {
             PlainActionFuture<Boolean> listener = new PlainActionFuture<>();
             service.start(mock(Model.class), listener);
             listener.actionGet(TIMEOUT);
@@ -96,7 +98,7 @@ public class SenderServiceTests extends ESTestCase {
     }
 
     private static final class TestSenderService extends SenderService {
-        TestSenderService(SetOnce<HttpRequestSenderFactory> factory, SetOnce<ServiceComponents> serviceComponents) {
+        TestSenderService(HttpRequestSenderFactory factory, ServiceComponents serviceComponents) {
             super(factory, serviceComponents);
         }
 
@@ -105,7 +107,20 @@ public class SenderServiceTests extends ESTestCase {
             Model model,
             List<String> input,
             Map<String, Object> taskSettings,
+            InputType inputType,
             ActionListener<InferenceServiceResults> listener
+        ) {
+
+        }
+
+        @Override
+        protected void doChunkedInfer(
+            Model model,
+            List<String> input,
+            Map<String, Object> taskSettings,
+            InputType inputType,
+            ChunkingOptions chunkingOptions,
+            ActionListener<List<ChunkedInferenceServiceResults>> listener
         ) {
 
         }
@@ -116,13 +131,19 @@ public class SenderServiceTests extends ESTestCase {
         }
 
         @Override
-        public Model parseRequestConfig(String modelId, TaskType taskType, Map<String, Object> config, Set<String> platfromArchitectures) {
-            return null;
+        public void parseRequestConfig(
+            String inferenceEntityId,
+            TaskType taskType,
+            Map<String, Object> config,
+            Set<String> platfromArchitectures,
+            ActionListener<Model> parsedModelListener
+        ) {
+            parsedModelListener.onResponse(null);
         }
 
         @Override
         public Model parsePersistedConfigWithSecrets(
-            String modelId,
+            String inferenceEntityId,
             TaskType taskType,
             Map<String, Object> config,
             Map<String, Object> secrets
@@ -131,7 +152,7 @@ public class SenderServiceTests extends ESTestCase {
         }
 
         @Override
-        public Model parsePersistedConfig(String modelId, TaskType taskType, Map<String, Object> config) {
+        public Model parsePersistedConfig(String inferenceEntityId, TaskType taskType, Map<String, Object> config) {
             return null;
         }
 

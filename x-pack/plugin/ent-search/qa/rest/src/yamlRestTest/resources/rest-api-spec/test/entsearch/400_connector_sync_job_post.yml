@@ -287,3 +287,18 @@ setup:
           job_type: full
           trigger_method: invalid_trigger_method
       catch: bad_request
+
+
+---
+"Create connector sync job fails for unprivileged user":
+  - skip:
+      features: headers
+
+  - do:
+      catch: forbidden
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # entsearch-user with read-only access
+      connector_sync_job.post:
+        body:
+          id: test-connector
+          job_type: full
+          trigger_method: on_demand

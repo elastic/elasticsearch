@@ -5,7 +5,6 @@ dependencies {
   javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
   //TODO: update javaRestTests to not rely on any code that it is testing
   javaRestTestImplementation project(path: xpackModule('identity-provider'))
-  javaRestTestImplementation project(":client:rest-high-level")
 }
 
 testClusters.configureEach {

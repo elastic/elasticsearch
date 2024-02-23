@@ -13,7 +13,7 @@ TO_CARTESIANSHAPE(v)
 
 `v`::
 Input value. The input can be a single- or multi-valued column or an expression.
-The input type must be a string or a `cartesian_shape`.
+The input type must be a string, a `cartesian_shape` or a `cartesian_point`.
 
 *Description*
 

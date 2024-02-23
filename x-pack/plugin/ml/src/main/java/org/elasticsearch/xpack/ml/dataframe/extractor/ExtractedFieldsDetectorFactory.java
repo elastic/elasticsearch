@@ -26,7 +26,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
-import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.metrics.Cardinality;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -156,7 +156,7 @@ public class ExtractedFieldsDetectorFactory {
         SearchResponse searchResponse,
         ActionListener<Map<String, Long>> listener
     ) {
-        Aggregations aggs = searchResponse.getAggregations();
+        InternalAggregations aggs = searchResponse.getAggregations();
         if (aggs == null) {
             listener.onFailure(ExceptionsHelper.serverError("Unexpected null response when gathering field cardinalities"));
             return;

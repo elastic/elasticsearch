@@ -177,6 +177,7 @@ import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -971,7 +972,17 @@ public abstract class ESIntegTestCase extends ESTestCase {
             // been removed by the master so that the health check applies to the set of nodes we expect to be part of the cluster.
             .waitForNodes(Integer.toString(cluster().size()));
 
-        final ClusterHealthResponse clusterHealthResponse = clusterAdmin().health(healthRequest).actionGet();
+        final ClusterHealthResponse clusterHealthResponse;
+        try {
+            clusterHealthResponse = clusterAdmin().health(healthRequest).get();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            logger.error("interrupted while waiting for health response", e);
+            throw new AssertionError("interrupted while waiting for health response", e);
+        } catch (ExecutionException e) {
+            logger.error("failed to get health response", e);
+            throw new AssertionError("failed to get health response", e);
+        }
         if (clusterHealthResponse.isTimedOut()) {
             final var allocationExplainRef = new AtomicReference<ClusterAllocationExplainResponse>();
             final var clusterStateRef = new AtomicReference<ClusterStateResponse>();
@@ -1649,7 +1660,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         Set<String> indices = new HashSet<>();
         builders = new ArrayList<>(builders);
         for (IndexRequestBuilder builder : builders) {
-            indices.add(builder.request().index());
+            indices.add(builder.getIndex());
         }
         Set<List<String>> bogusIds = new HashSet<>(); // (index, type, id)
         if (random.nextBoolean() && builders.isEmpty() == false && dummyDocuments) {

@@ -57,7 +57,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(UpdateRequest.class);
 
-    private static ObjectParser<UpdateRequest, Void> PARSER;
+    private static final ObjectParser<UpdateRequest, Void> PARSER;
 
     private static final ParseField SCRIPT_FIELD = new ParseField("script");
     private static final ParseField SCRIPTED_UPSERT_FIELD = new ParseField("scripted_upsert");
@@ -702,6 +702,14 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
             doc = new IndexRequest();
         }
         return doc;
+    }
+
+    /**
+     * Sets the doc source of the update request to be used when the document does not exists.
+     */
+    public UpdateRequest upsert(BytesReference source, XContentType contentType) {
+        safeUpsertRequest().source(source, contentType);
+        return this;
     }
 
     /**

@@ -29,10 +29,13 @@ Use the following APIs to manage connectors:
 * <<update-connector-configuration-api>>
 * <<update-connector-error-api>>
 * <<update-connector-filtering-api>>
+* <<update-connector-index-name-api>>
 * <<update-connector-last-sync-api>>
 * <<update-connector-name-description-api>>
 * <<update-connector-pipeline-api>>
 * <<update-connector-scheduling-api>>
+* <<update-connector-service-type-api>>
+* <<update-connector-status-api>>
 
 
 [discrete]
@@ -70,7 +73,10 @@ include::set-connector-sync-job-stats-api.asciidoc[]
 include::update-connector-configuration-api.asciidoc[]
 include::update-connector-error-api.asciidoc[]
 include::update-connector-filtering-api.asciidoc[]
+include::update-connector-index-name-api.asciidoc[]
 include::update-connector-last-sync-api.asciidoc[]
 include::update-connector-name-description-api.asciidoc[]
 include::update-connector-pipeline-api.asciidoc[]
 include::update-connector-scheduling-api.asciidoc[]
+include::update-connector-service-type-api.asciidoc[]
+include::update-connector-status-api.asciidoc[]

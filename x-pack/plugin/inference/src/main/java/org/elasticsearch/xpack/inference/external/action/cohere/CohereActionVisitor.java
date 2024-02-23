@@ -7,11 +7,12 @@
 
 package org.elasticsearch.xpack.inference.external.action.cohere;
 
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsModel;
 
 import java.util.Map;
 
 public interface CohereActionVisitor {
-    ExecutableAction create(CohereEmbeddingsModel model, Map<String, Object> taskSettings);
+    ExecutableAction create(CohereEmbeddingsModel model, Map<String, Object> taskSettings, InputType inputType);
 }

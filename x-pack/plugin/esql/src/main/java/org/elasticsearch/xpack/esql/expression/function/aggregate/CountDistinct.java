@@ -32,6 +32,7 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isFoldable;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isInteger;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
 
 public class CountDistinct extends AggregateFunction implements OptionalArgument, ToAggregator {
     private static final int DEFAULT_PRECISION = 3000;
@@ -42,19 +43,7 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
         Source source,
         @Param(
             name = "field",
-            type = {
-                "boolean",
-                "cartesian_point",
-                "date",
-                "double",
-                "geo_point",
-                "integer",
-                "ip",
-                "keyword",
-                "long",
-                "text",
-                "unsigned_long",
-                "version" },
+            type = { "boolean", "cartesian_point", "date", "double", "geo_point", "integer", "ip", "keyword", "long", "text", "version" },
             description = "Column or literal for which to count the number of distinct values."
         ) Expression field,
         @Param(optional = true, name = "precision", type = { "integer" }) Expression precision
@@ -85,10 +74,21 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
         }
 
         TypeResolution resolution = EsqlTypeResolutions.isExact(field(), sourceText(), DEFAULT);
-        if (resolution.unresolved() || precision == null) {
+        if (resolution.unresolved()) {
             return resolution;
         }
 
+        boolean resolved = resolution.resolved();
+        resolution = isType(
+            field(),
+            dt -> resolved && dt != DataTypes.UNSIGNED_LONG,
+            sourceText(),
+            DEFAULT,
+            "any exact type except unsigned_long"
+        );
+        if (resolution.unresolved() || precision == null) {
+            return resolution;
+        }
         return isInteger(precision, sourceText(), SECOND).and(isFoldable(precision, sourceText(), SECOND));
     }
 
@@ -109,7 +109,7 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
         if (type == DataTypes.DOUBLE) {
             return new CountDistinctDoubleAggregatorFunctionSupplier(inputChannels, precision);
         }
-        if (type == DataTypes.KEYWORD || type == DataTypes.IP || type == DataTypes.TEXT) {
+        if (type == DataTypes.KEYWORD || type == DataTypes.IP || type == DataTypes.VERSION || type == DataTypes.TEXT) {
             return new CountDistinctBytesRefAggregatorFunctionSupplier(inputChannels, precision);
         }
         throw EsqlIllegalArgumentException.illegalDataType(type);

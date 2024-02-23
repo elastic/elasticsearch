@@ -163,7 +163,7 @@ public class StartPersistentTaskAction extends ActionType<PersistentTaskResponse
                 threadPool.executor(ThreadPool.Names.GENERIC)
             );
             this.persistentTasksClusterService = persistentTasksClusterService;
-            NodePersistentTasksExecutor executor = new NodePersistentTasksExecutor(threadPool);
+            NodePersistentTasksExecutor executor = new NodePersistentTasksExecutor();
             clusterService.addListener(
                 new PersistentTasksNodeService(
                     threadPool,

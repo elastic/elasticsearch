@@ -106,7 +106,7 @@ rootProject {
         afterEvaluate {
             testClusters.matching { it.name == "runTask" }.configureEach {
                 setting 'xpack.security.audit.enabled', 'true'
-                keystore 'tracing.apm.secret_token', 'TODO-REPLACE'
+                keystore 'telemetry.secret_token', 'TODO-REPLACE'
                 setting 'telemetry.metrics.enabled', 'true'
                 setting 'telemetry.agent.server_url', 'https://TODO-REPLACE-URL.apm.eastus2.staging.azure.foundit.no:443'
             }

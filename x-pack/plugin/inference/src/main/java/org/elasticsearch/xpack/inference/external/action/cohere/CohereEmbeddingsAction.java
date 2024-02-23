@@ -62,13 +62,7 @@ public class CohereEmbeddingsAction implements ExecutableAction {
     @Override
     public void execute(List<String> input, ActionListener<InferenceServiceResults> listener) {
         try {
-            CohereEmbeddingsRequest request = new CohereEmbeddingsRequest(
-                account,
-                input,
-                model.getTaskSettings(),
-                model.getServiceSettings().getCommonSettings().getModel(),
-                model.getServiceSettings().getEmbeddingType()
-            );
+            CohereEmbeddingsRequest request = new CohereEmbeddingsRequest(account, input, model);
             ActionListener<InferenceServiceResults> wrappedListener = wrapFailuresInElasticsearchException(
                 failedToSendRequestErrorMessage,
                 listener

@@ -13,6 +13,7 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.inference.ServiceSettings;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -63,13 +64,18 @@ public record HuggingFaceElserServiceSettings(URI uri, Integer maxInputTokens) i
     }
 
     @Override
+    public ToXContentObject getFilteredXContentObject() {
+        return this;
+    }
+
+    @Override
     public String getWriteableName() {
         return NAME;
     }
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_TASK_SETTINGS_OPTIONAL_ADDED;
+        return TransportVersions.V_8_12_0;
     }
 
     @Override

@@ -56,6 +56,15 @@ public enum SpatialCoordinateTypes {
             final long yi = XYEncodingUtils.encode((float) y);
             return (yi & 0xFFFFFFFFL) | xi << 32;
         }
+    },
+    UNSPECIFIED {
+        public Point longAsPoint(long encoded) {
+            throw new UnsupportedOperationException("Cannot convert long to point without specifying coordinate type");
+        }
+
+        public long pointAsLong(double x, double y) {
+            throw new UnsupportedOperationException("Cannot convert point to long without specifying coordinate type");
+        }
     };
 
     public abstract Point longAsPoint(long encoded);

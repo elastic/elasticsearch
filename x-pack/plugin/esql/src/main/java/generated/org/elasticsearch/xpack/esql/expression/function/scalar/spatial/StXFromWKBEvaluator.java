@@ -22,15 +22,15 @@ import org.elasticsearch.xpack.ql.tree.Source;
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link StX}.
  * This class is generated. Do not edit it.
  */
-public final class StXFromGeoPointEvaluator extends AbstractConvertFunction.AbstractEvaluator {
-  public StXFromGeoPointEvaluator(EvalOperator.ExpressionEvaluator field, Source source,
+public final class StXFromWKBEvaluator extends AbstractConvertFunction.AbstractEvaluator {
+  public StXFromWKBEvaluator(EvalOperator.ExpressionEvaluator field, Source source,
       DriverContext driverContext) {
     super(driverContext, field, source);
   }
 
   @Override
   public String name() {
-    return "StXFromGeoPoint";
+    return "StXFromWKB";
   }
 
   @Override
@@ -61,7 +61,7 @@ public final class StXFromGeoPointEvaluator extends AbstractConvertFunction.Abst
 
   private static double evalValue(BytesRefVector container, int index, BytesRef scratchPad) {
     BytesRef value = container.getBytesRef(index, scratchPad);
-    return StX.fromGeoPoint(value);
+    return StX.fromWellKnownBinary(value);
   }
 
   @Override
@@ -101,7 +101,7 @@ public final class StXFromGeoPointEvaluator extends AbstractConvertFunction.Abst
 
   private static double evalValue(BytesRefBlock container, int index, BytesRef scratchPad) {
     BytesRef value = container.getBytesRef(index, scratchPad);
-    return StX.fromGeoPoint(value);
+    return StX.fromWellKnownBinary(value);
   }
 
   public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
@@ -115,13 +115,13 @@ public final class StXFromGeoPointEvaluator extends AbstractConvertFunction.Abst
     }
 
     @Override
-    public StXFromGeoPointEvaluator get(DriverContext context) {
-      return new StXFromGeoPointEvaluator(field.get(context), source, context);
+    public StXFromWKBEvaluator get(DriverContext context) {
+      return new StXFromWKBEvaluator(field.get(context), source, context);
     }
 
     @Override
     public String toString() {
-      return "StXFromGeoPointEvaluator[field=" + field + "]";
+      return "StXFromWKBEvaluator[field=" + field + "]";
     }
   }
 }

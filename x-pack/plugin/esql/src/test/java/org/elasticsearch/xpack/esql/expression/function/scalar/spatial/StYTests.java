@@ -21,8 +21,7 @@ import java.util.List;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
-import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.CARTESIAN;
-import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.GEO;
+import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.UNSPECIFIED;
 
 public class StYTests extends AbstractFunctionTestCase {
     public StYTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
@@ -31,22 +30,15 @@ public class StYTests extends AbstractFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
+        String expectedEvaluator = "StYFromWKBEvaluator[field=Attribute[channel=0]]";
         final List<TestCaseSupplier> suppliers = new ArrayList<>();
-        TestCaseSupplier.forUnaryGeoPoint(suppliers, expectedEvaluator("Geo"), DOUBLE, StYTests::geoValue, List.of());
-        TestCaseSupplier.forUnaryCartesianPoint(suppliers, expectedEvaluator("Cartesian"), DOUBLE, StYTests::cartesianValue, List.of());
+        TestCaseSupplier.forUnaryGeoPoint(suppliers, expectedEvaluator, DOUBLE, StYTests::valueOf, List.of());
+        TestCaseSupplier.forUnaryCartesianPoint(suppliers, expectedEvaluator, DOUBLE, StYTests::valueOf, List.of());
         return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers)));
     }
 
-    private static double geoValue(BytesRef wkb) {
-        return GEO.wkbAsPoint(wkb).getY();
-    }
-
-    private static double cartesianValue(BytesRef wkb) {
-        return CARTESIAN.wkbAsPoint(wkb).getY();
-    }
-
-    private static String expectedEvaluator(String type) {
-        return "StYFrom" + type + "PointEvaluator[field=Attribute[channel=0]]";
+    private static double valueOf(BytesRef wkb) {
+        return UNSPECIFIED.wkbAsPoint(wkb).getY();
     }
 
     @Override

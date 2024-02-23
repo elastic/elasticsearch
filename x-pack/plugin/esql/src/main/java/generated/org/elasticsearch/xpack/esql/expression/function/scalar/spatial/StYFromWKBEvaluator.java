@@ -22,15 +22,15 @@ import org.elasticsearch.xpack.ql.tree.Source;
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link StY}.
  * This class is generated. Do not edit it.
  */
-public final class StYFromGeoPointEvaluator extends AbstractConvertFunction.AbstractEvaluator {
-  public StYFromGeoPointEvaluator(EvalOperator.ExpressionEvaluator field, Source source,
+public final class StYFromWKBEvaluator extends AbstractConvertFunction.AbstractEvaluator {
+  public StYFromWKBEvaluator(EvalOperator.ExpressionEvaluator field, Source source,
       DriverContext driverContext) {
     super(driverContext, field, source);
   }
 
   @Override
   public String name() {
-    return "StYFromGeoPoint";
+    return "StYFromWKB";
   }
 
   @Override
@@ -61,7 +61,7 @@ public final class StYFromGeoPointEvaluator extends AbstractConvertFunction.Abst
 
   private static double evalValue(BytesRefVector container, int index, BytesRef scratchPad) {
     BytesRef value = container.getBytesRef(index, scratchPad);
-    return StY.fromGeoPoint(value);
+    return StY.fromWellKnownBinary(value);
   }
 
   @Override
@@ -101,7 +101,7 @@ public final class StYFromGeoPointEvaluator extends AbstractConvertFunction.Abst
 
   private static double evalValue(BytesRefBlock container, int index, BytesRef scratchPad) {
     BytesRef value = container.getBytesRef(index, scratchPad);
-    return StY.fromGeoPoint(value);
+    return StY.fromWellKnownBinary(value);
   }
 
   public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
@@ -115,13 +115,13 @@ public final class StYFromGeoPointEvaluator extends AbstractConvertFunction.Abst
     }
 
     @Override
-    public StYFromGeoPointEvaluator get(DriverContext context) {
-      return new StYFromGeoPointEvaluator(field.get(context), source, context);
+    public StYFromWKBEvaluator get(DriverContext context) {
+      return new StYFromWKBEvaluator(field.get(context), source, context);
     }
 
     @Override
     public String toString() {
-      return "StYFromGeoPointEvaluator[field=" + field + "]";
+      return "StYFromWKBEvaluator[field=" + field + "]";
     }
   }
 }

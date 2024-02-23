@@ -24,8 +24,7 @@ import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isSpatialPoint;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
-import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.CARTESIAN;
-import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.GEO;
+import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.UNSPECIFIED;
 
 public class StY extends UnaryScalarFunction {
     @FunctionInfo(returnType = "double", description = "Extracts the y-coordinate from a point geometry.")
@@ -42,12 +41,7 @@ public class StY extends UnaryScalarFunction {
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(
         Function<Expression, EvalOperator.ExpressionEvaluator.Factory> toEvaluator
     ) {
-        EvalOperator.ExpressionEvaluator.Factory factory = toEvaluator.apply(field());
-        return switch (field().dataType().typeName()) {
-            case "geo_point" -> new StYFromGeoPointEvaluator.Factory(factory, source());
-            case "cartesian_point" -> new StYFromCartesianPointEvaluator.Factory(factory, source());
-            default -> throw new IllegalArgumentException("Invalid data type: " + field().dataType());
-        };
+        return new StYFromWKBEvaluator.Factory(toEvaluator.apply(field()), source());
     }
 
     @Override
@@ -65,13 +59,8 @@ public class StY extends UnaryScalarFunction {
         return NodeInfo.create(this, StY::new, field());
     }
 
-    @ConvertEvaluator(extraName = "FromGeoPoint", warnExceptions = { IllegalArgumentException.class })
-    static double fromGeoPoint(BytesRef in) {
-        return GEO.wkbAsPoint(in).getY();
-    }
-
-    @ConvertEvaluator(extraName = "FromCartesianPoint", warnExceptions = { IllegalArgumentException.class })
-    static double fromCartesianPoint(BytesRef in) {
-        return CARTESIAN.wkbAsPoint(in).getY();
+    @ConvertEvaluator(extraName = "FromWKB", warnExceptions = { IllegalArgumentException.class })
+    static double fromWellKnownBinary(BytesRef in) {
+        return UNSPECIFIED.wkbAsPoint(in).getY();
     }
 }

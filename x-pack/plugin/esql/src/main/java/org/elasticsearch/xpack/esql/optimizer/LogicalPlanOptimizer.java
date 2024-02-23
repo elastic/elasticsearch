@@ -261,10 +261,10 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         static String temporaryName(Expression inner, Expression outer, int suffix) {
             String in = toString(inner);
             String out = toString(outer);
-            return rawTemporaryName(in, out, suffix);
+            return rawTemporaryName(in, out, String.valueOf(suffix));
         }
 
-        static String rawTemporaryName(String inner, String outer, int suffix) {
+        static String rawTemporaryName(String inner, String outer, String suffix) {
             return "$$" + inner + "$" + outer + "$" + suffix;
         }
 
@@ -864,7 +864,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
                 if (attributeNamesToRename.contains(attr.name())) {
                     Alias existingAlias = aliasesForReplacedAttributes.get(attr);
                     if (existingAlias == null) {
-                        String tempName = SubstituteSurrogates.rawTemporaryName(attr.name(), "temp_name", (int) attr.id().toLong());
+                        String tempName = SubstituteSurrogates.rawTemporaryName(attr.name(), "temp_name", attr.id().toString());
 
                         Alias tempNameForShadowedAttr = new Alias(Source.EMPTY, tempName, attr);
                         aliasesForReplacedAttributes.put(attr, tempNameForShadowedAttr);

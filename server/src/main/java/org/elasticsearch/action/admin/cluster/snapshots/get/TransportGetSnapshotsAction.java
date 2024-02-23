@@ -233,6 +233,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                 for (final RepositoryMetadata repository : repositories) {
                     final String repoName = repository.name();
                     if (skipRepository(repoName)) {
+                        // TODO we should still count the matching snapshots in totalCount
                         continue;
                     }
 

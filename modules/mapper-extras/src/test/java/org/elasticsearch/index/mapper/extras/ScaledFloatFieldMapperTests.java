@@ -491,7 +491,7 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
 
     public void testEncodeDecodeExactScalingFactor() {
         double v = randomValue();
-        assertThat(encodeDecode(1 / v, v), equalTo(1 / v));
+        assertThat(encodeDecode(1 / v, v, false), equalTo(1 / v));
     }
 
     /**
@@ -501,7 +501,7 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
         double scalingFactor = randomValue();
         double unsaturated = randomDoubleBetween(Long.MIN_VALUE / scalingFactor, Long.MAX_VALUE / scalingFactor, true);
         assertEquals(
-            encodeDecode(unsaturated, scalingFactor),
+            encodeDecode(unsaturated, scalingFactor, true),
             Math.round(unsaturated * scalingFactor) / scalingFactor,
             unsaturated * 1e-10
         );
@@ -517,12 +517,12 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
         if (min * scalingFactor != Long.MIN_VALUE) {
             min -= Math.ulp(min);
         }
-        assertThat(ScaledFloatFieldMapper.encode(min, scalingFactor), equalTo(Long.MIN_VALUE));
-        assertThat(encodeDecode(min, scalingFactor), equalTo(min));
+        assertThat(ScaledFloatFieldMapper.encode(min, scalingFactor, false), equalTo(Long.MIN_VALUE));
+        assertThat(encodeDecode(min, scalingFactor, false), equalTo(min));
 
         double saturated = randomDoubleBetween(-Double.MAX_VALUE, min, true);
-        assertThat(ScaledFloatFieldMapper.encode(saturated, scalingFactor), equalTo(Long.MIN_VALUE));
-        assertThat(encodeDecode(saturated, scalingFactor), equalTo(min));
+        assertThat(ScaledFloatFieldMapper.encode(saturated, scalingFactor, false), equalTo(Long.MIN_VALUE));
+        assertThat(encodeDecode(saturated, scalingFactor, false), equalTo(min));
     }
 
     /**
@@ -535,19 +535,21 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
         if (max * scalingFactor != Long.MAX_VALUE) {
             max += Math.ulp(max);
         }
-        assertThat(ScaledFloatFieldMapper.encode(max, scalingFactor), equalTo(Long.MAX_VALUE));
-        assertThat(encodeDecode(max, scalingFactor), equalTo(max));
+        assertThat(ScaledFloatFieldMapper.encode(max, scalingFactor, false), equalTo(Long.MAX_VALUE));
+        assertThat(encodeDecode(max, scalingFactor, false), equalTo(max));
 
         double saturated = randomDoubleBetween(max, Double.MAX_VALUE, true);
-        assertThat(ScaledFloatFieldMapper.encode(saturated, scalingFactor), equalTo(Long.MAX_VALUE));
-        assertThat(encodeDecode(saturated, scalingFactor), equalTo(max));
+        assertThat(ScaledFloatFieldMapper.encode(saturated, scalingFactor, false), equalTo(Long.MAX_VALUE));
+        assertThat(encodeDecode(saturated, scalingFactor, false), equalTo(max));
     }
 
     public void testEncodeDecodeRandom() {
-        double scalingFactor = randomDoubleBetween(0, Double.MAX_VALUE, false);
-        double v = randomValue();
-        double once = encodeDecode(v, scalingFactor);
-        double twice = encodeDecode(once, scalingFactor);
+        double scalingFactor = randomDoubleBetween(0, Long.MAX_VALUE/2.0, false);
+        double v = randomBoolean() ?
+            randomDoubleBetween((Long.MIN_VALUE + 1)/scalingFactor, (Long.MAX_VALUE - 1)/scalingFactor, true) :
+            randomFloat();
+        double once = encodeDecode(v, scalingFactor, true);
+        double twice = encodeDecode(once, scalingFactor, true);
         assertThat(twice, equalTo(once));
     }
 
@@ -560,8 +562,8 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
     public void testEncodeDecodeNeedNudge() {
         double scalingFactor = 2.4206374697469164E16;
         double v = 0.15527719259262085;
-        double once = encodeDecode(v, scalingFactor);
-        double twice = encodeDecode(once, scalingFactor);
+        double once = encodeDecode(v, scalingFactor, true);
+        double twice = encodeDecode(once, scalingFactor, true);
         assertThat(twice, equalTo(once));
     }
 
@@ -575,13 +577,13 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
         double scalingFactor = randomValueOtherThanMany(d -> Double.isInfinite(Long.MAX_VALUE / d), ESTestCase::randomDouble);
         long encoded = randomLongBetween(-2 << 53, 2 << 53);
         assertThat(
-            ScaledFloatFieldMapper.encode(ScaledFloatFieldMapper.decodeForSyntheticSource(encoded, scalingFactor), scalingFactor),
+            ScaledFloatFieldMapper.encode(ScaledFloatFieldMapper.decodeForSyntheticSource(encoded, scalingFactor), scalingFactor, true),
             equalTo(encoded)
         );
     }
 
-    private double encodeDecode(double value, double scalingFactor) {
-        return ScaledFloatFieldMapper.decodeForSyntheticSource(ScaledFloatFieldMapper.encode(value, scalingFactor), scalingFactor);
+    private double encodeDecode(double value, double scalingFactor, boolean strict) {
+        return ScaledFloatFieldMapper.decodeForSyntheticSource(ScaledFloatFieldMapper.encode(value, scalingFactor, strict), scalingFactor);
     }
 
     private static double randomValue() {

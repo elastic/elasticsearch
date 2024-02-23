@@ -37,4 +37,5 @@ if [[ "$MAX_WORKERS" == "0" ]]; then
 fi
 
 set -e
+for attempt in 1 2 3 4 5; do ./gradlew --version && break; echo "Failed to download gradle wrapper - attempt $attempt/5" && sleep 5; done
 $GRADLEW -S --max-workers=$MAX_WORKERS $@

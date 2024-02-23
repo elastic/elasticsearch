@@ -28,12 +28,16 @@ import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BitSet;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.lucene.util.MatchAllBitSet;
+import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 
@@ -41,6 +45,9 @@ import java.io.IOException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static org.elasticsearch.cluster.node.DiscoveryNode.STATELESS_ENABLED_SETTING_NAME;
+import static org.elasticsearch.index.IndexSettings.INDEX_FAST_REFRESH_SETTING;
+import static org.elasticsearch.index.cache.bitset.BitsetFilterCache.INDEX_LOAD_RANDOM_ACCESS_FILTERS_EAGERLY_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
@@ -259,4 +266,41 @@ public class BitSetFilterCacheTests extends ESTestCase {
         }
     }
 
+    public void testShouldLoadRandomAccessFiltersEagerly() {
+        assertTrue(BitsetFilterCache.shouldLoadRandomAccessFiltersEagerly(bitsetFilterCacheSettings(true, true, true)));
+
+        assertFalse(BitsetFilterCache.shouldLoadRandomAccessFiltersEagerly(bitsetFilterCacheSettings(true, true, false)));
+        assertFalse(BitsetFilterCache.shouldLoadRandomAccessFiltersEagerly(bitsetFilterCacheSettings(true, false, true)));
+        assertFalse(BitsetFilterCache.shouldLoadRandomAccessFiltersEagerly(bitsetFilterCacheSettings(true, false, false)));
+
+        assertTrue(BitsetFilterCache.shouldLoadRandomAccessFiltersEagerly(bitsetFilterCacheSettings(false, true, true)));
+        assertTrue(BitsetFilterCache.shouldLoadRandomAccessFiltersEagerly(bitsetFilterCacheSettings(false, false, true)));
+
+        assertFalse(BitsetFilterCache.shouldLoadRandomAccessFiltersEagerly(bitsetFilterCacheSettings(false, true, false)));
+        assertFalse(BitsetFilterCache.shouldLoadRandomAccessFiltersEagerly(bitsetFilterCacheSettings(false, false, false)));
+    }
+
+    private IndexSettings bitsetFilterCacheSettings(
+        boolean isIndexNode,
+        boolean indexFastRefresh,
+        boolean loadFiltersEagerly
+    ) {
+        var indexSettings = Settings.builder()
+            .put(INDEX_FAST_REFRESH_SETTING.getKey(), indexFastRefresh)
+            .put(INDEX_LOAD_RANDOM_ACCESS_FILTERS_EAGERLY_SETTING.getKey(), loadFiltersEagerly)
+            .build();
+
+        var nodeSettingsBuilder = Settings.builder()
+            .putList(
+                NodeRoleSettings.NODE_ROLES_SETTING.getKey(),
+                isIndexNode ? DiscoveryNodeRole.INDEX_ROLE.roleName() : DiscoveryNodeRole.SEARCH_ROLE.roleName()
+            )
+            .put(STATELESS_ENABLED_SETTING_NAME, true);
+
+        return IndexSettingsModule.newIndexSettings(
+            new Index("index", IndexMetadata.INDEX_UUID_NA_VALUE),
+            indexSettings,
+            nodeSettingsBuilder.build()
+        );
+    }
 }

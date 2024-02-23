@@ -17,9 +17,18 @@ import java.util.Map;
 public class HealthFeatures implements FeatureSpecification {
 
     public static final NodeFeature SUPPORTS_HEALTH = new NodeFeature("health.supports_health");
+    public static final NodeFeature SUPPORTS_SHARDS_CAPACITY_INDICATOR = new NodeFeature("health.shards_capacity_indicator");
+    public static final NodeFeature SUPPORTS_EXTENDED_REPOSITORY_INDICATOR = new NodeFeature("health.extended_repository_indicator");
 
     @Override
     public Map<NodeFeature, Version> getHistoricalFeatures() {
-        return Map.of(SUPPORTS_HEALTH, Version.V_8_5_0);
+        return Map.of(
+            SUPPORTS_HEALTH,
+            Version.V_8_5_0,
+            SUPPORTS_SHARDS_CAPACITY_INDICATOR,
+            Version.V_8_8_0,
+            SUPPORTS_EXTENDED_REPOSITORY_INDICATOR,
+            Version.V_8_13_0
+        );
     }
 }

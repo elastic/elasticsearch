@@ -21,7 +21,7 @@ import static org.hamcrest.Matchers.not;
 
 public class LogTextStructureFinderTests extends TextStructureTestCase {
 
-    private final LogTextStructureFinderFactory factory = new LogTextStructureFinderFactory();
+    private final TextStructureFinderFactory factory = new LogTextStructureFinderFactory();
 
     public void testCreateConfigsGivenLowLineMergeSizeLimit() {
 
@@ -107,7 +107,7 @@ public class LogTextStructureFinderTests extends TextStructureTestCase {
         assertTrue(keys.contains("@timestamp"));
     }
 
-    public void testCreateFromMessages() {
+    public void testCreateFromMessages() throws Exception {
         List<String> messages = List.of(TEXT_SAMPLE.split("\n"));
         assertTrue(factory.canCreateFromMessages(explanation, messages, 0.0));
 

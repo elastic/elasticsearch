@@ -11,8 +11,7 @@ import java.util.List;
 
 public class NdJsonTextStructureFinderFactoryTests extends TextStructureTestCase {
 
-    // TODO: REVERT
-    private final NdJsonTextStructureFinderFactory factory = new NdJsonTextStructureFinderFactory();
+    private final TextStructureFinderFactory factory = new NdJsonTextStructureFinderFactory();
 
     public void testCanCreateFromSampleGivenNdJson() {
 

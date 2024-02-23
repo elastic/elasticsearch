@@ -11,16 +11,10 @@ import java.util.List;
 
 public class DelimitedTextStructureFinderFactoryTests extends TextStructureTestCase {
 
-    // TODO: revert
-    private final DelimitedTextStructureFinderFactory csvFactory = new DelimitedTextStructureFinderFactory(',', '"', 2, false);
-    private final DelimitedTextStructureFinderFactory tsvFactory = new DelimitedTextStructureFinderFactory('\t', '"', 2, false);
-    private final DelimitedTextStructureFinderFactory semiColonDelimitedfactory = new DelimitedTextStructureFinderFactory(
-        ';',
-        '"',
-        4,
-        false
-    );
-    private final DelimitedTextStructureFinderFactory pipeDelimitedFactory = new DelimitedTextStructureFinderFactory('|', '"', 5, true);
+    private final TextStructureFinderFactory csvFactory = new DelimitedTextStructureFinderFactory(',', '"', 2, false);
+    private final TextStructureFinderFactory tsvFactory = new DelimitedTextStructureFinderFactory('\t', '"', 2, false);
+    private final TextStructureFinderFactory semiColonDelimitedfactory = new DelimitedTextStructureFinderFactory(';', '"', 4, false);
+    private final TextStructureFinderFactory pipeDelimitedFactory = new DelimitedTextStructureFinderFactory('|', '"', 5, true);
 
     // CSV - no need to check NDJSON or XML because they come earlier in the order we check formats
 

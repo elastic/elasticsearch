@@ -11,8 +11,7 @@ import java.util.List;
 
 public class XmlTextStructureFinderFactoryTests extends TextStructureTestCase {
 
-    // TODO: revert
-    private final XmlTextStructureFinderFactory factory = new XmlTextStructureFinderFactory();
+    private final TextStructureFinderFactory factory = new XmlTextStructureFinderFactory();
 
     // No need to check NDJSON because it comes earlier in the order we check formats
 

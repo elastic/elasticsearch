@@ -38,9 +38,8 @@ import static org.hamcrest.Matchers.startsWith;
 
 public class DelimitedTextStructureFinderTests extends TextStructureTestCase {
 
-    // TODO: revert
-    private final DelimitedTextStructureFinderFactory csvFactory = new DelimitedTextStructureFinderFactory(',', '"', 2, false);
-    private final DelimitedTextStructureFinderFactory tsvFactory = new DelimitedTextStructureFinderFactory('\t', '"', 3, false);
+    private final TextStructureFinderFactory csvFactory = new DelimitedTextStructureFinderFactory(',', '"', 2, false);
+    private final TextStructureFinderFactory tsvFactory = new DelimitedTextStructureFinderFactory('\t', '"', 3, false);
 
     public void testCreateConfigsGivenCompleteCsv() throws Exception {
         String sample = """

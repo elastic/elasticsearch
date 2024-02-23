@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.repositories.ResolvedRepositories;
@@ -30,8 +29,6 @@ import org.elasticsearch.transport.TransportService;
  * Transport action for get repositories operation
  */
 public class TransportGetRepositoriesAction extends TransportMasterNodeReadAction<GetRepositoriesRequest, GetRepositoriesResponse> {
-
-    public static final String ALL_PATTERN = "_all";
 
     @Inject
     public TransportGetRepositoriesAction(
@@ -52,11 +49,6 @@ public class TransportGetRepositoriesAction extends TransportMasterNodeReadActio
             GetRepositoriesResponse::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
-    }
-
-    public static boolean isMatchAll(String[] patterns) {
-        return (patterns.length == 0)
-            || (patterns.length == 1 && (ALL_PATTERN.equalsIgnoreCase(patterns[0]) || Regex.isMatchAllPattern(patterns[0])));
     }
 
     @Override

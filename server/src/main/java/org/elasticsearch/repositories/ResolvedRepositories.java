@@ -8,7 +8,6 @@
 
 package org.elasticsearch.repositories;
 
-import org.elasticsearch.action.admin.cluster.repositories.get.TransportGetRepositoriesAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
@@ -31,9 +30,16 @@ import java.util.Set;
  */
 public record ResolvedRepositories(List<RepositoryMetadata> repositoryMetadata, List<String> missing) {
 
+    public static final String ALL_PATTERN = "_all";
+
+    public static boolean isMatchAll(String[] patterns) {
+        return patterns.length == 0
+            || (patterns.length == 1 && (ALL_PATTERN.equalsIgnoreCase(patterns[0]) || Regex.isMatchAllPattern(patterns[0])));
+    }
+
     public static ResolvedRepositories resolve(ClusterState state, String[] repoNames) {
         final var repositories = RepositoriesMetadata.get(state);
-        if (TransportGetRepositoriesAction.isMatchAll(repoNames)) {
+        if (isMatchAll(repoNames)) {
             return new ResolvedRepositories(repositories.repositories(), List.of());
         }
 

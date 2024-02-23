@@ -10,7 +10,6 @@ package org.elasticsearch.action.admin.cluster.snapshots.get;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.repositories.get.TransportGetRepositoriesAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -327,7 +326,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             }
 
             final Set<Snapshot> toResolve = new HashSet<>();
-            if (TransportGetRepositoriesAction.isMatchAll(snapshots)) {
+            if (ResolvedRepositories.isMatchAll(snapshots)) {
                 toResolve.addAll(allSnapshotIds.values());
             } else {
                 final List<String> includePatterns = new ArrayList<>();

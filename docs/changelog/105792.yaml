@@ -1,0 +1,12 @@
+pr: 105792
+summary: Change `skip_unavailable` default value to true
+area: Search
+type: breaking
+issues: []
+breaking:
+  title: Change `skip_unavailable` default value to true
+  area: Search
+  details: Please describe the details of this change for the release notes. You can
+    use asciidoc.
+  impact: Please describe the impact of this change to users
+  notable: false

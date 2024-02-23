@@ -408,3 +408,17 @@ emp_no:i
 -10002
 -10003
 ;
+
+overwriteNameAfterSortChained#[skip:-8.13.0]
+FROM employees
+| SORT emp_no ASC
+| EVAL x = emp_no, y = -emp_no, emp_no = y
+| LIMIT 3
+| KEEP emp_no
+;
+
+emp_no:i
+-10001
+-10002
+-10003
+;

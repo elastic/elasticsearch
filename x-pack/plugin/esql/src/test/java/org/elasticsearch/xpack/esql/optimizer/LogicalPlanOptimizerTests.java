@@ -3282,7 +3282,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      *     \_Eval[[emp_no{f}#36 AS $$emp_no$temp_name$36, salary{f}#41 AS $$salary$temp_name$41]]
      *       \_EsRelation[test][_meta_field{f}#42, emp_no{f}#36, first_name{f}#37, ..]
      */
-    public void testPushdownWithOverwrittenName() throws Exception {
+    public void testPushdownWithOverwrittenName() {
         List<String> overwritingCommands = List.of(
             "EVAL emp_no = 3*emp_no, salary = -2*emp_no-salary",
             "DISSECT first_name \"%{emp_no} %{salary}\"",

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.openai;
 
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
@@ -21,9 +20,9 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.inference.common.SimilarityMeasure;
 import org.elasticsearch.xpack.inference.external.action.openai.OpenAiActionCreator;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderFactory;
 import org.elasticsearch.xpack.inference.services.SenderService;
@@ -46,7 +45,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNot
 public class OpenAiService extends SenderService {
     public static final String NAME = "openai";
 
-    public OpenAiService(SetOnce<HttpRequestSenderFactory> factory, SetOnce<ServiceComponents> serviceComponents) {
+    public OpenAiService(HttpRequestSenderFactory factory, ServiceComponents serviceComponents) {
         super(factory, serviceComponents);
     }
 

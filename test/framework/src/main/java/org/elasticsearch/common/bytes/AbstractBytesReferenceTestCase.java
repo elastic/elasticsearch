@@ -661,8 +661,12 @@ public abstract class AbstractBytesReferenceTestCase extends ESTestCase {
         map.forEach((value, positions) -> {
             for (int i = 0; i < positions.size(); i++) {
                 final int pos = positions.get(i);
-                final int from = i == 0 ? randomIntBetween(0, pos) : positions.get(i - 1) + 1;
+                final int from = randomIntBetween(i == 0 ? 0 : positions.get(i - 1) + 1, pos);
                 assertEquals(bytesReference.indexOf(value, from), pos);
+            }
+            final int firstNotFoundPos = positions.get(positions.size() - 1) + 1;
+            if (firstNotFoundPos < bytesReference.length()) {
+                assertEquals(-1, bytesReference.indexOf(value, between(firstNotFoundPos, bytesReference.length() - 1)));
             }
         });
         final byte missing = randomValueOtherThanMany(map::containsKey, ESTestCase::randomByte);

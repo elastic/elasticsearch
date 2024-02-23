@@ -254,7 +254,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             StringFieldScript.Factory scriptFactory = scriptCompiler.compile(script.get(), StringFieldScript.CONTEXT);
             return scriptFactory == null
                 ? null
-                : (lookup, ctx, doc, consumer) -> scriptFactory.newFactory(name, script.get().getParams(), lookup, OnScriptError.FAIL)
+                : (lookup, ctx, doc, consumer) -> scriptFactory.newFactory(name(), script.get().getParams(), lookup, OnScriptError.FAIL)
                     .newInstance(ctx)
                     .runForDoc(doc, consumer);
         }
@@ -294,7 +294,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                         );
                         normalizer = Lucene.KEYWORD_ANALYZER;
                     } else {
-                        throw new MapperParsingException("normalizer [" + normalizerName + "] not found for field [" + name + "]");
+                        throw new MapperParsingException("normalizer [" + normalizerName + "] not found for field [" + name() + "]");
                     }
                 }
                 searchAnalyzer = quoteAnalyzer = normalizer;
@@ -308,7 +308,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 dimension(true);
             }
             return new KeywordFieldType(
-                context.buildFullName(name),
+                context.buildFullName(name()),
                 fieldType,
                 normalizer,
                 searchAnalyzer,
@@ -330,7 +330,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 fieldtype = Defaults.FIELD_TYPE;
             }
             return new KeywordFieldMapper(
-                name,
+                name(),
                 fieldtype,
                 buildFieldType(context, fieldtype),
                 multiFieldsBuilder.build(this, context),

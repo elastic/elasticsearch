@@ -496,6 +496,15 @@ public class JsonXContentGenerator implements XContentGenerator {
         }
     }
 
+    @Override
+    public void writeRawValue(String value) throws IOException {
+        try {
+            generator.writeRaw(value);
+        } catch (JsonGenerationException e) {
+            throw new XContentGenerationException(e);
+        }
+    }
+
     private boolean mayWriteRawData(XContentType contentType) {
         // When the current generator is filtered (ie filter != null)
         // or the content is in a different format than the current generator,

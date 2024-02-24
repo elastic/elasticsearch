@@ -18,7 +18,13 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.profile.ProfileResult;
+import org.elasticsearch.search.profile.SearchProfileDfsPhaseResult;
+import org.elasticsearch.search.profile.SearchProfileQueryPhaseResult;
 import org.elasticsearch.search.profile.SearchProfileResults;
+import org.elasticsearch.search.profile.SearchProfileShardResult;
+import org.elasticsearch.search.profile.aggregation.AggregationProfileShardResult;
+import org.elasticsearch.search.profile.query.QueryProfileShardResult;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -27,6 +33,7 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -186,7 +193,7 @@ public enum SearchResponseUtils {
                 } else if (Suggest.NAME.equals(currentFieldName)) {
                     suggest = Suggest.fromXContent(parser);
                 } else if (SearchProfileResults.PROFILE_FIELD.equals(currentFieldName)) {
-                    profile = SearchProfileResults.fromXContent(parser);
+                    profile = parseSearchProfileResults(parser);
                 } else if (RestActions._SHARDS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                         if (token == XContentParser.Token.FIELD_NAME) {
@@ -388,5 +395,74 @@ public enum SearchResponseUtils {
             tookTimeValue,
             timedOut
         );
+    }
+
+    public static SearchProfileResults parseSearchProfileResults(XContentParser parser) throws IOException {
+        XContentParser.Token token = parser.currentToken();
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
+        Map<String, SearchProfileShardResult> profileResults = new HashMap<>();
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.START_ARRAY) {
+                if (SearchProfileResults.SHARDS_FIELD.equals(parser.currentName())) {
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                        parseProfileResultsEntry(parser, profileResults);
+                    }
+                } else {
+                    parser.skipChildren();
+                }
+            } else if (token == XContentParser.Token.START_OBJECT) {
+                parser.skipChildren();
+            }
+        }
+        return new SearchProfileResults(profileResults);
+    }
+
+    private static void parseProfileResultsEntry(XContentParser parser, Map<String, SearchProfileShardResult> searchProfileResults)
+        throws IOException {
+        XContentParser.Token token = parser.currentToken();
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
+        SearchProfileDfsPhaseResult searchProfileDfsPhaseResult = null;
+        List<QueryProfileShardResult> queryProfileResults = new ArrayList<>();
+        AggregationProfileShardResult aggProfileShardResult = null;
+        ProfileResult fetchResult = null;
+        String id = null;
+        String currentFieldName = null;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (token.isValue()) {
+                if (SearchProfileResults.ID_FIELD.equals(currentFieldName)) {
+                    id = parser.text();
+                } else {
+                    parser.skipChildren();
+                }
+            } else if (token == XContentParser.Token.START_ARRAY) {
+                if ("searches".equals(currentFieldName)) {
+                    while ((parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                        queryProfileResults.add(QueryProfileShardResult.fromXContent(parser));
+                    }
+                } else if (AggregationProfileShardResult.AGGREGATIONS.equals(currentFieldName)) {
+                    aggProfileShardResult = AggregationProfileShardResult.fromXContent(parser);
+                } else {
+                    parser.skipChildren();
+                }
+            } else if (token == XContentParser.Token.START_OBJECT) {
+                if ("dfs".equals(currentFieldName)) {
+                    searchProfileDfsPhaseResult = SearchProfileDfsPhaseResult.fromXContent(parser);
+                } else if ("fetch".equals(currentFieldName)) {
+                    fetchResult = ProfileResult.fromXContent(parser);
+                } else {
+                    parser.skipChildren();
+                }
+            } else {
+                parser.skipChildren();
+            }
+        }
+        SearchProfileShardResult result = new SearchProfileShardResult(
+            new SearchProfileQueryPhaseResult(queryProfileResults, aggProfileShardResult),
+            fetchResult
+        );
+        result.getQueryPhase().setSearchProfileDfsPhaseResult(searchProfileDfsPhaseResult);
+        searchProfileResults.put(id, result);
     }
 }

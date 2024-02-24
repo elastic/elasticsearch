@@ -21,7 +21,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -42,7 +41,6 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class PreviewTransformAction extends ActionType<PreviewTransformAction.Response> {
 
@@ -154,26 +152,6 @@ public class PreviewTransformAction extends ActionType<PreviewTransformAction.Re
         private final List<Map<String, Object>> docs;
         private final TransformDestIndexSettings generatedDestIndexSettings;
 
-        private static final ConstructingObjectParser<Response, Void> PARSER = new ConstructingObjectParser<>(
-            "data_frame_transform_preview",
-            true,
-            args -> {
-                @SuppressWarnings("unchecked")
-                List<Map<String, Object>> docs = (List<Map<String, Object>>) args[0];
-                TransformDestIndexSettings generatedDestIndex = (TransformDestIndexSettings) args[1];
-
-                return new Response(docs, generatedDestIndex);
-            }
-        );
-        static {
-            PARSER.declareObjectArray(optionalConstructorArg(), (p, c) -> p.mapOrdered(), PREVIEW);
-            PARSER.declareObject(
-                optionalConstructorArg(),
-                (p, c) -> TransformDestIndexSettings.fromXContent(p),
-                GENERATED_DEST_INDEX_SETTINGS
-            );
-        }
-
         public Response(List<Map<String, Object>> docs, TransformDestIndexSettings generatedDestIndexSettings) {
             this.docs = docs;
             this.generatedDestIndexSettings = generatedDestIndexSettings;
@@ -236,10 +214,6 @@ public class PreviewTransformAction extends ActionType<PreviewTransformAction.Re
         @Override
         public String toString() {
             return Strings.toString(this, true, true);
-        }
-
-        public static Response fromXContent(final XContentParser parser) throws IOException {
-            return PARSER.parse(parser, null);
         }
     }
 }

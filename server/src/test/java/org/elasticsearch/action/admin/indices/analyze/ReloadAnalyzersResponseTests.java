@@ -8,10 +8,12 @@
 package org.elasticsearch.action.admin.indices.analyze;
 
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
+import org.elasticsearch.action.support.broadcast.BaseBroadcastResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.AbstractBroadcastResponseTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -23,7 +25,51 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.action.support.broadcast.BaseBroadcastResponse.declareBroadcastFields;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+
 public class ReloadAnalyzersResponseTests extends AbstractBroadcastResponseTestCase<ReloadAnalyzersResponse> {
+
+    @SuppressWarnings({ "unchecked" })
+    private static final ConstructingObjectParser<ReloadAnalyzersResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "reload_analyzer",
+        true,
+        arg -> {
+            BaseBroadcastResponse response = (BaseBroadcastResponse) arg[0];
+            List<ReloadAnalyzersResponse.ReloadDetails> results = (List<ReloadAnalyzersResponse.ReloadDetails>) arg[1];
+            Map<String, ReloadAnalyzersResponse.ReloadDetails> reloadedNodeIds = new HashMap<>();
+            for (ReloadAnalyzersResponse.ReloadDetails result : results) {
+                reloadedNodeIds.put(result.getIndexName(), result);
+            }
+            return new ReloadAnalyzersResponse(
+                response.getTotalShards(),
+                response.getSuccessfulShards(),
+                response.getFailedShards(),
+                Arrays.asList(response.getShardFailures()),
+                reloadedNodeIds
+            );
+        }
+    );
+
+    @SuppressWarnings({ "unchecked" })
+    private static final ConstructingObjectParser<ReloadAnalyzersResponse.ReloadDetails, Void> ENTRY_PARSER =
+        new ConstructingObjectParser<>(
+            "reload_analyzer.entry",
+            true,
+            arg -> new ReloadAnalyzersResponse.ReloadDetails(
+                (String) arg[0],
+                new HashSet<>((List<String>) arg[1]),
+                new HashSet<>((List<String>) arg[2])
+            )
+        );
+
+    static {
+        declareBroadcastFields(PARSER);
+        PARSER.declareObjectArray(constructorArg(), ENTRY_PARSER, ReloadAnalyzersResponse.RELOAD_DETAILS_FIELD);
+        ENTRY_PARSER.declareString(constructorArg(), ReloadAnalyzersResponse.INDEX_FIELD);
+        ENTRY_PARSER.declareStringArray(constructorArg(), ReloadAnalyzersResponse.RELOADED_ANALYZERS_FIELD);
+        ENTRY_PARSER.declareStringArray(constructorArg(), ReloadAnalyzersResponse.RELOADED_NODE_IDS_FIELD);
+    }
 
     @Override
     protected ReloadAnalyzersResponse createTestInstance(
@@ -50,7 +96,7 @@ public class ReloadAnalyzersResponseTests extends AbstractBroadcastResponseTestC
 
     @Override
     protected ReloadAnalyzersResponse doParseInstance(XContentParser parser) throws IOException {
-        return ReloadAnalyzersResponse.fromXContent(parser);
+        return PARSER.apply(parser, null);
     }
 
     @Override

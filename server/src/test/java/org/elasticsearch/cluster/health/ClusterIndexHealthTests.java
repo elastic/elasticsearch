@@ -26,6 +26,7 @@ import java.util.Map;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
 
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.hamcrest.CoreMatchers.equalTo;
 
 public class ClusterIndexHealthTests extends AbstractXContentSerializingTestCase<ClusterIndexHealth> {
@@ -101,7 +102,13 @@ public class ClusterIndexHealthTests extends AbstractXContentSerializingTestCase
 
     @Override
     protected ClusterIndexHealth doParseInstance(XContentParser parser) throws IOException {
-        return ClusterIndexHealth.fromXContent(parser);
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
+        XContentParser.Token token = parser.nextToken();
+        ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
+        String index = parser.currentName();
+        ClusterIndexHealth parsed = ClusterIndexHealth.innerFromXContent(parser, index);
+        ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser);
+        return parsed;
     }
 
     @Override

@@ -31,7 +31,6 @@ import java.util.Map;
 import java.util.Objects;
 
 import static java.util.Collections.emptyMap;
-import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
@@ -282,16 +281,6 @@ public final class ClusterIndexHealth implements Writeable, ToXContentFragment {
 
     public static ClusterIndexHealth innerFromXContent(XContentParser parser, String index) {
         return PARSER.apply(parser, index);
-    }
-
-    public static ClusterIndexHealth fromXContent(XContentParser parser) throws IOException {
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
-        XContentParser.Token token = parser.nextToken();
-        ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
-        String index = parser.currentName();
-        ClusterIndexHealth parsed = innerFromXContent(parser, index);
-        ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser);
-        return parsed;
     }
 
     @Override

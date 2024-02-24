@@ -25,6 +25,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.stream.IntStream;
 
 /**
  * Represents a collection of compound commits stored together within the same blob.
@@ -43,6 +44,15 @@ public record BatchedCompoundCommit(PrimaryTermAndGeneration primaryTermAndGener
         if (compoundCommits.isEmpty()) {
             throw new IllegalArgumentException("Batched compound commits must have a non-empty list of compound commits");
         }
+
+        assert IntStream.range(0, compoundCommits.size() - 1)
+            .allMatch(
+                i -> compoundCommits.get(i).primaryTermAndGeneration().compareTo(compoundCommits.get(i + 1).primaryTermAndGeneration()) < 0
+            ) : "the list of compound commits must be sorted by their primary terms and generations";
+    }
+
+    public StatelessCompoundCommit getLast() {
+        return compoundCommits.get(compoundCommits.size() - 1);
     }
 
     /**

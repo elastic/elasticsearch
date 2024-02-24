@@ -614,15 +614,18 @@ public record StatelessCompoundCommit(
         SHARD_ID_PARSER.declareInt(constructorArg(), new ParseField("id"));
     }
 
+    // Since CC and BCC share the same naming scheme, this method works equally for both of them.
     public static boolean startsWithBlobPrefix(String name) {
         return name.startsWith(StatelessCompoundCommit.PREFIX);
     }
 
+    // Since CC and BCC share the same naming scheme, this method works equally for both of them.
     public static String blobNameFromGeneration(long generation) {
         assert generation > 0 : generation;
         return StatelessCompoundCommit.PREFIX + generation;
     }
 
+    // Since CC and BCC share the same naming scheme, this method works equally for both of them.
     public static long parseGenerationFromBlobName(String name) {
         assert startsWithBlobPrefix(name) : name;
         return Long.parseLong(name.substring(name.lastIndexOf('_') + 1));

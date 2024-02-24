@@ -77,7 +77,7 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
     private final AtomicReference<Thread> appendingCommitThread = new AtomicReference<>();
     private final PrimaryTermAndGeneration primaryTermAndGeneration;
 
-    VirtualBatchedCompoundCommit(
+    public VirtualBatchedCompoundCommit(
         ShardId shardId,
         String nodeEphemeralId,
         long primaryTerm,
@@ -92,7 +92,7 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         this.blobName = StatelessCompoundCommit.blobNameFromGeneration(generation);
     }
 
-    void appendCommit(StatelessCommitRef reference) throws IOException {
+    public void appendCommit(StatelessCommitRef reference) throws IOException {
         assert assertCompareAndSetAppendingCommitThread(null, Thread.currentThread());
         try {
             doAppendCommit(reference);

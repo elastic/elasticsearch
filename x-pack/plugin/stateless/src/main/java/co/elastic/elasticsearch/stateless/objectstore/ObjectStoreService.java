@@ -18,6 +18,7 @@
 package co.elastic.elasticsearch.stateless.objectstore;
 
 import co.elastic.elasticsearch.stateless.Stateless;
+import co.elastic.elasticsearch.stateless.commits.BatchedCompoundCommit;
 import co.elastic.elasticsearch.stateless.commits.BlobFile;
 import co.elastic.elasticsearch.stateless.commits.StaleCompoundCommit;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
@@ -66,7 +67,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.OptionalLong;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Semaphore;
@@ -466,20 +466,29 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
         }
     }
 
-    private static StatelessCompoundCommit readNewestCommit(BlobContainer blobContainer, Map<String, BlobMetadata> allBlobs)
-        throws IOException {
-        OptionalLong maxGeneration = allBlobs.keySet()
+    // Package private for testing
+    static StatelessCompoundCommit readNewestCommit(BlobContainer blobContainer, Map<String, BlobMetadata> allBlobs) throws IOException {
+
+        final BlobMetadata blobMetadataOfMaxGeneration = allBlobs.values()
             .stream()
-            .filter(StatelessCompoundCommit::startsWithBlobPrefix)
-            .mapToLong(StatelessCompoundCommit::parseGenerationFromBlobName)
-            .max();
-        if (maxGeneration.isEmpty()) {
+            .filter(blobMetadata -> startsWithBlobPrefix(blobMetadata.name()))
+            .max(Comparator.comparingLong(m -> parseGenerationFromBlobName(m.name())))
+            .orElse(null);
+
+        if (blobMetadataOfMaxGeneration == null) {
             return null;
         }
-        String commitFileName = blobNameFromGeneration(maxGeneration.getAsLong());
-        try (StreamInput streamInput = new InputStreamStreamInput(blobContainer.readBlob(OperationPurpose.INDICES, commitFileName))) {
-            return StatelessCompoundCommit.readFromStore(streamInput);
-        }
+
+        final var batchedCompoundCommit = BatchedCompoundCommit.readFromStore(
+            blobMetadataOfMaxGeneration.name(),
+            blobMetadataOfMaxGeneration.length(),
+            // The following issues a new call to blobstore for each CC as suggested by the BlobReader interface.
+            (blobName, offset, length) -> new InputStreamStreamInput(
+                blobContainer.readBlob(OperationPurpose.INDICES, blobName, offset, length)
+            )
+        );
+        // TODO: may need to return BCC info as well once we decide how to track commit files
+        return batchedCompoundCommit.getLast();
     }
 
     private static List<Tuple<Long, BlobContainer>> getContainersToSearch(BlobContainer shardContainer, long primaryTerm)

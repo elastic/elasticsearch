@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.health.Diagnosis;
 import org.elasticsearch.health.HealthFeatures;
 import org.elasticsearch.health.HealthIndicatorDetails;
@@ -72,9 +73,11 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
     private static final String IMPACT_CLUSTER_FUNCTIONALITY_UNAVAILABLE_ID = "cluster_functionality_unavailable";
 
     private final ClusterService clusterService;
+    private final FeatureService featureService;
 
-    public DiskHealthIndicatorService(ClusterService clusterService) {
+    public DiskHealthIndicatorService(ClusterService clusterService, FeatureService featureService) {
         this.clusterService = clusterService;
+        this.featureService = featureService;
     }
 
     @Override
@@ -87,7 +90,7 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
         ClusterState clusterState = clusterService.state();
         Map<String, DiskHealthInfo> diskHealthInfoMap = healthInfo.diskInfoByNode();
         if (diskHealthInfoMap == null || diskHealthInfoMap.isEmpty()) {
-            if (clusterState.clusterFeatures().clusterHasFeature(HealthFeatures.SUPPORTS_HEALTH) == false) {
+            if (featureService.clusterHasFeature(clusterState, HealthFeatures.SUPPORTS_HEALTH) == false) {
                 return createIndicator(
                     HealthStatus.GREEN,
                     "No disk usage available. This probably means a cluster upgrade is in progress.",

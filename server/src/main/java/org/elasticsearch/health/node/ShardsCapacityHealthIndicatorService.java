@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.health.Diagnosis;
 import org.elasticsearch.health.HealthFeatures;
 import org.elasticsearch.health.HealthIndicatorDetails;
@@ -91,9 +92,11 @@ public class ShardsCapacityHealthIndicatorService implements HealthIndicatorServ
     );
 
     private final ClusterService clusterService;
+    private final FeatureService featureService;
 
-    public ShardsCapacityHealthIndicatorService(ClusterService clusterService) {
+    public ShardsCapacityHealthIndicatorService(ClusterService clusterService, FeatureService featureService) {
         this.clusterService = clusterService;
+        this.featureService = featureService;
     }
 
     @Override
@@ -106,7 +109,7 @@ public class ShardsCapacityHealthIndicatorService implements HealthIndicatorServ
         var state = clusterService.state();
         var healthMetadata = HealthMetadata.getFromClusterState(state);
         if (healthMetadata == null || healthMetadata.getShardLimitsMetadata() == null) {
-            if (state.clusterFeatures().clusterHasFeature(HealthFeatures.SUPPORTS_SHARDS_CAPACITY_INDICATOR) == false) {
+            if (featureService.clusterHasFeature(state, HealthFeatures.SUPPORTS_SHARDS_CAPACITY_INDICATOR) == false) {
                 return createIndicator(
                     HealthStatus.GREEN,
                     "No shard limits configured yet. This probably means a cluster upgrade is in progress.",

@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.health.Diagnosis;
 import org.elasticsearch.health.Diagnosis.Resource.Type;
 import org.elasticsearch.health.HealthFeatures;
@@ -28,6 +29,7 @@ import org.elasticsearch.health.node.HealthInfo;
 import org.elasticsearch.health.node.RepositoriesHealthInfo;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
+import org.mockito.Mockito;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -49,6 +51,7 @@ import static org.elasticsearch.snapshots.RepositoryIntegrityHealthIndicatorServ
 import static org.elasticsearch.snapshots.RepositoryIntegrityHealthIndicatorService.NAME;
 import static org.elasticsearch.snapshots.RepositoryIntegrityHealthIndicatorService.UNKNOWN_DEFINITION;
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -57,6 +60,7 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
     private DiscoveryNode node1;
     private DiscoveryNode node2;
     private HealthInfo healthInfo;
+    private FeatureService featureService;
 
     @Before
     public void setUp() throws Exception {
@@ -76,6 +80,9 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
                 )
             )
         );
+
+        featureService = Mockito.mock(FeatureService.class);
+        Mockito.when(featureService.clusterHasFeature(any(), any())).thenReturn(true);
     }
 
     public void testIsGreenWhenAllRepositoriesAreHealthy() {
@@ -365,10 +372,10 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
         return new RepositoryMetadata(name, "uuid", "s3", Settings.EMPTY, corrupted ? CORRUPTED_REPO_GEN : EMPTY_REPO_GEN, EMPTY_REPO_GEN);
     }
 
-    private static RepositoryIntegrityHealthIndicatorService createRepositoryIntegrityHealthIndicatorService(ClusterState clusterState) {
+    private RepositoryIntegrityHealthIndicatorService createRepositoryIntegrityHealthIndicatorService(ClusterState clusterState) {
         var clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(clusterState);
-        return new RepositoryIntegrityHealthIndicatorService(clusterService);
+        return new RepositoryIntegrityHealthIndicatorService(clusterService, featureService);
     }
 
     private SimpleHealthIndicatorDetails createDetails(int total, int corruptedCount, List<String> corrupted, int unknown, int invalid) {

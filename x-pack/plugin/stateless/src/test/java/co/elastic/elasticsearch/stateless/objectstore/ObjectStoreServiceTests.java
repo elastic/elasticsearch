@@ -17,7 +17,13 @@
 
 package co.elastic.elasticsearch.stateless.objectstore;
 
+import co.elastic.elasticsearch.stateless.action.NewCommitNotificationRequest;
+import co.elastic.elasticsearch.stateless.action.NewCommitNotificationResponse;
+import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
+import co.elastic.elasticsearch.stateless.commits.BatchedCompoundCommit;
+import co.elastic.elasticsearch.stateless.commits.BlobLocation;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
+import co.elastic.elasticsearch.stateless.commits.VirtualBatchedCompoundCommit;
 import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
 import co.elastic.elasticsearch.stateless.lucene.StatelessCommitRef;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService.ObjectStoreType;
@@ -30,25 +36,35 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.client.NoOpNodeClient;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService.BUCKET_SETTING;
 import static co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService.ObjectStoreType.AZURE;
@@ -56,6 +72,7 @@ import static co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService.
 import static co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService.ObjectStoreType.GCS;
 import static co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService.ObjectStoreType.S3;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class ObjectStoreServiceTests extends ESTestCase {
 
@@ -226,6 +243,106 @@ public class ObjectStoreServiceTests extends ESTestCase {
             try (var indexReader = DirectoryReader.open(testHarness.searchStore.directory())) {
                 assertEquals(commitCount, indexReader.numDocs());
             }
+        }
+    }
+
+    public void testReadNewestCommit() throws Exception {
+        final Map<String, BlobLocation> uploadedBlobLocations = ConcurrentCollections.newConcurrentMap();
+        final AtomicReference<StatelessCompoundCommit> notifiedCompoundCommit = new AtomicReference<>();
+        final long primaryTerm = randomLongBetween(1, 42);
+
+        try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
+            @Override
+            protected NodeClient createClient(Settings nodeSettings, ThreadPool threadPool) {
+                // Intercept the client call in order to
+                // (1) We can be sure that a CC has been uploaded to the object store
+                // (2) Capture the uploaded StatelessCompoundCommit to build BlobLocations that can be used by BCCs
+                return new NoOpNodeClient(threadPool) {
+                    @SuppressWarnings("unchecked")
+                    public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                        ActionType<Response> action,
+                        Request request,
+                        ActionListener<Response> listener
+                    ) {
+                        assert action == TransportNewCommitNotificationAction.TYPE;
+                        if (notifiedCompoundCommit.compareAndSet(
+                            null,
+                            ((NewCommitNotificationRequest) request).getCompoundCommit()
+                        ) == false) {
+                            fail("expected the notified compound commit to be null, but got " + notifiedCompoundCommit.get());
+                        }
+                        ((ActionListener<NewCommitNotificationResponse>) listener).onResponse(new NewCommitNotificationResponse(Set.of()));
+                    }
+                };
+            }
+        }) {
+            final BlobContainer shardBlobContainer = testHarness.objectStoreService.getBlobContainer(testHarness.shardId, primaryTerm);
+            final AtomicReference<StatelessCompoundCommit> expectedNewestCompoundCommit = new AtomicReference<>();
+
+            // The node may already have existing CCs
+            final int ccCount = between(0, 4);
+            for (var indexCommit : testHarness.generateIndexCommits(ccCount)) {
+                notifiedCompoundCommit.set(null);
+                testHarness.commitService.onCommitCreation(indexCommit);
+                assertBusy(() -> {
+                    final StatelessCompoundCommit compoundCommit = notifiedCompoundCommit.get();
+                    assertThat(compoundCommit, notNullValue());
+                    // Update the blobLocations so that BCCs can use them later
+                    uploadedBlobLocations.putAll(compoundCommit.commitFiles());
+                    expectedNewestCompoundCommit.set(compoundCommit);
+                });
+            }
+
+            // Should find the latest compound commit from a list of pure CCs
+            if (ccCount > 0) {
+                assertThat(
+                    ObjectStoreService.readNewestCommit(shardBlobContainer, shardBlobContainer.listBlobs(OperationPurpose.INDICES)),
+                    equalTo(expectedNewestCompoundCommit.get())
+                );
+            }
+
+            // Add BCCs after the existing CCs
+            final int bccCount = between(1, 4);
+
+            for (int i = 0; i < bccCount; i++) {
+                final int ccPerBcc = between(1, 4);
+                var indexCommits = testHarness.generateIndexCommits(ccPerBcc);
+                long firstCommitGeneration = indexCommits.get(0).getGeneration();
+                try (
+                    var virtualBatchedCompoundCommit = new VirtualBatchedCompoundCommit(
+                        testHarness.shardId,
+                        "node-id",
+                        primaryTerm,
+                        firstCommitGeneration,
+                        uploadedBlobLocations::get
+                    )
+                ) {
+                    for (StatelessCommitRef statelessCommitRef : indexCommits) {
+                        virtualBatchedCompoundCommit.appendCommit(statelessCommitRef);
+                    }
+                    shardBlobContainer.writeMetadataBlob(
+                        OperationPurpose.INDICES,
+                        virtualBatchedCompoundCommit.getBlobName(),
+                        true,
+                        true,
+                        output -> {
+                            final BatchedCompoundCommit batchedCompoundCommit = virtualBatchedCompoundCommit.writeToStore(output);
+                            for (var compoundCommit : batchedCompoundCommit.compoundCommits()) {
+                                uploadedBlobLocations.putAll(compoundCommit.commitFiles());
+                            }
+                            expectedNewestCompoundCommit.set(
+                                batchedCompoundCommit.compoundCommits().get(batchedCompoundCommit.compoundCommits().size() - 1)
+                            );
+                        }
+                    );
+                }
+            }
+
+            // Should find the newest commit in a list of CCs and BCCs
+            assertThat(
+                ObjectStoreService.readNewestCommit(shardBlobContainer, shardBlobContainer.listBlobs(OperationPurpose.INDICES)),
+                equalTo(expectedNewestCompoundCommit.get())
+            );
         }
     }
 }

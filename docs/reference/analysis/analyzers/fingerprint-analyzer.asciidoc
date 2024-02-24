@@ -138,7 +138,7 @@ The above example produces the following term:
 [discrete]
 === Definition
 
-The `fingerprint` tokenizer consists of:
+The `fingerprint` analyzer consists of:
 
 Tokenizer::
 * <<analysis-standard-tokenizer,Standard Tokenizer>>

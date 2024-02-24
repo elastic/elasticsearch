@@ -440,6 +440,7 @@ public class TransformInsufficientPermissionsIT extends TransformRestTestCase {
      * unattended              = true
      * pre-existing dest index = true
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105794")
     public void testTransformPermissionsDeferUnattendedDest() throws Exception {
         String transformId = "transform-permissions-defer-unattended-dest-exists";
         String sourceIndexName = transformId + "-index";

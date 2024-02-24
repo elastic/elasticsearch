@@ -120,11 +120,8 @@ class FieldCapabilitiesFetcher {
             // even if the mapping is the same if we return only fields with values we need
             // to make sure that we consider all the shard-mappings pair, that is why we
             // calculate a different hash for this particular case.
-            StringBuilder sb = new StringBuilder(indexService.getShard(shardId.getId()).getShardUuid());
-            if (mapping != null) {
-                sb.append(mapping.getSha256());
-            }
-            indexMappingHash = sb.toString();
+            final String shardUuid = indexService.getShard(shardId.getId()).getShardUuid();
+            indexMappingHash = mapping == null ? shardUuid : shardUuid + mapping.getSha256();
         }
         if (indexMappingHash != null) {
             final Map<String, IndexFieldCapabilities> existing = indexMappingHashToResponses.get(indexMappingHash);
@@ -160,16 +157,19 @@ class FieldCapabilitiesFetcher {
     ) {
         boolean includeParentObjects = checkIncludeParents(filters);
 
-        Predicate<MappedFieldType> filter = buildFilter(indexFieldfilter, filters, types, context);
+        Predicate<MappedFieldType> filter = buildFilter(filters, types, context);
         boolean isTimeSeriesIndex = context.getIndexSettings().getTimestampBounds() != null;
+        var fieldInfos = indexShard.getFieldInfos();
+        includeEmptyFields = includeEmptyFields || enableFieldHasValue == false;
         Map<String, IndexFieldCapabilities> responseMap = new HashMap<>();
         for (String field : context.getAllFieldNames()) {
             if (fieldNameFilter.test(field) == false) {
                 continue;
             }
             MappedFieldType ft = context.getFieldType(field);
-            boolean includeField = includeEmptyFields || enableFieldHasValue == false || ft.fieldHasValue(indexShard.getFieldInfos());
-            if (includeField && filter.test(ft)) {
+            if ((includeEmptyFields || ft.fieldHasValue(fieldInfos))
+                && (indexFieldfilter.test(ft.name()) || context.isMetadataField(ft.name()))
+                && (filter == null || filter.test(ft))) {
                 IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(
                     field,
                     ft.familyTypeName(),
@@ -245,17 +245,12 @@ class FieldCapabilitiesFetcher {
         return indexFilter == null || indexFilter instanceof MatchAllQueryBuilder;
     }
 
-    private static Predicate<MappedFieldType> buildFilter(
-        Predicate<String> fieldFilter,
-        String[] filters,
-        String[] fieldTypes,
-        SearchExecutionContext context
-    ) {
+    private static Predicate<MappedFieldType> buildFilter(String[] filters, String[] fieldTypes, SearchExecutionContext context) {
         // security filters don't exclude metadata fields
-        Predicate<MappedFieldType> fcf = ft -> fieldFilter.test(ft.name()) || context.isMetadataField(ft.name());
+        Predicate<MappedFieldType> fcf = null;
         if (fieldTypes.length > 0) {
             Set<String> acceptedTypes = Set.of(fieldTypes);
-            fcf = fcf.and(ft -> acceptedTypes.contains(ft.familyTypeName()));
+            fcf = ft -> acceptedTypes.contains(ft.familyTypeName());
         }
         for (String filter : filters) {
             if ("parent".equals(filter) || "-parent".equals(filter)) {
@@ -268,7 +263,7 @@ class FieldCapabilitiesFetcher {
                 case "-multifield" -> ft -> context.isMultiField(ft.name()) == false;
                 default -> throw new IllegalArgumentException("Unknown field caps filter [" + filter + "]");
             };
-            fcf = fcf.and(next);
+            fcf = fcf == null ? next : fcf.and(next);
         }
         return fcf;
     }

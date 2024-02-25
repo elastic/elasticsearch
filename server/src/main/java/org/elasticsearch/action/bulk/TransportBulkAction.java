@@ -190,8 +190,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     }
 
     /**
-     * Retrieves the {@link IndexRequest} from the provided {@link DocWriteRequest} for index or upsert actions.  Upserts are
-     * modeled as {@link IndexRequest} inside the {@link UpdateRequest}. Ignores {@link org.elasticsearch.action.delete.DeleteRequest}'s
+     * Retrieves the {@link IndexRequest} from the provided {@link DocWriteRequest} for index or update actions. Upserts or partial updates
+     * are modeled as {@link IndexRequest} inside the {@link UpdateRequest}. Ignores {@link org.elasticsearch.action.delete.DeleteRequest}'s
      *
      * @param docWriteRequest The request to find the {@link IndexRequest}
      * @return the found {@link IndexRequest} or {@code null} if one can not be found.
@@ -201,7 +201,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         if (docWriteRequest instanceof IndexRequest) {
             indexRequest = (IndexRequest) docWriteRequest;
         } else if (docWriteRequest instanceof UpdateRequest updateRequest) {
-            indexRequest = updateRequest.docAsUpsert() ? updateRequest.doc() : updateRequest.upsertRequest();
+            indexRequest = (updateRequest.docAsUpsert() || updateRequest.upsertRequest() == null) ? updateRequest.doc()
+                : updateRequest.upsertRequest();
         }
         return indexRequest;
     }

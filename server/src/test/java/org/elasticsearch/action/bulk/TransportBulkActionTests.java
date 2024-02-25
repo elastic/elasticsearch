@@ -191,11 +191,13 @@ public class TransportBulkActionTests extends ESTestCase {
         IndexRequest indexRequest = new IndexRequest("index").id("id1").source(Collections.emptyMap());
         UpdateRequest upsertRequest = new UpdateRequest("index", "id1").upsert(indexRequest).script(mockScript("1"));
         UpdateRequest docAsUpsertRequest = new UpdateRequest("index", "id2").doc(indexRequest).docAsUpsert(true);
+        UpdateRequest partialUpdateRequest = new UpdateRequest("index", "id2").doc(indexRequest);
         UpdateRequest scriptedUpsert = new UpdateRequest("index", "id2").upsert(indexRequest).script(mockScript("1")).scriptedUpsert(true);
 
         assertEquals(TransportBulkAction.getIndexWriteRequest(indexRequest), indexRequest);
         assertEquals(TransportBulkAction.getIndexWriteRequest(upsertRequest), indexRequest);
         assertEquals(TransportBulkAction.getIndexWriteRequest(docAsUpsertRequest), indexRequest);
+        assertEquals(TransportBulkAction.getIndexWriteRequest(partialUpdateRequest), indexRequest);
         assertEquals(TransportBulkAction.getIndexWriteRequest(scriptedUpsert), indexRequest);
 
         DeleteRequest deleteRequest = new DeleteRequest("index", "id");

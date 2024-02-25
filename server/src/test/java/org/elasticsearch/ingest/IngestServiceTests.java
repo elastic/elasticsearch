@@ -1848,12 +1848,29 @@ public class IngestServiceTests extends ESTestCase {
         int numRequest = scaledRandomIntBetween(8, 64);
         List<Boolean> executedPipelinesExpected = new ArrayList<>();
         for (int i = 0; i < numRequest; i++) {
-            IndexRequest indexRequest = new IndexRequest("_index").id("_id").setPipeline(pipelineId).setFinalPipeline("_none");
-            indexRequest.source(xContentType, "field1", "value1");
-            boolean shouldListExecutedPiplines = randomBoolean();
-            executedPipelinesExpected.add(shouldListExecutedPiplines);
-            indexRequest.setListExecutedPipelines(shouldListExecutedPiplines);
-            bulkRequest.add(indexRequest);
+            boolean shouldListExecutedPipelines = randomBoolean();
+            executedPipelinesExpected.add(shouldListExecutedPipelines);
+
+            switch (scaledRandomIntBetween(1, 3)) {
+                case 1 -> {
+                    IndexRequest indexRequest = new IndexRequest("_index").id("_id").setPipeline(pipelineId).setFinalPipeline("_none");
+                    indexRequest.source(xContentType, "field1", "value1");
+                    indexRequest.setListExecutedPipelines(shouldListExecutedPipelines);
+                    bulkRequest.add(indexRequest);
+                }
+                case 2 -> {
+                    UpdateRequest updateRequest = new UpdateRequest("_index", "_id").doc(xContentType, "field1", "value1");
+                    updateRequest.doc().setPipeline(pipelineId).setFinalPipeline("_none");
+                    updateRequest.doc().setListExecutedPipelines(shouldListExecutedPipelines);
+                    bulkRequest.add(updateRequest);
+                }
+                case 3 -> {
+                    UpdateRequest upsertRequest = new UpdateRequest("_index", "_id").upsert(xContentType, "field1", "value1");
+                    upsertRequest.upsertRequest().setPipeline(pipelineId).setFinalPipeline("_none");
+                    upsertRequest.upsertRequest().setListExecutedPipelines(shouldListExecutedPipelines);
+                    bulkRequest.add(upsertRequest);
+                }
+            }
         }
 
         final Processor processor = mock(Processor.class);

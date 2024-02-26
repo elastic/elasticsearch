@@ -31,7 +31,6 @@ import java.util.function.Supplier;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isSpatial;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isSpatialGeo;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isString;
-import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 
 public class SpatialintersectsTests extends AbstractFunctionTestCase {
     public SpatialintersectsTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
@@ -41,9 +40,9 @@ public class SpatialintersectsTests extends AbstractFunctionTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
-        DataType[] geoDataTypes = { KEYWORD, EsqlDataTypes.GEO_POINT, EsqlDataTypes.GEO_SHAPE };
+        DataType[] geoDataTypes = { EsqlDataTypes.GEO_POINT, EsqlDataTypes.GEO_SHAPE };
         addSpatialCombinations(suppliers, geoDataTypes);
-        DataType[] cartesianDataTypes = { KEYWORD, EsqlDataTypes.CARTESIAN_POINT, EsqlDataTypes.CARTESIAN_SHAPE };
+        DataType[] cartesianDataTypes = { EsqlDataTypes.CARTESIAN_POINT, EsqlDataTypes.CARTESIAN_SHAPE };
         addSpatialCombinations(suppliers, cartesianDataTypes);
         return parameterSuppliersFromTypedData(
             errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers), SpatialintersectsTests::typeErrorMessage)
@@ -91,33 +90,22 @@ public class SpatialintersectsTests extends AbstractFunctionTestCase {
             int badArgPosition = badArgPositions.get(0);
             int goodArgPosition = badArgPosition == 0 ? 1 : 0;
             if (isSpatial(types.get(goodArgPosition)) == false) {
-                return bothInvalid(types.get(0), types.get(1));
+                return oneInvalid(badArgPosition, -1, includeOrdinal, types);
             } else {
                 return oneInvalid(badArgPosition, goodArgPosition, includeOrdinal, types);
             }
         } else {
-            return bothInvalid(types.get(0), types.get(1));
+            return oneInvalid(0, -1, includeOrdinal, types);
         }
     }
 
     private static String oneInvalid(int badArgPosition, int goodArgPosition, boolean includeOrdinal, List<DataType> types) {
         String ordinal = includeOrdinal ? TypeResolutions.ParamOrdinal.fromIndex(badArgPosition).name().toLowerCase(Locale.ROOT) + " " : "";
-        String expectedType = types.get(goodArgPosition).esType() + " or keyword";
+        String expectedType = goodArgPosition >= 0
+            ? types.get(goodArgPosition).esType()
+            : "geo_point, cartesian_point, geo_shape or cartesian_shape";
         String name = types.get(badArgPosition).typeName();
         return ordinal + "argument of [] must be [" + expectedType + "], found value [" + name + "] type [" + name + "]";
-    }
-
-    private static String bothInvalid(DataType leftType, DataType rightType) {
-        return String.format(
-            Locale.ROOT,
-            "when neither arguments of [] are [%s], both must be [%s], found value [%s] type [%s] and value [%s] type [%s]",
-            "geo_point or geo_shape or cartesian_point or cartesian_shape",
-            "keyword",
-            leftType.typeName(),
-            leftType.typeName(),
-            rightType.typeName(),
-            rightType.typeName()
-        );
     }
 
     private static TestCaseSupplier.TypedDataSupplier testCaseSupplier(DataType dataType) {
@@ -126,7 +114,6 @@ public class SpatialintersectsTests extends AbstractFunctionTestCase {
             case "geo_shape" -> TestCaseSupplier.geoShapeCases(() -> false).get(0);
             case "cartesian_point" -> TestCaseSupplier.cartesianPointCases(() -> false).get(0);
             case "cartesian_shape" -> TestCaseSupplier.cartesianShapeCases(() -> false).get(0);
-            case "keyword", "text" -> TestCaseSupplier.textShapeCases(dataType, () -> false).get(0);
             default -> throw new IllegalArgumentException("Unsupported datatype for ST_INTERSECTS: " + dataType);
         };
     }
@@ -155,8 +142,6 @@ public class SpatialintersectsTests extends AbstractFunctionTestCase {
         if (isSpatialGeo(leftType) || isSpatialGeo(rightType)) {
             return SpatialIntersects.GEO;
         } else if (isSpatial(leftType) || isSpatial(rightType)) {
-            return SpatialIntersects.CARTESIAN;
-        } else if (isString(leftType) && isString(rightType)) {
             return SpatialIntersects.CARTESIAN;
         } else {
             throw new IllegalArgumentException(
@@ -197,34 +182,13 @@ public class SpatialintersectsTests extends AbstractFunctionTestCase {
         } else if (isSpatial(rightType)) {
             return rightType;
         } else {
-            return EsqlDataTypes.CARTESIAN_SHAPE;
+            throw new IllegalArgumentException("Invalid spatial types: " + leftType + " and " + rightType);
         }
     }
 
     private static String spatialEvaluatorString(DataType leftType, DataType rightType) {
         String crsType = isSpatialGeo(pickSpatialType(leftType, rightType)) ? "Geo" : "Cartesian";
-        String left = (leftType == KEYWORD) ? "String" : "Source";
-        String right = (rightType == KEYWORD) ? "String" : "Source";
-        if (left.equals("String") && right.equals("String")) {
-            return makeEvaluatorName(crsType, left, right, "0", "1");
-        } else if (left.equals("String")) {
-            return makeEvaluatorName(crsType, right, left, "1", "0");
-        } else {
-            return makeEvaluatorName(crsType, left, right, "0", "1");
-        }
-    }
-
-    private static String makeEvaluatorName(String crsType, String left, String right, String leftId, String rightId) {
-        return "SpatialIntersects"
-            + crsType
-            + left
-            + "And"
-            + right
-            + "Evaluator[leftValue=Attribute[channel="
-            + leftId
-            + "], rightValue=Attribute[channel="
-            + rightId
-            + "]]";
+        return "SpatialIntersects" + crsType + "SourceAndSourceEvaluator[leftValue=Attribute[channel=0], rightValue=Attribute[channel=1]]";
     }
 
     private static int countGeo(DataType... types) {

@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes;
 
 import java.io.IOException;
@@ -63,8 +62,8 @@ public class SpatialIntersects extends SpatialRelatesFunction {
         ) Expression left,
         @Param(
             name = "other",
-            type = { "geo_point", "cartesian_point", "geo_shape", "cartesian_shape", "keyword", "text" },
-            description = "Geometry column name or variable of geometry type or a string literal containing a WKT geometry"
+            type = { "geo_point", "cartesian_point", "geo_shape", "cartesian_shape" },
+            description = "Geometry column name or variable of geometry type"
         ) Expression right
     ) {
         this(source, left, right, false);
@@ -117,15 +116,10 @@ public class SpatialIntersects extends SpatialRelatesFunction {
     static {
         // Support geo_point and geo_shape from source and constant combinations
         for (DataType spatialType : new DataType[] { GEO_POINT, GEO_SHAPE }) {
-            for (DataType otherType : new DataType[] { GEO_POINT, GEO_SHAPE, DataTypes.KEYWORD }) {
+            for (DataType otherType : new DataType[] { GEO_POINT, GEO_SHAPE }) {
                 evaluatorMap.put(
                     SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSources(spatialType, otherType),
-                    new SpatialEvaluatorFactory.SpatialEvaluatorFactoryWithFields(
-                        // Both Geometry and String fields are backed by BytesRef, so we need different evaluators
-                        otherType == DataTypes.KEYWORD
-                            ? SpatialIntersectsGeoSourceAndStringEvaluator.Factory::new
-                            : SpatialIntersectsGeoSourceAndSourceEvaluator.Factory::new
-                    )
+                    new SpatialEvaluatorFactory.SpatialEvaluatorFactoryWithFields(SpatialIntersectsGeoSourceAndSourceEvaluator.Factory::new)
                 );
                 evaluatorMap.put(
                     SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSourceAndConstant(spatialType, otherType),
@@ -137,10 +131,7 @@ public class SpatialIntersects extends SpatialRelatesFunction {
                     evaluatorMap.put(
                         SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSources(spatialType, otherType).withDocValues(),
                         new SpatialEvaluatorFactory.SpatialEvaluatorFactoryWithFields(
-                            // Both Geometry and String fields are backed by BytesRef, so we need different evaluators
-                            otherType == DataTypes.KEYWORD
-                                ? SpatialIntersectsGeoPointDocValuesAndStringEvaluator.Factory::new
-                                : SpatialIntersectsGeoPointDocValuesAndSourceEvaluator.Factory::new
+                            SpatialIntersectsGeoPointDocValuesAndSourceEvaluator.Factory::new
                         )
                     );
                     evaluatorMap.put(
@@ -155,14 +146,11 @@ public class SpatialIntersects extends SpatialRelatesFunction {
 
         // Support cartesian_point and cartesian_shape from source and constant combinations
         for (DataType spatialType : new DataType[] { CARTESIAN_POINT, CARTESIAN_SHAPE }) {
-            for (DataType otherType : new DataType[] { CARTESIAN_POINT, CARTESIAN_SHAPE, DataTypes.KEYWORD }) {
+            for (DataType otherType : new DataType[] { CARTESIAN_POINT, CARTESIAN_SHAPE }) {
                 evaluatorMap.put(
                     SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSources(spatialType, otherType),
                     new SpatialEvaluatorFactory.SpatialEvaluatorFactoryWithFields(
-                        // Both Geometry and String fields are backed by BytesRef, so we need different evaluators
-                        otherType == DataTypes.KEYWORD
-                            ? SpatialIntersectsCartesianSourceAndStringEvaluator.Factory::new
-                            : SpatialIntersectsCartesianSourceAndSourceEvaluator.Factory::new
+                        SpatialIntersectsCartesianSourceAndSourceEvaluator.Factory::new
                     )
                 );
                 evaluatorMap.put(
@@ -175,10 +163,7 @@ public class SpatialIntersects extends SpatialRelatesFunction {
                     evaluatorMap.put(
                         SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSources(spatialType, otherType).withDocValues(),
                         new SpatialEvaluatorFactory.SpatialEvaluatorFactoryWithFields(
-                            // Both Geometry and String fields are backed by BytesRef, so we need different evaluators
-                            otherType == DataTypes.KEYWORD
-                                ? SpatialIntersectsCartesianPointDocValuesAndStringEvaluator.Factory::new
-                                : SpatialIntersectsCartesianPointDocValuesAndSourceEvaluator.Factory::new
+                            SpatialIntersectsCartesianPointDocValuesAndSourceEvaluator.Factory::new
                         )
                     );
                     evaluatorMap.put(
@@ -190,36 +175,11 @@ public class SpatialIntersects extends SpatialRelatesFunction {
                 }
             }
         }
-
-        // If both sides are string fields or constants we will treat generically since we do not know the CRS.
-        // This is mostly a match for PostGIS, which assumes SRID=0 for WKT where SRID is not specified.
-        // Elasticsearch does not have a concept of SRID in WKT parsing, and instead determines CRS from context.
-        // In most cases this results in the same behavior as PostGIS, but there are some edge cases where it does not.
-        SpatialEvaluatorFactory.SpatialEvaluatorKey key = SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSources(
-            DataTypes.KEYWORD,
-            DataTypes.KEYWORD
-        );
-        evaluatorMap.put(
-            key,
-            new SpatialEvaluatorFactory.SpatialEvaluatorFactoryWithFields(SpatialIntersectsCartesianStringAndStringEvaluator.Factory::new)
-        );
-        evaluatorMap.put(
-            key.withConstants(false, true),
-            new SpatialEvaluatorFactory.SpatialEvaluatorWithConstantFactory(
-                SpatialIntersectsCartesianStringAndConstantEvaluator.Factory::new
-            )
-        );
     }
 
     @Evaluator(extraName = "GeoSourceAndConstant", warnExceptions = { IllegalArgumentException.class, IOException.class })
     static boolean processGeoSourceAndConstant(BytesRef leftValue, @Fixed Component2D rightValue) throws IOException {
         return GEO.geometryRelatesGeometry(leftValue, rightValue);
-    }
-
-    @Evaluator(extraName = "GeoSourceAndString", warnExceptions = { IllegalArgumentException.class, IOException.class })
-    static boolean processGeoSourceAndString(BytesRef leftValue, BytesRef rightValue) throws IOException {
-        BytesRef geometry = SpatialCoordinateTypes.UNSPECIFIED.wktToWkb(rightValue.utf8ToString());
-        return GEO.geometryRelatesGeometry(leftValue, geometry);
     }
 
     @Evaluator(extraName = "GeoSourceAndSource", warnExceptions = { IllegalArgumentException.class, IOException.class })
@@ -232,33 +192,15 @@ public class SpatialIntersects extends SpatialRelatesFunction {
         return GEO.pointRelatesGeometry(leftValue, rightValue);
     }
 
-    @Evaluator(extraName = "GeoPointDocValuesAndString", warnExceptions = { IllegalArgumentException.class })
-    static boolean processGeoPointDocValuesAndString(long leftValue, BytesRef rightValue) {
-        Geometry geometry = SpatialCoordinateTypes.UNSPECIFIED.wktToGeometry(rightValue.utf8ToString());
-        return GEO.pointRelatesGeometry(leftValue, geometry);
-    }
-
     @Evaluator(extraName = "GeoPointDocValuesAndSource", warnExceptions = { IllegalArgumentException.class })
     static boolean processGeoPointDocValuesAndSource(long leftValue, BytesRef rightValue) {
         Geometry geometry = SpatialCoordinateTypes.UNSPECIFIED.wkbToGeometry(rightValue);
         return GEO.pointRelatesGeometry(leftValue, geometry);
     }
 
-    @Evaluator(extraName = "GeoStringAndConstant", warnExceptions = { IllegalArgumentException.class, IOException.class })
-    static boolean processGeoStringAndConstant(BytesRef leftValue, @Fixed Component2D rightValue) throws IOException {
-        BytesRef leftGeom = SpatialCoordinateTypes.UNSPECIFIED.wktToWkb(leftValue.utf8ToString());
-        return GEO.geometryRelatesGeometry(leftGeom, rightValue);
-    }
-
     @Evaluator(extraName = "CartesianSourceAndConstant", warnExceptions = { IllegalArgumentException.class, IOException.class })
     static boolean processCartesianSourceAndConstant(BytesRef leftValue, @Fixed Component2D rightValue) throws IOException {
         return CARTESIAN.geometryRelatesGeometry(leftValue, rightValue);
-    }
-
-    @Evaluator(extraName = "CartesianSourceAndString", warnExceptions = { IllegalArgumentException.class, IOException.class })
-    static boolean processCartesianSourceAndString(BytesRef leftValue, BytesRef rightValue) throws IOException {
-        BytesRef geometry = SpatialCoordinateTypes.UNSPECIFIED.wktToWkb(rightValue.utf8ToString());
-        return CARTESIAN.geometryRelatesGeometry(leftValue, geometry);
     }
 
     @Evaluator(extraName = "CartesianSourceAndSource", warnExceptions = { IllegalArgumentException.class, IOException.class })
@@ -271,28 +213,9 @@ public class SpatialIntersects extends SpatialRelatesFunction {
         return CARTESIAN.pointRelatesGeometry(leftValue, rightValue);
     }
 
-    @Evaluator(extraName = "CartesianPointDocValuesAndString", warnExceptions = { IllegalArgumentException.class })
-    static boolean processCartesianPointDocValuesAndString(long leftValue, BytesRef rightValue) {
-        Geometry geometry = SpatialCoordinateTypes.UNSPECIFIED.wktToGeometry(rightValue.utf8ToString());
-        return CARTESIAN.pointRelatesGeometry(leftValue, geometry);
-    }
-
     @Evaluator(extraName = "CartesianPointDocValuesAndSource")
     static boolean processCartesianPointDocValuesAndSource(long leftValue, BytesRef rightValue) {
         Geometry geometry = SpatialCoordinateTypes.UNSPECIFIED.wkbToGeometry(rightValue);
         return CARTESIAN.pointRelatesGeometry(leftValue, geometry);
-    }
-
-    @Evaluator(extraName = "CartesianStringAndConstant", warnExceptions = { IllegalArgumentException.class, IOException.class })
-    static boolean processCartesianStringAndConstant(BytesRef leftValue, @Fixed Component2D rightValue) throws IOException {
-        BytesRef leftGeom = SpatialCoordinateTypes.UNSPECIFIED.wktToWkb(leftValue.utf8ToString());
-        return CARTESIAN.geometryRelatesGeometry(leftGeom, rightValue);
-    }
-
-    @Evaluator(extraName = "CartesianStringAndString", warnExceptions = { IllegalArgumentException.class, IOException.class })
-    static boolean processCartesianStringAndString(BytesRef leftValue, BytesRef rightValue) throws IOException {
-        BytesRef leftGeom = SpatialCoordinateTypes.UNSPECIFIED.wktToWkb(leftValue.utf8ToString());
-        BytesRef rightGeom = SpatialCoordinateTypes.UNSPECIFIED.wktToWkb(rightValue.utf8ToString());
-        return CARTESIAN.geometryRelatesGeometry(leftGeom, rightGeom);
     }
 }

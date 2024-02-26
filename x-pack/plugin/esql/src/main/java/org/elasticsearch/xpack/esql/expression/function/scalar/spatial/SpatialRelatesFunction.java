@@ -37,16 +37,13 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 
 import static org.apache.lucene.document.ShapeField.QueryRelation.DISJOINT;
-import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isSpatial;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.asGeometryDocValueReader;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.asLuceneComponent2D;
-import static org.elasticsearch.xpack.ql.expression.Expressions.name;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
-import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
-import static org.elasticsearch.xpack.ql.type.DataTypes.NULL;
+import static org.elasticsearch.xpack.ql.type.DataTypes.isNull;
 
 public abstract class SpatialRelatesFunction extends BinaryScalarFunction
     implements
@@ -80,18 +77,9 @@ public abstract class SpatialRelatesFunction extends BinaryScalarFunction
         // We determine the spatial data type first, then check if the other expression is of the same type or a string.
         TypeResolution leftResolution = isSpatial(left(), sourceText(), FIRST);
         TypeResolution rightResolution = isSpatial(right(), sourceText(), SECOND);
-        // Both are not spatial, then both could be string literals
-        if ((leftResolution.unresolved() || left().dataType().equals(NULL))
-            && (rightResolution.unresolved() || right().dataType().equals(NULL))) {
-            TypeResolution resolution = bothAreStringTypes(left(), right(), sourceText());
-            if (resolution.unresolved() == false) {
-                crsType = SpatialCrsType.UNSPECIFIED;
-            }
-            return resolution;
-        }
         // Both are spatial, but one could be a literal spatial function
         if (leftResolution.resolved() && rightResolution.resolved()) {
-            if (left().foldable() && right().foldable() == false || DataTypes.isNull(left().dataType())) {
+            if (left().foldable() && right().foldable() == false || isNull(left().dataType())) {
                 // Left is literal, but right is not, check the left field's type against the right field
                 return resolveType(right(), left(), FIRST);
             } else {
@@ -99,10 +87,20 @@ public abstract class SpatialRelatesFunction extends BinaryScalarFunction
                 return resolveType(left(), right(), SECOND);
             }
         }
-        // Only one is spatial, the other must be a literal string
-        if (leftResolution.unresolved()) {
+        // If any parameter is not spatial, we are unresolved
+        if ((leftResolution.unresolved() || isNull(left().dataType())) && (rightResolution.unresolved() || isNull(right().dataType()))) {
+            return isNull(left().dataType()) ? rightResolution : leftResolution;
+        } else if (leftResolution.resolved() && isNull(left().dataType()) == false) {
+            // Left is spatial, check right against left
+            return resolveType(left(), right(), SECOND);
+        } else if (rightResolution.resolved() && isNull(right().dataType()) == false) {
+            // Right is spatial, check left against right
             return resolveType(right(), left(), FIRST);
+        } else if (isNull(right().dataType())) {
+            // Neither are spatial, return left resolution
+            return leftResolution;
         } else {
+            // Neither are spatial, return left resolution
             return resolveType(left(), right(), SECOND);
         }
     }
@@ -112,12 +110,10 @@ public abstract class SpatialRelatesFunction extends BinaryScalarFunction
         Expression otherExpression,
         TypeResolutions.ParamOrdinal otherParamOrdinal
     ) {
-        TypeResolution resolution = isSameSpatialTypeOrString(
-            spatialExpression.dataType(),
-            otherExpression,
-            sourceText(),
-            otherParamOrdinal
-        );
+        if (isNull(spatialExpression.dataType())) {
+            return isSpatial(otherExpression, sourceText(), otherParamOrdinal);
+        }
+        TypeResolution resolution = isSameSpatialType(spatialExpression.dataType(), otherExpression, sourceText(), otherParamOrdinal);
         if (resolution.unresolved()) {
             return resolution;
         }
@@ -125,7 +121,7 @@ public abstract class SpatialRelatesFunction extends BinaryScalarFunction
         return TypeResolution.TYPE_RESOLVED;
     }
 
-    public static TypeResolution isSameSpatialTypeOrString(
+    public static TypeResolution isSameSpatialType(
         DataType spatialDataType,
         Expression expression,
         String operationName,
@@ -133,49 +129,16 @@ public abstract class SpatialRelatesFunction extends BinaryScalarFunction
     ) {
         return isType(
             expression,
-            dt -> dt == KEYWORD || EsqlDataTypes.isSpatial(dt) && spatialCRSCompatible(spatialDataType, dt),
+            dt -> EsqlDataTypes.isSpatial(dt) && spatialCRSCompatible(spatialDataType, dt),
             operationName,
             paramOrd,
-            spatialDataType.esType(),
-            "keyword"
+            spatialDataType.esType()
         );
     }
 
     private static boolean spatialCRSCompatible(DataType spatialDataType, DataType otherDataType) {
         return EsqlDataTypes.isSpatialGeo(spatialDataType) && EsqlDataTypes.isSpatialGeo(otherDataType)
             || EsqlDataTypes.isSpatialGeo(spatialDataType) == false && EsqlDataTypes.isSpatialGeo(otherDataType) == false;
-    }
-
-    public static TypeResolution bothAreStringTypes(Expression left, Expression right, String operationName) {
-        return atLeastOneKeywordAndNoNonNulls(left, right)
-            ? TypeResolution.TYPE_RESOLVED
-            : new TypeResolution(
-                format(
-                    null,
-                    "when neither arguments of [{}] are [{}], both must be [{}], found value [{}] type [{}] and value [{}] type [{}]",
-                    operationName,
-                    "geo_point or geo_shape or cartesian_point or cartesian_shape",
-                    "keyword",
-                    name(left),
-                    left.dataType().typeName(),
-                    name(right),
-                    right.dataType().typeName()
-                )
-            );
-    }
-
-    private static boolean atLeastOneKeywordAndNoNonNulls(Expression... expressions) {
-        int countKeywords = 0;
-        int countNulls = 0;
-        for (Expression expression : expressions) {
-            if (expression.dataType() == KEYWORD) {
-                countKeywords++;
-            }
-            if (expression.dataType() == NULL) {
-                countNulls++;
-            }
-        }
-        return countKeywords > 0 && (countNulls + countKeywords == expressions.length);
     }
 
     @Override

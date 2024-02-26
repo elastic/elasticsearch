@@ -980,26 +980,6 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         );
     }
 
-    public static List<TypedDataSupplier> textShapeCases(DataType dataType, Supplier<Boolean> hasAlt) {
-        if (EsqlDataTypes.isSpatialGeo(dataType)) {
-            return List.of(
-                new TypedDataSupplier(
-                    "<keyword> from <geo_shape>",
-                    () -> GEO.asWkt(GeometryTestUtils.randomPolygon(hasAlt.get())),
-                    DataTypes.KEYWORD
-                )
-            );
-        } else {
-            return List.of(
-                new TypedDataSupplier(
-                    "<keyword> from <cartesian_shape>",
-                    () -> CARTESIAN.asWkt(ShapeTestUtils.randomPolygon(hasAlt.get())),
-                    DataTypes.KEYWORD
-                )
-            );
-        }
-    }
-
     public static List<TypedDataSupplier> geoShapeCases(Supplier<Boolean> hasAlt) {
         return List.of(
             new TypedDataSupplier(

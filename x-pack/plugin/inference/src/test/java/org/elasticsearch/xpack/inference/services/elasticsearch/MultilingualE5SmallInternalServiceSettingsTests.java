@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.services.textembedding;
+package org.elasticsearch.xpack.inference.services.elasticsearch;
 
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -24,7 +24,7 @@ public class MultilingualE5SmallInternalServiceSettingsTests extends AbstractWir
         return new MultilingualE5SmallInternalServiceSettings(
             randomIntBetween(1, 4),
             randomIntBetween(1, 4),
-            randomFrom(TextEmbeddingInternalService.MULTILINGUAL_E5_SMALL_VALID_IDS)
+            randomFrom(ElasticsearchInternalService.MULTILINGUAL_E5_SMALL_VALID_IDS)
         );
     }
 
@@ -43,7 +43,7 @@ public class MultilingualE5SmallInternalServiceSettingsTests extends AbstractWir
     }
 
     public void testFromMap() {
-        String randomModelVariant = randomFrom(TextEmbeddingInternalService.MULTILINGUAL_E5_SMALL_VALID_IDS);
+        String randomModelVariant = randomFrom(ElasticsearchInternalService.MULTILINGUAL_E5_SMALL_VALID_IDS);
         var serviceSettings = MultilingualE5SmallInternalServiceSettings.fromMap(
             new HashMap<>(
                 Map.of(
@@ -138,7 +138,7 @@ public class MultilingualE5SmallInternalServiceSettingsTests extends AbstractWir
                 instance.getModelId()
             );
             case 2 -> {
-                var versions = new HashSet<>(TextEmbeddingInternalService.MULTILINGUAL_E5_SMALL_VALID_IDS);
+                var versions = new HashSet<>(ElasticsearchInternalService.MULTILINGUAL_E5_SMALL_VALID_IDS);
                 versions.remove(instance.getModelId());
                 yield new MultilingualE5SmallInternalServiceSettings(
                     instance.getNumAllocations(),

@@ -5,4 +5,4 @@
 # 2.0.
 #
 
-org.elasticsearch.xpack.rank.rrf.RRFFeatureSpecification
+org.elasticsearch.xpack.rank.rrf.RRFFeatures

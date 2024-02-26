@@ -49,7 +49,7 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
         ) {
             SearchSourceBuilder ssb = new SearchSourceBuilder();
             IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> ssb.parseXContent(parser, true, nf -> true));
-            assertEquals("[search_after] cannot be declared on multiple retrievers", iae.getMessage());
+            assertEquals("[search_after] cannot be used in children of compound retrievers", iae.getMessage());
         }
 
         try (
@@ -61,7 +61,7 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
         ) {
             SearchSourceBuilder ssb = new SearchSourceBuilder();
             IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> ssb.parseXContent(parser, true, nf -> true));
-            assertEquals("[terminate_after] cannot be declared on multiple retrievers", iae.getMessage());
+            assertEquals("[terminate_after] cannot be used in children of compound retrievers", iae.getMessage());
         }
 
         try (
@@ -72,7 +72,7 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
         ) {
             SearchSourceBuilder ssb = new SearchSourceBuilder();
             IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> ssb.parseXContent(parser, true, nf -> true));
-            assertEquals("[sort] cannot be declared on multiple retrievers", iae.getMessage());
+            assertEquals("[sort] cannot be used in children of compound retrievers", iae.getMessage());
         }
 
         try (
@@ -83,7 +83,7 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
         ) {
             SearchSourceBuilder ssb = new SearchSourceBuilder();
             IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> ssb.parseXContent(parser, true, nf -> true));
-            assertEquals("[min_score] cannot be declared on multiple retrievers", iae.getMessage());
+            assertEquals("[min_score] cannot be used in children of compound retrievers", iae.getMessage());
         }
 
         try (
@@ -95,7 +95,7 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
         ) {
             SearchSourceBuilder ssb = new SearchSourceBuilder();
             IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> ssb.parseXContent(parser, true, nf -> true));
-            assertEquals("[collapse] cannot be declared on multiple retrievers", iae.getMessage());
+            assertEquals("[collapse] cannot be used in children of compound retrievers", iae.getMessage());
         }
 
         try (
@@ -106,7 +106,7 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
         ) {
             SearchSourceBuilder ssb = new SearchSourceBuilder();
             IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> ssb.parseXContent(parser, true, nf -> true));
-            assertEquals("[rank] cannot be declared on multiple retrievers", iae.getMessage());
+            assertEquals("[rank] cannot be used in children of compound retrievers", iae.getMessage());
         }
     }
 

@@ -28,13 +28,15 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.RegexExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.RowExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
-import org.elasticsearch.xpack.ql.common.Failures;
+import org.elasticsearch.xpack.ql.common.Failure;
 import org.elasticsearch.xpack.ql.expression.AttributeSet;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.plan.QueryPlan;
 import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
+
+import java.util.Collection;
 
 import static org.elasticsearch.xpack.ql.common.Failure.fail;
 
@@ -44,7 +46,7 @@ class OptimizerRules {
 
     static class DependencyConsistency<P extends QueryPlan<P>> {
 
-        void checkPlan(P p, Failures failures) {
+        void checkPlan(P p, Collection<Failure> failures) {
             AttributeSet refs = references(p);
             AttributeSet input = p.inputSet();
             AttributeSet generated = generates(p);

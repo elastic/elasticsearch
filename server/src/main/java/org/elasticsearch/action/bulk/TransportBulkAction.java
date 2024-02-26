@@ -201,7 +201,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         if (docWriteRequest instanceof IndexRequest) {
             indexRequest = (IndexRequest) docWriteRequest;
         } else if (docWriteRequest instanceof UpdateRequest updateRequest) {
-            indexRequest = (updateRequest.docAsUpsert() || updateRequest.upsertRequest() == null) ? updateRequest.doc()
+            indexRequest = (updateRequest.docAsUpsert() || updateRequest.upsertRequest() == null)
+                ? updateRequest.doc()
                 : updateRequest.upsertRequest();
         }
         return indexRequest;

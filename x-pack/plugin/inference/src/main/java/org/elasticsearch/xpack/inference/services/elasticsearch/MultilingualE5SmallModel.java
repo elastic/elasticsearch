@@ -3,11 +3,9 @@
  * or more contributor license agreements. Licensed under the Elastic License
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
- *
- * this file was contributed to by a generative AI
  */
 
-package org.elasticsearch.xpack.inference.services.textembedding;
+package org.elasticsearch.xpack.inference.services.elasticsearch;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -19,7 +17,7 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import static org.elasticsearch.xpack.core.ml.inference.assignment.AllocationStatus.State.STARTED;
 
-public class MultilingualE5SmallModel extends TextEmbeddingModel {
+public class MultilingualE5SmallModel extends ElasticsearchModel {
 
     public MultilingualE5SmallModel(
         String inferenceEntityId,

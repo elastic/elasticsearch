@@ -10,6 +10,7 @@ package org.elasticsearch.bootstrap;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.ReferenceDocs;
 
 import java.nio.file.Path;
 
@@ -36,7 +37,11 @@ final class Natives {
         } catch (ClassNotFoundException e) {
             logger.warn("JNA not found. native methods will be disabled.", e);
         } catch (UnsatisfiedLinkError e) {
-            logger.warn("unable to load JNA native support library, native methods will be disabled.", e);
+            logger.warn(
+                "unable to load JNA native support library, native methods will be disabled. See {}",
+                ReferenceDocs.EXECUTABLE_JNA_TMPDIR,
+                e
+            );
         }
         JNA_AVAILABLE = v;
     }

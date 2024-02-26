@@ -1,7 +1,7 @@
 [[docs-refresh]]
 === `?refresh`
 
-The <<docs-index_,Index>>, <<docs-update,Update>>, <<docs-delete,Delete>>, and
+The <<docs-index_,Index>>, <<docs-update,Update>>, <<docs-delete,Delete>>, <<docs-reindex,Reindex>>, and
 <<docs-bulk,Bulk>> APIs support setting `refresh` to control when changes made
 by this request are made visible to search. These are the allowed values:
 

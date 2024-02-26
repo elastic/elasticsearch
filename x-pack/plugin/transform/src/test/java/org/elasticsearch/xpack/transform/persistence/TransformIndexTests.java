@@ -45,7 +45,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.emptyMap;
-import static java.util.Collections.singletonMap;
+import static java.util.Map.entry;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.contains;
@@ -220,68 +220,45 @@ public class TransformIndexTests extends ESTestCase {
 
     public void testCreateMappingsFromStringMap() {
         assertThat(TransformIndex.createMappingsFromStringMap(emptyMap()), is(anEmptyMap()));
+        assertThat(TransformIndex.createMappingsFromStringMap(Map.of("a", "long")), equalTo(Map.of("a", Map.of("type", "long"))));
         assertThat(
-            TransformIndex.createMappingsFromStringMap(singletonMap("a", "long")),
-            is(equalTo(singletonMap("a", singletonMap("type", "long"))))
+            TransformIndex.createMappingsFromStringMap(Map.of("a", "long", "b", "keyword")),
+            equalTo(Map.of("a", Map.of("type", "long"), "b", Map.of("type", "keyword")))
         );
-        assertThat(TransformIndex.createMappingsFromStringMap(new HashMap<>() {
-            {
-                put("a", "long");
-                put("b", "keyword");
-            }
-        }), is(equalTo(new HashMap<>() {
-            {
-                put("a", singletonMap("type", "long"));
-                put("b", singletonMap("type", "keyword"));
-            }
-        })));
-        assertThat(TransformIndex.createMappingsFromStringMap(new HashMap<>() {
-            {
-                put("a", "long");
-                put("a.b", "keyword");
-            }
-        }), is(equalTo(new HashMap<>() {
-            {
-                put("a", singletonMap("type", "long"));
-                put("a.b", singletonMap("type", "keyword"));
-            }
-        })));
-        assertThat(TransformIndex.createMappingsFromStringMap(new HashMap<>() {
-            {
-                put("a", "long");
-                put("a.b", "text");
-                put("a.b.c", "keyword");
-            }
-        }), is(equalTo(new HashMap<>() {
-            {
-                put("a", singletonMap("type", "long"));
-                put("a.b", singletonMap("type", "text"));
-                put("a.b.c", singletonMap("type", "keyword"));
-            }
-        })));
-        assertThat(TransformIndex.createMappingsFromStringMap(new HashMap<>() {
-            {
-                put("a", "object");
-                put("a.b", "long");
-                put("c", "nested");
-                put("c.d", "boolean");
-                put("f", "object");
-                put("f.g", "object");
-                put("f.g.h", "text");
-                put("f.g.h.i", "text");
-            }
-        }), is(equalTo(new HashMap<>() {
-            {
-                put("a", singletonMap("type", "object"));
-                put("a.b", singletonMap("type", "long"));
-                put("c", singletonMap("type", "nested"));
-                put("c.d", singletonMap("type", "boolean"));
-                put("f", singletonMap("type", "object"));
-                put("f.g", singletonMap("type", "object"));
-                put("f.g.h", singletonMap("type", "text"));
-                put("f.g.h.i", singletonMap("type", "text"));
-            }
-        })));
+        assertThat(
+            TransformIndex.createMappingsFromStringMap(Map.of("a", "long", "a.b", "keyword")),
+            equalTo(Map.of("a", Map.of("type", "long"), "a.b", Map.of("type", "keyword")))
+        );
+        assertThat(
+            TransformIndex.createMappingsFromStringMap(Map.of("a", "long", "a.b", "text", "a.b.c", "keyword")),
+            equalTo(Map.of("a", Map.of("type", "long"), "a.b", Map.of("type", "text"), "a.b.c", Map.of("type", "keyword")))
+        );
+        assertThat(
+            TransformIndex.createMappingsFromStringMap(
+                Map.ofEntries(
+                    entry("a", "object"),
+                    entry("a.b", "long"),
+                    entry("c", "nested"),
+                    entry("c.d", "boolean"),
+                    entry("f", "object"),
+                    entry("f.g", "object"),
+                    entry("f.g.h", "text"),
+                    entry("f.g.h.i", "text")
+                )
+            ),
+            equalTo(
+                Map.ofEntries(
+                    entry("a", Map.of("type", "object")),
+                    entry("a.b", Map.of("type", "long")),
+                    entry("c", Map.of("type", "nested")),
+                    entry("c.d", Map.of("type", "boolean")),
+                    entry("f", Map.of("type", "object")),
+                    entry("f.g", Map.of("type", "object")),
+                    entry("f.g.h", Map.of("type", "text")),
+                    entry("f.g.h.i", Map.of("type", "text"))
+                )
+            )
+        );
     }
 
     @SuppressWarnings("unchecked")

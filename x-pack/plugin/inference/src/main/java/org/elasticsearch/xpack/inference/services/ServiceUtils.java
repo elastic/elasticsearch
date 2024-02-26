@@ -16,16 +16,17 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
+import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.inference.results.TextEmbedding;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingResults;
-import org.elasticsearch.xpack.inference.common.SimilarityMeasure;
 
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Arrays;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -71,6 +72,15 @@ public class ServiceUtils {
         Map<String, Object> value = (Map<String, Object>) sourceMap.remove(fieldName);
         if (value == null) {
             throw new ElasticsearchStatusException("Missing required field [{}]", RestStatus.BAD_REQUEST, fieldName);
+        }
+        return value;
+    }
+
+    @SuppressWarnings("unchecked")
+    public static Map<String, Object> removeFromMapOrDefaultEmpty(Map<String, Object> sourceMap, String fieldName) {
+        Map<String, Object> value = (Map<String, Object>) sourceMap.remove(fieldName);
+        if (value == null) {
+            return new HashMap<>();
         }
         return value;
     }

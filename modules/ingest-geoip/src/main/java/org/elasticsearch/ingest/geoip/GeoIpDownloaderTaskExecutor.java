@@ -97,7 +97,7 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
     private final AtomicBoolean taskIsBootstrapped = new AtomicBoolean(false);
 
     GeoIpDownloaderTaskExecutor(Client client, HttpClient httpClient, ClusterService clusterService, ThreadPool threadPool) {
-        super(GEOIP_DOWNLOADER, ThreadPool.Names.GENERIC);
+        super(GEOIP_DOWNLOADER, threadPool.generic());
         this.client = new OriginSettingClient(client, IngestService.INGEST_ORIGIN);
         this.httpClient = httpClient;
         this.clusterService = clusterService;
@@ -345,6 +345,7 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
             GEOIP_DOWNLOADER,
             GEOIP_DOWNLOADER,
             new GeoIpTaskParams(),
+            null,
             ActionListener.wrap(r -> logger.debug("Started geoip downloader task"), e -> {
                 Throwable t = e instanceof RemoteTransportException ? e.getCause() : e;
                 if (t instanceof ResourceAlreadyExistsException == false) {
@@ -366,7 +367,7 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
                 }
             }
         );
-        persistentTasksService.sendRemoveRequest(GEOIP_DOWNLOADER, ActionListener.runAfter(listener, () -> {
+        persistentTasksService.sendRemoveRequest(GEOIP_DOWNLOADER, null, ActionListener.runAfter(listener, () -> {
             IndexAbstraction databasesAbstraction = clusterService.state().metadata().getIndicesLookup().get(DATABASES_INDEX);
             if (databasesAbstraction != null) {
                 // regardless of whether DATABASES_INDEX is an alias, resolve it to a concrete index

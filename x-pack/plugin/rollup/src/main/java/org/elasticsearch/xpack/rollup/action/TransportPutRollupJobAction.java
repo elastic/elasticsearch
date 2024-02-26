@@ -303,6 +303,7 @@ public class TransportPutRollupJobAction extends AcknowledgedTransportMasterNode
             job.getConfig().getId(),
             RollupField.TASK_NAME,
             job,
+            null,
             ActionListener.wrap(rollupConfigPersistentTask -> waitForRollupStarted(job, listener, persistentTasksService), e -> {
                 if (e instanceof ResourceAlreadyExistsException) {
                     e = new ElasticsearchStatusException(

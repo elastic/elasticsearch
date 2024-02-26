@@ -109,7 +109,7 @@ public class EsqlIndexResolver {
             fields.put(name, field);
         }
 
-        boolean allEmpty = false;
+        boolean allEmpty = true;
         for (FieldCapabilitiesIndexResponse ir : fieldCapsResponse.getIndexResponses()) {
             allEmpty &= ir.get().isEmpty();
         }

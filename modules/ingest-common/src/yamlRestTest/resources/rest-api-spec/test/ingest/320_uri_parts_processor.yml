@@ -1,0 +1,49 @@
+---
+teardown:
+  - do:
+      ingest.delete_pipeline:
+        id: "uri-parts-pipeline"
+        ignore: 404
+
+---
+"Test URI parts Processor":
+  - do:
+      ingest.put_pipeline:
+        id: "uri-parts-pipeline"
+        body:  >
+          {
+            "processors": [
+              {
+                "uri_parts" : {
+                  "field" : "my_uri"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        pipeline: "uri-parts-pipeline"
+        body: {
+          my_uri: "https://user:pw@testing.google.com:8080/foo/bar.txt?foo1=bar1&foo2=bar2#anchorVal"
+        }
+
+  - do:
+      get:
+        index: test
+        id: "1"
+  - match: { _source.my_uri: "https://user:pw@testing.google.com:8080/foo/bar.txt?foo1=bar1&foo2=bar2#anchorVal" }
+  - match: { _source.url.original: "https://user:pw@testing.google.com:8080/foo/bar.txt?foo1=bar1&foo2=bar2#anchorVal" }
+  - match: { _source.url.scheme: "https" }
+  - match: { _source.url.domain: "testing.google.com" }
+  - match: { _source.url.fragment: "anchorVal" }
+  - match: { _source.url.path: "/foo/bar.txt" }
+  - match: { _source.url.port: 8080 }
+  - match: { _source.url.username: "user" }
+  - match: { _source.url.password: "pw" }
+  - match: { _source.url.user_info: "user:pw" }
+  - match: { _source.url.query: "foo1=bar1&foo2=bar2" }
+  - match: { _source.url.extension: "txt" }

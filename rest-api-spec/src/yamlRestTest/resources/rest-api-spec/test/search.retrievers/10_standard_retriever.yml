@@ -478,7 +478,7 @@ setup:
         index: animals
         body:
           size: 15
-          fields: [ "name", "count" ]
+          fields: [ "name", "count", "color" ]
           retriever:
             standard:
               query:
@@ -496,19 +496,24 @@ setup:
   - match: {hits.hits.0._id: "1"}
   - match: {hits.hits.0.fields.name.0: "cow"}
   - match: {hits.hits.0.fields.count.0: 1}
+  - match: {hits.hits.0.fields.color.0: "brown"}
 
   - match: {hits.hits.1._id: "2"}
   - match: {hits.hits.1.fields.name.0: "cow cow"}
   - match: {hits.hits.1.fields.count.0: 2}
+  - match: {hits.hits.1.fields.color.0: "spotted"}
 
   - match: {hits.hits.2._id: "4"}
   - match: {hits.hits.2.fields.name.0: "pig"}
   - match: {hits.hits.2.fields.count.0: 4}
+  - match: {hits.hits.2.fields.color.0: "pink"}
 
-  - match: { hits.hits.3._id: "7" }
-  - match: { hits.hits.3.fields.name.0: "chicken" }
-  - match: { hits.hits.3.fields.count.0: 7 }
+  - match: {hits.hits.3._id: "7" }
+  - match: {hits.hits.3.fields.name.0: "chicken" }
+  - match: {hits.hits.3.fields.count.0: 7 }
+  - match: {hits.hits.3.fields.color.0: "white"}
 
   - match: {hits.hits.4._id: "10"}
   - match: {hits.hits.4.fields.name.0: "coyote"}
   - match: {hits.hits.4.fields.count.0: 10}
+  - match: {hits.hits.4.fields.color.0: "gray"}

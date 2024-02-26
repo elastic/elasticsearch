@@ -9,50 +9,31 @@
 package org.elasticsearch.search.retriever;
 
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.usage.SearchUsage;
 
-import java.util.function.Consumer;
+import java.util.Objects;
 import java.util.function.Predicate;
 
 public class RetrieverParserContext {
 
-    protected Consumer<String> trackSectionUsage;
-    protected Consumer<String> trackQueryUsage;
-    protected Consumer<String> trackRescorerUsage;
+    protected final SearchUsage searchUsage;
+    protected final Predicate<NodeFeature> clusterSupportsFeature;
 
-    protected Predicate<NodeFeature> clusterSupportsFeature;
-
-    public RetrieverParserContext() {
-
-    }
-
-    public RetrieverParserContext(
-        Consumer<String> trackSectionUsage,
-        Consumer<String> trackQueryUsage,
-        Consumer<String> trackRescorerUsage,
-        Predicate<NodeFeature> clusterSupportsFeature
-    ) {
-        this.trackSectionUsage = trackSectionUsage;
-        this.trackQueryUsage = trackQueryUsage;
-        this.trackRescorerUsage = trackRescorerUsage;
+    public RetrieverParserContext(SearchUsage searchUsage, Predicate<NodeFeature> clusterSupportsFeature) {
+        this.searchUsage = Objects.requireNonNull(searchUsage);
         this.clusterSupportsFeature = clusterSupportsFeature;
     }
 
     public void trackSectionUsage(String section) {
-        if (trackSectionUsage != null) {
-            trackSectionUsage.accept(section);
-        }
+        searchUsage.trackSectionUsage(section);
     }
 
     public void trackQueryUsage(String query) {
-        if (trackQueryUsage != null) {
-            trackQueryUsage.accept(query);
-        }
+        searchUsage.trackQueryUsage(query);
     }
 
     public void trackRescorerUsage(String name) {
-        if (trackRescorerUsage != null) {
-            trackRescorerUsage.accept(name);
-        }
+        searchUsage.trackRescorerUsage(name);
     }
 
     public boolean clusterSupportsFeature(NodeFeature nodeFeature) {

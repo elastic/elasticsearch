@@ -32,7 +32,7 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
             SearchSourceBuilder ssb = new SearchSourceBuilder();
             ParsingException iae = expectThrows(
                 ParsingException.class,
-                () -> ssb.parseXContent(parser, true, nf -> nf == RetrieverBuilder.NODE_FEATURE)
+                () -> ssb.parseXContent(parser, true, nf -> nf == RetrieverBuilder.RETRIEVERS_SUPPORTED)
             );
             assertEquals("unknown retriever [rrf]", iae.getMessage());
         }

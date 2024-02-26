@@ -31,7 +31,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 public final class KnnRetrieverBuilder extends RetrieverBuilder {
 
     public static final String NAME = "knn";
-    public static final NodeFeature NODE_FEATURE = new NodeFeature(NAME + "_retriever");
+    public static final NodeFeature KNN_RETRIEVER_SUPPORTED = new NodeFeature("knn_retriever_supported");
 
     public static final ParseField FIELD_FIELD = new ParseField("field");
     public static final ParseField K_FIELD = new ParseField("k");
@@ -80,7 +80,7 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
     }
 
     public static KnnRetrieverBuilder fromXContent(XContentParser parser, RetrieverParserContext context) throws IOException {
-        if (context.clusterSupportsFeature(NODE_FEATURE) == false) {
+        if (context.clusterSupportsFeature(KNN_RETRIEVER_SUPPORTED) == false) {
             throw new ParsingException(parser.getTokenLocation(), "unknown retriever [" + NAME + "]");
         }
         return PARSER.apply(parser, context);
@@ -110,7 +110,7 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
     }
 
     @Override
-    public void extractToSearchSourceBuilder(SearchSourceBuilder searchSourceBuilder) {
+    public void extractToSearchSourceBuilder(SearchSourceBuilder searchSourceBuilder, boolean compoundUsed) {
         KnnSearchBuilder knnSearchBuilder = new KnnSearchBuilder(field, queryVector, queryVectorBuilder, k, numCands, similarity);
         if (preFilterQueryBuilders != null) {
             knnSearchBuilder.addFilterQueries(preFilterQueryBuilders);

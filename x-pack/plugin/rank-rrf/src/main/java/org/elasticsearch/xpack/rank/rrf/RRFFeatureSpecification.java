@@ -19,6 +19,6 @@ public class RRFFeatureSpecification implements FeatureSpecification {
 
     @Override
     public Set<NodeFeature> getFeatures() {
-        return Set.of(RRFRetrieverBuilder.NODE_FEATURE);
+        return Set.of(RRFRetrieverBuilder.RETRIEVERS_SUPPORTED);
     }
 }

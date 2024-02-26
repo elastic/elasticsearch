@@ -41,7 +41,7 @@ import java.util.Objects;
  */
 public abstract class RetrieverBuilder {
 
-    public static final NodeFeature NODE_FEATURE = new NodeFeature("retrievers");
+    public static final NodeFeature RETRIEVERS_SUPPORTED = new NodeFeature("retrievers_supported");
 
     public static final ParseField PRE_FILTER_FIELD = new ParseField("filter");
 
@@ -125,7 +125,6 @@ public abstract class RetrieverBuilder {
 
         try {
             retrieverBuilder = parser.namedObject(RetrieverBuilder.class, retrieverName, context);
-            context.trackSectionUsage(retrieverName);
         } catch (NamedObjectNotFoundException nonfe) {
             String message = String.format(
                 Locale.ROOT,
@@ -136,6 +135,8 @@ public abstract class RetrieverBuilder {
 
             throw new ParsingException(new XContentLocation(nonfe.getLineNumber(), nonfe.getColumnNumber()), message, nonfe);
         }
+
+        context.trackSectionUsage(retrieverName);
 
         if (parser.currentToken() != XContentParser.Token.END_OBJECT) {
             throw new ParsingException(
@@ -179,5 +180,5 @@ public abstract class RetrieverBuilder {
      * This method is called at the end of parsing on behalf of a {@link SearchSourceBuilder}.
      * Elements from retrievers are expected to be "extracted" into the {@link SearchSourceBuilder}.
      */
-    public abstract void extractToSearchSourceBuilder(SearchSourceBuilder searchSourceBuilder);
+    public abstract void extractToSearchSourceBuilder(SearchSourceBuilder searchSourceBuilder, boolean compoundUsed);
 }

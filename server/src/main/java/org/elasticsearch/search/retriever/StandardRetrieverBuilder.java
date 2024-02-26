@@ -33,7 +33,7 @@ import java.util.List;
 public final class StandardRetrieverBuilder extends RetrieverBuilder {
 
     public static final String NAME = "standard";
-    public static final NodeFeature NODE_FEATURE = new NodeFeature(NAME + "_retriever");
+    public static final NodeFeature STANDARD_RETRIEVER_SUPPORTED = new NodeFeature("standard_retriever_supported");
 
     public static final ParseField QUERY_FIELD = new ParseField("query");
     public static final ParseField SEARCH_AFTER_FIELD = new ParseField("search_after");
@@ -90,7 +90,7 @@ public final class StandardRetrieverBuilder extends RetrieverBuilder {
     }
 
     public static StandardRetrieverBuilder fromXContent(XContentParser parser, RetrieverParserContext context) throws IOException {
-        if (context.clusterSupportsFeature(NODE_FEATURE) == false) {
+        if (context.clusterSupportsFeature(STANDARD_RETRIEVER_SUPPORTED) == false) {
             throw new ParsingException(parser.getTokenLocation(), "unknown retriever [" + NAME + "]");
         }
         return PARSER.apply(parser, context);
@@ -104,7 +104,7 @@ public final class StandardRetrieverBuilder extends RetrieverBuilder {
     private CollapseBuilder collapseBuilder;
 
     @Override
-    public void extractToSearchSourceBuilder(SearchSourceBuilder searchSourceBuilder) {
+    public void extractToSearchSourceBuilder(SearchSourceBuilder searchSourceBuilder, boolean compoundUsed) {
         if (preFilterQueryBuilders.isEmpty() == false) {
             BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
 
@@ -121,42 +121,54 @@ public final class StandardRetrieverBuilder extends RetrieverBuilder {
             searchSourceBuilder.subSearches().add(new SubSearchSourceBuilder(queryBuilder));
         }
 
-        if (searchSourceBuilder.searchAfter() == null) {
-            if (searchAfterBuilder != null) {
-                searchSourceBuilder.searchAfter(searchAfterBuilder.getSortValues());
+        if (searchAfterBuilder != null) {
+            if (compoundUsed) {
+                throw new IllegalArgumentException(
+                    "[" + SEARCH_AFTER_FIELD.getPreferredName() + "] cannot be used in children of compound retrievers"
+                );
             }
-        } else {
-            throw new IllegalArgumentException("[search_after] cannot be declared on multiple retrievers");
+
+            searchSourceBuilder.searchAfter(searchAfterBuilder.getSortValues());
         }
 
-        if (searchSourceBuilder.terminateAfter() == SearchContext.DEFAULT_TERMINATE_AFTER) {
+        if (terminateAfter != SearchContext.DEFAULT_TERMINATE_AFTER) {
+            if (compoundUsed) {
+                throw new IllegalArgumentException(
+                    "[" + TERMINATE_AFTER_FIELD.getPreferredName() + "] cannot be used in children of compound retrievers"
+                );
+            }
+
             searchSourceBuilder.terminateAfter(terminateAfter);
-        } else {
-            throw new IllegalArgumentException("[terminate_after] cannot be declared on multiple retrievers");
         }
 
-        if (searchSourceBuilder.sorts() == null) {
-            if (sortBuilders != null) {
-                searchSourceBuilder.sort(sortBuilders);
+        if (sortBuilders != null) {
+            if (compoundUsed) {
+                throw new IllegalArgumentException(
+                    "[" + SORT_FIELD.getPreferredName() + "] cannot be used in children of compound retrievers"
+                );
             }
-        } else {
-            throw new IllegalArgumentException("[sort] cannot be declared on multiple retrievers");
+
+            searchSourceBuilder.sort(sortBuilders);
         }
 
-        if (searchSourceBuilder.minScore() == null) {
-            if (minScore != null) {
-                searchSourceBuilder.minScore(minScore);
+        if (minScore != null) {
+            if (compoundUsed) {
+                throw new IllegalArgumentException(
+                    "[" + MIN_SCORE_FIELD.getPreferredName() + "] cannot be used in children of compound retrievers"
+                );
             }
-        } else {
-            throw new IllegalArgumentException("[min_score] cannot be declared on multiple retrievers");
+
+            searchSourceBuilder.minScore(minScore);
         }
 
-        if (searchSourceBuilder.collapse() == null) {
-            if (collapseBuilder != null) {
-                searchSourceBuilder.collapse(collapseBuilder);
+        if (collapseBuilder != null) {
+            if (compoundUsed) {
+                throw new IllegalArgumentException(
+                    "[" + COLLAPSE_FIELD.getPreferredName() + "] cannot be used in children of compound retrievers"
+                );
             }
-        } else {
-            throw new IllegalArgumentException("[collapse] cannot be declared on multiple retrievers");
+
+            searchSourceBuilder.collapse(collapseBuilder);
         }
     }
 }

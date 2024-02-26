@@ -1356,17 +1356,12 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (RETRIEVER.match(currentFieldName, parser.getDeprecationHandler())) {
-                    if (clusterSupportsFeature.test(RetrieverBuilder.NODE_FEATURE) == false) {
+                    if (clusterSupportsFeature.test(RetrieverBuilder.RETRIEVERS_SUPPORTED) == false) {
                         throw new ParsingException(parser.getTokenLocation(), "Unknown key for a START_OBJECT in [retriever].");
                     }
                     retrieverBuilder = RetrieverBuilder.parseTopLevelRetrieverBuilder(
                         parser,
-                        new RetrieverParserContext(
-                            searchUsage::trackSectionUsage,
-                            searchUsage::trackQueryUsage,
-                            searchUsage::trackRescorerUsage,
-                            clusterSupportsFeature
-                        )
+                        new RetrieverParserContext(searchUsage, clusterSupportsFeature)
                     );
                 } else if (QUERY_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     if (subSearchSourceBuilders.isEmpty() == false) {
@@ -1626,31 +1621,35 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         knnSearch = knnBuilders.stream().map(knnBuilder -> knnBuilder.build(size())).collect(Collectors.toList());
 
         if (retrieverBuilder != null) {
+            List<String> specified = new ArrayList<>();
             if (subSearchSourceBuilders.isEmpty() == false) {
-                throw new IllegalArgumentException("cannot specify both [query] and [retriever]");
+                specified.add(QUERY_FIELD.getPreferredName());
             }
             if (knnSearch.isEmpty() == false) {
-                throw new IllegalArgumentException("cannot specify both [knn] and [retriever]");
+                specified.add(KNN_FIELD.getPreferredName());
             }
             if (searchAfterBuilder != null) {
-                throw new IllegalArgumentException("cannot specify both [search_after] and [retriever]");
+                specified.add(SEARCH_AFTER.getPreferredName());
             }
             if (terminateAfter != DEFAULT_TERMINATE_AFTER) {
-                throw new IllegalArgumentException("cannot specify both [terminate_after] and [retriever]");
+                specified.add(TERMINATE_AFTER_FIELD.getPreferredName());
             }
             if (sorts != null) {
-                throw new IllegalArgumentException("cannot specify both [sort] and [retriever]");
+                specified.add(SORT_FIELD.getPreferredName());
             }
             if (rescoreBuilders != null) {
-                throw new IllegalArgumentException("cannot specify both [rescore] and [retriever]");
+                specified.add(RESCORE_FIELD.getPreferredName());
             }
             if (minScore != null) {
-                throw new IllegalArgumentException("cannot specify both [min_score] and [retriever]");
+                specified.add(MIN_SCORE_FIELD.getPreferredName());
             }
             if (rankBuilder != null) {
-                throw new IllegalArgumentException("cannot specify both [rank] and [retriever]");
+                specified.add(RANK_FIELD.getPreferredName());
             }
-            retrieverBuilder.extractToSearchSourceBuilder(this);
+            if (specified.isEmpty() == false) {
+                throw new IllegalArgumentException("cannot specify [" + RETRIEVER.getPreferredName() + "] and " + specified);
+            }
+            retrieverBuilder.extractToSearchSourceBuilder(this, false);
         }
 
         searchUsageConsumer.accept(searchUsage);

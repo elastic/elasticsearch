@@ -31,7 +31,7 @@ import java.util.List;
  */
 public final class RRFRetrieverBuilder extends RetrieverBuilder {
 
-    public static final NodeFeature NODE_FEATURE = new NodeFeature(RRFRankPlugin.NAME + "_retriever");
+    public static final NodeFeature RRF_RETRIEVER_SUPPORTED = new NodeFeature("rrf_retriever_supported");
 
     public static final ParseField RETRIEVERS_FIELD = new ParseField("retrievers");
     public static final ParseField WINDOW_SIZE_FIELD = new ParseField("window_size");
@@ -57,7 +57,7 @@ public final class RRFRetrieverBuilder extends RetrieverBuilder {
     }
 
     public static RRFRetrieverBuilder fromXContent(XContentParser parser, RetrieverParserContext context) throws IOException {
-        if (context.clusterSupportsFeature(NODE_FEATURE) == false) {
+        if (context.clusterSupportsFeature(RRF_RETRIEVER_SUPPORTED) == false) {
             throw new ParsingException(parser.getTokenLocation(), "unknown retriever [" + RRFRankPlugin.NAME + "]");
         }
         if (RRFRankPlugin.RANK_RRF_FEATURE.check(XPackPlugin.getSharedLicenseState()) == false) {
@@ -71,19 +71,19 @@ public final class RRFRetrieverBuilder extends RetrieverBuilder {
     private int rankConstant = RRFRankBuilder.DEFAULT_RANK_CONSTANT;
 
     @Override
-    public void extractToSearchSourceBuilder(SearchSourceBuilder searchSourceBuilder) {
+    public void extractToSearchSourceBuilder(SearchSourceBuilder searchSourceBuilder, boolean compoundUsed) {
+        if (compoundUsed) {
+            throw new IllegalArgumentException("[rank] cannot be used in children of compound retrievers");
+        }
+
         for (RetrieverBuilder retrieverBuilder : retrieverBuilders) {
             if (preFilterQueryBuilders.isEmpty() == false) {
                 retrieverBuilder.getPreFilterQueryBuilders().addAll(preFilterQueryBuilders);
             }
 
-            retrieverBuilder.extractToSearchSourceBuilder(searchSourceBuilder);
+            retrieverBuilder.extractToSearchSourceBuilder(searchSourceBuilder, true);
         }
 
-        if (searchSourceBuilder.rankBuilder() == null) {
-            searchSourceBuilder.rankBuilder(new RRFRankBuilder(windowSize, rankConstant));
-        } else {
-            throw new IllegalArgumentException("[rank] cannot be declared on multiple retrievers");
-        }
+        searchSourceBuilder.rankBuilder(new RRFRankBuilder(windowSize, rankConstant));
     }
 }

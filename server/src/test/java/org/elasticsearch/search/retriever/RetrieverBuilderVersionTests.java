@@ -35,21 +35,25 @@ public class RetrieverBuilderVersionTests extends ESTestCase {
             SearchSourceBuilder ssb = new SearchSourceBuilder();
             ParsingException iae = expectThrows(
                 ParsingException.class,
-                () -> ssb.parseXContent(parser, true, nf -> nf == RetrieverBuilder.NODE_FEATURE)
+                () -> ssb.parseXContent(parser, true, nf -> nf == RetrieverBuilder.RETRIEVERS_SUPPORTED)
             );
             assertEquals("unknown retriever [standard]", iae.getMessage());
         }
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"retriever\":{\"standard\":{}}}")) {
             SearchSourceBuilder ssb = new SearchSourceBuilder();
-            ssb.parseXContent(parser, true, nf -> nf == RetrieverBuilder.NODE_FEATURE || nf == StandardRetrieverBuilder.NODE_FEATURE);
+            ssb.parseXContent(
+                parser,
+                true,
+                nf -> nf == RetrieverBuilder.RETRIEVERS_SUPPORTED || nf == StandardRetrieverBuilder.RETRIEVERS_SUPPORTED
+            );
         }
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"retriever\":{\"knn\":{}}}")) {
             SearchSourceBuilder ssb = new SearchSourceBuilder();
             ParsingException iae = expectThrows(
                 ParsingException.class,
-                () -> ssb.parseXContent(parser, true, nf -> nf == RetrieverBuilder.NODE_FEATURE)
+                () -> ssb.parseXContent(parser, true, nf -> nf == RetrieverBuilder.RETRIEVERS_SUPPORTED)
             );
             assertEquals("unknown retriever [knn]", iae.getMessage());
         }
@@ -61,7 +65,11 @@ public class RetrieverBuilderVersionTests extends ESTestCase {
             )
         ) {
             SearchSourceBuilder ssb = new SearchSourceBuilder();
-            ssb.parseXContent(parser, true, nf -> nf == RetrieverBuilder.NODE_FEATURE || nf == KnnRetrieverBuilder.NODE_FEATURE);
+            ssb.parseXContent(
+                parser,
+                true,
+                nf -> nf == RetrieverBuilder.RETRIEVERS_SUPPORTED || nf == KnnRetrieverBuilder.RETRIEVERS_SUPPORTED
+            );
         }
     }
 

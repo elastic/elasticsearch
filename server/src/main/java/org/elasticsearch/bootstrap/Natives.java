@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.ReferenceDocs;
 
 import java.nio.file.Path;
+import java.util.Locale;
 
 /**
  * The Natives class is a wrapper class that checks if the classes necessary for calling native methods are available on
@@ -38,8 +39,11 @@ final class Natives {
             logger.warn("JNA not found. native methods will be disabled.", e);
         } catch (UnsatisfiedLinkError e) {
             logger.warn(
-                "unable to load JNA native support library, native methods will be disabled. See {}",
-                ReferenceDocs.EXECUTABLE_JNA_TMPDIR,
+                String.format(
+                    Locale.ROOT,
+                    "unable to load JNA native support library, native methods will be disabled. See %s",
+                    ReferenceDocs.EXECUTABLE_JNA_TMPDIR
+                ),
                 e
             );
         }

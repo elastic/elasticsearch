@@ -6,11 +6,11 @@ experimental[]
 
 Creates a model to perform an {infer} task.
 
-IMPORTANT: The {infer} APIs enable you to use certain services, such as built-in 
-{ml} models (ELSER, E5), models uploaded through Eland, Cohere, OpenAI, or 
-Hugging Face, in your cluster. For built-in models and models uploaded though 
-Eland, the {infer} APIs offer an alternative way to use and manage trained 
-models. However, if you do not plan to use the {infer} APIs to use these models 
+IMPORTANT: The {infer} APIs enable you to use certain services, such as built-in
+{ml} models (ELSER, E5), models uploaded through Eland, Cohere, OpenAI, or
+Hugging Face. For built-in models and models uploaded though
+Eland, the {infer} APIs offer an alternative way to use and manage trained
+models. However, if you do not plan to use the {infer} APIs to use these models
 or if you want to use non-NLP models, use the <<ml-df-trained-models-apis>>.
 
 
@@ -41,7 +41,7 @@ The following services are available through the {infer} API:
 * ELSER
 * Hugging Face
 * OpenAI
-* text embedding (for built-in models and models uploaded through Eland)
+* Elasticsearch (for built-in models and models uploaded through Eland)
 
 
 [discrete]
@@ -68,12 +68,12 @@ The type of the {infer} task that the model will perform. Available task types:
 (Required, string)
 The type of service supported for the specified task type.
 Available services:
-* `cohere`: specify the `text_embedding` task type to use the Cohere service. 
+* `cohere`: specify the `text_embedding` task type to use the Cohere service.
 * `elser`: specify the `sparse_embedding` task type to use the ELSER service.
-* `hugging_face`: specify the `text_embedding` task type to use the Hugging Face 
+* `hugging_face`: specify the `text_embedding` task type to use the Hugging Face
 service.
 * `openai`: specify the `text_embedding` task type to use the OpenAI service.
-* `text_embedding`: specify the `text_embedding` task type to use the E5 
+* `elasticsearch`: specify the `text_embedding` task type to use the E5
 built-in model or text embedding models uploaded by Eland.
 
 `service_settings`::
@@ -86,14 +86,14 @@ Settings used to install the {infer} model. These settings are specific to the
 =====
 `api_key`:::
 (Required, string)
-A valid API key of your Cohere account. You can find your Cohere API keys or you 
-can create a new one 
+A valid API key of your Cohere account. You can find your Cohere API keys or you
+can create a new one
 https://dashboard.cohere.com/api-keys[on the API keys settings page].
 
-IMPORTANT: You need to provide the API key only once, during the {infer} model 
-creation. The <<get-inference-api>> does not retrieve your API key. After 
-creating the {infer} model, you cannot change the associated API key. If you 
-want to use a different API key, delete the {infer} model and recreate it with 
+IMPORTANT: You need to provide the API key only once, during the {infer} model
+creation. The <<get-inference-api>> does not retrieve your API key. After
+creating the {infer} model, you cannot change the associated API key. If you
+want to use a different API key, delete the {infer} model and recreate it with
 the same name and the updated API key.
 
 `embedding_type`::
@@ -105,9 +105,9 @@ Valid values are:
 
 `model_id`::
 (Optional, string)
-The name of the model to use for the {infer} task. To review the available 
-models, refer to the 
-https://docs.cohere.com/reference/embed[Cohere docs]. Defaults to 
+The name of the model to use for the {infer} task. To review the available
+models, refer to the
+https://docs.cohere.com/reference/embed[Cohere docs]. Defaults to
 `embed-english-v2.0`.
 =====
 +
@@ -116,13 +116,13 @@ https://docs.cohere.com/reference/embed[Cohere docs]. Defaults to
 =====
 `num_allocations`:::
 (Required, integer)
-The number of model allocations to create. `num_allocations` must not exceed the 
+The number of model allocations to create. `num_allocations` must not exceed the
 number of available processors per node divided by the `num_threads`.
 
 `num_threads`:::
 (Required, integer)
-The number of threads to use by each model allocation. `num_threads` must not 
-exceed the number of available processors per node divided by the number of 
+The number of threads to use by each model allocation. `num_threads` must not
+exceed the number of available processors per node divided by the number of
 allocations. Must be a power of 2. Max allowed value is 32.
 =====
 +
@@ -131,14 +131,14 @@ allocations. Must be a power of 2. Max allowed value is 32.
 =====
 `api_key`:::
 (Required, string)
-A valid access token of your Hugging Face account. You can find your Hugging 
-Face access tokens or you can create a new one 
+A valid access token of your Hugging Face account. You can find your Hugging
+Face access tokens or you can create a new one
 https://huggingface.co/settings/tokens[on the settings page].
 
-IMPORTANT: You need to provide the API key only once, during the {infer} model 
-creation. The <<get-inference-api>> does not retrieve your API key. After 
-creating the {infer} model, you cannot change the associated API key. If you 
-want to use a different API key, delete the {infer} model and recreate it with 
+IMPORTANT: You need to provide the API key only once, during the {infer} model
+creation. The <<get-inference-api>> does not retrieve your API key. After
+creating the {infer} model, you cannot change the associated API key. If you
+want to use a different API key, delete the {infer} model and recreate it with
 the same name and the updated API key.
 
 `url`:::
@@ -151,21 +151,21 @@ The URL endpoint to use for the requests.
 =====
 `api_key`:::
 (Required, string)
-A valid API key of your OpenAI account. You can find your OpenAI API keys in 
-your OpenAI account under the 
+A valid API key of your OpenAI account. You can find your OpenAI API keys in
+your OpenAI account under the
 https://platform.openai.com/api-keys[API keys section].
 
-IMPORTANT: You need to provide the API key only once, during the {infer} model 
-creation. The <<get-inference-api>> does not retrieve your API key. After 
-creating the {infer} model, you cannot change the associated API key. If you 
-want to use a different API key, delete the {infer} model and recreate it with 
+IMPORTANT: You need to provide the API key only once, during the {infer} model
+creation. The <<get-inference-api>> does not retrieve your API key. After
+creating the {infer} model, you cannot change the associated API key. If you
+want to use a different API key, delete the {infer} model and recreate it with
 the same name and the updated API key.
 
 `organization_id`:::
 (Optional, string)
-The unique identifier of your organization. You can find the Organization ID in 
-your OpenAI account under 
-https://platform.openai.com/account/organization[**Settings** > **Organizations**]. 
+The unique identifier of your organization. You can find the Organization ID in
+your OpenAI account under
+https://platform.openai.com/account/organization[**Settings** > **Organizations**].
 
 `url`:::
 (Optional, string)
@@ -173,25 +173,25 @@ The URL endpoint to use for the requests. Can be changed for testing purposes.
 Defaults to `https://api.openai.com/v1/embeddings`.
 =====
 +
-.`service_settings` for the `text_embedding` service
+.`service_settings` for the `elasticsearch` service
 [%collapsible%closed]
 =====
 `model_id`:::
 (Required, string)
-The name of the text embedding model to use for the {infer} task. It can be the 
-ID of either a built-in model (for example, `.multilingual-e5-small` for E5) or 
+The name of the model to use for the {infer} task. It can be the
+ID of either a built-in model (for example, `.multilingual-e5-small` for E5) or
 a text embedding model already
 {ml-docs}/ml-nlp-import-model.html#ml-nlp-import-script[uploaded through Eland].
 
 `num_allocations`:::
 (Required, integer)
-The number of model allocations to create. `num_allocations` must not exceed the 
+The number of model allocations to create. `num_allocations` must not exceed the
 number of available processors per node divided by the `num_threads`.
 
 `num_threads`:::
 (Required, integer)
-The number of threads to use by each model allocation. `num_threads` must not 
-exceed the number of available processors per node divided by the number of 
+The number of threads to use by each model allocation. `num_threads` must not
+exceed the number of available processors per node divided by the number of
 allocations. Must be a power of 2. Max allowed value is 32.
 =====
 
@@ -211,26 +211,26 @@ Valid values are:
   * `classification`: use it for embeddings passed through a text classifier.
   * `clusterning`: use it for the embeddings run through a clustering algorithm.
   * `ingest`: use it for storing document embeddings in a vector database.
-  * `search`: use it for storing embeddings of search queries run against a 
+  * `search`: use it for storing embeddings of search queries run against a
   vector data base to find relevant documents.
 
 `model`:::
 (Optional, string)
-For `openai` sevice only. The name of the model to use for the {infer} task. Refer 
-to the 
+For `openai` sevice only. The name of the model to use for the {infer} task. Refer
+to the
 https://platform.openai.com/docs/guides/embeddings/what-are-embeddings[OpenAI documentation]
 for the list of available text embedding models.
 
 `truncate`:::
 (Optional, string)
-For `cohere` service only. Specifies how the API handles inputs longer than the 
+For `cohere` service only. Specifies how the API handles inputs longer than the
 maximum token length. Defaults to `END`. Valid values are:
- * `NONE`: when the input exceeds the maximum input token length an error is 
+ * `NONE`: when the input exceeds the maximum input token length an error is
  returned.
- * `START`: when the input exceeds the maximum input token length the start of 
+ * `START`: when the input exceeds the maximum input token length the start of
  the input is discarded.
- * `END`: when the input exceeds the maximum input token length the end of 
- the input is discarded. 
+ * `END`: when the input exceeds the maximum input token length the end of
+ the input is discarded.
 =====
 
 
@@ -267,7 +267,7 @@ PUT _inference/text_embedding/cohere-embeddings
 
 [discrete]
 [[inference-example-e5]]
-===== E5 via the text embedding service
+===== E5 via the elasticsearch service
 
 The following example shows how to create an {infer} model called
 `my-e5-model` to perform a `text_embedding` task type.
@@ -276,7 +276,7 @@ The following example shows how to create an {infer} model called
 ------------------------------------------------------------
 PUT _inference/text_embedding/my-e5-model
 {
-  "service": "text_embedding",
+  "service": "elasticsearch",
   "service_settings": {
     "num_allocations": 1,
     "num_threads": 1,
@@ -285,8 +285,8 @@ PUT _inference/text_embedding/my-e5-model
 }
 ------------------------------------------------------------
 // TEST[skip:TBD]
-<1> The `model_id` must be the ID of one of the built-in E5 models. Valid values 
-are `.multilingual-e5-small` and `.multilingual-e5-small_linux-x86_64`. For 
+<1> The `model_id` must be the ID of one of the built-in E5 models. Valid values
+are `.multilingual-e5-small` and `.multilingual-e5-small_linux-x86_64`. For
 further details, refer to the {ml-docs}/ml-nlp-e5.html[E5 model documentation].
 
 
@@ -339,7 +339,7 @@ The following example shows how to create an {infer} model called
 
 [source,console]
 ------------------------------------------------------------
-PUT _inference/text_embedding/hugging-face-embeddings 
+PUT _inference/text_embedding/hugging-face-embeddings
 {
   "service": "hugging_face",
   "service_settings": {
@@ -349,20 +349,20 @@ PUT _inference/text_embedding/hugging-face-embeddings
 }
 ------------------------------------------------------------
 // TEST[skip:TBD]
-<1> A valid Hugging Face access token. You can find on the 
+<1> A valid Hugging Face access token. You can find on the
 https://huggingface.co/settings/tokens[settings page of your account].
-<2> The {infer} endpoint URL you created on Hugging Face. 
+<2> The {infer} endpoint URL you created on Hugging Face.
 
-Create a new {infer} endpoint on 
-https://ui.endpoints.huggingface.co/[the Hugging Face endpoint page] to get an 
-endpoint URL. Select the model you want to use on the new endpoint creation page 
-- for example `intfloat/e5-small-v2` - then select the `Sentence Embeddings` 
-task under the Advanced configuration section. Create the endpoint. Copy the URL 
+Create a new {infer} endpoint on
+https://ui.endpoints.huggingface.co/[the Hugging Face endpoint page] to get an
+endpoint URL. Select the model you want to use on the new endpoint creation page
+- for example `intfloat/e5-small-v2` - then select the `Sentence Embeddings`
+task under the Advanced configuration section. Create the endpoint. Copy the URL
 after the endpoint initialization has been finished.
 
 [discrete]
 [[inference-example-eland]]
-===== Models uploaded by Eland via the text embedding service
+===== Models uploaded by Eland via the elasticsearch service
 
 The following example shows how to create an {infer} model called
 `my-msmarco-minilm-model` to perform a `text_embedding` task type.
@@ -371,7 +371,7 @@ The following example shows how to create an {infer} model called
 ------------------------------------------------------------
 PUT _inference/text_embedding/my-msmarco-minilm-model
 {
-  "service": "text_embedding",
+  "service": "elasticsearch",
   "service_settings": {
     "num_allocations": 1,
     "num_threads": 1,
@@ -380,8 +380,8 @@ PUT _inference/text_embedding/my-msmarco-minilm-model
 }
 ------------------------------------------------------------
 // TEST[skip:TBD]
-<1> The `model_id` must be the ID of a text embedding model which has already 
-been 
+<1> The `model_id` must be the ID of a text embedding model which has already
+been
 {ml-docs}/ml-nlp-import-model.html#ml-nlp-import-script[uploaded through Eland].
 
 

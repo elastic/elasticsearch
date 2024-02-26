@@ -306,12 +306,10 @@ class MutableSearchResponse implements Releasable {
      *         (for local-only/CCS minimize_roundtrips=false)
      */
     private SearchResponseMerger createSearchResponseMerger(AsyncSearchTask task) {
-        return null;
-        // TODO uncomment this code once Kibana moves to polling the _async_search/status endpoint to determine if a search is done
-        // if (task.getSearchResponseMergerSupplier() == null) {
-        // return null; // local search and CCS minimize_roundtrips=false
-        // }
-        // return task.getSearchResponseMergerSupplier().get();
+        if (task.getSearchResponseMergerSupplier() == null) {
+            return null; // local search and CCS minimize_roundtrips=false
+        }
+        return task.getSearchResponseMergerSupplier().get();
     }
 
     private SearchResponse getMergedResponse(SearchResponseMerger merger) {

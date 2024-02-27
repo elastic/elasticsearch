@@ -152,6 +152,29 @@ setup:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
+          query: 'from test | where text_ignore_above is not null | keep text_ignore_above, text_ignore_above.raw, text_normalizer, text_normalizer.raw, non_indexed, non_indexed.raw'
+
+  - match: { columns.0.name: "text_ignore_above" }
+  - match: { columns.0.type: "text" }
+  - match: { columns.1.name: "text_ignore_above.raw" }
+  - match: { columns.1.type: "keyword" }
+  - match: { columns.2.name: "text_normalizer" }
+  - match: { columns.2.type: "text" }
+  - match: { columns.3.name: "text_normalizer.raw" }
+  - match: { columns.3.type: "keyword" }
+  - match: { columns.4.name: "non_indexed" }
+  - match: { columns.4.type: "text" }
+  - match: { columns.5.name: "non_indexed.raw" }
+  - match: { columns.5.type: "keyword" }
+
+  - length: { values: 2 }
+
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
           query: 'from test | where text_ignore_above LIKE "*long*" | keep text_ignore_above, text_ignore_above.raw, text_normalizer, text_normalizer.raw, non_indexed, non_indexed.raw'
 
   - match: { columns.0.name: "text_ignore_above" }

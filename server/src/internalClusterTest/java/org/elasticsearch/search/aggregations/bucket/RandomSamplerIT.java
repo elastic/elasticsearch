@@ -24,6 +24,7 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.avg;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
 
 @ESIntegTestCase.SuiteScopeTestCase
@@ -82,6 +83,48 @@ public class RandomSamplerIT extends ESIntegTestCase {
         }
         indexRandom(true, builders);
         ensureSearchable();
+    }
+
+    public void testRandomSamplerConsistentSeed() {
+        double[] sampleMonotonicValue = new double[1];
+        double[] sampleNumericValue = new double[1];
+        long[] sampledDocCount = new long[1];
+        // initialize the values
+        assertResponse(
+            prepareSearch("idx").setPreference("shard:0")
+                .addAggregation(
+                    new RandomSamplerAggregationBuilder("sampler").setProbability(PROBABILITY)
+                        .setSeed(0)
+                        .subAggregation(avg("mean_monotonic").field(MONOTONIC_VALUE))
+                        .subAggregation(avg("mean_numeric").field(NUMERIC_VALUE))
+                        .setShardSeed(42)
+                ),
+            response -> {
+                InternalRandomSampler sampler = response.getAggregations().get("sampler");
+                sampleMonotonicValue[0] = ((Avg) sampler.getAggregations().get("mean_monotonic")).getValue();
+                sampleNumericValue[0] = ((Avg) sampler.getAggregations().get("mean_numeric")).getValue();
+                sampledDocCount[0] = sampler.getDocCount();
+            }
+        );
+
+        for (int i = 0; i < NUM_SAMPLE_RUNS; i++) {
+            assertResponse(
+                prepareSearch("idx").setPreference("shard:0")
+                    .addAggregation(
+                        new RandomSamplerAggregationBuilder("sampler").setProbability(PROBABILITY)
+                            .setSeed(0)
+                            .subAggregation(avg("mean_monotonic").field(MONOTONIC_VALUE))
+                            .subAggregation(avg("mean_numeric").field(NUMERIC_VALUE))
+                            .setShardSeed(42)
+                    ),
+                response -> {
+                    InternalRandomSampler sampler = response.getAggregations().get("sampler");
+                    assertThat(((Avg) sampler.getAggregations().get("mean_monotonic")).getValue(), equalTo(sampleMonotonicValue[0]));
+                    assertThat(((Avg) sampler.getAggregations().get("mean_numeric")).getValue(), equalTo(sampleNumericValue[0]));
+                    assertThat(sampler.getDocCount(), equalTo(sampledDocCount[0]));
+                }
+            );
+        }
     }
 
     public void testRandomSampler() {

@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.qa.mixed;
+package org.elasticsearch.xpack.esql.qa.multi_node;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 

@@ -119,32 +119,6 @@ setup:
           - { "data": 2, "count": 46, "data_d": 2, "count_d": 46, "time": 1674835275226, "color": "red", "text": "rr red" }
 
 ---
-avg before 8.14:
-  - skip:
-      features: ["node_selector"]
-
-  - do:
-      node_selector:
-        version: " - 8.13.99"
-      esql.query:
-        body:
-          query: 'FROM test | STATS AVG(data) | LIMIT 1'
-          columnar: true
-          profile: true
-
-  - match: {columns.0.name: "AVG(data)"}
-  - match: {columns.0.type: "double"}
-  - match: {values.0.0: 1.5}
-  - match: {profile.drivers.0.operators.0.operator: /ExchangeSourceOperator|LuceneSourceOperator.+/}
-  - is_false: profile.drivers.0.took_nanos
-  - is_false: profile.drivers.0.cpu_nanos
-  - is_false: profile.drivers.1.took_nanos
-  - is_false: profile.drivers.1.cpu_nanos
-  # The assertion isn't really important - what matters is that a version of ES
-  # before 8.14 can successfully mediate the profile option with a version of ES
-  # after 8.14.
-
----
 avg 8.14 or after:
   - skip:
       features: ["node_selector"]

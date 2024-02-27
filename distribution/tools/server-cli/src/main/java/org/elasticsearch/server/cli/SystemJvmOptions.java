@@ -149,6 +149,10 @@ final class SystemJvmOptions {
         } else {
             os = "unsupported";
         }
-        return platformDir.resolve(os + "-" + sysprops.get("os.arch")).toAbsolutePath();
+        String arch = sysprops.get("os.arch");
+        if (arch.equals("x64")) {
+            arch = "x86-64";
+        }
+        return platformDir.resolve(os + "-" + arch).toAbsolutePath();
     }
 }

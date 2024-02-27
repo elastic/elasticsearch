@@ -54,6 +54,7 @@ import org.elasticsearch.xpack.esql.action.RestEsqlGetAsyncResultAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlQueryAction;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
+import org.elasticsearch.xpack.esql.session.EsqlIndexResolver;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
 import org.elasticsearch.xpack.ql.index.IndexResolver;
 
@@ -106,7 +107,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
                     services.clusterService().getClusterName().value(),
                     EsqlDataTypeRegistry.INSTANCE,
                     Set::of
-                )
+                ),
+                new EsqlIndexResolver(services.client(), EsqlDataTypeRegistry.INSTANCE)
             ),
             new ExchangeService(
                 services.clusterService().getSettings(),

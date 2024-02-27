@@ -14,6 +14,7 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.readiness.ReadinessService;
 
 import java.io.IOException;
+import java.net.ConnectException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.StandardProtocolFamily;
@@ -74,7 +75,7 @@ public interface ReadinessClientProbe {
                     var result = channelConnect(channel, socketAddress);
                     probeLogger.info("No exception on channel connect, connection success [{}]", result);
                 });
-                assertThat(throwable, instanceOf(IOException.class));
+                assertThat(throwable, instanceOf(ConnectException.class));
                 return null;
             });
         }

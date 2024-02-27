@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.qa.rest;
 
 import org.apache.http.util.EntityUtils;
+import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -176,6 +177,10 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
     }
 
     public void testUnsignedLong() throws IOException {
+        assumeTrue(
+            "order of fields in error message inconsistent before 8.14",
+            getCachedNodesVersions().stream().allMatch(v -> Version.fromString(v).onOrAfter(Version.V_8_14_0))
+        );
         BigInteger value = randomUnsignedLong();
         new Test("unsigned_long").randomIgnoreMalformedUnlessSynthetic()
             .randomDocValuesUnlessSynthetic()
@@ -721,6 +726,10 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
      * </pre>.
      */
     public void testMergeKeywordAndObject() throws IOException {
+        assumeTrue(
+            "order of fields in error message inconsistent before 8.14",
+            getCachedNodesVersions().stream().allMatch(v -> Version.fromString(v).onOrAfter(Version.V_8_14_0))
+        );
         keywordTest().createIndex("test1", "file");
         index("test1", """
             {"file": "f1"}""");
@@ -832,6 +841,10 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
      * </pre>.
      */
     public void testMergeUnsupportedAndObject() throws IOException {
+        assumeTrue(
+            "order of fields in error message inconsistent before 8.14",
+            getCachedNodesVersions().stream().allMatch(v -> Version.fromString(v).onOrAfter(Version.V_8_14_0))
+        );
         createIndex("test1", index -> {
             index.startObject("properties");
             index.startObject("f").field("type", "ip_range").endObject();
@@ -890,6 +903,10 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
      * </pre>.
      */
     public void testIntegerDocValuesConflict() throws IOException {
+        assumeTrue(
+            "order of fields in error message inconsistent before 8.14",
+            getCachedNodesVersions().stream().allMatch(v -> Version.fromString(v).onOrAfter(Version.V_8_14_0))
+        );
         intTest().sourceMode(SourceMode.DEFAULT).storeAndDocValues(null, true).createIndex("test1", "emp_no");
         index("test1", """
             {"emp_no": 1}""");
@@ -922,6 +939,10 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
      * In an ideal world we'd promote the {@code integer} to an {@code long} and just go.
      */
     public void testLongIntegerConflict() throws IOException {
+        assumeTrue(
+            "order of fields in error message inconsistent before 8.14",
+            getCachedNodesVersions().stream().allMatch(v -> Version.fromString(v).onOrAfter(Version.V_8_14_0))
+        );
         longTest().sourceMode(SourceMode.DEFAULT).createIndex("test1", "emp_no");
         index("test1", """
             {"emp_no": 1}""");
@@ -967,6 +988,10 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
      * In an ideal world we'd promote the {@code short} to an {@code integer} and just go.
      */
     public void testIntegerShortConflict() throws IOException {
+        assumeTrue(
+            "order of fields in error message inconsistent before 8.14",
+            getCachedNodesVersions().stream().allMatch(v -> Version.fromString(v).onOrAfter(Version.V_8_14_0))
+        );
         intTest().sourceMode(SourceMode.DEFAULT).createIndex("test1", "emp_no");
         index("test1", """
             {"emp_no": 1}""");
@@ -1018,6 +1043,10 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
      * </pre>.
      */
     public void testTypeConflictInObject() throws IOException {
+        assumeTrue(
+            "order of fields in error message inconsistent before 8.14",
+            getCachedNodesVersions().stream().allMatch(v -> Version.fromString(v).onOrAfter(Version.V_8_14_0))
+        );
         createIndex("test1", empNoInObject("integer"));
         index("test1", """
             {"foo": {"emp_no": 1}}""");

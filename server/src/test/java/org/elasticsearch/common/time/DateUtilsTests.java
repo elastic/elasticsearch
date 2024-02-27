@@ -44,7 +44,8 @@ public class DateUtilsTests extends ESTestCase {
             "Europe/Dublin", // dublin timezone in joda does not account for DST
             "Asia/Qostanay", // part of tzdata2018h
             "America/Godthab", // part of tzdata2020a (maps to America/Nuuk)
-            "America/Nuuk"// part of tzdata2020a
+            "America/Nuuk", // part of tzdata2020a
+            "America/Ciudad_Juarez" // part of tzdata2022g
         )
     );
 

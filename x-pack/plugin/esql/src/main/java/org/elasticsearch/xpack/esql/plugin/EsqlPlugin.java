@@ -25,7 +25,9 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.lucene.LuceneOperator;
 import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.AbstractPageMappingOperator;
+import org.elasticsearch.compute.operator.AggregationOperator;
 import org.elasticsearch.compute.operator.DriverStatus;
+import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.LimitOperator;
 import org.elasticsearch.compute.operator.MvExpandOperator;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
@@ -163,8 +165,10 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
             List.of(
                 DriverStatus.ENTRY,
                 AbstractPageMappingOperator.Status.ENTRY,
+                AggregationOperator.Status.ENTRY,
                 ExchangeSinkOperator.Status.ENTRY,
                 ExchangeSourceOperator.Status.ENTRY,
+                HashAggregationOperator.Status.ENTRY,
                 LimitOperator.Status.ENTRY,
                 LuceneOperator.Status.ENTRY,
                 TopNOperatorStatus.ENTRY,

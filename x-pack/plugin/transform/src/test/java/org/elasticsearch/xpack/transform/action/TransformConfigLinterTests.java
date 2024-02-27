@@ -27,11 +27,9 @@ import org.elasticsearch.xpack.transform.transforms.latest.Latest;
 import org.elasticsearch.xpack.transform.transforms.pivot.Pivot;
 
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 
 import static java.util.Collections.singletonList;
-import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
@@ -52,13 +50,14 @@ public class TransformConfigLinterTests extends ESTestCase {
 
         assertThat(TransformConfigLinter.getWarnings(function, sourceConfig, syncConfig), is(empty()));
 
-        Map<String, Object> runtimeMappings = new HashMap<>() {
-            {
-                put("rt-field-A", singletonMap("type", "keyword"));
-                put("rt-field-B", singletonMap("script", "some script"));
-                put("rt-field-C", singletonMap("script", "some other script"));
-            }
-        };
+        Map<String, Object> runtimeMappings = Map.of(
+            "rt-field-A",
+            Map.of("type", "keyword"),
+            "rt-field-B",
+            Map.of("script", "some script"),
+            "rt-field-C",
+            Map.of("script", "some other script")
+        );
         sourceConfig = new SourceConfig(
             generateRandomStringArray(10, 10, false, false),
             QueryConfigTests.randomQueryConfig(),
@@ -81,13 +80,14 @@ public class TransformConfigLinterTests extends ESTestCase {
 
         SyncConfig syncConfig = new TimeSyncConfig("rt-field-C", null);
 
-        Map<String, Object> runtimeMappings = new HashMap<>() {
-            {
-                put("rt-field-A", singletonMap("type", "keyword"));
-                put("rt-field-B", singletonMap("script", "some script"));
-                put("rt-field-C", singletonMap("script", "some other script"));
-            }
-        };
+        Map<String, Object> runtimeMappings = Map.of(
+            "rt-field-A",
+            Map.of("type", "keyword"),
+            "rt-field-B",
+            Map.of("script", "some script"),
+            "rt-field-C",
+            Map.of("script", "some other script")
+        );
         sourceConfig = new SourceConfig(
             generateRandomStringArray(10, 10, false, false),
             QueryConfigTests.randomQueryConfig(),

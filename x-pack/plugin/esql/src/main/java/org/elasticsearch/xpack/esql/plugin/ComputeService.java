@@ -426,7 +426,7 @@ public class ComputeService {
         }
         ActionListener<Void> listenerCollectingStatus = listener.map(ignored -> {
             if (context.configuration.profile()) {
-                return drivers.stream().map(d -> new DriverProfile(d.status().completedOperators())).toList();
+                return drivers.stream().map(Driver::profile).toList();
             }
             return null;
         });

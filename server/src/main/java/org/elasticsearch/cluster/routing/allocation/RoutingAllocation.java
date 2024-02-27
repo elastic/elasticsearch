@@ -71,12 +71,8 @@ public class RoutingAllocation {
     private final RoutingNodesChangedObserver nodesChangedObserver = new RoutingNodesChangedObserver();
     private final RestoreInProgressUpdater restoreInProgressUpdater = new RestoreInProgressUpdater();
     private final ResizeSourceIndexSettingsUpdater resizeSourceIndexUpdater = new ResizeSourceIndexSettingsUpdater();
-    private final RoutingChangesObserver routingChangesObserver = new RoutingChangesObserver.DelegatingRoutingChangesObserver(
-        nodesChangedObserver,
-        indexMetadataUpdater,
-        restoreInProgressUpdater,
-        resizeSourceIndexUpdater
-    );
+
+    private final RoutingChangesObserver routingChangesObserver;
 
     private final Map<String, SingleNodeShutdownMetadata> nodeReplacementTargets;
 
@@ -143,6 +139,20 @@ public class RoutingAllocation {
         this.nodeReplacementTargets = nodeReplacementTargets(clusterState);
         this.desiredNodes = DesiredNodes.latestFromClusterState(clusterState);
         this.unaccountedSearchableSnapshotSizes = unaccountedSearchableSnapshotSizes(clusterState, clusterInfo);
+        this.routingChangesObserver = new RoutingChangesObserver.DelegatingRoutingChangesObserver(
+            isSimulating
+                ? new RoutingChangesObserver[] {
+                    nodesChangedObserver,
+                    indexMetadataUpdater,
+                    restoreInProgressUpdater,
+                    resizeSourceIndexUpdater }
+                : new RoutingChangesObserver[] {
+                    nodesChangedObserver,
+                    indexMetadataUpdater,
+                    restoreInProgressUpdater,
+                    resizeSourceIndexUpdater,
+                    new ShardChangesObserver() }
+        );
     }
 
     private static Map<String, SingleNodeShutdownMetadata> nodeReplacementTargets(ClusterState clusterState) {

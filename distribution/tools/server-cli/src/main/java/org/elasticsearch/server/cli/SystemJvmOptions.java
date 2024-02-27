@@ -150,7 +150,7 @@ final class SystemJvmOptions {
             os = "unsupported";
         }
         String arch = sysprops.get("os.arch");
-        if (arch.equals("x64")) {
+        if (arch.equals("amd64")) {
             arch = "x86-64";
         }
         return platformDir.resolve(os + "-" + arch).toAbsolutePath();

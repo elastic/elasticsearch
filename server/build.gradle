@@ -153,7 +153,6 @@ if (BuildParams.isSnapshotBuild() == false) {
 
 tasks.named("test").configure {
   systemProperty 'es.insecure_network_trace_enabled', 'true'
-  environment 'LANGUAGE', 'en_US'
 }
 
 tasks.named("thirdPartyAudit").configure {

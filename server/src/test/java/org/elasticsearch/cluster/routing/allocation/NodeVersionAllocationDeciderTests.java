@@ -676,7 +676,7 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
 
         routingNodes.startShard(
             logger,
-            routingNodes.relocateShard(startedPrimary, "oldNode", 0, routingChangesObserver).v2(),
+            routingNodes.relocateShard(startedPrimary, "oldNode", 0, "test", routingChangesObserver).v2(),
             routingChangesObserver,
             ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE
         );

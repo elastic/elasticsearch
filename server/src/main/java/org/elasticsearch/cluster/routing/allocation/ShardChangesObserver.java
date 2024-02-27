@@ -24,9 +24,14 @@ public class ShardChangesObserver implements RoutingChangesObserver {
     }
 
     @Override
-    public void relocationStarted(ShardRouting startedShard, ShardRouting targetRelocatingShard) {
-        // TODO distinguish between move and rebalance
-        logger.info("{} is relocating from {} to {}", shardIdentifier(startedShard), startedShard.currentNodeId(), targetRelocatingShard.currentNodeId());
+    public void relocationStarted(ShardRouting startedShard, ShardRouting targetRelocatingShard, String reason) {
+        logger.info(
+            "{} is relocating ({}) from {} to {}",
+            shardIdentifier(startedShard),
+            reason,
+            startedShard.currentNodeId(),
+            targetRelocatingShard.currentNodeId()
+        );
     }
 
     @Override

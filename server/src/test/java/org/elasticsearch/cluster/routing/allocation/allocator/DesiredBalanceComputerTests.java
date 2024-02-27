@@ -277,6 +277,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                         routingNodes.startShard(logger, iterator.initialize("node-1", null, 0L, changes), changes, 0L),
                         "node-2",
                         0L,
+                        "test",
                         changes
                     );
                 }
@@ -325,6 +326,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                         routingNodes.startShard(logger, iterator.initialize("node-1", null, 0L, changes), changes, 0L),
                         "node-0",
                         0L,
+                        "test",
                         changes
                     );
                 }
@@ -480,6 +482,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                             randomRoutingNodes.startShard(logger, iterator.initialize(nodes.remove(0), null, 0L, changes), changes, 0L),
                             nodes.remove(0),
                             0L,
+                            "test",
                             changes
                         );
                     }
@@ -505,6 +508,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                             randomRoutingNodes.startShard(logger, iterator.initialize(nodes.remove(0), null, 0L, changes), changes, 0L),
                             nodes.remove(0),
                             0L,
+                            "test",
                             changes
                         );
                     }
@@ -1276,10 +1280,10 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
 
                 // move shard on each iteration
                 for (var shard : allocation.routingNodes().node("node-0").shardsWithState(STARTED).toList()) {
-                    allocation.routingNodes().relocateShard(shard, "node-1", 0L, allocation.changes());
+                    allocation.routingNodes().relocateShard(shard, "node-1", 0L, "test", allocation.changes());
                 }
                 for (var shard : allocation.routingNodes().node("node-1").shardsWithState(STARTED).toList()) {
-                    allocation.routingNodes().relocateShard(shard, "node-0", 0L, allocation.changes());
+                    allocation.routingNodes().relocateShard(shard, "node-0", 0L, "test", allocation.changes());
                 }
             }
 

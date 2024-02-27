@@ -280,6 +280,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
                                     shard,
                                     randomNodeId(allocation.routingNodes(), DATA_WARM_NODE_ROLE),
                                     0L,
+                                    "test",
                                     allocation.changes()
                                 )
                                 .v2(),
@@ -711,7 +712,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
                         .filter(n -> allocation.deciders().canAllocate(toMove, n, allocation) == Decision.YES)
                         .collect(toSet());
                     if (candidates.isEmpty() == false) {
-                        allocation.routingNodes().relocateShard(toMove, randomFrom(candidates).nodeId(), 0L, allocation.changes());
+                        allocation.routingNodes().relocateShard(toMove, randomFrom(candidates).nodeId(), 0L, "test", allocation.changes());
                     }
                 }
             }

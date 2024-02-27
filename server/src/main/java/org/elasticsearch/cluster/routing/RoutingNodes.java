@@ -445,6 +445,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         ShardRouting startedShard,
         String nodeId,
         long expectedShardSize,
+        String reason,
         RoutingChangesObserver changes
     ) {
         ensureMutable();
@@ -455,7 +456,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         node(target.currentNodeId()).add(target);
         assignedShardsAdd(target);
         addRecovery(target);
-        changes.relocationStarted(startedShard, target);
+        changes.relocationStarted(startedShard, target, reason);
         return Tuple.tuple(source, target);
     }
 
@@ -513,6 +514,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                                 startedReplica,
                                 sourceShard.relocatingNodeId(),
                                 sourceShard.getExpectedShardSize(),
+                                "TODO",
                                 routingChangesObserver
                             );
                         } else {

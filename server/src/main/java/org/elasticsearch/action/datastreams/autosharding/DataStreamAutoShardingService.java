@@ -228,17 +228,7 @@ public class DataStreamAutoShardingService {
             );
         }
 
-        // compact java is a thing - get decrease shards result or NO_CHANGE_REQUIRED
-        return Objects.requireNonNullElseGet(
-            getDecreaseShardsResult(metadata, dataStream, writeIndexLoad, nowSupplier, writeIndex, remainingReduceShardsCooldown),
-            () -> new AutoShardingResult(
-                AutoShardingType.NO_CHANGE_REQUIRED,
-                writeIndex.getNumberOfShards(),
-                writeIndex.getNumberOfShards(),
-                TimeValue.ZERO,
-                writeIndexLoad
-            )
-        );
+        return getDecreaseShardsResult(metadata, dataStream, writeIndexLoad, nowSupplier, writeIndex, remainingReduceShardsCooldown);
     }
 
     @Nullable
@@ -302,7 +292,6 @@ public class DataStreamAutoShardingService {
             );
     }
 
-    @Nullable
     private AutoShardingResult getDecreaseShardsResult(
         Metadata metadata,
         DataStream dataStream,
@@ -345,7 +334,14 @@ public class DataStreamAutoShardingService {
                 maxIndexLoadWithinCoolingPeriod
             );
         }
-        return null;
+
+        return new AutoShardingResult(
+            AutoShardingType.NO_CHANGE_REQUIRED,
+            writeIndex.getNumberOfShards(),
+            writeIndex.getNumberOfShards(),
+            TimeValue.ZERO,
+            maxIndexLoadWithinCoolingPeriod
+        );
     }
 
     // Visible for testing

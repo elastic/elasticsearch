@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.routing.RoutingChangesObserver;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 
 public class ShardChangesObserver implements RoutingChangesObserver {
 
@@ -26,6 +27,16 @@ public class ShardChangesObserver implements RoutingChangesObserver {
     public void relocationStarted(ShardRouting startedShard, ShardRouting targetRelocatingShard) {
         // TODO distinguish between move and rebalance
         logger.info("{} is relocating from {} to {}", shardIdentifier(startedShard), startedShard.currentNodeId(), targetRelocatingShard.currentNodeId());
+    }
+
+    @Override
+    public void shardFailed(ShardRouting failedShard, UnassignedInfo unassignedInfo) {
+        logger.info("{} has failed on {}: {}", shardIdentifier(failedShard), failedShard.currentNodeId(), unassignedInfo.getReason());
+    }
+
+    @Override
+    public void replicaPromoted(ShardRouting replicaShard) {
+        logger.info("{} is promoted to primary on {}", shardIdentifier(replicaShard), replicaShard.currentNodeId());
     }
 
     private static String shardIdentifier(ShardRouting shardRouting) {

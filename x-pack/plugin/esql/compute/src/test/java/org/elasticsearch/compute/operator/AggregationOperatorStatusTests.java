@@ -14,16 +14,16 @@ import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class AbstractPageMappingOperatorStatusTests extends AbstractWireSerializingTestCase<AbstractPageMappingOperator.Status> {
-    public static AbstractPageMappingOperator.Status simple() {
-        return new AbstractPageMappingOperator.Status(200012, 123);
+public class AggregationOperatorStatusTests extends AbstractWireSerializingTestCase<AggregationOperator.Status> {
+    public static AggregationOperator.Status simple() {
+        return new AggregationOperator.Status(200012, 123);
     }
 
     public static String simpleToJson() {
         return """
             {
-              "process_nanos" : 200012,
-              "process_time" : "200micros",
+              "aggregation_nanos" : 200012,
+              "aggregation_time" : "200micros",
               "pages_processed" : 123
             }""";
     }
@@ -33,24 +33,24 @@ public class AbstractPageMappingOperatorStatusTests extends AbstractWireSerializ
     }
 
     @Override
-    protected Writeable.Reader<AbstractPageMappingOperator.Status> instanceReader() {
-        return AbstractPageMappingOperator.Status::new;
+    protected Writeable.Reader<AggregationOperator.Status> instanceReader() {
+        return AggregationOperator.Status::new;
     }
 
     @Override
-    public AbstractPageMappingOperator.Status createTestInstance() {
-        return new AbstractPageMappingOperator.Status(randomNonNegativeLong(), randomNonNegativeInt());
+    public AggregationOperator.Status createTestInstance() {
+        return new AggregationOperator.Status(randomNonNegativeLong(), randomNonNegativeInt());
     }
 
     @Override
-    protected AbstractPageMappingOperator.Status mutateInstance(AbstractPageMappingOperator.Status instance) {
-        long processNanos = instance.processNanos();
+    protected AggregationOperator.Status mutateInstance(AggregationOperator.Status instance) {
+        long aggregationNanos = instance.aggregationNanos();
         int pagesProcessed = instance.pagesProcessed();
         switch (between(0, 1)) {
-            case 0 -> processNanos = randomValueOtherThan(processNanos, ESTestCase::randomNonNegativeLong);
+            case 0 -> aggregationNanos = randomValueOtherThan(aggregationNanos, ESTestCase::randomNonNegativeLong);
             case 1 -> pagesProcessed = randomValueOtherThan(pagesProcessed, ESTestCase::randomNonNegativeInt);
             default -> throw new UnsupportedOperationException();
         }
-        return new AbstractPageMappingOperator.Status(processNanos, pagesProcessed);
+        return new AggregationOperator.Status(aggregationNanos, pagesProcessed);
     }
 }

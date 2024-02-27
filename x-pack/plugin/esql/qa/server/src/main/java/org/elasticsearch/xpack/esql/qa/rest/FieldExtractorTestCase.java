@@ -245,6 +245,10 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
     }
 
     public void testGeoPoint() throws IOException {
+        assumeTrue(
+            "not supported until 8.13",
+            getCachedNodesVersions().stream().allMatch(v -> Version.fromString(v).onOrAfter(Version.V_8_13_0))
+        );
         new Test("geo_point")
             // TODO we should support loading geo_point from doc values if source isn't enabled
             .sourceMode(randomValueOtherThanMany(s -> s.stored() == false, () -> randomFrom(SourceMode.values())))
@@ -254,6 +258,10 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
     }
 
     public void testGeoShape() throws IOException {
+        assumeTrue(
+            "not supported until 8.13",
+            getCachedNodesVersions().stream().allMatch(v -> Version.fromString(v).onOrAfter(Version.V_8_13_0))
+        );
         new Test("geo_shape")
             // TODO if source isn't enabled how can we load *something*? It's just triangles, right?
             .sourceMode(randomValueOtherThanMany(s -> s.stored() == false, () -> randomFrom(SourceMode.values())))

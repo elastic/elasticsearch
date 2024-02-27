@@ -95,7 +95,7 @@ public class DesiredBalanceComputer {
             for (final var shardRouting : routingNode) {
                 if (shardRouting.initializing()) {
                     clusterInfoSimulator.simulateShardStarted(shardRouting);
-                    routingNodes.startShard(logger, shardRouting, changes, 0L);
+                    routingNodes.startShard(shardRouting, changes, 0L);
                 }
             }
         }
@@ -174,7 +174,7 @@ public class DesiredBalanceComputer {
                             .type() != Decision.Type.NO) {
                         final var shardToRelocate = routingNodes.relocateShard(shardRouting, targetNodeId, 0L, "computation", changes).v2();
                         clusterInfoSimulator.simulateShardStarted(shardToRelocate);
-                        routingNodes.startShard(logger, shardToRelocate, changes, 0L);
+                        routingNodes.startShard(shardToRelocate, changes, 0L);
                         continue relocateToDesiredLocation;
                     }
                 }
@@ -205,7 +205,7 @@ public class DesiredBalanceComputer {
                             .type() != Decision.Type.NO) {
                         final var shardToInitialize = unassignedPrimaryIterator.initialize(nodeId, null, 0L, changes);
                         clusterInfoSimulator.simulateShardStarted(shardToInitialize);
-                        routingNodes.startShard(logger, shardToInitialize, changes, 0L);
+                        routingNodes.startShard(shardToInitialize, changes, 0L);
                     }
                 }
             }
@@ -225,7 +225,7 @@ public class DesiredBalanceComputer {
                             .type() != Decision.Type.NO) {
                         final var shardToInitialize = unassignedReplicaIterator.initialize(nodeId, null, 0L, changes);
                         clusterInfoSimulator.simulateShardStarted(shardToInitialize);
-                        routingNodes.startShard(logger, shardToInitialize, changes, 0L);
+                        routingNodes.startShard(shardToInitialize, changes, 0L);
                     }
                 }
             }
@@ -282,7 +282,7 @@ public class DesiredBalanceComputer {
                     if (shardRouting.initializing()) {
                         hasChanges = true;
                         clusterInfoSimulator.simulateShardStarted(shardRouting);
-                        routingNodes.startShard(logger, shardRouting, changes, 0L);
+                        routingNodes.startShard(shardRouting, changes, 0L);
                         logger.trace("starting shard {}", shardRouting);
                     }
                 }

@@ -8,7 +8,6 @@
 
 package org.elasticsearch.cluster.routing;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -471,14 +470,12 @@ public class RoutingNodes implements Iterable<RoutingNode> {
      * @return the started shard
      */
     public ShardRouting startShard(
-        Logger logger,
         ShardRouting initializingShard,
         RoutingChangesObserver routingChangesObserver,
         long startedExpectedShardSize
     ) {
         ensureMutable();
         ShardRouting startedShard = started(initializingShard, startedExpectedShardSize);
-        logger.trace("{} marked shard as started (routing: {})", initializingShard.shardId(), initializingShard);
         routingChangesObserver.shardStarted(initializingShard, startedShard);
 
         if (initializingShard.relocatingNodeId() != null) {
@@ -542,12 +539,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
      * - If shard is a (primary or replica) relocation target, this also clears the relocation information on the source shard.
      *
      */
-    public void failShard(
-        Logger logger,
-        ShardRouting failedShard,
-        UnassignedInfo unassignedInfo,
-        RoutingChangesObserver routingChangesObserver
-    ) {
+    public void failShard(ShardRouting failedShard, UnassignedInfo unassignedInfo, RoutingChangesObserver routingChangesObserver) {
         ensureMutable();
         assert failedShard.assignedToNode() : "only assigned shards can be failed";
         assert getByAllocationId(failedShard.shardId(), failedShard.allocationId().getId()) == failedShard
@@ -555,8 +547,6 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                 + failedShard
                 + " but was: "
                 + getByAllocationId(failedShard.shardId(), failedShard.allocationId().getId());
-
-        logger.debug("{} failing shard {} with unassigned info ({})", failedShard.shardId(), failedShard, unassignedInfo.shortSummary());
 
         // if this is a primary, fail initializing replicas first (otherwise we move RoutingNodes into an inconsistent state)
         if (failedShard.primary()) {
@@ -580,7 +570,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                             Collections.emptySet(),
                             routing.currentNodeId()
                         );
-                        failShard(logger, replicaShard, primaryFailedUnassignedInfo, routingChangesObserver);
+                        failShard(replicaShard, primaryFailedUnassignedInfo, routingChangesObserver);
                     }
                 }
             }
@@ -591,12 +581,10 @@ public class RoutingNodes implements Iterable<RoutingNode> {
             ShardRouting targetShard = getByAllocationId(failedShard.shardId(), failedShard.allocationId().getRelocationId());
             assert targetShard.isRelocationTargetOf(failedShard);
             if (failedShard.primary()) {
-                logger.trace("{} is removed due to the failure/cancellation of the source shard", targetShard);
                 // cancel and remove target shard
                 remove(targetShard);
                 routingChangesObserver.shardFailed(targetShard, unassignedInfo);
             } else {
-                logger.trace("{}, relocation source failed / cancelled, mark as initializing without relocation source", targetShard);
                 // promote to initializing shard without relocation source and ensure that removed relocation source
                 // is not added back as unassigned shard
                 removeRelocationSource(targetShard);
@@ -617,19 +605,8 @@ public class RoutingNodes implements Iterable<RoutingNode> {
             } else {
                 // The shard is a target of a relocating shard. In that case we only need to remove the target shard and cancel the source
                 // relocation. No shard is left unassigned
-                logger.trace(
-                    "{} is a relocation target, resolving source to cancel relocation ({})",
-                    failedShard,
-                    unassignedInfo.shortSummary()
-                );
                 ShardRouting sourceShard = getByAllocationId(failedShard.shardId(), failedShard.allocationId().getRelocationId());
                 assert sourceShard.isRelocationSourceOf(failedShard);
-                logger.trace(
-                    "{}, resolved source to [{}]. canceling relocation ... ({})",
-                    failedShard.shardId(),
-                    sourceShard,
-                    unassignedInfo.shortSummary()
-                );
                 cancelRelocation(sourceShard);
                 remove(failedShard);
             }

@@ -272,9 +272,9 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
             if (shardRouting.shardId().id() == 0 && shardRouting.primary()) {
                 switch (between(1, 3)) {
                     case 1 -> iterator.initialize("node-2", null, 0L, changes);
-                    case 2 -> routingNodes.startShard(logger, iterator.initialize("node-2", null, 0L, changes), changes, 0L);
+                    case 2 -> routingNodes.startShard(iterator.initialize("node-2", null, 0L, changes), changes, 0L);
                     case 3 -> routingNodes.relocateShard(
-                        routingNodes.startShard(logger, iterator.initialize("node-1", null, 0L, changes), changes, 0L),
+                        routingNodes.startShard(iterator.initialize("node-1", null, 0L, changes), changes, 0L),
                         "node-2",
                         0L,
                         "test",
@@ -311,7 +311,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
         for (var iterator = routingNodes.unassigned().iterator(); iterator.hasNext();) {
             var shardRouting = iterator.next();
             if (shardRouting.shardId().id() == 0 && shardRouting.primary()) {
-                routingNodes.startShard(logger, iterator.initialize("node-2", null, 0L, changes), changes, 0L);
+                routingNodes.startShard(iterator.initialize("node-2", null, 0L, changes), changes, 0L);
                 break;
             }
         }
@@ -321,9 +321,9 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                 assert shardRouting.primary() == false;
                 switch (between(1, 3)) {
                     case 1 -> iterator.initialize("node-0", null, 0L, changes);
-                    case 2 -> routingNodes.startShard(logger, iterator.initialize("node-0", null, 0L, changes), changes, 0L);
+                    case 2 -> routingNodes.startShard(iterator.initialize("node-0", null, 0L, changes), changes, 0L);
                     case 3 -> routingNodes.relocateShard(
-                        routingNodes.startShard(logger, iterator.initialize("node-1", null, 0L, changes), changes, 0L),
+                        routingNodes.startShard(iterator.initialize("node-1", null, 0L, changes), changes, 0L),
                         "node-0",
                         0L,
                         "test",
@@ -367,12 +367,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
             var shardRouting = iterator.next();
             if (shardRouting.shardId().id() == 0 && shardRouting.primary()) {
                 routingAllocation.routingNodes()
-                    .startShard(
-                        logger,
-                        iterator.initialize("node-2", null, 0L, routingAllocation.changes()),
-                        routingAllocation.changes(),
-                        0L
-                    );
+                    .startShard(iterator.initialize("node-2", null, 0L, routingAllocation.changes()), routingAllocation.changes(), 0L);
                 break;
             }
         }
@@ -431,7 +426,6 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
         for (var iterator = desiredRoutingNodes.unassigned().iterator(); iterator.hasNext();) {
             var shardRouting = iterator.next();
             desiredRoutingNodes.startShard(
-                logger,
                 iterator.initialize(shardRouting.primary() ? "node-0" : "node-1", null, 0L, changes),
                 changes,
                 0L
@@ -472,14 +466,9 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                 if (shardRouting.shardId().getId() == shard && shardRouting.primary()) {
                     switch (primaryRoutingState) {
                         case INITIALIZING -> iterator.initialize(nodes.remove(0), null, 0L, changes);
-                        case STARTED -> randomRoutingNodes.startShard(
-                            logger,
-                            iterator.initialize(nodes.remove(0), null, 0L, changes),
-                            changes,
-                            0L
-                        );
+                        case STARTED -> randomRoutingNodes.startShard(iterator.initialize(nodes.remove(0), null, 0L, changes), changes, 0L);
                         case RELOCATING -> randomRoutingNodes.relocateShard(
-                            randomRoutingNodes.startShard(logger, iterator.initialize(nodes.remove(0), null, 0L, changes), changes, 0L),
+                            randomRoutingNodes.startShard(iterator.initialize(nodes.remove(0), null, 0L, changes), changes, 0L),
                             nodes.remove(0),
                             0L,
                             "test",
@@ -498,14 +487,9 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                 if (shardRouting.shardId().getId() == shard && shardRouting.primary() == false) {
                     switch (replicaRoutingState) {
                         case INITIALIZING -> iterator.initialize(nodes.remove(0), null, 0L, changes);
-                        case STARTED -> randomRoutingNodes.startShard(
-                            logger,
-                            iterator.initialize(nodes.remove(0), null, 0L, changes),
-                            changes,
-                            0L
-                        );
+                        case STARTED -> randomRoutingNodes.startShard(iterator.initialize(nodes.remove(0), null, 0L, changes), changes, 0L);
                         case RELOCATING -> randomRoutingNodes.relocateShard(
-                            randomRoutingNodes.startShard(logger, iterator.initialize(nodes.remove(0), null, 0L, changes), changes, 0L),
+                            randomRoutingNodes.startShard(iterator.initialize(nodes.remove(0), null, 0L, changes), changes, 0L),
                             nodes.remove(0),
                             0L,
                             "test",
@@ -553,12 +537,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
         var routingNodes = clusterState.mutableRoutingNodes();
         for (var iterator = routingNodes.unassigned().iterator(); iterator.hasNext();) {
             var shardRouting = iterator.next();
-            routingNodes.startShard(
-                logger,
-                iterator.initialize(shardRouting.primary() ? "node-0" : "node-1", null, 0L, changes),
-                changes,
-                0L
-            );
+            routingNodes.startShard(iterator.initialize(shardRouting.primary() ? "node-0" : "node-1", null, 0L, changes), changes, 0L);
         }
         clusterState = ClusterState.builder(clusterState)
             .routingTable(RoutingTable.of(clusterState.routingTable().version(), routingNodes))

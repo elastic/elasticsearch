@@ -253,7 +253,7 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
 
         Exception exception = expectThrows(
             unresponsiveExceptionType(),
-            () -> Streams.readFully(blobContainer.readBlob(randomPurpose(), "read_blob_unresponsive"))
+            () -> Streams.readFully(blobContainer.readBlob(randomFiniteRetryingPurpose(), "read_blob_unresponsive"))
         );
         assertThat(exception.getMessage().toLowerCase(Locale.ROOT), containsString("read timed out"));
         assertThat(exception.getCause(), instanceOf(SocketTimeoutException.class));
@@ -270,8 +270,8 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
         exception = expectThrows(Exception.class, () -> {
             try (
                 InputStream stream = randomBoolean()
-                    ? blobContainer.readBlob(randomRetryingPurpose(), "read_blob_incomplete")
-                    : blobContainer.readBlob(randomRetryingPurpose(), "read_blob_incomplete", position, length)
+                    ? blobContainer.readBlob(randomFiniteRetryingPurpose(), "read_blob_incomplete")
+                    : blobContainer.readBlob(randomFiniteRetryingPurpose(), "read_blob_incomplete", position, length)
             ) {
                 Streams.readFully(stream);
             }
@@ -294,6 +294,10 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
         return randomPurpose();
     }
 
+    protected OperationPurpose randomFiniteRetryingPurpose() {
+        return randomPurpose();
+    }
+
     public void testReadBlobWithNoHttpResponse() {
         final TimeValue readTimeout = TimeValue.timeValueMillis(between(100, 200));
         final BlobContainer blobContainer = createBlobContainer(randomInt(5), readTimeout, null, null);
@@ -303,9 +307,9 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
 
         Exception exception = expectThrows(unresponsiveExceptionType(), () -> {
             if (randomBoolean()) {
-                Streams.readFully(blobContainer.readBlob(randomPurpose(), "read_blob_no_response"));
+                Streams.readFully(blobContainer.readBlob(randomFiniteRetryingPurpose(), "read_blob_no_response"));
             } else {
-                Streams.readFully(blobContainer.readBlob(randomPurpose(), "read_blob_no_response", 0, 1));
+                Streams.readFully(blobContainer.readBlob(randomFiniteRetryingPurpose(), "read_blob_no_response", 0, 1));
             }
         });
         assertThat(
@@ -328,8 +332,8 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
         final Exception exception = expectThrows(Exception.class, () -> {
             try (
                 InputStream stream = randomBoolean()
-                    ? blobContainer.readBlob(randomRetryingPurpose(), "read_blob_incomplete", 0, 1)
-                    : blobContainer.readBlob(randomRetryingPurpose(), "read_blob_incomplete")
+                    ? blobContainer.readBlob(randomFiniteRetryingPurpose(), "read_blob_incomplete", 0, 1)
+                    : blobContainer.readBlob(randomFiniteRetryingPurpose(), "read_blob_incomplete")
             ) {
                 Streams.readFully(stream);
             }

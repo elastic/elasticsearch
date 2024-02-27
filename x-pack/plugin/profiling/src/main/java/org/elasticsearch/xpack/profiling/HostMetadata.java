@@ -15,23 +15,29 @@ import java.util.Map;
 import java.util.Objects;
 
 final class HostMetadata implements ToXContentObject {
+    // "present_cpu_cores" is missing in the host metadata when collected before 8.12.0.
+    // 4 seems to be a reasonable default value.
+    static final int DEFAULT_PROFILING_NUM_CORES = 4;
     final String hostID;
     final InstanceType instanceType;
     final String profilingHostMachine; // aarch64 or x86_64
+    final int profilingNumCores; // number of cores on the profiling host machine
 
-    HostMetadata(String hostID, InstanceType instanceType, String profilingHostMachine) {
+    HostMetadata(String hostID, InstanceType instanceType, String profilingHostMachine, Integer profilingNumCores) {
         this.hostID = hostID;
         this.instanceType = instanceType;
         this.profilingHostMachine = profilingHostMachine;
+        this.profilingNumCores = profilingNumCores != null ? profilingNumCores : DEFAULT_PROFILING_NUM_CORES;
     }
 
     public static HostMetadata fromSource(Map<String, Object> source) {
         if (source != null) {
             String hostID = (String) source.get("host.id");
             String profilingHostMachine = (String) source.get("profiling.host.machine");
-            return new HostMetadata(hostID, InstanceType.fromHostSource(source), profilingHostMachine);
+            Integer profilingNumCores = (Integer) source.get("profiling.agent.config.present_cpu_cores");
+            return new HostMetadata(hostID, InstanceType.fromHostSource(source), profilingHostMachine, profilingNumCores);
         }
-        return new HostMetadata("", new InstanceType("", "", ""), "");
+        return new HostMetadata("", new InstanceType("", "", ""), "", null);
     }
 
     @Override

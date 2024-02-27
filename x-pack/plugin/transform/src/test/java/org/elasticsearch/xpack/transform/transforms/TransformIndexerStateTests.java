@@ -35,6 +35,7 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.indexing.IterationResult;
+import org.elasticsearch.xpack.core.transform.action.ValidateTransformAction;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
@@ -63,6 +64,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
@@ -105,7 +107,7 @@ public class TransformIndexerStateTests extends ESTestCase {
         private final ThreadPool threadPool;
 
         private TransformState persistedState;
-        private int saveStateListenerCallCount = 0;
+        private AtomicInteger saveStateListenerCallCount = new AtomicInteger(0);
         // used for synchronizing with the test
         private CountDownLatch searchLatch;
         private CountDownLatch doProcessLatch;
@@ -205,10 +207,10 @@ public class TransformIndexerStateTests extends ESTestCase {
 
         @Override
         protected void doSaveState(IndexerState state, TransformIndexerPosition position, Runnable next) {
-            Collection<ActionListener<Void>> saveStateListenersAtTheMomentOfCalling = saveStateListeners.get();
-            saveStateListenerCallCount += (saveStateListenersAtTheMomentOfCalling != null)
-                ? saveStateListenersAtTheMomentOfCalling.size()
-                : 0;
+            var saveStateListenersAtTheMomentOfCalling = saveStateListeners.get();
+            if (saveStateListenersAtTheMomentOfCalling != null) {
+                saveStateListenerCallCount.updateAndGet(count -> count + saveStateListenersAtTheMomentOfCalling.size());
+            }
             super.doSaveState(state, position, next);
         }
 
@@ -224,7 +226,7 @@ public class TransformIndexerStateTests extends ESTestCase {
         }
 
         public int getSaveStateListenerCallCount() {
-            return saveStateListenerCallCount;
+            return saveStateListenerCallCount.get();
         }
 
         public int getSaveStateListenerCount() {
@@ -242,13 +244,18 @@ public class TransformIndexerStateTests extends ESTestCase {
         }
 
         @Override
+        void doMaybeCreateDestIndex(Map<String, String> deducedDestIndexMappings, ActionListener<Boolean> listener) {
+            listener.onResponse(null);
+        }
+
+        @Override
         void persistState(TransformState state, ActionListener<Void> listener) {
             persistedState = state;
             listener.onResponse(null);
         }
 
         @Override
-        void validate(ActionListener<Void> listener) {
+        void validate(ActionListener<ValidateTransformAction.Response> listener) {
             listener.onResponse(null);
         }
     }
@@ -312,6 +319,11 @@ public class TransformIndexerStateTests extends ESTestCase {
         }
 
         @Override
+        void doMaybeCreateDestIndex(Map<String, String> deducedDestIndexMappings, ActionListener<Boolean> listener) {
+            listener.onResponse(null);
+        }
+
+        @Override
         void doDeleteByQuery(DeleteByQueryRequest deleteByQueryRequest, ActionListener<BulkByScrollResponse> responseListener) {
             responseListener.onResponse(
                 new BulkByScrollResponse(
@@ -335,7 +347,7 @@ public class TransformIndexerStateTests extends ESTestCase {
         }
 
         @Override
-        void validate(ActionListener<Void> listener) {
+        void validate(ActionListener<ValidateTransformAction.Response> listener) {
             listener.onResponse(null);
         }
 
@@ -581,12 +593,12 @@ public class TransformIndexerStateTests extends ESTestCase {
                 new TransformIndexerStats(),
                 context
             );
+
+            // stop the indexer before it dispatches a search thread so we can load the listeners first
+            CountDownLatch searchLatch = indexer.createAwaitForSearchLatch(1);
             indexer.start();
             assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis()));
             assertEquals(indexer.getState(), IndexerState.INDEXING);
-
-            // slow down the indexer
-            CountDownLatch searchLatch = indexer.createAwaitForSearchLatch(1);
 
             // this time call 5 times and change stopAtCheckpoint every time
             List<CountDownLatch> responseLatches = new ArrayList<>();

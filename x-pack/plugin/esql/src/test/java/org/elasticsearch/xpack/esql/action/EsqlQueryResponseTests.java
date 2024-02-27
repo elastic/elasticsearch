@@ -33,11 +33,14 @@ import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.DriverStatus;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.geo.GeometryTestUtils;
+import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.xcontent.InstantiatingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ParserConstructor;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -54,10 +57,13 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.common.xcontent.ChunkedToXContent.wrapAsToXContent;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryResponse.DROP_NULL_COLUMNS_OPTION;
 import static org.elasticsearch.xpack.esql.action.ResponseValueUtils.valuesToPage;
 import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.GEO;
@@ -148,8 +154,14 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                     new BytesRef(UnsupportedValueSource.UNSUPPORTED_OUTPUT)
                 );
                 case "version" -> ((BytesRefBlock.Builder) builder).appendBytesRef(new Version(randomIdentifier()).toBytesRef());
-                case "geo_point" -> ((BytesRefBlock.Builder) builder).appendBytesRef(GEO.pointAsWKB(randomGeoPoint()));
-                case "cartesian_point" -> ((BytesRefBlock.Builder) builder).appendBytesRef(CARTESIAN.pointAsWKB(randomCartesianPoint()));
+                case "geo_point" -> ((BytesRefBlock.Builder) builder).appendBytesRef(GEO.asWkb(GeometryTestUtils.randomPoint()));
+                case "cartesian_point" -> ((BytesRefBlock.Builder) builder).appendBytesRef(CARTESIAN.asWkb(ShapeTestUtils.randomPoint()));
+                case "geo_shape" -> ((BytesRefBlock.Builder) builder).appendBytesRef(
+                    GEO.asWkb(GeometryTestUtils.randomGeometry(randomBoolean()))
+                );
+                case "cartesian_shape" -> ((BytesRefBlock.Builder) builder).appendBytesRef(
+                    CARTESIAN.asWkb(ShapeTestUtils.randomGeometry(randomBoolean()))
+                );
                 case "null" -> builder.appendNull();
                 case "_source" -> {
                     try {
@@ -321,28 +333,38 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
 
     public void testSimpleXContentColumnar() {
         try (EsqlQueryResponse response = simple(true)) {
-            assertThat(Strings.toString(response), equalTo("""
+            assertThat(Strings.toString(wrapAsToXContent(response)), equalTo("""
                 {"columns":[{"name":"foo","type":"integer"}],"values":[[40,80]]}"""));
+        }
+    }
+
+    public void testSimpleXContentColumnarDropNulls() {
+        try (EsqlQueryResponse response = simple(true)) {
+            assertThat(
+                Strings.toString(wrapAsToXContent(response), new ToXContent.MapParams(Map.of(DROP_NULL_COLUMNS_OPTION, "true"))),
+                equalTo("""
+                    {"all_columns":[{"name":"foo","type":"integer"}],"columns":[{"name":"foo","type":"integer"}],"values":[[40,80]]}""")
+            );
         }
     }
 
     public void testSimpleXContentColumnarAsync() {
         try (EsqlQueryResponse response = simple(true, true)) {
-            assertThat(Strings.toString(response), equalTo("""
+            assertThat(Strings.toString(wrapAsToXContent(response)), equalTo("""
                 {"is_running":false,"columns":[{"name":"foo","type":"integer"}],"values":[[40,80]]}"""));
         }
     }
 
     public void testSimpleXContentRows() {
         try (EsqlQueryResponse response = simple(false)) {
-            assertThat(Strings.toString(response), equalTo("""
+            assertThat(Strings.toString(wrapAsToXContent(response)), equalTo("""
                 {"columns":[{"name":"foo","type":"integer"}],"values":[[40],[80]]}"""));
         }
     }
 
     public void testSimpleXContentRowsAsync() {
         try (EsqlQueryResponse response = simple(false, true)) {
-            assertThat(Strings.toString(response), equalTo("""
+            assertThat(Strings.toString(wrapAsToXContent(response)), equalTo("""
                 {"is_running":false,"columns":[{"name":"foo","type":"integer"}],"values":[[40],[80]]}"""));
         }
     }
@@ -361,6 +383,58 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
         ) {
             assertThat(Strings.toString(response), equalTo("""
                 {"id":"id-123","is_running":true,"columns":[{"name":"foo","type":"integer"}],"values":[[40],[80]]}"""));
+        }
+    }
+
+    public void testNullColumnsXContentDropNulls() {
+        try (
+            EsqlQueryResponse response = new EsqlQueryResponse(
+                List.of(new ColumnInfo("foo", "integer"), new ColumnInfo("all_null", "integer")),
+                List.of(new Page(blockFactory.newIntArrayVector(new int[] { 40, 80 }, 2).asBlock(), blockFactory.newConstantNullBlock(2))),
+                null,
+                false,
+                null,
+                false,
+                false
+            )
+        ) {
+            assertThat(
+                Strings.toString(wrapAsToXContent(response), new ToXContent.MapParams(Map.of(DROP_NULL_COLUMNS_OPTION, "true"))),
+                equalTo("{" + """
+                    "all_columns":[{"name":"foo","type":"integer"},{"name":"all_null","type":"integer"}],""" + """
+                    "columns":[{"name":"foo","type":"integer"}],""" + """
+                    "values":[[40],[80]]}""")
+            );
+        }
+    }
+
+    /**
+     * This is a paranoid test to make sure the {@link Block}s produced by {@link Block.Builder}
+     * that contain only {@code null} entries are properly recognized by the {@link EsqlQueryResponse#DROP_NULL_COLUMNS_OPTION}.
+     */
+    public void testNullColumnsFromBuilderXContentDropNulls() {
+        try (IntBlock.Builder b = blockFactory.newIntBlockBuilder(2)) {
+            b.appendNull();
+            b.appendNull();
+            try (
+                EsqlQueryResponse response = new EsqlQueryResponse(
+                    List.of(new ColumnInfo("foo", "integer"), new ColumnInfo("all_null", "integer")),
+                    List.of(new Page(blockFactory.newIntArrayVector(new int[] { 40, 80 }, 2).asBlock(), b.build())),
+                    null,
+                    false,
+                    null,
+                    false,
+                    false
+                )
+            ) {
+                assertThat(
+                    Strings.toString(wrapAsToXContent(response), new ToXContent.MapParams(Map.of(DROP_NULL_COLUMNS_OPTION, "true"))),
+                    equalTo("{" + """
+                        "all_columns":[{"name":"foo","type":"integer"},{"name":"all_null","type":"integer"}],""" + """
+                        "columns":[{"name":"foo","type":"integer"}],""" + """
+                        "values":[[40],[80]]}""")
+                );
+            }
         }
     }
 
@@ -384,15 +458,54 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 List.of(new ColumnInfo("foo", "integer")),
                 List.of(new Page(blockFactory.newIntArrayVector(new int[] { 40, 80 }, 2).asBlock())),
                 new EsqlQueryResponse.Profile(
-                    List.of(new DriverProfile(List.of(new DriverStatus.OperatorStatus("asdf", new AbstractPageMappingOperator.Status(10)))))
+                    List.of(
+                        new DriverProfile(
+                            20021,
+                            20000,
+                            12,
+                            List.of(new DriverStatus.OperatorStatus("asdf", new AbstractPageMappingOperator.Status(10021, 10)))
+                        )
+                    )
                 ),
                 false,
                 false
             );
         ) {
-            assertThat(Strings.toString(response), equalTo("""
-                {"columns":[{"name":"foo","type":"integer"}],"values":[[40],[80]],"profile":{"drivers":[""" + """
-                {"operators":[{"operator":"asdf","status":{"pages_processed":10}}]}]}}"""));
+            assertThat(Strings.toString(response, true, false), equalTo("""
+                {
+                  "columns" : [
+                    {
+                      "name" : "foo",
+                      "type" : "integer"
+                    }
+                  ],
+                  "values" : [
+                    [
+                      40
+                    ],
+                    [
+                      80
+                    ]
+                  ],
+                  "profile" : {
+                    "drivers" : [
+                      {
+                        "took_nanos" : 20021,
+                        "cpu_nanos" : 20000,
+                        "iterations" : 12,
+                        "operators" : [
+                          {
+                            "operator" : "asdf",
+                            "status" : {
+                              "process_nanos" : 10021,
+                              "pages_processed" : 10
+                            }
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                }"""));
         }
     }
 

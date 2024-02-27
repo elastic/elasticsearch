@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockTestUtils;
@@ -80,12 +79,6 @@ public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase
 
         Block result = results.get(0).getBlock(0);
         assertSimpleOutput(input.stream().map(p -> p.<Block>getBlock(0)).toList(), result);
-    }
-
-    @Override
-    protected ByteSizeValue memoryLimitForSimple() {
-        // This is a super conservative limit that should cause all aggs to break
-        return ByteSizeValue.ofBytes(20);
     }
 
     public final void testIgnoresNulls() {

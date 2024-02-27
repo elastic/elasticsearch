@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.esql.expression.function;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.geo.GeometryTestUtils;
+import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.ESTestCase;
@@ -41,8 +43,6 @@ import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.test.ESTestCase.randomCartesianPoint;
-import static org.elasticsearch.test.ESTestCase.randomGeoPoint;
 import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.GEO;
 import static org.hamcrest.Matchers.equalTo;
@@ -571,6 +571,32 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
     }
 
     /**
+     * Generate positive test cases for a unary function operating on an {@link EsqlDataTypes#GEO_SHAPE}.
+     */
+    public static void forUnaryGeoShape(
+        List<TestCaseSupplier> suppliers,
+        String expectedEvaluatorToString,
+        DataType expectedType,
+        Function<BytesRef, Object> expectedValue,
+        List<String> warnings
+    ) {
+        unary(suppliers, expectedEvaluatorToString, geoShapeCases(), expectedType, n -> expectedValue.apply((BytesRef) n), warnings);
+    }
+
+    /**
+     * Generate positive test cases for a unary function operating on an {@link EsqlDataTypes#CARTESIAN_SHAPE}.
+     */
+    public static void forUnaryCartesianShape(
+        List<TestCaseSupplier> suppliers,
+        String expectedEvaluatorToString,
+        DataType expectedType,
+        Function<BytesRef, Object> expectedValue,
+        List<String> warnings
+    ) {
+        unary(suppliers, expectedEvaluatorToString, cartesianShapeCases(), expectedType, n -> expectedValue.apply((BytesRef) n), warnings);
+    }
+
+    /**
      * Generate positive test cases for a unary function operating on an {@link DataTypes#IP}.
      */
     public static void forUnaryIp(
@@ -913,12 +939,32 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
     }
 
     private static List<TypedDataSupplier> geoPointCases() {
-        return List.of(new TypedDataSupplier("<geo_point>", () -> GEO.pointAsWKB(randomGeoPoint()), EsqlDataTypes.GEO_POINT));
+        return List.of(new TypedDataSupplier("<geo_point>", () -> GEO.asWkb(GeometryTestUtils.randomPoint()), EsqlDataTypes.GEO_POINT));
     }
 
     private static List<TypedDataSupplier> cartesianPointCases() {
         return List.of(
-            new TypedDataSupplier("<cartesian_point>", () -> CARTESIAN.pointAsWKB(randomCartesianPoint()), EsqlDataTypes.CARTESIAN_POINT)
+            new TypedDataSupplier("<cartesian_point>", () -> CARTESIAN.asWkb(ShapeTestUtils.randomPoint()), EsqlDataTypes.CARTESIAN_POINT)
+        );
+    }
+
+    private static List<TypedDataSupplier> geoShapeCases() {
+        return List.of(
+            new TypedDataSupplier(
+                "<geo_shape>",
+                () -> GEO.asWkb(GeometryTestUtils.randomGeometry(ESTestCase.randomBoolean())),
+                EsqlDataTypes.GEO_SHAPE
+            )
+        );
+    }
+
+    private static List<TypedDataSupplier> cartesianShapeCases() {
+        return List.of(
+            new TypedDataSupplier(
+                "<cartesian_shape>",
+                () -> CARTESIAN.asWkb(ShapeTestUtils.randomGeometry(ESTestCase.randomBoolean())),
+                EsqlDataTypes.CARTESIAN_SHAPE
+            )
         );
     }
 
@@ -1076,6 +1122,9 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
          */
         private String[] expectedWarnings;
 
+        private Class<? extends Throwable> foldingExceptionClass;
+        private String foldingExceptionMessage;
+
         private final String expectedTypeError;
         private final boolean allTypesAreRepresentable;
 
@@ -1141,6 +1190,14 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             return expectedWarnings;
         }
 
+        public Class<? extends Throwable> foldingExceptionClass() {
+            return foldingExceptionClass;
+        }
+
+        public String foldingExceptionMessage() {
+            return foldingExceptionMessage;
+        }
+
         public String getExpectedTypeError() {
             return expectedTypeError;
         }
@@ -1154,6 +1211,12 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                 newWarnings = new String[] { warning };
             }
             return new TestCase(data, evaluatorToString, expectedType, matcher, newWarnings, expectedTypeError);
+        }
+
+        public <T extends Throwable> TestCase withFoldingException(Class<T> clazz, String message) {
+            foldingExceptionClass = clazz;
+            foldingExceptionMessage = message;
+            return this;
         }
     }
 

@@ -1,12 +1,11 @@
 [role="xpack"]
 [[list-connector-sync-jobs-api]]
 === List connector sync jobs API
-
-preview::[]
-
 ++++
 <titleabbrev>List connector sync jobs</titleabbrev>
 ++++
+
+preview::[]
 
 Returns information about all stored connector sync jobs ordered by their creation date in ascending order.
 
@@ -35,6 +34,9 @@ Returns information about all stored connector sync jobs ordered by their creati
 
 `connector_id`::
 (Optional, string) The connector id the fetched sync jobs need to have.
+
+`job_type`::
+(Optional, job type) A comma-separated list of job types.
 
 [[list-connector-sync-jobs-api-example]]
 ==== {api-examples-title}
@@ -67,6 +69,13 @@ The following example lists connector sync jobs (the first 100 per default) for 
 [source,console]
 ----
 GET _connector/_sync_job?connector_id=connector-1
+----
+// TEST[skip:there's no way to clean up after this code snippet, as we don't know the ids of sync jobs ahead of time]
+
+The following example lists connector sync jobs (the first 100 per default) for the connector with job type `full` or `incremental`:
+[source,console]
+----
+GET _connector/_sync_job?job_type=full,incremental
 ----
 // TEST[skip:there's no way to clean up after this code snippet, as we don't know the ids of sync jobs ahead of time]
 

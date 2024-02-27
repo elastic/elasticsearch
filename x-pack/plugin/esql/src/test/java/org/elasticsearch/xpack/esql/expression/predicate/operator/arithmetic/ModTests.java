@@ -10,15 +10,19 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.math.BigInteger;
 import java.util.List;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
+import static org.elasticsearch.xpack.ql.util.NumericUtils.ZERO_AS_UNSIGNED_LONG;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.asLongUnsigned;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsBigInteger;
 import static org.hamcrest.Matchers.equalTo;
@@ -93,6 +97,27 @@ public class ModTests extends AbstractArithmeticTestCase {
           })
           */
         ));
+    }
+
+    // run dedicated test to avoid the JVM optimized ArithmeticException that lacks a message
+    public void testDivisionByZero() {
+        DataType testCaseType = testCase.getData().get(0).type();
+        List<Object> data = switch (testCaseType.typeName()) {
+            case "INTEGER" -> List.of(randomInt(), 0);
+            case "LONG" -> List.of(randomLong(), 0L);
+            case "UNSIGNED_LONG" -> List.of(randomLong(), ZERO_AS_UNSIGNED_LONG);
+            default -> null;
+        };
+        if (data != null) {
+            var op = build(Source.EMPTY, field("lhs", testCaseType), field("rhs", testCaseType));
+            try (Block block = evaluator(op).get(driverContext()).eval(row(data))) {
+                assertCriticalWarnings(
+                    "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
+                    "Line -1:-1: java.lang.ArithmeticException: / by zero"
+                );
+                assertNull(toJavaObject(block, 0));
+            }
+        }
     }
 
     @Override

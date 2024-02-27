@@ -29,16 +29,25 @@ import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.queries.function.FunctionQuery;
+import org.apache.lucene.queries.function.valuesource.ByteKnnVectorFieldSource;
+import org.apache.lucene.queries.function.valuesource.ByteVectorSimilarityFunction;
+import org.apache.lucene.queries.function.valuesource.ConstKnnByteVectorValueSource;
+import org.apache.lucene.queries.function.valuesource.ConstKnnFloatValueSource;
+import org.apache.lucene.queries.function.valuesource.FloatKnnVectorFieldSource;
+import org.apache.lucene.queries.function.valuesource.FloatVectorSimilarityFunction;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.FieldExistsQuery;
-import org.apache.lucene.search.KnnByteVectorQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
-import org.apache.lucene.search.join.DiversifyingChildrenByteKnnVectorQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.codec.vectors.ES813FlatVectorFormat;
+import org.elasticsearch.index.codec.vectors.ES813Int8FlatVectorFormat;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.ArraySourceValueFetcher;
@@ -56,10 +65,10 @@ import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.vectors.ProfilingDiversifyingChildrenByteKnnVectorQuery;
-import org.elasticsearch.search.vectors.ProfilingDiversifyingChildrenFloatKnnVectorQuery;
-import org.elasticsearch.search.vectors.ProfilingKnnByteVectorQuery;
-import org.elasticsearch.search.vectors.ProfilingKnnFloatVectorQuery;
+import org.elasticsearch.search.vectors.ESDiversifyingChildrenByteKnnVectorQuery;
+import org.elasticsearch.search.vectors.ESDiversifyingChildrenFloatKnnVectorQuery;
+import org.elasticsearch.search.vectors.ESKnnByteVectorQuery;
+import org.elasticsearch.search.vectors.ESKnnFloatVectorQuery;
 import org.elasticsearch.search.vectors.VectorSimilarityQuery;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -188,9 +197,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 }
             });
             this.indexOptions.addValidator(v -> {
-                if (v instanceof Int8HnswIndexOptions && elementType.getValue() == ElementType.BYTE) {
+                if (v != null && v.supportsElementType(elementType.getValue()) == false) {
                     throw new IllegalArgumentException(
-                        "[element_type] cannot be [byte] when using index type [" + VectorIndexType.INT8_HNSW.name + "]"
+                        "[element_type] cannot be [" + elementType.getValue().toString() + "] when using index type [" + v.type + "]"
                     );
                 }
             });
@@ -204,9 +213,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
         @Override
         public DenseVectorFieldMapper build(MapperBuilderContext context) {
             return new DenseVectorFieldMapper(
-                name,
+                name(),
                 new DenseVectorFieldType(
-                    context.buildFullName(name),
+                    context.buildFullName(name()),
                     indexVersionCreated,
                     elementType.getValue(),
                     dims.getValue(),
@@ -790,6 +799,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         abstract KnnVectorsFormat getVectorsFormat();
+
+        boolean supportsElementType(ElementType elementType) {
+            return true;
+        }
     }
 
     private enum VectorIndexType {
@@ -831,6 +844,25 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
                 return new Int8HnswIndexOptions(m, efConstruction, confidenceInterval);
             }
+        },
+        FLAT("flat") {
+            @Override
+            public IndexOptions parseIndexOptions(String fieldName, Map<String, ?> indexOptionsMap) {
+                MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
+                return new FlatIndexOptions();
+            }
+        },
+        INT8_FLAT("int8_flat") {
+            @Override
+            public IndexOptions parseIndexOptions(String fieldName, Map<String, ?> indexOptionsMap) {
+                Object confidenceIntervalNode = indexOptionsMap.remove("confidence_interval");
+                Float confidenceInterval = null;
+                if (confidenceIntervalNode != null) {
+                    confidenceInterval = (float) XContentMapValues.nodeDoubleValue(confidenceIntervalNode);
+                }
+                MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
+                return new Int8FlatIndexOption(confidenceInterval);
+            }
         };
 
         static Optional<VectorIndexType> fromString(String type) {
@@ -844,6 +876,80 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         abstract IndexOptions parseIndexOptions(String fieldName, Map<String, ?> indexOptionsMap);
+    }
+
+    private static class Int8FlatIndexOption extends IndexOptions {
+        private final Float confidenceInterval;
+
+        Int8FlatIndexOption(Float confidenceInterval) {
+            super("int8_flat");
+            this.confidenceInterval = confidenceInterval;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field("type", type);
+            if (confidenceInterval != null) {
+                builder.field("confidence_interval", confidenceInterval);
+            }
+            builder.endObject();
+            return builder;
+        }
+
+        @Override
+        KnnVectorsFormat getVectorsFormat() {
+            return new ES813Int8FlatVectorFormat(confidenceInterval);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Int8FlatIndexOption that = (Int8FlatIndexOption) o;
+            return Objects.equals(confidenceInterval, that.confidenceInterval);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(confidenceInterval);
+        }
+
+        @Override
+        boolean supportsElementType(ElementType elementType) {
+            return elementType != ElementType.BYTE;
+        }
+    }
+
+    private static class FlatIndexOptions extends IndexOptions {
+
+        FlatIndexOptions() {
+            super("flat");
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field("type", type);
+            builder.endObject();
+            return builder;
+        }
+
+        @Override
+        KnnVectorsFormat getVectorsFormat() {
+            return new ES813FlatVectorFormat();
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            return o != null && getClass() == o.getClass();
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(type);
+        }
     }
 
     private static class Int8HnswIndexOptions extends IndexOptions {
@@ -900,6 +1006,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 + ", confidence_interval="
                 + confidenceInterval
                 + "}";
+        }
+
+        @Override
+        boolean supportsElementType(ElementType elementType) {
+            return elementType != ElementType.BYTE;
         }
     }
 
@@ -1051,8 +1162,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 elementType.checkVectorMagnitude(similarity, ElementType.errorByteElementsAppender(queryVector), squaredMagnitude);
             }
             Query knnQuery = parentFilter != null
-                ? new DiversifyingChildrenByteKnnVectorQuery(name(), queryVector, filter, numCands, parentFilter)
-                : new KnnByteVectorQuery(name(), queryVector, numCands, filter);
+                ? new ESDiversifyingChildrenByteKnnVectorQuery(name(), queryVector, filter, numCands, parentFilter)
+                : new ESKnnByteVectorQuery(name(), queryVector, numCands, filter);
             if (similarityThreshold != null) {
                 knnQuery = new VectorSimilarityQuery(
                     knnQuery,
@@ -1061,6 +1172,67 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 );
             }
             return knnQuery;
+        }
+
+        public Query createExactKnnQuery(float[] queryVector) {
+            if (isIndexed() == false) {
+                throw new IllegalArgumentException(
+                    "to perform knn search on field [" + name() + "], its mapping must have [index] set to [true]"
+                );
+            }
+            if (queryVector.length != dims) {
+                throw new IllegalArgumentException(
+                    "the query vector has a different dimension [" + queryVector.length + "] than the index vectors [" + dims + "]"
+                );
+            }
+            elementType.checkVectorBounds(queryVector);
+            if (similarity == VectorSimilarity.DOT_PRODUCT || similarity == VectorSimilarity.COSINE) {
+                float squaredMagnitude = VectorUtil.dotProduct(queryVector, queryVector);
+                elementType.checkVectorMagnitude(similarity, ElementType.errorFloatElementsAppender(queryVector), squaredMagnitude);
+                if (similarity == VectorSimilarity.COSINE
+                    && ElementType.FLOAT.equals(elementType)
+                    && indexVersionCreated.onOrAfter(NORMALIZE_COSINE)
+                    && isNotUnitVector(squaredMagnitude)) {
+                    float length = (float) Math.sqrt(squaredMagnitude);
+                    queryVector = Arrays.copyOf(queryVector, queryVector.length);
+                    for (int i = 0; i < queryVector.length; i++) {
+                        queryVector[i] /= length;
+                    }
+                }
+            }
+            VectorSimilarityFunction vectorSimilarityFunction = similarity.vectorSimilarityFunction(indexVersionCreated, elementType);
+            return switch (elementType) {
+                case BYTE -> {
+                    byte[] bytes = new byte[queryVector.length];
+                    for (int i = 0; i < queryVector.length; i++) {
+                        bytes[i] = (byte) queryVector[i];
+                    }
+                    yield new BooleanQuery.Builder().add(new FieldExistsQuery(name()), BooleanClause.Occur.FILTER)
+                        .add(
+                            new FunctionQuery(
+                                new ByteVectorSimilarityFunction(
+                                    vectorSimilarityFunction,
+                                    new ByteKnnVectorFieldSource(name()),
+                                    new ConstKnnByteVectorValueSource(bytes)
+                                )
+                            ),
+                            BooleanClause.Occur.SHOULD
+                        )
+                        .build();
+                }
+                case FLOAT -> new BooleanQuery.Builder().add(new FieldExistsQuery(name()), BooleanClause.Occur.FILTER)
+                    .add(
+                        new FunctionQuery(
+                            new FloatVectorSimilarityFunction(
+                                vectorSimilarityFunction,
+                                new FloatKnnVectorFieldSource(name()),
+                                new ConstKnnFloatValueSource(queryVector)
+                            )
+                        ),
+                        BooleanClause.Occur.SHOULD
+                    )
+                    .build();
+            };
         }
 
         public Query createKnnQuery(
@@ -1082,7 +1254,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 );
             }
             elementType.checkVectorBounds(queryVector);
-
             if (similarity == VectorSimilarity.DOT_PRODUCT || similarity == VectorSimilarity.COSINE) {
                 float squaredMagnitude = VectorUtil.dotProduct(queryVector, queryVector);
                 elementType.checkVectorMagnitude(similarity, ElementType.errorFloatElementsAppender(queryVector), squaredMagnitude);
@@ -1104,12 +1275,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         bytes[i] = (byte) queryVector[i];
                     }
                     yield parentFilter != null
-                        ? new ProfilingDiversifyingChildrenByteKnnVectorQuery(name(), bytes, filter, numCands, parentFilter)
-                        : new ProfilingKnnByteVectorQuery(name(), bytes, numCands, filter);
+                        ? new ESDiversifyingChildrenByteKnnVectorQuery(name(), bytes, filter, numCands, parentFilter)
+                        : new ESKnnByteVectorQuery(name(), bytes, numCands, filter);
                 }
                 case FLOAT -> parentFilter != null
-                    ? new ProfilingDiversifyingChildrenFloatKnnVectorQuery(name(), queryVector, filter, numCands, parentFilter)
-                    : new ProfilingKnnFloatVectorQuery(name(), queryVector, numCands, filter);
+                    ? new ESDiversifyingChildrenFloatKnnVectorQuery(name(), queryVector, filter, numCands, parentFilter)
+                    : new ESKnnFloatVectorQuery(name(), queryVector, numCands, filter);
             };
 
             if (similarityThreshold != null) {

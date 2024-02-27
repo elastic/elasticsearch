@@ -17,10 +17,8 @@ import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
-import org.elasticsearch.search.aggregations.Aggregation.CommonFields;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
-import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.test.InternalAggregationTestCase;
@@ -31,7 +29,6 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import static java.util.Collections.singletonList;
@@ -146,9 +143,7 @@ public class InternalScriptedMetricTests extends InternalAggregationTestCase<Int
 
     @Override
     protected void assertReduced(InternalScriptedMetric reduced, List<InternalScriptedMetric> inputs) {
-        InternalScriptedMetric firstAgg = inputs.get(0);
-        assertEquals(firstAgg.getName(), reduced.getName());
-        assertEquals(firstAgg.getMetadata(), reduced.getMetadata());
+        // we cannot check the current attribute values as they depend on the first aggregator during the reduced phase
         int size = (int) inputs.stream().mapToLong(i -> i.aggregationsList().size()).sum();
         if (hasReduceScript) {
             assertEquals(size, reduced.aggregation());
@@ -170,7 +165,7 @@ public class InternalScriptedMetricTests extends InternalAggregationTestCase<Int
     @Override
     public InternalScriptedMetric createTestInstanceForXContent() {
         InternalScriptedMetric aggregation = createTestInstance();
-        return (InternalScriptedMetric) aggregation.reduce(
+        return (InternalScriptedMetric) InternalAggregationTestCase.reduce(
             singletonList(aggregation),
             new AggregationReduceContext.ForFinal(
                 null,
@@ -181,14 +176,6 @@ public class InternalScriptedMetricTests extends InternalAggregationTestCase<Int
                 PipelineTree.EMPTY
             )
         );
-    }
-
-    @Override
-    protected void assertFromXContent(InternalScriptedMetric aggregation, ParsedAggregation parsedAggregation) {
-        assertTrue(parsedAggregation instanceof ParsedScriptedMetric);
-        ParsedScriptedMetric parsed = (ParsedScriptedMetric) parsedAggregation;
-
-        assertValues(aggregation.aggregation(), parsed.aggregation());
     }
 
     private static void assertValues(Object expected, Object actual) {
@@ -234,11 +221,6 @@ public class InternalScriptedMetricTests extends InternalAggregationTestCase<Int
         } else {
             assertEquals(expected, actual);
         }
-    }
-
-    @Override
-    protected Predicate<String> excludePathsFromXContentInsertion() {
-        return path -> path.contains(CommonFields.VALUE.getPreferredName());
     }
 
     @Override

@@ -1,0 +1,5 @@
+pr: 103648
+summary: Introduce experimental pass-through field type
+area: TSDB
+type: enhancement
+issues: []

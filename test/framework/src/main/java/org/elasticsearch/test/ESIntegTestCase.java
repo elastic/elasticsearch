@@ -34,10 +34,7 @@ import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksRequest;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
 import org.elasticsearch.action.admin.cluster.tasks.TransportPendingClusterTasksAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
-import org.elasticsearch.action.admin.indices.flush.FlushResponse;
-import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.admin.indices.segments.IndexSegments;
 import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
@@ -57,6 +54,7 @@ import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.RefCountingListener;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.client.internal.AdminClient;
@@ -179,6 +177,7 @@ import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -973,7 +972,17 @@ public abstract class ESIntegTestCase extends ESTestCase {
             // been removed by the master so that the health check applies to the set of nodes we expect to be part of the cluster.
             .waitForNodes(Integer.toString(cluster().size()));
 
-        final ClusterHealthResponse clusterHealthResponse = clusterAdmin().health(healthRequest).actionGet();
+        final ClusterHealthResponse clusterHealthResponse;
+        try {
+            clusterHealthResponse = clusterAdmin().health(healthRequest).get();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            logger.error("interrupted while waiting for health response", e);
+            throw new AssertionError("interrupted while waiting for health response", e);
+        } catch (ExecutionException e) {
+            logger.error("failed to get health response", e);
+            throw new AssertionError("failed to get health response", e);
+        }
         if (clusterHealthResponse.isTimedOut()) {
             final var allocationExplainRef = new AtomicReference<ClusterAllocationExplainResponse>();
             final var clusterStateRef = new AtomicReference<ClusterStateResponse>();
@@ -1478,9 +1487,9 @@ public abstract class ESIntegTestCase extends ESTestCase {
      *
      * @see #waitForRelocation()
      */
-    protected final RefreshResponse refresh(String... indices) {
+    protected final BroadcastResponse refresh(String... indices) {
         waitForRelocation();
-        RefreshResponse actionGet = indicesAdmin().prepareRefresh(indices)
+        BroadcastResponse actionGet = indicesAdmin().prepareRefresh(indices)
             .setIndicesOptions(IndicesOptions.STRICT_EXPAND_OPEN_HIDDEN_FORBID_CLOSED)
             .get();
         assertNoFailures(actionGet);
@@ -1498,9 +1507,9 @@ public abstract class ESIntegTestCase extends ESTestCase {
     /**
      * Flush some or all indices in the cluster.
      */
-    protected final FlushResponse flush(String... indices) {
+    protected final BroadcastResponse flush(String... indices) {
         waitForRelocation();
-        FlushResponse actionGet = indicesAdmin().prepareFlush(indices).get();
+        BroadcastResponse actionGet = indicesAdmin().prepareFlush(indices).get();
         for (DefaultShardOperationFailedException failure : actionGet.getShardFailures()) {
             assertThat("unexpected flush failure " + failure.reason(), failure.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
         }
@@ -1510,9 +1519,9 @@ public abstract class ESIntegTestCase extends ESTestCase {
     /**
      * Waits for all relocations and force merge all indices in the cluster to 1 segment.
      */
-    protected ForceMergeResponse forceMerge() {
+    protected BroadcastResponse forceMerge() {
         waitForRelocation();
-        ForceMergeResponse actionGet = indicesAdmin().prepareForceMerge().setMaxNumSegments(1).get();
+        BroadcastResponse actionGet = indicesAdmin().prepareForceMerge().setMaxNumSegments(1).get();
         assertNoFailures(actionGet);
         return actionGet;
     }
@@ -1651,7 +1660,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         Set<String> indices = new HashSet<>();
         builders = new ArrayList<>(builders);
         for (IndexRequestBuilder builder : builders) {
-            indices.add(builder.request().index());
+            indices.add(builder.getIndex());
         }
         Set<List<String>> bogusIds = new HashSet<>(); // (index, type, id)
         if (random.nextBoolean() && builders.isEmpty() == false && dummyDocuments) {

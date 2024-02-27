@@ -1,9 +1,10 @@
 [[get-connector-sync-job-api]]
 === Get connector sync job API
-preview::[]
 ++++
 <titleabbrev>Get connector sync job</titleabbrev>
 ++++
+
+preview::[]
 
 Retrieves the details about a connector sync job.
 

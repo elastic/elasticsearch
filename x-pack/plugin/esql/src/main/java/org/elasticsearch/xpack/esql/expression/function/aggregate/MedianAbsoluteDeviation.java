@@ -11,6 +11,8 @@ import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MedianAbsoluteDeviationDoubleAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MedianAbsoluteDeviationIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MedianAbsoluteDeviationLongAggregatorFunctionSupplier;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -20,7 +22,12 @@ import java.util.List;
 public class MedianAbsoluteDeviation extends NumericAggregate {
 
     // TODO: Add parameter
-    public MedianAbsoluteDeviation(Source source, Expression field) {
+    @FunctionInfo(
+        returnType = { "double", "integer", "long" },
+        description = "The median absolute deviation, a measure of variability.",
+        isAggregation = true
+    )
+    public MedianAbsoluteDeviation(Source source, @Param(name = "field", type = { "double", "integer", "long" }) Expression field) {
         super(source, field);
     }
 

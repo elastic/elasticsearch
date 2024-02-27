@@ -14,7 +14,7 @@ questions about the {esql} query language.
 === Use {esql} to investigate events in Timeline
 
 You can use {esql} in Timeline to filter, transform, and analyze event data
-stored in {es}. To start using {esql}, open the the **{esql}** tab. To learn
+stored in {es}. To start using {esql}, open the **{esql}** tab. To learn
 more, refer to {security-guide}/timelines-ui.html#esql-in-timeline[Investigate
 events in Timeline].
 

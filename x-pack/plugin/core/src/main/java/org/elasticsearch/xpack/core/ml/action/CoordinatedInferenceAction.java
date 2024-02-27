@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.ml.action;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
@@ -29,7 +30,7 @@ public class CoordinatedInferenceAction extends ActionType<InferModelAction.Resp
     public static final String NAME = "cluster:internal/xpack/ml/coordinatedinference";
 
     public CoordinatedInferenceAction() {
-        super(NAME, InferModelAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends ActionRequest {
@@ -98,7 +99,8 @@ public class CoordinatedInferenceAction extends ActionType<InferModelAction.Resp
         // DFA models only
         private final List<Map<String, Object>> objectsToInfer;
 
-        private Request(
+        // default for testing
+        Request(
             String modelId,
             @Nullable List<String> inputs,
             @Nullable Map<String, Object> taskSettings,
@@ -131,6 +133,12 @@ public class CoordinatedInferenceAction extends ActionType<InferModelAction.Resp
             this.previouslyLicensed = in.readOptionalBoolean();
             this.inferenceTimeout = in.readOptionalTimeValue();
             this.highPriority = in.readBoolean();
+            // The prefixType was added prior to TransportVersions.ML_INFERENCE_REQUEST_INPUT_TYPE_ADDED but we're serializing it now
+            // as a safety measure. At the time of writing this it doesn't have to be serialized because this class is only used internally
+            // and on a single node so it never actually gets serialized. But we'll do it just in case that changes in the future.
+            if (in.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_REQUEST_INPUT_TYPE_ADDED)) {
+                this.prefixType = in.readEnum(TrainedModelPrefixStrings.PrefixType.class);
+            }
         }
 
         public String getModelId() {
@@ -201,6 +209,9 @@ public class CoordinatedInferenceAction extends ActionType<InferModelAction.Resp
             out.writeOptionalBoolean(previouslyLicensed);
             out.writeOptionalTimeValue(inferenceTimeout);
             out.writeBoolean(highPriority);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_REQUEST_INPUT_TYPE_ADDED)) {
+                out.writeEnum(prefixType);
+            }
         }
 
         @Override
@@ -221,7 +232,8 @@ public class CoordinatedInferenceAction extends ActionType<InferModelAction.Resp
                 && Objects.equals(inferenceConfigUpdate, request.inferenceConfigUpdate)
                 && Objects.equals(previouslyLicensed, request.previouslyLicensed)
                 && Objects.equals(inferenceTimeout, request.inferenceTimeout)
-                && Objects.equals(highPriority, request.highPriority);
+                && Objects.equals(highPriority, request.highPriority)
+                && Objects.equals(prefixType, request.prefixType);
         }
 
         @Override
@@ -235,7 +247,8 @@ public class CoordinatedInferenceAction extends ActionType<InferModelAction.Resp
                 inferenceConfigUpdate,
                 previouslyLicensed,
                 inferenceTimeout,
-                highPriority
+                highPriority,
+                prefixType
             );
         }
     }

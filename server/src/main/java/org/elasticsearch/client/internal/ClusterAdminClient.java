@@ -24,7 +24,6 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequestBuilde
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequestBuilder;
-import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskRequestBuilder;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskResponse;
@@ -293,7 +292,7 @@ public interface ClusterAdminClient extends ElasticsearchClient {
      * @param request The nodes tasks request
      * @return The result future
      */
-    ActionFuture<CancelTasksResponse> cancelTasks(CancelTasksRequest request);
+    ActionFuture<ListTasksResponse> cancelTasks(CancelTasksRequest request);
 
     /**
      * Cancel active tasks
@@ -301,7 +300,7 @@ public interface ClusterAdminClient extends ElasticsearchClient {
      * @param request  The nodes tasks request
      * @param listener A listener to be notified with a result
      */
-    void cancelTasks(CancelTasksRequest request, ActionListener<CancelTasksResponse> listener);
+    void cancelTasks(CancelTasksRequest request, ActionListener<ListTasksResponse> listener);
 
     /**
      * Cancel active tasks

@@ -29,14 +29,12 @@ import java.util.Objects;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
-public class GetQueryRulesetAction extends ActionType<GetQueryRulesetAction.Response> {
+public class GetQueryRulesetAction {
 
-    public static final GetQueryRulesetAction INSTANCE = new GetQueryRulesetAction();
     public static final String NAME = "cluster:admin/xpack/query_rules/get";
+    public static final ActionType<GetQueryRulesetAction.Response> INSTANCE = new ActionType<>(NAME);
 
-    private GetQueryRulesetAction() {
-        super(NAME, GetQueryRulesetAction.Response::new);
-    }
+    private GetQueryRulesetAction() {/* no instances */}
 
     public static class Request extends ActionRequest implements ToXContentObject {
         private final String rulesetId;

@@ -709,10 +709,12 @@ be applied to the input text before the input is evaluated. The prefix
 may be different depending on the intention. For asymmetric tasks such
 as infromation retrieval the prefix applied to a passage as it is indexed
 can be different to the prefix applied when searching those passages.
-
++
+--
 `prefix_strings` has 2 options, a prefix string that is always applied
 in the search context and one that is always applied when ingesting the
 docs. Both are optional.
+--
 +
 .Properties of `prefix_strings`
 [%collapsible%open]
@@ -725,7 +727,8 @@ originating from a search query.
 `ingest`:::
 (Optional, string)
 The prefix string to prepend to the input text for requests
-at ingest where the {infer} ingest processor is used. // TODO is there a shortcut for Inference ingest processor?
+at ingest where the {infer} ingest processor is used.
+// TODO is there a shortcut for Inference ingest processor?
 ====
 //End prefix_strings
 

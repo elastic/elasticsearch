@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equa
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.LessThanOrEqual;
+import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
@@ -37,6 +38,8 @@ import java.time.Duration;
 import java.time.Period;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.DATE_PERIOD;
@@ -129,6 +132,9 @@ public class ExpressionTests extends ESTestCase {
             () -> whereExpression("\"\"\"\"\"\" foo \"\"\"\" == abc"),
             "line 1:23: mismatched input 'foo' expecting {<EOF>,"
         );
+
+        var number = "1" + IntStream.range(0, 309).mapToObj(ignored -> "0").collect(Collectors.joining());
+        assertParsingException(() -> parse("row foo == " + number), "line 1:13: Number [" + number + "] is too large");
     }
 
     public void testBooleanLiteralsCondition() {
@@ -475,10 +481,10 @@ public class ExpressionTests extends ESTestCase {
             p = projectExpression(e);
             projections = p.projections();
             assertThat(projections.size(), equalTo(1));
-            assertThat("Projection [" + e + "] has an unexpected type", projections.get(0), instanceOf(UnresolvedAttribute.class));
-            UnresolvedAttribute ua = (UnresolvedAttribute) projections.get(0);
+            assertThat("Projection [" + e + "] has an unexpected type", projections.get(0), instanceOf(UnresolvedNamePattern.class));
+            UnresolvedNamePattern ua = (UnresolvedNamePattern) projections.get(0);
             assertThat(ua.name(), equalTo(e));
-            assertThat(ua.unresolvedMessage(), equalTo("Unknown column [" + e + "]"));
+            assertThat(ua.unresolvedMessage(), equalTo("Unresolved pattern [" + e + "]"));
         }
     }
 
@@ -515,10 +521,10 @@ public class ExpressionTests extends ESTestCase {
             Drop d = dropExpression(e);
             removals = d.removals();
             assertThat(removals.size(), equalTo(1));
-            assertThat("Projection [" + e + "] has an unexpected type", removals.get(0), instanceOf(UnresolvedAttribute.class));
-            UnresolvedAttribute ursa = (UnresolvedAttribute) removals.get(0);
+            assertThat("Projection [" + e + "] has an unexpected type", removals.get(0), instanceOf(UnresolvedNamePattern.class));
+            UnresolvedNamePattern ursa = (UnresolvedNamePattern) removals.get(0);
             assertThat(ursa.name(), equalTo(e));
-            assertThat(ursa.unresolvedMessage(), equalTo("Unknown column [" + e + "]"));
+            assertThat(ursa.unresolvedMessage(), equalTo("Unresolved pattern [" + e + "]"));
         }
     }
 
@@ -580,17 +586,14 @@ public class ExpressionTests extends ESTestCase {
         assertThat(projections.size(), equalTo(4));
         assertThat(projections.get(0), instanceOf(UnresolvedAttribute.class));
         assertThat(((UnresolvedAttribute) projections.get(0)).name(), equalTo("abc"));
-        assertThat(projections.get(1), instanceOf(UnresolvedAttribute.class));
-        assertThat(((UnresolvedAttribute) projections.get(1)).name(), equalTo("xyz*"));
+        assertThat(projections.get(1), instanceOf(UnresolvedNamePattern.class));
+        assertThat(((UnresolvedNamePattern) projections.get(1)).name(), equalTo("xyz*"));
         assertThat(projections.get(2), instanceOf(UnresolvedAttribute.class));
         assertThat(projections.get(3), instanceOf(UnresolvedStar.class));
     }
 
     public void testForbidWildcardProjectRename() {
-        assertParsingException(
-            () -> renameExpression("b* AS a*"),
-            "line 1:18: Using wildcards (*) in renaming projections is not allowed [b* AS a*]"
-        );
+        assertParsingException(() -> renameExpression("b* AS a*"), "line 1:18: Using wildcards (*) in RENAME is not allowed [b* AS a*]");
     }
 
     public void testSimplifyInWithSingleElementList() {

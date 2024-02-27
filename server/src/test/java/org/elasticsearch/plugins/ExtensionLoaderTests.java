@@ -23,9 +23,9 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.ServiceLoader;
 
+import static org.elasticsearch.test.hamcrest.OptionalMatchers.isEmpty;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -72,7 +72,7 @@ public class ExtensionLoaderTests extends ESTestCase {
 
     public void testNoProvider() {
         Optional<TestService> service = ExtensionLoader.loadSingleton(ServiceLoader.load(TestService.class));
-        assertThat(service.isEmpty(), is(true));
+        assertThat(service, isEmpty());
     }
 
     public void testOneProvider() throws Exception {

@@ -57,7 +57,7 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
     public static final ParseField DOCS_FIELD = new ParseField("docs");
     public static final ParseField ORGANIC_QUERY_FIELD = new ParseField("organic");
 
-    private static final TransportVersion OPTIONAL_INDEX_IN_DOCS_VERSION = TransportVersions.PINNED_QUERY_OPTIONAL_INDEX;
+    private static final TransportVersion OPTIONAL_INDEX_IN_DOCS_VERSION = TransportVersions.V_8_11_X;
 
     private final List<String> ids;
     private final List<Item> docs;

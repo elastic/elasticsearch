@@ -69,7 +69,7 @@ public class ModelSecrets implements ToXContentObject, VersionedNamedWriteable {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.INFERENCE_MODEL_SECRETS_ADDED;
+        return TransportVersions.V_8_11_X;
     }
 
     @Override

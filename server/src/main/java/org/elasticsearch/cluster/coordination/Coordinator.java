@@ -334,6 +334,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             getLastAcceptedState(), // doesn't care about blocks or the current master node so no need for getStateForMasterService
             peerFinder.getLastResolvedAddresses(),
             Stream.concat(Stream.of(getLocalNode()), StreamSupport.stream(peerFinder.getFoundPeers().spliterator(), false)).toList(),
+            peerFinder.getMastersOfPeers(),
             getCurrentTerm(),
             electionStrategy,
             nodeHealthService.getHealth(),
@@ -1803,25 +1804,6 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
 
     public PeerFinder getPeerFinder() {
         return this.peerFinder;
-    }
-
-    /**
-     * If there is any current committed publication, this method cancels it.
-     * This method is used exclusively by tests.
-     * @return true if publication was cancelled, false if there is no current committed publication.
-     */
-    boolean cancelCommittedPublication() {
-        synchronized (mutex) {
-            if (currentPublication.isPresent()) {
-                final CoordinatorPublication publication = currentPublication.get();
-                if (publication.isCommitted()) {
-                    publication.cancel("cancelCommittedPublication");
-                    logger.debug("Cancelled publication of [{}].", publication);
-                    return true;
-                }
-            }
-            return false;
-        }
     }
 
     private void beforeCommit(long term, long version, ActionListener<Void> listener) {

@@ -46,11 +46,14 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.IntFunction;
 
 import static java.util.Collections.emptySet;
+import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.Mode.ASYNC;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.Mode.SYNC;
 import static org.hamcrest.Matchers.containsString;
@@ -70,6 +73,29 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     private static final Logger LOGGER = LogManager.getLogger(RestEsqlTestCase.class);
 
     private static final List<String> NO_WARNINGS = List.of();
+
+    private static final String MAPPING_ALL_TYPES;
+
+    static {
+        try (InputStream mappingPropertiesStream = RestEsqlTestCase.class.getResourceAsStream("/mapping-all-types.json")) {
+            String properties = new String(mappingPropertiesStream.readAllBytes(), StandardCharsets.UTF_8);
+            MAPPING_ALL_TYPES = "{\"mappings\": " + properties + "}";
+        } catch (IOException ex) {
+            throw new RuntimeException(ex);
+        }
+    }
+
+    private static final String DOCUMENT_TEMPLATE = """
+        {"index":{"_id":"{}"}}
+        {"boolean": {}, "byte": {}, "date": {}, "double": {}, "float": {}, "half_float": {}, "scaled_float": {}, "integer": {},""" + """
+        "ip": {}, "keyword": {}, "long": {}, "unsigned_long": {}, "short": {}, "text": {},""" + """
+         "version": {}, "wildcard": {}}
+        """;
+
+    // larger than any (unsigned) long
+    private static final String HUMONGOUS_DOUBLE = "1E300";
+    private static final String INFINITY = "1.0/0.0";
+    private static final String NAN = "0.0/0.0";
 
     public static boolean shouldLog() {
         return false;
@@ -233,7 +259,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         bulkLoadTestData(docCount);
 
         boolean columnar = randomBoolean();
-        var query = builder().query(fromIndex() + " | keep keyword, integer");
+        var query = builder().query(fromIndex() + " | keep keyword, integer | sort integer asc");
         if (columnar || randomBoolean()) {
             query.columnar(columnar);
         }
@@ -263,27 +289,27 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     public void testTextMode() throws IOException {
         int count = randomIntBetween(0, 100);
         bulkLoadTestData(count);
-        var builder = builder().query(fromIndex() + " | keep keyword, integer | limit 100");
+        var builder = builder().query(fromIndex() + " | keep keyword, integer | sort integer asc | limit 100");
         assertEquals(expectedTextBody("txt", count, null), runEsqlAsTextWithFormat(builder, "txt", null));
     }
 
     public void testCSVMode() throws IOException {
         int count = randomIntBetween(0, 100);
         bulkLoadTestData(count);
-        var builder = builder().query(fromIndex() + " | keep keyword, integer | limit 100");
+        var builder = builder().query(fromIndex() + " | keep keyword, integer | sort integer asc | limit 100");
         assertEquals(expectedTextBody("csv", count, '|'), runEsqlAsTextWithFormat(builder, "csv", '|'));
     }
 
     public void testTSVMode() throws IOException {
         int count = randomIntBetween(0, 100);
         bulkLoadTestData(count);
-        var builder = builder().query(fromIndex() + " | keep keyword, integer | limit 100");
+        var builder = builder().query(fromIndex() + " | keep keyword, integer | sort integer asc | limit 100");
         assertEquals(expectedTextBody("tsv", count, null), runEsqlAsTextWithFormat(builder, "tsv", null));
     }
 
     public void testCSVNoHeaderMode() throws IOException {
         bulkLoadTestData(1);
-        var builder = builder().query(fromIndex() + " | keep keyword, integer | limit 100");
+        var builder = builder().query(fromIndex() + " | keep keyword, integer | sort integer asc | limit 100");
         Request request = prepareRequest(SYNC);
         String mediaType = attachBody(builder.build(), request);
         RequestOptions.Builder options = request.getOptions().toBuilder();
@@ -293,6 +319,81 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         HttpEntity entity = performRequest(request, List.of());
         String actual = Streams.copyToString(new InputStreamReader(entity.getContent(), StandardCharsets.UTF_8));
         assertEquals("keyword0,0\r\n", actual);
+    }
+
+    public void testOutOfRangeComparisons() throws IOException {
+        final int NUM_SINGLE_VALUE_ROWS = 100;
+        bulkLoadTestData(NUM_SINGLE_VALUE_ROWS);
+        bulkLoadTestData(10, NUM_SINGLE_VALUE_ROWS, false, RestEsqlTestCase::createDocumentWithMVs);
+        bulkLoadTestData(5, NUM_SINGLE_VALUE_ROWS + 10, false, RestEsqlTestCase::createDocumentWithNulls);
+
+        List<String> dataTypes = List.of(
+            "alias_integer",
+            "byte",
+            "short",
+            "integer",
+            "long",
+            // TODO: https://github.com/elastic/elasticsearch/issues/102935
+            // "unsigned_long",
+            // TODO: https://github.com/elastic/elasticsearch/issues/100130
+            // "half_float",
+            // "float",
+            "double",
+            "scaled_float"
+        );
+
+        String lessOrLessEqual = randomFrom(" < ", " <= ");
+        String largerOrLargerEqual = randomFrom(" > ", " >= ");
+        String inEqualPlusMinus = randomFrom(" != ", " != -");
+        String equalPlusMinus = randomFrom(" == ", " == -");
+        // TODO: once we do not support infinity and NaN anymore, remove INFINITY/NAN cases.
+        // https://github.com/elastic/elasticsearch/issues/98698#issuecomment-1847423390
+        String humongousPositiveLiteral = randomFrom(HUMONGOUS_DOUBLE, INFINITY);
+        String nanOrNull = randomFrom(NAN, "to_double(null)");
+
+        List<String> trueForSingleValuesPredicates = List.of(
+            lessOrLessEqual + humongousPositiveLiteral,
+            largerOrLargerEqual + " -" + humongousPositiveLiteral,
+            inEqualPlusMinus + humongousPositiveLiteral,
+            inEqualPlusMinus + NAN
+        );
+        List<String> alwaysFalsePredicates = List.of(
+            lessOrLessEqual + " -" + humongousPositiveLiteral,
+            largerOrLargerEqual + humongousPositiveLiteral,
+            equalPlusMinus + humongousPositiveLiteral,
+            lessOrLessEqual + nanOrNull,
+            largerOrLargerEqual + nanOrNull,
+            equalPlusMinus + nanOrNull,
+            inEqualPlusMinus + "to_double(null)"
+        );
+
+        for (String fieldWithType : dataTypes) {
+            for (String truePredicate : trueForSingleValuesPredicates) {
+                String comparison = fieldWithType + truePredicate;
+                var query = builder().query(format(null, "from {} | where {}", testIndexName(), comparison));
+                List<String> expectedWarnings = List.of(
+                    "Line 1:29: evaluation of [" + comparison + "] failed, treating result as null. Only first 20 failures recorded.",
+                    "Line 1:29: java.lang.IllegalArgumentException: single-value function encountered multi-value"
+                );
+                var result = runEsql(query, expectedWarnings, mode);
+
+                var values = as(result.get("values"), ArrayList.class);
+                assertThat(
+                    format(null, "Comparison [{}] should return all rows with single values.", comparison),
+                    values.size(),
+                    is(NUM_SINGLE_VALUE_ROWS)
+                );
+            }
+
+            for (String falsePredicate : alwaysFalsePredicates) {
+                String comparison = fieldWithType + falsePredicate;
+                var query = builder().query(format(null, "from {} | where {}", testIndexName(), comparison));
+                var result = runEsql(query);
+
+                var values = as(result.get("values"), ArrayList.class);
+                assertThat(format(null, "Comparison [{}] should return no rows.", comparison), values.size(), is(0));
+            }
+        }
     }
 
     public void testWarningHeadersOnFailedConversions() throws IOException {
@@ -340,7 +441,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         request.setJsonEntity("{\"a\": 3}");
         assertEquals(201, client().performRequest(request).getStatusLine().getStatusCode());
 
-        var query = fromIndex() + "* [metadata _index, _version, _id] | sort _version";
+        var query = fromIndex() + "* metadata _index, _version, _id | sort _version";
         Map<String, Object> result = runEsql(new RequestObjectBuilder().query(query));
         var columns = List.of(
             Map.of("name", "a", "type", "long"),
@@ -716,39 +817,95 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     }
 
     private static Set<String> mutedWarnings() {
-        return Set.of("No limit defined, adding default limit of [500]");
+        return Set.of(
+            "No limit defined, adding default limit of [1000]",
+            "No limit defined, adding default limit of [500]" // this is for bwc tests, the limit in v 8.12.x is 500
+        );
     }
 
     private static void bulkLoadTestData(int count) throws IOException {
-        Request request = new Request("PUT", "/" + testIndexName());
-        request.setJsonEntity("""
-            {
-              "mappings": {
-                "properties": {
-                  "keyword": {
-                    "type": "keyword"
-                  },
-                  "integer": {
-                    "type": "integer"
-                  }
-                }
-              }
-            }""");
-        assertEquals(200, client().performRequest(request).getStatusLine().getStatusCode());
+        bulkLoadTestData(count, 0, true, RestEsqlTestCase::createDocument);
+    }
+
+    private static void bulkLoadTestData(int count, int firstIndex, boolean createIndex, IntFunction<String> createDocument)
+        throws IOException {
+        Request request;
+        if (createIndex) {
+            request = new Request("PUT", "/" + testIndexName());
+            request.setJsonEntity(MAPPING_ALL_TYPES);
+            assertEquals(200, client().performRequest(request).getStatusLine().getStatusCode());
+        }
 
         if (count > 0) {
             request = new Request("POST", "/" + testIndexName() + "/_bulk");
             request.addParameter("refresh", "true");
+
             StringBuilder bulk = new StringBuilder();
             for (int i = 0; i < count; i++) {
-                bulk.append(org.elasticsearch.core.Strings.format("""
-                    {"index":{"_id":"%s"}}
-                    {"keyword":"keyword%s", "integer":%s}
-                    """, i, i, i));
+                bulk.append(createDocument.apply(i + firstIndex));
             }
             request.setJsonEntity(bulk.toString());
             assertEquals(200, client().performRequest(request).getStatusLine().getStatusCode());
         }
+    }
+
+    private static String createDocument(int i) {
+        return format(
+            null,
+            DOCUMENT_TEMPLATE,
+            i,
+            ((i & 1) == 0),
+            (i % 256),
+            i,
+            (i + 0.1),
+            (i + 0.1),
+            (i + 0.1),
+            (i + 0.1),
+            i,
+            "\"127.0.0." + (i % 256) + "\"",
+            "\"keyword" + i + "\"",
+            i,
+            i,
+            (i % Short.MAX_VALUE),
+            "\"text" + i + "\"",
+            "\"1.2." + i + "\"",
+            "\"wildcard" + i + "\""
+        );
+    }
+
+    private static String createDocumentWithMVs(int i) {
+        return format(
+            null,
+            DOCUMENT_TEMPLATE,
+            i,
+            repeatValueAsMV((i & 1) == 0),
+            repeatValueAsMV(i % 256),
+            repeatValueAsMV(i),
+            repeatValueAsMV(i + 0.1),
+            repeatValueAsMV(i + 0.1),
+            repeatValueAsMV(i + 0.1),
+            repeatValueAsMV(i + 0.1),
+            repeatValueAsMV(i),
+            repeatValueAsMV("\"127.0.0." + (i % 256) + "\""),
+            repeatValueAsMV("\"keyword" + i + "\""),
+            repeatValueAsMV(i),
+            repeatValueAsMV(i),
+            repeatValueAsMV(i % Short.MAX_VALUE),
+            repeatValueAsMV("\"text" + i + "\""),
+            repeatValueAsMV("\"1.2." + i + "\""),
+            repeatValueAsMV("\"wildcard" + i + "\"")
+        );
+    }
+
+    private static String createDocumentWithNulls(int i) {
+        return format(null, """
+                {"index":{"_id":"{}"}}
+                {}
+            """, i);
+    }
+
+    private static String repeatValueAsMV(Object value) {
+        return "[" + value + ", " + value + "]";
     }
 
     private static RequestObjectBuilder builder() throws IOException {

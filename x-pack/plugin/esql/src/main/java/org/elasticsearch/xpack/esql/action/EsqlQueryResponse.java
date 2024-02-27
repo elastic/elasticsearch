@@ -39,6 +39,8 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
     @SuppressWarnings("this-escape")
     private final AbstractRefCounted counted = AbstractRefCounted.of(this::closeInternal);
 
+    public static final String DROP_NULL_COLUMNS_OPTION = "drop_null_columns";
+
     private final List<ColumnInfo> columns;
     private final List<Page> pages;
     private final Profile profile;
@@ -74,7 +76,11 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
      * Build a reader for the response.
      */
     public static Writeable.Reader<EsqlQueryResponse> reader(BlockFactory blockFactory) {
-        return in -> deserialize(new BlockStreamInput(in, blockFactory));
+        return in -> {
+            try (BlockStreamInput bsi = new BlockStreamInput(in, blockFactory)) {
+                return deserialize(bsi);
+            }
+        };
     }
 
     static EsqlQueryResponse deserialize(BlockStreamInput in) throws IOException {
@@ -89,7 +95,7 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
         }
         List<ColumnInfo> columns = in.readCollectionAsList(ColumnInfo::new);
         List<Page> pages = in.readCollectionAsList(Page::new);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             profile = in.readOptionalWriteable(Profile::new);
         }
         boolean columnar = in.readBoolean();
@@ -105,7 +111,7 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
         }
         out.writeCollection(columns);
         out.writeCollection(pages);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             out.writeOptionalWriteable(profile);
         }
         out.writeBoolean(columnar);
@@ -160,18 +166,43 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-        final Iterator<? extends ToXContent> valuesIt = ResponseXContentUtils.columnValues(this.columns, this.pages, columnar);
+        boolean dropNullColumns = params.paramAsBoolean(DROP_NULL_COLUMNS_OPTION, false);
+        boolean[] nullColumns = dropNullColumns ? nullColumns() : null;
+        Iterator<? extends ToXContent> columnHeadings = dropNullColumns
+            ? Iterators.concat(
+                ResponseXContentUtils.allColumns(columns, "all_columns"),
+                ResponseXContentUtils.nonNullColumns(columns, nullColumns, "columns")
+            )
+            : ResponseXContentUtils.allColumns(columns, "columns");
+        Iterator<? extends ToXContent> valuesIt = ResponseXContentUtils.columnValues(this.columns, this.pages, columnar, nullColumns);
         Iterator<ToXContent> profileRender = profile == null
             ? List.<ToXContent>of().iterator()
             : ChunkedToXContentHelper.field("profile", profile, params);
         return Iterators.concat(
             ChunkedToXContentHelper.startObject(),
             asyncPropertiesOrEmpty(),
-            ResponseXContentUtils.columnHeadings(columns),
+            columnHeadings,
             ChunkedToXContentHelper.array("values", valuesIt),
             profileRender,
             ChunkedToXContentHelper.endObject()
         );
+    }
+
+    private boolean[] nullColumns() {
+        boolean[] nullColumns = new boolean[columns.size()];
+        for (int c = 0; c < nullColumns.length; c++) {
+            nullColumns[c] = allColumnsAreNull(c);
+        }
+        return nullColumns;
+    }
+
+    private boolean allColumnsAreNull(int c) {
+        for (Page page : pages) {
+            if (page.getBlock(c).areAllValuesNull() == false) {
+                return false;
+            }
+        }
+        return true;
     }
 
     @Override

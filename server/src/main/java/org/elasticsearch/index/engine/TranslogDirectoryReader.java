@@ -8,7 +8,6 @@
 
 package org.elasticsearch.index.engine;
 
-import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.BaseTermsEnum;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.ByteVectorValues;
@@ -60,6 +59,7 @@ import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.plugins.internal.DocumentSizeObserver;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -83,10 +83,10 @@ final class TranslogDirectoryReader extends DirectoryReader {
         Translog.Index operation,
         MappingLookup mappingLookup,
         DocumentParser documentParser,
-        Analyzer analyzer,
+        EngineConfig engineConfig,
         Runnable onSegmentCreated
     ) throws IOException {
-        this(new TranslogLeafReader(shardId, operation, mappingLookup, documentParser, analyzer, onSegmentCreated));
+        this(new TranslogLeafReader(shardId, operation, mappingLookup, documentParser, engineConfig, onSegmentCreated));
     }
 
     private TranslogDirectoryReader(TranslogLeafReader leafReader) throws IOException {
@@ -205,7 +205,7 @@ final class TranslogDirectoryReader extends DirectoryReader {
         private final Translog.Index operation;
         private final MappingLookup mappingLookup;
         private final DocumentParser documentParser;
-        private final Analyzer analyzer;
+        private final EngineConfig engineConfig;
         private final Directory directory;
         private final Runnable onSegmentCreated;
 
@@ -217,14 +217,14 @@ final class TranslogDirectoryReader extends DirectoryReader {
             Translog.Index operation,
             MappingLookup mappingLookup,
             DocumentParser documentParser,
-            Analyzer analyzer,
+            EngineConfig engineConfig,
             Runnable onSegmentCreated
         ) {
             this.shardId = shardId;
             this.operation = operation;
             this.mappingLookup = mappingLookup;
             this.documentParser = documentParser;
-            this.analyzer = analyzer;
+            this.engineConfig = engineConfig;
             this.onSegmentCreated = onSegmentCreated;
             this.directory = new ByteBuffersDirectory();
             this.uid = Uid.encodeId(operation.id());
@@ -257,14 +257,17 @@ final class TranslogDirectoryReader extends DirectoryReader {
                     XContentHelper.xContentType(operation.source()),
                     operation.routing(),
                     Map.of(),
-                    false
+                    DocumentSizeObserver.EMPTY_INSTANCE
                 ),
                 mappingLookup
             );
 
             parsedDocs.updateSeqID(operation.seqNo(), operation.primaryTerm());
             parsedDocs.version().setLongValue(operation.version());
-            final IndexWriterConfig writeConfig = new IndexWriterConfig(analyzer).setOpenMode(IndexWriterConfig.OpenMode.CREATE);
+            // To guarantee indexability, we configure the analyzer and codec using the main engine configuration
+            final IndexWriterConfig writeConfig = new IndexWriterConfig(engineConfig.getAnalyzer()).setOpenMode(
+                IndexWriterConfig.OpenMode.CREATE
+            ).setCodec(engineConfig.getCodec());
             try (IndexWriter writer = new IndexWriter(directory, writeConfig)) {
                 writer.addDocument(parsedDocs.rootDoc());
                 final DirectoryReader reader = open(writer);

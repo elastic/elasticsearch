@@ -28,8 +28,6 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
-import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.test.TestSearchContext;
 import org.elasticsearch.xpack.esql.TestBlockFactory;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
@@ -122,6 +120,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
     private LocalExecutionPlanner planner() throws IOException {
         return new LocalExecutionPlanner(
             "test",
+            "",
             null,
             BigArrays.NON_RECYCLING_INSTANCE,
             TestBlockFactory.getNonBreakingInstance(),
@@ -150,7 +149,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
 
     private EsPhysicalOperationProviders esPhysicalOperationProviders() throws IOException {
         int numShards = randomIntBetween(1, 1000);
-        List<SearchContext> searchContexts = new ArrayList<>(numShards);
+        List<EsPhysicalOperationProviders.ShardContext> shardContexts = new ArrayList<>(numShards);
         var searcher = new ContextIndexSearcher(
             reader(),
             IndexSearcher.getDefaultSimilarity(),
@@ -159,12 +158,16 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             true
         );
         for (int i = 0; i < numShards; i++) {
-            searchContexts.add(
-                new TestSearchContext(createSearchExecutionContext(createMapperService(mapping(b -> {})), searcher), null, searcher)
+            shardContexts.add(
+                new EsPhysicalOperationProviders.DefaultShardContext(
+                    i,
+                    createSearchExecutionContext(createMapperService(mapping(b -> {})), searcher),
+                    null
+                )
             );
         }
-        releasables.addAll(searchContexts);
-        return new EsPhysicalOperationProviders(searchContexts);
+        releasables.add(searcher);
+        return new EsPhysicalOperationProviders(shardContexts);
     }
 
     private IndexReader reader() {

@@ -19,7 +19,6 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -46,8 +45,8 @@ public class LuceneSourceOperator extends LuceneOperator {
         private final LuceneSliceQueue sliceQueue;
 
         public Factory(
-            List<SearchContext> searchContexts,
-            Function<SearchContext, Query> queryFunction,
+            List<? extends ShardContext> contexts,
+            Function<ShardContext, Query> queryFunction,
             DataPartitioning dataPartitioning,
             int taskConcurrency,
             int maxPageSize,
@@ -57,7 +56,7 @@ public class LuceneSourceOperator extends LuceneOperator {
             this.limit = limit;
             this.dataPartitioning = dataPartitioning;
             var weightFunction = weightFunction(queryFunction, ScoreMode.COMPLETE_NO_SCORES);
-            this.sliceQueue = LuceneSliceQueue.create(searchContexts, weightFunction, dataPartitioning, taskConcurrency);
+            this.sliceQueue = LuceneSliceQueue.create(contexts, weightFunction, dataPartitioning, taskConcurrency);
             this.taskConcurrency = Math.min(sliceQueue.totalSlices(), taskConcurrency);
         }
 
@@ -129,6 +128,7 @@ public class LuceneSourceOperator extends LuceneOperator {
             assert currentPagePos == 0 : currentPagePos;
             return null;
         }
+        long start = System.nanoTime();
         try {
             final LuceneScorer scorer = getCurrentOrLoadNextScorer();
             if (scorer == null) {
@@ -149,7 +149,7 @@ public class LuceneSourceOperator extends LuceneOperator {
                 IntBlock leaf = null;
                 IntVector docs = null;
                 try {
-                    shard = blockFactory.newConstantIntBlockWith(scorer.shardIndex(), currentPagePos);
+                    shard = blockFactory.newConstantIntBlockWith(scorer.shardContext().index(), currentPagePos);
                     leaf = blockFactory.newConstantIntBlockWith(scorer.leafReaderContext().ord, currentPagePos);
                     docs = docsBuilder.build();
                     docsBuilder = blockFactory.newIntVectorBuilder(Math.min(remainingDocs, maxPageSize));
@@ -164,6 +164,8 @@ public class LuceneSourceOperator extends LuceneOperator {
             return page;
         } catch (IOException e) {
             throw new UncheckedIOException(e);
+        } finally {
+            processingNanos += System.nanoTime() - start;
         }
     }
 

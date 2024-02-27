@@ -56,7 +56,7 @@ COUNT(emp_no):long
 // end::is-not-null-result[]
 ;
 
-coalesceSimple
+coalesceSimple#[skip:-8.12.99,reason:expression spaces are maintained since 8.13]
 // tag::coalesce[]
 ROW a=null, b="b"
 | EVAL COALESCE(a, b)
@@ -64,7 +64,7 @@ ROW a=null, b="b"
 ;
 
 // tag::coalesce-result[]
-a:null | b:keyword | COALESCE(a,b):keyword
+a:null | b:keyword | COALESCE(a, b):keyword
   null |         b | b
 // end::coalesce-result[]
 ;

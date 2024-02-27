@@ -14,7 +14,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.rest.RestStatus;
@@ -22,14 +21,10 @@ import org.elasticsearch.transport.LeakTracker;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.Map;
 
 public class SearchTemplateResponse extends ActionResponse implements ToXContentObject {
     public static ParseField TEMPLATE_OUTPUT_FIELD = new ParseField("template_output");
@@ -106,31 +101,6 @@ public class SearchTemplateResponse extends ActionResponse implements ToXContent
     @Override
     public boolean hasReferences() {
         return refCounted.hasReferences();
-    }
-
-    public static SearchTemplateResponse fromXContent(XContentParser parser) throws IOException {
-        SearchTemplateResponse searchTemplateResponse = new SearchTemplateResponse();
-        Map<String, Object> contentAsMap = parser.map();
-
-        if (contentAsMap.containsKey(TEMPLATE_OUTPUT_FIELD.getPreferredName())) {
-            Object source = contentAsMap.get(TEMPLATE_OUTPUT_FIELD.getPreferredName());
-            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON).value(source);
-            searchTemplateResponse.setSource(BytesReference.bytes(builder));
-        } else {
-            XContentType contentType = parser.contentType();
-            XContentBuilder builder = XContentFactory.contentBuilder(contentType).map(contentAsMap);
-            try (
-                XContentParser searchResponseParser = XContentHelper.createParserNotCompressed(
-                    XContentParserConfiguration.EMPTY.withRegistry(parser.getXContentRegistry())
-                        .withDeprecationHandler(parser.getDeprecationHandler()),
-                    BytesReference.bytes(builder),
-                    contentType
-                )
-            ) {
-                searchTemplateResponse.setResponse(SearchResponse.fromXContent(searchResponseParser));
-            }
-        }
-        return searchTemplateResponse;
     }
 
     @Override

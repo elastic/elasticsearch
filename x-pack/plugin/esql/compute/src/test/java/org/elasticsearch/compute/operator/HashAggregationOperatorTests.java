@@ -7,7 +7,6 @@
 
 package org.elasticsearch.compute.operator;
 
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.MaxLongAggregatorFunction;
 import org.elasticsearch.compute.aggregation.MaxLongAggregatorFunctionSupplier;
@@ -90,10 +89,5 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
             sum.assertSimpleGroup(input, sums, i, group);
             max.assertSimpleGroup(input, maxs, i, group);
         }
-    }
-
-    @Override
-    protected ByteSizeValue memoryLimitForSimple() {
-        return ByteSizeValue.ofKb(1);
     }
 }

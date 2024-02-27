@@ -29,7 +29,7 @@ public class OpenAiActionCreator implements OpenAiActionVisitor {
 
     @Override
     public ExecutableAction create(OpenAiEmbeddingsModel model, Map<String, Object> taskSettings) {
-        var overriddenModel = model.overrideWith(taskSettings);
+        var overriddenModel = OpenAiEmbeddingsModel.of(model, taskSettings);
 
         return new OpenAiEmbeddingsAction(sender, overriddenModel, serviceComponents);
     }

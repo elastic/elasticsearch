@@ -1,5 +1,0 @@
-pr: 102636
-summary: Revert non-semantic `NodeInfo`
-area: Infra/Core
-type: regression
-issues: []

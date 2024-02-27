@@ -264,34 +264,44 @@ public class AsyncStatusResponseTests extends AbstractWireSerializingTestCase<As
     public void testGetStatusFromStoredSearchRandomizedInputs() {
         boolean ccs = randomBoolean();
         String searchId = randomSearchId();
-        AsyncSearchResponse asyncSearchResponse = AsyncSearchResponseTests.randomAsyncSearchResponse(
-            searchId,
-            AsyncSearchResponseTests.randomSearchResponse(ccs)
-        );
-
-        if (asyncSearchResponse.getSearchResponse() == null
-            && asyncSearchResponse.getFailure() == null
-            && asyncSearchResponse.isRunning() == false) {
-            // if no longer running, the search should have recorded either a failure or a search response
-            // if not an Exception should be thrown
-            expectThrows(
-                IllegalStateException.class,
-                () -> AsyncStatusResponse.getStatusFromStoredSearch(asyncSearchResponse, 100, searchId)
-            );
-        } else {
-            AsyncStatusResponse statusFromStoredSearch = AsyncStatusResponse.getStatusFromStoredSearch(asyncSearchResponse, 100, searchId);
-            assertNotNull(statusFromStoredSearch);
-            if (statusFromStoredSearch.isRunning()) {
-                assertNull(
-                    "completion_status should only be present if search is no longer running",
-                    statusFromStoredSearch.getCompletionStatus()
+        SearchResponse searchResponse = AsyncSearchResponseTests.randomSearchResponse(ccs);
+        AsyncSearchResponse asyncSearchResponse;
+        try {
+            asyncSearchResponse = AsyncSearchResponseTests.randomAsyncSearchResponse(searchId, searchResponse);
+        } finally {
+            searchResponse.decRef();
+        }
+        try {
+            if (asyncSearchResponse.getSearchResponse() == null
+                && asyncSearchResponse.getFailure() == null
+                && asyncSearchResponse.isRunning() == false) {
+                // if no longer running, the search should have recorded either a failure or a search response
+                // if not an Exception should be thrown
+                expectThrows(
+                    IllegalStateException.class,
+                    () -> AsyncStatusResponse.getStatusFromStoredSearch(asyncSearchResponse, 100, searchId)
                 );
             } else {
-                assertNotNull(
-                    "completion_status should be present if search is no longer running",
-                    statusFromStoredSearch.getCompletionStatus()
+                AsyncStatusResponse statusFromStoredSearch = AsyncStatusResponse.getStatusFromStoredSearch(
+                    asyncSearchResponse,
+                    100,
+                    searchId
                 );
+                assertNotNull(statusFromStoredSearch);
+                if (statusFromStoredSearch.isRunning()) {
+                    assertNull(
+                        "completion_status should only be present if search is no longer running",
+                        statusFromStoredSearch.getCompletionStatus()
+                    );
+                } else {
+                    assertNotNull(
+                        "completion_status should be present if search is no longer running",
+                        statusFromStoredSearch.getCompletionStatus()
+                    );
+                }
             }
+        } finally {
+            asyncSearchResponse.decRef();
         }
     }
 
@@ -299,14 +309,18 @@ public class AsyncStatusResponseTests extends AbstractWireSerializingTestCase<As
         String searchId = randomSearchId();
         Exception error = new IllegalArgumentException("dummy");
         AsyncSearchResponse asyncSearchResponse = new AsyncSearchResponse(searchId, null, error, true, false, 100, 200);
-        AsyncStatusResponse statusFromStoredSearch = AsyncStatusResponse.getStatusFromStoredSearch(asyncSearchResponse, 100, searchId);
-        assertNotNull(statusFromStoredSearch);
-        assertEquals(statusFromStoredSearch.getCompletionStatus(), RestStatus.BAD_REQUEST);
-        assertTrue(statusFromStoredSearch.isPartial());
-        assertNull(statusFromStoredSearch.getClusters());
-        assertEquals(0, statusFromStoredSearch.getTotalShards());
-        assertEquals(0, statusFromStoredSearch.getSuccessfulShards());
-        assertEquals(0, statusFromStoredSearch.getSkippedShards());
+        try {
+            AsyncStatusResponse statusFromStoredSearch = AsyncStatusResponse.getStatusFromStoredSearch(asyncSearchResponse, 100, searchId);
+            assertNotNull(statusFromStoredSearch);
+            assertEquals(statusFromStoredSearch.getCompletionStatus(), RestStatus.BAD_REQUEST);
+            assertTrue(statusFromStoredSearch.isPartial());
+            assertNull(statusFromStoredSearch.getClusters());
+            assertEquals(0, statusFromStoredSearch.getTotalShards());
+            assertEquals(0, statusFromStoredSearch.getSuccessfulShards());
+            assertEquals(0, statusFromStoredSearch.getSkippedShards());
+        } finally {
+            asyncSearchResponse.decRef();
+        }
     }
 
     public void testGetStatusFromStoredSearchFailedShardsScenario() {
@@ -326,12 +340,20 @@ public class AsyncStatusResponseTests extends AbstractWireSerializingTestCase<As
             new ShardSearchFailure[] { new ShardSearchFailure(new RuntimeException("foo")) },
             clusters
         );
-
-        AsyncSearchResponse asyncSearchResponse = new AsyncSearchResponse(searchId, searchResponse, null, false, false, 100, 200);
-        AsyncStatusResponse statusFromStoredSearch = AsyncStatusResponse.getStatusFromStoredSearch(asyncSearchResponse, 100, searchId);
-        assertNotNull(statusFromStoredSearch);
-        assertEquals(1, statusFromStoredSearch.getFailedShards());
-        assertEquals(statusFromStoredSearch.getCompletionStatus(), RestStatus.OK);
+        AsyncSearchResponse asyncSearchResponse;
+        try {
+            asyncSearchResponse = new AsyncSearchResponse(searchId, searchResponse, null, false, false, 100, 200);
+        } finally {
+            searchResponse.decRef();
+        }
+        try {
+            AsyncStatusResponse statusFromStoredSearch = AsyncStatusResponse.getStatusFromStoredSearch(asyncSearchResponse, 100, searchId);
+            assertNotNull(statusFromStoredSearch);
+            assertEquals(1, statusFromStoredSearch.getFailedShards());
+            assertEquals(statusFromStoredSearch.getCompletionStatus(), RestStatus.OK);
+        } finally {
+            asyncSearchResponse.decRef();
+        }
     }
 
     public void testGetStatusFromStoredSearchWithEmptyClustersSuccessfullyCompleted() {
@@ -351,12 +373,20 @@ public class AsyncStatusResponseTests extends AbstractWireSerializingTestCase<As
             ShardSearchFailure.EMPTY_ARRAY,
             SearchResponse.Clusters.EMPTY
         );
-
-        AsyncSearchResponse asyncSearchResponse = new AsyncSearchResponse(searchId, searchResponse, null, false, false, 100, 200);
-        AsyncStatusResponse statusFromStoredSearch = AsyncStatusResponse.getStatusFromStoredSearch(asyncSearchResponse, 100, searchId);
-        assertNotNull(statusFromStoredSearch);
-        assertEquals(statusFromStoredSearch.getCompletionStatus(), RestStatus.OK);
-        assertNull(statusFromStoredSearch.getClusters());
+        AsyncSearchResponse asyncSearchResponse;
+        try {
+            asyncSearchResponse = new AsyncSearchResponse(searchId, searchResponse, null, false, false, 100, 200);
+        } finally {
+            searchResponse.decRef();
+        }
+        try {
+            AsyncStatusResponse statusFromStoredSearch = AsyncStatusResponse.getStatusFromStoredSearch(asyncSearchResponse, 100, searchId);
+            assertNotNull(statusFromStoredSearch);
+            assertEquals(statusFromStoredSearch.getCompletionStatus(), RestStatus.OK);
+            assertNull(statusFromStoredSearch.getClusters());
+        } finally {
+            asyncSearchResponse.decRef();
+        }
     }
 
     public void testGetStatusFromStoredSearchWithNonEmptyClustersSuccessfullyCompleted() {
@@ -394,18 +424,26 @@ public class AsyncStatusResponseTests extends AbstractWireSerializingTestCase<As
             ShardSearchFailure.EMPTY_ARRAY,
             clusters
         );
-
-        AsyncSearchResponse asyncSearchResponse = new AsyncSearchResponse(searchId, searchResponse, null, false, false, 100, 200);
-        AsyncStatusResponse statusFromStoredSearch = AsyncStatusResponse.getStatusFromStoredSearch(asyncSearchResponse, 100, searchId);
-        assertNotNull(statusFromStoredSearch);
-        assertEquals(0, statusFromStoredSearch.getFailedShards());
-        assertEquals(statusFromStoredSearch.getCompletionStatus(), RestStatus.OK);
-        assertEquals(totalClusters, statusFromStoredSearch.getClusters().getTotal());
-        assertEquals(skippedClusters, statusFromStoredSearch.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED));
-        assertEquals(
-            successfulClusters,
-            statusFromStoredSearch.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL)
-        );
+        AsyncSearchResponse asyncSearchResponse;
+        try {
+            asyncSearchResponse = new AsyncSearchResponse(searchId, searchResponse, null, false, false, 100, 200);
+        } finally {
+            searchResponse.decRef();
+        }
+        try {
+            AsyncStatusResponse statusFromStoredSearch = AsyncStatusResponse.getStatusFromStoredSearch(asyncSearchResponse, 100, searchId);
+            assertNotNull(statusFromStoredSearch);
+            assertEquals(0, statusFromStoredSearch.getFailedShards());
+            assertEquals(statusFromStoredSearch.getCompletionStatus(), RestStatus.OK);
+            assertEquals(totalClusters, statusFromStoredSearch.getClusters().getTotal());
+            assertEquals(skippedClusters, statusFromStoredSearch.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED));
+            assertEquals(
+                successfulClusters,
+                statusFromStoredSearch.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL)
+            );
+        } finally {
+            asyncSearchResponse.decRef();
+        }
     }
 
     public void testGetStatusFromStoredSearchWithNonEmptyClustersStillRunning() {
@@ -439,16 +477,24 @@ public class AsyncStatusResponseTests extends AbstractWireSerializingTestCase<As
             ShardSearchFailure.EMPTY_ARRAY,
             clusters
         );
-
         boolean isRunning = true;
-        AsyncSearchResponse asyncSearchResponse = new AsyncSearchResponse(searchId, searchResponse, null, false, isRunning, 100, 200);
-        AsyncStatusResponse statusFromStoredSearch = AsyncStatusResponse.getStatusFromStoredSearch(asyncSearchResponse, 100, searchId);
-        assertNotNull(statusFromStoredSearch);
-        assertEquals(0, statusFromStoredSearch.getFailedShards());
-        assertNull("completion_status should not be present if still running", statusFromStoredSearch.getCompletionStatus());
-        assertEquals(100, statusFromStoredSearch.getClusters().getTotal());
-        assertEquals(successful, statusFromStoredSearch.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL));
-        assertEquals(partial, statusFromStoredSearch.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.PARTIAL));
-        assertEquals(skipped, statusFromStoredSearch.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED));
+        AsyncSearchResponse asyncSearchResponse;
+        try {
+            asyncSearchResponse = new AsyncSearchResponse(searchId, searchResponse, null, false, isRunning, 100, 200);
+        } finally {
+            searchResponse.decRef();
+        }
+        try {
+            AsyncStatusResponse statusFromStoredSearch = AsyncStatusResponse.getStatusFromStoredSearch(asyncSearchResponse, 100, searchId);
+            assertNotNull(statusFromStoredSearch);
+            assertEquals(0, statusFromStoredSearch.getFailedShards());
+            assertNull("completion_status should not be present if still running", statusFromStoredSearch.getCompletionStatus());
+            assertEquals(100, statusFromStoredSearch.getClusters().getTotal());
+            assertEquals(successful, statusFromStoredSearch.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL));
+            assertEquals(partial, statusFromStoredSearch.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.PARTIAL));
+            assertEquals(skipped, statusFromStoredSearch.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED));
+        } finally {
+            asyncSearchResponse.decRef();
+        }
     }
 }

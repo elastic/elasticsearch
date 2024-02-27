@@ -57,6 +57,7 @@ import org.elasticsearch.xpack.ml.job.JobManagerHolder;
 
 import java.time.Instant;
 import java.util.Collections;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -273,18 +274,18 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
         StatsAccumulator allJobsModelSizeStats = new StatsAccumulator();
         ForecastStats allJobsForecastStats = new ForecastStats();
 
-        Map<JobState, Counter> jobCountByState = new HashMap<>();
-        Map<JobState, StatsAccumulator> detectorStatsByState = new HashMap<>();
-        Map<JobState, StatsAccumulator> modelSizeStatsByState = new HashMap<>();
-        Map<JobState, ForecastStats> forecastStatsByState = new HashMap<>();
-        Map<JobState, Map<String, Long>> createdByByState = new HashMap<>();
+        Map<JobState, Counter> jobCountByState = new EnumMap<>(JobState.class);
+        Map<JobState, StatsAccumulator> detectorStatsByState = new EnumMap<>(JobState.class);
+        Map<JobState, StatsAccumulator> modelSizeStatsByState = new EnumMap<>(JobState.class);
+        Map<JobState, ForecastStats> forecastStatsByState = new EnumMap<>(JobState.class);
+        Map<JobState, Map<String, Long>> createdByByState = new EnumMap<>(JobState.class);
 
         List<GetJobsStatsAction.Response.JobStats> jobsStats = response.getResponse().results();
         Map<String, Job> jobMap = jobs.stream().collect(Collectors.toMap(Job::getId, item -> item));
         Map<String, Long> allJobsCreatedBy = jobs.stream()
             .map(MachineLearningUsageTransportAction::jobCreatedBy)
             .collect(Collectors.groupingBy(item -> item, Collectors.counting()));
-        ;
+
         for (GetJobsStatsAction.Response.JobStats jobStats : jobsStats) {
             Job job = jobMap.get(jobStats.getJobId());
             if (job == null) {
@@ -354,7 +355,7 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
     }
 
     private static void addDatafeedsUsage(GetDatafeedsStatsAction.Response response, Map<String, Object> datafeedsUsage) {
-        Map<DatafeedState, Counter> datafeedCountByState = new HashMap<>();
+        Map<DatafeedState, Counter> datafeedCountByState = new EnumMap<>(DatafeedState.class);
 
         List<GetDatafeedsStatsAction.Response.DatafeedStats> datafeedsStats = response.getResponse().results();
         for (GetDatafeedsStatsAction.Response.DatafeedStats datafeedStats : datafeedsStats) {
@@ -380,7 +381,7 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
         GetDataFrameAnalyticsStatsAction.Response response,
         Map<String, Object> dataframeAnalyticsUsage
     ) {
-        Map<DataFrameAnalyticsState, Counter> dataFrameAnalyticsStateCounterMap = new HashMap<>();
+        Map<DataFrameAnalyticsState, Counter> dataFrameAnalyticsStateCounterMap = new EnumMap<>(DataFrameAnalyticsState.class);
 
         StatsAccumulator memoryUsagePeakBytesStats = new StatsAccumulator();
         for (GetDataFrameAnalyticsStatsAction.Response.Stats stats : response.getResponse().results()) {

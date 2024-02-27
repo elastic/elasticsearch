@@ -1,5 +1,0 @@
-pr: 103061
-summary: "[Profiling] Query in parallel only if beneficial"
-area: Application
-type: bug
-issues: []

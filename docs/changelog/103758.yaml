@@ -1,5 +1,0 @@
-pr: 103758
-summary: Fix the transport version of `PlanStreamOutput`
-area: ES|QL
-type: bug
-issues: []

@@ -47,6 +47,9 @@ public class TransportUpdateConnectorLastSeenAction extends HandledTransportActi
         UpdateConnectorLastSeenAction.Request request,
         ActionListener<ConnectorUpdateActionResponse> listener
     ) {
-        connectorIndexService.updateConnectorLastSeen(request, listener.map(r -> new ConnectorUpdateActionResponse(r.getResult())));
+        connectorIndexService.checkInConnector(
+            request.getConnectorId(),
+            listener.map(r -> new ConnectorUpdateActionResponse(r.getResult()))
+        );
     }
 }

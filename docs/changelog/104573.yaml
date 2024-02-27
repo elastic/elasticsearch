@@ -1,0 +1,5 @@
+pr: 104573
+summary: Fix logger Strings.format calls
+area: Distributed
+type: bug
+issues: []

@@ -36,7 +36,7 @@ public class ConfigurationValidation implements Writeable, ToXContentObject {
      * Constructs a new ConfigurationValidation instance with specified constraint and type.
      * This constructor initializes the object with a given validation constraint and its associated validation type.
      *
-     * @param constraint The validation constraint, represented as an Object.
+     * @param constraint The validation constraint (string, number or list), represented as generic Object type.
      * @param type       The type of configuration validation, specified as an instance of {@link ConfigurationValidationType}.
      */
     private ConfigurationValidation(Object constraint, ConfigurationValidationType type) {
@@ -59,20 +59,34 @@ public class ConfigurationValidation implements Writeable, ToXContentObject {
     );
 
     static {
-        PARSER.declareField(constructorArg(), (p, c) -> {
-            if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
-                return p.text();
-            } else if (p.currentToken() == XContentParser.Token.VALUE_NUMBER) {
-                return p.numberValue();
-            }
-            throw new XContentParseException("Unsupported token [" + p.currentToken() + "]");
-        }, CONSTRAINT_FIELD, ObjectParser.ValueType.VALUE);
+        PARSER.declareField(
+            constructorArg(),
+            (p, c) -> parseConstraintValue(p),
+            CONSTRAINT_FIELD,
+            ObjectParser.ValueType.VALUE_OBJECT_ARRAY
+        );
         PARSER.declareField(
             constructorArg(),
             (p, c) -> ConfigurationValidationType.validationType(p.text()),
             TYPE_FIELD,
             ObjectParser.ValueType.STRING
         );
+    }
+
+    /**
+     * Parses the value of a constraint from the XContentParser stream.
+     * This method is designed to handle various types of constraint values as per the connector's protocol original specification.
+     * The constraints can be of type string, number, or list of values.
+     */
+    private static Object parseConstraintValue(XContentParser p) throws IOException {
+        if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
+            return p.text();
+        } else if (p.currentToken() == XContentParser.Token.VALUE_NUMBER) {
+            return p.numberValue();
+        } else if (p.currentToken() == XContentParser.Token.START_ARRAY) {
+            return p.list();
+        }
+        throw new XContentParseException("Unsupported token [" + p.currentToken() + "]");
     }
 
     @Override

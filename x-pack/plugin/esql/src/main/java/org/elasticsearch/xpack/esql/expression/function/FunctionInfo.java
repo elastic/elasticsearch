@@ -21,4 +21,6 @@ public @interface FunctionInfo {
     String[] returnType();
 
     String description() default "";
+
+    boolean isAggregation() default false;
 }

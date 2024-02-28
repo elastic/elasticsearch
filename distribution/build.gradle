@@ -300,7 +300,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
     /*****************************************************************************
      *                   Common files in all distributions                       *
      *****************************************************************************/
-    libFiles = { platform ->
+    libFiles = { os, architecture ->
       copySpec {
         // Delay by using closures, since they have not yet been configured, so no jar task exists yet.
         from(configurations.libs)
@@ -333,7 +333,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
         }
         into('platform') {
           from(configurations.libsNative)
-          include platform + '/*'
+          include (os + '-' + architecture + '/*')
         }
       }
     }

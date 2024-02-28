@@ -182,9 +182,6 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
 
         // TODO: we don't have this anywhere already?
         String arch = Architecture.current().toString().toLowerCase(Locale.ROOT);
-        if (arch.equals("x64")) {
-            arch = "x86-64";
-        }
         String platform = String.format(Locale.ROOT, "%s-%s", ElasticsearchDistribution.CURRENT_PLATFORM, arch);
         String existingLibraryPath = System.getProperty("java.library.path");
 

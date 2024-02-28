@@ -141,7 +141,7 @@ def commonPackageConfig(String type, String architecture) {
         fileMode 0644
       }
       into('lib') {
-        with libFiles(platform)
+        with libFiles('linux', architecture)
       }
       into('modules') {
         with modulesFiles('linux', architecture)

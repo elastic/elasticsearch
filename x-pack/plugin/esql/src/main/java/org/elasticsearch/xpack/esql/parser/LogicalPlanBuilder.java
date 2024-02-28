@@ -13,6 +13,7 @@ import org.antlr.v4.runtime.tree.ParseTree;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.dissect.DissectException;
 import org.elasticsearch.dissect.DissectParser;
+import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.parser.EsqlBaseParser.MetadataOptionContext;
 import org.elasticsearch.xpack.esql.parser.EsqlBaseParser.QualifiedNamePatternContext;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
@@ -327,8 +328,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             String policyNameString = tuple.v2();
 
             NamedExpression matchField = ctx.ON() != null ? visitQualifiedNamePattern(ctx.matchField) : new EmptyAttribute(source);
-            if (matchField.name().contains("*")) {
-                throw new ParsingException(source, "Using wildcards (*) in ENRICH WITH projections is not allowed [{}]", matchField.name());
+            if (matchField instanceof UnresolvedNamePattern up) {
+                throw new ParsingException(source, "Using wildcards (*) in ENRICH WITH projections is not allowed [{}]", up.pattern());
             }
 
             List<NamedExpression> keepClauses = visitList(this, ctx.enrichWithClause(), NamedExpression.class);

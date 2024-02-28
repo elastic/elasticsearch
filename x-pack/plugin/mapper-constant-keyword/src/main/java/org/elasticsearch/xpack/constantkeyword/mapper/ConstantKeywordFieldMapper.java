@@ -99,8 +99,8 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
         @Override
         public ConstantKeywordFieldMapper build(MapperBuilderContext context) {
             return new ConstantKeywordFieldMapper(
-                name,
-                new ConstantKeywordFieldType(context.buildFullName(name), value.getValue(), meta.getValue())
+                name(),
+                new ConstantKeywordFieldType(context.buildFullName(name()), value.getValue(), meta.getValue())
             );
         }
     }

@@ -1187,3 +1187,33 @@ e:i | l:i
 3   | 2
 4   | 3
 ;
+
+defaultNameWithSpace
+ROW a = 1 | STATS couNt(*) | SORT `couNt(*)`
+;
+
+couNt(*):l
+1
+;
+
+isNullWithStatsCount_On_TextField
+FROM airports
+| EVAL s = name, x = name
+| WHERE s IS NULL
+| STATS c = COUNT(x)
+;
+
+c:l
+0
+;
+
+isNotNullWithStatsCount_On_TextField
+FROM airports
+| EVAL s = name, x = name
+| WHERE s IS NOT NULL
+| STATS c = COUNT(x)
+;
+
+c:l
+891
+;

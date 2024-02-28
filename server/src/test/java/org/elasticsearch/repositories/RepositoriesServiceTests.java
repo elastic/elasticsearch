@@ -482,8 +482,7 @@ public class RepositoriesServiceTests extends ESTestCase {
                 MockBigArrays.NON_RECYCLING_INSTANCE,
                 mock(RecoverySettings.class),
                 BlobPath.EMPTY,
-                Map.of("bucket", "bucket-a"),
-                RepositoriesMetrics.NOOP
+                Map.of("bucket", "bucket-a")
             );
         }
 
@@ -510,8 +509,7 @@ public class RepositoriesServiceTests extends ESTestCase {
                 MockBigArrays.NON_RECYCLING_INSTANCE,
                 mock(RecoverySettings.class),
                 BlobPath.EMPTY,
-                Map.of("bucket", "bucket-b"),
-                RepositoriesMetrics.NOOP
+                Map.of("bucket", "bucket-b")
             );
         }
 

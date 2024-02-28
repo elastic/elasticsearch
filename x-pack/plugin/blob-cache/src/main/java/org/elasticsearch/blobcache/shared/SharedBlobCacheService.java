@@ -398,23 +398,23 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         return recoveryRangeSize;
     }
 
-    private int getRegion(long position) {
+    protected int getRegion(long position) {
         return (int) (position / regionSize);
     }
 
-    private int getRegionRelativePosition(long position) {
+    protected int getRegionRelativePosition(long position) {
         return (int) (position % regionSize);
     }
 
-    private long getRegionStart(int region) {
+    protected long getRegionStart(int region) {
         return (long) region * regionSize;
     }
 
-    private long getRegionEnd(int region) {
+    protected long getRegionEnd(int region) {
         return (long) (region + 1) * regionSize;
     }
 
-    private int getEndingRegion(long position) {
+    protected int getEndingRegion(long position) {
         return getRegion(position - (position % regionSize == 0 ? 1 : 0));
     }
 
@@ -435,7 +435,14 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         );
     }
 
-    private int getRegionSize(long fileLength, int region) {
+    /**
+     * Compute the size of a cache file region.
+     *
+     * @param fileLength the length of the file/blob to cache
+     * @param region the region number
+     * @return a size in bytes of the cache file region
+     */
+    protected int computeCacheFileRegionSize(long fileLength, int region) {
         assert fileLength > 0;
         final int maxRegion = getEndingRegion(fileLength);
         assert region >= 0 && region <= maxRegion : region + " - " + maxRegion;
@@ -674,6 +681,23 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         public final boolean isEvicted() {
             return evicted != 0;
         }
+    }
+
+    protected boolean assertOffsetsWithinFileLength(long offset, long length, long fileLength) {
+        assert offset >= 0L;
+        assert length > 0L;
+        assert fileLength > 0L;
+        assert offset + length <= fileLength
+            : "accessing ["
+                + length
+                + "] bytes at offset ["
+                + offset
+                + "] in cache file ["
+                + this
+                + "] would be beyond file length ["
+                + fileLength
+                + ']';
+        return true;
     }
 
     /**
@@ -948,6 +972,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         }
 
         public boolean tryRead(ByteBuffer buf, long offset) throws IOException {
+            assert assertOffsetsWithinFileLength(offset, buf.remaining(), length);
             final int startRegion = getRegion(offset);
             final long end = offset + buf.remaining();
             final int endRegion = getEndingRegion(end);
@@ -977,6 +1002,8 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             final RangeAvailableHandler reader,
             final RangeMissingHandler writer
         ) throws Exception {
+            assert assertOffsetsWithinFileLength(rangeToWrite.start(), rangeToWrite.length(), length);
+            assert assertOffsetsWithinFileLength(rangeToRead.start(), rangeToRead.length(), length);
             // We are interested in the total time that the system spends when fetching a result (including time spent queuing), so we start
             // our measurement here.
             final long startTime = threadPool.relativeTimeInNanos();
@@ -1209,7 +1236,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             // if we did not find an entry
             var entry = keyMapping.get(regionKey);
             if (entry == null) {
-                final int effectiveRegionSize = getRegionSize(fileLength, region);
+                final int effectiveRegionSize = computeCacheFileRegionSize(fileLength, region);
                 entry = keyMapping.computeIfAbsent(regionKey, key -> new LFUCacheEntry(new CacheFileRegion(key, effectiveRegionSize), now));
             }
             // io is volatile, double locking is fine, as long as we assign it last.

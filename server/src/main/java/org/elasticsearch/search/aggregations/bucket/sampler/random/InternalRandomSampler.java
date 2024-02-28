@@ -8,10 +8,13 @@
 
 package org.elasticsearch.search.aggregations.bucket.sampler.random;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.AggregatorReducer;
+import org.elasticsearch.search.aggregations.AggregatorsReducer;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.InternalSingleBucketAggregation;
@@ -20,8 +23,6 @@ import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 
 public class InternalRandomSampler extends InternalSingleBucketAggregation implements Sampler {
@@ -29,18 +30,21 @@ public class InternalRandomSampler extends InternalSingleBucketAggregation imple
     public static final String PARSER_NAME = "random_sampler";
 
     private final int seed;
+    private final Integer shardSeed;
     private final double probability;
 
     InternalRandomSampler(
         String name,
         long docCount,
         int seed,
+        Integer shardSeed,
         double probability,
         InternalAggregations subAggregations,
         Map<String, Object> metadata
     ) {
         super(name, docCount, subAggregations, metadata);
         this.seed = seed;
+        this.shardSeed = shardSeed;
         this.probability = probability;
     }
 
@@ -51,6 +55,11 @@ public class InternalRandomSampler extends InternalSingleBucketAggregation imple
         super(in);
         this.seed = in.readInt();
         this.probability = in.readDouble();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.RANDOM_AGG_SHARD_SEED)) {
+            this.shardSeed = in.readOptionalInt();
+        } else {
+            this.shardSeed = null;
+        }
     }
 
     @Override
@@ -58,6 +67,9 @@ public class InternalRandomSampler extends InternalSingleBucketAggregation imple
         super.doWriteTo(out);
         out.writeInt(seed);
         out.writeDouble(probability);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.RANDOM_AGG_SHARD_SEED)) {
+            out.writeOptionalInt(shardSeed);
+        }
     }
 
     @Override
@@ -72,41 +84,48 @@ public class InternalRandomSampler extends InternalSingleBucketAggregation imple
 
     @Override
     protected InternalSingleBucketAggregation newAggregation(String name, long docCount, InternalAggregations subAggregations) {
-        return new InternalRandomSampler(name, docCount, seed, probability, subAggregations, metadata);
+        return new InternalRandomSampler(name, docCount, seed, shardSeed, probability, subAggregations, metadata);
     }
 
     @Override
     protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
         return new AggregatorReducer() {
             long docCount = 0L;
-            final List<InternalAggregations> subAggregationsList = new ArrayList<>(size);
+            final AggregatorsReducer subAggregatorReducer = new AggregatorsReducer(reduceContext, size);
 
             @Override
             public void accept(InternalAggregation aggregation) {
                 docCount += ((InternalSingleBucketAggregation) aggregation).getDocCount();
-                subAggregationsList.add(((InternalSingleBucketAggregation) aggregation).getAggregations());
+                subAggregatorReducer.accept(((InternalSingleBucketAggregation) aggregation).getAggregations());
             }
 
             @Override
             public InternalAggregation get() {
-                InternalAggregations aggs = InternalAggregations.reduce(subAggregationsList, reduceContext);
+                InternalAggregations aggs = subAggregatorReducer.get();
                 if (reduceContext.isFinalReduce() && aggs != null) {
                     SamplingContext context = buildContext();
                     aggs = InternalAggregations.from(aggs.asList().stream().map(agg -> agg.finalizeSampling(context)).toList());
                 }
-
                 return newAggregation(getName(), docCount, aggs);
+            }
+
+            @Override
+            public void close() {
+                Releasables.close(subAggregatorReducer);
             }
         };
     }
 
     public SamplingContext buildContext() {
-        return new SamplingContext(probability, seed);
+        return new SamplingContext(probability, seed, shardSeed);
     }
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         builder.field(RandomSamplerAggregationBuilder.SEED.getPreferredName(), seed);
+        if (shardSeed != null) {
+            builder.field(RandomSamplerAggregationBuilder.SHARD_SEED.getPreferredName(), shardSeed);
+        }
         builder.field(RandomSamplerAggregationBuilder.PROBABILITY.getPreferredName(), probability);
         builder.field(CommonFields.DOC_COUNT.getPreferredName(), getDocCount());
         getAggregations().toXContentInternal(builder, params);

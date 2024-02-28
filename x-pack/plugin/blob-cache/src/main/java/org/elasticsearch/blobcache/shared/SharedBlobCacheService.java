@@ -1154,13 +1154,33 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
 
     @FunctionalInterface
     public interface RangeAvailableHandler {
-        // caller that wants to read from x should instead do a positional read from x + relativePos
-        // caller should also only read up to length, further bytes will be offered by another call to this method
+        /**
+         * A strategy used to read the blob from the local (cached) blob. The target is typically captured by the strategy implementation.
+         *
+         * A caller that wants to read from position p should instead do a positional read from p + relativePos
+         * A caller should also only read up to length, further bytes will be offered by another call to this method
+         *
+         * @param channel is the cache region to read from
+         * @param channelPos a position in che channel to read from
+         * @param relativePos
+         * @param length of the blob
+         * @return number of bytes read
+         * @throws IOException on failure
+         */
         int onRangeAvailable(SharedBytes.IO channel, int channelPos, int relativePos, int length) throws IOException;
     }
 
     @FunctionalInterface
     public interface RangeMissingHandler {
+        /**
+         * A strategy used to load the blob from remote storage in case if it is not cached yet
+         *
+         * @param channel is the cache region to write to
+         * @param channelPos a position in the channel to write to
+         * @param relativePos a position in remote storate to read from
+         * @param length of the blob to read
+         * @param progressUpdater callback to invoke with the number of copied bytes as they are copied
+         */
         void fillCacheRange(SharedBytes.IO channel, int channelPos, int relativePos, int length, IntConsumer progressUpdater)
             throws IOException;
     }

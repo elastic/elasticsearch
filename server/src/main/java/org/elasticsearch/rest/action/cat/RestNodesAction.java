@@ -316,7 +316,7 @@ public class RestNodesAction extends AbstractCatAction {
 
         table.addCell(
             "shard_stats.total_count",
-            "alias:sstc,shardStatsTotalCount;default:false;text-align:right;desc:number of shards assigned"
+            "alias:sstc,shards,shardStatsTotalCount;default:false;text-align:right;desc:number of shards assigned"
         );
 
         table.addCell("mappings.total_count", "alias:mtc,mappingsTotalCount;default:false;text-align:right;desc:number of mappings");

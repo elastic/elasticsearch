@@ -147,7 +147,12 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
     @Override
     public boolean doEquals(Object o) {
         KnnRetrieverBuilder that = (KnnRetrieverBuilder) o;
-        return k == that.k && numCands == that.numCands && Objects.equals(field, that.field) && Arrays.equals(queryVector, that.queryVector) && Objects.equals(queryVectorBuilder, that.queryVectorBuilder) && Objects.equals(similarity, that.similarity);
+        return k == that.k
+            && numCands == that.numCands
+            && Objects.equals(field, that.field)
+            && Arrays.equals(queryVector, that.queryVector)
+            && Objects.equals(queryVectorBuilder, that.queryVectorBuilder)
+            && Objects.equals(similarity, that.similarity);
     }
 
     @Override

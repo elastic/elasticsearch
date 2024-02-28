@@ -104,7 +104,9 @@ public final class RRFRetrieverBuilder extends RetrieverBuilder {
     @Override
     public boolean doEquals(Object o) {
         RRFRetrieverBuilder that = (RRFRetrieverBuilder) o;
-        return windowSize == that.windowSize && rankConstant == that.rankConstant && Objects.equals(retrieverBuilders, that.retrieverBuilders);
+        return windowSize == that.windowSize
+            && rankConstant == that.rankConstant
+            && Objects.equals(retrieverBuilders, that.retrieverBuilders);
     }
 
     @Override

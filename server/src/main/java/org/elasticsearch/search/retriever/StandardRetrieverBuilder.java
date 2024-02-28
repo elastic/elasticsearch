@@ -19,7 +19,6 @@ import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.searchafter.SearchAfterBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
-import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
@@ -208,7 +207,12 @@ public final class StandardRetrieverBuilder extends RetrieverBuilder implements 
     @Override
     public boolean doEquals(Object o) {
         StandardRetrieverBuilder that = (StandardRetrieverBuilder) o;
-        return terminateAfter == that.terminateAfter && Objects.equals(queryBuilder, that.queryBuilder) && Objects.equals(searchAfterBuilder, that.searchAfterBuilder) && Objects.equals(sortBuilders, that.sortBuilders) && Objects.equals(minScore, that.minScore) && Objects.equals(collapseBuilder, that.collapseBuilder);
+        return terminateAfter == that.terminateAfter
+            && Objects.equals(queryBuilder, that.queryBuilder)
+            && Objects.equals(searchAfterBuilder, that.searchAfterBuilder)
+            && Objects.equals(sortBuilders, that.sortBuilders)
+            && Objects.equals(minScore, that.minScore)
+            && Objects.equals(collapseBuilder, that.collapseBuilder);
     }
 
     @Override

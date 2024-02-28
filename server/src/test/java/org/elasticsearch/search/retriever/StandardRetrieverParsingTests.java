@@ -34,8 +34,10 @@ public class StandardRetrieverParsingTests extends AbstractXContentTestCase<Stan
      * is not guaranteed to pass {@link SearchRequest} validation. This is purely
      * for x-content testing.
      */
-    public static StandardRetrieverBuilder createRandomStandardRetrieverBuilder(BiFunction<XContent, BytesReference, XContentParser> createParser) {
-        try{
+    public static StandardRetrieverBuilder createRandomStandardRetrieverBuilder(
+        BiFunction<XContent, BytesReference, XContentParser> createParser
+    ) {
+        try {
             StandardRetrieverBuilder standardRetrieverBuilder = new StandardRetrieverBuilder();
 
             if (randomBoolean()) {
@@ -83,8 +85,13 @@ public class StandardRetrieverParsingTests extends AbstractXContentTestCase<Stan
 
     @Override
     protected StandardRetrieverBuilder doParseInstance(XContentParser parser) throws IOException {
-        return StandardRetrieverBuilder.fromXContent(parser, new RetrieverParserContext(new SearchUsage(),
-            nf -> nf == RetrieverBuilder.RETRIEVERS_SUPPORTED || nf == StandardRetrieverBuilder.STANDARD_RETRIEVER_SUPPORTED));
+        return StandardRetrieverBuilder.fromXContent(
+            parser,
+            new RetrieverParserContext(
+                new SearchUsage(),
+                nf -> nf == RetrieverBuilder.RETRIEVERS_SUPPORTED || nf == StandardRetrieverBuilder.STANDARD_RETRIEVER_SUPPORTED
+            )
+        );
     }
 
     @Override

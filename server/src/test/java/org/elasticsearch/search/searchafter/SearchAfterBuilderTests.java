@@ -17,7 +17,6 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.SortedSetSortField;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -84,7 +83,8 @@ public class SearchAfterBuilderTests extends ESTestCase {
      * This is not a problem because the final type of each field value is extracted from associated sort field.
      * This little trick ensure that equals and hashcode are the same when using the xcontent serialization.
      */
-    public static SearchAfterBuilder randomJsonSearchFromBuilder(BiFunction<XContent, BytesReference, XContentParser> createParser) throws IOException {
+    public static SearchAfterBuilder randomJsonSearchFromBuilder(BiFunction<XContent, BytesReference, XContentParser> createParser)
+        throws IOException {
         int numSearchAfter = randomIntBetween(1, 10);
         XContentBuilder jsonBuilder = XContentFactory.jsonBuilder();
         jsonBuilder.startObject();

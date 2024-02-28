@@ -473,18 +473,6 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void enterIdPattern(EsqlBaseParser.IdPatternContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void exitIdPattern(EsqlBaseParser.IdPatternContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
   @Override public void enterNullLiteral(EsqlBaseParser.NullLiteralContext ctx) { }
   /**
    * {@inheritDoc}

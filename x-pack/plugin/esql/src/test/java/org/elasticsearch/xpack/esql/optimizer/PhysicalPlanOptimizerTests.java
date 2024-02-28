@@ -65,7 +65,6 @@ import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.RowExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.planner.Mapper;
-import org.elasticsearch.xpack.esql.planner.PhysicalVerificationException;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
@@ -350,7 +349,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
     /**
      * Expects
-     * LimitExec[500[INTEGER]]
+     * LimitExec[1000[INTEGER]]
      * \_AggregateExec[[],[SUM(salary{f}#882) AS x],FINAL,null]
      *   \_ExchangeExec[[sum{r}#887, seen{r}#888],true]
      *     \_FragmentExec[filter=null, estimatedRowSize=0, fragment=[
@@ -616,7 +615,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     /**
      * Expects
      * EvalExec[[agg_emp{r}#4 + 7[INTEGER] AS x]]
-     * \_LimitExec[500[INTEGER]]
+     * \_LimitExec[1000[INTEGER]]
      *   \_AggregateExec[[],[SUM(emp_no{f}#8) AS agg_emp],FINAL,16]
      *     \_ExchangeExec[[sum{r}#18, seen{r}#19],true]
      *       \_AggregateExec[[],[SUM(emp_no{f}#8) AS agg_emp],PARTIAL,8]
@@ -648,7 +647,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     /**
      * Expects
      * EvalExec[[agg_emp{r}#4 + 7[INTEGER] AS x]]
-     * \_LimitExec[500[INTEGER]]
+     * \_LimitExec[1000[INTEGER]]
      *   \_AggregateExec[[],[SUM(emp_no{f}#8) AS agg_emp],FINAL,16]
      *     \_ExchangeExec[[sum{r}#18, seen{r}#19],true]
      *       \_AggregateExec[[],[SUM(emp_no{f}#8) AS agg_emp],PARTIAL,8]
@@ -1563,15 +1562,16 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     /**
-     * LimitExec[500[INTEGER]]
+     * LimitExec[1000[INTEGER]]
      * \_ExchangeExec[[],false]
      *   \_ProjectExec[[_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gender{f}#5, job{f}#10, job.raw{f}#11, languages{f}#6, last_n
      * ame{f}#7, long_noidx{f}#12, salary{f}#8]]
      *     \_FieldExtractExec[_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gen..]
      *       \_EsQueryExec[test], query[{"esql_single_value":{"field":"first_name","next":
      *       {"term":{"first_name":{"value":"foo","case_insensitive":true}}},"source":"first_name =~ \"foo\"@2:9"}}]
-     *       [_doc{f}#23], limit[500], sort[] estimatedRowSize[324]
+     *       [_doc{f}#23], limit[1000], sort[] estimatedRowSize[324]
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/103599")
     public void testPushDownEqualsIgnoreCase() {
         var plan = physicalPlan("""
             from test
@@ -1591,17 +1591,18 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     /**
-     * LimitExec[500[INTEGER]]
+     * LimitExec[1000[INTEGER]]
      * \_ExchangeExec[[],false]
      *   \_ProjectExec[[_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, gender{f}#8, job{f}#13, job.raw{f}#14, languages{f}#9, last_
      * name{f}#10, long_noidx{f}#15, salary{f}#11, x{r}#4]]
      *     \_FieldExtractExec[_meta_field{f}#12, emp_no{f}#6, gender{f}#8, job{f}..]
-     *       \_LimitExec[500[INTEGER]]
+     *       \_LimitExec[1000[INTEGER]]
      *         \_FilterExec[x{r}#4 =~ [66 6f 6f][KEYWORD]]
      *           \_EvalExec[[CONCAT(first_name{f}#7,[66 6f 6f][KEYWORD]) AS x]]
      *             \_FieldExtractExec[first_name{f}#7]
      *               \_EsQueryExec[test], query[][_doc{f}#27], limit[], sort[] estimatedRowSize[374]
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/103599")
     public void testNoPushDownEvalEqualsIgnoreCase() {
         var plan = physicalPlan("""
             from test
@@ -1995,7 +1996,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             node -> new EsSourceExec(node.source(), node.index(), emptyAttrList, node.query())
         );
 
-        var e = expectThrows(PhysicalVerificationException.class, () -> physicalPlanOptimizer.verify(badPlan));
+        var e = expectThrows(VerificationException.class, () -> physicalPlanOptimizer.verify(badPlan));
         assertThat(
             e.getMessage(),
             containsString(
@@ -2080,7 +2081,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
     /**
      * Expects
-     * LimitExec[500[INTEGER]]
+     * LimitExec[1000[INTEGER]]
      * \_AggregateExec[[languages{f}#9],[MIN(salary{f}#11) AS m, languages{f}#9],FINAL,8]
      *   \_ExchangeExec[[languages{f}#9, min{r}#16, seen{r}#17],true]
      *     \_LocalSourceExec[[languages{f}#9, min{r}#16, seen{r}#17],EMPTY]
@@ -2112,7 +2113,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     /**
      * Expects
      * intermediate plan
-     * LimitExec[500[INTEGER]]
+     * LimitExec[1000[INTEGER]]
      * \_AggregateExec[[],[COUNT(emp_no{f}#6) AS c],FINAL,null]
      *   \_ExchangeExec[[count{r}#16, seen{r}#17],true]
      *     \_FragmentExec[filter=null, estimatedRowSize=0, fragment=[
@@ -2121,7 +2122,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      *   \_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]]]
      *
      * and final plan is
-     * LimitExec[500[INTEGER]]
+     * LimitExec[1000[INTEGER]]
      * \_AggregateExec[[],[COUNT(emp_no{f}#6) AS c],FINAL,8]
      *   \_ExchangeExec[[count{r}#16, seen{r}#17],true]
      *     \_LocalSourceExec[[count{r}#16, seen{r}#17],[LongVectorBlock[vector=ConstantLongVector[positions=1, value=0]]]]
@@ -2183,7 +2184,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * Expects
      * ProjectExec[[a{r}#5]]
      * \_EvalExec[[__a_SUM@734e2841{r}#16 / __a_COUNT@12536eab{r}#17 AS a]]
-     *   \_LimitExec[500[INTEGER]]
+     *   \_LimitExec[1000[INTEGER]]
      *     \_AggregateExec[[],[SUM(emp_no{f}#6) AS __a_SUM@734e2841, COUNT(emp_no{f}#6) AS __a_COUNT@12536eab],FINAL,24]
      *       \_ExchangeExec[[sum{r}#18, seen{r}#19, count{r}#20, seen{r}#21],true]
      *         \_LocalSourceExec[[sum{r}#18, seen{r}#19, count{r}#20, seen{r}#21],[LongArrayBlock[positions=1, mvOrdering=UNORDERED,
@@ -2216,7 +2217,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     /**
      * Before local optimizations:
      *
-     * LimitExec[500[INTEGER]]
+     * LimitExec[1000[INTEGER]]
      * \_AggregateExec[[],[SPATIALCENTROID(location{f}#9) AS centroid],FINAL,null]
      *   \_ExchangeExec[[xVal{r}#10, xDel{r}#11, yVal{r}#12, yDel{r}#13, count{r}#14],true]
      *     \_FragmentExec[filter=null, estimatedRowSize=0, fragment=[
@@ -2225,7 +2226,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      *
      * After local optimizations:
      *
-     * LimitExec[500[INTEGER]]
+     * LimitExec[1000[INTEGER]]
      * \_AggregateExec[[],[SPATIALCENTROID(location{f}#9) AS centroid],FINAL,50]
      *   \_ExchangeExec[[xVal{r}#10, xDel{r}#11, yVal{r}#12, yDel{r}#13, count{r}#14],true]
      *     \_AggregateExec[[],[SPATIALCENTROID(location{f}#9) AS centroid],PARTIAL,50]
@@ -2265,7 +2266,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var extract = as(filter.child(), FieldExtractExec.class);
         source(extract.child());
         assertTrue("Expect attributes field extract preference to be DOC_VALUES", extract.attributesToExtract().stream().allMatch(attr -> {
-            MappedFieldType.FieldExtractPreference extractPreference = extract.extractPreference(attr);
+            MappedFieldType.FieldExtractPreference extractPreference = PlannerUtils.extractPreference(extract.hasDocValuesAttribute(attr));
             return extractPreference == DOC_VALUES && attr.dataType() == GEO_POINT;
         }));
     }
@@ -2273,7 +2274,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     /**
      * Before local optimizations:
      *
-     * LimitExec[500[INTEGER]]
+     * LimitExec[1000[INTEGER]]
      * \_AggregateExec[[],[SPATIALCENTROID(__centroid_SPATIALCENTROID@b54a93a7{r}#10) AS centroid],FINAL,null]
      *   \_ExchangeExec[[xVal{r}#11, xDel{r}#12, yVal{r}#13, yDel{r}#14, count{r}#15],true]
      *     \_FragmentExec[filter=null, estimatedRowSize=0, fragment=[
@@ -2283,7 +2284,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      *
      * After local optimizations:
      *
-     * LimitExec[500[INTEGER]]
+     * LimitExec[1000[INTEGER]]
      * \_AggregateExec[[],[SPATIALCENTROID(__centroid_SPATIALCENTROID@ad2847b6{r}#10) AS centroid],FINAL,50]
      *   \_ExchangeExec[[xVal{r}#11, xDel{r}#12, yVal{r}#13, yDel{r}#14, count{r}#15],true]
      *     \_AggregateExec[[],[SPATIALCENTROID(__centroid_SPATIALCENTROID@ad2847b6{r}#10) AS centroid],PARTIAL,50]
@@ -2336,7 +2337,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     /**
      * Before local optimizations:
      *
-     * LimitExec[500[INTEGER]]
+     * LimitExec[1000[INTEGER]]
      * \_AggregateExec[[],[SPATIALCENTROID(__centroid_SPATIALCENTROID@ec8dd77e{r}#7) AS centroid],FINAL,null]
      *   \_AggregateExec[[],[SPATIALCENTROID(__centroid_SPATIALCENTROID@ec8dd77e{r}#7) AS centroid],PARTIAL,null]
      *     \_EvalExec[[[1 1 0 0 0 0 0 30 e2 4c 7c 45 40 0 0 e0 92 b0 82 2d 40][GEO_POINT] AS __centroid_SPATIALCENTROID@ec8dd77e]]
@@ -2345,7 +2346,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      *
      * After local optimizations we expect no changes because field is extracted:
      *
-     * LimitExec[500[INTEGER]]
+     * LimitExec[1000[INTEGER]]
      * \_AggregateExec[[],[SPATIALCENTROID(__centroid_SPATIALCENTROID@7ff910a{r}#7) AS centroid],FINAL,50]
      *   \_AggregateExec[[],[SPATIALCENTROID(__centroid_SPATIALCENTROID@7ff910a{r}#7) AS centroid],PARTIAL,50]
      *     \_EvalExec[[[1 1 0 0 0 0 0 30 e2 4c 7c 45 40 0 0 e0 92 b0 82 2d 40][GEO_POINT] AS __centroid_SPATIALCENTROID@7ff910a]]
@@ -2388,7 +2389,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     /**
      * Before local optimizations:
      *
-     * LimitExec[500[INTEGER]]
+     * LimitExec[1000[INTEGER]]
      * \_AggregateExec[[],[SPATIALCENTROID(location{f}#11) AS centroid, COUNT([2a][KEYWORD]) AS count],FINAL,null]
      *   \_ExchangeExec[[xVal{r}#12, xDel{r}#13, yVal{r}#14, yDel{r}#15, count{r}#16, count{r}#17, seen{r}#18],true]
      *     \_FragmentExec[filter=null, estimatedRowSize=0, fragment=[
@@ -2397,7 +2398,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      *
      * After local optimizations:
      *
-     * LimitExec[500[INTEGER]]
+     * LimitExec[1000[INTEGER]]
      * \_AggregateExec[[],[SPATIALCENTROID(location{f}#11) AS centroid, COUNT([2a][KEYWORD]) AS count],FINAL,58]
      *   \_ExchangeExec[[xVal{r}#12, xDel{r}#13, yVal{r}#14, yDel{r}#15, count{r}#16, count{r}#17, seen{r}#18],true]
      *     \_AggregateExec[[],[COUNT([2a][KEYWORD]) AS count, SPATIALCENTROID(location{f}#11) AS centroid],PARTIAL,58]
@@ -2440,7 +2441,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var extract = as(agg.child(), FieldExtractExec.class);
         source(extract.child());
         assertTrue("Expect attributes field extract preference to be DOC_VALUES", extract.attributesToExtract().stream().allMatch(attr -> {
-            MappedFieldType.FieldExtractPreference extractPreference = extract.extractPreference(attr);
+            MappedFieldType.FieldExtractPreference extractPreference = PlannerUtils.extractPreference(extract.hasDocValuesAttribute(attr));
             return extractPreference == DOC_VALUES && attr.dataType() == GEO_POINT;
         }));
     }
@@ -2448,7 +2449,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     /**
      * Before local optimizations:
      *
-     * LimitExec[500[INTEGER]]
+     * LimitExec[1000[INTEGER]]
      * \_AggregateExec[[],[SPATIALCENTROID(location{f}#14) AS airports, SPATIALCENTROID(city_location{f}#17) AS cities, COUNT([2a][KEY
      * WORD]) AS count],FINAL,null]
      *   \_ExchangeExec[[xVal{r}#18, xDel{r}#19, yVal{r}#20, yDel{r}#21, count{r}#22, xVal{r}#23, xDel{r}#24, yVal{r}#25, yDel{r}#26,
@@ -2460,7 +2461,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      *
      * After local optimizations:
      *
-     * LimitExec[500[INTEGER]]
+     * LimitExec[1000[INTEGER]]
      * \_AggregateExec[[],[SPATIALCENTROID(location{f}#14) AS airports, SPATIALCENTROID(city_location{f}#17) AS cities, COUNT([2a][KEY
      * WORD]) AS count],FINAL,108]
      *   \_ExchangeExec[[xVal{r}#18, xDel{r}#19, yVal{r}#20, yDel{r}#21, count{r}#22, xVal{r}#23, xDel{r}#24, yVal{r}#25, yDel{r}#26,
@@ -2509,7 +2510,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var extract = as(agg.child(), FieldExtractExec.class);
         source(extract.child());
         assertTrue("Expect attributes field extract preference to be DOC_VALUES", extract.attributesToExtract().stream().allMatch(attr -> {
-            MappedFieldType.FieldExtractPreference extractPreference = extract.extractPreference(attr);
+            MappedFieldType.FieldExtractPreference extractPreference = PlannerUtils.extractPreference(extract.hasDocValuesAttribute(attr));
             return extractPreference == DOC_VALUES && attr.dataType() == GEO_POINT;
         }));
     }
@@ -2517,7 +2518,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     /**
      * Before local optimizations:
      *
-     * LimitExec[500[INTEGER]]
+     * LimitExec[1000[INTEGER]]
      * \_AggregateExec[[],[SPATIALCENTROID(location{f}#12) AS centroid, COUNT([2a][KEYWORD]) AS count],FINAL,null]
      *   \_ExchangeExec[[xVal{r}#13, xDel{r}#14, yVal{r}#15, yDel{r}#16, count{r}#17, count{r}#18, seen{r}#19],true]
      *     \_FragmentExec[filter=null, estimatedRowSize=0, fragment=[
@@ -2527,7 +2528,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      *
      * After local optimizations:
      *
-     * LimitExec[500[INTEGER]]
+     * LimitExec[1000[INTEGER]]
      * \_AggregateExec[[],[SPATIALCENTROID(location{f}#11) AS centroid, COUNT([2a][KEYWORD]) AS count],FINAL,58]
      *   \_ExchangeExec[[xVal{r}#12, xDel{r}#13, yVal{r}#14, yDel{r}#15, count{r}#16, count{r}#17, seen{r}#18],true]
      *     \_AggregateExec[[],[COUNT([2a][KEYWORD]) AS count, SPATIALCENTROID(location{f}#11) AS centroid],PARTIAL,58]
@@ -2573,7 +2574,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, true);
         var extract = as(agg.child(), FieldExtractExec.class);
         assertTrue("Expect attributes field extract preference to be DOC_VALUES", extract.attributesToExtract().stream().allMatch(attr -> {
-            MappedFieldType.FieldExtractPreference extractPreference = extract.extractPreference(attr);
+            MappedFieldType.FieldExtractPreference extractPreference = PlannerUtils.extractPreference(extract.hasDocValuesAttribute(attr));
             return extractPreference == DOC_VALUES && attr.dataType() == GEO_POINT;
         }));
         var source = source(extract.child());
@@ -2584,7 +2585,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     /**
      * Before local optimizations:
      *
-     * LimitExec[500[INTEGER]]
+     * LimitExec[1000[INTEGER]]
      * \_AggregateExec[[scalerank{f}#10],[SPATIALCENTROID(location{f}#12) AS centroid, COUNT([2a][KEYWORD]) AS count, scalerank{f}#10],
      * FINAL,null]
      *   \_ExchangeExec[[scalerank{f}#10, xVal{r}#13, xDel{r}#14, yVal{r}#15, yDel{r}#16, count{r}#17, count{r}#18, seen{r}#19],true]
@@ -2594,7 +2595,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      *
      * After local optimizations:
      *
-     * LimitExec[500[INTEGER]]
+     * LimitExec[1000[INTEGER]]
      * \_AggregateExec[[scalerank{f}#10],[SPATIALCENTROID(location{f}#12) AS centroid, COUNT([2a][KEYWORD]) AS count, scalerank{f}#10],
      * FINAL,62]
      *   \_ExchangeExec[[scalerank{f}#10, xVal{r}#13, xDel{r}#14, yVal{r}#15, yDel{r}#16, count{r}#17, count{r}#18, seen{r}#19],true]
@@ -2644,7 +2645,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, true);
         var extract = as(agg.child(), FieldExtractExec.class);
         assertTrue("Expect attributes field extract preference to be DOC_VALUES", extract.attributesToExtract().stream().allMatch(attr -> {
-            MappedFieldType.FieldExtractPreference extractPreference = extract.extractPreference(attr);
+            MappedFieldType.FieldExtractPreference extractPreference = PlannerUtils.extractPreference(extract.hasDocValuesAttribute(attr));
             return extractPreference == DOC_VALUES && attr.dataType() == GEO_POINT;
         }));
         source(extract.child());
@@ -2653,7 +2654,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     /**
      * Before local optimizations:
      *
-     * LimitExec[500[INTEGER]]
+     * LimitExec[1000[INTEGER]]
      * \_AggregateExec[[],[SPATIALCENTROID(centroid{r}#4) AS centroid, SUM(count{r}#6) AS count],FINAL,null]
      *   \_AggregateExec[[],[SPATIALCENTROID(centroid{r}#4) AS centroid, SUM(count{r}#6) AS count],PARTIAL,null]
      *     \_AggregateExec[[scalerank{f}#16],[SPATIALCENTROID(location{f}#18) AS centroid, COUNT([2a][KEYWORD]) AS count],FINAL,null]
@@ -2664,7 +2665,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      *
      * After local optimizations:
      *
-     * LimitExec[500[INTEGER]]
+     * LimitExec[1000[INTEGER]]
      * \_AggregateExec[[],[SPATIALCENTROID(centroid{r}#4) AS centroid, SUM(count{r}#6) AS count],FINAL,58]
      *   \_AggregateExec[[],[SPATIALCENTROID(centroid{r}#4) AS centroid, SUM(count{r}#6) AS count],PARTIAL,58]
      *     \_AggregateExec[[scalerank{f}#16],[SPATIALCENTROID(location{f}#18) AS centroid, COUNT([2a][KEYWORD]) AS count],FINAL,58]
@@ -2737,7 +2738,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, true);
         var extract = as(agg.child(), FieldExtractExec.class);
         assertTrue("Expect attributes field extract preference to be DOC_VALUES", extract.attributesToExtract().stream().allMatch(attr -> {
-            MappedFieldType.FieldExtractPreference extractPreference = extract.extractPreference(attr);
+            MappedFieldType.FieldExtractPreference extractPreference = PlannerUtils.extractPreference(extract.hasDocValuesAttribute(attr));
             return extractPreference == DOC_VALUES && attr.dataType() == GEO_POINT;
         }));
         source(extract.child());

@@ -118,14 +118,14 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
             );
             Parser<Geometry> parser = new ShapeParser(geometryParser);
             ShapeFieldType ft = new ShapeFieldType(
-                context.buildFullName(name),
+                context.buildFullName(name()),
                 indexed.get(),
                 hasDocValues.get(),
                 orientation.get().value(),
                 parser,
                 meta.get()
             );
-            return new ShapeFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo, parser, this);
+            return new ShapeFieldMapper(name(), ft, multiFieldsBuilder.build(this, context), copyTo, parser, this);
         }
     }
 

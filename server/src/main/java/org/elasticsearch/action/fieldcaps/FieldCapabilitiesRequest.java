@@ -75,7 +75,7 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
      * <p>
      * Note that when using the high-level REST client, results are always merged (this flag is always considered 'true').
      */
-    boolean isMergeResults() {
+    public boolean isMergeResults() {
         return mergeResults;
     }
 
@@ -85,7 +85,7 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
      * <p>
      * Note that when using the high-level REST client, results are always merged (this flag is always considered 'true').
      */
-    void setMergeResults(boolean mergeResults) {
+    public void setMergeResults(boolean mergeResults) {
         this.mergeResults = mergeResults;
     }
 

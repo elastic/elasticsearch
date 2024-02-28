@@ -66,8 +66,8 @@ public class SparseVectorFieldMapper extends FieldMapper {
         @Override
         public SparseVectorFieldMapper build(MapperBuilderContext context) {
             return new SparseVectorFieldMapper(
-                name,
-                new SparseVectorFieldType(context.buildFullName(name), meta.getValue()),
+                name(),
+                new SparseVectorFieldType(context.buildFullName(name()), meta.getValue()),
                 multiFieldsBuilder.build(this, context),
                 copyTo
             );

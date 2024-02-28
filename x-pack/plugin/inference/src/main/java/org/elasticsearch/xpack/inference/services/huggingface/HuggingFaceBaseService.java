@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.huggingface;
 
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.ChunkingOptions;
@@ -33,7 +32,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNot
 
 public abstract class HuggingFaceBaseService extends SenderService {
 
-    public HuggingFaceBaseService(SetOnce<HttpRequestSenderFactory> factory, SetOnce<ServiceComponents> serviceComponents) {
+    public HuggingFaceBaseService(HttpRequestSenderFactory factory, ServiceComponents serviceComponents) {
         super(factory, serviceComponents);
     }
 
@@ -126,7 +125,7 @@ public abstract class HuggingFaceBaseService extends SenderService {
         Map<String, Object> taskSettings,
         InputType inputType,
         ChunkingOptions chunkingOptions,
-        ActionListener<ChunkedInferenceServiceResults> listener
+        ActionListener<List<ChunkedInferenceServiceResults>> listener
     ) {
         listener.onFailure(new UnsupportedOperationException("Chunked inference not implemented for Hugging Face"));
     }

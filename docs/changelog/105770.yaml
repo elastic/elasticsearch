@@ -1,0 +1,5 @@
+pr: 105770
+summary: Field-caps field has value lookup use map instead of looping array
+area: Search
+type: enhancement
+issues: []

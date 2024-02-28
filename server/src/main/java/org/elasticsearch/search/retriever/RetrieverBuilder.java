@@ -9,15 +9,19 @@
 package org.elasticsearch.search.retriever;
 
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.SuggestingErrorOnUnknown;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.xcontent.AbstractObjectParser;
 import org.elasticsearch.xcontent.FilterXContentParserWrapper;
 import org.elasticsearch.xcontent.NamedObjectNotFoundException;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -39,7 +43,7 @@ import java.util.Objects;
  * serialization and is expected to be fully extracted to a {@link SearchSourceBuilder}
  * prior to any transport calls.
  */
-public abstract class RetrieverBuilder {
+public abstract class RetrieverBuilder implements ToXContent {
 
     public static final NodeFeature RETRIEVERS_SUPPORTED = new NodeFeature("retrievers_supported");
 
@@ -181,4 +185,49 @@ public abstract class RetrieverBuilder {
      * Elements from retrievers are expected to be "extracted" into the {@link SearchSourceBuilder}.
      */
     public abstract void extractToSearchSourceBuilder(SearchSourceBuilder searchSourceBuilder, boolean compoundUsed);
+
+    // ---- FOR TESTING XCONTENT PARSING ----
+
+    @Override
+    public final XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
+        builder.startObject();
+        if (preFilterQueryBuilders.isEmpty() == false) {
+            builder.field(PRE_FILTER_FIELD.getPreferredName(), preFilterQueryBuilders);
+        }
+        doToXContent(builder, params);
+        builder.endObject();
+
+        return builder;
+    }
+
+    public abstract void doToXContent(XContentBuilder builder, ToXContent.Params params) throws IOException;
+
+    @Override
+    public boolean isFragment() {
+        return false;
+    }
+
+    @Override
+    public final boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        RetrieverBuilder that = (RetrieverBuilder) o;
+        return Objects.equals(preFilterQueryBuilders, that.preFilterQueryBuilders) && doEquals(o);
+    }
+
+    public abstract boolean doEquals(Object o);
+
+    @Override
+    public final int hashCode() {
+        return Objects.hash(getClass(), preFilterQueryBuilders, doHashCode());
+    }
+
+    public abstract int doHashCode();
+
+    @Override
+    public String toString() {
+        return Strings.toString(this, true, true);
+    }
+
+    // ---- END FOR TESTING ----
 }

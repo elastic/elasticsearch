@@ -15,12 +15,14 @@ import org.elasticsearch.search.retriever.RetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverParserContext;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.XPackPlugin;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * An rrf retriever is used to represent an rrf rank element, but
@@ -86,4 +88,29 @@ public final class RRFRetrieverBuilder extends RetrieverBuilder {
 
         searchSourceBuilder.rankBuilder(new RRFRankBuilder(windowSize, rankConstant));
     }
+
+    // ---- FOR TESTING XCONTENT PARSING ----
+
+    @Override
+    public void doToXContent(XContentBuilder builder, Params params) throws IOException {
+        if (retrieverBuilders.isEmpty() == false) {
+            builder.field(RETRIEVERS_FIELD.getPreferredName(), retrieverBuilders);
+        }
+
+        builder.field(WINDOW_SIZE_FIELD.getPreferredName(), windowSize);
+        builder.field(RANK_CONSTANT_FIELD.getPreferredName(), rankConstant);
+    }
+
+    @Override
+    public boolean doEquals(Object o) {
+        RRFRetrieverBuilder that = (RRFRetrieverBuilder) o;
+        return windowSize == that.windowSize && rankConstant == that.rankConstant && Objects.equals(retrieverBuilders, that.retrieverBuilders);
+    }
+
+    @Override
+    public int doHashCode() {
+        return Objects.hash(retrieverBuilders, windowSize, rankConstant);
+    }
+
+    // ---- END FOR TESTING ----
 }

@@ -45,7 +45,7 @@ public class RetrieverBuilderVersionTests extends ESTestCase {
             ssb.parseXContent(
                 parser,
                 true,
-                nf -> nf == RetrieverBuilder.RETRIEVERS_SUPPORTED || nf == StandardRetrieverBuilder.RETRIEVERS_SUPPORTED
+                nf -> nf == RetrieverBuilder.RETRIEVERS_SUPPORTED || nf == StandardRetrieverBuilder.STANDARD_RETRIEVER_SUPPORTED
             );
         }
 
@@ -68,7 +68,7 @@ public class RetrieverBuilderVersionTests extends ESTestCase {
             ssb.parseXContent(
                 parser,
                 true,
-                nf -> nf == RetrieverBuilder.RETRIEVERS_SUPPORTED || nf == KnnRetrieverBuilder.RETRIEVERS_SUPPORTED
+                nf -> nf == RetrieverBuilder.RETRIEVERS_SUPPORTED || nf == KnnRetrieverBuilder.KNN_RETRIEVER_SUPPORTED
             );
         }
     }

@@ -15,11 +15,14 @@ import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.search.vectors.QueryVectorBuilder;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -109,6 +112,8 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
         this.similarity = similarity;
     }
 
+    // ---- FOR TESTING XCONTENT PARSING ----
+
     @Override
     public void extractToSearchSourceBuilder(SearchSourceBuilder searchSourceBuilder, boolean compoundUsed) {
         KnnSearchBuilder knnSearchBuilder = new KnnSearchBuilder(field, queryVector, queryVectorBuilder, k, numCands, similarity);
@@ -119,4 +124,38 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
         knnSearchBuilders.add(knnSearchBuilder);
         searchSourceBuilder.knnSearch(knnSearchBuilders);
     }
+
+    @Override
+    public void doToXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.field(FIELD_FIELD.getPreferredName(), field);
+        builder.field(K_FIELD.getPreferredName(), k);
+        builder.field(NUM_CANDS_FIELD.getPreferredName(), numCands);
+
+        if (queryVector != null) {
+            builder.field(QUERY_VECTOR_FIELD.getPreferredName(), queryVector);
+        }
+
+        if (queryVectorBuilder != null) {
+            builder.field(QUERY_VECTOR_BUILDER_FIELD.getPreferredName(), queryVectorBuilder);
+        }
+
+        if (similarity != null) {
+            builder.field(VECTOR_SIMILARITY.getPreferredName(), similarity);
+        }
+    }
+
+    @Override
+    public boolean doEquals(Object o) {
+        KnnRetrieverBuilder that = (KnnRetrieverBuilder) o;
+        return k == that.k && numCands == that.numCands && Objects.equals(field, that.field) && Arrays.equals(queryVector, that.queryVector) && Objects.equals(queryVectorBuilder, that.queryVectorBuilder) && Objects.equals(similarity, that.similarity);
+    }
+
+    @Override
+    public int doHashCode() {
+        int result = Objects.hash(field, queryVectorBuilder, k, numCands, similarity);
+        result = 31 * result + Arrays.hashCode(queryVector);
+        return result;
+    }
+
+    // ---- END TESTING ----
 }

@@ -19,18 +19,22 @@ import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.searchafter.SearchAfterBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
+import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * A standard retriever is used to represent anything that is a query along
  * with some elements to specify parameters for that query.
  */
-public final class StandardRetrieverBuilder extends RetrieverBuilder {
+public final class StandardRetrieverBuilder extends RetrieverBuilder implements ToXContent {
 
     public static final String NAME = "standard";
     public static final NodeFeature STANDARD_RETRIEVER_SUPPORTED = new NodeFeature("standard_retriever_supported");
@@ -96,12 +100,12 @@ public final class StandardRetrieverBuilder extends RetrieverBuilder {
         return PARSER.apply(parser, context);
     }
 
-    private QueryBuilder queryBuilder;
-    private SearchAfterBuilder searchAfterBuilder;
-    private int terminateAfter = SearchContext.DEFAULT_TERMINATE_AFTER;
-    private List<SortBuilder<?>> sortBuilders;
-    private Float minScore;
-    private CollapseBuilder collapseBuilder;
+    QueryBuilder queryBuilder;
+    SearchAfterBuilder searchAfterBuilder;
+    int terminateAfter = SearchContext.DEFAULT_TERMINATE_AFTER;
+    List<SortBuilder<?>> sortBuilders;
+    Float minScore;
+    CollapseBuilder collapseBuilder;
 
     @Override
     public void extractToSearchSourceBuilder(SearchSourceBuilder searchSourceBuilder, boolean compoundUsed) {
@@ -171,4 +175,46 @@ public final class StandardRetrieverBuilder extends RetrieverBuilder {
             searchSourceBuilder.collapse(collapseBuilder);
         }
     }
+
+    // ---- FOR TESTING XCONTENT PARSING ----
+
+    @Override
+    public void doToXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
+        if (queryBuilder != null) {
+            builder.field(QUERY_FIELD.getPreferredName(), queryBuilder);
+        }
+
+        if (searchAfterBuilder != null) {
+            searchAfterBuilder.innerToXContent(builder);
+        }
+
+        if (terminateAfter != SearchContext.DEFAULT_TERMINATE_AFTER) {
+            builder.field(TERMINATE_AFTER_FIELD.getPreferredName(), terminateAfter);
+        }
+
+        if (sortBuilders != null) {
+            builder.field(SORT_FIELD.getPreferredName(), sortBuilders);
+        }
+
+        if (minScore != null) {
+            builder.field(MIN_SCORE_FIELD.getPreferredName(), minScore);
+        }
+
+        if (collapseBuilder != null) {
+            builder.field(COLLAPSE_FIELD.getPreferredName(), collapseBuilder);
+        }
+    }
+
+    @Override
+    public boolean doEquals(Object o) {
+        StandardRetrieverBuilder that = (StandardRetrieverBuilder) o;
+        return terminateAfter == that.terminateAfter && Objects.equals(queryBuilder, that.queryBuilder) && Objects.equals(searchAfterBuilder, that.searchAfterBuilder) && Objects.equals(sortBuilders, that.sortBuilders) && Objects.equals(minScore, that.minScore) && Objects.equals(collapseBuilder, that.collapseBuilder);
+    }
+
+    @Override
+    public int doHashCode() {
+        return Objects.hash(queryBuilder, searchAfterBuilder, terminateAfter, sortBuilders, minScore, collapseBuilder);
+    }
+
+    // ---- END FOR TESTING ----
 }

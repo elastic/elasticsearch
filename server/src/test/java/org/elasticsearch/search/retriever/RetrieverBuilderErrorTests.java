@@ -80,7 +80,7 @@ public class RetrieverBuilderErrorTests extends ESTestCase {
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"min_score\": 2, \"retriever\":{\"standard\":{}}}")) {
             SearchSourceBuilder ssb = new SearchSourceBuilder();
             IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> ssb.parseXContent(parser, true, nf -> true));
-            assertEquals("cannot specify [retriever] and [query, terminate_after, min_score]", iae.getMessage());
+            assertEquals("cannot specify [retriever] and [min_score]", iae.getMessage());
         }
 
         try (
@@ -91,7 +91,7 @@ public class RetrieverBuilderErrorTests extends ESTestCase {
         ) {
             SearchSourceBuilder ssb = new SearchSourceBuilder();
             IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> ssb.parseXContent(parser, true, nf -> true));
-            assertEquals("cannot specify [retriever] and [min_score]", iae.getMessage());
+            assertEquals("cannot specify [retriever] and [query, terminate_after, min_score]", iae.getMessage());
         }
     }
 

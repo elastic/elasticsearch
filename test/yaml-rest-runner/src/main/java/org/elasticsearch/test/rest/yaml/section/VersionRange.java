@@ -57,6 +57,11 @@ class VersionRange {
                 .orElseThrow(() -> new IllegalArgumentException("Checks against a version range require semantic version format (x.y.z)"));
             return minimumNodeVersion.onOrAfter(lower) && minimumNodeVersion.onOrBefore(upper);
         }
+
+        @Override
+        public String toString() {
+            return "MinimumContainedInVersionRange{lower=" + lower + ", upper=" + upper + '}';
+        }
     }
 
     static List<Predicate<Set<String>>> parseVersionRanges(String rawRanges) {

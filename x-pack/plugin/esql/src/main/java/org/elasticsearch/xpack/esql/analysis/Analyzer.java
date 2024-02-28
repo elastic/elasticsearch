@@ -8,11 +8,12 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.common.logging.HeaderWarning;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
+import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -73,6 +74,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.singletonList;
@@ -429,11 +431,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          * row foo = 1, bar = 2 | keep *, foo   ->  bar, foo
          * row foo = 1, bar = 2 | keep foo, *   ->  foo, bar
          * row foo = 1, bar = 2 | keep bar*, foo, *   ->  bar, foo
-         *
-         *
-         * @param p
-         * @param childOutput
-         * @return
          */
         private LogicalPlan resolveKeep(Project p, List<Attribute> childOutput) {
             List<NamedExpression> resolvedProjections = new ArrayList<>();
@@ -453,12 +450,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     if (proj instanceof UnresolvedStar) {
                         resolved = childOutput;
                         priority = 2;
+                    } else if (proj instanceof UnresolvedNamePattern up) {
+                        resolved = resolveAgainstList(up, childOutput);
+                        priority = 1;
                     } else if (proj instanceof UnresolvedAttribute ua) {
                         resolved = resolveAgainstList(ua, childOutput);
-                        priority = Regex.isSimpleMatchPattern(ua.name()) ? 1 : 0;
+                        priority = 0;
                     } else {
-                        assert false : "unexpected projection: " + proj;
-                        throw new IllegalStateException("unexpected projection: " + proj);
+                        throw new EsqlIllegalArgumentException("unexpected projection: " + proj);
                     }
                     for (Attribute attr : resolved) {
                         Integer previousPrio = priorities.get(attr);
@@ -478,7 +477,16 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             List<NamedExpression> resolvedProjections = new ArrayList<>(childOutput);
 
             for (var ne : drop.removals()) {
-                var resolved = ne instanceof UnresolvedAttribute ua ? resolveAgainstList(ua, childOutput) : singletonList(ne);
+                List<? extends NamedExpression> resolved;
+
+                if (ne instanceof UnresolvedNamePattern np) {
+                    resolved = resolveAgainstList(np, childOutput);
+                } else if (ne instanceof UnresolvedAttribute ua) {
+                    resolved = resolveAgainstList(ua, childOutput);
+                } else {
+                    resolved = singletonList(ne);
+                }
+
                 // the return list might contain either resolved elements or unresolved ones.
                 // if things are resolved, remove them - if not add them to the list to trip the Verifier;
                 // thus make sure to remove the intersection but add the unresolved difference (if any).
@@ -523,7 +531,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                                 if (li.next() instanceof Alias a && a.name().equals(resolved.name())) {
                                     reverseAliasing.put(resolved.name(), alias.name());
                                     // update aliased projection in place
-                                    li.set((NamedExpression) alias.replaceChildren(a.children()));
+                                    li.set(alias.replaceChildren(a.children()));
                                     updated = true;
                                     break;
                                 }
@@ -581,28 +589,37 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
     }
 
-    private static List<Attribute> resolveAgainstList(UnresolvedAttribute u, Collection<Attribute> attrList) {
-        var matches = AnalyzerRules.maybeResolveAgainstList(u, attrList, false, true, Analyzer::handleSpecialFields);
+    private static List<Attribute> resolveAgainstList(UnresolvedNamePattern up, Collection<Attribute> attrList) {
+        UnresolvedAttribute ua = new UnresolvedAttribute(up.source(), up.pattern(), null);
+        Predicate<Attribute> matcher = a -> up.match(a.name()) || up.match(a.qualifiedName());
+        var matches = AnalyzerRules.maybeResolveAgainstList(matcher, () -> ua, attrList, true, a -> Analyzer.handleSpecialFields(ua, a));
+        return potentialCandidatesIfNoMatchesFound(ua, matches, attrList, list -> UnresolvedNamePattern.errorMessage(up.pattern(), list));
+    }
 
+    private static List<Attribute> resolveAgainstList(UnresolvedAttribute ua, Collection<Attribute> attrList) {
+        var matches = AnalyzerRules.maybeResolveAgainstList(ua, attrList, a -> Analyzer.handleSpecialFields(ua, a));
+        return potentialCandidatesIfNoMatchesFound(ua, matches, attrList, list -> UnresolvedAttribute.errorMessage(ua.name(), list));
+    }
+
+    private static List<Attribute> potentialCandidatesIfNoMatchesFound(
+        UnresolvedAttribute ua,
+        List<Attribute> matches,
+        Collection<Attribute> attrList,
+        java.util.function.Function<List<String>, String> messageProducer
+    ) {
         // none found - add error message
         if (matches.isEmpty()) {
-            UnresolvedAttribute unresolved;
-            var name = u.name();
-            if (Regex.isSimpleMatchPattern(name)) {
-                unresolved = u.withUnresolvedMessage(format(null, "No match found for [{}]", name));
-            } else {
-                Set<String> names = new HashSet<>(attrList.size());
-                for (var a : attrList) {
-                    String nameCandidate = a.name();
-                    if (EsqlDataTypes.isPrimitive(a.dataType())) {
-                        names.add(nameCandidate);
-                    }
+            Set<String> names = new HashSet<>(attrList.size());
+            for (var a : attrList) {
+                String nameCandidate = a.name();
+                if (EsqlDataTypes.isPrimitive(a.dataType())) {
+                    names.add(nameCandidate);
                 }
-                unresolved = u.withUnresolvedMessage(UnresolvedAttribute.errorMessage(name, StringUtils.findSimilar(name, names)));
             }
-            return singletonList(unresolved);
+            var name = ua.name();
+            UnresolvedAttribute unresolved = ua.withUnresolvedMessage(messageProducer.apply(StringUtils.findSimilar(name, names)));
+            matches = singletonList(unresolved);
         }
-
         return matches;
     }
 
@@ -615,7 +632,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
         }
 
-        return named;
+        return named.withLocation(u.source());
     }
 
     private static class ResolveFunctions extends ParameterizedAnalyzerRule<LogicalPlan, AnalyzerContext> {
@@ -692,7 +709,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             } else {
                 limit = context.configuration().resultTruncationMaxSize(); // user provided a limit: cap result entries to the max
             }
-            return new Limit(Source.EMPTY, new Literal(Source.EMPTY, limit, DataTypes.INTEGER), logicalPlan);
+            var source = logicalPlan.source();
+            return new Limit(source, new Literal(source, limit, DataTypes.INTEGER), logicalPlan);
         }
     }
 

@@ -150,7 +150,7 @@ public class ConnectorConfiguration implements Writeable, ToXContentObject {
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<ConnectorConfiguration, Void> PARSER = new ConstructingObjectParser<>(
-        "connector_configuration_dependency",
+        "connector_configuration",
         true,
         args -> {
             int i = 0;
@@ -209,20 +209,40 @@ public class ConnectorConfiguration implements Writeable, ToXContentObject {
         );
         PARSER.declareStringArray(optionalConstructorArg(), UI_RESTRICTIONS_FIELD);
         PARSER.declareObjectArray(optionalConstructorArg(), (p, c) -> ConfigurationValidation.fromXContent(p), VALIDATIONS_FIELD);
-        PARSER.declareField(optionalConstructorArg(), (p, c) -> {
-            if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
-                return p.text();
-            } else if (p.currentToken() == XContentParser.Token.VALUE_NUMBER) {
-                return p.numberValue();
-            } else if (p.currentToken() == XContentParser.Token.VALUE_BOOLEAN) {
-                return p.booleanValue();
-            } else if (p.currentToken() == XContentParser.Token.START_OBJECT) {
-                return p.map();
-            } else if (p.currentToken() == XContentParser.Token.VALUE_NULL) {
-                return null;
-            }
-            throw new XContentParseException("Unsupported token [" + p.currentToken() + "]");
-        }, VALUE_FIELD, ObjectParser.ValueType.VALUE_OBJECT_ARRAY);
+        PARSER.declareField(
+            optionalConstructorArg(),
+            (p, c) -> parseConfigurationValue(p),
+            VALUE_FIELD,
+            ObjectParser.ValueType.VALUE_OBJECT_ARRAY
+        );
+    }
+
+    public Object getValue() {
+        return value;
+    }
+
+    /**
+     * Parses a configuration value from a parser context, supporting the {@link Connector} protocol's value types.
+     * This method can parse strings, numbers, booleans, objects, and null values, matching the types commonly
+     * supported in {@link ConnectorConfiguration}.
+     *
+     * @param p the {@link org.elasticsearch.xcontent.XContentParser} instance from which to parse the configuration value.
+     */
+    public static Object parseConfigurationValue(XContentParser p) throws IOException {
+
+        if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
+            return p.text();
+        } else if (p.currentToken() == XContentParser.Token.VALUE_NUMBER) {
+            return p.numberValue();
+        } else if (p.currentToken() == XContentParser.Token.VALUE_BOOLEAN) {
+            return p.booleanValue();
+        } else if (p.currentToken() == XContentParser.Token.START_OBJECT) {
+            // Crawler expects the value to be an object
+            return p.map();
+        } else if (p.currentToken() == XContentParser.Token.VALUE_NULL) {
+            return null;
+        }
+        throw new XContentParseException("Unsupported token [" + p.currentToken() + "]");
     }
 
     @Override

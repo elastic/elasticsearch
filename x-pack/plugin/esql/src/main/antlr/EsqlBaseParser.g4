@@ -145,8 +145,7 @@ identifier
     ;
 
 identifierPattern
-    : UNQUOTED_ID_PATTERN
-    | QUOTED_IDENTIFIER
+    : ID_PATTERN
     ;
 
 constant
@@ -232,7 +231,7 @@ string
     ;
 
 comparisonOperator
-    : EQ | CIEQ | NEQ | LT | LTE | GT | GTE
+    : EQ | NEQ | LT | LTE | GT | GTE
     ;
 
 explainCommand

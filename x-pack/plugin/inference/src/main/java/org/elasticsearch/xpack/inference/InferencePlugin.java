@@ -60,11 +60,11 @@ import org.elasticsearch.xpack.inference.rest.RestInferenceAction;
 import org.elasticsearch.xpack.inference.rest.RestPutInferenceModelAction;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.cohere.CohereService;
+import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService;
 import org.elasticsearch.xpack.inference.services.elser.ElserInternalService;
 import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceService;
 import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserService;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiService;
-import org.elasticsearch.xpack.inference.services.textembedding.TextEmbeddingInternalService;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -75,6 +75,22 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class InferencePlugin extends Plugin implements ActionPlugin, ExtensiblePlugin, SystemIndexPlugin, InferenceRegistryPlugin {
+
+    /**
+     * When this setting is true the verification check that
+     * connects to the external service will not be made at
+     * model creation and ml node models will not be deployed.
+     *
+     * This setting exists for testing service configurations in
+     * rolling upgrade test without connecting to those services,
+     * it should not be enabled in production.
+     */
+    public static final Setting<Boolean> SKIP_VALIDATE_AND_START = Setting.boolSetting(
+        "xpack.inference.skip_validate_and_start",
+        false,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
 
     public static final String NAME = "inference";
     public static final String UTILITY_THREAD_POOL_NAME = "inference_utility";
@@ -145,6 +161,8 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
         inferenceServices.add(this::getInferenceServiceFactories);
 
         var factoryContext = new InferenceServiceExtension.InferenceServiceFactoryContext(services.client());
+        // This must be done after the HttpRequestSenderFactory is created so that the services can get the
+        // reference correctly
         var inferenceRegistry = new InferenceServiceRegistryImpl(inferenceServices, factoryContext);
         inferenceRegistry.init(services.client());
         inferenceServiceRegistry.set(inferenceRegistry);
@@ -162,11 +180,11 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
     public List<InferenceServiceExtension.Factory> getInferenceServiceFactories() {
         return List.of(
             ElserInternalService::new,
-            context -> new HuggingFaceElserService(httpFactory, serviceComponents),
-            context -> new HuggingFaceService(httpFactory, serviceComponents),
-            context -> new OpenAiService(httpFactory, serviceComponents),
-            context -> new CohereService(httpFactory, serviceComponents),
-            TextEmbeddingInternalService::new
+            context -> new HuggingFaceElserService(httpFactory.get(), serviceComponents.get()),
+            context -> new HuggingFaceService(httpFactory.get(), serviceComponents.get()),
+            context -> new OpenAiService(httpFactory.get(), serviceComponents.get()),
+            context -> new CohereService(httpFactory.get(), serviceComponents.get()),
+            ElasticsearchInternalService::new
         );
     }
 
@@ -227,7 +245,8 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
             ThrottlerManager.getSettings(),
             RetrySettings.getSettingsDefinitions(),
             Truncator.getSettings(),
-            RequestExecutorServiceSettings.getSettingsDefinitions()
+            RequestExecutorServiceSettings.getSettingsDefinitions(),
+            List.of(SKIP_VALIDATE_AND_START)
         ).flatMap(Collection::stream).collect(Collectors.toList());
     }
 

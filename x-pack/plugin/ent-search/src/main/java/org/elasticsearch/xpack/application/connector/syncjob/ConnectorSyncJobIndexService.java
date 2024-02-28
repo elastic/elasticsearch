@@ -24,8 +24,6 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.client.internal.OriginSettingClient;
-import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -60,7 +58,6 @@ import java.util.function.BiConsumer;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.xpack.core.ClientHelper.CONNECTORS_ORIGIN;
 
 /**
  * A service that manages persistent {@link ConnectorSyncJob} configurations.
@@ -69,7 +66,7 @@ public class ConnectorSyncJobIndexService {
 
     private static final Long ZERO = 0L;
 
-    private final Client clientWithOrigin;
+    private final Client client;
 
     public static final String CONNECTOR_SYNC_JOB_INDEX_NAME = ConnectorTemplateRegistry.CONNECTOR_SYNC_JOBS_INDEX_NAME_PATTERN;
 
@@ -77,7 +74,7 @@ public class ConnectorSyncJobIndexService {
      * @param client A client for executing actions on the connectors sync jobs index.
      */
     public ConnectorSyncJobIndexService(Client client) {
-        this.clientWithOrigin = new OriginSettingClient(client, CONNECTORS_ORIGIN);
+        this.client = client;
     }
 
     /**
@@ -116,7 +113,7 @@ public class ConnectorSyncJobIndexService {
 
                     indexRequest.source(syncJob.toXContent(jsonBuilder(), ToXContent.EMPTY_PARAMS));
 
-                    clientWithOrigin.index(
+                    client.index(
                         indexRequest,
                         l.delegateFailureAndWrap(
                             (ll, indexResponse) -> ll.onResponse(new PostConnectorSyncJobAction.Response(indexResponse.getId()))
@@ -142,7 +139,7 @@ public class ConnectorSyncJobIndexService {
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
         try {
-            clientWithOrigin.delete(
+            client.delete(
                 deleteRequest,
                 new DelegatingIndexNotFoundOrDocumentMissingActionListener<>(connectorSyncJobId, listener, (l, deleteResponse) -> {
                     if (deleteResponse.getResult() == DocWriteResponse.Result.NOT_FOUND) {
@@ -172,7 +169,7 @@ public class ConnectorSyncJobIndexService {
         ).doc(Map.of(ConnectorSyncJob.LAST_SEEN_FIELD.getPreferredName(), newLastSeen));
 
         try {
-            clientWithOrigin.update(
+            client.update(
                 updateRequest,
                 new DelegatingIndexNotFoundOrDocumentMissingActionListener<>(connectorSyncJobId, listener, (l, updateResponse) -> {
                     if (updateResponse.getResult() == DocWriteResponse.Result.NOT_FOUND) {
@@ -197,7 +194,7 @@ public class ConnectorSyncJobIndexService {
         final GetRequest getRequest = new GetRequest(CONNECTOR_SYNC_JOB_INDEX_NAME).id(connectorSyncJobId).realtime(true);
 
         try {
-            clientWithOrigin.get(
+            client.get(
                 getRequest,
                 new DelegatingIndexNotFoundOrDocumentMissingActionListener<>(connectorSyncJobId, listener, (l, getResponse) -> {
                     if (getResponse.isExists() == false) {
@@ -244,7 +241,7 @@ public class ConnectorSyncJobIndexService {
             );
 
         try {
-            clientWithOrigin.update(
+            client.update(
                 updateRequest,
                 new DelegatingIndexNotFoundOrDocumentMissingActionListener<>(connectorSyncJobId, listener, (l, updateResponse) -> {
                     if (updateResponse.getResult() == DocWriteResponse.Result.NOT_FOUND) {
@@ -288,7 +285,7 @@ public class ConnectorSyncJobIndexService {
 
             final SearchRequest searchRequest = new SearchRequest(CONNECTOR_SYNC_JOB_INDEX_NAME).source(searchSource);
 
-            clientWithOrigin.search(searchRequest, new ActionListener<>() {
+            client.search(searchRequest, new ActionListener<>() {
                 @Override
                 public void onResponse(SearchResponse searchResponse) {
                     try {
@@ -402,7 +399,7 @@ public class ConnectorSyncJobIndexService {
         ).doc(fieldsToUpdate);
 
         try {
-            clientWithOrigin.update(
+            client.update(
                 updateRequest,
                 new DelegatingIndexNotFoundOrDocumentMissingActionListener<>(syncJobId, listener, (l, updateResponse) -> {
                     if (updateResponse.getResult() == DocWriteResponse.Result.NOT_FOUND) {
@@ -418,20 +415,12 @@ public class ConnectorSyncJobIndexService {
 
     }
 
-    private String generateId() {
-        /* Workaround: only needed for generating an id upfront, autoGenerateId() has a side effect generating a timestamp,
-         * which would raise an error on the response layer later ("autoGeneratedTimestamp should not be set externally").
-         * TODO: do we even need to copy the "_id" and set it as "id"?
-         */
-        return UUIDs.base64UUID();
-    }
-
     private void getSyncJobConnectorInfo(String connectorId, ActionListener<Connector> listener) {
         try {
 
             final GetRequest request = new GetRequest(ConnectorIndexService.CONNECTOR_INDEX_NAME, connectorId);
 
-            clientWithOrigin.get(request, new ActionListener<>() {
+            client.get(request, new ActionListener<>() {
                 @Override
                 public void onResponse(GetResponse response) {
                     final boolean connectorDoesNotExist = response.isExists() == false;
@@ -509,7 +498,7 @@ public class ConnectorSyncJobIndexService {
             );
 
         try {
-            clientWithOrigin.update(
+            client.update(
                 updateRequest,
                 new DelegatingIndexNotFoundOrDocumentMissingActionListener<>(connectorSyncJobId, listener, (l, updateResponse) -> {
                     if (updateResponse.getResult() == DocWriteResponse.Result.NOT_FOUND) {

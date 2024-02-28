@@ -114,7 +114,7 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
                     "["
                         + CategorizeTextAggregationBuilder.NAME
                         + "] aggregation cannot be used in a cluster where some nodes have version ["
-                        + CategorizeTextAggregationBuilder.ALGORITHM_CHANGED_VERSION
+                        + CategorizeTextAggregationBuilder.ALGORITHM_CHANGED_VERSION.toReleaseVersion()
                         + "] or higher and others have a version before this",
                     RestStatus.BAD_REQUEST
                 );
@@ -133,7 +133,7 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
                     "["
                         + CategorizeTextAggregationBuilder.NAME
                         + "] aggregation cannot be used in a cluster where some nodes have version ["
-                        + CategorizeTextAggregationBuilder.ALGORITHM_CHANGED_VERSION
+                        + CategorizeTextAggregationBuilder.ALGORITHM_CHANGED_VERSION.toReleaseVersion()
                         + "] or higher and others have a version before this",
                     RestStatus.BAD_REQUEST
                 );
@@ -246,7 +246,7 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
                 "["
                     + CategorizeTextAggregationBuilder.NAME
                     + "] aggregation cannot be used in a cluster where some nodes have version ["
-                    + CategorizeTextAggregationBuilder.ALGORITHM_CHANGED_VERSION
+                    + CategorizeTextAggregationBuilder.ALGORITHM_CHANGED_VERSION.toReleaseVersion()
                     + "] or higher and others have a version before this",
                 RestStatus.BAD_REQUEST
             );
@@ -265,7 +265,7 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
                 "["
                     + CategorizeTextAggregationBuilder.NAME
                     + "] aggregation cannot be used in a cluster where some nodes have version ["
-                    + CategorizeTextAggregationBuilder.ALGORITHM_CHANGED_VERSION
+                    + CategorizeTextAggregationBuilder.ALGORITHM_CHANGED_VERSION.toReleaseVersion()
                     + "] or higher and others have a version before this",
                 RestStatus.BAD_REQUEST
             );

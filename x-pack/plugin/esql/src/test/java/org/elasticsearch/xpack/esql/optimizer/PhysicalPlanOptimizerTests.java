@@ -2849,10 +2849,10 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var filter = as(enrichExec.child(), FilterExec.class);
         var extract = as(filter.child(), FieldExtractExec.class);
         source(extract.child());
-        assertTrue("Expect attributes field extract preference to be DOC_VALUES", extract.attributesToExtract().stream().allMatch(attr -> {
-            MappedFieldType.FieldExtractPreference extractPreference = PlannerUtils.extractPreference(extract.hasDocValuesAttribute(attr));
-            return extractPreference == DOC_VALUES && attr.dataType() == GEO_POINT;
-        }));
+        assertTrue(
+            "Expect field attribute to be extracted as doc-values",
+            extract.attributesToExtract().stream().allMatch(attr -> extract.hasDocValuesAttribute(attr) && attr.dataType() == GEO_POINT)
+        );
     }
 
     /**
@@ -2893,10 +2893,10 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     public void testPushSpatialIntersectsStringToSource() {
         for (String query : new String[] { """
             FROM airports
-            | WHERE ST_INTERSECTS(location, "POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))")
+            | WHERE ST_INTERSECTS(location, TO_GEOSHAPE("POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))"))
             """, """
             FROM airports
-            | WHERE ST_INTERSECTS("POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))", location)
+            | WHERE ST_INTERSECTS(TO_GEOSHAPE("POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))"), location)
             """ }) {
 
             var plan = this.physicalPlan(query, airports);
@@ -2966,11 +2966,11 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     public void testPushSpatialIntersectsStringToSourceAndUseDocValuesForCentroid() {
         for (String query : new String[] { """
             FROM airports
-            | WHERE ST_INTERSECTS(location, "POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))")
+            | WHERE ST_INTERSECTS(location, TO_GEOSHAPE("POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))"))
             | STATS centroid=ST_CENTROID(location), count=COUNT()
             """, """
             FROM airports
-            | WHERE ST_INTERSECTS("POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))", location)
+            | WHERE ST_INTERSECTS(TO_GEOSHAPE("POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))"), location)
             | STATS centroid=ST_CENTROID(location), count=COUNT()
             """ }) {
 
@@ -3022,10 +3022,14 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     public void testPushSpatialIntersectsStringToSourceCompoundPredicate() {
         for (String query : new String[] { """
             FROM airports
-            | WHERE scalerank == 9 AND ST_INTERSECTS(location, "POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))") AND type == "mid"
+            | WHERE scalerank == 9
+              AND ST_INTERSECTS(location, TO_GEOSHAPE("POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))"))
+              AND type == "mid"
             """, """
             FROM airports
-            | WHERE scalerank == 9 AND ST_INTERSECTS("POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))", location) AND type == "mid"
+            | WHERE scalerank == 9
+              AND ST_INTERSECTS(TO_GEOSHAPE("POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))"), location)
+              AND type == "mid"
             """ }) {
 
             var plan = this.physicalPlan(query, airports);
@@ -3061,11 +3065,15 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     public void testPushSpatialIntersectsStringToSourceCompoundPredicateAndUseDocValuesForCentroid() {
         for (String query : new String[] { """
             FROM airports
-            | WHERE scalerank == 9 AND ST_INTERSECTS(location, "POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))") AND type == "mid"
+            | WHERE scalerank == 9
+              AND ST_INTERSECTS(location, TO_GEOSHAPE("POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))"))
+              AND type == "mid"
             | STATS centroid=ST_CENTROID(location), count=COUNT()
             """, """
             FROM airports
-            | WHERE scalerank == 9 AND ST_INTERSECTS("POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))", location) AND type == "mid"
+            | WHERE scalerank == 9
+              AND ST_INTERSECTS(TO_GEOSHAPE("POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))"), location)
+              AND type == "mid"
             | STATS centroid=ST_CENTROID(location), count=COUNT()
             """ }) {
 
@@ -3158,12 +3166,12 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             FROM airports_web
             | WHERE ST_INTERSECTS(
                 location,
-                "POLYGON((4700000 1600000, 4800000 1600000, 4800000 1700000, 4700000 1700000, 4700000 1600000))"
+                TO_CARTESIANSHAPE("POLYGON((4700000 1600000, 4800000 1600000, 4800000 1700000, 4700000 1700000, 4700000 1600000))")
               )
             """, """
             FROM airports_web
             | WHERE ST_INTERSECTS(
-                "POLYGON((4700000 1600000, 4800000 1600000, 4800000 1700000, 4700000 1700000, 4700000 1600000))",
+                TO_CARTESIANSHAPE("POLYGON((4700000 1600000, 4800000 1600000, 4800000 1700000, 4700000 1700000, 4700000 1600000))"),
                 location
               )
             """ }) {

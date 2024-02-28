@@ -11,8 +11,8 @@ import java.nio.file.Path
 
 apply plugin: 'elasticsearch.internal-distribution-archive-setup'
 
-CopySpec archiveFiles(String platform, String distributionType, String os, String architecture) {
-  boolean isTestDistro = platform == null;
+CopySpec archiveFiles(String distributionType, String os, String architecture) {
+  boolean isTestDistro = os == null
   return copySpec {
     into("elasticsearch-${version}") {
       into('lib') {
@@ -58,9 +58,9 @@ CopySpec archiveFiles(String platform, String distributionType, String os, Strin
       with noticeFile(isTestDistro)
       into('modules') {
         if (isTestDistro) {
-          integTestModulesFiles
+          with integTestModulesFiles
         } else {
-          with modulesFiles(platform)
+          with modulesFiles(os, architecture)
         }
       }
     }
@@ -70,42 +70,42 @@ CopySpec archiveFiles(String platform, String distributionType, String os, Strin
 distribution_archives {
   integTestZip {
     content {
-      archiveFiles(null, 'zip', null, 'x64')
+      archiveFiles('zip', null, null)
     }
   }
 
   windowsZip {
     archiveClassifier = 'windows-x86_64'
     content {
-      archiveFiles('windows-x86_64', 'zip', 'windows', 'x64')
+      archiveFiles('zip', 'windows', 'x64')
     }
   }
 
   darwinTar {
     archiveClassifier = 'darwin-x86_64'
     content {
-      archiveFiles('darwin-x86_64', 'tar', 'darwin', 'x64')
+      archiveFiles('tar', 'darwin', 'x64')
     }
   }
 
   darwinAarch64Tar {
     archiveClassifier = 'darwin-aarch64'
     content {
-      archiveFiles('darwin-aarch64', 'tar', 'darwin', 'aarch64')
+      archiveFiles('tar', 'darwin', 'aarch64')
     }
   }
 
   linuxAarch64Tar {
     archiveClassifier = 'linux-aarch64'
     content {
-      archiveFiles('linux-aarch64', 'tar', 'linux', 'aarch64')
+      archiveFiles('tar', 'linux', 'aarch64')
     }
   }
 
   linuxTar {
     archiveClassifier = 'linux-x86_64'
     content {
-      archiveFiles('linux-x86_64', 'tar', 'linux', 'x64')
+      archiveFiles('tar', 'linux', 'x64')
     }
   }
 }

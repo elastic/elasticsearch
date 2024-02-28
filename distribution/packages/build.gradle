@@ -144,7 +144,7 @@ def commonPackageConfig(String type, String architecture) {
         with libFiles(platform)
       }
       into('modules') {
-        with modulesFiles(platform)
+        with modulesFiles('linux', architecture)
       }
       into('jdk') {
         with jdkFiles(project, 'linux', architecture)

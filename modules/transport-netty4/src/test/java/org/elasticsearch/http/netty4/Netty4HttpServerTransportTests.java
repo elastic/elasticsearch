@@ -86,7 +86,6 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -338,14 +337,14 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
             final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
 
             try (Netty4HttpClient client = new Netty4HttpClient()) {
-                final String url = "/" + new String(new byte[maxInitialLineLength], Charset.forName("UTF-8"));
+                final String url = "/" + new String(new byte[maxInitialLineLength], StandardCharsets.UTF_8);
                 final FullHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, url);
 
                 final FullHttpResponse response = client.send(remoteAddress.address(), request);
                 try {
                     assertThat(response.status(), equalTo(HttpResponseStatus.BAD_REQUEST));
                     assertThat(
-                        new String(response.content().array(), Charset.forName("UTF-8")),
+                        new String(response.content().array(), StandardCharsets.UTF_8),
                         containsString("you sent a bad request and you should feel bad")
                     );
                 } finally {

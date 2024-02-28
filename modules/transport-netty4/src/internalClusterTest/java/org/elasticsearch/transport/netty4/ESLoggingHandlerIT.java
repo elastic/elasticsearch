@@ -26,6 +26,7 @@ public class ESLoggingHandlerIT extends ESNetty4IntegTestCase {
 
     private MockLogAppender appender;
 
+    @Override
     public void setUp() throws Exception {
         super.setUp();
         appender = new MockLogAppender();

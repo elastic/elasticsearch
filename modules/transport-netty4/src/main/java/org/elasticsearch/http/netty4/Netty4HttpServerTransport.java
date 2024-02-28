@@ -20,6 +20,7 @@ import io.netty.channel.FixedRecvByteBufAllocator;
 import io.netty.channel.RecvByteBufAllocator;
 import io.netty.channel.socket.nio.NioChannelOption;
 import io.netty.handler.codec.ByteToMessageDecoder;
+import io.netty.handler.codec.compression.StandardCompressionOptions;
 import io.netty.handler.codec.http.HttpContentCompressor;
 import io.netty.handler.codec.http.HttpContentDecompressor;
 import io.netty.handler.codec.http.HttpMessage;
@@ -101,7 +102,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
 
     private static final String SETTING_KEY_HTTP_NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS = "http.netty.max_composite_buffer_components";
 
-    public static Setting<Integer> SETTING_HTTP_NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS = new Setting<>(
+    public static final Setting<Integer> SETTING_HTTP_NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS = new Setting<>(
         SETTING_KEY_HTTP_NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS,
         (s) -> {
             ByteSizeValue maxContentLength = SETTING_HTTP_MAX_CONTENT_LENGTH.get(s);
@@ -204,10 +205,6 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             maxCompositeBufferComponents,
             pipeliningMaxEvents
         );
-    }
-
-    public Settings settings() {
-        return this.settings;
     }
 
     @Override
@@ -428,7 +425,22 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
                 })
                 .addLast("aggregator", aggregator);
             if (handlingSettings.compression()) {
-                ch.pipeline().addLast("encoder_compress", new HttpContentCompressor(handlingSettings.compressionLevel()));
+                ch.pipeline()
+                    .addLast(
+                        "encoder_compress",
+                        new HttpContentCompressor(
+                            StandardCompressionOptions.deflate(
+                                handlingSettings.compressionLevel(),
+                                StandardCompressionOptions.deflate().windowBits(),
+                                StandardCompressionOptions.deflate().memLevel()
+                            ),
+                            StandardCompressionOptions.gzip(
+                                handlingSettings.compressionLevel(),
+                                StandardCompressionOptions.gzip().windowBits(),
+                                StandardCompressionOptions.gzip().memLevel()
+                            )
+                        )
+                    );
             }
             ch.pipeline().addLast("pipelining", new Netty4HttpPipeliningHandler(transport.pipeliningMaxEvents, transport));
             transport.serverAcceptedChannel(nettyHttpChannel);

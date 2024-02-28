@@ -345,11 +345,12 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
         }
         List excludePlatforms = ['linux-x86_64', 'linux-aarch64', 'windows-x86_64', 'darwin-x86_64', 'darwin-aarch64']
         if (os != null) {
+          String platform = os + '-' + architecture
           if (architecture == 'x64') {
             // ML platform dir uses the x86_64 nomenclature
-            architecture = 'x86_64'
+            platform = os + '-x86_64'
           }
-          excludePlatforms.remove(excludePlatforms.indexOf(os + '-' + architecture))
+          excludePlatforms.remove(excludePlatforms.indexOf(platform))
         } else {
           excludePlatforms = []
         }

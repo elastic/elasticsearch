@@ -34,7 +34,10 @@ extractLibs.configure {
   from configurations.libs
   into layout.buildDirectory.dir('platform')
   // TODO: fix architecture in uploaded libs
-  rename '([^-]+-)x86-64(.*)', '$1x64$2'
+  filesMatching("*-x86-64/*") {
+    System.out.println(it.path + ' -> ' + it.path.replace("x86-64", "x64"));
+    it.path = it.path.replace("x86-64", "x64")
+  }
 }
 
 artifacts {

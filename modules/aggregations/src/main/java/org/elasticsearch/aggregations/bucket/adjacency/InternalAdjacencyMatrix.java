@@ -11,10 +11,13 @@ package org.elasticsearch.aggregations.bucket.adjacency;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
+import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
+import org.elasticsearch.search.aggregations.bucket.MultiBucketAggregatorsReducer;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -175,48 +178,45 @@ public class InternalAdjacencyMatrix extends InternalMultiBucketAggregation<Inte
     }
 
     @Override
-    public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
-        Map<String, List<InternalBucket>> bucketsMap = new HashMap<>();
-        for (InternalAggregation aggregation : aggregations) {
-            InternalAdjacencyMatrix filters = (InternalAdjacencyMatrix) aggregation;
-            for (InternalBucket bucket : filters.buckets) {
-                List<InternalBucket> sameRangeList = bucketsMap.computeIfAbsent(bucket.key, k -> new ArrayList<>(aggregations.size()));
-                sameRangeList.add(bucket);
-            }
-        }
+    protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
+        return new AggregatorReducer() {
+            final Map<String, MultiBucketAggregatorsReducer> bucketsReducer = new HashMap<>(getBuckets().size());
 
-        ArrayList<InternalBucket> reducedBuckets = new ArrayList<>(bucketsMap.size());
-        for (List<InternalBucket> sameRangeList : bucketsMap.values()) {
-            InternalBucket reducedBucket = reduceBucket(sameRangeList, reduceContext);
-            if (reducedBucket.docCount >= 1) {
-                reducedBuckets.add(reducedBucket);
+            @Override
+            public void accept(InternalAggregation aggregation) {
+                final InternalAdjacencyMatrix filters = (InternalAdjacencyMatrix) aggregation;
+                for (InternalBucket bucket : filters.buckets) {
+                    MultiBucketAggregatorsReducer reducer = bucketsReducer.computeIfAbsent(
+                        bucket.key,
+                        k -> new MultiBucketAggregatorsReducer(reduceContext, size)
+                    );
+                    reducer.accept(bucket);
+                }
             }
-        }
-        reduceContext.consumeBucketsAndMaybeBreak(reducedBuckets.size());
-        reducedBuckets.sort(Comparator.comparing(InternalBucket::getKey));
 
-        return new InternalAdjacencyMatrix(name, reducedBuckets, getMetadata());
+            @Override
+            public InternalAggregation get() {
+                List<InternalBucket> reducedBuckets = new ArrayList<>(bucketsReducer.size());
+                for (Map.Entry<String, MultiBucketAggregatorsReducer> entry : bucketsReducer.entrySet()) {
+                    if (entry.getValue().getDocCount() >= 1) {
+                        reducedBuckets.add(new InternalBucket(entry.getKey(), entry.getValue().getDocCount(), entry.getValue().get()));
+                    }
+                }
+                reduceContext.consumeBucketsAndMaybeBreak(reducedBuckets.size());
+                reducedBuckets.sort(Comparator.comparing(InternalBucket::getKey));
+                return new InternalAdjacencyMatrix(name, reducedBuckets, getMetadata());
+            }
+
+            @Override
+            public void close() {
+                Releasables.close(bucketsReducer.values());
+            }
+        };
     }
 
     @Override
     public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
         return new InternalAdjacencyMatrix(name, buckets.stream().map(b -> b.finalizeSampling(samplingContext)).toList(), getMetadata());
-    }
-
-    @Override
-    protected InternalBucket reduceBucket(List<InternalBucket> buckets, AggregationReduceContext context) {
-        assert buckets.isEmpty() == false;
-        InternalBucket reduced = null;
-        for (InternalBucket bucket : buckets) {
-            if (reduced == null) {
-                reduced = new InternalBucket(bucket.key, bucket.docCount, bucket.aggregations);
-            } else {
-                reduced.docCount += bucket.docCount;
-            }
-        }
-        final List<InternalAggregations> aggregations = new BucketAggregationList<>(buckets);
-        reduced.aggregations = InternalAggregations.reduce(aggregations, context);
-        return reduced;
     }
 
     @Override

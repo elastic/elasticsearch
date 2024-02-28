@@ -520,7 +520,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
                 createYoungGcCountSupplier(),
                 System::currentTimeMillis,
                 500,
-                5000,
+                2000,
                 lockTimeout,
                 fullGCLockTimeout
             );
@@ -601,7 +601,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         }
 
         static long fallbackRegionSize(JvmInfo jvmInfo) {
-            // mimick JDK calculation based on JDK 14 source:
+            // mimic JDK calculation based on JDK 14 source:
             // https://hg.openjdk.java.net/jdk/jdk14/file/6c954123ee8d/src/hotspot/share/gc/g1/heapRegion.cpp#l65
             // notice that newer JDKs will have a slight variant only considering max-heap:
             // https://hg.openjdk.java.net/jdk/jdk/file/e7d0ec2d06e8/src/hotspot/share/gc/g1/heapRegion.cpp#l67
@@ -739,6 +739,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
                     if (initialCollectionCount != gcCountSupplier.getAsLong()) {
                         break;
                     }
+                    // noinspection ArrayHashCode - prevent array allocation from being optimized away
                     localBlackHole += new byte[allocationSize].hashCode();
                 }
 

@@ -76,7 +76,11 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
      * Build a reader for the response.
      */
     public static Writeable.Reader<EsqlQueryResponse> reader(BlockFactory blockFactory) {
-        return in -> deserialize(new BlockStreamInput(in, blockFactory));
+        return in -> {
+            try (BlockStreamInput bsi = new BlockStreamInput(in, blockFactory)) {
+                return deserialize(bsi);
+            }
+        };
     }
 
     static EsqlQueryResponse deserialize(BlockStreamInput in) throws IOException {
@@ -91,7 +95,7 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
         }
         List<ColumnInfo> columns = in.readCollectionAsList(ColumnInfo::new);
         List<Page> pages = in.readCollectionAsList(Page::new);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             profile = in.readOptionalWriteable(Profile::new);
         }
         boolean columnar = in.readBoolean();
@@ -107,7 +111,7 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
         }
         out.writeCollection(columns);
         out.writeCollection(pages);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             out.writeOptionalWriteable(profile);
         }
         out.writeBoolean(columnar);

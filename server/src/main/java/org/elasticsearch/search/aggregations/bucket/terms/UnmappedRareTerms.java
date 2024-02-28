@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.SetBackedScalingCuckooFilter;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
+import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
@@ -48,6 +49,11 @@ public class UnmappedRareTerms extends InternalRareTerms<UnmappedRareTerms, Unma
     }
 
     @Override
+    protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
     protected void writeTermTypeInfoTo(StreamOutput out) throws IOException {
         // Nothing to write
     }
@@ -80,11 +86,6 @@ public class UnmappedRareTerms extends InternalRareTerms<UnmappedRareTerms, Unma
     @Override
     protected UnmappedRareTerms createWithFilter(String name, List<UnmappedRareTerms.Bucket> buckets, SetBackedScalingCuckooFilter filter) {
         throw new UnsupportedOperationException("not supported for UnmappedRareTerms");
-    }
-
-    @Override
-    public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
-        return new UnmappedRareTerms(name, metadata);
     }
 
     @Override

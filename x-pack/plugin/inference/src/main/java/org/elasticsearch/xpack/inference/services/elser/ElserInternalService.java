@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.inference.results.ChunkedSparseEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.action.CreateTrainedModelAssignmentAction;
+import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.action.InferTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelAction;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
@@ -44,6 +45,7 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -285,7 +287,7 @@ public class ElserInternalService implements InferenceService {
         Map<String, Object> taskSettings,
         InputType inputType,
         ChunkingOptions chunkingOptions,
-        ActionListener<ChunkedInferenceServiceResults> listener
+        ActionListener<List<ChunkedInferenceServiceResults>> listener
     ) {
         try {
             checkCompatibleTaskType(model.getConfigurations().getTaskType());
@@ -346,6 +348,31 @@ public class ElserInternalService implements InferenceService {
         }
     }
 
+    @Override
+    public void isModelDownloaded(Model model, ActionListener<Boolean> listener) {
+        ActionListener<GetTrainedModelsAction.Response> getModelsResponseListener = listener.delegateFailure((delegate, response) -> {
+            if (response.getResources().count() < 1) {
+                delegate.onResponse(Boolean.FALSE);
+            } else {
+                delegate.onResponse(Boolean.TRUE);
+            }
+        });
+
+        if (model instanceof ElserInternalModel elserModel) {
+            String modelId = elserModel.getServiceSettings().getModelId();
+            GetTrainedModelsAction.Request getRequest = new GetTrainedModelsAction.Request(modelId);
+            executeAsyncWithOrigin(client, INFERENCE_ORIGIN, GetTrainedModelsAction.INSTANCE, getRequest, getModelsResponseListener);
+        } else {
+            listener.onFailure(
+                new IllegalArgumentException(
+                    "Can not download model automatically for ["
+                        + model.getConfigurations().getInferenceEntityId()
+                        + "] you may need to download it through the trained models API or with eland."
+                )
+            );
+        }
+    }
+
     private static ElserMlNodeTaskSettings taskSettingsFromMap(TaskType taskType, Map<String, Object> config) {
         if (taskType != TaskType.SPARSE_EMBEDDING) {
             throw new ElasticsearchStatusException(TaskType.unsupportedTaskTypeErrorMsg(taskType, NAME), RestStatus.BAD_REQUEST);
@@ -355,25 +382,22 @@ public class ElserInternalService implements InferenceService {
         return ElserMlNodeTaskSettings.DEFAULT;
     }
 
-    private ChunkedSparseEmbeddingResults translateChunkedResults(List<InferenceResults> inferenceResults) {
-        if (inferenceResults.size() != 1) {
-            throw new ElasticsearchStatusException(
-                "Expected exactly one chunked sparse embedding result",
-                RestStatus.INTERNAL_SERVER_ERROR
-            );
-        }
+    private List<ChunkedInferenceServiceResults> translateChunkedResults(List<InferenceResults> inferenceResults) {
+        var translated = new ArrayList<ChunkedInferenceServiceResults>();
 
-        if (inferenceResults.get(0) instanceof ChunkedTextExpansionResults mlChunkedResult) {
-            return ChunkedSparseEmbeddingResults.ofMlResult(mlChunkedResult);
-        } else {
-            throw new ElasticsearchStatusException(
-                "Expected a chunked inference [{}] received [{}]",
-                RestStatus.INTERNAL_SERVER_ERROR,
-                ChunkedTextExpansionResults.NAME,
-                inferenceResults.get(0).getWriteableName()
-            );
+        for (var inferenceResult : inferenceResults) {
+            if (inferenceResult instanceof ChunkedTextExpansionResults mlChunkedResult) {
+                translated.add(ChunkedSparseEmbeddingResults.ofMlResult(mlChunkedResult));
+            } else {
+                throw new ElasticsearchStatusException(
+                    "Expected a chunked inference [{}] received [{}]",
+                    RestStatus.INTERNAL_SERVER_ERROR,
+                    ChunkedTextExpansionResults.NAME,
+                    inferenceResult.getWriteableName()
+                );
+            }
         }
-
+        return translated;
     }
 
     @Override
@@ -386,6 +410,6 @@ public class ElserInternalService implements InferenceService {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ELSER_SERVICE_MODEL_VERSION_ADDED;
+        return TransportVersions.V_8_12_0;
     }
 }

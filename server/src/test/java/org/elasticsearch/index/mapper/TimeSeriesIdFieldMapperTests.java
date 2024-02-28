@@ -12,16 +12,23 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
+import org.elasticsearch.common.lucene.uid.Versions;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -652,5 +659,70 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
         ParsedDocument doc1 = parseDocument(docMapper, d -> d.field("a", a).field("b", b));
         ParsedDocument doc2 = parseDocument(docMapper, d -> d.field("a", a).field("b", b).field("c", c));
         assertThat(doc1.rootDoc().getBinaryValue("_tsid").bytes, not(doc2.rootDoc().getBinaryValue("_tsid").bytes));
+    }
+
+    public void testParseWithDynamicMapping() {
+        Settings indexSettings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), "time_series")
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dim")
+            .build();
+        // without _id
+        {
+            MapperService mapper = createMapperService(IndexVersion.current(), indexSettings, () -> false);
+            SourceToParse source = new SourceToParse(null, new BytesArray("""
+                {
+                    "@timestamp": 1609459200000,
+                    "dim": "6a841a21",
+                    "value": 100
+                }"""), XContentType.JSON);
+            Engine.Index index = IndexShard.prepareIndex(
+                mapper,
+                source,
+                UNASSIGNED_SEQ_NO,
+                randomNonNegativeLong(),
+                Versions.MATCH_ANY,
+                VersionType.INTERNAL,
+                Engine.Operation.Origin.PRIMARY,
+                -1,
+                false,
+                UNASSIGNED_SEQ_NO,
+                0,
+                System.nanoTime()
+            );
+            assertNotNull(index.parsedDoc().dynamicMappingsUpdate());
+        }
+        // with _id
+        {
+            MapperService mapper = createMapperService(IndexVersion.current(), indexSettings, () -> false);
+            SourceToParse source = new SourceToParse("no-such-tsid", new BytesArray("""
+                {
+                    "@timestamp": 1609459200000,
+                    "dim": "6a841a21",
+                    "value": 100
+                }"""), XContentType.JSON);
+            var failure = expectThrows(DocumentParsingException.class, () -> {
+                IndexShard.prepareIndex(
+                    mapper,
+                    source,
+                    UNASSIGNED_SEQ_NO,
+                    randomNonNegativeLong(),
+                    Versions.MATCH_ANY,
+                    VersionType.INTERNAL,
+                    Engine.Operation.Origin.PRIMARY,
+                    -1,
+                    false,
+                    UNASSIGNED_SEQ_NO,
+                    0,
+                    System.nanoTime()
+                );
+            });
+            assertThat(
+                failure.getMessage(),
+                equalTo(
+                    "[5:1] failed to parse: _id must be unset or set to [AAAAAMpxfIC8Wpr0AAABdrs-cAA]"
+                        + " but was [no-such-tsid] because [index] is in time_series mode"
+                )
+            );
+        }
     }
 }

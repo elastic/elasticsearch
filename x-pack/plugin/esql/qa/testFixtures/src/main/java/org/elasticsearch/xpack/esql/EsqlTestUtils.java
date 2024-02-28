@@ -185,7 +185,7 @@ public final class EsqlTestUtils {
 
     public static List<String> withDefaultLimitWarning(List<String> warnings) {
         List<String> result = warnings == null ? new ArrayList<>() : new ArrayList<>(warnings);
-        result.add("No limit defined, adding default limit of [500]");
+        result.add("No limit defined, adding default limit of [1000]");
         return result;
     }
 
@@ -221,11 +221,11 @@ public final class EsqlTestUtils {
             }
             withFields = " WITH " + String.join(",", fields);
         }
-        String enrich = "ENRICH";
+        String enrich = "ENRICH ";
         if (mode != Enrich.Mode.ANY || randomBoolean()) {
-            enrich += " [ccq.mode: " + mode + "] ";
+            enrich += " _" + mode + ":";
         }
-        enrich += " " + name;
+        enrich += name;
         enrich += onField;
         enrich += withFields;
         List<String> all = new ArrayList<>(before);

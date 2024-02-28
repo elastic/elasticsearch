@@ -43,7 +43,7 @@ fix problems that an {es} deployment might encounter.
 [[troubleshooting-snapshot]]
 === Snapshot and restore
 * <<restore-from-snapshot,Restore data from snapshot>>
-* <<add-repository,Multiple deployments writing to the same snapshot repository>>
+* <<add-repository,Troubleshooting broken repositories>>
 * <<repeated-snapshot-failures,Troubleshooting repeated snapshot failures>>
 
 [discrete]

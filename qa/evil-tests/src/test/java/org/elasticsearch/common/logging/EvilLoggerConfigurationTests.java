@@ -26,6 +26,7 @@ import java.nio.file.Path;
 import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -144,7 +145,13 @@ public class EvilLoggerConfigurationTests extends ESTestCase {
         final LoggerContext ctx = (LoggerContext) LogManager.getContext(false);
         final Configuration config = ctx.getConfiguration();
         final Map<String, LoggerConfig> loggerConfigs = config.getLoggers();
-        assertThat(loggerConfigs.size(), equalTo(5));
+
+        if (rootLevel.isMoreSpecificThan(Level.INFO)) {
+            assertThat(loggerConfigs.size(), equalTo(5));
+        } else {
+            // below INFO restricted loggers will be set in addition
+            assertThat(loggerConfigs.size(), greaterThan(5));
+        }
         assertThat(loggerConfigs, hasKey(""));
         assertThat(loggerConfigs.get("").getLevel(), equalTo(rootLevel));
         assertThat(loggerConfigs, hasKey("foo"));

@@ -115,6 +115,11 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
     // ---- FOR TESTING XCONTENT PARSING ----
 
     @Override
+    public String getName() {
+        return NAME;
+    }
+
+    @Override
     public void extractToSearchSourceBuilder(SearchSourceBuilder searchSourceBuilder, boolean compoundUsed) {
         KnnSearchBuilder knnSearchBuilder = new KnnSearchBuilder(field, queryVector, queryVectorBuilder, k, numCands, similarity);
         if (preFilterQueryBuilders != null) {

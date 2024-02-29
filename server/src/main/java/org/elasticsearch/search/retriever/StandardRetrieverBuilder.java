@@ -178,6 +178,11 @@ public final class StandardRetrieverBuilder extends RetrieverBuilder implements 
     // ---- FOR TESTING XCONTENT PARSING ----
 
     @Override
+    public String getName() {
+        return NAME;
+    }
+
+    @Override
     public void doToXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         if (queryBuilder != null) {
             builder.field(QUERY_FIELD.getPreferredName(), queryBuilder);

@@ -24,6 +24,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.rank.rrf.RRFRankPlugin.NAME;
+
 /**
  * An rrf retriever is used to represent an rrf rank element, but
  * as a tree-like structure. This retriever is a compound retriever
@@ -40,7 +42,7 @@ public final class RRFRetrieverBuilder extends RetrieverBuilder {
     public static final ParseField RANK_CONSTANT_FIELD = new ParseField("rank_constant");
 
     public static final ObjectParser<RRFRetrieverBuilder, RetrieverParserContext> PARSER = new ObjectParser<>(
-        RRFRankPlugin.NAME,
+        NAME,
         RRFRetrieverBuilder::new
     );
 
@@ -55,12 +57,12 @@ public final class RRFRetrieverBuilder extends RetrieverBuilder {
         PARSER.declareInt((r, v) -> r.windowSize = v, WINDOW_SIZE_FIELD);
         PARSER.declareInt((r, v) -> r.rankConstant = v, RANK_CONSTANT_FIELD);
 
-        RetrieverBuilder.declareBaseParserFields(RRFRankPlugin.NAME, PARSER);
+        RetrieverBuilder.declareBaseParserFields(NAME, PARSER);
     }
 
     public static RRFRetrieverBuilder fromXContent(XContentParser parser, RetrieverParserContext context) throws IOException {
         if (context.clusterSupportsFeature(RRF_RETRIEVER_SUPPORTED) == false) {
-            throw new ParsingException(parser.getTokenLocation(), "unknown retriever [" + RRFRankPlugin.NAME + "]");
+            throw new ParsingException(parser.getTokenLocation(), "unknown retriever [" + NAME + "]");
         }
         if (RRFRankPlugin.RANK_RRF_FEATURE.check(XPackPlugin.getSharedLicenseState()) == false) {
             throw LicenseUtils.newComplianceException("Reciprocal Rank Fusion (RRF)");
@@ -68,9 +70,9 @@ public final class RRFRetrieverBuilder extends RetrieverBuilder {
         return PARSER.apply(parser, context);
     }
 
-    private List<RetrieverBuilder> retrieverBuilders = Collections.emptyList();
-    private int windowSize = RRFRankBuilder.DEFAULT_WINDOW_SIZE;
-    private int rankConstant = RRFRankBuilder.DEFAULT_RANK_CONSTANT;
+    List<RetrieverBuilder> retrieverBuilders = Collections.emptyList();
+    int windowSize = RRFRankBuilder.DEFAULT_WINDOW_SIZE;
+    int rankConstant = RRFRankBuilder.DEFAULT_RANK_CONSTANT;
 
     @Override
     public void extractToSearchSourceBuilder(SearchSourceBuilder searchSourceBuilder, boolean compoundUsed) {
@@ -92,9 +94,23 @@ public final class RRFRetrieverBuilder extends RetrieverBuilder {
     // ---- FOR TESTING XCONTENT PARSING ----
 
     @Override
+    public String getName() {
+        return NAME;
+    }
+
+    @Override
     public void doToXContent(XContentBuilder builder, Params params) throws IOException {
         if (retrieverBuilders.isEmpty() == false) {
-            builder.field(RETRIEVERS_FIELD.getPreferredName(), retrieverBuilders);
+            builder.startArray(RETRIEVERS_FIELD.getPreferredName());
+
+            for (RetrieverBuilder retrieverBuilder : retrieverBuilders) {
+                builder.startObject();
+                builder.field(retrieverBuilder.getName());
+                retrieverBuilder.toXContent(builder, params);
+                builder.endObject();
+            }
+
+            builder.endArray();
         }
 
         builder.field(WINDOW_SIZE_FIELD.getPreferredName(), windowSize);

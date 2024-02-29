@@ -9,7 +9,6 @@
 package org.elasticsearch.search.retriever;
 
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RandomQueryBuilder;
@@ -17,25 +16,22 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.usage.SearchUsage;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.BiFunction;
 
 import static org.elasticsearch.search.vectors.KnnSearchBuilderTests.randomVector;
 
-public class KnnRetrieverParsingTests extends AbstractXContentTestCase<KnnRetrieverBuilder> {
+public class KnnRetrieverBuilderParsingTests extends AbstractXContentTestCase<KnnRetrieverBuilder> {
 
     /**
      * Creates a random {@link KnnRetrieverBuilder}. The created instance
      * is not guaranteed to pass {@link SearchRequest} validation. This is purely
      * for x-content testing.
      */
-    public static KnnRetrieverBuilder createRandomKnnRetrieverBuilder(BiFunction<XContent, BytesReference, XContentParser> createParser) {
+    public static KnnRetrieverBuilder createRandomKnnRetrieverBuilder() {
         String field = randomAlphaOfLength(6);
         int dim = randomIntBetween(2, 30);
         float[] vector = randomBoolean() ? null : randomVector(dim);
@@ -60,13 +56,7 @@ public class KnnRetrieverParsingTests extends AbstractXContentTestCase<KnnRetrie
 
     @Override
     protected KnnRetrieverBuilder createTestInstance() {
-        return createRandomKnnRetrieverBuilder((xContent, data) -> {
-            try {
-                return createParser(xContent, data);
-            } catch (IOException ioe) {
-                throw new UncheckedIOException(ioe);
-            }
-        });
+        return createRandomKnnRetrieverBuilder();
     }
 
     @Override

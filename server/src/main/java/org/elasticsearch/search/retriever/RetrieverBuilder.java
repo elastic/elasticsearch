@@ -187,6 +187,8 @@ public abstract class RetrieverBuilder implements ToXContent {
 
     // ---- FOR TESTING XCONTENT PARSING ----
 
+    public abstract String getName();
+
     @Override
     public final XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject();
@@ -199,7 +201,7 @@ public abstract class RetrieverBuilder implements ToXContent {
         return builder;
     }
 
-    public abstract void doToXContent(XContentBuilder builder, ToXContent.Params params) throws IOException;
+    protected abstract void doToXContent(XContentBuilder builder, ToXContent.Params params) throws IOException;
 
     @Override
     public boolean isFragment() {
@@ -214,14 +216,14 @@ public abstract class RetrieverBuilder implements ToXContent {
         return Objects.equals(preFilterQueryBuilders, that.preFilterQueryBuilders) && doEquals(o);
     }
 
-    public abstract boolean doEquals(Object o);
+    protected abstract boolean doEquals(Object o);
 
     @Override
     public final int hashCode() {
         return Objects.hash(getClass(), preFilterQueryBuilders, doHashCode());
     }
 
-    public abstract int doHashCode();
+    protected abstract int doHashCode();
 
     @Override
     public String toString() {

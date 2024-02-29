@@ -27,7 +27,7 @@ import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.function.BiFunction;
 
-public class StandardRetrieverParsingTests extends AbstractXContentTestCase<StandardRetrieverBuilder> {
+public class StandardRetrieverBuilderParsingTests extends AbstractXContentTestCase<StandardRetrieverBuilder> {
 
     /**
      * Creates a random {@link StandardRetrieverBuilder}. The created instance

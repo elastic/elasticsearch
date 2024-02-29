@@ -15,6 +15,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ESTestCase.WithoutSecurityManager;
 
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.IOException;
 import java.io.StringReader;
 import java.nio.file.Files;
@@ -32,7 +33,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
@@ -40,6 +43,11 @@ import static org.hamcrest.Matchers.not;
 
 @WithoutSecurityManager
 public class JvmOptionsParserTests extends ESTestCase {
+
+    private static final Map<String, String> TEST_SYSPROPS = Map.of(
+        "os.name", "Linux",
+        "os.arch", "aarch64"
+    );
 
     public void testSubstitution() {
         final List<String> jvmOptions = JvmOptionsParser.substitutePlaceholders(
@@ -350,30 +358,57 @@ public class JvmOptionsParserTests extends ESTestCase {
 
     public void testNodeProcessorsActiveCount() {
         {
-            final List<String> jvmOptions = SystemJvmOptions.systemJvmOptions(Settings.EMPTY, Map.of());
+            final List<String> jvmOptions = SystemJvmOptions.systemJvmOptions(Settings.EMPTY, TEST_SYSPROPS);
             assertThat(jvmOptions, not(hasItem(containsString("-XX:ActiveProcessorCount="))));
         }
         {
             Settings nodeSettings = Settings.builder().put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), 1).build();
-            final List<String> jvmOptions = SystemJvmOptions.systemJvmOptions(nodeSettings, Map.of());
+            final List<String> jvmOptions = SystemJvmOptions.systemJvmOptions(nodeSettings, TEST_SYSPROPS);
             assertThat(jvmOptions, hasItem("-XX:ActiveProcessorCount=1"));
         }
         {
             // check rounding
             Settings nodeSettings = Settings.builder().put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), 0.2).build();
-            final List<String> jvmOptions = SystemJvmOptions.systemJvmOptions(nodeSettings, Map.of());
+            final List<String> jvmOptions = SystemJvmOptions.systemJvmOptions(nodeSettings, TEST_SYSPROPS);
             assertThat(jvmOptions, hasItem("-XX:ActiveProcessorCount=1"));
         }
         {
             // check validation
             Settings nodeSettings = Settings.builder().put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), 10000).build();
-            var e = expectThrows(IllegalArgumentException.class, () -> SystemJvmOptions.systemJvmOptions(nodeSettings, Map.of()));
+            var e = expectThrows(IllegalArgumentException.class, () -> SystemJvmOptions.systemJvmOptions(nodeSettings, TEST_SYSPROPS));
             assertThat(e.getMessage(), containsString("setting [node.processors] must be <="));
         }
     }
 
     public void testCommandLineDistributionType() {
-        final List<String> jvmOptions = SystemJvmOptions.systemJvmOptions(Settings.EMPTY, Map.of("es.distribution.type", "testdistro"));
+        var sysprops = new HashMap<>(TEST_SYSPROPS);
+        sysprops.put("es.distribution.type", "testdistro");
+        final List<String> jvmOptions = SystemJvmOptions.systemJvmOptions(Settings.EMPTY, sysprops);
         assertThat(jvmOptions, hasItem("-Des.distribution.type=testdistro"));
+    }
+
+    public void testLibraryPath() {
+        assertLibraryPath("Mac OS", "aarch64", "darwin-aarch64");
+        assertLibraryPath("Mac OS", "amd64", "darwin-x64");
+        assertLibraryPath("Linux", "aarch64", "linux-aarch64");
+        assertLibraryPath("Linux", "amd64", "linux-x64");
+        assertLibraryPath("Windows", "amd64", "windows-x64");
+        assertLibraryPath("Unknown", "aarch64", "unsupported_os[Unknown]-aarch64");
+        assertLibraryPath("Mac OS", "Unknown", "darwin-unsupported_arch[Unknown]");
+    }
+
+    private void assertLibraryPath(String os, String arch, String expected) {
+        var sysprops = Map.of("os.name", os, "os.arch", arch);
+        final List<String> jvmOptions = SystemJvmOptions.systemJvmOptions(Settings.EMPTY, sysprops);
+        Map<String, String> options = new HashMap<>();
+        for (var jvmOption : jvmOptions) {
+            if (jvmOption.startsWith("-D")) {
+                String[] parts = jvmOption.substring(2).split("=");
+                assert parts.length == 2;
+                options.put(parts[0], parts[1]);
+            }
+        }
+        assertThat(options, hasEntry(equalTo("java.library.path"), endsWith("platform" + File.separator + expected)));
+        assertThat(options, hasEntry(equalTo("jna.library.path"), endsWith("platform" + File.separator + expected)));
     }
 }

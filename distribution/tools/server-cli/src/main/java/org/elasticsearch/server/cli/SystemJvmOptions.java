@@ -147,7 +147,7 @@ final class SystemJvmOptions {
         } else if (osname.startsWith("Mac OS")) {
             os = "darwin";
         } else {
-            os = "unsupported_os_" + osname;
+            os = "unsupported_os[" + osname + "]";
         }
         String archname = sysprops.get("os.arch");
         String arch;
@@ -156,7 +156,7 @@ final class SystemJvmOptions {
         } else if (archname.equals("aarch64")) {
             arch = archname;
         } else {
-            arch = "unsupported_arch_" + archname;
+            arch = "unsupported_arch[" + archname + "]";
         }
         return platformDir.resolve(os + "-" + arch).toAbsolutePath();
     }

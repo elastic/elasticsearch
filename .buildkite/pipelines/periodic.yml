@@ -1234,6 +1234,7 @@ steps:
               - openjdk19
               - openjdk20
               - openjdk21
+              - openjdk22
             GRADLE_TASK:
               - checkPart1
               - checkPart2

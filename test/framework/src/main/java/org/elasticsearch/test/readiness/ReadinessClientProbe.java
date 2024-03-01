@@ -23,8 +23,6 @@ import java.security.AccessController;
 import java.security.PrivilegedAction;
 
 import static org.apache.lucene.tests.util.LuceneTestCase.expectThrows;
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.fail;
 
 /**
@@ -71,11 +69,10 @@ public interface ReadinessClientProbe {
 
         try (SocketChannel channel = SocketChannel.open(StandardProtocolFamily.INET)) {
             AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-                Throwable throwable = expectThrows(IOException.class, () -> {
+                expectThrows(ConnectException.class, () -> {
                     var result = channelConnect(channel, socketAddress);
                     probeLogger.info("No exception on channel connect, connection success [{}]", result);
                 });
-                assertThat(throwable, instanceOf(ConnectException.class));
                 return null;
             });
         }

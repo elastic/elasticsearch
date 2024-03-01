@@ -22,9 +22,10 @@ public final class LogicalVerifier {
     /** Verifies the optimized logical plan. */
     public Failures verify(LogicalPlan plan) {
         Failures failures = new Failures();
+        Failures dependencyFailures = new Failures();
 
         plan.forEachUp(p -> {
-            DEPENDENCY_CHECK.checkPlan(p, failures);
+            DEPENDENCY_CHECK.checkPlan(p, dependencyFailures);
 
             if (failures.hasFailures() == false) {
                 p.forEachExpression(ex -> {
@@ -34,6 +35,10 @@ public final class LogicalVerifier {
                 });
             }
         });
+
+        if (dependencyFailures.failures().isEmpty() == false) {
+            throw new IllegalStateException(dependencyFailures.toString());
+        }
 
         return failures;
     }

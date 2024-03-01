@@ -37,7 +37,6 @@ testClusters.configureEach {
 
 dependencies {
   api project(":client:rest")
-  api project(":libs:elasticsearch-ssl-config")
   // for parent/child testing
   testImplementation project(':modules:parent-join')
   testImplementation project(':modules:rest-root')

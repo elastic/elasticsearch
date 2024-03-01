@@ -8,7 +8,7 @@ esplugin {
   description 'Elasticsearch Expanded Pack Plugin - Security'
   classname 'org.elasticsearch.xpack.security.Security'
   requiresKeystore true
-  extendedPlugins = ['x-pack-core']
+  extendedPlugins = ['x-pack-core', 'transport-netty4']
 }
 
 base {
@@ -17,7 +17,7 @@ base {
 
 dependencies {
   compileOnly project(path: xpackModule('core'))
-  api project(path: ':modules:transport-netty4')
+  compileOnly project(path: ':modules:transport-netty4')
 
   testImplementation project(path: xpackModule('ilm'))
   testImplementation project(path: xpackModule('downsample'))

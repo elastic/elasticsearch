@@ -34,8 +34,6 @@ configurations {
 }
 
 dependencies {
-  api project(":libs:elasticsearch-ssl-config")
-
   // network stack
   api "io.netty:netty-buffer:${versions.netty}"
   api "io.netty:netty-codec:${versions.netty}"

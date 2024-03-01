@@ -1,4 +1,4 @@
-pr: 105518
+pr: 105874
 summary: NOOP update  _bulk operation, the noop_update_total is updated
 area: CRUD
 type: bug

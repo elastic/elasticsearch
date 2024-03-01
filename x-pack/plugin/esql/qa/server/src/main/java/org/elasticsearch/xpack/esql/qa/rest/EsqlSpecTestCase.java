@@ -18,7 +18,6 @@ import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.utils.GeometryValidator;
@@ -263,14 +262,13 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     }
 
     public static class TestRuleRestClient implements TestRule {
-        private static final long CLIENT_TIMEOUT = 40L;
         private ElasticsearchCluster cluster;
-        private Settings clientAuthSettings;
+        private Settings clientSettings;
         private RestClient client;
 
-        public TestRuleRestClient(ElasticsearchCluster cluster, Settings clientAuthSettings) {
+        public TestRuleRestClient(ElasticsearchCluster cluster, Settings clientSettings) {
             this.cluster = cluster;
-            this.clientAuthSettings = clientAuthSettings;
+            this.clientSettings = clientSettings;
         }
 
         public TestRuleRestClient(ElasticsearchCluster cluster) {
@@ -296,7 +294,6 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             };
         }
 
-        // TODO: See if we can use existing code for building the client
         private RestClient doStartClient() throws IOException {
             String address = cluster.getHttpAddress(0);
             int portSeparator = address.lastIndexOf(':');
@@ -305,25 +302,14 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             }
             String host = address.substring(0, portSeparator);
             int port = Integer.parseInt(address.substring(portSeparator + 1));
-            HttpHost[] remoteHttpHosts = new HttpHost[] { new HttpHost(host, port) };
+            HttpHost[] httpHosts = new HttpHost[] { new HttpHost(host, port) };
 
-            return clientBuilder(clientAuthSettings, remoteHttpHosts);
+            return buildClient(clientSettings, httpHosts);
         }
 
-        protected static TimeValue timeout() {
-            return TimeValue.timeValueSeconds(CLIENT_TIMEOUT);
-        }
-
-        private static RestClient clientBuilder(Settings settings, HttpHost[] hosts) throws IOException {
+        private static RestClient buildClient(Settings settings, HttpHost[] hosts) throws IOException {
             RestClientBuilder builder = RestClient.builder(hosts);
             doConfigureClient(builder, settings);
-
-            int timeout = Math.toIntExact(timeout().millis());
-            builder.setRequestConfigCallback(
-                requestConfigBuilder -> requestConfigBuilder.setConnectTimeout(timeout)
-                    .setConnectionRequestTimeout(timeout)
-                    .setSocketTimeout(timeout)
-            );
             builder.setStrictDeprecationMode(true);
             return builder.build();
         }

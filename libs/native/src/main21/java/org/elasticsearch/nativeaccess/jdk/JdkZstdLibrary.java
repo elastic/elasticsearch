@@ -8,9 +8,9 @@
 
 package org.elasticsearch.nativeaccess.jdk;
 
+import org.elasticsearch.nativeaccess.CloseableByteBuffer;
 import org.elasticsearch.nativeaccess.lib.ZstdLibrary;
 
-import java.lang.foreign.Arena;
 import java.lang.foreign.FunctionDescriptor;
 import java.lang.foreign.MemorySegment;
 import java.lang.invoke.MethodHandle;
@@ -22,7 +22,7 @@ import static java.lang.foreign.ValueLayout.JAVA_INT;
 import static java.lang.foreign.ValueLayout.JAVA_LONG;
 import static org.elasticsearch.nativeaccess.jdk.LinkerHelper.downcallHandle;
 
-public class JdkZstdLibrary implements ZstdLibrary {
+class JdkZstdLibrary implements ZstdLibrary {
 
     static {
         System.loadLibrary("zstd");
@@ -50,17 +50,13 @@ public class JdkZstdLibrary implements ZstdLibrary {
     }
 
     @Override
-    public long compress(ByteBuffer dst, int dstLen, ByteBuffer src, int srcLen, int compressionLevel) {
-        try (Arena arena = Arena.ofConfined()) {
-            var nativeDst = arena.allocate(dstLen);
-            var nativeSrc = arena.allocate(srcLen);
-            nativeSrc.asByteBuffer().put(0, src, src.position(), srcLen);
-            var compressedLen = (long) compress$mh.invokeExact(nativeDst, dstLen, nativeSrc, srcLen, compressionLevel);
-            if (isError(compressedLen) == false) {
-                assert compressedLen <= dstLen;
-                dst.put(dst.position(), nativeDst.asByteBuffer(), 0, (int) compressedLen);
-            }
-            return compressedLen;
+    public long compress(ByteBuffer dst, ByteBuffer src, int compressionLevel) {
+        assert dst.isDirect();
+        assert src.isDirect();
+        var nativeDst = MemorySegment.ofBuffer(dst);
+        var nativeSrc = MemorySegment.ofBuffer(src);
+        try {
+            return (long) compress$mh.invokeExact(nativeDst, dst.remaining(), nativeSrc, src.remaining(), compressionLevel);
         } catch (Throwable t) {
             throw new AssertionError(t);
         }
@@ -86,17 +82,13 @@ public class JdkZstdLibrary implements ZstdLibrary {
     }
 
     @Override
-    public long decompress(ByteBuffer dst, int dstLen, ByteBuffer src, int srcLen) {
-        try (Arena arena = Arena.ofConfined()) {
-            var nativeDst = arena.allocate(dstLen);
-            var nativeSrc = arena.allocate(srcLen);
-            nativeSrc.asByteBuffer().put(0, src, src.position(), srcLen);
-            var decompressedLen = (long) decompress$mh.invokeExact(nativeDst, dstLen, nativeSrc, srcLen);
-            if (isError(decompressedLen) == false) {
-                assert decompressedLen <= dstLen;
-                dst.put(dst.position(), nativeDst.asByteBuffer(), 0, (int) decompressedLen);
-            }
-            return decompressedLen;
+    public long decompress(ByteBuffer dst, ByteBuffer src) {
+        assert dst.isDirect();
+        assert src.isDirect();
+        var nativeDst = MemorySegment.ofBuffer(dst);
+        var nativeSrc = MemorySegment.ofBuffer(src);
+        try {
+            return (long) decompress$mh.invokeExact(nativeDst, dst.remaining(), nativeSrc, src.remaining());
         } catch (Throwable t) {
             throw new AssertionError(t);
         }

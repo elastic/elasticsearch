@@ -12,16 +12,19 @@ import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 import org.junit.BeforeClass;
 
-import java.nio.ByteBuffer;
 import java.util.Arrays;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public class ZstdTests extends ESTestCase {
 
+    static NativeAccess nativeAccess;
     static Zstd zstd;
 
     @BeforeClass
     public static void getZstd() {
-        zstd = NativeAccess.instance().getZstd();
+        nativeAccess = NativeAccess.instance();
+        zstd = nativeAccess.getZstd();
     }
 
     public void testCompressBound() {
@@ -34,53 +37,51 @@ public class ZstdTests extends ESTestCase {
     }
 
     public void testCompressValidation() {
-        assertEquals(
-            "Null destination buffer",
-            expectThrows(NullPointerException.class, () -> zstd.compress(null, ByteBuffer.allocate(1000), 0)).getMessage()
-        );
-        assertEquals(
-            "Null source buffer",
-            expectThrows(NullPointerException.class, () -> zstd.compress(ByteBuffer.allocate(1000), null, 0)).getMessage()
-        );
-        // dst capacity too low
-        byte[] toCompress = new byte[1000];
-        for (int i = 0; i < toCompress.length; ++i) {
-            toCompress[i] = randomByte();
+        try (var src = nativeAccess.newBuffer(1000);
+             var dst = nativeAccess.newBuffer(500)) {
+            var srcBuf = src.buffer();
+            var dstBuf = dst.buffer();
+
+            var npe1 = expectThrows(NullPointerException.class, () -> zstd.compress(null, srcBuf, 0));
+            assertThat(npe1.getMessage(), equalTo("Null destination buffer"));
+            var npe2 = expectThrows(NullPointerException.class, () -> zstd.compress(dstBuf, null, 0));
+            assertThat(npe2.getMessage(), equalTo("Null source buffer"));
+
+            // dst capacity too low
+            for (int i = 0; i < srcBuf.remaining(); ++i) {
+                srcBuf.put(i, randomByte());
+            }
+            var e = expectThrows(IllegalArgumentException.class, () -> zstd.compress(dstBuf, srcBuf, 0));
+            assertThat(e.getMessage(), equalTo("Destination buffer is too small"));
         }
-        assertEquals(
-            "Destination buffer is too small",
-            expectThrows(IllegalArgumentException.class, () -> zstd.compress(ByteBuffer.allocate(500), ByteBuffer.wrap(toCompress), 0))
-                .getMessage()
-        );
     }
 
     public void testDecompressValidation() {
-        assertEquals(
-            "Null destination buffer",
-            expectThrows(NullPointerException.class, () -> zstd.decompress(null, ByteBuffer.allocate(1000))).getMessage()
-        );
-        assertEquals(
-            "Null source buffer",
-            expectThrows(NullPointerException.class, () -> zstd.decompress(ByteBuffer.allocate(1000), null)).getMessage()
-        );
-        // Invalid compressed format
-        byte[] toCompress = new byte[1000];
-        for (int i = 0; i < toCompress.length; ++i) {
-            toCompress[i] = (byte) i;
+        try (var original = nativeAccess.newBuffer(1000);
+             var compressed = nativeAccess.newBuffer(500);
+             var restored = nativeAccess.newBuffer(500)) {
+            var originalBuf = original.buffer();
+            var compressedBuf = compressed.buffer();
+
+            var npe1 = expectThrows(NullPointerException.class, () -> zstd.decompress(null, originalBuf));
+            assertThat(npe1.getMessage(), equalTo("Null destination buffer"));
+            var npe2 = expectThrows(NullPointerException.class, () -> zstd.decompress(compressedBuf, null));
+            assertThat(npe2.getMessage(), equalTo("Null source buffer"));
+
+            // Invalid compressed format
+            for (int i = 0; i < originalBuf.remaining(); ++i) {
+                originalBuf.put(i, (byte) i);
+            }
+            var e = expectThrows(IllegalArgumentException.class, () -> zstd.decompress(compressedBuf, originalBuf));
+            assertThat(e.getMessage(), equalTo("Unknown frame descriptor"));
+
+            int compressedLength = zstd.compress(compressedBuf, originalBuf, 0);
+            compressedBuf.limit(compressedLength);
+            e = expectThrows(IllegalArgumentException.class, () -> zstd.decompress(restored.buffer(), compressedBuf));
+            assertThat(e.getMessage(), equalTo("Destination buffer is too small"));
+
+
         }
-        assertEquals(
-            "Unknown frame descriptor",
-            expectThrows(IllegalArgumentException.class, () -> zstd.decompress(ByteBuffer.allocate(500), ByteBuffer.wrap(toCompress)))
-                .getMessage()
-        );
-        final int compressedLength = zstd.compress(ByteBuffer.wrap(toCompress), ByteBuffer.allocate(1000), 0);
-        assertEquals(
-            "Destination buffer is too small",
-            expectThrows(
-                IllegalArgumentException.class,
-                () -> zstd.decompress(ByteBuffer.allocate(500), ByteBuffer.wrap(toCompress, 0, compressedLength))
-            ).getMessage()
-        );
     }
 
     public void testEmpty() {
@@ -106,32 +107,33 @@ public class ZstdTests extends ESTestCase {
     }
 
     private void doTestRoundtrip(byte[] data) {
-        {
-            byte[] compressed = new byte[zstd.compressBound(data.length)];
-            final int compressedLength = zstd.compress(ByteBuffer.wrap(compressed), ByteBuffer.wrap(data), randomIntBetween(-3, 9));
-            byte[] restored = new byte[data.length];
-            zstd.decompress(ByteBuffer.wrap(restored), ByteBuffer.wrap(compressed, 0, compressedLength));
-            assertArrayEquals(data, restored);
+        try (var original = nativeAccess.newBuffer(data.length);
+             var compressed = nativeAccess.newBuffer(zstd.compressBound(data.length));
+             var restored = nativeAccess.newBuffer(data.length)) {
+            original.buffer().put(0, data);
+            int compressedLength = zstd.compress(compressed.buffer(), original.buffer(), randomIntBetween(-3, 9));
+            compressed.buffer().limit(compressedLength);
+            int decompressedLength = zstd.decompress(restored.buffer(), compressed.buffer());
+            assertThat(restored.buffer(), equalTo(original.buffer()));
+            assertThat(decompressedLength, equalTo(data.length));
         }
+
         // Now with non-zero offsets
-        {
-            final int compressedOffset = randomIntBetween(1, 1000);
-            final int decompressedOffset = randomIntBetween(1, 1000);
-            byte[] dataCopy = new byte[decompressedOffset + data.length];
-            System.arraycopy(data, 0, dataCopy, decompressedOffset, data.length);
-            byte[] compressed = new byte[compressedOffset + zstd.compressBound(data.length)];
-            final int compressedLength = zstd.compress(
-                ByteBuffer.wrap(compressed, compressedOffset, compressed.length - compressedOffset),
-                ByteBuffer.wrap(dataCopy, decompressedOffset, data.length),
-                randomIntBetween(-3, 9)
-            );
-            byte[] restored = new byte[decompressedOffset + data.length];
-            final int decompressedLen = zstd.decompress(
-                ByteBuffer.wrap(restored, decompressedOffset, data.length),
-                ByteBuffer.wrap(compressed, compressedOffset, compressedLength)
-            );
-            assertEquals(data.length, decompressedLen);
-            assertArrayEquals(data, Arrays.copyOfRange(restored, decompressedOffset, decompressedOffset + data.length));
+        final int compressedOffset = randomIntBetween(1, 1000);
+        final int decompressedOffset = randomIntBetween(1, 1000);
+        try (var original = nativeAccess.newBuffer(decompressedOffset + data.length);
+             var compressed = nativeAccess.newBuffer(compressedOffset + zstd.compressBound(data.length));
+             var restored = nativeAccess.newBuffer(decompressedOffset + data.length)) {
+            original.buffer().put(decompressedOffset, data);
+            original.buffer().position(decompressedOffset);
+            compressed.buffer().position(compressedOffset);
+            int compressedLength = zstd.compress(compressed.buffer(), original.buffer(), randomIntBetween(-3, 9));
+            compressed.buffer().limit(compressedOffset + compressedLength);
+            restored.buffer().position(decompressedOffset);
+            int decompressedLength = zstd.decompress(restored.buffer(), compressed.buffer());
+            assertThat(restored.buffer().slice(decompressedOffset, data.length),
+                equalTo(original.buffer().slice(decompressedOffset, data.length)));
+            assertThat(decompressedLength, equalTo(data.length));
         }
     }
 }

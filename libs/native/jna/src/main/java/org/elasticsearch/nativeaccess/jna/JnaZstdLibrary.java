@@ -9,26 +9,24 @@
 package org.elasticsearch.nativeaccess.jna;
 
 import com.sun.jna.Library;
-import com.sun.jna.Memory;
 import com.sun.jna.Native;
-import com.sun.jna.Pointer;
 
 import org.elasticsearch.nativeaccess.lib.ZstdLibrary;
 
 import java.nio.ByteBuffer;
 
-public class JnaZstdLibrary implements ZstdLibrary {
+class JnaZstdLibrary implements ZstdLibrary {
 
     private interface NativeFunctions extends Library {
         long ZSTD_compressBound(int scrLen);
 
-        long ZSTD_compress(Pointer dst, int dstLen, Pointer src, int srcLen, int compressionLevel);
+        long ZSTD_compress(ByteBuffer dst, int dstLen, ByteBuffer src, int srcLen, int compressionLevel);
 
         boolean ZSTD_isError(long code);
 
         String ZSTD_getErrorName(long code);
 
-        long ZSTD_decompress(Pointer dst, int dstLen, Pointer src, int srcLen);
+        long ZSTD_decompress(ByteBuffer dst, int dstLen, ByteBuffer src, int srcLen);
     }
 
     private final NativeFunctions functions;
@@ -43,20 +41,8 @@ public class JnaZstdLibrary implements ZstdLibrary {
     }
 
     @Override
-    public long compress(ByteBuffer dst, int dstLen, ByteBuffer src, int srcLen, int compressionLevel) {
-        assert dst.isDirect() == false;
-        assert src.isDirect() == false;
-        assert dstLen != 0;
-        assert srcLen != 0;
-        try (Memory nativeDst = new Memory(dstLen); Memory nativeSrc = new Memory(srcLen)) {
-            nativeSrc.write(0, src.array(), src.position(), srcLen);
-            long compressedLen = functions.ZSTD_compress(nativeDst, dstLen, nativeSrc, srcLen, compressionLevel);
-            if (functions.ZSTD_isError(compressedLen) == false) {
-                assert compressedLen <= dstLen;
-                nativeDst.read(0, dst.array(), dst.position(), (int) compressedLen);
-            }
-            return compressedLen;
-        }
+    public long compress(ByteBuffer dst, ByteBuffer src, int compressionLevel) {
+        return functions.ZSTD_compress(dst, dst.remaining(), src, src.remaining(), compressionLevel);
     }
 
     @Override
@@ -70,17 +56,7 @@ public class JnaZstdLibrary implements ZstdLibrary {
     }
 
     @Override
-    public long decompress(ByteBuffer dst, int dstLen, ByteBuffer src, int srcLen) {
-        assert dst.isDirect() == false;
-        assert src.isDirect() == false;
-        try (Memory nativeDst = new Memory(dstLen); Memory nativeSrc = new Memory(srcLen)) {
-            nativeSrc.write(0, src.array(), src.position(), srcLen);
-            long decompressedLen = functions.ZSTD_decompress(nativeDst, dstLen, nativeSrc, srcLen);
-            if (functions.ZSTD_isError(decompressedLen) == false) {
-                assert decompressedLen <= dstLen;
-                nativeDst.read(0, dst.array(), dst.position(), (int) decompressedLen);
-            }
-            return decompressedLen;
-        }
+    public long decompress(ByteBuffer dst, ByteBuffer src) {
+        return functions.ZSTD_decompress(dst, dst.remaining(), src, src.remaining());
     }
 }

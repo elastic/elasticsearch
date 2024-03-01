@@ -32,4 +32,6 @@ public interface NativeAccess {
      * @return an object used to compress and decompress bytes using zstd
      */
     Zstd getZstd();
+
+    CloseableByteBuffer newBuffer(int len);
 }

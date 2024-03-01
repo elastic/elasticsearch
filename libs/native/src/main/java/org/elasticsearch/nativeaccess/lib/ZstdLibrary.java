@@ -14,11 +14,11 @@ public non-sealed interface ZstdLibrary extends NativeLibrary {
 
     long compressBound(int scrLen);
 
-    long compress(ByteBuffer dst, int dstLen, ByteBuffer src, int srcLen, int compressionLevel);
+    long compress(ByteBuffer dst, ByteBuffer src, int compressionLevel);
 
     boolean isError(long code);
 
     String getErrorName(long code);
 
-    long decompress(ByteBuffer dst, int dstLen, ByteBuffer src, int srcLen);
+    long decompress(ByteBuffer dst, ByteBuffer src);
 }

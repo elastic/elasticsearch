@@ -136,7 +136,7 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
         }
 
         then:
-        result.tasks.size() == 3
+        result.tasks.size() == 6
         result.output.count("Unpacking linux-12.0.2-x64.tar.gz using ${SymbolicLinkPreservingUntarTransform.simpleName}") == 1
 
         where:
@@ -165,7 +165,7 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
                 architecture = "x64"
               }
             }
-            
+
             tasks.register("getJdk", PrintJdk) {
                 dependsOn jdks.myJdk
                 jdkPath = jdks.myJdk.getPath()
@@ -174,7 +174,7 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
             class PrintJdk extends DefaultTask {
                 @Input
                 String jdkPath
-                
+
                 @TaskAction void print() {
                     println "JDK HOME: " + jdkPath
                 }

@@ -11,30 +11,23 @@ import org.elasticsearch.Version;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
 import org.elasticsearch.xpack.ql.CsvSpecReader.CsvTestCase;
-import org.junit.Before;
 import org.junit.ClassRule;
-
-import java.io.IOException;
+import org.junit.rules.RuleChain;
+import org.junit.rules.TestRule;
 
 import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
-import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.CSV_DATASET_MAP;
-import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.loadDataSetIntoEs;
 import static org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase.Mode.ASYNC;
 
 public class MixedClusterEsqlSpecIT extends EsqlSpecTestCase {
-    @ClassRule
     public static ElasticsearchCluster cluster = Clusters.mixedVersionCluster();
+    public static CsvLoader loader = new CsvLoader(cluster);
+
+    @ClassRule
+    public static TestRule clusterRule = RuleChain.outerRule(cluster).around(loader);
 
     @Override
     protected String getTestRestCluster() {
         return cluster.getHttpAddresses();
-    }
-
-    @Before
-    public void setup() throws IOException {
-        if (indexExists(CSV_DATASET_MAP.keySet().iterator().next()) == false) {
-            loadDataSetIntoEs(client());
-        }
     }
 
     static final Version bwcVersion = Version.fromString(System.getProperty("tests.old_cluster_version"));

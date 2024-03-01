@@ -26,7 +26,7 @@ public abstract class AbstractRecyclerTestCase extends ESTestCase {
 
         @Override
         public byte[] newInstance() {
-            byte[] value = new byte[10];
+            byte[] value = new byte[pageSize()];
             // "fresh" is intentionally not 0 to ensure we covered this code path
             Arrays.fill(value, FRESH);
             return value;

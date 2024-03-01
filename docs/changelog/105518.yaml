@@ -1,0 +1,6 @@
+pr: 105518
+summary: NOOP update  _bulk operation, the noop_update_total is updated
+area: CRUD
+type: bug
+issues:
+  - 105742

@@ -339,6 +339,10 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             if (updateResult.getResponseResult() == DocWriteResponse.Result.NOOP) {
                 context.markOperationAsNoOp(updateResult.action());
                 context.markAsCompleted(context.getExecutionResult());
+                IndexShard shard = context.getPrimary();
+                if (shard != null) {
+                    shard.noopUpdate();
+                }
                 return true;
             }
             context.setRequestToExecute(updateResult.action());

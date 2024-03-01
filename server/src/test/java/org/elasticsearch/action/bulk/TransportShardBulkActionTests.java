@@ -528,6 +528,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         assertThat(bulkShardRequest.items().length, equalTo(1));
         assertEquals(primaryRequest, bulkShardRequest.items()[0]); // check that bulk item was not mutated
         assertThat(primaryResponse.getResponse().getSeqNo(), equalTo(0L));
+        //When a NOOP update occurs, the noopUpdate() method is executed.
+        verify(shard).noopUpdate();
     }
 
     public void testUpdateRequestWithFailure() throws Exception {

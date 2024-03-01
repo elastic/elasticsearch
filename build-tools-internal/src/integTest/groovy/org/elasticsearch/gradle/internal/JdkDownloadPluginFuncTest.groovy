@@ -109,7 +109,7 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
              id 'elasticsearch.jdk-download' apply false
             }
 
-            subprojects {
+            subprojects.findAll { it.name.startsWith('sub-') }.each {
                 apply plugin: 'elasticsearch.jdk-download'
 
                 jdks {
@@ -136,7 +136,7 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
         }
 
         then:
-        result.tasks.size() == 6
+        result.tasks.size() == 3
         result.output.count("Unpacking linux-12.0.2-x64.tar.gz using ${SymbolicLinkPreservingUntarTransform.simpleName}") == 1
 
         where:

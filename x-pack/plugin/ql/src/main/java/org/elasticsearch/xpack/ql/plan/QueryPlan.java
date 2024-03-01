@@ -27,7 +27,7 @@ public abstract class QueryPlan<PlanType extends QueryPlan<PlanType>> extends No
     private AttributeSet lazyOutputSet;
     private AttributeSet lazyInputSet;
     private List<Expression> lazyExpressions;
-    private AttributeSet lazyReferences;
+    protected AttributeSet lazyReferences;
 
     public QueryPlan(Source source, List<PlanType> children) {
         super(source, children);

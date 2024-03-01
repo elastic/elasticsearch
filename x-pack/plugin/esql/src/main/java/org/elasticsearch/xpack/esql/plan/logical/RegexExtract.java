@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.plan.logical;
 
 import org.elasticsearch.xpack.ql.expression.Attribute;
+import org.elasticsearch.xpack.ql.expression.AttributeSet;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.UnaryPlan;
@@ -44,6 +45,15 @@ public abstract class RegexExtract extends UnaryPlan {
 
     public List<Attribute> extractedFields() {
         return extractedFields;
+    }
+
+    @Override
+    public AttributeSet references() {
+        if (lazyReferences == null) {
+            lazyReferences = new AttributeSet();
+            lazyReferences.addAll(input.references());
+        }
+        return lazyReferences;
     }
 
     @Override

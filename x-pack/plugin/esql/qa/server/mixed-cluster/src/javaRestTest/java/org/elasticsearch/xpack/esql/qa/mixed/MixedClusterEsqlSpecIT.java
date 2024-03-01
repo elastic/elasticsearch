@@ -20,10 +20,11 @@ import static org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase.Mode.ASYNC;
 
 public class MixedClusterEsqlSpecIT extends EsqlSpecTestCase {
     public static ElasticsearchCluster cluster = Clusters.mixedVersionCluster();
-    public static CsvLoader loader = new CsvLoader(cluster);
+    public static TestRuleRestClient client = new TestRuleRestClient(cluster);
+    public static CsvLoader loader = new CsvLoader(client);
 
     @ClassRule
-    public static TestRule clusterRule = RuleChain.outerRule(cluster).around(loader);
+    public static TestRule clusterRule = RuleChain.outerRule(cluster).around(client).around(loader);
 
     @Override
     protected String getTestRestCluster() {

@@ -16,10 +16,11 @@ import org.junit.rules.TestRule;
 
 public class EsqlSpecIT extends EsqlSpecTestCase {
     public static ElasticsearchCluster cluster = Clusters.testCluster();
-    public static CsvLoader loader = new CsvLoader(cluster);
+    public static TestRuleRestClient client = new TestRuleRestClient(cluster);
+    public static CsvLoader loader = new CsvLoader(client);
 
     @ClassRule
-    public static TestRule clusterRule = RuleChain.outerRule(cluster).around(loader);
+    public static TestRule clusterRule = RuleChain.outerRule(cluster).around(client).around(loader);
 
     @Override
     protected String getTestRestCluster() {

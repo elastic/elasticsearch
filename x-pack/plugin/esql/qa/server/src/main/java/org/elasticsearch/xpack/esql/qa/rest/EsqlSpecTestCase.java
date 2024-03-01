@@ -109,7 +109,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     }
 
     @AfterClass
-    // TODO: This should become of a classrule for consistency.
+    // TODO: This should become part of a classrule for consistency.
     public static void wipeTestData() throws IOException {
         try {
             adminClient().performRequest(new Request("DELETE", "/*"));
@@ -244,19 +244,41 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     }
 
     public static class CsvLoader implements TestRule {
+        TestRuleRestClient client;
+
+        public CsvLoader(TestRuleRestClient client) {
+            this.client = client;
+        }
+
+        @Override
+        public Statement apply(Statement base, Description description) {
+            return new Statement() {
+                @Override
+                public void evaluate() throws Throwable {
+                    loadDataSetIntoEs(client.client());
+                    base.evaluate();
+                }
+            };
+        }
+    }
+
+    public static class TestRuleRestClient implements TestRule {
         private static final long CLIENT_TIMEOUT = 40L;
+        private ElasticsearchCluster cluster;
+        private Settings clientAuthSettings;
+        private RestClient client;
 
-        ElasticsearchCluster cluster;
-        Settings clientAuthSettings;
-        RestClient client;
-
-        public CsvLoader(ElasticsearchCluster cluster, Settings clientAuthSettings) {
+        public TestRuleRestClient(ElasticsearchCluster cluster, Settings clientAuthSettings) {
             this.cluster = cluster;
             this.clientAuthSettings = clientAuthSettings;
         }
 
-        public CsvLoader(ElasticsearchCluster cluster) {
+        public TestRuleRestClient(ElasticsearchCluster cluster) {
             this(cluster, Settings.builder().build());
+        }
+
+        public RestClient client() {
+            return client;
         }
 
         @Override
@@ -266,7 +288,6 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
                 public void evaluate() throws Throwable {
                     try {
                         client = doStartClient();
-                        loadDataSetIntoEs(client);
                         base.evaluate();
                     } finally {
                         IOUtils.close(client);

@@ -275,6 +275,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             };
         }
 
+        // TODO: See if we can use existing code for building the client
         private RestClient doStartClient() throws IOException {
             String address = cluster.getHttpAddress(0);
             int portSeparator = address.lastIndexOf(':');

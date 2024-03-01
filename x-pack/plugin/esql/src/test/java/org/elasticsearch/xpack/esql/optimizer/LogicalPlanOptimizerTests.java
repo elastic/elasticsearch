@@ -3238,7 +3238,6 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(Expressions.names(local.output()), contains(NO_FIELDS.get(0).name(), "x", "language_code", "language_name"));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105436")
     public void testPlanSanityCheck() throws Exception {
         var plan = optimizedPlan("""
             from test
@@ -3264,7 +3263,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             )
         );
 
-        VerificationException e = expectThrows(VerificationException.class, () -> logicalOptimizer.optimize(invalidPlan));
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> logicalOptimizer.optimize(invalidPlan));
         assertThat(e.getMessage(), containsString("Plan [OrderBy[[Order[salary"));
         assertThat(e.getMessage(), containsString(" optimized incorrectly due to missing references [salary"));
     }

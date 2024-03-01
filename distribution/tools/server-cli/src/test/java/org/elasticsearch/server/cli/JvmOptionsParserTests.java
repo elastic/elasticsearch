@@ -15,9 +15,9 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ESTestCase.WithoutSecurityManager;
 
 import java.io.BufferedReader;
-import java.io.File;
 import java.io.IOException;
 import java.io.StringReader;
+import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
@@ -405,7 +405,8 @@ public class JvmOptionsParserTests extends ESTestCase {
                 options.put(parts[0], parts[1]);
             }
         }
-        assertThat(options, hasEntry(equalTo("java.library.path"), endsWith("platform" + File.separator + expected)));
-        assertThat(options, hasEntry(equalTo("jna.library.path"), endsWith("platform" + File.separator + expected)));
+        String separator = FileSystems.getDefault().getSeparator();
+        assertThat(options, hasEntry(equalTo("java.library.path"), endsWith("platform" + separator + expected)));
+        assertThat(options, hasEntry(equalTo("jna.library.path"), endsWith("platform" + separator + expected)));
     }
 }

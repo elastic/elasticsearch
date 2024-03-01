@@ -21,6 +21,7 @@ import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.ResolutionStrategy;
+import org.gradle.api.file.FileCollection;
 import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.provider.Provider;
@@ -187,7 +188,7 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
 
         project.getTasks().withType(Test.class).configureEach(test -> {
             var dep = project.getDependencies().project(Map.of("path", nativeProject, "configuration", "runtimePath"));
-            Configuration nativeConfig = project.getConfigurations().detachedConfiguration(dep);
+            FileCollection nativeConfig = project.getConfigurations().detachedConfiguration(dep);
             var systemProperties = test.getExtensions().getByType(SystemPropertyCommandLineArgumentProvider.class);
             var libraryPath = (Supplier<String>) () -> String.format(
                 Locale.ROOT,

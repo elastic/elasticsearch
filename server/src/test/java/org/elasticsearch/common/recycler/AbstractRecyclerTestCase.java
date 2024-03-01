@@ -43,6 +43,11 @@ public abstract class AbstractRecyclerTestCase extends ESTestCase {
             Arrays.fill(value, DEAD);
         }
 
+        @Override
+        public int pageSize() {
+            return 10;
+        }
+
     };
 
     protected void assertFresh(byte[] data) {

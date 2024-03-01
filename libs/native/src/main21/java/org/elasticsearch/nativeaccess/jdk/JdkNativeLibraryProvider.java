@@ -18,6 +18,16 @@ import java.util.Map;
 public class JdkNativeLibraryProvider extends NativeLibraryProvider {
 
     public JdkNativeLibraryProvider() {
-        super("jdk", Map.of(JavaLibrary.class, JdkJavaLibrary::new, PosixCLibrary.class, JdkPosixCLibrary::new, ZstdLibrary.class, JdkZstdLibrary::new));
+        super(
+            "jdk",
+            Map.of(
+                JavaLibrary.class,
+                JdkJavaLibrary::new,
+                PosixCLibrary.class,
+                JdkPosixCLibrary::new,
+                ZstdLibrary.class,
+                JdkZstdLibrary::new
+            )
+        );
     }
 }

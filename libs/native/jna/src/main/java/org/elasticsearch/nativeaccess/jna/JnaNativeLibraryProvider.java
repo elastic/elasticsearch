@@ -18,6 +18,16 @@ import java.util.Map;
 public class JnaNativeLibraryProvider extends NativeLibraryProvider {
 
     public JnaNativeLibraryProvider() {
-        super("jna", Map.of(JavaLibrary.class, JnaJavaLibrary::new, PosixCLibrary.class, JnaPosixCLibrary::new, ZstdLibrary.class, JnaZstdLibrary::new));
+        super(
+            "jna",
+            Map.of(
+                JavaLibrary.class,
+                JnaJavaLibrary::new,
+                PosixCLibrary.class,
+                JnaPosixCLibrary::new,
+                ZstdLibrary.class,
+                JnaZstdLibrary::new
+            )
+        );
     }
 }

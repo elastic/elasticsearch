@@ -8,7 +8,6 @@
 
 package org.elasticsearch.nativeaccess.jdk;
 
-import org.elasticsearch.nativeaccess.CloseableByteBuffer;
 import org.elasticsearch.nativeaccess.lib.ZstdLibrary;
 
 import java.lang.foreign.FunctionDescriptor;

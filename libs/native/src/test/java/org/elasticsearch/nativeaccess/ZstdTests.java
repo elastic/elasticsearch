@@ -37,8 +37,7 @@ public class ZstdTests extends ESTestCase {
     }
 
     public void testCompressValidation() {
-        try (var src = nativeAccess.newBuffer(1000);
-             var dst = nativeAccess.newBuffer(500)) {
+        try (var src = nativeAccess.newBuffer(1000); var dst = nativeAccess.newBuffer(500)) {
             var srcBuf = src.buffer();
             var dstBuf = dst.buffer();
 
@@ -57,9 +56,11 @@ public class ZstdTests extends ESTestCase {
     }
 
     public void testDecompressValidation() {
-        try (var original = nativeAccess.newBuffer(1000);
-             var compressed = nativeAccess.newBuffer(500);
-             var restored = nativeAccess.newBuffer(500)) {
+        try (
+            var original = nativeAccess.newBuffer(1000);
+            var compressed = nativeAccess.newBuffer(500);
+            var restored = nativeAccess.newBuffer(500)
+        ) {
             var originalBuf = original.buffer();
             var compressedBuf = compressed.buffer();
 
@@ -79,7 +80,6 @@ public class ZstdTests extends ESTestCase {
             compressedBuf.limit(compressedLength);
             e = expectThrows(IllegalArgumentException.class, () -> zstd.decompress(restored.buffer(), compressedBuf));
             assertThat(e.getMessage(), equalTo("Destination buffer is too small"));
-
 
         }
     }
@@ -107,9 +107,11 @@ public class ZstdTests extends ESTestCase {
     }
 
     private void doTestRoundtrip(byte[] data) {
-        try (var original = nativeAccess.newBuffer(data.length);
-             var compressed = nativeAccess.newBuffer(zstd.compressBound(data.length));
-             var restored = nativeAccess.newBuffer(data.length)) {
+        try (
+            var original = nativeAccess.newBuffer(data.length);
+            var compressed = nativeAccess.newBuffer(zstd.compressBound(data.length));
+            var restored = nativeAccess.newBuffer(data.length)
+        ) {
             original.buffer().put(0, data);
             int compressedLength = zstd.compress(compressed.buffer(), original.buffer(), randomIntBetween(-3, 9));
             compressed.buffer().limit(compressedLength);
@@ -121,9 +123,11 @@ public class ZstdTests extends ESTestCase {
         // Now with non-zero offsets
         final int compressedOffset = randomIntBetween(1, 1000);
         final int decompressedOffset = randomIntBetween(1, 1000);
-        try (var original = nativeAccess.newBuffer(decompressedOffset + data.length);
-             var compressed = nativeAccess.newBuffer(compressedOffset + zstd.compressBound(data.length));
-             var restored = nativeAccess.newBuffer(decompressedOffset + data.length)) {
+        try (
+            var original = nativeAccess.newBuffer(decompressedOffset + data.length);
+            var compressed = nativeAccess.newBuffer(compressedOffset + zstd.compressBound(data.length));
+            var restored = nativeAccess.newBuffer(decompressedOffset + data.length)
+        ) {
             original.buffer().put(decompressedOffset, data);
             original.buffer().position(decompressedOffset);
             compressed.buffer().position(compressedOffset);
@@ -131,8 +135,10 @@ public class ZstdTests extends ESTestCase {
             compressed.buffer().limit(compressedOffset + compressedLength);
             restored.buffer().position(decompressedOffset);
             int decompressedLength = zstd.decompress(restored.buffer(), compressed.buffer());
-            assertThat(restored.buffer().slice(decompressedOffset, data.length),
-                equalTo(original.buffer().slice(decompressedOffset, data.length)));
+            assertThat(
+                restored.buffer().slice(decompressedOffset, data.length),
+                equalTo(original.buffer().slice(decompressedOffset, data.length))
+            );
             assertThat(decompressedLength, equalTo(data.length));
         }
     }

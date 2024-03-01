@@ -11,18 +11,15 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
 import org.elasticsearch.xpack.ql.CsvSpecReader.CsvTestCase;
 import org.junit.ClassRule;
+import org.junit.rules.RuleChain;
+import org.junit.rules.TestRule;
 
 public class EsqlSpecIT extends EsqlSpecTestCase {
+    public static ElasticsearchCluster cluster = Clusters.testCluster();
+    public static CsvLoader loader = new CsvLoader(cluster);
+
     @ClassRule
-    public static ClusterWithCsvData cluster = new ClusterWithCsvData(
-        ElasticsearchCluster.local()
-            .distribution(DistributionType.DEFAULT)
-            .nodes(2)
-            .setting("xpack.security.enabled", "false")
-            .setting("xpack.license.self_generated.type", "trial")
-            .build(),
-        Settings.builder().build()
-    );
+    public static TestRule clusterRule = RuleChain.outerRule(cluster).around(loader);
 
     @Override
     protected String getTestRestCluster() {

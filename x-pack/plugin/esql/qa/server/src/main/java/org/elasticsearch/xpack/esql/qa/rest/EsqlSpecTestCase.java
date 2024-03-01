@@ -243,47 +243,34 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         });
     }
 
-    public static class ClusterWithCsvData implements TestRule {
+    public static class CsvLoader implements TestRule {
         private static final long CLIENT_TIMEOUT = 40L;
 
         ElasticsearchCluster cluster;
         Settings clientAuthSettings;
         RestClient client;
 
-        public ClusterWithCsvData(ElasticsearchCluster cluster, Settings clientAuthSettings) {
+        public CsvLoader(ElasticsearchCluster cluster, Settings clientAuthSettings) {
             this.cluster = cluster;
             this.clientAuthSettings = clientAuthSettings;
         }
 
-        public ElasticsearchCluster cluster() {
-            return cluster;
+        public CsvLoader(ElasticsearchCluster cluster) {
+            this(cluster, Settings.builder().build());
         }
 
         @Override
         public Statement apply(Statement base, Description description) {
-            return cluster.apply(startClient(loadCsvData(base)), description);
-        }
-
-        private Statement startClient(Statement base) {
             return new Statement() {
                 @Override
                 public void evaluate() throws Throwable {
                     try {
                         client = doStartClient();
+                        loadDataSetIntoEs(client);
                         base.evaluate();
                     } finally {
                         IOUtils.close(client);
                     }
-                }
-            };
-        }
-
-        private Statement loadCsvData(Statement base) {
-            return new Statement() {
-                @Override
-                public void evaluate() throws Throwable {
-                    loadDataSetIntoEs(client);
-                    base.evaluate();
                 }
             };
         }

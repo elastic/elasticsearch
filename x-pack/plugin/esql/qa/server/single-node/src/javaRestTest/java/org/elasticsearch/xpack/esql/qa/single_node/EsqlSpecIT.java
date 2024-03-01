@@ -9,20 +9,25 @@ package org.elasticsearch.xpack.esql.qa.single_node;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.TestClustersThreadFilter;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
 import org.elasticsearch.xpack.ql.CsvSpecReader.CsvTestCase;
 import org.junit.ClassRule;
+import org.junit.rules.RuleChain;
+import org.junit.rules.TestRule;
 
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class EsqlSpecIT extends EsqlSpecTestCase {
+    public static ElasticsearchCluster cluster = Clusters.testCluster();
+    public static CsvLoader loader = new CsvLoader(cluster);
+
     @ClassRule
-    public static ClusterWithCsvData cluster = new ClusterWithCsvData(Clusters.testCluster(), Settings.builder().build());
+    public static TestRule clusterRule = RuleChain.outerRule(cluster).around(loader);
 
     @Override
     protected String getTestRestCluster() {
-        return cluster.cluster().getHttpAddresses();
+        return cluster.getHttpAddresses();
     }
 
     public EsqlSpecIT(String fileName, String groupName, String testName, Integer lineNumber, CsvTestCase testCase, Mode mode) {

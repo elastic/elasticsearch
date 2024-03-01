@@ -99,17 +99,13 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
         given:
         def mockRepoUrl = urlPath(jdkVendor, jdkVersion, platform)
         def mockedContent = filebytes(jdkVendor, platform)
-        3.times {
-            settingsFile << """
-                include ':sub-$it'
-            """
-        }
         buildFile.text = """
             plugins {
              id 'elasticsearch.jdk-download' apply false
             }
-
-            subprojects.findAll { it.name.startsWith('sub-') }.each {
+        """
+        3.times {
+            subProject(':sub-' + it) << """
                 apply plugin: 'elasticsearch.jdk-download'
 
                 jdks {
@@ -126,8 +122,8 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
                         println "JDK HOME: " + jdks.myJdk
                     }
                 }
-            }
-        """
+            """
+        }
 
         when:
         def result = WiremockFixture.withWireMock(mockRepoUrl, mockedContent) { server ->

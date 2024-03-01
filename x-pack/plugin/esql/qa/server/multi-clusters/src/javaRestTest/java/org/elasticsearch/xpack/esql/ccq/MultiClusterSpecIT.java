@@ -21,7 +21,6 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
 import org.elasticsearch.xpack.ql.CsvSpecReader;
 import org.elasticsearch.xpack.ql.CsvSpecReader.CsvTestCase;
-import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
@@ -35,9 +34,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
-import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.CSV_DATASET_MAP;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.ENRICH_SOURCE_INDICES;
-import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.loadDataSetIntoEs;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -53,16 +50,17 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
 
     static ElasticsearchCluster remoteCluster = Clusters.remoteCluster();
     static ElasticsearchCluster localCluster = Clusters.localCluster(remoteCluster);
+    public static ClosingTestRule<RestClient> client = new ClosingTestRule<>() {
+        @Override
+        protected RestClient provideObject() throws IOException {
+            HttpHost[] localHosts = parseClusterHostsStatic(localCluster.getHttpAddresses()).toArray(HttpHost[]::new);
+            return doBuildClient(Settings.builder().build(), localHosts);
+        }
+    };
+    public static CsvLoader loader = new CsvLoader(client);
 
     @ClassRule
-    public static TestRule clusterRule = RuleChain.outerRule(remoteCluster).around(localCluster);
-
-    @Before
-    public void setup() throws IOException {
-        if (indexExists(CSV_DATASET_MAP.keySet().iterator().next()) == false) {
-            loadDataSetIntoEs(client());
-        }
-    }
+    public static TestRule clusterRule = RuleChain.outerRule(remoteCluster).around(localCluster).around(client).around(loader);
 
     public MultiClusterSpecIT(String fileName, String groupName, String testName, Integer lineNumber, CsvTestCase testCase, Mode mode) {
         super(fileName, groupName, testName, lineNumber, convertToRemoteIndices(testCase), mode);
@@ -82,9 +80,13 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
 
     @Override
     protected RestClient buildClient(Settings settings, HttpHost[] localHosts) throws IOException {
-        RestClient localClient = super.buildClient(settings, localHosts);
-        HttpHost[] remoteHosts = parseClusterHosts(remoteCluster.getHttpAddresses()).toArray(HttpHost[]::new);
-        RestClient remoteClient = super.buildClient(settings, remoteHosts);
+        return doBuildClient(settings, localHosts);
+    }
+
+    private static RestClient doBuildClient(Settings settings, HttpHost[] localHosts) throws IOException {
+        RestClient localClient = buildClientStatic(settings, localHosts);
+        HttpHost[] remoteHosts = parseClusterHostsStatic(remoteCluster.getHttpAddresses()).toArray(HttpHost[]::new);
+        RestClient remoteClient = buildClientStatic(settings, remoteHosts);
         return twoClients(localClient, remoteClient);
     }
 

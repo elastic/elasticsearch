@@ -38,6 +38,7 @@ import org.junit.rules.TestRule;
 import org.junit.runner.Description;
 import org.junit.runners.model.Statement;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.net.URL;
 import java.util.ArrayList;
@@ -45,6 +46,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import static java.util.Collections.unmodifiableList;
 import static org.apache.lucene.geo.GeoEncodingUtils.decodeLatitude;
 import static org.apache.lucene.geo.GeoEncodingUtils.decodeLongitude;
 import static org.apache.lucene.geo.GeoEncodingUtils.encodeLatitude;
@@ -242,10 +244,51 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         });
     }
 
-    public static class CsvLoader implements TestRule {
-        TestRuleRestClient client;
+    public static RestClient startClient(ElasticsearchCluster cluster, Settings clientSettings) throws IOException {
+        String address = cluster.getHttpAddress(0);
+        int portSeparator = address.lastIndexOf(':');
+        if (portSeparator < 0) {
+            throw new IllegalArgumentException("Illegal cluster url [" + address + "]");
+        }
+        String host = address.substring(0, portSeparator);
+        int port = Integer.parseInt(address.substring(portSeparator + 1));
+        HttpHost[] httpHosts = new HttpHost[] { new HttpHost(host, port) };
 
-        public CsvLoader(TestRuleRestClient client) {
+        return buildClientStatic(clientSettings, httpHosts);
+    }
+
+    /**
+     * Like {@link ESRestTestCase#buildClient(Settings, HttpHost[])} but static.
+     */
+    public static RestClient buildClientStatic(Settings settings, HttpHost[] hosts) throws IOException {
+        RestClientBuilder builder = RestClient.builder(hosts);
+        doConfigureClient(builder, settings);
+        builder.setStrictDeprecationMode(true);
+        return builder.build();
+    }
+
+    /**
+     * Like {@link ESRestTestCase#parseClusterHosts(String)} but static.
+     */
+    protected static List<HttpHost> parseClusterHostsStatic(String hostsString) {
+        String[] stringUrls = hostsString.split(",");
+        List<HttpHost> hosts = new ArrayList<>(stringUrls.length);
+        for (String stringUrl : stringUrls) {
+            int portSeparator = stringUrl.lastIndexOf(':');
+            if (portSeparator < 0) {
+                throw new IllegalArgumentException("Illegal cluster url [" + stringUrl + "]");
+            }
+            String host = stringUrl.substring(0, portSeparator);
+            int port = Integer.valueOf(stringUrl.substring(portSeparator + 1));
+            hosts.add(new HttpHost(host, port, "http"));
+        }
+        return unmodifiableList(hosts);
+    }
+
+    public static class CsvLoader implements TestRule {
+        ClosingTestRule<RestClient> client;
+
+        public CsvLoader(ClosingTestRule<RestClient> client) {
             this.client = client;
         }
 
@@ -254,30 +297,21 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             return new Statement() {
                 @Override
                 public void evaluate() throws Throwable {
-                    loadDataSetIntoEs(client.client());
+                    loadDataSetIntoEs(client.get());
                     base.evaluate();
                 }
             };
         }
     }
 
-    public static class TestRuleRestClient implements TestRule {
-        private ElasticsearchCluster cluster;
-        private Settings clientSettings;
-        private RestClient client;
+    public abstract static class ClosingTestRule<T extends Closeable> implements TestRule {
+        private T providedObject;
 
-        public TestRuleRestClient(ElasticsearchCluster cluster, Settings clientSettings) {
-            this.cluster = cluster;
-            this.clientSettings = clientSettings;
+        public T get() {
+            return providedObject;
         }
 
-        public TestRuleRestClient(ElasticsearchCluster cluster) {
-            this(cluster, Settings.builder().build());
-        }
-
-        public RestClient client() {
-            return client;
-        }
+        protected abstract T provideObject() throws IOException;
 
         @Override
         public Statement apply(Statement base, Description description) {
@@ -285,33 +319,13 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
                 @Override
                 public void evaluate() throws Throwable {
                     try {
-                        client = doStartClient();
+                        providedObject = provideObject();
                         base.evaluate();
                     } finally {
-                        IOUtils.close(client);
+                        IOUtils.close(providedObject);
                     }
                 }
             };
-        }
-
-        private RestClient doStartClient() throws IOException {
-            String address = cluster.getHttpAddress(0);
-            int portSeparator = address.lastIndexOf(':');
-            if (portSeparator < 0) {
-                throw new IllegalArgumentException("Illegal cluster url [" + address + "]");
-            }
-            String host = address.substring(0, portSeparator);
-            int port = Integer.parseInt(address.substring(portSeparator + 1));
-            HttpHost[] httpHosts = new HttpHost[] { new HttpHost(host, port) };
-
-            return buildClient(clientSettings, httpHosts);
-        }
-
-        private static RestClient buildClient(Settings settings, HttpHost[] hosts) throws IOException {
-            RestClientBuilder builder = RestClient.builder(hosts);
-            doConfigureClient(builder, settings);
-            builder.setStrictDeprecationMode(true);
-            return builder.build();
         }
     }
 }

@@ -51,7 +51,6 @@ emp_no:integer | x:keyword | lang:keyword
 ;
 
 
-
 withAliasSort
 from employees | eval x = to_string(languages) | keep emp_no, x  | sort emp_no | limit 3 
 | enrich languages_policy on x with lang = language_name;
@@ -60,6 +59,17 @@ emp_no:integer | x:keyword | lang:keyword
 10001          | 2         | French
 10002          | 5         | null
 10003          | 4         | German
+;
+
+
+withAliasOverwriteName#[skip:-8.13.0]
+from employees | sort emp_no
+| eval x = to_string(languages) | enrich languages_policy on x with emp_no = language_name
+| keep emp_no | limit 1
+;
+
+emp_no:keyword
+French
 ;
 
 

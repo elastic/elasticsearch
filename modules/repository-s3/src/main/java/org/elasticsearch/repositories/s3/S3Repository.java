@@ -31,7 +31,6 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.repositories.FinalizeSnapshotContext;
-import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.blobstore.MeteredBlobStoreRepository;
@@ -195,6 +194,8 @@ class S3Repository extends MeteredBlobStoreRepository {
 
     private final Executor snapshotExecutor;
 
+    private final S3RepositoriesMetrics s3RepositoriesMetrics;
+
     /**
      * Constructs an s3 backed repository
      */
@@ -205,7 +206,7 @@ class S3Repository extends MeteredBlobStoreRepository {
         final ClusterService clusterService,
         final BigArrays bigArrays,
         final RecoverySettings recoverySettings,
-        final RepositoriesMetrics repositoriesMetrics
+        final S3RepositoriesMetrics s3RepositoriesMetrics
     ) {
         super(
             metadata,
@@ -214,10 +215,10 @@ class S3Repository extends MeteredBlobStoreRepository {
             bigArrays,
             recoverySettings,
             buildBasePath(metadata),
-            buildLocation(metadata),
-            repositoriesMetrics
+            buildLocation(metadata)
         );
         this.service = service;
+        this.s3RepositoriesMetrics = s3RepositoriesMetrics;
         this.snapshotExecutor = threadPool().executor(ThreadPool.Names.SNAPSHOT);
 
         // Parse and validate the user's S3 Storage Class setting
@@ -408,7 +409,7 @@ class S3Repository extends MeteredBlobStoreRepository {
             metadata,
             bigArrays,
             threadPool,
-            repositoriesMetrics
+            s3RepositoriesMetrics
         );
     }
 

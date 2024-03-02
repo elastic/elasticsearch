@@ -11,7 +11,6 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
-import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
@@ -28,7 +27,7 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
 /**
  * Removes trailing whitespaces from a string.
  */
-public class RTrim extends UnaryScalarFunction implements EvaluatorMapper {
+public class RTrim extends UnaryScalarFunction {
     @FunctionInfo(returnType = { "keyword", "text" }, description = "Removes trailing whitespaces from a string.")
     public RTrim(Source source, @Param(name = "str", type = { "keyword", "text" }) Expression str) {
         super(source, str);
@@ -41,11 +40,6 @@ public class RTrim extends UnaryScalarFunction implements EvaluatorMapper {
         }
 
         return isString(field, sourceText(), TypeResolutions.ParamOrdinal.DEFAULT);
-    }
-
-    @Override
-    public Object fold() {
-        return EvaluatorMapper.super.fold();
     }
 
     @Override

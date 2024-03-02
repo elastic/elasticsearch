@@ -19,7 +19,6 @@ import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
-import org.elasticsearch.test.hamcrest.RegexMatcher;
 
 import java.lang.management.ManagementFactory;
 import java.lang.management.ThreadInfo;
@@ -36,6 +35,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.in;
+import static org.hamcrest.Matchers.matchesRegex;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0, numClientNodes = 0)
 public class SimpleThreadPoolIT extends ESIntegTestCase {
@@ -107,10 +107,11 @@ public class SimpleThreadPoolIT extends ESIntegTestCase {
                 + "|"
                 + Pattern.quote(ESIntegTestCase.TEST_CLUSTER_NODE_PREFIX)
                 + ")";
-            assertThat(threadName, RegexMatcher.matches("\\[" + nodePrefix + "\\d+\\]"));
+            assertThat(threadName, matchesRegex("elasticsearch\\[" + nodePrefix + "\\d+\\].*"));
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/104652")
     public void testThreadPoolMetrics() throws Exception {
         internalCluster().startNode();
 

@@ -37,7 +37,7 @@ import java.io.IOException;
 
 public class TransportDeleteDesiredNodesAction extends TransportMasterNodeAction<AcknowledgedRequest.Plain, ActionResponse.Empty> {
 
-    public static final ActionType<ActionResponse.Empty> TYPE = ActionType.emptyResponse("cluster:admin/desired_nodes/delete");
+    public static final ActionType<ActionResponse.Empty> TYPE = new ActionType<>("cluster:admin/desired_nodes/delete");
     private final MasterServiceTaskQueue<DeleteDesiredNodesTask> taskQueue;
 
     @Inject

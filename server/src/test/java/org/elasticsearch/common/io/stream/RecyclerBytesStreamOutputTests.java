@@ -1033,6 +1033,11 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
                 pagesAllocated.incrementAndGet();
                 return page;
             }
+
+            @Override
+            public int pageSize() {
+                return pageSize;
+            }
         })) {
             var bytesAllocated = 0;
             while (bytesAllocated < Integer.MAX_VALUE) {

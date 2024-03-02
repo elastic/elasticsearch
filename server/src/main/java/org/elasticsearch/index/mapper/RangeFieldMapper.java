@@ -116,7 +116,7 @@ public class RangeFieldMapper extends FieldMapper {
         }
 
         protected RangeFieldType setupFieldType(MapperBuilderContext context) {
-            String fullName = context.buildFullName(name);
+            String fullName = context.buildFullName(name());
             if (format.isConfigured()) {
                 if (type != RangeType.DATE) {
                     throw new IllegalArgumentException(
@@ -163,7 +163,7 @@ public class RangeFieldMapper extends FieldMapper {
         @Override
         public RangeFieldMapper build(MapperBuilderContext context) {
             RangeFieldType ft = setupFieldType(context);
-            return new RangeFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo, type, this);
+            return new RangeFieldMapper(name(), ft, multiFieldsBuilder.build(this, context), copyTo, type, this);
         }
     }
 

@@ -22,7 +22,7 @@ public class GetSLMStatusAction extends ActionType<GetSLMStatusAction.Response> 
     public static final String NAME = "cluster:admin/slm/status";
 
     protected GetSLMStatusAction() {
-        super(NAME, GetSLMStatusAction.Response::new);
+        super(NAME);
     }
 
     public static class Response extends ActionResponse implements ToXContentObject {

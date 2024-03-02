@@ -40,7 +40,7 @@ public class StartPersistentTaskAction extends ActionType<PersistentTaskResponse
     public static final String NAME = "cluster:admin/persistent/start";
 
     private StartPersistentTaskAction() {
-        super(NAME, PersistentTaskResponse::new);
+        super(NAME);
     }
 
     public static class Request extends MasterNodeRequest<Request> {
@@ -163,7 +163,7 @@ public class StartPersistentTaskAction extends ActionType<PersistentTaskResponse
                 threadPool.executor(ThreadPool.Names.GENERIC)
             );
             this.persistentTasksClusterService = persistentTasksClusterService;
-            NodePersistentTasksExecutor executor = new NodePersistentTasksExecutor(threadPool);
+            NodePersistentTasksExecutor executor = new NodePersistentTasksExecutor();
             clusterService.addListener(
                 new PersistentTasksNodeService(
                     threadPool,

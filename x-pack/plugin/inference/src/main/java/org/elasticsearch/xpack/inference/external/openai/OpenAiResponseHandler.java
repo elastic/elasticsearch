@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.inference.external.openai;
 
-import org.apache.http.HttpResponse;
-import org.apache.http.client.methods.HttpRequestBase;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
@@ -16,10 +14,12 @@ import org.elasticsearch.xpack.inference.external.http.retry.BaseResponseHandler
 import org.elasticsearch.xpack.inference.external.http.retry.ContentTooLargeException;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseParser;
 import org.elasticsearch.xpack.inference.external.http.retry.RetryException;
+import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.external.response.openai.OpenAiErrorResponseEntity;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 
 import static org.elasticsearch.xpack.inference.external.http.HttpUtils.checkForEmptyBody;
+import static org.elasticsearch.xpack.inference.external.http.retry.ResponseHandlerUtils.getFirstHeaderOrUnknown;
 
 public class OpenAiResponseHandler extends BaseResponseHandler {
     /**
@@ -42,7 +42,7 @@ public class OpenAiResponseHandler extends BaseResponseHandler {
     }
 
     @Override
-    public void validateResponse(ThrottlerManager throttlerManager, Logger logger, HttpRequestBase request, HttpResult result)
+    public void validateResponse(ThrottlerManager throttlerManager, Logger logger, Request request, HttpResult result)
         throws RetryException {
         checkForFailureStatusCode(request, result);
         checkForEmptyBody(throttlerManager, logger, request, result);
@@ -52,11 +52,11 @@ public class OpenAiResponseHandler extends BaseResponseHandler {
      * Validates the status code throws an RetryException if not in the range [200, 300).
      *
      * The OpenAI API error codes are documented <a href="https://platform.openai.com/docs/guides/error-codes/api-errors">here</a>.
-     * @param request The http request
+     * @param request The originating request
      * @param result  The http response and body
      * @throws RetryException Throws if status code is {@code >= 300 or < 200 }
      */
-    void checkForFailureStatusCode(HttpRequestBase request, HttpResult result) throws RetryException {
+    void checkForFailureStatusCode(Request request, HttpResult result) throws RetryException {
         int statusCode = result.response().getStatusLine().getStatusCode();
         if (statusCode >= 200 && statusCode < 300) {
             return;
@@ -114,13 +114,5 @@ public class OpenAiResponseHandler extends BaseResponseHandler {
         );
 
         return RATE_LIMIT + ". " + usageMessage;
-    }
-
-    private static String getFirstHeaderOrUnknown(HttpResponse response, String name) {
-        var header = response.getFirstHeader(name);
-        if (header != null && header.getElements().length > 0) {
-            return header.getElements()[0].getName();
-        }
-        return "unknown";
     }
 }

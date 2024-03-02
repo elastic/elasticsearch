@@ -15,6 +15,6 @@ public class GetPipelineAction extends ActionType<GetPipelineResponse> {
     public static final GetPipelineAction INSTANCE = new GetPipelineAction();
 
     private GetPipelineAction() {
-        super(NAME, GetPipelineResponse::new);
+        super(NAME);
     }
 }

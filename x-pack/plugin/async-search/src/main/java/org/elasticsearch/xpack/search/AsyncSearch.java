@@ -16,6 +16,7 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
@@ -27,6 +28,7 @@ import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchAction;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.core.async.AsyncTaskMaintenanceService.ASYNC_SEARCH_CLEANUP_INTERVAL_SETTING;
@@ -51,10 +53,11 @@ public final class AsyncSearch extends Plugin implements ActionPlugin {
         IndexScopedSettings indexScopedSettings,
         SettingsFilter settingsFilter,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<DiscoveryNodes> nodesInCluster
+        Supplier<DiscoveryNodes> nodesInCluster,
+        Predicate<NodeFeature> clusterSupportsFeature
     ) {
         return Arrays.asList(
-            new RestSubmitAsyncSearchAction(restController.getSearchUsageHolder(), namedWriteableRegistry),
+            new RestSubmitAsyncSearchAction(restController.getSearchUsageHolder(), namedWriteableRegistry, clusterSupportsFeature),
             new RestGetAsyncSearchAction(),
             new RestGetAsyncStatusAction(),
             new RestDeleteAsyncSearchAction()

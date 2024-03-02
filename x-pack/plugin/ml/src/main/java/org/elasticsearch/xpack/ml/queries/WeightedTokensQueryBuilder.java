@@ -34,6 +34,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.ml.queries.TextExpansionQueryBuilder.AllowedFieldType;
 import static org.elasticsearch.xpack.ml.queries.TextExpansionQueryBuilder.PRUNING_CONFIG;
 
 public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTokensQueryBuilder> {
@@ -152,27 +153,53 @@ public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTok
         if (ft == null) {
             return new MatchNoDocsQuery("The \"" + getName() + "\" query is against a field that does not exist");
         }
+
+        final String fieldTypeName = ft.typeName();
+        if (AllowedFieldType.isFieldTypeAllowed(fieldTypeName) == false) {
+            throw new ElasticsearchParseException(
+                "["
+                    + fieldTypeName
+                    + "]"
+                    + " is not an appropriate field type for this query. "
+                    + "Allowed field types are ["
+                    + AllowedFieldType.getAllowedFieldTypesAsString()
+                    + "]."
+            );
+        }
+
+        return (this.tokenPruningConfig == null)
+            ? queryBuilderWithAllTokens(tokens, ft, context)
+            : queryBuilderWithPrunedTokens(tokens, ft, context);
+    }
+
+    private Query queryBuilderWithAllTokens(List<WeightedToken> tokens, MappedFieldType ft, SearchExecutionContext context) {
+        var qb = new BooleanQuery.Builder();
+
+        for (var token : tokens) {
+            qb.add(new BoostQuery(ft.termQuery(token.token(), context), token.weight()), BooleanClause.Occur.SHOULD);
+        }
+        return qb.setMinimumNumberShouldMatch(1).build();
+    }
+
+    private Query queryBuilderWithPrunedTokens(List<WeightedToken> tokens, MappedFieldType ft, SearchExecutionContext context)
+        throws IOException {
         var qb = new BooleanQuery.Builder();
         int fieldDocCount = context.getIndexReader().getDocCount(fieldName);
-        float bestWeight = 0f;
-        for (var t : tokens) {
-            bestWeight = Math.max(t.weight(), bestWeight);
-        }
+        float bestWeight = tokens.stream().map(WeightedToken::weight).reduce(0f, Math::max);
         float averageTokenFreqRatio = getAverageTokenFreqRatio(context.getIndexReader(), fieldDocCount);
         if (averageTokenFreqRatio == 0) {
             return new MatchNoDocsQuery("The \"" + getName() + "\" query is against an empty field");
         }
+
         for (var token : tokens) {
             boolean keep = shouldKeepToken(context.getIndexReader(), token, fieldDocCount, averageTokenFreqRatio, bestWeight);
-            if (this.tokenPruningConfig != null) {
-                keep ^= this.tokenPruningConfig.isOnlyScorePrunedTokens();
-            }
+            keep ^= this.tokenPruningConfig.isOnlyScorePrunedTokens();
             if (keep) {
                 qb.add(new BoostQuery(ft.termQuery(token.token(), context), token.weight()), BooleanClause.Occur.SHOULD);
             }
         }
-        qb.setMinimumNumberShouldMatch(1);
-        return qb.build();
+
+        return qb.setMinimumNumberShouldMatch(1).build();
     }
 
     @Override

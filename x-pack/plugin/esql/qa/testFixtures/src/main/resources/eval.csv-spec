@@ -262,6 +262,24 @@ FROM sample_data
 @timestamp:date | client_ip:ip | event_duration:long | message:keyword |  duration_ms:double
 ;
 
+docsLength
+// tag::length[]
+FROM employees
+| KEEP first_name, last_name
+| EVAL fn_length = LENGTH(first_name)
+// end::length[]
+| SORT first_name
+| LIMIT 3
+;
+
+// tag::length-result[]
+first_name:keyword   | last_name:keyword   | fn_length:integer
+Alejandro      |McAlpine       |9              
+Amabile        |Gomatam        |7              
+Anneke         |Preusig        |6
+// end::length-result[]
+;
+
 docsGettingStartedEvalNoColumnName
 // tag::gs-eval-no-column-name[]
 FROM sample_data
@@ -336,11 +354,11 @@ Parto          |Bamford        |1.83           |6.004230000000001
 // end::evalUnnamedColumn-result[]
 ;
 
-docsEvalUnnamedColumnStats
+docsEvalUnnamedColumnStats#[skip:-8.12.99,reason:expression spaces are maintained since 8.13]
 // tag::evalUnnamedColumnStats[]
 FROM employees
 | EVAL height * 3.281
-| STATS avg_height_feet = AVG(`height*3.281`)
+| STATS avg_height_feet = AVG(`height * 3.281`)
 // end::evalUnnamedColumnStats[]
 ;
 
@@ -348,4 +366,59 @@ FROM employees
 avg_height_feet:double
 5.801464200000001
 // end::evalUnnamedColumnStats-result[]
+;
+
+overwriteName#[skip:-8.13.0]
+FROM employees
+| SORT emp_no asc
+| EVAL full_name = concat(first_name, " ", last_name)
+| EVAL emp_no = concat(full_name, " ", to_string(emp_no))
+| KEEP full_name, emp_no
+| LIMIT 3;
+
+full_name:keyword | emp_no:keyword
+Georgi Facello    | Georgi Facello 10001
+Bezalel Simmel    | Bezalel Simmel 10002
+Parto Bamford     | Parto Bamford 10003
+;
+
+overwriteNameWhere#[skip:-8.13.0]
+FROM employees
+| SORT emp_no ASC
+| EVAL full_name = concat(first_name, " ", last_name)
+| EVAL emp_no = concat(full_name, " ", to_string(emp_no))
+| WHERE emp_no == "Bezalel Simmel 10002"
+| KEEP full_name, emp_no
+| LIMIT 3;
+
+full_name:keyword | emp_no:keyword
+Bezalel Simmel    | Bezalel Simmel 10002
+;
+
+overwriteNameAfterSort#[skip:-8.13.0]
+FROM employees
+| SORT emp_no ASC
+| EVAL emp_no = -emp_no
+| LIMIT 3
+| KEEP emp_no
+;
+
+emp_no:i
+-10001
+-10002
+-10003
+;
+
+overwriteNameAfterSortChained#[skip:-8.13.0]
+FROM employees
+| SORT emp_no ASC
+| EVAL x = emp_no, y = -emp_no, emp_no = y
+| LIMIT 3
+| KEEP emp_no
+;
+
+emp_no:i
+-10001
+-10002
+-10003
 ;

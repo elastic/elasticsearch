@@ -179,7 +179,7 @@ public class TransportActionProxyTests extends ESTestCase {
                     }
 
                     @Override
-                    public Executor executor(ThreadPool threadPool) {
+                    public Executor executor() {
                         return TransportResponseHandler.TRANSPORT_WORKER;
                     }
 
@@ -231,7 +231,7 @@ public class TransportActionProxyTests extends ESTestCase {
                     }
 
                     @Override
-                    public Executor executor(ThreadPool threadPool) {
+                    public Executor executor() {
                         return TransportResponseHandler.TRANSPORT_WORKER;
                     }
 
@@ -297,7 +297,7 @@ public class TransportActionProxyTests extends ESTestCase {
                 }
 
                 @Override
-                public Executor executor(ThreadPool threadPool) {
+                public Executor executor() {
                     return TransportResponseHandler.TRANSPORT_WORKER;
                 }
 
@@ -377,7 +377,7 @@ public class TransportActionProxyTests extends ESTestCase {
                 }
 
                 @Override
-                public Executor executor(ThreadPool threadPool) {
+                public Executor executor() {
                     return TransportResponseHandler.TRANSPORT_WORKER;
                 }
 
@@ -524,13 +524,13 @@ public class TransportActionProxyTests extends ESTestCase {
         }
 
         @Override
-        public void sendResponse(TransportResponse response) throws IOException {
+        public void sendResponse(TransportResponse response) {
             onResponse.accept(response);
             in.sendResponse(response);
         }
 
         @Override
-        public void sendResponse(Exception exception) throws IOException {
+        public void sendResponse(Exception exception) {
             in.sendResponse(exception);
         }
 

@@ -16,6 +16,6 @@ public class ClusterRerouteAction extends ActionType<ClusterRerouteResponse> {
     public static final String NAME = "cluster:admin/reroute";
 
     private ClusterRerouteAction() {
-        super(NAME, ClusterRerouteResponse::new);
+        super(NAME);
     }
 }

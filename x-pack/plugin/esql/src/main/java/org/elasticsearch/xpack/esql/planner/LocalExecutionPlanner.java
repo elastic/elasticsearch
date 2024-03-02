@@ -628,6 +628,11 @@ public class LocalExecutionPlanner {
                 Stream.of(sinkOperatorFactory)
             ).map(Describable::describe).collect(joining("\n\\_", "\\_", ""));
         }
+
+        @Override
+        public String toString() {
+            return describe();
+        }
     }
 
     /**
@@ -711,6 +716,8 @@ public class LocalExecutionPlanner {
                 success = true;
                 return new Driver(
                     sessionId,
+                    System.currentTimeMillis(),
+                    System.nanoTime(),
                     driverContext,
                     physicalOperation::describe,
                     source,

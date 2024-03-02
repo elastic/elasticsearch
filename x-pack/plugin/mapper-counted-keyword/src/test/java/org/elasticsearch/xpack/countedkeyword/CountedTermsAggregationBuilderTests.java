@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.countedkeyword;
 
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
+import org.elasticsearch.search.aggregations.bucket.countedterms.CountedTermsAggregationBuilder;
 
 import java.util.Collection;
 import java.util.Collections;

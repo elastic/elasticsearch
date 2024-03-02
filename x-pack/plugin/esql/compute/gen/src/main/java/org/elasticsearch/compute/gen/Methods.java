@@ -12,10 +12,13 @@ import com.squareup.javapoet.TypeName;
 import java.util.Arrays;
 import java.util.function.Predicate;
 
+import javax.lang.model.element.Element;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.Modifier;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.VariableElement;
+import javax.lang.model.type.DeclaredType;
+import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.ElementFilter;
 
 import static org.elasticsearch.compute.gen.Types.BOOLEAN_BLOCK;
@@ -47,7 +50,7 @@ import static org.elasticsearch.compute.gen.Types.LONG_VECTOR_FIXED_BUILDER;
  */
 public class Methods {
     static ExecutableElement findRequiredMethod(TypeElement declarationType, String[] names, Predicate<ExecutableElement> filter) {
-        ExecutableElement result = findMethod(declarationType, names, filter);
+        ExecutableElement result = findMethod(names, filter, declarationType, superClassOf(declarationType));
         if (result == null) {
             if (names.length == 1) {
                 throw new IllegalArgumentException(declarationType + "#" + names[0] + " is required");
@@ -58,18 +61,34 @@ public class Methods {
     }
 
     static ExecutableElement findMethod(TypeElement declarationType, String name) {
-        return findMethod(declarationType, new String[] { name }, e -> true);
+        return findMethod(new String[] { name }, e -> true, declarationType, superClassOf(declarationType));
+    }
+
+    private static TypeElement superClassOf(TypeElement declarationType) {
+        TypeMirror superclass = declarationType.getSuperclass();
+        if (superclass instanceof DeclaredType declaredType) {
+            Element superclassElement = declaredType.asElement();
+            if (superclassElement instanceof TypeElement) {
+                return (TypeElement) superclassElement;
+            }
+        }
+        return null;
     }
 
     static ExecutableElement findMethod(TypeElement declarationType, String[] names, Predicate<ExecutableElement> filter) {
-        for (ExecutableElement e : ElementFilter.methodsIn(declarationType.getEnclosedElements())) {
-            if (e.getModifiers().contains(Modifier.STATIC) == false) {
-                continue;
-            }
-            String name = e.getSimpleName().toString();
-            for (String n : names) {
-                if (n.equals(name) && filter.test(e)) {
-                    return e;
+        return findMethod(names, filter, declarationType);
+    }
+
+    static ExecutableElement findMethod(String[] names, Predicate<ExecutableElement> filter, TypeElement... declarationTypes) {
+        for (TypeElement declarationType : declarationTypes) {
+            for (ExecutableElement e : ElementFilter.methodsIn(declarationType.getEnclosedElements())) {
+                if (e.getModifiers().contains(Modifier.STATIC)) {
+                    String name = e.getSimpleName().toString();
+                    for (String n : names) {
+                        if (n.equals(name) && filter.test(e)) {
+                            return e;
+                        }
+                    }
                 }
             }
         }

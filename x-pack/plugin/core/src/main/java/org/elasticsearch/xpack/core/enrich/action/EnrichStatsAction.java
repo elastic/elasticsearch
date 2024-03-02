@@ -28,7 +28,7 @@ public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
     public static final String NAME = "cluster:monitor/xpack/enrich/stats";
 
     private EnrichStatsAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
     public static class Request extends MasterNodeRequest<Request> {

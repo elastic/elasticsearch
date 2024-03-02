@@ -71,7 +71,6 @@ import static java.util.Collections.singletonList;
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.AnalyzerRule;
 import static org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.BaseAnalyzerRule;
-import static org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.maybeResolveAgainstList;
 import static org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.resolveFunction;
 import static org.elasticsearch.xpack.ql.util.CollectionUtils.combine;
 
@@ -163,13 +162,7 @@ public final class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, Analy
     }
 
     private static Attribute resolveAgainstList(UnresolvedAttribute u, Collection<Attribute> attrList, boolean allowCompound) {
-        var matches = maybeResolveAgainstList(
-            u,
-            attrList,
-            allowCompound,
-            false,
-            (ua, na) -> AnalyzerRules.handleSpecialFields(ua, na, allowCompound)
-        );
+        var matches = AnalyzerRules.maybeResolveAgainstList(u, attrList, a -> AnalyzerRules.handleSpecialFields(u, a, allowCompound));
         return matches.isEmpty() ? null : matches.get(0);
     }
 

@@ -19,7 +19,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Objects;
 
-import static java.nio.charset.StandardCharsets.UTF_8;
+import static java.nio.charset.StandardCharsets.ISO_8859_1;
 
 /**
  * A StreamInput that reads off a {@link BytesRefIterator}. This is used to provide
@@ -88,6 +88,24 @@ class BytesReferenceStreamInput extends StreamInput {
     }
 
     @Override
+    public String readString() throws IOException {
+        final int chars = readArraySize();
+        if (slice.hasArray()) {
+            // attempt reading bytes directly into a string to minimize copying
+            final String string = tryReadStringFromBytes(
+                slice.array(),
+                slice.position() + slice.arrayOffset(),
+                slice.limit() + slice.arrayOffset(),
+                chars
+            );
+            if (string != null) {
+                return string;
+            }
+        }
+        return doReadString(chars);
+    }
+
+    @Override
     public int readVInt() throws IOException {
         if (slice.remaining() >= 5) {
             return ByteBufferStreamInput.readVInt(slice);
@@ -144,7 +162,7 @@ class BytesReferenceStreamInput extends StreamInput {
             int end = start + length;
             Symbol symbol = Symbol.lookup(slice.array(), start, end);
             if (symbol == null) {
-                throw new IllegalArgumentException("Unknown symbol[" + new String(slice.array(), start, length, UTF_8) + "]");
+                throw new IllegalArgumentException("Unknown symbol[" + new String(slice.array(), start, length, ISO_8859_1) + "]");
             }
             slice.position(end - slice.arrayOffset());
             return symbol;
@@ -163,6 +181,14 @@ class BytesReferenceStreamInput extends StreamInput {
 
     @Override
     public int read(final byte[] b, final int bOffset, final int len) throws IOException {
+        if (slice.remaining() >= len) {
+            slice.get(b, bOffset, len);
+            return len;
+        }
+        return readFromMultipleSlices(b, bOffset, len);
+    }
+
+    private int readFromMultipleSlices(byte[] b, int bOffset, int len) throws IOException {
         final int length = bytesReference.length();
         final int offset = offset();
         if (offset >= length) {
@@ -206,6 +232,14 @@ class BytesReferenceStreamInput extends StreamInput {
         if (n <= 0L) {
             return 0L;
         }
+        if (n <= slice.remaining()) {
+            slice.position(slice.position() + (int) n);
+            return n;
+        }
+        return skipMultiple(n);
+    }
+
+    private int skipMultiple(long n) throws IOException {
         assert offset() <= bytesReference.length() : offset() + " vs " + bytesReference.length();
         // definitely >= 0 and <= Integer.MAX_VALUE so casting is ok
         final int numBytesSkipped = (int) Math.min(n, bytesReference.length() - offset());
@@ -231,6 +265,16 @@ class BytesReferenceStreamInput extends StreamInput {
             final long skipped = skip(mark);
             assert skipped == mark : skipped + " vs " + mark;
         }
+    }
+
+    @Override
+    public BytesReference readSlicedBytesReference() throws IOException {
+        int len = readVInt();
+        int pos = offset();
+        if (len != skip(len)) {
+            throw new EOFException();
+        }
+        return bytesReference.slice(pos, len);
     }
 
     @Override

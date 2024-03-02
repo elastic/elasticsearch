@@ -1203,8 +1203,8 @@ public class TextFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected Function<Object, Object> loadBlockExpected(MapperService mapper, String fieldName) {
-        if (nullLoaderExpected(mapper, fieldName)) {
+    protected Function<Object, Object> loadBlockExpected(BlockReaderSupport blockReaderSupport, boolean columnReader) {
+        if (nullLoaderExpected(blockReaderSupport.mapper(), blockReaderSupport.loaderFieldName())) {
             return null;
         }
         return v -> ((BytesRef) v).utf8ToString();
@@ -1360,20 +1360,22 @@ public class TextFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected boolean supportsColumnAtATimeReader(MapperService mapper, MappedFieldType ft) {
+    protected BlockReaderSupport getSupportedReaders(MapperService mapper, String loaderFieldName) {
+        MappedFieldType ft = mapper.fieldType(loaderFieldName);
         String parentName = mapper.mappingLookup().parentField(ft.name());
         if (parentName == null) {
             TextFieldMapper.TextFieldType text = (TextFieldType) ft;
-            return text.syntheticSourceDelegate() != null
+            boolean supportsColumnAtATimeReader = text.syntheticSourceDelegate() != null
                 && text.syntheticSourceDelegate().hasDocValues()
                 && text.canUseSyntheticSourceDelegateForQuerying();
+            return new BlockReaderSupport(supportsColumnAtATimeReader, mapper, loaderFieldName);
         }
         MappedFieldType parent = mapper.fieldType(parentName);
         if (false == parent.typeName().equals(KeywordFieldMapper.CONTENT_TYPE)) {
             throw new UnsupportedOperationException();
         }
         KeywordFieldMapper.KeywordFieldType kwd = (KeywordFieldMapper.KeywordFieldType) parent;
-        return kwd.hasDocValues();
+        return new BlockReaderSupport(kwd.hasDocValues(), mapper, loaderFieldName);
     }
 
     public void testBlockLoaderFromParentColumnReader() throws IOException {
@@ -1407,6 +1409,7 @@ public class TextFieldMapperTests extends MapperTestCase {
             b.endObject();
         };
         MapperService mapper = createMapperService(syntheticSource ? syntheticSourceMapping(buildFields) : mapping(buildFields));
-        testBlockLoader(columnReader, example, mapper, "field.sub");
+        BlockReaderSupport blockReaderSupport = getSupportedReaders(mapper, "field.sub");
+        testBlockLoader(columnReader, example, blockReaderSupport);
     }
 }

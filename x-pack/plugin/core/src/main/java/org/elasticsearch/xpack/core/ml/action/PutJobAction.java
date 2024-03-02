@@ -29,7 +29,7 @@ public class PutJobAction extends ActionType<PutJobAction.Response> {
     public static final String NAME = "cluster:admin/xpack/ml/job/put";
 
     private PutJobAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<Request> {

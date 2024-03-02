@@ -1,0 +1,6 @@
+pr: 105232
+summary: Execute SAML authentication on the generic threadpool
+area: Authentication
+type: bug
+issues:
+ - 104962

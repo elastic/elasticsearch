@@ -31,7 +31,7 @@ public class SimulateTemplateAction extends ActionType<SimulateIndexTemplateResp
     public static final String NAME = "indices:admin/index_template/simulate";
 
     private SimulateTemplateAction() {
-        super(NAME, SimulateIndexTemplateResponse::new);
+        super(NAME);
     }
 
     public static class Request extends MasterNodeReadRequest<Request> {

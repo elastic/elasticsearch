@@ -15,6 +15,7 @@ import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.tests.analysis.MockLowerCaseFilter;
@@ -397,9 +398,18 @@ public class KeywordFieldMapperTests extends MapperTestCase {
 
         Exception e = expectThrows(
             DocumentParsingException.class,
-            () -> mapper.parse(source(b -> b.field("field", randomAlphaOfLengthBetween(1025, 2048))))
+            () -> mapper.parse(
+                source(
+                    b -> b.field("field", randomAlphaOfLengthBetween(IndexWriter.MAX_TERM_LENGTH + 1, IndexWriter.MAX_TERM_LENGTH + 100))
+                )
+            )
         );
-        assertThat(e.getCause().getMessage(), containsString("Dimension fields must be less than [1024] bytes but was"));
+        assertThat(
+            e.getCause().getMessage(),
+            containsString(
+                "Document contains at least one immense term in field=\"field\" (whose UTF8 encoding is longer than the max length 32766"
+            )
+        );
     }
 
     public void testConfigureSimilarity() throws IOException {
@@ -650,7 +660,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected Function<Object, Object> loadBlockExpected(MapperService mapper, String loaderFieldName) {
+    protected Function<Object, Object> loadBlockExpected() {
         return v -> ((BytesRef) v).utf8ToString();
     }
 

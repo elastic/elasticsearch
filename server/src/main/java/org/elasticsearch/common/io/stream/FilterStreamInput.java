@@ -9,6 +9,7 @@
 package org.elasticsearch.common.io.stream;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 
 import java.io.EOFException;
@@ -23,6 +24,11 @@ public abstract class FilterStreamInput extends StreamInput {
 
     protected FilterStreamInput(StreamInput delegate) {
         this.delegate = delegate;
+    }
+
+    @Override
+    public String readString() throws IOException {
+        return delegate.readString();
     }
 
     @Override
@@ -52,7 +58,11 @@ public abstract class FilterStreamInput extends StreamInput {
     }
 
     @Override
-    public <C> Symbol readSymbol() throws IOException {
+    public BytesReference readSlicedBytesReference() throws IOException {
+        return delegate.readSlicedBytesReference();
+    }
+
+    public Symbol readSymbol() throws IOException {
         return delegate.readSymbol();
     }
 

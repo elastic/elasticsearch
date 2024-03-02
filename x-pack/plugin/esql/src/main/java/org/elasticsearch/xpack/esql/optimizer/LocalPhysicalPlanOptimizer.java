@@ -10,9 +10,12 @@ package org.elasticsearch.xpack.esql.optimizer;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.InsensitiveBinaryComparison;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules.OptimizerRule;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
@@ -29,8 +32,6 @@ import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 import org.elasticsearch.xpack.esql.planner.AbstractPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.EsqlTranslatorHandler;
-import org.elasticsearch.xpack.esql.planner.PhysicalVerificationException;
-import org.elasticsearch.xpack.esql.planner.PhysicalVerifier;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.elasticsearch.xpack.ql.common.Failure;
 import org.elasticsearch.xpack.ql.expression.Alias;
@@ -43,6 +44,7 @@ import org.elasticsearch.xpack.ql.expression.MetadataAttribute;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.expression.TypedAttribute;
+import org.elasticsearch.xpack.ql.expression.function.aggregate.SpatialAggregateFunction;
 import org.elasticsearch.xpack.ql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.BinaryLogic;
@@ -62,6 +64,7 @@ import org.elasticsearch.xpack.ql.util.StringUtils;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.List;
@@ -79,7 +82,7 @@ import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.TransformDirec
 public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPlan, LocalPhysicalOptimizerContext> {
     public static final EsqlTranslatorHandler TRANSLATOR_HANDLER = new EsqlTranslatorHandler();
 
-    private final PhysicalVerifier verifier = new PhysicalVerifier();
+    private final PhysicalVerifier verifier = PhysicalVerifier.INSTANCE;
 
     public LocalPhysicalPlanOptimizer(LocalPhysicalOptimizerContext context) {
         super(context);
@@ -92,7 +95,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
     PhysicalPlan verify(PhysicalPlan plan) {
         Collection<Failure> failures = verifier.verify(plan);
         if (failures.isEmpty() == false) {
-            throw new PhysicalVerificationException(failures);
+            throw new VerificationException(failures);
         }
         return plan;
     }
@@ -113,7 +116,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
         var pushdown = new Batch<PhysicalPlan>("Push to ES", esSourceRules.toArray(Rule[]::new));
         // add the field extraction in just one pass
         // add it at the end after all the other rules have ran
-        var fieldExtraction = new Batch<>("Field extraction", Limiter.ONCE, new InsertFieldExtraction());
+        var fieldExtraction = new Batch<>("Field extraction", Limiter.ONCE, new InsertFieldExtraction(), new SpatialDocValuesExtraction());
         return asList(pushdown, fieldExtraction);
     }
 
@@ -236,6 +239,8 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
         public static boolean canPushToSource(Expression exp, Predicate<FieldAttribute> hasIdenticalDelegate) {
             if (exp instanceof BinaryComparison bc) {
                 return isAttributePushable(bc.left(), bc, hasIdenticalDelegate) && bc.right().foldable();
+            } else if (exp instanceof InsensitiveBinaryComparison bc) {
+                return isAttributePushable(bc.left(), bc, hasIdenticalDelegate) && bc.right().foldable();
             } else if (exp instanceof BinaryLogic bl) {
                 return canPushToSource(bl.left(), hasIdenticalDelegate) && canPushToSource(bl.right(), hasIdenticalDelegate);
             } else if (exp instanceof In in) {
@@ -244,8 +249,16 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
                 return canPushToSource(not.field(), hasIdenticalDelegate);
             } else if (exp instanceof UnaryScalarFunction usf) {
                 if (usf instanceof RegexMatch<?> || usf instanceof IsNull || usf instanceof IsNotNull) {
+                    if (usf instanceof IsNull || usf instanceof IsNotNull) {
+                        if (usf.field() instanceof FieldAttribute fa && fa.dataType().equals(DataTypes.TEXT)) {
+                            return true;
+                        }
+                    }
                     return isAttributePushable(usf.field(), usf, hasIdenticalDelegate);
                 }
+            } else if (exp instanceof CIDRMatch cidrMatch) {
+                return isAttributePushable(cidrMatch.ipField(), cidrMatch, hasIdenticalDelegate)
+                    && Expressions.foldable(cidrMatch.matches());
             }
             return false;
         }
@@ -427,4 +440,56 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
         return false;
     }
 
+    private static class SpatialDocValuesExtraction extends OptimizerRule<AggregateExec> {
+        @Override
+        protected PhysicalPlan rule(AggregateExec aggregate) {
+            var foundAttributes = new HashSet<Attribute>();
+
+            PhysicalPlan plan = aggregate.transformDown(UnaryExec.class, exec -> {
+                if (exec instanceof AggregateExec agg) {
+                    var orderedAggregates = new ArrayList<NamedExpression>();
+                    var changedAggregates = false;
+                    for (NamedExpression aggExpr : agg.aggregates()) {
+                        if (aggExpr instanceof Alias as && as.child() instanceof SpatialAggregateFunction af) {
+                            if (af.field() instanceof FieldAttribute fieldAttribute) {
+                                // We need to both mark the field to load differently, and change the spatial function to know to use it
+                                foundAttributes.add(fieldAttribute);
+                                changedAggregates = true;
+                                orderedAggregates.add(as.replaceChild(af.withDocValues()));
+                            } else {
+                                orderedAggregates.add(aggExpr);
+                            }
+                        } else {
+                            orderedAggregates.add(aggExpr);
+                        }
+                    }
+                    if (changedAggregates) {
+                        exec = new AggregateExec(
+                            agg.source(),
+                            agg.child(),
+                            agg.groupings(),
+                            orderedAggregates,
+                            agg.getMode(),
+                            agg.estimatedRowSize()
+                        );
+                    }
+                }
+                if (exec instanceof FieldExtractExec fieldExtractExec) {
+                    // Tell the field extractor that it should extract the field from doc-values instead of source values
+                    var attributesToExtract = fieldExtractExec.attributesToExtract();
+                    Set<Attribute> docValuesAttributes = new HashSet<>();
+                    for (Attribute found : foundAttributes) {
+                        if (attributesToExtract.contains(found)) {
+                            docValuesAttributes.add(found);
+                        }
+                    }
+                    if (docValuesAttributes.size() > 0) {
+                        exec = new FieldExtractExec(exec.source(), exec.child(), attributesToExtract, docValuesAttributes);
+                    }
+                }
+                return exec;
+            });
+            return plan;
+        }
+    }
 }

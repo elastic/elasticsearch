@@ -148,7 +148,12 @@ public class MetadataMappingService {
                 // try and parse it (no need to add it here) so we can bail early in case of parsing exception
                 // first, simulate: just call merge and ignore the result
                 Mapping mapping = mapperService.parseMapping(MapperService.SINGLE_MAPPING_NAME, mappingUpdateSource);
-                MapperService.mergeMappings(mapperService.documentMapper(), mapping, MergeReason.MAPPING_UPDATE);
+                MapperService.mergeMappings(
+                    mapperService.documentMapper(),
+                    mapping,
+                    request.autoUpdate() ? MergeReason.MAPPING_AUTO_UPDATE : MergeReason.MAPPING_UPDATE,
+                    mapperService.getIndexSettings()
+                );
             }
             Metadata.Builder builder = Metadata.builder(metadata);
             boolean updated = false;
@@ -167,7 +172,7 @@ public class MetadataMappingService {
                 DocumentMapper mergedMapper = mapperService.merge(
                     MapperService.SINGLE_MAPPING_NAME,
                     mappingUpdateSource,
-                    MergeReason.MAPPING_UPDATE
+                    request.autoUpdate() ? MergeReason.MAPPING_AUTO_UPDATE : MergeReason.MAPPING_UPDATE
                 );
                 CompressedXContent updatedSource = mergedMapper.mappingSource();
 

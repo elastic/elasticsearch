@@ -12,9 +12,11 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.RemoteClusterActionType;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.transport.TransportResponse;
 
 import java.util.concurrent.Executor;
 
@@ -66,8 +68,8 @@ public class ParentTaskAssigningClient extends FilterClient {
         final var delegate = super.getRemoteClusterClient(clusterAlias, responseExecutor);
         return new RemoteClusterClient() {
             @Override
-            public <Request extends ActionRequest, Response extends ActionResponse> void execute(
-                ActionType<Response> action,
+            public <Request extends ActionRequest, Response extends TransportResponse> void execute(
+                RemoteClusterActionType<Response> action,
                 Request request,
                 ActionListener<Response> listener
             ) {

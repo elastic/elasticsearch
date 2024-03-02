@@ -1,10 +1,26 @@
 [discrete]
 [[esql-to_upper]]
 === `TO_UPPER`
+
+*Syntax*
+
 [.text-center]
 image::esql/functions/signature/to_upper.svg[Embedded,opts=inline]
 
-Returns a new string representing the input string converted to upper case
+*Parameters*
+
+`str`::
+String expression. If `null`, the function returns `null`.
+
+*Description*
+
+Returns a new string representing the input string converted to upper case.
+
+*Supported types*
+
+include::types/to_upper.asciidoc[]
+
+*Example*
 
 [source.merge.styled,esql]
 ----
@@ -14,7 +30,3 @@ include::{esql-specs}/string.csv-spec[tag=to_upper]
 |===
 include::{esql-specs}/string.csv-spec[tag=to_upper-result]
 |===
-
-Supported types:
-
-include::types/to_upper.asciidoc[]

@@ -69,7 +69,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
     public static final String NAME = "indices:admin/auto_create";
 
     private AutoCreateAction() {
-        super(NAME, CreateIndexResponse::new);
+        super(NAME);
     }
 
     public static final class TransportAction extends TransportMasterNodeAction<CreateIndexRequest, CreateIndexResponse> {

@@ -2121,6 +2121,7 @@ public class MasterServiceTests extends ESTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105890")
     public void testTimeoutRejectionBehaviourAtSubmission() {
 
         final var source = randomIdentifier();

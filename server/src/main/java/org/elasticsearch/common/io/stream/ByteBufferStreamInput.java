@@ -26,6 +26,7 @@ public class ByteBufferStreamInput extends StreamInput {
     /**
      * Read a vInt encoded in the format written by {@link StreamOutput#writeVInt} from a {@link ByteBuffer}.
      * The buffer is assumed to contain enough bytes to fully read the value and its position is moved by this method.
+     *
      * @param buffer buffer to read from
      * @return value read from the buffer
      * @throws IOException if buffer does not contain a valid vInt starting from the current position
@@ -62,6 +63,7 @@ public class ByteBufferStreamInput extends StreamInput {
     /**
      * Read a vLong encoded in the format written by {@link StreamOutput#writeVLong(long)} from a {@link ByteBuffer}.
      * The buffer is assumed to contain enough bytes to fully read the value and its position is moved by this method.
+     *
      * @param buffer buffer to read from
      * @return value read from the buffer
      * @throws IOException if buffer does not contain a valid vLong starting from the current position
@@ -152,6 +154,20 @@ public class ByteBufferStreamInput extends StreamInput {
             return buffer.get();
         } catch (BufferUnderflowException ex) {
             throw newEOFException(ex);
+        }
+    }
+
+    @Override
+    public Symbol readSymbol() throws IOException {
+        final int length = readArraySize();
+        if (buffer.remaining() >= length) {
+            int start = buffer.position() + buffer.arrayOffset();
+            int end = start + length;
+            Symbol symbol = Symbol.lookupOrThrow(buffer.array(), start, end);
+            buffer.position(end - buffer.arrayOffset());
+            return symbol;
+        } else {
+            return Symbol.lookupOrThrow(doReadByteArray(length));
         }
     }
 

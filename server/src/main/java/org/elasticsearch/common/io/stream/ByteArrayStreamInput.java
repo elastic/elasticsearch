@@ -42,6 +42,19 @@ public final class ByteArrayStreamInput extends StreamInput {
     }
 
     @Override
+    public Symbol readSymbol() throws IOException {
+        final int length = readArraySize();
+        int end = pos + length;
+        if (limit >= end) {
+            Symbol symbol = Symbol.lookupOrThrow(bytes, pos, end);
+            pos = end;
+            return symbol;
+        } else {
+            return Symbol.lookupOrThrow(doReadByteArray(length));
+        }
+    }
+
+    @Override
     public int read() throws IOException {
         if (limit - pos <= 0) {
             return -1;

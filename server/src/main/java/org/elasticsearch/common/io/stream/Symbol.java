@@ -15,7 +15,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.concurrent.ConcurrentHashMap;
 
-import static java.nio.charset.StandardCharsets.UTF_8;
+import static java.nio.charset.StandardCharsets.ISO_8859_1;
 import static java.util.Objects.requireNonNull;
 
 // FIXME
@@ -47,21 +47,31 @@ public final class Symbol implements Writeable {
     }
 
     private static Symbol create(String name) {
-        final byte[] bytes = name.getBytes(UTF_8);
+        // require symbol names to contain only ASCII characters, so they are backwards compatible with
+        // write/readString encoding using {#chars}{bytes} rather than {#bytes}{bytes}.
+        assert name.length() == name.codePointCount(0, name.length()) : "only ASCII characters allowed";
 
-        // validate that the resulting bytes are compatible with the old write/readString encoding
-        // which used {#chars}{bytes} rather than {#bytes}{bytes}
-        // FIXME improve check: [0, 127]
-        assert bytes.length == name.length() : "only ASCII characters allowed";
+        // get ISO_8859_1 bytes to check if it's a valid ASCII string
+        final byte[] bytes = name.getBytes(ISO_8859_1);
+        assert isASCII(bytes) : "only ASCII characters allowed";
 
         Symbol[] symbols = BY_HASH.compute(
             Murmur3HashFunction.hash(requireNonNull(bytes), 0, bytes.length),
-            (hash, all) -> find(all, bytes) == null ? prepend(new Symbol(bytes, hash), all) : all
+            (hash, current) -> find(current, bytes) == null ? prepend(new Symbol(bytes, hash), current) : current
         );
-        if (symbols.length == 1) {
+        if (symbols.length == 1 || symbols[0].bytes == bytes) {
             return symbols[0];
         }
         return find(symbols, bytes); // collisions should be rare
+    }
+
+    private static boolean isASCII(byte[] bytes) {
+        for (int i = 0; i < bytes.length; i++) {
+            if (bytes[i] < 0) {
+                return false; // not in range [0,127]
+            }
+        }
+        return true;
     }
 
     private static Symbol[] prepend(Symbol symbol, @Nullable Symbol[] symbols) {
@@ -83,6 +93,7 @@ public final class Symbol implements Writeable {
         return null;
     }
 
+    @Nullable
     private static Symbol find(@Nullable Symbol[] symbols, final byte[] bytes, final int start, final int end) {
         if (symbols == null) return null;
         for (Symbol s : symbols) {
@@ -107,18 +118,17 @@ public final class Symbol implements Writeable {
     }
 
     @Override
-    public boolean equals(Object other) {
-        if (this == other) return true;
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
 
-        if (other == null || other instanceof Symbol == false) {
-            return false;
-        }
-        Symbol key = (Symbol) other;
-        return hashCode == key.hashCode && Arrays.equals(bytes, key.bytes);
+        Symbol symbol = (Symbol) o;
+        return hashCode == symbol.hashCode && Arrays.equals(bytes, symbol.bytes);
     }
 
     @Override
     public String toString() {
-        return new String(bytes, UTF_8); // avoid!
+        // bytes are valid ASCII, use ISO_8859_1 to not check again
+        return new String(bytes, ISO_8859_1); // avoid!
     }
 }

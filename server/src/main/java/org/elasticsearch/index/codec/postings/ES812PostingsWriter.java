@@ -35,6 +35,7 @@ import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.index.codec.ForUtil;
 import org.elasticsearch.index.codec.postings.ES812PostingsFormat.IntBlockTermState;
 
 import java.io.IOException;

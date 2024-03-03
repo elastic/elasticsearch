@@ -23,7 +23,7 @@ import static java.util.Objects.requireNonNull;
 // - Possibly integrate with SerializableString?
 // - keep charSequence?
 // - unboxed intMap?
-public final class Symbol implements Writeable, CharSequence {
+public final class Symbol implements Writeable {
     private static final ConcurrentHashMap<String, Symbol> BY_NAME = new ConcurrentHashMap<>();
     private static final ConcurrentHashMap<Integer, Symbol[]> BY_HASH = new ConcurrentHashMap<>();
 
@@ -120,80 +120,5 @@ public final class Symbol implements Writeable, CharSequence {
     @Override
     public String toString() {
         return new String(bytes, UTF_8); // avoid!
-    }
-
-    @Override
-    public int length() {
-        return bytes.length;
-    }
-
-    @Override
-    public char charAt(int index) {
-        if (index < 0 || index >= length()) throw new IndexOutOfBoundsException(index);
-        return (char) bytes[index];
-    }
-
-    @Override
-    public CharSequence subSequence(int start, int end) {
-        if (start < 0 || start > end || end > length()) {
-            throw new IndexOutOfBoundsException("start " + start + ", end " + end + ", length " + length());
-        }
-        if (start == 0 && end == bytes.length) {
-            return this;
-        }
-        return new SlicedSymbol(this, start, end);
-    }
-
-    private static final class SlicedSymbol implements CharSequence {
-        private final Symbol symbol;
-        private final int start;
-        private final int length;
-
-        private SlicedSymbol(Symbol symbol, int start, int end) {
-            this.symbol = symbol;
-            this.start = start;
-            this.length = end - start;
-        }
-
-        @Override
-        public int length() {
-            return length;
-        }
-
-        @Override
-        public char charAt(int index) {
-            if (index < 0 || index >= length) throw new IndexOutOfBoundsException(index);
-            return symbol.charAt(start + index);
-        }
-
-        @Override
-        public CharSequence subSequence(int start, int end) {
-            if (start < 0 || start > end || end > symbol.length()) {
-                throw new IndexOutOfBoundsException("start " + start + ", end " + end + ", length " + symbol.length());
-            }
-            return new SlicedSymbol(this.symbol, this.start + start, this.start + end);
-        }
-
-        @Override
-        public boolean equals(Object other) {
-            if (this == other) {
-                return true;
-            }
-            if (other == null || getClass() != other.getClass()) {
-                return false;
-            }
-            SlicedSymbol o = (SlicedSymbol) other;
-            return Arrays.equals(symbol.bytes, start, start + length, o.symbol.bytes, o.start, o.start + o.length);
-        }
-
-        @Override
-        public int hashCode() {
-            return Murmur3HashFunction.hash(symbol.bytes, start, length);
-        }
-
-        @Override
-        public String toString() {
-            return new String(symbol.bytes, start, length, UTF_8);
-        }
     }
 }

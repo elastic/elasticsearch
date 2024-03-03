@@ -21,6 +21,8 @@ import static java.util.Objects.requireNonNull;
 // FIXME
 // - Keep String for toString?
 // - Possibly integrate with SerializableString?
+// - keep charSequence?
+// - unboxed intMap?
 public final class Symbol implements Writeable, CharSequence {
     private static final ConcurrentHashMap<String, Symbol> BY_NAME = new ConcurrentHashMap<>();
     private static final ConcurrentHashMap<Integer, Symbol[]> BY_HASH = new ConcurrentHashMap<>();
@@ -30,11 +32,6 @@ public final class Symbol implements Writeable, CharSequence {
 
     public static Symbol ofConstant(String constant) {
         return BY_NAME.computeIfAbsent(requireNonNull(constant), n -> create(constant));
-    }
-
-    @Nullable
-    public static Symbol lookup(String name) {
-        return BY_NAME.get(name);
     }
 
     @Nullable
@@ -54,6 +51,7 @@ public final class Symbol implements Writeable, CharSequence {
 
         // validate that the resulting bytes are compatible with the old write/readString encoding
         // which used {#chars}{bytes} rather than {#bytes}{bytes}
+        // FIXME improve check: [0, 127]
         assert bytes.length == name.length() : "only ASCII characters allowed";
 
         Symbol[] symbols = BY_HASH.compute(

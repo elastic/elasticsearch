@@ -99,7 +99,7 @@ public class QueryRescorerBuilderTests extends ESTestCase {
         return copyWriteable(
             original,
             namedWriteableRegistry,
-            namedWriteableRegistry.getReader(RescorerBuilder.class, original.getWriteableName())
+            namedWriteableRegistry.getReader(RescorerBuilder.class, original.getNameSymbol())
         );
     }
 

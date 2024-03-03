@@ -29,19 +29,6 @@ public class SymbolTests extends ESTestCase {
         assertNotSame(symbol1, symbol3);
     }
 
-    public void testLookup() {
-        String constant = randomAlphaOfLengthBetween(10, 20);
-
-        Symbol symbol1 = Symbol.ofConstant(constant);
-        Symbol symbol2 = Symbol.lookup(constant);
-        Symbol unknown = Symbol.lookup(randomAlphaOfLengthBetween(10, 20));
-
-        assertNotNull(symbol1);
-        assertNotNull(symbol2);
-        assertSame(symbol1, symbol2);
-        assertNull(unknown);
-    }
-
     public void testLookupWithBytes() {
         String constant = randomAlphaOfLengthBetween(10, 20);
 

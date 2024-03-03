@@ -139,7 +139,7 @@ public abstract class SmoothingModelTestCase extends ESTestCase {
         return ESTestCase.copyWriteable(
             original,
             namedWriteableRegistry,
-            namedWriteableRegistry.getReader(SmoothingModel.class, original.getWriteableName())
+            namedWriteableRegistry.getReader(SmoothingModel.class, original.getNameSymbol())
         );
     }
 }

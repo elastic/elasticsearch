@@ -17,25 +17,35 @@ import java.util.Objects;
 
 /**
  * A registry for {@link org.elasticsearch.common.io.stream.Writeable.Reader} readers of {@link NamedWriteable}.
- *
+ * <p>
  * The registration is keyed by the combination of the category class of {@link NamedWriteable}, and a name unique
  * to that category.
  */
 public class NamedWriteableRegistry {
 
-    /** An entry in the registry, made up of a category class and name, and a reader for that category class. */
+    /**
+     * An entry in the registry, made up of a category class and name, and a reader for that category class.
+     */
     public static class Entry {
 
-        /** The superclass of a {@link NamedWriteable} which will be read by {@link #reader}. */
+        /**
+         * The superclass of a {@link NamedWriteable} which will be read by {@link #reader}.
+         */
         public final Class<?> categoryClass;
 
-        /** A name for the writeable which is unique to the {@link #categoryClass}. */
+        /**
+         * A name for the writeable which is unique to the {@link #categoryClass}.
+         */
         public final String name;
 
-        /** A reader capability of reading*/
+        /**
+         * A reader capability of reading
+         */
         public final Writeable.Reader<?> reader;
 
-        /** Creates a new entry which can be stored by the registry. */
+        /**
+         * Creates a new entry which can be stored by the registry.
+         */
         public <T extends NamedWriteable> Entry(Class<T> categoryClass, String name, Writeable.Reader<? extends T> reader) {
             this.categoryClass = Objects.requireNonNull(categoryClass);
             this.name = Objects.requireNonNull(name);
@@ -99,19 +109,6 @@ public class NamedWriteableRegistry {
 
     /**
      * Returns a reader for a {@link NamedWriteable} object identified by the
-     * name provided as argument and its category.
-     */
-    // FIXME replace all usages of this & remove
-    public <T> Writeable.Reader<? extends T> getReader(Class<T> categoryClass, String name) {
-        Symbol key = Symbol.lookup(name); // avoid initializing new symbols!
-        if (key == null) {
-            throwOnUnknownWritable(categoryClass, name);
-        }
-        return getReader(categoryClass, key);
-    }
-
-    /**
-     * Returns a reader for a {@link NamedWriteable} object identified by the
      * symbol provided as argument and its category.
      */
     public <T> Writeable.Reader<? extends T> getReader(Class<T> categoryClass, Symbol symbol) {
@@ -140,6 +137,7 @@ public class NamedWriteableRegistry {
 
     /**
      * Gets the readers map keyed by name for the given category
+     *
      * @param categoryClass category to get readers map for
      * @return map of readers for the category
      */

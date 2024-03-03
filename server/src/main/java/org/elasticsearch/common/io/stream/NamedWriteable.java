@@ -21,6 +21,7 @@ public interface NamedWriteable extends Writeable {
     String getWriteableName();
 
     default Symbol getNameSymbol() {
+        // FIXME lookup should be enough
         return Symbol.ofConstant(getWriteableName());
     }
 }

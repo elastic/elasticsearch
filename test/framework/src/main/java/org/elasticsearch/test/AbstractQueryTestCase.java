@@ -685,7 +685,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     // we use the streaming infra to create a copy of the query provided as argument
     @SuppressWarnings("unchecked")
     protected QB copyQuery(QB query) throws IOException {
-        Reader<QB> reader = (Reader<QB>) namedWriteableRegistry().getReader(QueryBuilder.class, query.getWriteableName());
+        Reader<QB> reader = (Reader<QB>) namedWriteableRegistry().getReader(QueryBuilder.class, query.getNameSymbol());
         return copyWriteable(query, namedWriteableRegistry(), reader);
     }
 

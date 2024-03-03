@@ -19,8 +19,6 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Objects;
 
-import static java.nio.charset.StandardCharsets.ISO_8859_1;
-
 /**
  * A StreamInput that reads off a {@link BytesRefIterator}. This is used to provide
  * generic stream access to {@link BytesReference} instances without materializing the
@@ -160,14 +158,11 @@ class BytesReferenceStreamInput extends StreamInput {
         if (slice.hasArray() && slice.remaining() >= length) {
             int start = slice.position() + slice.arrayOffset();
             int end = start + length;
-            Symbol symbol = Symbol.lookup(slice.array(), start, end);
-            if (symbol == null) {
-                throw new IllegalArgumentException("Unknown symbol[" + new String(slice.array(), start, length, ISO_8859_1) + "]");
-            }
+            Symbol symbol = Symbol.lookupOrThrow(slice.array(), start, end);
             slice.position(end - slice.arrayOffset());
             return symbol;
         } else {
-            return getSymbol(doReadByteArray(length));
+            return Symbol.lookupOrThrow(doReadByteArray(length));
         }
     }
 

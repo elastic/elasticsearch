@@ -34,16 +34,22 @@ public final class Symbol implements Writeable {
         return BY_NAME.computeIfAbsent(requireNonNull(constant), n -> create(constant));
     }
 
-    @Nullable
-    public static Symbol lookup(byte[] buffer, int start, int end) {
+    public static Symbol lookupOrThrow(byte[] buffer, int start, int end) {
         Symbol[] symbols = BY_HASH.get(Murmur3HashFunction.hash(buffer, start, end - start));
-        return find(symbols, buffer, start, end);
+        Symbol symbol = find(symbols, buffer, start, end);
+        if (symbol == null) {
+            throw new IllegalArgumentException("Unknown symbol[" + new String(buffer, start, end - start, ISO_8859_1) + "]");
+        }
+        return symbol;
     }
 
-    @Nullable
-    public static Symbol lookup(byte[] bytes) {
+    public static Symbol lookupOrThrow(byte[] bytes) {
         Symbol[] symbols = BY_HASH.get(Murmur3HashFunction.hash(bytes, 0, bytes.length));
-        return find(symbols, bytes);
+        Symbol symbol = find(symbols, bytes);
+        if (symbol == null) {
+            throw new IllegalArgumentException("Unknown symbol[" + new String(bytes, ISO_8859_1) + "]");
+        }
+        return symbol;
     }
 
     private static Symbol create(String name) {

@@ -1143,15 +1143,7 @@ public abstract class StreamInput extends InputStream {
     }
 
     public Symbol readSymbol() throws IOException {
-        return getSymbol(readByteArray());
-    }
-
-    protected static Symbol getSymbol(byte[] bytes) {
-        Symbol symbol = Symbol.lookup(bytes);
-        if (symbol == null) {
-            throw new IllegalArgumentException("Unknown symbol[" + new String(bytes, ISO_8859_1) + "]");
-        }
-        return symbol;
+        return Symbol.lookupOrThrow(readByteArray());
     }
 
     /**

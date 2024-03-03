@@ -33,13 +33,13 @@ public class SymbolTests extends ESTestCase {
         String constant = randomAlphaOfLengthBetween(10, 20);
 
         Symbol symbol1 = Symbol.ofConstant(constant);
-        Symbol symbol2 = Symbol.lookup(constant.getBytes(UTF_8));
-        Symbol unknown = Symbol.lookup(randomAlphaOfLength(20).getBytes(UTF_8));
+        Symbol symbol2 = Symbol.lookupOrThrow(constant.getBytes(UTF_8));
 
         assertNotNull(symbol1);
         assertNotNull(symbol2);
         assertSame(symbol1, symbol2);
-        assertNull(unknown);
+
+        assertThrows(IllegalArgumentException.class, () -> Symbol.lookupOrThrow(randomAlphaOfLength(20).getBytes(UTF_8)));
     }
 
     public void testLookupWithBytesAndRange() {
@@ -47,16 +47,22 @@ public class SymbolTests extends ESTestCase {
         String ignore = randomAlphaOfLengthBetween(0, 20);
 
         Symbol symbol1 = Symbol.ofConstant(constant);
-        Symbol symbol2 = Symbol.lookup(constant.getBytes(UTF_8), 0, constant.length());
-        Symbol symbol3 = Symbol.lookup((ignore + constant + ignore).getBytes(UTF_8), ignore.length(), ignore.length() + constant.length());
-
-        Symbol unknown = Symbol.lookup((constant + "x").getBytes(UTF_8), 0, constant.length() + 1);
+        Symbol symbol2 = Symbol.lookupOrThrow(constant.getBytes(UTF_8), 0, constant.length());
+        Symbol symbol3 = Symbol.lookupOrThrow(
+            (ignore + constant + ignore).getBytes(UTF_8),
+            ignore.length(),
+            ignore.length() + constant.length()
+        );
 
         assertNotNull(symbol1);
         assertNotNull(symbol2);
         assertNotNull(symbol3);
         assertSame(symbol1, symbol2);
         assertSame(symbol2, symbol3);
-        assertNull(unknown);
+
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> Symbol.lookupOrThrow((constant + "x").getBytes(UTF_8), 0, constant.length() + 1)
+        );
     }
 }

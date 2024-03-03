@@ -58,6 +58,10 @@ public class NodesInfoMetrics implements Writeable {
         AGGREGATIONS("aggregations"),
         INDICES("indices");
 
+        private static final Set<String> ALL_METRICS = Arrays.stream(values())
+            .map(Metric::metricName)
+            .collect(Collectors.toUnmodifiableSet());
+
         private final String metricName;
 
         Metric(String name) {
@@ -69,7 +73,7 @@ public class NodesInfoMetrics implements Writeable {
         }
 
         public static Set<String> allMetrics() {
-            return Arrays.stream(values()).map(Metric::metricName).collect(Collectors.toSet());
+            return ALL_METRICS;
         }
     }
 }

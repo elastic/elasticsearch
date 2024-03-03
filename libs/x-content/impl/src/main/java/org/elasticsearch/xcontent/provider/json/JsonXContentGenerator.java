@@ -434,7 +434,8 @@ public class JsonXContentGenerator implements XContentGenerator {
         }
     }
 
-    private void writeStartRaw(String name) throws IOException {
+    @Override
+    public void writeStartRaw(String name) throws IOException {
         try {
             writeFieldName(name);
             generator.writeRaw(':');
@@ -443,6 +444,7 @@ public class JsonXContentGenerator implements XContentGenerator {
         }
     }
 
+    @Override
     public void writeEndRaw() {
         assert base != null : "JsonGenerator should be of instance GeneratorBase but was: " + generator.getClass();
         if (base != null) {
@@ -452,8 +454,8 @@ public class JsonXContentGenerator implements XContentGenerator {
         }
     }
 
-    @Override
-    public void writeRawField(String name, InputStream content) throws IOException {
+    @Deprecated
+    public XContentType guessContentTypeFromRawContent(InputStream content) throws IOException {
         if (content.markSupported() == false) {
             // needed for the XContentFactory.xContentType call
             content = new BufferedInputStream(content);
@@ -462,7 +464,12 @@ public class JsonXContentGenerator implements XContentGenerator {
         if (contentType == null) {
             throw new IllegalArgumentException("Can't write raw bytes whose xcontent-type can't be guessed");
         }
-        writeRawField(name, content, contentType);
+        return contentType;
+    }
+
+    @Override
+    public void writeRawField(String name, InputStream content) throws IOException {
+        writeRawField(name, content, guessContentTypeFromRawContent(content));
     }
 
     @Override
@@ -490,13 +497,27 @@ public class JsonXContentGenerator implements XContentGenerator {
                 // If we've just started a field we'll need to add the separator
                 generator.writeRaw(':');
             }
-            flush();
-            Streams.copy(stream, os, false);
+            writeBareRawValue(stream, xContentType);
             writeEndRaw();
         }
     }
 
-    private boolean mayWriteRawData(XContentType contentType) {
+    @Override
+    public void writeBareRawValue(InputStream stream, XContentType xContentType) throws IOException {
+        assert mayWriteRawData(xContentType);
+        flush();
+        Streams.copy(stream, os, false);
+    }
+
+    @Override
+    public void writeBareRawValue(byte[] array, int offset, int length, XContentType contentType) throws IOException {
+        assert mayWriteRawData(contentType);
+        flush();
+        os.write(array, offset, length);
+    }
+
+    @Override
+    public boolean mayWriteRawData(XContentType contentType) {
         // When the current generator is filtered (ie filter != null)
         // or the content is in a different format than the current generator,
         // we need to copy the whole structure so that it will be correctly

@@ -96,6 +96,23 @@ public interface XContentGenerator extends Closeable, Flushable {
     void writeRawField(String name, InputStream value) throws IOException;
 
     /**
+     * Guess the xcontent-type from a stream
+     * @deprecated avoid content type auto-detection and use overloads that accept a {@link XContentType} parameter
+     */
+    @Deprecated
+    XContentType guessContentTypeFromRawContent(InputStream content) throws IOException;
+
+    /**
+     * Checks if this generator can write raw data of a source content type
+     * @param contentType the xcontent-type of the source data
+     */
+    boolean mayWriteRawData(XContentType contentType);
+
+    void writeStartRaw(String name) throws IOException;
+
+    void writeEndRaw();
+
+    /**
      * Writes a raw field with the value taken from the bytes in the stream
      */
     void writeRawField(String name, InputStream value, XContentType xContentType) throws IOException;
@@ -104,6 +121,20 @@ public interface XContentGenerator extends Closeable, Flushable {
      * Writes a raw value taken from the bytes in the stream
      */
     void writeRawValue(InputStream value, XContentType xContentType) throws IOException;
+
+    /**
+     * Writes a raw value taken from the bytes in the stream
+     * This method is meant to be used in conjunction with (surrounded by) {@link XContentGenerator#writeStartRaw(String)} and
+     * {@link XContentGenerator#writeEndRaw()}
+     */
+    void writeBareRawValue(InputStream value, XContentType xContentType) throws IOException;
+
+    /**
+     * Writes a partial value with the source coming directly from {@code count} bytes in the {@code array}.
+     * This method is meant to be used in conjunction with (surrounded by) {@link XContentGenerator#writeStartRaw(String)} and
+     * {@link XContentGenerator#writeEndRaw()}
+     */
+    void writeBareRawValue(byte[] array, int offset, int length, XContentType contentType) throws IOException;
 
     void copyCurrentStructure(XContentParser parser) throws IOException;
 

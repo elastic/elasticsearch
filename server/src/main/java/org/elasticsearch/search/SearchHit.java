@@ -11,10 +11,13 @@ package org.elasticsearch.search;
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.common.CheckedBiConsumer;
+import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -44,6 +47,7 @@ import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -131,7 +135,8 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
         this(docId, id, null);
     }
 
-    public SearchHit(int nestedTopDocId, String id, NestedIdentity nestedIdentity) {
+    // used only in tests
+    SearchHit(int nestedTopDocId, String id, NestedIdentity nestedIdentity) {
         this(nestedTopDocId, id, nestedIdentity, null);
     }
 
@@ -161,7 +166,7 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
         );
     }
 
-    public SearchHit(
+    private SearchHit(
         int docId,
         float score,
         int rank,
@@ -292,6 +297,7 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
         );
     }
 
+    // used only in tests
     public static SearchHit unpooled(int docId) {
         return unpooled(docId, null);
     }
@@ -810,6 +816,39 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
         return builder;
     }
 
+    // ToXContent wrapWithCondition(CheckedBiFunction<XContentBuilder, Params, Boolean, IOException> predicate, ToXContent in) {
+    // return (b, p) -> {
+    // if (predicate.apply(b, p)) {
+    // return in.toXContent(b, p);
+    // }
+    // return b;
+    // };
+    // }
+
+    ToXContent whenTrue(
+        CheckedBiFunction<XContentBuilder, Params, Boolean, IOException> predicate,
+        CheckedBiConsumer<XContentBuilder, Params, IOException> in
+    ) {
+        return (b, p) -> {
+            if (predicate.apply(b, p)) {
+                in.accept(b, p);
+            }
+            return b;
+        };
+    }
+
+    ToXContent whenFalse(
+        CheckedBiFunction<XContentBuilder, Params, Boolean, IOException> predicate,
+        CheckedBiConsumer<XContentBuilder, Params, IOException> in
+    ) {
+        return (b, p) -> {
+            if (predicate.apply(b, p) == false) {
+                in.accept(b, p);
+            }
+            return b;
+        };
+    }
+
     // public because we render hit as part of completion suggestion option
     public XContentBuilder toInnerXContent(XContentBuilder builder, Params params) throws IOException {
         // For inner_hit hits shard is null and that is ok, because the parent search hit has all this information.
@@ -863,7 +902,72 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
             }
         }
         if (source != null) {
-            XContentHelper.writeRawField(SourceFieldMapper.NAME, source, builder, params);
+
+            final int CHUNK_SIZE = 1 << 18;
+
+            Iterator<ToXContent> chunkedToXContent;
+            if (source.length() < CHUNK_SIZE) {
+                chunkedToXContent = Iterators.single((b, p) -> {
+                    XContentHelper.writeRawField(SourceFieldMapper.NAME, source, b, p);
+                    return b;
+                });
+            } else {
+                int numberOfChunks = source.length() / CHUNK_SIZE;
+                final var supportsRawContent = new CheckedBiFunction<XContentBuilder, Params, Boolean, IOException>() {
+                    Boolean isSupported;
+
+                    @Override
+                    public Boolean apply(XContentBuilder b, Params params) throws IOException {
+                        if (isSupported == null) {
+                            isSupported = b.supportsRawContent(b.guessContentTypeFromRawContent(source.streamInput()));
+                        }
+                        return isSupported;
+                    }
+                };
+
+                chunkedToXContent = Iterators.concat(
+                    // Negative case
+                    Iterators.single(
+                        whenFalse(supportsRawContent, (b, p) -> XContentHelper.writeRawField(SourceFieldMapper.NAME, source, b, p))
+                    ),
+                    // Positive case
+                    Iterators.single(whenTrue(supportsRawContent, (b, p) -> b.startRaw(SourceFieldMapper.NAME))),
+                    Iterators.flatMap(
+                        Iterators.forRange(0, numberOfChunks, x -> x),
+                        x -> Iterators.single(
+                            whenTrue(
+                                supportsRawContent,
+                                (b, p) -> XContentHelper.writeBareRawValue(
+                                    source.slice(x * CHUNK_SIZE, CHUNK_SIZE),
+                                    b.guessContentTypeFromRawContent(source.streamInput()),
+                                    b
+                                )
+                            )
+                        )
+                    ),
+                    Iterators.single(whenTrue(supportsRawContent, (b, p) -> b.endRaw()))
+                );
+
+                /*
+                chunkedToXContent = new ConditionalIterator(
+                    (b, p) -> b.supportsRawContent(b.guessContentTypeFromRawContent(source.streamInput())),
+                    Iterators.concat(
+                        Iterators.single((b, p) -> b.startRaw(SourceFieldMapper.NAME)),
+                        Iterators.flatMap(Iterators.forRange(0, numberOfChunks, i -> i), x -> Iterators.single((b, p) -> {
+                            var contentType = b.guessContentTypeFromRawContent(source.streamInput());
+                            XContentHelper.writeBareRawValue(source.slice(x * CHUNK_SIZE, CHUNK_SIZE), contentType, b);
+                            return b;
+                        })),
+                        Iterators.single((b, p) -> b.endRaw())
+                    ),
+                    Iterators.single((b, p) -> {
+                        XContentHelper.writeRawField(SourceFieldMapper.NAME, source, b, p);
+                        return b;
+                    })
+                );
+                 */
+            }
+            ChunkedToXContent.wrapAsToXContent(params1 -> chunkedToXContent).toXContent(builder, params);
         }
         if (documentFields.isEmpty() == false &&
         // ignore fields all together if they are all empty
@@ -1412,5 +1516,59 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
     @Override
     public String toString() {
         return Strings.toString(this, true, true);
+    }
+
+    private static class ConditionalIterator implements Iterator<ToXContent> {
+
+        private static class EvaluationToXContent implements ToXContent {
+            Boolean evaluation;
+
+            private final CheckedBiFunction<XContentBuilder, Params, Boolean, IOException> predicate;
+
+            private EvaluationToXContent(CheckedBiFunction<XContentBuilder, Params, Boolean, IOException> predicate) {
+                this.predicate = predicate;
+            }
+
+            @Override
+            public XContentBuilder toXContent(XContentBuilder b, Params p) throws IOException {
+                evaluation = predicate.apply(b, p);
+                return b;
+            }
+
+            public boolean condition() {
+                assert evaluation != null;
+                return evaluation;
+            }
+        }
+
+        private final Iterator<EvaluationToXContent> conditionIterator;
+        private final Iterator<ToXContent> trueBranch;
+        private final Iterator<ToXContent> falseBranch;
+        private Iterator<ToXContent> chosenBranch;
+
+        private ConditionalIterator(
+            CheckedBiFunction<XContentBuilder, Params, Boolean, IOException> predicate,
+            Iterator<ToXContent> trueBranch,
+            Iterator<ToXContent> falseBranch
+        ) {
+            this.conditionIterator = Iterators.single(new EvaluationToXContent(predicate));
+            this.trueBranch = trueBranch;
+            this.falseBranch = falseBranch;
+        }
+
+        @Override
+        public boolean hasNext() {
+            return chosenBranch == null || chosenBranch.hasNext();
+        }
+
+        @Override
+        public ToXContent next() {
+            if (chosenBranch == null) {
+                var x = conditionIterator.next();
+                chosenBranch = x.condition() ? trueBranch : falseBranch;
+                return x;
+            }
+            return chosenBranch.next();
+        }
     }
 }

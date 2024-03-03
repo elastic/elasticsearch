@@ -13,6 +13,7 @@ import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.FilterStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.Symbol;
 
 import java.io.IOException;
 import java.util.zip.CRC32;
@@ -51,6 +52,12 @@ public final class BufferedChecksumStreamInput extends FilterStreamInput {
     @Override
     public String readString() throws IOException {
         return doReadString(readArraySize()); // always use the unoptimized slow path
+    }
+
+    @Override
+    public Symbol readSymbol() throws IOException {
+        final int length = readArraySize();
+        return Symbol.lookupOrThrow(doReadByteArray(length));// use unoptimized slow path
     }
 
     @Override

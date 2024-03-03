@@ -21,8 +21,6 @@ import static java.util.Objects.requireNonNull;
 // FIXME
 // - Keep String for toString?
 // - Possibly integrate with SerializableString?
-// - Fix/Support BufferedChecksumStreamInput
-// - add stream input tests
 // - remove BY_NAME map
 public final class Symbol implements Writeable {
     private static final ConcurrentHashMap<String, Symbol> BY_NAME = new ConcurrentHashMap<>();

@@ -1,3 +1,7 @@
+import org.elasticsearch.gradle.internal.toolchain.OracleOpenJdkToolchainResolver
+import org.elasticsearch.gradle.internal.toolchain.ArchivedOracleJdkToolchainResolver
+import org.elasticsearch.gradle.internal.toolchain.AdoptiumJdkToolchainResolver
+
 pluginManagement {
   repositories {
     mavenCentral()
@@ -20,6 +24,22 @@ dependencyResolutionManagement {
   versionCatalogs {
     buildLibs {
       from(files("gradle/build.versions.toml"))
+    }
+  }
+}
+
+toolchainManagement {
+  jvm {
+    javaRepositories {
+      repository('bundledOracleOpendJdk') {
+        resolverClass = OracleOpenJdkToolchainResolver
+      }
+      repository('adoptiumJdks') {
+        resolverClass = AdoptiumJdkToolchainResolver
+      }
+      repository('archivedOracleJdks') {
+        resolverClass = ArchivedOracleJdkToolchainResolver
+      }
     }
   }
 }

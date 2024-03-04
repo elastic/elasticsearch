@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.index.EsIndex;
+import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.EsField;
@@ -41,7 +42,7 @@ public class EsTimeseriesQueryExec extends EsQueryExec {
         );
     }
 
-    private EsTimeseriesQueryExec(
+    public EsTimeseriesQueryExec(
         Source source,
         EsIndex index,
         List<Attribute> attrs,
@@ -51,6 +52,10 @@ public class EsTimeseriesQueryExec extends EsQueryExec {
         Integer estimatedRowSize
     ) {
         super(source, index, attrs, query, limit, sorts, estimatedRowSize);
+    }
+
+    protected NodeInfo<EsQueryExec> info() {
+        return NodeInfo.create(this, EsTimeseriesQueryExec::new, index(), attrs(), query(), limit(), sorts(), estimatedRowSize());
     }
 
     @Override

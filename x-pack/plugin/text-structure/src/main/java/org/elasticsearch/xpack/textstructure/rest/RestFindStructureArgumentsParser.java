@@ -11,12 +11,14 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.xpack.core.textstructure.action.AbstractFindStructureRequest;
 import org.elasticsearch.xpack.core.textstructure.action.FindFieldStructureAction;
+import org.elasticsearch.xpack.core.textstructure.action.FindMessageStructureAction;
 import org.elasticsearch.xpack.core.textstructure.action.FindStructureAction;
+import org.elasticsearch.xpack.core.textstructure.structurefinder.TextStructure;
 import org.elasticsearch.xpack.textstructure.structurefinder.TextStructureFinderManager;
 
 import java.util.concurrent.TimeUnit;
 
-public class RestFindStructureArgumentsParser<Request extends AbstractFindStructureRequest> {
+public class RestFindStructureArgumentsParser {
 
     private static final TimeValue DEFAULT_TIMEOUT = new TimeValue(25, TimeUnit.SECONDS);
 
@@ -61,5 +63,11 @@ public class RestFindStructureArgumentsParser<Request extends AbstractFindStruct
         request.setEcsCompatibility(restRequest.param(FindStructureAction.Request.ECS_COMPATIBILITY.getPreferredName()));
         request.setTimestampFormat(restRequest.param(FindStructureAction.Request.TIMESTAMP_FORMAT.getPreferredName()));
         request.setTimestampField(restRequest.param(FindStructureAction.Request.TIMESTAMP_FIELD.getPreferredName()));
+
+        if (request instanceof FindMessageStructureAction.Request || request instanceof FindFieldStructureAction.Request) {
+            if (TextStructure.Format.DELIMITED.equals(request.getFormat())) {
+                request.setHasHeaderRow(false);
+            }
+        }
     }
 }

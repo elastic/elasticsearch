@@ -38,6 +38,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
@@ -1119,7 +1120,7 @@ public final class NodeEnvironment implements Closeable {
      * Returns all folder names in ${data.paths}/indices folder
      */
     public Set<String> availableIndexFolders() throws IOException {
-        return availableIndexFolders(p -> false);
+        return availableIndexFolders(Predicates.never());
     }
 
     /**
@@ -1147,7 +1148,7 @@ public final class NodeEnvironment implements Closeable {
      * @throws IOException if an I/O exception occurs traversing the filesystem
      */
     public Set<String> availableIndexFoldersForPath(final DataPath dataPath) throws IOException {
-        return availableIndexFoldersForPath(dataPath, p -> false);
+        return availableIndexFoldersForPath(dataPath, Predicates.never());
     }
 
     /**

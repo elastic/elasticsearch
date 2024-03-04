@@ -653,6 +653,43 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
         assertThat(maxIndexLoadWithinCoolingPeriod, is(lastIndexBeforeCoolingPeriodHasLowWriteLoad ? 15.0 : 999.0));
     }
 
+    public void testAutoShardingResultValidation() {
+        {
+            // throws exception when constructed using types that shouldn't report cooldowns
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> new AutoShardingResult(INCREASE_SHARDS, 1, 3, TimeValue.timeValueSeconds(3), 3.0)
+            );
+
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> new AutoShardingResult(DECREASE_SHARDS, 3, 1, TimeValue.timeValueSeconds(3), 1.0)
+            );
+
+        }
+
+        {
+            // we can successfully create results with cooldown period for the designated types
+            AutoShardingResult cooldownPreventedIncrease = new AutoShardingResult(
+                COOLDOWN_PREVENTED_INCREASE,
+                1,
+                3,
+                TimeValue.timeValueSeconds(3),
+                3.0
+            );
+            assertThat(cooldownPreventedIncrease.coolDownRemaining(), is(TimeValue.timeValueSeconds(3)));
+
+            AutoShardingResult cooldownPreventedDecrease = new AutoShardingResult(
+                COOLDOWN_PREVENTED_DECREASE,
+                3,
+                1,
+                TimeValue.timeValueSeconds(7),
+                1.0
+            );
+            assertThat(cooldownPreventedDecrease.coolDownRemaining(), is(TimeValue.timeValueSeconds(7)));
+        }
+    }
+
     private DataStream createDataStream(
         Metadata.Builder builder,
         String dataStreamName,

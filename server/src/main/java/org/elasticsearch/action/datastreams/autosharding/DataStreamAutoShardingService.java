@@ -54,6 +54,9 @@ public class DataStreamAutoShardingService {
 
     /**
      * Represents the minimum amount of time between two scaling events if the next event will increase the number of shards.
+     * We've chosen a value of 4.5minutes by default, just lower than the data stream lifecycle poll interval so we can increase shards with
+     * every DSL run, but we don't want it to be lower/0 as data stream lifecycle might run more often than the poll interval in case of
+     * a master failover.
      */
     public static final Setting<TimeValue> DATA_STREAMS_AUTO_SHARDING_INCREASE_SHARDS_COOLDOWN = Setting.timeSetting(
         "data_streams.auto_sharding.increase_shards.cooldown",

@@ -15,27 +15,38 @@ import org.elasticsearch.transport.RemoteClusterAware;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Supplier;
 
 public class ResolveClusterActionResponseTests extends AbstractWireSerializingTestCase<ResolveClusterActionResponse> {
 
     @Override
     protected ResolveClusterActionResponse createTestInstance() {
-        return new ResolveClusterActionResponse(randomResolveClusterInfoMap());
+        return new ResolveClusterActionResponse(randomResolveClusterInfoMap(() -> randomResolveClusterInfo()));
     }
 
-    private Map<String, ResolveClusterInfo> randomResolveClusterInfoMap() {
+    private Map<String, ResolveClusterInfo> randomResolveClusterInfoMap(Supplier<ResolveClusterInfo> rcInfoSupplier) {
         Map<String, ResolveClusterInfo> infoMap = new HashMap<>();
-        int numClusters = randomIntBetween(0, 50);
+        int numClusters = randomIntBetween(0, 100);
         if (randomBoolean() || numClusters == 0) {
-            infoMap.put(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, randomResolveClusterInfo());
+            infoMap.put(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, rcInfoSupplier.get());
         }
         for (int i = 0; i < numClusters; i++) {
-            infoMap.put("remote_" + i, randomResolveClusterInfo());
+            infoMap.put("remote_" + i, rcInfoSupplier.get());
         }
         return infoMap;
     }
 
-    private ResolveClusterInfo randomResolveClusterInfo() {
+    /**
+     * Useful for the mutateInstance method to ensure that no the new ResolveClusterInfo will not
+     * match the original one.
+     *
+     * @return version of ResolveClusterInfo that has randomized error strings
+     */
+    static ResolveClusterInfo randomResolveClusterInfoWithErrorString() {
+        return new ResolveClusterInfo(randomBoolean(), randomBoolean(), randomAlphaOfLength(125));
+    }
+
+    static ResolveClusterInfo randomResolveClusterInfo() {
         int val = randomIntBetween(1, 3);
         return switch (val) {
             case 1 -> new ResolveClusterInfo(false, randomBoolean());
@@ -52,6 +63,6 @@ public class ResolveClusterActionResponseTests extends AbstractWireSerializingTe
 
     @Override
     protected ResolveClusterActionResponse mutateInstance(ResolveClusterActionResponse response) {
-        return new ResolveClusterActionResponse(randomResolveClusterInfoMap());
+        return new ResolveClusterActionResponse(randomResolveClusterInfoMap(() -> randomResolveClusterInfoWithErrorString()));
     }
 }

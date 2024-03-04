@@ -1393,7 +1393,8 @@ public class IndicesService extends AbstractLifecycleComponent
         }
     }
 
-    private SlowLogFieldProvider loadSlowLogFieldProvider() {
+    // pkg-private for testing
+    SlowLogFieldProvider loadSlowLogFieldProvider() {
         List<? extends SlowLogFieldProvider> slowLogFieldProviders = pluginsService.loadServiceProviders(SlowLogFieldProvider.class);
         return new SlowLogFieldProvider() {
             @Override

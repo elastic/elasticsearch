@@ -458,15 +458,54 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 List.of(new ColumnInfo("foo", "integer")),
                 List.of(new Page(blockFactory.newIntArrayVector(new int[] { 40, 80 }, 2).asBlock())),
                 new EsqlQueryResponse.Profile(
-                    List.of(new DriverProfile(List.of(new DriverStatus.OperatorStatus("asdf", new AbstractPageMappingOperator.Status(10)))))
+                    List.of(
+                        new DriverProfile(
+                            20021,
+                            20000,
+                            12,
+                            List.of(new DriverStatus.OperatorStatus("asdf", new AbstractPageMappingOperator.Status(10021, 10)))
+                        )
+                    )
                 ),
                 false,
                 false
             );
         ) {
-            assertThat(Strings.toString(response), equalTo("""
-                {"columns":[{"name":"foo","type":"integer"}],"values":[[40],[80]],"profile":{"drivers":[""" + """
-                {"operators":[{"operator":"asdf","status":{"pages_processed":10}}]}]}}"""));
+            assertThat(Strings.toString(response, true, false), equalTo("""
+                {
+                  "columns" : [
+                    {
+                      "name" : "foo",
+                      "type" : "integer"
+                    }
+                  ],
+                  "values" : [
+                    [
+                      40
+                    ],
+                    [
+                      80
+                    ]
+                  ],
+                  "profile" : {
+                    "drivers" : [
+                      {
+                        "took_nanos" : 20021,
+                        "cpu_nanos" : 20000,
+                        "iterations" : 12,
+                        "operators" : [
+                          {
+                            "operator" : "asdf",
+                            "status" : {
+                              "process_nanos" : 10021,
+                              "pages_processed" : 10
+                            }
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                }"""));
         }
     }
 

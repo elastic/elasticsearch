@@ -73,6 +73,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
@@ -2266,7 +2267,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         IndexVersion minCompatVersion = minNodeVersion;
         final Collection<SnapshotId> snapshotIds = repositoryData.getSnapshotIds();
         for (SnapshotId snapshotId : snapshotIds.stream()
-            .filter(excluded == null ? sn -> true : Predicate.not(excluded::contains))
+            .filter(excluded == null ? Predicates.always() : Predicate.not(excluded::contains))
             .toList()) {
             final IndexVersion known = repositoryData.getVersion(snapshotId);
             // If we don't have the version cached in the repository data yet we load it from the snapshot info blobs

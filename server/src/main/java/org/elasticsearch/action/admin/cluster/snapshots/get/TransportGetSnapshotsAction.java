@@ -26,6 +26,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
@@ -545,8 +546,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
 
         private Predicate<SnapshotInfo> buildAfterPredicate() {
             if (after == null) {
-                // TODO use constant when https://github.com/elastic/elasticsearch/pull/105881 merged
-                return snapshotInfo -> true;
+                return Predicates.always();
             }
             assert offset == 0 : "can't combine after and offset but saw [" + after + "] and offset [" + offset + "]";
 

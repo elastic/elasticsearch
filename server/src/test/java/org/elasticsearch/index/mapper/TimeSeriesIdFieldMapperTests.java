@@ -687,7 +687,8 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
                 false,
                 UNASSIGNED_SEQ_NO,
                 0,
-                System.nanoTime()
+                System.nanoTime(),
+                0
             );
             assertNotNull(index.parsedDoc().dynamicMappingsUpdate());
         }
@@ -713,13 +714,15 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
                     false,
                     UNASSIGNED_SEQ_NO,
                     0,
-                    System.nanoTime()
+                    System.nanoTime(),
+                    0
                 );
             });
             assertThat(
                 failure.getMessage(),
                 equalTo(
-                    "[5:1] failed to parse: _id must be unset or set to [AAAAAMpxfIC8Wpr0AAABdrs-cAA]"
+                    "[5:1] failed to parse: _id must be unset or set to "
+                        + "[AAAAAAAAAXa7PnAAIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA]"
                         + " but was [no-such-tsid] because [index] is in time_series mode"
                 )
             );

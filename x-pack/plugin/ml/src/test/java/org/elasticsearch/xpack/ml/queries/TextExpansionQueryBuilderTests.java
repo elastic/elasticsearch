@@ -25,7 +25,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
-import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.plugins.Plugin;
@@ -260,10 +259,6 @@ public class TextExpansionQueryBuilderTests extends AbstractQueryTestCase<TextEx
         SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
         TextExpansionQueryBuilder queryBuilder = createTestQueryBuilder();
         QueryBuilder rewrittenQueryBuilder = rewriteAndFetch(queryBuilder, searchExecutionContext);
-        if (queryBuilder.getTokenPruningConfig() == null) {
-            assertTrue(rewrittenQueryBuilder instanceof BoolQueryBuilder);
-        } else {
-            assertTrue(rewrittenQueryBuilder instanceof WeightedTokensQueryBuilder);
-        }
+        assertTrue(rewrittenQueryBuilder instanceof WeightedTokensQueryBuilder);
     }
 }

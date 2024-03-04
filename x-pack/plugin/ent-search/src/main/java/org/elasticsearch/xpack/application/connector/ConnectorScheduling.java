@@ -30,13 +30,14 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 
 public class ConnectorScheduling implements Writeable, ToXContentObject {
 
-    private final ScheduleConfig accessControl;
-    private final ScheduleConfig full;
-    private final ScheduleConfig incremental;
-
+    private static final String EVERYDAY_AT_MIDNIGHT = "0 0 0 * * ?";
     private static final ParseField ACCESS_CONTROL_FIELD = new ParseField("access_control");
     private static final ParseField FULL_FIELD = new ParseField("full");
     private static final ParseField INCREMENTAL_FIELD = new ParseField("incremental");
+
+    private final ScheduleConfig accessControl;
+    private final ScheduleConfig full;
+    private final ScheduleConfig incremental;
 
     /**
      * @param accessControl connector access control sync schedule represented as {@link ScheduleConfig}
@@ -238,12 +239,19 @@ public class ConnectorScheduling implements Writeable, ToXContentObject {
         }
     }
 
+    /**
+     * Default scheduling is set to everyday at midnight (00:00:00).
+     *
+     * @return default scheduling for full, incremental and access control syncs.
+     */
     public static ConnectorScheduling getDefaultConnectorScheduling() {
         return new ConnectorScheduling.Builder().setAccessControl(
-            new ConnectorScheduling.ScheduleConfig.Builder().setEnabled(false).setInterval(new Cron("0 0 0 * * ?")).build()
+            new ConnectorScheduling.ScheduleConfig.Builder().setEnabled(false).setInterval(new Cron(EVERYDAY_AT_MIDNIGHT)).build()
         )
-            .setFull(new ConnectorScheduling.ScheduleConfig.Builder().setEnabled(false).setInterval(new Cron("0 0 0 * * ?")).build())
-            .setIncremental(new ConnectorScheduling.ScheduleConfig.Builder().setEnabled(false).setInterval(new Cron("0 0 0 * * ?")).build())
+            .setFull(new ConnectorScheduling.ScheduleConfig.Builder().setEnabled(false).setInterval(new Cron(EVERYDAY_AT_MIDNIGHT)).build())
+            .setIncremental(
+                new ConnectorScheduling.ScheduleConfig.Builder().setEnabled(false).setInterval(new Cron(EVERYDAY_AT_MIDNIGHT)).build()
+            )
             .build();
     }
 }

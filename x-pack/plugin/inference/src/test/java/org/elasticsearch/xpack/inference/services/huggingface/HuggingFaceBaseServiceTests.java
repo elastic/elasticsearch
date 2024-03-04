@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.huggingface;
 
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -63,7 +62,7 @@ public class HuggingFaceBaseServiceTests extends ESTestCase {
 
         var mockModel = getInvalidModel("model_id", "service_name");
 
-        try (var service = new TestService(new SetOnce<>(factory), new SetOnce<>(createWithEmptySettings(threadPool)))) {
+        try (var service = new TestService(factory, createWithEmptySettings(threadPool))) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(mockModel, List.of(""), new HashMap<>(), InputType.INGEST, listener);
 
@@ -84,7 +83,7 @@ public class HuggingFaceBaseServiceTests extends ESTestCase {
 
     private static final class TestService extends HuggingFaceBaseService {
 
-        TestService(SetOnce<HttpRequestSenderFactory> factory, SetOnce<ServiceComponents> serviceComponents) {
+        TestService(HttpRequestSenderFactory factory, ServiceComponents serviceComponents) {
             super(factory, serviceComponents);
         }
 

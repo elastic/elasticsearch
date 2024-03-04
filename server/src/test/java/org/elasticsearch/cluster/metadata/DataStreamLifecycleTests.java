@@ -281,7 +281,7 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
                 .dataRetention(dataStreamRetention)
                 .downsampling(randomDownsampling())
                 .build();
-            TimeValue defaultRetention = TimeValue.timeValueDays(randomIntBetween(1, 50));
+            TimeValue defaultRetention = TimeValue.timeValueDays(randomIntBetween(1, (int) dataStreamRetention.getDays() - 1));
             assertThat(lifecycleRetention.getEffectiveDataRetention(null), equalTo(dataStreamRetention));
             assertThat(
                 lifecycleRetention.getEffectiveDataRetention(new DataStreamGlobalRetention(defaultRetention, null)),

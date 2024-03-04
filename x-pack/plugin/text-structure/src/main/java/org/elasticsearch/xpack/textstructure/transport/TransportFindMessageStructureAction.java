@@ -18,9 +18,6 @@ import org.elasticsearch.xpack.core.textstructure.action.FindStructureResponse;
 import org.elasticsearch.xpack.textstructure.structurefinder.TextStructureFinder;
 import org.elasticsearch.xpack.textstructure.structurefinder.TextStructureFinderManager;
 import org.elasticsearch.xpack.textstructure.structurefinder.TextStructureOverrides;
-import org.elasticsearch.xpack.textstructure.structurefinder.TimeoutChecker;
-
-import java.util.ArrayList;
 
 public class TransportFindMessageStructureAction extends HandledTransportAction<FindMessageStructureAction.Request, FindStructureResponse> {
 
@@ -49,14 +46,11 @@ public class TransportFindMessageStructureAction extends HandledTransportAction<
 
     private FindStructureResponse buildTextStructureResponse(FindMessageStructureAction.Request request) throws Exception {
         TextStructureFinderManager structureFinderManager = new TextStructureFinderManager(threadPool.scheduler());
-        try (TimeoutChecker timeoutChecker = new TimeoutChecker("structure analysis", request.getTimeout(), threadPool.scheduler())) {
-            TextStructureFinder textStructureFinder = structureFinderManager.makeBestStructureFinder(
-                new ArrayList<>(),
-                request.getMessages(),
-                new TextStructureOverrides(request),
-                timeoutChecker
-            );
-            return new FindStructureResponse(textStructureFinder.getStructure());
-        }
+        TextStructureFinder textStructureFinder = structureFinderManager.findTextStructure(
+            request.getMessages(),
+            new TextStructureOverrides(request),
+            request.getTimeout()
+        );
+        return new FindStructureResponse(textStructureFinder.getStructure());
     }
 }

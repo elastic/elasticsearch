@@ -413,6 +413,23 @@ public final class TextStructureFinderManager {
         }
     }
 
+    public TextStructureFinder findTextStructure(List<String> messages, TextStructureOverrides overrides, TimeValue timeout)
+        throws Exception {
+        List<String> explanation = new ArrayList<>();
+        try (TimeoutChecker timeoutChecker = new TimeoutChecker("structure analysis", timeout, scheduler)) {
+            return makeBestStructureFinder(explanation, messages, overrides, timeoutChecker);
+        } catch (Exception e) {
+            // Add a dummy exception containing the explanation so far - this can be invaluable for troubleshooting as incorrect
+            // decisions made early on in the structure analysis can result in seemingly crazy decisions or timeouts later on
+            if (explanation.isEmpty() == false) {
+                e.addSuppressed(
+                    new ElasticsearchException(explanation.stream().collect(Collectors.joining("]\n[", "Explanation so far:\n[", "]\n")))
+                );
+            }
+            throw e;
+        }
+    }
+
     CharsetMatch findCharset(List<String> explanation, InputStream inputStream, TimeoutChecker timeoutChecker) throws Exception {
 
         // We need an input stream that supports mark and reset, so wrap the argument
@@ -634,7 +651,7 @@ public final class TextStructureFinderManager {
         );
     }
 
-    public TextStructureFinder makeBestStructureFinder(
+    private TextStructureFinder makeBestStructureFinder(
         List<String> explanation,
         List<String> messages,
         TextStructureOverrides overrides,

@@ -75,4 +75,8 @@ public interface Vector extends Accountable, RefCounted, Releasable {
      * Whether this vector was released
      */
     boolean isReleased();
+
+    byte SERIALIZE_VECTOR_VALUES = 0;
+    byte SERIALIZE_VECTOR_CONSTANT = 1;
+    byte SERIALIZE_VECTOR_ARRAY = 2;
 }

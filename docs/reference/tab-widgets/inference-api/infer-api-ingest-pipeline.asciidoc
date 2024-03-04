@@ -2,14 +2,7 @@
 
 [source,console]
 ----
-DELETE _ingest/pipeline/cohere_embeddings
-----
-// TEST
-// TEARDOWN
-
-[source,console]
-----
-DELETE _ingest/pipeline/openai_embeddings
+DELETE _ingest/pipeline/*_embeddings
 ----
 // TEST
 // TEARDOWN

@@ -232,13 +232,15 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
             weightedTokensQueryBuilder.boost(boost);
             return weightedTokensQueryBuilder;
         }
+        // Note: Weighted tokens queries were introduced in 8.13.0. To support cross cluster search against older versions,
+        // if no token pruning configuration is specified we fall back to a boolean query.
         var boolQuery = QueryBuilders.boolQuery();
         for (var weightedToken : textExpansionResults.getWeightedTokens()) {
             boolQuery.should(QueryBuilders.termQuery(fieldName, weightedToken.token()).boost(weightedToken.weight()));
         }
         boolQuery.minimumShouldMatch(1);
-        boolQuery.boost(this.boost);
-        boolQuery.queryName(this.queryName);
+        boolQuery.boost(boost);
+        boolQuery.queryName(queryName);
         return boolQuery;
     }
 

@@ -24,6 +24,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 
 public class MetadataFetcher {
     private static final List<FieldAndFormat> METADATA_FIELDS = List.of(
@@ -41,9 +42,13 @@ public class MetadataFetcher {
 
     private record FieldContext(String fieldName, ValueFetcher valueFetcher) {}
 
-    public static MetadataFetcher create(SearchExecutionContext context, boolean fetchStoredFields) {
+    public static MetadataFetcher create(
+        SearchExecutionContext context,
+        boolean fetchStoredFields,
+        final List<FieldAndFormat> additionalFields
+    ) {
         final List<MetadataField> metadataFields = new ArrayList<>(3);
-        for (FieldAndFormat fieldAndFormat : METADATA_FIELDS) {
+        for (FieldAndFormat fieldAndFormat : Stream.concat(METADATA_FIELDS.stream(), additionalFields.stream()).toList()) {
             for (final String field : context.getMatchingFieldNames(fieldAndFormat.field)) {
                 if (context.getFieldType(field) != null) {
                     MappedFieldType mappedFieldType = context.getFieldType(field);

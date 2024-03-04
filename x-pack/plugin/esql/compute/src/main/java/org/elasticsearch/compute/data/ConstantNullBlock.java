@@ -10,7 +10,6 @@ package org.elasticsearch.compute.data;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
@@ -70,17 +69,12 @@ final class ConstantNullBlock extends AbstractBlock implements BooleanBlock, Int
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Block.class,
         "ConstantNullBlock",
-        ConstantNullBlock::of
+        in -> ((BlockStreamInput) in).readConstantNullBlock()
     );
 
     @Override
     public String getWriteableName() {
         return "ConstantNullBlock";
-    }
-
-    static Block of(StreamInput in) throws IOException {
-        BlockFactory blockFactory = ((BlockStreamInput) in).blockFactory();
-        return blockFactory.newConstantNullBlock(in.readVInt());
     }
 
     @Override

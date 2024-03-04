@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.heap_attack;
 import org.apache.http.HttpHost;
 import org.apache.http.client.config.RequestConfig;
 import org.apache.http.util.EntityUtils;
+import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -21,6 +22,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.test.ListMatcher;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
@@ -56,17 +58,28 @@ import static org.hamcrest.Matchers.hasSize;
  * Tests that run ESQL queries that have, in the past, used so much memory they
  * crash Elasticsearch.
  */
+@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105814")
 public class HeapAttackIT extends ESRestTestCase {
 
     @ClassRule
-    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
-        .distribution(DistributionType.DEFAULT)
-        .module("test-esql-heap-attack")
-        .setting("xpack.security.enabled", "false")
-        .setting("xpack.license.self_generated.type", "trial")
-        .build();
+    public static ElasticsearchCluster cluster = buildCluster();
 
     static volatile boolean SUITE_ABORTED = false;
+
+    static ElasticsearchCluster buildCluster() {
+        var spec = ElasticsearchCluster.local()
+            .distribution(DistributionType.DEFAULT)
+            .nodes(2)
+            .module("test-esql-heap-attack")
+            .setting("xpack.security.enabled", "false")
+            .setting("xpack.license.self_generated.type", "trial");
+        String javaVersion = JvmInfo.jvmInfo().version();
+        if (javaVersion.equals("20") || javaVersion.equals("21")) {
+            // see https://github.com/elastic/elasticsearch/issues/99592
+            spec.jvmArg("-XX:+UnlockDiagnosticVMOptions -XX:+G1UsePreventiveGC");
+        }
+        return spec.build();
+    }
 
     @Override
     protected String getTestRestCluster() {
@@ -526,27 +539,34 @@ public class HeapAttackIT extends ESRestTestCase {
     private void bulk(String name, String bulk) throws IOException {
         Request request = new Request("POST", "/" + name + "/_bulk");
         request.addParameter("filter_path", "errors");
-        request.setJsonEntity(bulk.toString());
+        request.setJsonEntity(bulk);
+        request.setOptions(
+            RequestOptions.DEFAULT.toBuilder()
+                .setRequestConfig(RequestConfig.custom().setSocketTimeout(Math.toIntExact(TimeValue.timeValueMinutes(5).millis())).build())
+        );
         Response response = client().performRequest(request);
         assertThat(EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8), equalTo("{\"errors\":false}"));
     }
 
     private void initIndex(String name, String bulk) throws IOException {
+        if (indexExists(name) == false) {
+            // not strictly required, but this can help isolate failure from bulk indexing.
+            createIndex(name);
+        }
         if (hasText(bulk)) {
             bulk(name, bulk);
         }
-
-        Request request = new Request("POST", "/" + name + "/_refresh");
-        Response response = client().performRequest(request);
-        assertWriteResponse(response);
-
-        request = new Request("POST", "/" + name + "/_forcemerge");
+        Request request = new Request("POST", "/" + name + "/_forcemerge");
         request.addParameter("max_num_segments", "1");
-        response = client().performRequest(request);
+        RequestOptions.Builder requestOptions = RequestOptions.DEFAULT.toBuilder()
+            .setRequestConfig(RequestConfig.custom().setSocketTimeout(Math.toIntExact(TimeValue.timeValueMinutes(5).millis())).build());
+        request.setOptions(requestOptions);
+        Response response = client().performRequest(request);
         assertWriteResponse(response);
 
         request = new Request("POST", "/" + name + "/_refresh");
         response = client().performRequest(request);
+        request.setOptions(requestOptions);
         assertWriteResponse(response);
     }
 

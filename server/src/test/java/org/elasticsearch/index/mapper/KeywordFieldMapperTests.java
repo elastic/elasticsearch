@@ -390,7 +390,6 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         assertThat(e.getCause().getMessage(), containsString("Dimension field [field] cannot be a multi-valued field"));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105276")
     public void testDimensionExtraLongKeyword() throws IOException {
         DocumentMapper mapper = createTimeSeriesModeDocumentMapper(fieldMapping(b -> {
             minimalMapping(b);
@@ -400,7 +399,9 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         Exception e = expectThrows(
             DocumentParsingException.class,
             () -> mapper.parse(
-                source(b -> b.field("field", randomAlphaOfLengthBetween(IndexWriter.MAX_TERM_LENGTH, IndexWriter.MAX_TERM_LENGTH + 100)))
+                source(
+                    b -> b.field("field", randomAlphaOfLengthBetween(IndexWriter.MAX_TERM_LENGTH + 1, IndexWriter.MAX_TERM_LENGTH + 100))
+                )
             )
         );
         assertThat(

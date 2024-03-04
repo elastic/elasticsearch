@@ -75,7 +75,7 @@ class DatafeedJob {
     private volatile long lastDataCheckTimeMs;
     private volatile Tuple<String, Annotation> lastDataCheckAnnotationWithId;
     private volatile Long lastEndTimeMs;
-    private AtomicBoolean running = new AtomicBoolean(true);
+    private final AtomicBoolean running = new AtomicBoolean(true);
     private volatile boolean isIsolated;
     private volatile boolean haveEverSeenData;
     private volatile long consecutiveDelayedDataBuckets;
@@ -351,7 +351,7 @@ class DatafeedJob {
         return running.get();
     }
 
-    private void run(long start, long end, FlushJobAction.Request flushRequest) throws IOException {
+    private void run(long start, long end, FlushJobAction.Request flushRequest) {
         if (end <= start) {
             return;
         }

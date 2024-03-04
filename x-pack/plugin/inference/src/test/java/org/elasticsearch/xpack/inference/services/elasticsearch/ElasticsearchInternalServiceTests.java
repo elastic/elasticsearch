@@ -7,7 +7,7 @@
  * This file was contributed to by a Generative AI
  */
 
-package org.elasticsearch.xpack.inference.services.textembedding;
+package org.elasticsearch.xpack.inference.services.elasticsearch;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
@@ -45,7 +45,7 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class TextEmbeddingInternalServiceTests extends ESTestCase {
+public class ElasticsearchInternalServiceTests extends ESTestCase {
 
     TaskType taskType = TaskType.TEXT_EMBEDDING;
     String randomInferenceEntityId = randomAlphaOfLength(10);
@@ -59,7 +59,7 @@ public class TextEmbeddingInternalServiceTests extends ESTestCase {
             settings.put(
                 ModelConfigurations.SERVICE_SETTINGS,
                 new HashMap<>(
-                    Map.of(TextEmbeddingInternalServiceSettings.NUM_ALLOCATIONS, 1, TextEmbeddingInternalServiceSettings.NUM_THREADS, 4)
+                    Map.of(ElasticsearchInternalServiceSettings.NUM_ALLOCATIONS, 1, ElasticsearchInternalServiceSettings.NUM_THREADS, 4)
                 )
             );
 
@@ -79,12 +79,12 @@ public class TextEmbeddingInternalServiceTests extends ESTestCase {
                 ModelConfigurations.SERVICE_SETTINGS,
                 new HashMap<>(
                     Map.of(
-                        TextEmbeddingInternalServiceSettings.NUM_ALLOCATIONS,
+                        ElasticsearchInternalServiceSettings.NUM_ALLOCATIONS,
                         1,
-                        TextEmbeddingInternalServiceSettings.NUM_THREADS,
+                        ElasticsearchInternalServiceSettings.NUM_THREADS,
                         4,
                         InternalServiceSettings.MODEL_ID,
-                        TextEmbeddingInternalService.MULTILINGUAL_E5_SMALL_MODEL_ID
+                        ElasticsearchInternalService.MULTILINGUAL_E5_SMALL_MODEL_ID
                     )
                 )
             );
@@ -92,7 +92,7 @@ public class TextEmbeddingInternalServiceTests extends ESTestCase {
             var e5ServiceSettings = new MultilingualE5SmallInternalServiceSettings(
                 1,
                 4,
-                TextEmbeddingInternalService.MULTILINGUAL_E5_SMALL_MODEL_ID
+                ElasticsearchInternalService.MULTILINGUAL_E5_SMALL_MODEL_ID
             );
 
             service.parseRequestConfig(
@@ -111,7 +111,7 @@ public class TextEmbeddingInternalServiceTests extends ESTestCase {
             settings.put(
                 ModelConfigurations.SERVICE_SETTINGS,
                 new HashMap<>(
-                    Map.of(TextEmbeddingInternalServiceSettings.NUM_ALLOCATIONS, 1, TextEmbeddingInternalServiceSettings.NUM_THREADS, 4)
+                    Map.of(ElasticsearchInternalServiceSettings.NUM_ALLOCATIONS, 1, ElasticsearchInternalServiceSettings.NUM_THREADS, 4)
                 )
             );
             settings.put("not_a_valid_config_setting", randomAlphaOfLength(10));
@@ -132,12 +132,12 @@ public class TextEmbeddingInternalServiceTests extends ESTestCase {
                 ModelConfigurations.SERVICE_SETTINGS,
                 new HashMap<>(
                     Map.of(
-                        TextEmbeddingInternalServiceSettings.NUM_ALLOCATIONS,
+                        ElasticsearchInternalServiceSettings.NUM_ALLOCATIONS,
                         1,
-                        TextEmbeddingInternalServiceSettings.NUM_THREADS,
+                        ElasticsearchInternalServiceSettings.NUM_THREADS,
                         4,
                         InternalServiceSettings.MODEL_ID,
-                        TextEmbeddingInternalService.MULTILINGUAL_E5_SMALL_MODEL_ID, // we can't directly test the eland case until we mock
+                        ElasticsearchInternalService.MULTILINGUAL_E5_SMALL_MODEL_ID, // we can't directly test the eland case until we mock
                                                                                      // the threadpool within the client
                         "not_a_valid_service_setting",
                         randomAlphaOfLength(10)
@@ -161,12 +161,12 @@ public class TextEmbeddingInternalServiceTests extends ESTestCase {
                 ModelConfigurations.SERVICE_SETTINGS,
                 new HashMap<>(
                     Map.of(
-                        TextEmbeddingInternalServiceSettings.NUM_ALLOCATIONS,
+                        ElasticsearchInternalServiceSettings.NUM_ALLOCATIONS,
                         1,
-                        TextEmbeddingInternalServiceSettings.NUM_THREADS,
+                        ElasticsearchInternalServiceSettings.NUM_THREADS,
                         4,
                         InternalServiceSettings.MODEL_ID,
-                        TextEmbeddingInternalService.MULTILINGUAL_E5_SMALL_MODEL_ID, // we can't directly test the eland case until we mock
+                        ElasticsearchInternalService.MULTILINGUAL_E5_SMALL_MODEL_ID, // we can't directly test the eland case until we mock
                                                                                      // the threadpool within the client
                         "extra_setting_that_should_not_be_here",
                         randomAlphaOfLength(10)
@@ -190,12 +190,12 @@ public class TextEmbeddingInternalServiceTests extends ESTestCase {
                 ModelConfigurations.SERVICE_SETTINGS,
                 new HashMap<>(
                     Map.of(
-                        TextEmbeddingInternalServiceSettings.NUM_ALLOCATIONS,
+                        ElasticsearchInternalServiceSettings.NUM_ALLOCATIONS,
                         1,
-                        TextEmbeddingInternalServiceSettings.NUM_THREADS,
+                        ElasticsearchInternalServiceSettings.NUM_THREADS,
                         4,
                         InternalServiceSettings.MODEL_ID,
-                        TextEmbeddingInternalService.MULTILINGUAL_E5_SMALL_MODEL_ID // we can't directly test the eland case until we mock
+                        ElasticsearchInternalService.MULTILINGUAL_E5_SMALL_MODEL_ID // we can't directly test the eland case until we mock
                         // the threadpool within the client
                     )
                 )
@@ -214,7 +214,7 @@ public class TextEmbeddingInternalServiceTests extends ESTestCase {
     private ActionListener<Model> getModelVerificationActionListener(MultilingualE5SmallInternalServiceSettings e5ServiceSettings) {
         return ActionListener.<Model>wrap(model -> {
             assertEquals(
-                new MultilingualE5SmallModel(randomInferenceEntityId, taskType, TextEmbeddingInternalService.NAME, e5ServiceSettings),
+                new MultilingualE5SmallModel(randomInferenceEntityId, taskType, ElasticsearchInternalService.NAME, e5ServiceSettings),
                 model
             );
         }, e -> { fail("Model parsing failed " + e.getMessage()); });
@@ -229,14 +229,14 @@ public class TextEmbeddingInternalServiceTests extends ESTestCase {
             settings.put(
                 ModelConfigurations.SERVICE_SETTINGS,
                 new HashMap<>(
-                    Map.of(TextEmbeddingInternalServiceSettings.NUM_ALLOCATIONS, 1, TextEmbeddingInternalServiceSettings.NUM_THREADS, 4)
+                    Map.of(ElasticsearchInternalServiceSettings.NUM_ALLOCATIONS, 1, ElasticsearchInternalServiceSettings.NUM_THREADS, 4)
                 )
             );
 
             var e5ServiceSettings = new MultilingualE5SmallInternalServiceSettings(
                 1,
                 4,
-                TextEmbeddingInternalService.MULTILINGUAL_E5_SMALL_MODEL_ID
+                ElasticsearchInternalService.MULTILINGUAL_E5_SMALL_MODEL_ID
             );
 
             expectThrows(IllegalArgumentException.class, () -> service.parsePersistedConfig(randomInferenceEntityId, taskType, settings));
@@ -253,9 +253,9 @@ public class TextEmbeddingInternalServiceTests extends ESTestCase {
                 ModelConfigurations.SERVICE_SETTINGS,
                 new HashMap<>(
                     Map.of(
-                        TextEmbeddingInternalServiceSettings.NUM_ALLOCATIONS,
+                        ElasticsearchInternalServiceSettings.NUM_ALLOCATIONS,
                         1,
-                        TextEmbeddingInternalServiceSettings.NUM_THREADS,
+                        ElasticsearchInternalServiceSettings.NUM_THREADS,
                         4,
                         InternalServiceSettings.MODEL_ID,
                         "invalid"
@@ -266,7 +266,7 @@ public class TextEmbeddingInternalServiceTests extends ESTestCase {
             CustomElandModel parsedModel = (CustomElandModel) service.parsePersistedConfig(randomInferenceEntityId, taskType, settings);
             var elandServiceSettings = new CustomElandInternalServiceSettings(1, 4, "invalid");
             assertEquals(
-                new CustomElandModel(randomInferenceEntityId, taskType, TextEmbeddingInternalService.NAME, elandServiceSettings),
+                new CustomElandModel(randomInferenceEntityId, taskType, ElasticsearchInternalService.NAME, elandServiceSettings),
                 parsedModel
             );
         }
@@ -279,12 +279,12 @@ public class TextEmbeddingInternalServiceTests extends ESTestCase {
                 ModelConfigurations.SERVICE_SETTINGS,
                 new HashMap<>(
                     Map.of(
-                        TextEmbeddingInternalServiceSettings.NUM_ALLOCATIONS,
+                        ElasticsearchInternalServiceSettings.NUM_ALLOCATIONS,
                         1,
-                        TextEmbeddingInternalServiceSettings.NUM_THREADS,
+                        ElasticsearchInternalServiceSettings.NUM_THREADS,
                         4,
                         InternalServiceSettings.MODEL_ID,
-                        TextEmbeddingInternalService.MULTILINGUAL_E5_SMALL_MODEL_ID
+                        ElasticsearchInternalService.MULTILINGUAL_E5_SMALL_MODEL_ID
                     )
                 )
             );
@@ -292,7 +292,7 @@ public class TextEmbeddingInternalServiceTests extends ESTestCase {
             var e5ServiceSettings = new MultilingualE5SmallInternalServiceSettings(
                 1,
                 4,
-                TextEmbeddingInternalService.MULTILINGUAL_E5_SMALL_MODEL_ID
+                ElasticsearchInternalService.MULTILINGUAL_E5_SMALL_MODEL_ID
             );
 
             MultilingualE5SmallModel parsedModel = (MultilingualE5SmallModel) service.parsePersistedConfig(
@@ -301,7 +301,7 @@ public class TextEmbeddingInternalServiceTests extends ESTestCase {
                 settings
             );
             assertEquals(
-                new MultilingualE5SmallModel(randomInferenceEntityId, taskType, TextEmbeddingInternalService.NAME, e5ServiceSettings),
+                new MultilingualE5SmallModel(randomInferenceEntityId, taskType, ElasticsearchInternalService.NAME, e5ServiceSettings),
                 parsedModel
             );
         }
@@ -313,7 +313,7 @@ public class TextEmbeddingInternalServiceTests extends ESTestCase {
             settings.put(
                 ModelConfigurations.SERVICE_SETTINGS,
                 new HashMap<>(
-                    Map.of(TextEmbeddingInternalServiceSettings.NUM_ALLOCATIONS, 1, TextEmbeddingInternalServiceSettings.NUM_THREADS, 4)
+                    Map.of(ElasticsearchInternalServiceSettings.NUM_ALLOCATIONS, 1, ElasticsearchInternalServiceSettings.NUM_THREADS, 4)
                 )
             );
             settings.put("not_a_valid_config_setting", randomAlphaOfLength(10));
@@ -328,9 +328,9 @@ public class TextEmbeddingInternalServiceTests extends ESTestCase {
                 ModelConfigurations.SERVICE_SETTINGS,
                 new HashMap<>(
                     Map.of(
-                        TextEmbeddingInternalServiceSettings.NUM_ALLOCATIONS,
+                        ElasticsearchInternalServiceSettings.NUM_ALLOCATIONS,
                         1,
-                        TextEmbeddingInternalServiceSettings.NUM_THREADS,
+                        ElasticsearchInternalServiceSettings.NUM_THREADS,
                         4,
                         "not_a_valid_service_setting",
                         randomAlphaOfLength(10)
@@ -403,9 +403,9 @@ public class TextEmbeddingInternalServiceTests extends ESTestCase {
         assertTrue("Listener not called", gotResults.get());
     }
 
-    private TextEmbeddingInternalService createService(Client client) {
+    private ElasticsearchInternalService createService(Client client) {
         var context = new InferenceServiceExtension.InferenceServiceFactoryContext(client);
-        return new TextEmbeddingInternalService(context);
+        return new ElasticsearchInternalService(context);
     }
 
     public static Model randomModelConfig(String inferenceEntityId) {
@@ -417,7 +417,7 @@ public class TextEmbeddingInternalServiceTests extends ESTestCase {
             case "MultilingualE5SmallModel" -> new MultilingualE5SmallModel(
                 inferenceEntityId,
                 TaskType.TEXT_EMBEDDING,
-                TextEmbeddingInternalService.NAME,
+                ElasticsearchInternalService.NAME,
                 MultilingualE5SmallInternalServiceSettingsTests.createRandom()
             );
             default -> throw new IllegalArgumentException("model " + model + " is not supported for testing");

@@ -10,7 +10,6 @@ package org.elasticsearch.action.admin.cluster.snapshots.get;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.repositories.get.TransportGetRepositoriesAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -39,6 +38,7 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryMissingException;
+import org.elasticsearch.repositories.ResolvedRepositories;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
@@ -121,7 +121,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
 
         new GetSnapshotsOperation(
             (CancellableTask) task,
-            TransportGetRepositoriesAction.getRepositories(state, request.repositories()),
+            ResolvedRepositories.resolve(state, request.repositories()),
             request.isSingleRepositoryRequest() == false,
             request.snapshots(),
             request.ignoreUnavailable(),
@@ -185,7 +185,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
 
         GetSnapshotsOperation(
             CancellableTask cancellableTask,
-            TransportGetRepositoriesAction.RepositoriesResult repositoriesResult,
+            ResolvedRepositories resolvedRepositories,
             boolean isMultiRepoRequest,
             String[] snapshots,
             boolean ignoreUnavailable,
@@ -201,7 +201,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             boolean indices
         ) {
             this.cancellableTask = cancellableTask;
-            this.repositories = repositoriesResult.metadata();
+            this.repositories = resolvedRepositories.repositoryMetadata();
             this.isMultiRepoRequest = isMultiRepoRequest;
             this.snapshots = snapshots;
             this.ignoreUnavailable = ignoreUnavailable;
@@ -221,7 +221,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                 cancellableTask::isCancelled
             );
 
-            for (final var missingRepo : repositoriesResult.missing()) {
+            for (final var missingRepo : resolvedRepositories.missing()) {
                 failuresByRepository.put(missingRepo, new RepositoryMissingException(missingRepo));
             }
         }
@@ -344,7 +344,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             }
 
             final Set<Snapshot> toResolve = new HashSet<>();
-            if (TransportGetRepositoriesAction.isMatchAll(snapshots)) {
+            if (ResolvedRepositories.isMatchAll(snapshots)) {
                 toResolve.addAll(allSnapshotIds.values());
             } else {
                 final List<String> includePatterns = new ArrayList<>();
@@ -552,7 +552,27 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             return sortSnapshots(snapshotInfos.stream(), snapshotInfos.size(), 0, GetSnapshotsRequest.NO_LIMIT);
         }
 
-        private SnapshotsInRepo sortSnapshots(Stream<SnapshotInfo> infos, int totalCount, int offset, int size) {
+        private SnapshotsInRepo sortSnapshots(Stream<SnapshotInfo> snapshotInfoStream, int totalCount, int offset, int size) {
+            final var resultsStream = snapshotInfoStream.filter(buildAfterPredicate()).sorted(buildComparator()).skip(offset);
+            if (size == GetSnapshotsRequest.NO_LIMIT) {
+                return new SnapshotsInRepo(resultsStream.toList(), totalCount, 0);
+            } else {
+                final var allocateSize = Math.min(size, 1000); // ignore excessively-large sizes in request params
+                final var results = new ArrayList<SnapshotInfo>(allocateSize);
+                var remaining = 0;
+                for (var iterator = resultsStream.iterator(); iterator.hasNext();) {
+                    final var snapshotInfo = iterator.next();
+                    if (results.size() < size) {
+                        results.add(snapshotInfo);
+                    } else {
+                        remaining += 1;
+                    }
+                }
+                return new SnapshotsInRepo(results, totalCount, remaining);
+            }
+        }
+
+        private Comparator<SnapshotInfo> buildComparator() {
             final Comparator<SnapshotInfo> comparator = switch (sortBy) {
                 case START_TIME -> BY_START_TIME;
                 case NAME -> BY_NAME;
@@ -562,26 +582,16 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                 case FAILED_SHARDS -> BY_FAILED_SHARDS_COUNT;
                 case REPOSITORY -> BY_REPOSITORY;
             };
-
-            if (after != null) {
-                assert offset == 0 : "can't combine after and offset but saw [" + after + "] and offset [" + offset + "]";
-                infos = infos.filter(buildAfterPredicate());
-            }
-            infos = infos.sorted(order == SortOrder.DESC ? comparator.reversed() : comparator).skip(offset);
-            final List<SnapshotInfo> allSnapshots = infos.toList();
-            final List<SnapshotInfo> snapshots;
-            if (size != GetSnapshotsRequest.NO_LIMIT) {
-                snapshots = allSnapshots.stream().limit(size + 1).toList();
-            } else {
-                snapshots = allSnapshots;
-            }
-            final List<SnapshotInfo> resultSet = size != GetSnapshotsRequest.NO_LIMIT && size < snapshots.size()
-                ? snapshots.subList(0, size)
-                : snapshots;
-            return new SnapshotsInRepo(resultSet, totalCount, allSnapshots.size() - resultSet.size());
+            return order == SortOrder.DESC ? comparator.reversed() : comparator;
         }
 
         private Predicate<SnapshotInfo> buildAfterPredicate() {
+            if (after == null) {
+                // TODO use constant when https://github.com/elastic/elasticsearch/pull/105881 merged
+                return snapshotInfo -> true;
+            }
+            assert offset == 0 : "can't combine after and offset but saw [" + after + "] and offset [" + offset + "]";
+
             final String snapshotName = after.snapshotName();
             final String repoName = after.repoName();
             final String value = after.value();

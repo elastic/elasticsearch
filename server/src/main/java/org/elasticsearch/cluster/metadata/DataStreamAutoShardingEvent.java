@@ -25,12 +25,11 @@ import java.util.function.LongSupplier;
 /**
  * Represents the last auto sharding event that occured for a data stream.
  */
-public record DataStreamAutoShardingEvent(String triggerIndexName, long generation, int targetNumberOfShards, long timestamp)
+public record DataStreamAutoShardingEvent(String triggerIndexName, int targetNumberOfShards, long timestamp)
     implements
         SimpleDiffable<DataStreamAutoShardingEvent>,
         ToXContentFragment {
 
-    public static final ParseField TRIGGER_DATA_STREAM_GENERATION = new ParseField("trigger_generation");
     public static final ParseField TRIGGER_INDEX_NAME = new ParseField("trigger_index_name");
     public static final ParseField TARGET_NUMBER_OF_SHARDS = new ParseField("target_number_of_shards");
     public static final ParseField EVENT_TIME = new ParseField("event_time");
@@ -39,12 +38,11 @@ public record DataStreamAutoShardingEvent(String triggerIndexName, long generati
     public static final ConstructingObjectParser<DataStreamAutoShardingEvent, Void> PARSER = new ConstructingObjectParser<>(
         "auto_sharding",
         false,
-        (args, unused) -> new DataStreamAutoShardingEvent((String) args[0], (long) args[1], (int) args[2], (long) args[3])
+        (args, unused) -> new DataStreamAutoShardingEvent((String) args[0], (int) args[1], (long) args[2])
     );
 
     static {
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), TRIGGER_INDEX_NAME);
-        PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), TRIGGER_DATA_STREAM_GENERATION);
         PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), TARGET_NUMBER_OF_SHARDS);
         PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), EVENT_TIME_MILLIS);
     }
@@ -58,12 +56,11 @@ public record DataStreamAutoShardingEvent(String triggerIndexName, long generati
     }
 
     DataStreamAutoShardingEvent(StreamInput in) throws IOException {
-        this(in.readString(), in.readVLong(), in.readVInt(), in.readVLong());
+        this(in.readString(), in.readVInt(), in.readVLong());
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field(TRIGGER_DATA_STREAM_GENERATION.getPreferredName(), generation);
         builder.field(TRIGGER_INDEX_NAME.getPreferredName(), triggerIndexName);
         builder.field(TARGET_NUMBER_OF_SHARDS.getPreferredName(), targetNumberOfShards);
         builder.humanReadableField(
@@ -77,7 +74,6 @@ public record DataStreamAutoShardingEvent(String triggerIndexName, long generati
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(triggerIndexName);
-        out.writeVLong(generation);
         out.writeVInt(targetNumberOfShards);
         out.writeVLong(timestamp);
     }

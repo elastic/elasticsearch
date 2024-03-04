@@ -137,7 +137,6 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                     ? null
                     : new DataStreamAutoShardingEvent(
                         indices.get(indices.size() - 1).getName(),
-                        generation,
                         randomIntBetween(1, 10),
                         randomMillisUpToYear9999()
                     );

@@ -36,25 +36,18 @@ public class DataStreamAutoShardingEventTests extends SimpleDiffableSerializatio
     @Override
     protected DataStreamAutoShardingEvent mutateInstance(DataStreamAutoShardingEvent instance) {
         String triggerIndex = instance.triggerIndexName();
-        long generation = instance.generation();
         long timestamp = instance.timestamp();
         int targetNumberOfShards = instance.targetNumberOfShards();
-        switch (randomInt(3)) {
+        switch (randomInt(2)) {
             case 0 -> triggerIndex = randomValueOtherThan(triggerIndex, () -> randomAlphaOfLengthBetween(10, 50));
-            case 1 -> generation = randomValueOtherThan(generation, ESTestCase::randomNonNegativeLong);
-            case 2 -> timestamp = randomValueOtherThan(timestamp, ESTestCase::randomNonNegativeLong);
-            case 3 -> targetNumberOfShards = randomValueOtherThan(targetNumberOfShards, ESTestCase::randomNonNegativeInt);
+            case 1 -> timestamp = randomValueOtherThan(timestamp, ESTestCase::randomNonNegativeLong);
+            case 2 -> targetNumberOfShards = randomValueOtherThan(targetNumberOfShards, ESTestCase::randomNonNegativeInt);
         }
-        return new DataStreamAutoShardingEvent(triggerIndex, generation, targetNumberOfShards, timestamp);
+        return new DataStreamAutoShardingEvent(triggerIndex, targetNumberOfShards, timestamp);
     }
 
     static DataStreamAutoShardingEvent randomInstance() {
-        return new DataStreamAutoShardingEvent(
-            randomAlphaOfLengthBetween(10, 40),
-            randomNonNegativeLong(),
-            randomNonNegativeInt(),
-            randomNonNegativeLong()
-        );
+        return new DataStreamAutoShardingEvent(randomAlphaOfLengthBetween(10, 40), randomNonNegativeInt(), randomNonNegativeLong());
     }
 
     @Override

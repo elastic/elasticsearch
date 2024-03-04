@@ -243,7 +243,7 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
 
             // generation 4 triggered an auto sharding event to 2 shards
             DataStream dataStream = dataStreamSupplier.apply(
-                new DataStreamAutoShardingEvent(DataStream.getDefaultBackingIndexName(dataStreamName, 4), 4, 2, now - 1005)
+                new DataStreamAutoShardingEvent(DataStream.getDefaultBackingIndexName(dataStreamName, 4), 2, now - 1005)
             );
             builder.put(dataStream);
             ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
@@ -281,7 +281,7 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
 
             // generation 3 triggered an increase in shards event to 2 shards
             DataStream dataStream = dataStreamSupplier.apply(
-                new DataStreamAutoShardingEvent(DataStream.getDefaultBackingIndexName(dataStreamName, 4), 4, 2, now - 2_000_100)
+                new DataStreamAutoShardingEvent(DataStream.getDefaultBackingIndexName(dataStreamName, 4), 2, now - 2_000_100)
             );
             builder.put(dataStream);
             ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
@@ -406,7 +406,6 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
                 new DataStreamAutoShardingEvent(
                     DataStream.getDefaultBackingIndexName(dataStreamName, 2),
                     2,
-                    2,
                     now - TimeValue.timeValueDays(4).getMillis()
                 )
             );
@@ -452,7 +451,6 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
             DataStream dataStream = dataStreamSupplier.apply(
                 new DataStreamAutoShardingEvent(
                     DataStream.getDefaultBackingIndexName(dataStreamName, 2),
-                    2,
                     2,
                     now - TimeValue.timeValueDays(2).getMillis()
                 )

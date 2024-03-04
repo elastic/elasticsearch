@@ -1196,9 +1196,9 @@ class NodeConstruction {
 
         var serverHealthIndicatorServices = Stream.of(
             new StableMasterHealthIndicatorService(coordinationDiagnosticsService, clusterService),
-            new RepositoryIntegrityHealthIndicatorService(clusterService),
-            new DiskHealthIndicatorService(clusterService),
-            new ShardsCapacityHealthIndicatorService(clusterService)
+            new RepositoryIntegrityHealthIndicatorService(clusterService, featureService),
+            new DiskHealthIndicatorService(clusterService, featureService),
+            new ShardsCapacityHealthIndicatorService(clusterService, featureService)
         );
         var pluginHealthIndicatorServices = pluginsService.filterPlugins(HealthPlugin.class)
             .flatMap(plugin -> plugin.getHealthIndicatorServices().stream());

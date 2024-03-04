@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.services.textembedding;
+package org.elasticsearch.xpack.inference.services.elasticsearch;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -52,9 +52,9 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFrom
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
 import static org.elasticsearch.xpack.inference.services.settings.InternalServiceSettings.MODEL_ID;
 
-public class TextEmbeddingInternalService implements InferenceService {
+public class ElasticsearchInternalService implements InferenceService {
 
-    public static final String NAME = "text_embedding";
+    public static final String NAME = "elasticsearch";
 
     static final String MULTILINGUAL_E5_SMALL_MODEL_ID = ".multilingual-e5-small";
     static final String MULTILINGUAL_E5_SMALL_MODEL_ID_LINUX_X86 = ".multilingual-e5-small_linux-x86_64";
@@ -65,9 +65,9 @@ public class TextEmbeddingInternalService implements InferenceService {
 
     private final OriginSettingClient client;
 
-    private static final Logger logger = LogManager.getLogger(TextEmbeddingInternalService.class);
+    private static final Logger logger = LogManager.getLogger(ElasticsearchInternalService.class);
 
-    public TextEmbeddingInternalService(InferenceServiceExtension.InferenceServiceFactoryContext context) {
+    public ElasticsearchInternalService(InferenceServiceExtension.InferenceServiceFactoryContext context) {
         this.client = new OriginSettingClient(context.client(), ClientHelper.INFERENCE_ORIGIN);
     }
 
@@ -168,7 +168,7 @@ public class TextEmbeddingInternalService implements InferenceService {
     }
 
     @Override
-    public TextEmbeddingModel parsePersistedConfigWithSecrets(
+    public ElasticsearchModel parsePersistedConfigWithSecrets(
         String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> config,
@@ -178,7 +178,7 @@ public class TextEmbeddingInternalService implements InferenceService {
     }
 
     @Override
-    public TextEmbeddingModel parsePersistedConfig(String inferenceEntityId, TaskType taskType, Map<String, Object> config) {
+    public ElasticsearchModel parsePersistedConfig(String inferenceEntityId, TaskType taskType, Map<String, Object> config) {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
 
         String modelId = (String) serviceSettingsMap.get(MODEL_ID);
@@ -270,7 +270,7 @@ public class TextEmbeddingInternalService implements InferenceService {
 
     @Override
     public void start(Model model, ActionListener<Boolean> listener) {
-        if (model instanceof TextEmbeddingModel == false) {
+        if (model instanceof ElasticsearchModel == false) {
             listener.onFailure(notTextEmbeddingModelException(model));
             return;
         }
@@ -282,8 +282,8 @@ public class TextEmbeddingInternalService implements InferenceService {
             return;
         }
 
-        var startRequest = ((TextEmbeddingModel) model).getStartTrainedModelDeploymentActionRequest();
-        var responseListener = ((TextEmbeddingModel) model).getCreateTrainedModelAssignmentActionListener(model, listener);
+        var startRequest = ((ElasticsearchModel) model).getStartTrainedModelDeploymentActionRequest();
+        var responseListener = ((ElasticsearchModel) model).getCreateTrainedModelAssignmentActionListener(model, listener);
 
         client.execute(StartTrainedModelDeploymentAction.INSTANCE, startRequest, responseListener);
     }
@@ -299,7 +299,7 @@ public class TextEmbeddingInternalService implements InferenceService {
 
     @Override
     public void putModel(Model model, ActionListener<Boolean> listener) {
-        if (model instanceof TextEmbeddingModel == false) {
+        if (model instanceof ElasticsearchModel == false) {
             listener.onFailure(notTextEmbeddingModelException(model));
             return;
         } else if (model instanceof MultilingualE5SmallModel e5Model) {
@@ -347,7 +347,7 @@ public class TextEmbeddingInternalService implements InferenceService {
             }
         });
 
-        if (model instanceof TextEmbeddingModel == false) {
+        if (model instanceof ElasticsearchModel == false) {
             listener.onFailure(notTextEmbeddingModelException(model));
         } else if (model.getServiceSettings() instanceof InternalServiceSettings internalServiceSettings) {
             String modelId = internalServiceSettings.getModelId();

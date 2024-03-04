@@ -404,6 +404,11 @@ public class RestTableTests extends ESTestCase {
                     }
                 };
             }
+
+            @Override
+            public int pageSize() {
+                return pageSize;
+            }
         };
 
         final var bodyChunks = new ArrayList<String>();

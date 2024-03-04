@@ -91,7 +91,8 @@ public class TimeSeriesRoutingIdFieldMapper extends MetadataFieldMapper {
     @Override
     public void postParse(DocumentParserContext context) {
         if (context.indexSettings().getMode() == IndexMode.TIME_SERIES
-            && context.indexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.TIME_SERIES_ROUTING_ID_IN_ID)) {
+            && context.indexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.TIME_SERIES_ROUTING_ID_IN_ID)
+            && context.sourceToParse().id() != null) {
             var field = new SortedDocValuesField(NAME, Uid.encodeId(context.sourceToParse().id()));
             context.rootDoc().add(field);
         }

@@ -82,9 +82,15 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
                     )
                 );
             }
-        } else {
+        } else if (context.sourceToParse().id() != null) {
             int routingId = TimeSeriesRoutingIdFieldMapper.decode(context.sourceToParse().id());
             id = createId(routingId, tsid, timestamp);
+        } else {
+            throw new IllegalArgumentException(
+                "_id was null but must be set because index ["
+                    + context.indexSettings().getIndexMetadata().getIndex().getName()
+                    + "] is in time_series mode"
+            );
         }
         context.id(id);
 

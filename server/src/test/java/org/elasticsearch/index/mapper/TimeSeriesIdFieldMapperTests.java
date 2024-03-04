@@ -666,16 +666,44 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
             .put(IndexSettings.MODE.getKey(), "time_series")
             .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dim")
             .build();
-        // without _id
-        {
-            MapperService mapper = createMapperService(IndexVersion.current(), indexSettings, () -> false);
-            SourceToParse source = new SourceToParse(null, new BytesArray("""
-                {
-                    "@timestamp": 1609459200000,
-                    "dim": "6a841a21",
-                    "value": 100
-                }"""), XContentType.JSON);
-            Engine.Index index = IndexShard.prepareIndex(
+        MapperService mapper = createMapperService(IndexVersion.current(), indexSettings, () -> false);
+        SourceToParse source = new SourceToParse(TimeSeriesRoutingIdFieldMapper.encode(0), new BytesArray("""
+            {
+                "@timestamp": 1609459200000,
+                "dim": "6a841a21",
+                "value": 100
+            }"""), XContentType.JSON);
+        Engine.Index index = IndexShard.prepareIndex(
+            mapper,
+            source,
+            UNASSIGNED_SEQ_NO,
+            randomNonNegativeLong(),
+            Versions.MATCH_ANY,
+            VersionType.INTERNAL,
+            Engine.Operation.Origin.PRIMARY,
+            -1,
+            false,
+            UNASSIGNED_SEQ_NO,
+            0,
+            System.nanoTime()
+        );
+        assertNotNull(index.parsedDoc().dynamicMappingsUpdate());
+    }
+
+    public void testParseWithDynamicMappingInvalidId() {
+        Settings indexSettings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), "time_series")
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dim")
+            .build();
+        MapperService mapper = createMapperService(IndexVersion.current(), indexSettings, () -> false);
+        SourceToParse source = new SourceToParse("no-such-id-exists", new BytesArray("""
+            {
+                "@timestamp": 1609459200000,
+                "dim": "6a841a21",
+                "value": 100
+            }"""), XContentType.JSON);
+        var failure = expectThrows(DocumentParsingException.class, () -> {
+            IndexShard.prepareIndex(
                 mapper,
                 source,
                 UNASSIGNED_SEQ_NO,
@@ -689,40 +717,41 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
                 0,
                 System.nanoTime()
             );
-            assertNotNull(index.parsedDoc().dynamicMappingsUpdate());
-        }
-        // with _id
-        {
-            MapperService mapper = createMapperService(IndexVersion.current(), indexSettings, () -> false);
-            SourceToParse source = new SourceToParse("no-such-tsid", new BytesArray("""
-                {
-                    "@timestamp": 1609459200000,
-                    "dim": "6a841a21",
-                    "value": 100
-                }"""), XContentType.JSON);
-            var failure = expectThrows(DocumentParsingException.class, () -> {
-                IndexShard.prepareIndex(
-                    mapper,
-                    source,
-                    UNASSIGNED_SEQ_NO,
-                    randomNonNegativeLong(),
-                    Versions.MATCH_ANY,
-                    VersionType.INTERNAL,
-                    Engine.Operation.Origin.PRIMARY,
-                    -1,
-                    false,
-                    UNASSIGNED_SEQ_NO,
-                    0,
-                    System.nanoTime()
-                );
-            });
-            assertThat(
-                failure.getMessage(),
-                equalTo(
-                    "[5:1] failed to parse: _id must be unset or set to [AAAAAMpxfIC8Wpr0AAABdrs-cAA]"
-                        + " but was [no-such-tsid] because [index] is in time_series mode"
-                )
+        });
+        assertThat(failure.getMessage(), equalTo("[5:1] failed to parse: Last unit does not have enough valid bits"));
+    }
+
+    public void testParseWithDynamicMappingNullId() {
+        Settings indexSettings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), "time_series")
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dim")
+            .build();
+        MapperService mapper = createMapperService(IndexVersion.current(), indexSettings, () -> false);
+        SourceToParse source = new SourceToParse(null, new BytesArray("""
+            {
+                "@timestamp": 1609459200000,
+                "dim": "6a841a21",
+                "value": 100
+            }"""), XContentType.JSON);
+        var failure = expectThrows(DocumentParsingException.class, () -> {
+            IndexShard.prepareIndex(
+                mapper,
+                source,
+                UNASSIGNED_SEQ_NO,
+                randomNonNegativeLong(),
+                Versions.MATCH_ANY,
+                VersionType.INTERNAL,
+                Engine.Operation.Origin.PRIMARY,
+                -1,
+                false,
+                UNASSIGNED_SEQ_NO,
+                0,
+                System.nanoTime()
             );
-        }
+        });
+        assertThat(
+            failure.getMessage(),
+            equalTo("[5:1] failed to parse: _id was null but must be set because index [index] is in time_series mode")
+        );
     }
 }

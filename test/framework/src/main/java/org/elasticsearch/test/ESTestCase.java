@@ -499,6 +499,7 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     @Before
     public final void before() {
+        LeakTracker.setContextHint(getTestName());
         logger.info("{}before test", getTestParamsForLogging());
         assertNull("Thread context initialized twice", threadContext);
         if (enableWarningsCheck()) {
@@ -530,6 +531,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         ensureAllSearchContextsReleased();
         ensureCheckIndexPassed();
         logger.info("{}after test", getTestParamsForLogging());
+        LeakTracker.setContextHint("");
     }
 
     private String getTestParamsForLogging() {
@@ -702,7 +704,6 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     // separate method so that this can be checked again after suite scoped cluster is shut down
     protected static void checkStaticState() throws Exception {
-        LeakTracker.INSTANCE.reportLeak();
         MockBigArrays.ensureAllArraysAreReleased();
 
         // ensure no one changed the status logger level on us

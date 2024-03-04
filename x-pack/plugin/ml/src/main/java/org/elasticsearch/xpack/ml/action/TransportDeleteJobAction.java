@@ -291,7 +291,7 @@ public class TransportDeleteJobAction extends AcknowledgedTransportMasterNodeAct
         if (jobTask == null) {
             listener.onResponse(null);
         } else {
-            persistentTasksService.sendRemoveRequest(jobTask.getId(), listener.safeMap(task -> true));
+            persistentTasksService.sendRemoveRequest(jobTask.getId(), null, listener.safeMap(task -> true));
         }
     }
 

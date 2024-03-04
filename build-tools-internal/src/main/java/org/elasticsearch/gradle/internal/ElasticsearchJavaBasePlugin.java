@@ -14,6 +14,7 @@ import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitTaskPlugin;
 import org.elasticsearch.gradle.internal.info.BuildParams;
 import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
+import org.elasticsearch.gradle.internal.test.TestUtil;
 import org.elasticsearch.gradle.test.SystemPropertyCommandLineArgumentProvider;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.JavaVersion;
@@ -180,22 +181,11 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
             return;
         }
 
-        // TODO: we don't have this anywhere already?
-        String arch = Architecture.current().toString().toLowerCase(Locale.ROOT);
-        String platform = String.format(Locale.ROOT, "%s-%s", ElasticsearchDistribution.CURRENT_PLATFORM, arch);
-        String existingLibraryPath = System.getProperty("java.library.path");
-
         project.getTasks().withType(Test.class).configureEach(test -> {
             var dep = project.getDependencies().project(Map.of("path", nativeProject, "configuration", "runtimePath"));
             FileCollection nativeConfig = project.getConfigurations().detachedConfiguration(dep);
             var systemProperties = test.getExtensions().getByType(SystemPropertyCommandLineArgumentProvider.class);
-            var libraryPath = (Supplier<String>) () -> String.format(
-                Locale.ROOT,
-                "%s/%s:%s",
-                nativeConfig.getAsPath(),
-                platform,
-                existingLibraryPath
-            );
+            var libraryPath = (Supplier<String>) () -> TestUtil.getTestLibraryPath(nativeConfig.getAsPath());
 
             test.dependsOn(nativeConfig);
             // we may use JNA or the JDK's foreign function api to load libraries, so we set both sysprops

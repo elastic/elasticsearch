@@ -19,8 +19,14 @@ class JnaCloseableByteBuffer implements CloseableByteBuffer {
     private final ByteBuffer bufferView;
 
     JnaCloseableByteBuffer(int len) {
-        this.memory = new Memory(len);
-        this.bufferView = memory.getByteBuffer(0, len);
+        assert len >= 0;
+        if (len == 0) {
+            this.memory = null;
+            this.bufferView = ByteBuffer.allocate(0);
+        } else {
+            this.memory = new Memory(len);
+            this.bufferView = memory.getByteBuffer(0, len);
+        }
     }
 
     @Override
@@ -30,6 +36,8 @@ class JnaCloseableByteBuffer implements CloseableByteBuffer {
 
     @Override
     public void close() {
-        memory.close();
+        if (memory != null) {
+            memory.close();
+        }
     }
 }

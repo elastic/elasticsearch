@@ -256,7 +256,7 @@ public class LocalHealthMonitorTests extends ESTestCase {
     }
 
     /**
-     * This test verifies that the local health monitor is able to deal with more the more complex situation where it is forced to restart
+     * This test verifies that the local health monitor is able to deal with the more complex situation where it is forced to restart
      * (due to a health node change) while there is an in-flight request to the previous health node.
      */
     public void testResetDuringInFlightRequest() throws Exception {
@@ -271,6 +271,7 @@ public class LocalHealthMonitorTests extends ESTestCase {
             var diskHealthInfo = ((UpdateHealthInfoCacheAction.Request) invocation.getArgument(1)).getDiskHealthInfo();
             assertThat(diskHealthInfo, equalTo(GREEN));
             var currentValue = requestCounter.incrementAndGet();
+            // We only want to switch the health node during the first request. Any following request(s) should simply succeed.
             if (currentValue == 1) {
                 when(clusterService.state()).thenReturn(current);
                 localHealthMonitor.clusterChanged(new ClusterChangedEvent("health-node-switch", current, previous));
@@ -282,6 +283,8 @@ public class LocalHealthMonitorTests extends ESTestCase {
 
         localHealthMonitor.setMonitorInterval(TimeValue.timeValueMillis(10));
         localHealthMonitor.clusterChanged(new ClusterChangedEvent("start-up", previous, ClusterState.EMPTY_STATE));
+        // Assert that we've sent the update request twice, even though the health info itself hasn't changed (i.e. we send again due to
+        // the health node change).
         assertBusy(() -> assertThat(requestCounter.get(), equalTo(2)));
     }
 

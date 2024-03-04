@@ -203,6 +203,9 @@ public class LocalHealthMonitor implements ClusterStateListener {
         if (prerequisitesFulfilled == false || healthNodeChanged || masterNodeChanged) {
             stopMonitoring();
             // Reset the reference of each HealthTracker.
+            // By doing this after `stopMonitoring()`, we're sure the `Monitoring` instance has been cancelled and therefore won't
+            // touch the `lastReportedValue` of the health trackers after we've reset them (only the new `Monitoring` instance will
+            // be able to update them).
             healthTrackers.forEach(HealthTracker::reset);
         }
         if (prerequisitesFulfilled) {

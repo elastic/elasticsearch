@@ -9,6 +9,7 @@
 package org.elasticsearch.common.time;
 
 import org.apache.logging.log4j.Level;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.joda.time.DateTimeZone;
 
@@ -60,6 +61,7 @@ public class DateUtilsTests extends ESTestCase {
         return false;
     }
 
+    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105841")
     public void testTimezoneIds() {
         assertNull(DateUtils.dateTimeZoneToZoneId(null));
         assertNull(DateUtils.zoneIdToDateTimeZone(null));

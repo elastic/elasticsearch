@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.application.connector.syncjob;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
@@ -17,6 +18,7 @@ import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -80,7 +82,6 @@ public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
     }
 
     private String createConnector() throws IOException, InterruptedException, ExecutionException, TimeoutException {
-
         Connector connector = ConnectorTestUtils.getRandomConnector();
 
         final IndexRequest indexRequest = new IndexRequest(ConnectorIndexService.CONNECTOR_INDEX_NAME).opType(DocWriteRequest.OpType.INDEX)
@@ -229,7 +230,8 @@ public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
         expectThrows(ResourceNotFoundException.class, () -> awaitCheckInConnectorSyncJob(NON_EXISTING_SYNC_JOB_ID));
     }
 
-    public void testCancelConnectorSyncJob() throws Exception {
+    public void testCancelConnectorSyncJob_WithStatusInProgress_ExpectNextStatusCanceling() throws Exception {
+        // Create connector sync job
         PostConnectorSyncJobAction.Request syncJobRequest = ConnectorSyncJobTestUtils.getRandomPostConnectorSyncJobActionRequest(
             connectorOneId
         );
@@ -247,6 +249,10 @@ public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
         assertThat(cancellationRequestedAtBeforeUpdate, nullValue());
         assertThat(syncStatusBeforeUpdate, not(equalTo(ConnectorSyncStatus.CANCELING)));
 
+        // Set sync job status to `in_progress`
+        updateConnectorSyncJobStatusWithoutStateMachineGuard(syncJobId, ConnectorSyncStatus.IN_PROGRESS);
+
+        // Cancel sync job
         UpdateResponse updateResponse = awaitCancelConnectorSyncJob(syncJobId);
 
         Map<String, Object> syncJobSourceAfterUpdate = getConnectorSyncJobSourceById(syncJobId);
@@ -261,6 +267,103 @@ public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
         assertThat(cancellationRequestedAtAfterUpdate, notNullValue());
         assertThat(syncStatusAfterUpdate, equalTo(ConnectorSyncStatus.CANCELING));
         assertFieldsExceptSyncStatusAndCancellationRequestedAtDidNotUpdate(syncJobSourceBeforeUpdate, syncJobSourceAfterUpdate);
+    }
+
+    public void testCancelConnectorSyncJob_WithPendingState_ExpectNextStatusCanceled() throws Exception {
+        // Create pending sync job
+        PostConnectorSyncJobAction.Request syncJobRequest = ConnectorSyncJobTestUtils.getRandomPostConnectorSyncJobActionRequest(
+            connectorOneId
+        );
+        PostConnectorSyncJobAction.Response response = awaitPutConnectorSyncJob(syncJobRequest);
+        String syncJobId = response.getId();
+        Map<String, Object> syncJobSourceBeforeUpdate = getConnectorSyncJobSourceById(syncJobId);
+        ConnectorSyncStatus syncStatusBeforeUpdate = ConnectorSyncStatus.fromString(
+            (String) syncJobSourceBeforeUpdate.get(ConnectorSyncJob.STATUS_FIELD.getPreferredName())
+        );
+        Object canceledAtBeforeUpdate = syncJobSourceBeforeUpdate.get(ConnectorSyncJob.CANCELED_AT_FIELD.getPreferredName());
+
+        assertThat(syncJobId, notNullValue());
+        assertThat(canceledAtBeforeUpdate, nullValue());
+        assertThat(syncStatusBeforeUpdate, not(equalTo(ConnectorSyncStatus.CANCELED)));
+
+        // Cancel sync job
+        UpdateResponse updateResponse = awaitCancelConnectorSyncJob(syncJobId);
+
+        Map<String, Object> syncJobSourceAfterUpdate = getConnectorSyncJobSourceById(syncJobId);
+        ConnectorSyncStatus syncStatusAfterUpdate = ConnectorSyncStatus.fromString(
+            (String) syncJobSourceAfterUpdate.get(ConnectorSyncJob.STATUS_FIELD.getPreferredName())
+        );
+        Instant canceledAtAfterUpdate = Instant.parse(
+            (String) syncJobSourceAfterUpdate.get(ConnectorSyncJob.CANCELED_AT_FIELD.getPreferredName())
+        );
+
+        assertThat(updateResponse.status(), equalTo(RestStatus.OK));
+        assertThat(canceledAtAfterUpdate, notNullValue());
+        assertThat(syncStatusAfterUpdate, equalTo(ConnectorSyncStatus.CANCELED));
+        assertFieldsExceptSyncStatusAndCanceledAndCompletedTimestampsDidNotUpdate(syncJobSourceBeforeUpdate, syncJobSourceAfterUpdate);
+    }
+
+    public void testCancelConnectorSyncJob_WithSuspendedState_ExpectNextStatusCanceled() throws Exception {
+        // Create pending sync job
+        PostConnectorSyncJobAction.Request syncJobRequest = ConnectorSyncJobTestUtils.getRandomPostConnectorSyncJobActionRequest(
+            connectorOneId
+        );
+        PostConnectorSyncJobAction.Response response = awaitPutConnectorSyncJob(syncJobRequest);
+        String syncJobId = response.getId();
+        Map<String, Object> syncJobSourceBeforeUpdate = getConnectorSyncJobSourceById(syncJobId);
+        ConnectorSyncStatus syncStatusBeforeUpdate = ConnectorSyncStatus.fromString(
+            (String) syncJobSourceBeforeUpdate.get(ConnectorSyncJob.STATUS_FIELD.getPreferredName())
+        );
+        Object canceledAtBeforeUpdate = syncJobSourceBeforeUpdate.get(ConnectorSyncJob.CANCELED_AT_FIELD.getPreferredName());
+
+        assertThat(syncJobId, notNullValue());
+        assertThat(canceledAtBeforeUpdate, nullValue());
+        assertThat(syncStatusBeforeUpdate, not(equalTo(ConnectorSyncStatus.CANCELED)));
+
+        // Set sync job to suspended
+        updateConnectorSyncJobStatusWithoutStateMachineGuard(syncJobId, ConnectorSyncStatus.SUSPENDED);
+
+        // Cancel sync job
+        UpdateResponse updateResponse = awaitCancelConnectorSyncJob(syncJobId);
+
+        Map<String, Object> syncJobSourceAfterUpdate = getConnectorSyncJobSourceById(syncJobId);
+        ConnectorSyncStatus syncStatusAfterUpdate = ConnectorSyncStatus.fromString(
+            (String) syncJobSourceAfterUpdate.get(ConnectorSyncJob.STATUS_FIELD.getPreferredName())
+        );
+        Instant canceledAtAfterUpdate = Instant.parse(
+            (String) syncJobSourceAfterUpdate.get(ConnectorSyncJob.CANCELED_AT_FIELD.getPreferredName())
+        );
+
+        assertThat(updateResponse.status(), equalTo(RestStatus.OK));
+        assertThat(canceledAtAfterUpdate, notNullValue());
+        assertThat(syncStatusAfterUpdate, equalTo(ConnectorSyncStatus.CANCELED));
+        assertFieldsExceptSyncStatusAndCanceledAndCompletedTimestampsDidNotUpdate(syncJobSourceBeforeUpdate, syncJobSourceAfterUpdate);
+    }
+
+    public void testCancelConnectorSyncJob_WithCompletedState_ExpectStatusException() throws Exception {
+        // Create sync job
+        PostConnectorSyncJobAction.Request syncJobRequest = ConnectorSyncJobTestUtils.getRandomPostConnectorSyncJobActionRequest(
+            connectorOneId
+        );
+        PostConnectorSyncJobAction.Response response = awaitPutConnectorSyncJob(syncJobRequest);
+        String syncJobId = response.getId();
+        Map<String, Object> syncJobSourceBeforeUpdate = getConnectorSyncJobSourceById(syncJobId);
+        ConnectorSyncStatus syncStatusBeforeUpdate = ConnectorSyncStatus.fromString(
+            (String) syncJobSourceBeforeUpdate.get(ConnectorSyncJob.STATUS_FIELD.getPreferredName())
+        );
+        Object cancellationRequestedAtBeforeUpdate = syncJobSourceBeforeUpdate.get(
+            ConnectorSyncJob.CANCELATION_REQUESTED_AT_FIELD.getPreferredName()
+        );
+
+        assertThat(syncJobId, notNullValue());
+        assertThat(cancellationRequestedAtBeforeUpdate, nullValue());
+        assertThat(syncStatusBeforeUpdate, not(equalTo(ConnectorSyncStatus.CANCELING)));
+
+        // Set sync job status to `completed`
+        updateConnectorSyncJobStatusWithoutStateMachineGuard(syncJobId, ConnectorSyncStatus.COMPLETED);
+
+        // Cancel sync job
+        assertThrows(ElasticsearchStatusException.class, () -> awaitCancelConnectorSyncJob(syncJobId));
     }
 
     public void testCancelConnectorSyncJob_WithMissingSyncJobId_ExpectException() {
@@ -332,7 +435,7 @@ public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
         assertTrue(secondSyncJob.getCreatedAt().isAfter(firstSyncJob.getCreatedAt()));
     }
 
-    public void testListConnectorSyncJobs_WithStatusPending_GivenOnePendingTwoCancelled_ExpectOnePending() throws Exception {
+    public void testListConnectorSyncJobs_WithStatusPending_GivenOnePendingTwoCanceled_ExpectOnePending() throws Exception {
         PostConnectorSyncJobAction.Request requestOne = ConnectorSyncJobTestUtils.getRandomPostConnectorSyncJobActionRequest(
             connectorOneId
         );
@@ -547,12 +650,17 @@ public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testUpdateConnectorSyncJobError() throws Exception {
+        // Create sync job
         PostConnectorSyncJobAction.Request syncJobRequest = ConnectorSyncJobTestUtils.getRandomPostConnectorSyncJobActionRequest(
             connectorOneId
         );
         PostConnectorSyncJobAction.Response response = awaitPutConnectorSyncJob(syncJobRequest);
         String syncJobId = response.getId();
 
+        // Set sync job to in progress
+        updateConnectorSyncJobStatusWithoutStateMachineGuard(syncJobId, ConnectorSyncStatus.IN_PROGRESS);
+
+        // Set sync job error
         UpdateConnectorSyncJobErrorAction.Request request = ConnectorSyncJobTestUtils.getRandomUpdateConnectorSyncJobErrorActionRequest();
         String errorInRequest = request.getError();
 
@@ -573,6 +681,18 @@ public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
             ResourceNotFoundException.class,
             () -> awaitUpdateConnectorSyncJob(NON_EXISTING_SYNC_JOB_ID, randomAlphaOfLengthBetween(5, 100))
         );
+    }
+
+    public void testUpdateConnectorSyncJobError_WithStatusPending_ExpectStatusException() throws Exception {
+        // Create sync job
+        PostConnectorSyncJobAction.Request syncJobRequest = ConnectorSyncJobTestUtils.getRandomPostConnectorSyncJobActionRequest(
+            connectorOneId
+        );
+        PostConnectorSyncJobAction.Response response = awaitPutConnectorSyncJob(syncJobRequest);
+        String syncJobId = response.getId();
+
+        // Try to set error
+        assertThrows(ElasticsearchStatusException.class, () -> awaitUpdateConnectorSyncJob(syncJobId, "some error"));
     }
 
     public void testUpdateConnectorSyncJobIngestionStats() throws Exception {
@@ -730,6 +850,22 @@ public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
             syncJobSourceBeforeUpdate,
             syncJobSourceAfterUpdate,
             List.of(ConnectorSyncJob.STATUS_FIELD, ConnectorSyncJob.CANCELATION_REQUESTED_AT_FIELD)
+        );
+    }
+
+    private static void assertFieldsExceptSyncStatusAndCanceledAndCompletedTimestampsDidNotUpdate(
+        Map<String, Object> syncJobSourceBeforeUpdate,
+        Map<String, Object> syncJobSourceAfterUpdate
+    ) {
+        assertFieldsDidNotUpdateExceptFieldList(
+            syncJobSourceBeforeUpdate,
+            syncJobSourceAfterUpdate,
+            List.of(
+                ConnectorSyncJob.STATUS_FIELD,
+                ConnectorSyncJob.CANCELED_AT_FIELD,
+                ConnectorSyncJob.COMPLETED_AT_FIELD,
+                ConnectorSyncJob.CANCELATION_REQUESTED_AT_FIELD
+            )
         );
     }
 
@@ -1006,4 +1142,14 @@ public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
         return response;
     }
 
+    private String updateConnectorSyncJobStatusWithoutStateMachineGuard(String syncJobId, ConnectorSyncStatus syncStatus) throws Exception {
+        final UpdateRequest updateRequest = new UpdateRequest(ConnectorSyncJobIndexService.CONNECTOR_SYNC_JOB_INDEX_NAME, syncJobId)
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .doc(Map.of(ConnectorSyncJob.STATUS_FIELD.getPreferredName(), syncStatus));
+
+        ActionFuture<UpdateResponse> index = client().update(updateRequest);
+
+        // wait 10 seconds for connector creation
+        return index.get(TIMEOUT_SECONDS, TimeUnit.SECONDS).getId();
+    }
 }

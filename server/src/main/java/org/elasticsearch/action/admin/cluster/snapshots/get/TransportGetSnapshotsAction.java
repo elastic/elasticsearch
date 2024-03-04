@@ -26,7 +26,6 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.repositories.GetSnapshotInfoContext;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
@@ -438,19 +437,11 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                 // only need to synchronize accesses related to reading SnapshotInfo from the repo
                 final List<SnapshotInfo> syncSnapshots = Collections.synchronizedList(snapshots);
 
-                repository.getSnapshotInfo(
-                    new GetSnapshotInfoContext(
-                        snapshotIdsToIterate,
-                        ignoreUnavailable == false,
-                        cancellableTask::isCancelled,
-                        (context, snapshotInfo) -> {
-                            if (predicates.test(snapshotInfo)) {
-                                syncSnapshots.add(snapshotInfo.maybeWithoutIndices(indices));
-                            }
-                        },
-                        listeners.acquire()
-                    )
-                );
+                repository.getSnapshotInfo(snapshotIdsToIterate, ignoreUnavailable == false, cancellableTask::isCancelled, snapshotInfo -> {
+                    if (predicates.test(snapshotInfo)) {
+                        syncSnapshots.add(snapshotInfo.maybeWithoutIndices(indices));
+                    }
+                }, listeners.acquire());
             }
         }
 

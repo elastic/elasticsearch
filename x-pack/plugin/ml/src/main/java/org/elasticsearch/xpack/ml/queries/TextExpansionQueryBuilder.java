@@ -18,6 +18,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xcontent.ParseField;
@@ -67,12 +68,7 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
         }
 
         public static boolean isFieldTypeAllowed(String typeName) {
-            for (AllowedFieldType fieldType : values()) {
-                if (fieldType.getTypeName().equals(typeName)) {
-                    return true;
-                }
-            }
-            return false;
+            return Arrays.stream(values()).anyMatch(value -> value.typeName.equals(typeName));
         }
 
         public static String getAllowedFieldTypesAsString() {
@@ -169,7 +165,6 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
 
     @Override
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
-
         if (weightedTokensSupplier != null) {
             if (weightedTokensSupplier.get() == null) {
                 return this;
@@ -227,14 +222,24 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
     }
 
     private QueryBuilder weightedTokensToQuery(String fieldName, TextExpansionResults textExpansionResults) {
-        WeightedTokensQueryBuilder weightedTokensQueryBuilder = new WeightedTokensQueryBuilder(
-            fieldName,
-            textExpansionResults.getWeightedTokens(),
-            tokenPruningConfig
-        );
-        weightedTokensQueryBuilder.queryName(queryName);
-        weightedTokensQueryBuilder.boost(boost);
-        return weightedTokensQueryBuilder;
+        if (tokenPruningConfig != null) {
+            WeightedTokensQueryBuilder weightedTokensQueryBuilder = new WeightedTokensQueryBuilder(
+                fieldName,
+                textExpansionResults.getWeightedTokens(),
+                tokenPruningConfig
+            );
+            weightedTokensQueryBuilder.queryName(queryName);
+            weightedTokensQueryBuilder.boost(boost);
+            return weightedTokensQueryBuilder;
+        }
+        var boolQuery = QueryBuilders.boolQuery();
+        for (var weightedToken : textExpansionResults.getWeightedTokens()) {
+            boolQuery.should(QueryBuilders.termQuery(fieldName, weightedToken.token()).boost(weightedToken.weight()));
+        }
+        boolQuery.minimumShouldMatch(1);
+        boolQuery.boost(this.boost);
+        boolQuery.queryName(this.queryName);
+        return boolQuery;
     }
 
     @Override

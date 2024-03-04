@@ -61,7 +61,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
-import org.elasticsearch.test.hamcrest.RegexMatcher;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -89,6 +88,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.matchesRegex;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
@@ -606,7 +606,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         );
         final String pattern =
             ".*multiple engine factories provided for \\[foobar/.*\\]: \\[.*FooEngineFactory\\],\\[.*BarEngineFactory\\].*";
-        assertThat(e, hasToString(new RegexMatcher(pattern)));
+        assertThat(e, hasToString(matchesRegex(pattern)));
     }
 
     public void testBuildAliasFilter() {

@@ -188,7 +188,7 @@ public class NodeShutdownTasksIT extends ESIntegTestCase {
 
         private void startTask() {
             logger.info("--> sending start request");
-            persistentTasksService.sendStartRequest("task_id", "task_name", new TestTaskParams(), ActionListener.wrap(r -> {}, e -> {
+            persistentTasksService.sendStartRequest("task_id", "task_name", new TestTaskParams(), null, ActionListener.wrap(r -> {}, e -> {
                 if (e instanceof ResourceAlreadyExistsException == false) {
                     logger.error("failed to create task", e);
                     fail("failed to create task");

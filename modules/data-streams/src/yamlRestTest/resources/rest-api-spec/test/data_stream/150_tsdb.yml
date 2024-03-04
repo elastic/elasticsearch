@@ -556,14 +556,13 @@ dynamic templates with nesting:
   - match: { aggregations.filterA.tsids.buckets.0.doc_count: 2 }
 
 ---
-dynamic templates - subobject in passthrough object error:
+subobject in passthrough object auto flatten:
   - skip:
       version: " - 8.12.99"
-      reason: "Support for dynamic fields was added in 8.13"
+      reason: "Support for passthrough fields was added in 8.13"
   - do:
-      catch: /Tried to add subobject \[subcategory\] to object \[attributes\] which does not support subobjects/
       indices.put_index_template:
-        name: my-dynamic-template
+        name: my-passthrough-template
         body:
           index_patterns: [k9s*]
           data_stream: {}
@@ -576,13 +575,34 @@ dynamic templates - subobject in passthrough object error:
               properties:
                 attributes:
                   type: passthrough
+                  time_series_dimension: true
                   properties:
                     subcategory:
                       type: object
                       properties:
                         dim:
                           type: keyword
+  - do:
+      indices.create_data_stream:
+        name: k9s
+  - is_true: acknowledged
+  # save the backing index names for later use
+  - do:
+      indices.get_data_stream:
+        name: k9s
+  - set: { data_streams.0.indices.0.index_name: idx0name }
 
+  - do:
+      indices.get_mapping:
+        index: $idx0name
+        expand_wildcards: hidden
+  - match: { .$idx0name.mappings.properties.attributes.properties.subcategory\.dim.type: 'keyword' }
+
+---
+enable subobjects in passthrough object:
+  - skip:
+      version: " - 8.12.99"
+      reason: "Support for passthrough fields was added in 8.13"
   - do:
       catch: /Mapping definition for \[attributes\] has unsupported parameters:\  \[subobjects \:\ true\]/
       indices.put_index_template:

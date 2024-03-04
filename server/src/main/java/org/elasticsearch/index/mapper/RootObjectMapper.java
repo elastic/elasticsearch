@@ -111,7 +111,7 @@ public class RootObjectMapper extends ObjectMapper {
 
         @Override
         public RootObjectMapper build(MapperBuilderContext context) {
-            Map<String, Mapper> mappers = buildMappers(context);
+            Map<String, Mapper> mappers = buildMappers(context.createChildContext(null, dynamic));
             mappers.putAll(getAliasMappers(mappers, context));
             return new RootObjectMapper(
                 name(),
@@ -294,7 +294,7 @@ public class RootObjectMapper extends ObjectMapper {
     @Override
     protected MapperMergeContext createChildContext(MapperMergeContext mapperMergeContext, String name) {
         assert Objects.equals(mapperMergeContext.getMapperBuilderContext().buildFullName("foo"), "foo");
-        return mapperMergeContext;
+        return mapperMergeContext.createChildContext(null, dynamic);
     }
 
     @Override

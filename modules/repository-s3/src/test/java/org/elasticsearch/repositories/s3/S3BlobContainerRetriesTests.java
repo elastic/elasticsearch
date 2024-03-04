@@ -43,6 +43,9 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.blobstore.AbstractBlobContainerRetriesTestCase;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
+import org.elasticsearch.telemetry.InstrumentType;
+import org.elasticsearch.telemetry.Measurement;
+import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.hamcrest.Matcher;
 import org.junit.After;
@@ -59,7 +62,9 @@ import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.NoSuchFileException;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.OptionalInt;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -74,10 +79,13 @@ import static org.elasticsearch.repositories.s3.S3ClientSettings.MAX_RETRIES_SET
 import static org.elasticsearch.repositories.s3.S3ClientSettings.READ_TIMEOUT_SETTING;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
@@ -91,6 +99,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
 
     private S3Service service;
     private AtomicBoolean shouldErrorOnDns;
+    private RecordingMeterRegistry recordingMeterRegistry;
 
     @Before
     public void setUp() throws Exception {
@@ -109,6 +118,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
                 return builder;
             }
         };
+        recordingMeterRegistry = new RecordingMeterRegistry();
         super.setUp();
     }
 
@@ -185,7 +195,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
             repositoryMetadata,
             BigArrays.NON_RECYCLING_INSTANCE,
             new DeterministicTaskQueue().getThreadPool(),
-            RepositoriesMetrics.NOOP
+            new S3RepositoriesMetrics(new RepositoriesMetrics(recordingMeterRegistry))
         );
         return new S3BlobContainer(randomBoolean() ? BlobPath.EMPTY : BlobPath.EMPTY.add("foo"), s3BlobStore) {
             @Override
@@ -669,8 +679,8 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
                     }
                     exchange.getResponseBody().write(bytes, rangeStart, length);
                 } else {
-                    failures.incrementAndGet();
                     if (randomBoolean()) {
+                        failures.incrementAndGet();
                         exchange.sendResponseHeaders(
                             randomFrom(
                                 HttpStatus.SC_INTERNAL_SERVER_ERROR,
@@ -686,6 +696,8 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
                             if (bytesSent >= meaningfulProgressBytes) {
                                 exchange.getResponseBody().flush();
                             }
+                        } else {
+                            failures.incrementAndGet();
                         }
                     }
                 }
@@ -700,16 +712,28 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         final int length = between(0, randomBoolean() ? bytes.length : Integer.MAX_VALUE);
         logger.info("--> position={}, length={}", position, length);
         try (InputStream inputStream = blobContainer.readBlob(OperationPurpose.INDICES, "read_blob_retries_forever", position, length)) {
+            assertMetricsForOpeningStream();
+            recordingMeterRegistry.getRecorder().resetCalls();
+            failures.set(0);
+
             final byte[] bytesRead = BytesReference.toBytes(Streams.readFully(inputStream));
             assertArrayEquals(Arrays.copyOfRange(bytes, position, Math.min(bytes.length, position + length)), bytesRead);
+            assertMetricsForReadingStream();
         }
         assertThat(failures.get(), greaterThan(totalFailures));
 
         // Read the whole blob
         failures.set(0);
+        recordingMeterRegistry.getRecorder().resetCalls();
         try (InputStream inputStream = blobContainer.readBlob(OperationPurpose.INDICES, "read_blob_retries_forever")) {
+            assertMetricsForOpeningStream();
+            recordingMeterRegistry.getRecorder().resetCalls();
+            failures.set(0);
+
             final byte[] bytesRead = BytesReference.toBytes(Streams.readFully(inputStream));
             assertArrayEquals(bytes, bytesRead);
+
+            assertMetricsForReadingStream();
         }
         assertThat(failures.get(), greaterThan(totalFailures));
     }
@@ -737,9 +761,13 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
                     : blobContainer.readBlob(randomRetryingPurpose(), "read_blob_not_found", between(0, 100), between(1, 100))
             ) {
                 Streams.readFully(inputStream);
+
             }
         });
         assertThat(numberOfReads.get(), equalTo(1));
+        assertThat(getRetryStartedMeasurements(), empty());
+        assertThat(getRetryCompletedMeasurements(), empty());
+        assertThat(getRetryHistogramMeasurements(), empty());
     }
 
     @Override
@@ -759,6 +787,77 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
             purpose -> purpose == OperationPurpose.REPOSITORY_ANALYSIS || purpose == OperationPurpose.INDICES,
             BlobStoreTestUtil::randomPurpose
         );
+    }
+
+    private void assertMetricsForOpeningStream() {
+        final long numberOfOperations = getOperationMeasurements();
+        // S3 client sdk internally also retries within the configured maxRetries for retryable errors.
+        // The retries in S3RetryingInputStream are triggered when the client internal retries are unsuccessful
+        if (numberOfOperations > 1) {
+            // For opening the stream, there should be exactly one pair of started and completed records.
+            // There should be one histogram record, the number of retries must be greater than 0
+            final Map<String, Object> attributes = metricAttributes("open");
+            assertThat(getRetryStartedMeasurements(), contains(new Measurement(1L, attributes, false)));
+            assertThat(getRetryCompletedMeasurements(), contains(new Measurement(1L, attributes, false)));
+            final List<Measurement> retryHistogramMeasurements = getRetryHistogramMeasurements();
+            assertThat(retryHistogramMeasurements, hasSize(1));
+            assertThat(retryHistogramMeasurements.get(0).getLong(), equalTo(numberOfOperations - 1));
+            assertThat(retryHistogramMeasurements.get(0).attributes(), equalTo(attributes));
+        } else {
+            assertThat(getRetryStartedMeasurements(), empty());
+            assertThat(getRetryCompletedMeasurements(), empty());
+            assertThat(getRetryHistogramMeasurements(), empty());
+        }
+    }
+
+    private void assertMetricsForReadingStream() {
+        // For reading the stream, there could be multiple pairs of started and completed records.
+        // It is important that they always come in pairs and the number of pairs match the number
+        // of histogram records.
+        final Map<String, Object> attributes = metricAttributes("read");
+        final List<Measurement> retryHistogramMeasurements = getRetryHistogramMeasurements();
+        final int numberOfReads = retryHistogramMeasurements.size();
+        retryHistogramMeasurements.forEach(measurement -> {
+            assertThat(measurement.getLong(), greaterThan(0L));
+            assertThat(measurement.attributes(), equalTo(attributes));
+        });
+
+        final List<Measurement> retryStartedMeasurements = getRetryStartedMeasurements();
+        assertThat(retryStartedMeasurements, hasSize(1));
+        assertThat(retryStartedMeasurements.get(0).getLong(), equalTo((long) numberOfReads));
+        assertThat(retryStartedMeasurements.get(0).attributes(), equalTo(attributes));
+        assertThat(retryStartedMeasurements, equalTo(getRetryCompletedMeasurements()));
+    }
+
+    private long getOperationMeasurements() {
+        final List<Measurement> operationMeasurements = Measurement.combine(
+            recordingMeterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_COUNTER, RepositoriesMetrics.METRIC_OPERATIONS_TOTAL)
+        );
+        assertThat(operationMeasurements, hasSize(1));
+        return operationMeasurements.get(0).getLong();
+    }
+
+    private List<Measurement> getRetryStartedMeasurements() {
+        return Measurement.combine(
+            recordingMeterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_COUNTER, S3RepositoriesMetrics.METRIC_RETRY_EVENT_TOTAL)
+        );
+    }
+
+    private List<Measurement> getRetryCompletedMeasurements() {
+        return Measurement.combine(
+            recordingMeterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_COUNTER, S3RepositoriesMetrics.METRIC_RETRY_SUCCESS_TOTAL)
+        );
+    }
+
+    private List<Measurement> getRetryHistogramMeasurements() {
+        return recordingMeterRegistry.getRecorder()
+            .getMeasurements(InstrumentType.LONG_HISTOGRAM, S3RepositoriesMetrics.METRIC_RETRY_ATTEMPTS_HISTOGRAM);
+    }
+
+    private Map<String, Object> metricAttributes(String action) {
+        return Map.of("repo_type", "s3", "repo_name", "repository", "operation", "GetObject", "purpose", "Indices", "action", action);
     }
 
     /**

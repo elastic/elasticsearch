@@ -2015,11 +2015,17 @@ public class Security extends Plugin
             if (authenticatingSubject.getUser() != null) {
                 authContext.put("user.name", authenticatingSubject.getUser().principal());
                 authContext.put("user.realm", authenticatingSubject.getRealm().getName());
+                if (authenticatingSubject.getUser().fullName() != null) {
+                    authContext.put("user.full_name", authenticatingSubject.getUser().fullName());
+                }
             }
             // Only include effective user if different from authenticating user (run-as)
             if (effetctiveSubject.getUser() != null && effetctiveSubject.equals(authenticatingSubject) == false) {
                 authContext.put("user.effective.name", effetctiveSubject.getUser().principal());
                 authContext.put("user.effective.realm", effetctiveSubject.getRealm().getName());
+                if (effetctiveSubject.getUser().fullName() != null) {
+                    authContext.put("user.effective.full_name", effetctiveSubject.getUser().fullName());
+                }
             }
             authContext.put("auth.type", authentication.getAuthenticationType().name());
             if (authentication.isApiKey()) {

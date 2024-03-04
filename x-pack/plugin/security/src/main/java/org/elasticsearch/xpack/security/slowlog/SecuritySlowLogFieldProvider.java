@@ -21,12 +21,12 @@ public class SecuritySlowLogFieldProvider implements SlowLogFieldProvider {
     private boolean includeUserInIndexing = false;
     private boolean includeUserInSearch = false;
 
-    public SecuritySlowLogFieldProvider(Security plugin) {
-        this.plugin = plugin;
+    public SecuritySlowLogFieldProvider() {
+        throw new IllegalStateException("Provider must be constructed using PluginsService");
     }
 
-    public SecuritySlowLogFieldProvider() {
-        plugin = null;
+    public SecuritySlowLogFieldProvider(Security plugin) {
+        this.plugin = plugin;
     }
 
     @Override

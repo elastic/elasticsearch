@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.security.slowlog;
+package org.elasticsearch.xpack.security;
 
 import org.apache.http.HttpHeaders;
 import org.elasticsearch.client.Request;
@@ -84,6 +84,59 @@ public class SecuritySlowLogIT extends ESRestTestCase {
         }
 
         Map<String, Object> expectedUser = Map.of("user.name", "api_user", "user.realm", "default_file", "auth.type", "REALM");
+
+        verifySearchSlowLogMatchesTestData(testIndices, expectedUser);
+        verifyIndexSlowLogMatchesTestData(testIndices, expectedUser);
+    }
+
+    public void testSlowLogWithUserWithFullName() throws Exception {
+        List<TestIndexData> testIndices = randomTestIndexData();
+        createUserWithFullName("full_name", "full-name-password", "Full Name", new String[] { "superuser" });
+        for (TestIndexData testData : testIndices) {
+            final RequestOptions requestOptions = RequestOptions.DEFAULT.toBuilder()
+                .addHeader("Authorization", basicAuthHeaderValue("full_name", new SecureString("full-name-password".toCharArray())))
+                .build();
+            searchSomeData(testData.name, requestOptions);
+            indexSomeData(testData.name, requestOptions);
+        }
+
+        Map<String, Object> expectedUser = Map.of(
+            "user.name",
+            "full_name",
+            "user.full_name",
+            "Full Name",
+            "user.realm",
+            "default_native",
+            "auth.type",
+            "REALM"
+        );
+
+        verifySearchSlowLogMatchesTestData(testIndices, expectedUser);
+        verifyIndexSlowLogMatchesTestData(testIndices, expectedUser);
+    }
+
+    public void testSlowLogWithUserWithFullNameWithRunAs() throws Exception {
+        List<TestIndexData> testIndices = randomTestIndexData();
+        createUserWithFullName("full_name", "full-name-password", "Full Name", new String[] { "superuser" });
+        for (TestIndexData testData : testIndices) {
+            final RequestOptions requestOptions = RequestOptions.DEFAULT.toBuilder()
+                .addHeader("es-security-runas-user", "full_name")
+                .addHeader("Authorization", basicAuthHeaderValue("admin_user", new SecureString("admin-password".toCharArray())))
+                .build();
+            searchSomeData(testData.name, requestOptions);
+            indexSomeData(testData.name, requestOptions);
+        }
+
+        Map<String, Object> expectedUser = Map.of(
+            "user.name",
+            "admin_user",
+            "user.effective.full_name",
+            "Full Name",
+            "user.realm",
+            "default_file",
+            "auth.type",
+            "REALM"
+        );
 
         verifySearchSlowLogMatchesTestData(testIndices, expectedUser);
         verifyIndexSlowLogMatchesTestData(testIndices, expectedUser);
@@ -237,6 +290,21 @@ public class SecuritySlowLogIT extends ESRestTestCase {
         if (testIndexData.searchSlowLogEnabled) {
             enableSearchSlowLog(testIndexData.name, testIndexData.searchSlowLogUserEnabled);
         }
+    }
+
+    private static void createUserWithFullName(String user, String password, String fullName, String[] roles) throws IOException {
+        Request request = new Request("POST", "/_security/user/" + user);
+        request.setJsonEntity(
+            "{ \"full_name\" : \""
+                + fullName
+                + "\", \"roles\": [\""
+                + String.join("\",\"", roles)
+                + "\"], \"password\": \""
+                + password
+                + "\" }"
+        );
+        Response response = client().performRequest(request);
+        assertOK(response);
     }
 
     private static List<TestIndexData> randomTestIndexData() throws IOException {

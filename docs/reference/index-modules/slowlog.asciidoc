@@ -79,7 +79,7 @@ This will result in user information being included in the slow log.
   "@timestamp": "2024-02-21T12:42:37.255Z",
   "log.level": "WARN",
   "auth.type": "REALM",
-  "elasticsearch.slowlog.id": "1eb56087c321442e8c9040dbe51fbcdf",
+  "elasticsearch.slowlog.id": "tomcat-123",
   "elasticsearch.slowlog.message": "[index6][0]",
   "elasticsearch.slowlog.search_type": "QUERY_THEN_FETCH",
   "elasticsearch.slowlog.source": "{\"query\":{\"match_all\":{\"boost\":1.0}}}",
@@ -105,7 +105,8 @@ This will result in user information being included in the slow log.
 // NOTCONSOLE
 
 If a call was initiated with an `X-Opaque-ID` header, then the ID is included
-in Search Slow logs in the **elasticsearch.slowlog.id** field.
+in Search Slow logs in the **elasticsearch.slowlog.id** field. See
+<<x-opaque-id, X-Opaque-Id HTTP header>> for details and best practices.
 
 [discrete]
 [[index-slow-log]]

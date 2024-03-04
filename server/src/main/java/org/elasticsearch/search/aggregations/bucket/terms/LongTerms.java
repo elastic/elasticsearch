@@ -9,6 +9,7 @@ package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.AggregatorReducer;
@@ -208,7 +209,7 @@ public class LongTerms extends InternalMappedTerms<LongTerms, LongTerms.Bucket> 
         } else if (format == DocValueFormat.UNSIGNED_LONG_SHIFTED) {
             needsPromoting = docFormat -> docFormat == DocValueFormat.RAW;
         } else {
-            needsPromoting = docFormat -> false;
+            needsPromoting = Predicates.never();
         }
         return new AggregatorReducer() {
 

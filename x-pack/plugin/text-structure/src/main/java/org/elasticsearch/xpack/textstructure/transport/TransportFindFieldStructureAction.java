@@ -11,9 +11,11 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.utils.MapHelper;
@@ -34,6 +36,7 @@ import java.util.stream.Collectors;
 public class TransportFindFieldStructureAction extends HandledTransportAction<FindFieldStructureAction.Request, FindStructureResponse> {
 
     private final Client client;
+    private final TransportService transportService;
     private final ThreadPool threadPool;
 
     @Inject
@@ -45,12 +48,14 @@ public class TransportFindFieldStructureAction extends HandledTransportAction<Fi
     ) {
         super(FindFieldStructureAction.NAME, transportService, actionFilters, FindFieldStructureAction.Request::new, threadPool.generic());
         this.client = client;
+        this.transportService = transportService;
         this.threadPool = threadPool;
     }
 
     @Override
     protected void doExecute(Task task, FindFieldStructureAction.Request request, ActionListener<FindStructureResponse> listener) {
-        client.prepareSearch(request.getIndex())
+        TaskId taskId = new TaskId(transportService.getLocalNode().getId(), task.getId());
+        new ParentTaskAssigningClient(client, taskId).prepareSearch(request.getIndex())
             .setSize(request.getLinesToSample())
             .setFetchSource(true)
             .setQuery(QueryBuilders.existsQuery(request.getField()))

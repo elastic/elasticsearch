@@ -8,8 +8,6 @@
 
 package org.elasticsearch.gradle.internal;
 
-import org.elasticsearch.gradle.Architecture;
-import org.elasticsearch.gradle.ElasticsearchDistribution;
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitTaskPlugin;
 import org.elasticsearch.gradle.internal.info.BuildParams;
@@ -36,7 +34,6 @@ import org.gradle.jvm.toolchain.JavaLanguageVersion;
 import org.gradle.jvm.toolchain.JavaToolchainService;
 
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.function.Supplier;
 

@@ -56,6 +56,7 @@ public abstract class BuildVersion implements Writeable {
     }
 
     // only exists for NodeMetadata#toXContent
+    // TODO[wrb]: make this abstract once all downstream classes override it
     public int id() {
         return -1;
     }

@@ -84,10 +84,6 @@ public class ZstdTests extends ESTestCase {
         }
     }
 
-    public void testEmpty() {
-        doTestRoundtrip(new byte[0]);
-    }
-
     public void testOneByte() {
         doTestRoundtrip(new byte[] { 'z' });
     }

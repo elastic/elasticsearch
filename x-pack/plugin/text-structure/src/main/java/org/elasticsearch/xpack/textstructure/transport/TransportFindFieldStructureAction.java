@@ -12,7 +12,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -32,8 +31,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.threadpool.ThreadPool.Names.GENERIC;
-
 public class TransportFindFieldStructureAction extends HandledTransportAction<FindFieldStructureAction.Request, FindStructureResponse> {
 
     private final Client client;
@@ -46,13 +43,7 @@ public class TransportFindFieldStructureAction extends HandledTransportAction<Fi
         Client client,
         ThreadPool threadPool
     ) {
-        super(
-            FindFieldStructureAction.NAME,
-            transportService,
-            actionFilters,
-            FindFieldStructureAction.Request::new,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
-        );
+        super(FindFieldStructureAction.NAME, transportService, actionFilters, FindFieldStructureAction.Request::new, threadPool.generic());
         this.client = client;
         this.threadPool = threadPool;
     }
@@ -67,18 +58,16 @@ public class TransportFindFieldStructureAction extends HandledTransportAction<Fi
             .execute(ActionListener.wrap(searchResponse -> {
                 long hitCount = searchResponse.getHits().getHits().length;
                 if (hitCount < AbstractFindStructureRequest.MIN_SAMPLE_LINE_COUNT) {
-                    throw new IllegalArgumentException("Input contained too few lines [" + hitCount + "] to obtain a meaningful sample");
+                    listener.onFailure(
+                        new IllegalArgumentException("Input contained too few lines [" + hitCount + "] to obtain a meaningful sample")
+                    );
                 }
                 List<String> messages = getMessages(searchResponse, request.getField());
-                // As determining the text structure might take a while, we run
-                // in a different thread to avoid blocking the network thread.
-                threadPool.executor(GENERIC).execute(() -> {
-                    try {
-                        listener.onResponse(buildTextStructureResponse(messages, request));
-                    } catch (Exception e) {
-                        listener.onFailure(e);
-                    }
-                });
+                try {
+                    listener.onResponse(buildTextStructureResponse(messages, request));
+                } catch (Exception e) {
+                    listener.onFailure(e);
+                }
             }, listener::onFailure));
     }
 
@@ -98,7 +87,6 @@ public class TransportFindFieldStructureAction extends HandledTransportAction<Fi
                 new TextStructureOverrides(request),
                 timeoutChecker
             );
-
             return new FindStructureResponse(textStructureFinder.getStructure());
         }
     }

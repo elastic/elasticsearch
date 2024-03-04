@@ -10,7 +10,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -23,8 +22,6 @@ import org.elasticsearch.xpack.textstructure.structurefinder.TimeoutChecker;
 
 import java.util.ArrayList;
 
-import static org.elasticsearch.threadpool.ThreadPool.Names.GENERIC;
-
 public class TransportFindMessageStructureAction extends HandledTransportAction<FindMessageStructureAction.Request, FindStructureResponse> {
 
     private final ThreadPool threadPool;
@@ -36,20 +33,18 @@ public class TransportFindMessageStructureAction extends HandledTransportAction<
             transportService,
             actionFilters,
             FindMessageStructureAction.Request::new,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            threadPool.generic()
         );
         this.threadPool = threadPool;
     }
 
     @Override
     protected void doExecute(Task task, FindMessageStructureAction.Request request, ActionListener<FindStructureResponse> listener) {
-        threadPool.executor(GENERIC).execute(() -> {
-            try {
-                listener.onResponse(buildTextStructureResponse(request));
-            } catch (Exception e) {
-                listener.onFailure(e);
-            }
-        });
+        try {
+            listener.onResponse(buildTextStructureResponse(request));
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
     }
 
     private FindStructureResponse buildTextStructureResponse(FindMessageStructureAction.Request request) throws Exception {
@@ -61,7 +56,6 @@ public class TransportFindMessageStructureAction extends HandledTransportAction<
                 new TextStructureOverrides(request),
                 timeoutChecker
             );
-
             return new FindStructureResponse(textStructureFinder.getStructure());
         }
     }

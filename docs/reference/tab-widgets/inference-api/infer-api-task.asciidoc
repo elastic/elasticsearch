@@ -1,0 +1,56 @@
+// tag::cohere[]
+
+[source,console]
+------------------------------------------------------------
+PUT _inference/text_embedding/cohere_embeddings <1>
+{
+    "service": "cohere",
+    "service_settings": {
+        "api_key": "<api_key>", <2>
+        "model_id": "embed-english-light-v3.0", <3>
+        "embedding_type": "int8"
+    },
+    "task_settings": {
+    }
+}
+------------------------------------------------------------
+// TEST[skip:TBD]
+<1> The task type is `text_embedding` in the path.
+<2> The API key of your Cohere account. You can find your API keys in your
+Cohere dashboard under the
+https://dashboard.cohere.com/api-keys[API keys section]. You need to provide
+your API key only once. The <<get-inference-api>> does not return your API
+key.
+<3> The name of the embedding model to use. You can find the list of Cohere
+embedding models https://docs.cohere.com/reference/embed[here].
+
+// end::cohere[]
+
+
+// tag::openai[]
+
+[source,console]
+------------------------------------------------------------
+PUT _inference/text_embedding/openai_embeddings <1>
+{
+    "service": "openai",
+    "service_settings": {
+        "api_key": "<api_key>", <2>
+        "model_id": "text-embedding-ada-002" <3>
+    },
+    "task_settings": {
+    }
+}
+------------------------------------------------------------
+// TEST[skip:TBD]
+<1> The task type is `text_embedding` in the path.
+<2> The API key of your OpenAI account. You can find your OpenAI API keys in
+your OpenAI account under the
+https://platform.openai.com/api-keys[API keys section]. You need to provide
+your API key only once. The <<get-inference-api>> does not return your API
+key.
+<3> The name of the embedding model to use. You can find the list of OpenAI
+embedding models
+https://platform.openai.com/docs/guides/embeddings/embedding-models[here].
+
+// end::openai[]

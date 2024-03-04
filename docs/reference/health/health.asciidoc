@@ -73,7 +73,7 @@ for health status set `verbose` to `false` to disable the more expensive analysi
 
   `repository_integrity`::
       Tracks repository integrity and reports health issues
-      that arise if repositories become corrupted.
+      that arise if repositories become corrupted, unknown, or invalid.
 
   `slm`::
       Reports health issues related to
@@ -355,6 +355,14 @@ watermark threshold>>.
 `corrupted`::
     (Optional, array of strings) If corrupted repositories have been detected in the system, the names of up to ten of
     them are displayed in this field. If no corrupted repositories are found, this detail is omitted.
+
+`unknown_repositories`::
+    (Optional, int) The number of repositories that have been determined to be unknown by at least one node.
+    If there are no unknown repositories detected, this detail is omitted.
+
+`invalid_repositories`::
+    (Optional, int) The number of repositories that have been determined to be invalid by at least one node.
+    If there are no invalid repositories detected, this detail is omitted.
 
 [[health-api-response-details-ilm]]
 ===== ilm

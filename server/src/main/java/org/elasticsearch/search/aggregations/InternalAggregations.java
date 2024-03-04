@@ -165,7 +165,7 @@ public final class InternalAggregations implements Iterable<InternalAggregation>
     }
 
     public static InternalAggregations readFrom(StreamInput in) throws IOException {
-        return from(in.readCollectionAsList(stream -> stream.readNamedWriteable(InternalAggregation.class)));
+        return from(in.readNamedWriteableCollectionAsList(InternalAggregation.class));
     }
 
     @Override

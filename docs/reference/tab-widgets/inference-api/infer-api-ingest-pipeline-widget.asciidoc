@@ -1,0 +1,39 @@
+++++
+<div class="tabs" data-tab-group="model">
+  <div role="tablist" aria-label="model">
+    <button role="tab"
+            aria-selected="true"
+            aria-controls="infer-api-ingest-cohere-tab"
+            id="infer-api-ingest-cohere">
+      Cohere
+    </button>
+    <button role="tab"
+            aria-selected="false"
+            aria-controls="infer-api-ingest-openai-tab"
+            id="infer-api-ingest-openai">
+      OpenAI
+    </button>
+  </div>
+  <div tabindex="0"
+       role="tabpanel"
+       id="infer-api-ingest-cohere-tab"
+       aria-labelledby="infer-api-ingest-cohere">
+++++
+
+include::infer-api-ingest-pipeline.asciidoc[tag=cohere]
+
+++++
+  </div>
+  <div tabindex="0"
+       role="tabpanel"
+       id="infer-api-ingest-openai-tab"
+       aria-labelledby="infer-api-ingest-openai"
+       hidden="">
+++++
+
+include::infer-api-ingest-pipeline.asciidoc[tag=openai]
+
+++++
+  </div>
+</div>
+++++

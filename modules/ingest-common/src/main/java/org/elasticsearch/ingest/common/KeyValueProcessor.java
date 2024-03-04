@@ -11,6 +11,7 @@ package org.elasticsearch.ingest.common;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
@@ -100,7 +101,7 @@ public final class KeyValueProcessor extends AbstractProcessor {
         final Predicate<String> keyFilter;
         if (includeKeys == null) {
             if (excludeKeys == null) {
-                keyFilter = key -> true;
+                keyFilter = Predicates.always();
             } else {
                 keyFilter = key -> excludeKeys.contains(key) == false;
             }

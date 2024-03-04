@@ -475,8 +475,8 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
     }
 
     @Override
-    protected Status status(int pagesProcessed) {
-        return new Status(new TreeMap<>(readersBuilt), pagesProcessed);
+    protected Status status(long processNanos, int pagesProcessed) {
+        return new Status(new TreeMap<>(readersBuilt), processNanos, pagesProcessed);
     }
 
     public static class Status extends AbstractPageMappingOperator.Status {
@@ -488,8 +488,8 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
 
         private final Map<String, Integer> readersBuilt;
 
-        Status(Map<String, Integer> readersBuilt, int pagesProcessed) {
-            super(pagesProcessed);
+        Status(Map<String, Integer> readersBuilt, long processNanos, int pagesProcessed) {
+            super(processNanos, pagesProcessed);
             this.readersBuilt = readersBuilt;
         }
 
@@ -521,21 +521,20 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
                 builder.field(e.getKey(), e.getValue());
             }
             builder.endObject();
-            builder.field("pages_processed", pagesProcessed());
+            innerToXContent(builder);
             return builder.endObject();
         }
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (super.equals(o) == false) return false;
             Status status = (Status) o;
-            return pagesProcessed() == status.pagesProcessed() && readersBuilt.equals(status.readersBuilt);
+            return readersBuilt.equals(status.readersBuilt);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(readersBuilt, pagesProcessed());
+            return Objects.hash(super.hashCode(), readersBuilt);
         }
 
         @Override

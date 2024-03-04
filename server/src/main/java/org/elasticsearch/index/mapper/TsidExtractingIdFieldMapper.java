@@ -56,7 +56,7 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
         String id;
         if (routingBuilder != null) {
             byte[] suffix = new byte[16];
-            id = createId(context.hasDynamicMappers() == false, routingBuilder, tsid, timestamp, suffix);
+            id = createId(context.hasDynamicMappers(), routingBuilder, tsid, timestamp, suffix);
             /*
              * Make sure that _id from extracting the tsid matches that _id
              * from extracting the _source. This should be true for all valid

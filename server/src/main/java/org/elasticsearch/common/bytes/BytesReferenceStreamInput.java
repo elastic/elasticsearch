@@ -85,6 +85,24 @@ class BytesReferenceStreamInput extends StreamInput {
     }
 
     @Override
+    public String readString() throws IOException {
+        final int chars = readArraySize();
+        if (slice.hasArray()) {
+            // attempt reading bytes directly into a string to minimize copying
+            final String string = tryReadStringFromBytes(
+                slice.array(),
+                slice.position() + slice.arrayOffset(),
+                slice.limit() + slice.arrayOffset(),
+                chars
+            );
+            if (string != null) {
+                return string;
+            }
+        }
+        return doReadString(chars);
+    }
+
+    @Override
     public int readVInt() throws IOException {
         if (slice.remaining() >= 5) {
             return ByteBufferStreamInput.readVInt(slice);

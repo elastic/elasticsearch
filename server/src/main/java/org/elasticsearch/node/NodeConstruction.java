@@ -54,6 +54,7 @@ import org.elasticsearch.cluster.routing.BatchedRerouteService;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdMonitor;
+import org.elasticsearch.cluster.routing.allocation.NodeAllocationService;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.TransportVersionsFixupListener;
@@ -656,6 +657,7 @@ class NodeConstruction {
             repositoriesServiceReference::get,
             rerouteServiceReference::get
         );
+        final WriteLoadForecaster writeLoadForecaster = getWriteLoadForecaster(threadPool, settings, clusterService.getClusterSettings());
         final ClusterModule clusterModule = new ClusterModule(
             settings,
             clusterService,
@@ -664,7 +666,7 @@ class NodeConstruction {
             snapshotsInfoService,
             threadPool,
             systemIndices,
-            getWriteLoadForecaster(threadPool, settings, clusterService.getClusterSettings()),
+            writeLoadForecaster,
             telemetryProvider
         );
         modules.add(clusterModule);
@@ -986,7 +988,8 @@ class NodeConstruction {
             searchTransportService,
             indexingLimits,
             searchModule.getValuesSourceRegistry().getUsageService(),
-            repositoryService
+            repositoryService,
+            new NodeAllocationService(clusterService, writeLoadForecaster)
         );
 
         final TimeValue metricsInterval = settings.getAsTime("telemetry.agent.metrics_interval", TimeValue.timeValueSeconds(10));

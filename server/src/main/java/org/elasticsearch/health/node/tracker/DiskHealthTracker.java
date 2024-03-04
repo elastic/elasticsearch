@@ -120,6 +120,7 @@ public class DiskHealthTracker extends HealthTracker<DiskHealthInfo> {
             false,
             false,
             false,
+            false,
             false
         );
         return DiskUsage.findLeastAvailablePath(nodeStats);

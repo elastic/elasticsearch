@@ -17,6 +17,7 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.cluster.coordination.Coordinator;
+import org.elasticsearch.cluster.routing.allocation.NodeAllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
@@ -62,6 +63,7 @@ public class NodeService implements Closeable {
     private final AggregationUsageService aggregationUsageService;
     private final Coordinator coordinator;
     private final RepositoriesService repositoriesService;
+    private final NodeAllocationService nodeAllocationService;
     private final Map<String, Integer> componentVersions;
 
     NodeService(
@@ -82,7 +84,8 @@ public class NodeService implements Closeable {
         SearchTransportService searchTransportService,
         IndexingPressure indexingPressure,
         AggregationUsageService aggregationUsageService,
-        RepositoriesService repositoriesService
+        RepositoriesService repositoriesService,
+        NodeAllocationService nodeAllocationService
     ) {
         this.settings = settings;
         this.threadPool = threadPool;
@@ -102,6 +105,7 @@ public class NodeService implements Closeable {
         this.aggregationUsageService = aggregationUsageService;
         this.repositoriesService = repositoriesService;
         this.componentVersions = findComponentVersions(pluginService);
+        this.nodeAllocationService = nodeAllocationService;
         clusterService.addStateApplier(ingestService);
     }
 
@@ -173,7 +177,8 @@ public class NodeService implements Closeable {
         boolean adaptiveSelection,
         boolean scriptCache,
         boolean indexingPressure,
-        boolean repositoriesStats
+        boolean repositoriesStats,
+        boolean allocationStats
     ) {
         // for indices stats we want to include previous allocated shards stats as well (it will
         // only be applied to the sensible ones to use, like refresh/merge/flush/indexing stats)
@@ -195,8 +200,10 @@ public class NodeService implements Closeable {
             adaptiveSelection ? responseCollectorService.getAdaptiveStats(searchTransportService.getPendingSearchRequests()) : null,
             scriptCache ? scriptService.cacheStats() : null,
             indexingPressure ? this.indexingPressure.stats() : null,
-            repositoriesStats ? this.repositoriesService.getRepositoriesThrottlingStats() : null
+            repositoriesStats ? this.repositoriesService.getRepositoriesThrottlingStats() : null,
+            allocationStats ? this.nodeAllocationService.stats(transportService.getLocalNode().getId()) : null
         );
+
     }
 
     public IngestService getIngestService() {

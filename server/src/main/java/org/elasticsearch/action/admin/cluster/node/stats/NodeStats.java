@@ -12,6 +12,7 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.routing.allocation.NodeAllocationStats;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -97,6 +98,9 @@ public class NodeStats extends BaseNodeResponse implements ChunkedToXContent {
     @Nullable
     private final RepositoriesStats repositoriesStats;
 
+    @Nullable
+    private final NodeAllocationStats nodeAllocationStats;
+
     public NodeStats(StreamInput in) throws IOException {
         super(in);
         timestamp = in.readVLong();
@@ -122,6 +126,8 @@ public class NodeStats extends BaseNodeResponse implements ChunkedToXContent {
         } else {
             repositoriesStats = null;
         }
+        // TODO version
+        nodeAllocationStats = in.readOptionalWriteable(NodeAllocationStats::new);
     }
 
     public NodeStats(
@@ -142,7 +148,8 @@ public class NodeStats extends BaseNodeResponse implements ChunkedToXContent {
         @Nullable AdaptiveSelectionStats adaptiveSelectionStats,
         @Nullable ScriptCacheStats scriptCacheStats,
         @Nullable IndexingPressureStats indexingPressureStats,
-        @Nullable RepositoriesStats repositoriesStats
+        @Nullable RepositoriesStats repositoriesStats,
+        @Nullable NodeAllocationStats nodeAllocationStats
     ) {
         super(node);
         this.timestamp = timestamp;
@@ -162,6 +169,7 @@ public class NodeStats extends BaseNodeResponse implements ChunkedToXContent {
         this.scriptCacheStats = scriptCacheStats;
         this.indexingPressureStats = indexingPressureStats;
         this.repositoriesStats = repositoriesStats;
+        this.nodeAllocationStats = nodeAllocationStats;
     }
 
     public long getTimestamp() {
@@ -271,6 +279,11 @@ public class NodeStats extends BaseNodeResponse implements ChunkedToXContent {
         return repositoriesStats;
     }
 
+    @Nullable
+    public NodeAllocationStats getNodeAllocationStats() {
+        return nodeAllocationStats;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
@@ -297,6 +310,8 @@ public class NodeStats extends BaseNodeResponse implements ChunkedToXContent {
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
             out.writeOptionalWriteable(repositoriesStats);
         }
+        // TODO version
+        out.writeOptionalWriteable(nodeAllocationStats);
     }
 
     @Override
@@ -343,7 +358,10 @@ public class NodeStats extends BaseNodeResponse implements ChunkedToXContent {
             ifPresent(getIngestStats()).toXContentChunked(outerParams),
             singleChunk(ifPresent(getAdaptiveSelectionStats())),
             ifPresent(getScriptCacheStats()).toXContentChunked(outerParams),
-            singleChunk((builder, p) -> builder.value(ifPresent(getIndexingPressureStats()), p).value(ifPresent(getRepositoriesStats()), p))
+            singleChunk(
+                (builder, p) -> builder.value(ifPresent(getIndexingPressureStats()), p).value(ifPresent(getRepositoriesStats()), p)
+            ),
+            singleChunk(ifPresent(getNodeAllocationStats()))
         );
     }
 

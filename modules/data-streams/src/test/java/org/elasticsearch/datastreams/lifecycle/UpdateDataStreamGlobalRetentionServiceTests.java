@@ -228,7 +228,7 @@ public class UpdateDataStreamGlobalRetentionServiceTests extends ESTestCase {
     private static DataStreamGlobalRetention randomNonEmptyGlobalRetention() {
         boolean withDefault = randomBoolean();
         return new DataStreamGlobalRetention(
-            randomBoolean() ? TimeValue.timeValueDays(randomIntBetween(1, 1000)) : null,
+            withDefault ? TimeValue.timeValueDays(randomIntBetween(1, 1000)) : null,
             withDefault == false || randomBoolean() ? TimeValue.timeValueDays(randomIntBetween(1000, 2000)) : null
         );
     }

@@ -65,7 +65,7 @@ public final class ImmutableTransactionStore extends TransactionStore {
         boolean success = false;
 
         try {
-            this.items = new BytesRefArray(in, bigArrays);
+            this.items = BytesRefArray.readFrom(in, bigArrays, true);
 
             long itemCountsSize = in.readVLong();
             this.itemCounts = bigArrays.newLongArray(itemCountsSize, true);
@@ -73,7 +73,7 @@ public final class ImmutableTransactionStore extends TransactionStore {
                 itemCounts.set(i, in.readVLong());
             }
             this.totalItemCount = in.readVLong();
-            this.transactions = new BytesRefArray(in, bigArrays);
+            this.transactions = BytesRefArray.readFrom(in, bigArrays, true);
 
             long transactionsCountsSize = in.readVLong();
             this.transactionCounts = bigArrays.newLongArray(transactionsCountsSize, true);

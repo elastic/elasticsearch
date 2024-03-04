@@ -115,8 +115,8 @@ final class BytesRefBlockHash extends BlockHash {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             bytesRefHash.getBytesRefs().writeTo(out);
             try (StreamInput in = out.bytes().streamInput()) {
-                return new BytesRefBlock[] {
-                    blockFactory.newBytesRefArrayVector(new BytesRefArray(in, BigArrays.NON_RECYCLING_INSTANCE), size).asBlock() };
+                BytesRefArray keys = BytesRefArray.readFrom(in, BigArrays.NON_RECYCLING_INSTANCE, true);
+                return new BytesRefBlock[] { blockFactory.newBytesRefArrayVector(keys, size).asBlock() };
             }
         } catch (IOException e) {
             throw new IllegalStateException(e);

@@ -118,8 +118,17 @@ public abstract class StreamInput extends InputStream {
      * bytes in a pooled buffer and must be explicitly released via {@link ReleasableBytesReference#close()} once no longer used.
      * Prefer this method over {@link #readBytesReference()} when reading large bytes references to avoid allocations and copying.
      */
-    public ReleasableBytesReference readReleasableBytesReference() throws IOException {
-        return ReleasableBytesReference.wrap(readBytesReference());
+    public final ReleasableBytesReference readReleasableBytesReference() throws IOException {
+        return readReleasableBytesReference(readVInt());
+    }
+
+    /**
+     * Reads a releasable bytes reference from this stream. Unlike {@link #readBytesReference()} the returned bytes reference may reference
+     * bytes in a pooled buffer and must be explicitly released via {@link ReleasableBytesReference#close()} once no longer used.
+     * Prefer this method over {@link #readBytesReference()} when reading large bytes references to avoid allocations and copying.
+     */
+    public ReleasableBytesReference readReleasableBytesReference(int length) throws IOException {
+        return ReleasableBytesReference.wrap(readBytesReference(length));
     }
 
     /**

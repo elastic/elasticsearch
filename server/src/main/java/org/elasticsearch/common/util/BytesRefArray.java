@@ -9,8 +9,10 @@
 package org.elasticsearch.common.util;
 
 import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -46,35 +48,6 @@ public final class BytesRefArray implements Accountable, Releasable, Writeable {
             }
         }
         size = 0;
-    }
-
-    public BytesRefArray(StreamInput in, BigArrays bigArrays) throws IOException {
-        this.bigArrays = bigArrays;
-        // we allocate big arrays so we have to `close` if we fail here or we'll leak them.
-        boolean success = false;
-        try {
-            // startOffsets
-            size = in.readVLong();
-            long sizeOfStartOffsets = size + 1;
-            startOffsets = bigArrays.newLongArray(sizeOfStartOffsets, false);
-            for (long i = 0; i < sizeOfStartOffsets; ++i) {
-                startOffsets.set(i, in.readVLong());
-            }
-
-            // bytes
-            long sizeOfBytes = in.readVLong();
-            bytes = bigArrays.newByteArray(sizeOfBytes, false);
-
-            for (long i = 0; i < sizeOfBytes; ++i) {
-                bytes.set(i, in.readByte());
-            }
-
-            success = true;
-        } finally {
-            if (success == false) {
-                close();
-            }
-        }
     }
 
     private BytesRefArray(LongArray startOffsets, ByteArray bytes, long size, BigArrays bigArrays) {
@@ -137,6 +110,59 @@ public final class BytesRefArray implements Accountable, Releasable, Writeable {
         return b;
     }
 
+    public static BytesRefArray readFrom(StreamInput in, BigArrays bigArrays, boolean readOnly) throws IOException {
+        final long size = in.readVLong();
+        final long sizeOfStartOffsets = size + 1;
+        final LongArray startOffsets = bigArrays.newLongArray(sizeOfStartOffsets, false);
+        boolean success = false;
+        try {
+            // startOffsets
+            for (long i = 0; i < sizeOfStartOffsets; ++i) {
+                startOffsets.set(i, in.readVLong());
+            }
+            final ByteArray bytes = readByteArray(in, bigArrays, readOnly);
+            success = true;
+            return new BytesRefArray(startOffsets, bytes, size, bigArrays);
+        } finally {
+            if (success == false) {
+                Releasables.close(startOffsets);
+            }
+        }
+    }
+
+    private static ByteArray readByteArray(StreamInput in, BigArrays bigArrays, boolean readOnly) throws IOException {
+        final long numBytes = in.readVLong();
+        if (readOnly && in.supportReadAllToReleasableBytesReference() && Math.min(numBytes, ArrayUtil.MAX_ARRAY_LENGTH) == numBytes) {
+            bigArrays.adjustBreaker(numBytes, true);
+            Releasable releasable = () -> bigArrays.adjustBreaker(-numBytes, true);
+            try {
+                final ByteArray bytes = new ReleasableByteArray(in.readReleasableBytesReference(Math.toIntExact(numBytes)), releasable);
+                releasable = null;
+                return bytes;
+            } finally {
+                Releasables.close(releasable);
+            }
+        } else {
+            final ByteArray bytes = bigArrays.newByteArray(numBytes, false);
+            boolean success = false;
+            try {
+                if (bytes.hasArray()) {
+                    in.readBytes(bytes.array(), 0, Math.toIntExact(numBytes));
+                } else {
+                    for (long i = 0; i < numBytes; ++i) {
+                        bytes.set(i, in.readByte());
+                    }
+                }
+                success = true;
+                return bytes;
+            } finally {
+                if (success == false) {
+                    Releasables.close(bytes);
+                }
+            }
+        }
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         assert startOffsets != null : "using BytesRefArray after ownership taken";
@@ -151,8 +177,14 @@ public final class BytesRefArray implements Accountable, Releasable, Writeable {
         // bytes might be overallocated, the last bucket of startOffsets contains the real size
         long sizeOfBytes = startOffsets.get(size);
         out.writeVLong(sizeOfBytes);
-        for (long i = 0; i < sizeOfBytes; ++i) {
-            out.writeByte(bytes.get(i));
+        if (bytes.hasArray()) {
+            out.writeBytes(bytes.array(), 0, Math.toIntExact(sizeOfBytes));
+        } else {
+            final long maxReferenceSize = Math.min(sizeOfBytes, ArrayUtil.MAX_ARRAY_LENGTH);
+            BytesReference.fromByteArray(bytes, Math.toIntExact(maxReferenceSize)).writeTo(out);
+            for (long i = maxReferenceSize; i < sizeOfBytes; ++i) {
+                out.writeByte(bytes.get(i));
+            }
         }
     }
 

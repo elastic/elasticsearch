@@ -394,7 +394,7 @@ public class BytesRefHashTests extends ESTestCase {
                 refArray,
                 writableRegistry(),
                 StreamOutput::writeWriteable,
-                in -> new BytesRefArray(in, mockBigArrays()),
+                in -> BytesRefArray.readFrom(in, mockBigArrays(), true),
                 TransportVersion.current()
             );
 

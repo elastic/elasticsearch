@@ -127,7 +127,7 @@ public final class HashBasedTransactionStore extends TransactionStore {
         BytesRefArray transactionsArray = null;
 
         try {
-            itemsArray = new BytesRefArray(in, bigArrays);
+            itemsArray = BytesRefArray.readFrom(in, bigArrays, false);
             this.items = new BytesRefHash(itemsArray, bigArrays);
             // unassign to not double close on error
             itemsArray = null;
@@ -138,7 +138,7 @@ public final class HashBasedTransactionStore extends TransactionStore {
                 itemCounts.set(i, in.readVLong());
             }
             this.totalItemCount = in.readVLong();
-            transactionsArray = new BytesRefArray(in, bigArrays);
+            transactionsArray = BytesRefArray.readFrom(in, bigArrays, false);
             this.transactions = new BytesRefHash(transactionsArray, bigArrays);
             // unassign to not double close on error
             transactionsArray = null;

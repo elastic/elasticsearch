@@ -51,7 +51,7 @@ public class BytesRefArrayTests extends ESTestCase {
                 array,
                 writableRegistry(),
                 StreamOutput::writeWriteable,
-                in -> new BytesRefArray(in, mockBigArrays()),
+                in -> BytesRefArray.readFrom(in, mockBigArrays(), randomBoolean()),
                 TransportVersion.current()
             );
 
@@ -100,7 +100,7 @@ public class BytesRefArrayTests extends ESTestCase {
                     inArray,
                     writableRegistry(),
                     StreamOutput::writeWriteable,
-                    in -> new BytesRefArray(in, mockBigArrays()),
+                    in -> BytesRefArray.readFrom(in, mockBigArrays(), false),
                     TransportVersion.current()
                 );
                 assertEquality(inArray, array);

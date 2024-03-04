@@ -14,6 +14,8 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 
 import java.io.IOException;
 
@@ -24,9 +26,15 @@ public class ReleasableByteArray implements ByteArray {
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(ReleasableByteArray.class);
 
     private final ReleasableBytesReference ref;
+    private final Releasable onClose;
 
     ReleasableByteArray(StreamInput in) throws IOException {
-        this.ref = in.readReleasableBytesReference();
+        this(in.readReleasableBytesReference(), () -> {});
+    }
+
+    public ReleasableByteArray(ReleasableBytesReference bytesReference, Releasable onClose) {
+        this.ref = bytesReference;
+        this.onClose = onClose;
     }
 
     @Override
@@ -99,7 +107,7 @@ public class ReleasableByteArray implements ByteArray {
 
     @Override
     public void close() {
-        ref.decRef();
+        Releasables.close(ref::decRef, onClose);
     }
 
 }

@@ -18,30 +18,43 @@ import java.util.concurrent.ConcurrentHashMap;
 import static java.nio.charset.StandardCharsets.ISO_8859_1;
 import static java.util.Objects.requireNonNull;
 
-// FIXME
-// - Keep String for toString?
-// - Possibly integrate with SerializableString?
-// - remove BY_NAME map
+/**
+ * Symbols provide more efficient binary de-/serialization for a set of know ASCII constants.
+ * <p>
+ * On deserialization a symbol can be looked up by its hash code rather than initializing another instance.
+ */
 public final class Symbol implements Writeable {
+    /**
+     * Lookup table by name, necessary to provide a performant default implementation for {@link NamedWriteable#getNameSymbol()}.
+     * Once replaced, this lookup table is obsolete and can be removed.
+     */
     private static final ConcurrentHashMap<String, Symbol> BY_NAME = new ConcurrentHashMap<>();
+
+    /**
+     * Lookup table by symbol hash.
+     * <p>
+     * Collisions are resolved storing symbols in an array per hash using a linear search for lookup.
+     * With an expected decent low, constant number of symbols collisions should be fairly unlikely.
+     * <p>
+     * The estimated size of this table is currently around 150 kb with roughly 500 entries.
+     */
     private static final ConcurrentHashMap<Integer, Symbol[]> BY_HASH = new ConcurrentHashMap<>();
 
     private final byte[] bytes;
     private final int hashCode;
 
+    /**
+     * Get or create symbol for a constant.
+     * <p>
+     * Be careful to not use this unless the string is known to be a constant.
+     */
     public static Symbol ofConstant(String constant) {
         return BY_NAME.computeIfAbsent(requireNonNull(constant), n -> create(constant));
     }
 
-    public static Symbol lookupOrThrow(byte[] buffer, int start, int end) {
-        Symbol[] symbols = BY_HASH.get(Murmur3HashFunction.hash(buffer, start, end - start));
-        Symbol symbol = find(symbols, buffer, start, end);
-        if (symbol == null) {
-            throw new IllegalArgumentException("Unknown symbol[" + new String(buffer, start, end - start, ISO_8859_1) + "]");
-        }
-        return symbol;
-    }
-
+    /**
+     * Lookup the symbol matching the provided bytes. If no symbol matches this throws an {@link IllegalArgumentException}.
+     */
     public static Symbol lookupOrThrow(byte[] bytes) {
         Symbol[] symbols = BY_HASH.get(Murmur3HashFunction.hash(bytes, 0, bytes.length));
         Symbol symbol = find(symbols, bytes);
@@ -51,7 +64,21 @@ public final class Symbol implements Writeable {
         return symbol;
     }
 
-    private static Symbol create(String name) {
+    /**
+     * Lookup the symbol matching the provided bytes given start and end index.
+     * If no symbol matches this throws an {@link IllegalArgumentException}.
+     */
+    public static Symbol lookupOrThrow(byte[] buffer, int start, int end) {
+        Symbol[] symbols = BY_HASH.get(Murmur3HashFunction.hash(buffer, start, end - start));
+        Symbol symbol = find(symbols, buffer, start, end);
+        if (symbol == null) {
+            throw new IllegalArgumentException("Unknown symbol[" + new String(buffer, start, end - start, ISO_8859_1) + "]");
+        }
+        return symbol;
+    }
+
+    // visible for testing only
+    static Symbol create(String name) {
         // require symbol names to contain only ASCII characters, so they are backwards compatible with
         // write/readString encoding using {#chars}{bytes} rather than {#bytes}{bytes}.
         assert name.length() == name.codePointCount(0, name.length()) : "only ASCII characters allowed";
@@ -131,9 +158,12 @@ public final class Symbol implements Writeable {
         return hashCode == symbol.hashCode && Arrays.equals(bytes, symbol.bytes);
     }
 
+    /**
+     * Limit usage to exceptional cases. If toString is used frequently, consider storing the original string.
+     */
     @Override
     public String toString() {
         // bytes are valid ASCII, use ISO_8859_1 to not check again
-        return new String(bytes, ISO_8859_1); // avoid!
+        return new String(bytes, ISO_8859_1);
     }
 }

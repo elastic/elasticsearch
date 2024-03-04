@@ -20,8 +20,12 @@ public interface NamedWriteable extends Writeable {
      */
     String getWriteableName();
 
+    /**
+     * The name {@link Symbol} used for efficient de-/serialization.
+     * <p>
+     * It's recommended to overwrite this default implementation to avoid unnecessary lookup costs.
+     */
     default Symbol getNameSymbol() {
-        // FIXME lookup should be enough
         return Symbol.ofConstant(getWriteableName());
     }
 }

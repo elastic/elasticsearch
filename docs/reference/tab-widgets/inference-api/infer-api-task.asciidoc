@@ -7,7 +7,8 @@ PUT _inference/text_embedding/cohere_embeddings <1>
     "service": "cohere",
     "service_settings": {
         "api_key": "<api_key>", <2>
-        "model": "embed-english-light-v3.0" <3>
+        "model_id": "embed-english-light-v3.0", <3>
+        "embedding_type": "int8"
     },
     "task_settings": {
     }
@@ -34,10 +35,10 @@ PUT _inference/text_embedding/openai_embeddings <1>
 {
     "service": "openai",
     "service_settings": {
-        "api_key": "<api_key>" <2>
+        "api_key": "<api_key>", <2>
+        "model_id": "text-embedding-ada-002" <3>
     },
     "task_settings": {
-       "model": "text-embedding-ada-002" <3>
     }
 }
 ------------------------------------------------------------

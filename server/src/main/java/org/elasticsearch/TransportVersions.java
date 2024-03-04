@@ -134,6 +134,7 @@ public class TransportVersions {
     public static final TransportVersion INGEST_GRAPH_STRUCTURE_EXCEPTION = def(8_594_00_0);
     public static final TransportVersion ML_MODEL_IN_SERVICE_SETTINGS = def(8_595_00_0);
     public static final TransportVersion RANDOM_AGG_SHARD_SEED = def(8_596_00_0);
+    public static final TransportVersion ESQL_TIMINGS = def(8_597_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

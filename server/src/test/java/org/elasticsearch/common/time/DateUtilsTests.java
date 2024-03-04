@@ -67,6 +67,8 @@ public class DateUtilsTests extends ESTestCase {
         for (String jodaId : DateTimeZone.getAvailableIDs()) {
             if (IGNORE.contains(jodaId) || maybeIgnore(jodaId)) continue;
             DateTimeZone jodaTz = DateTimeZone.forID(jodaId);
+            // some timezones get mapped back to problematic timezones
+            if (IGNORE.contains(jodaTz.toString())) continue;
             ZoneId zoneId = DateUtils.dateTimeZoneToZoneId(jodaTz); // does not throw
             long now = 0;
             assertThat(

@@ -202,7 +202,13 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
                 followIndexMetadata,
                 filteredHeaders
             );
-            persistentTasksService.sendStartRequest(taskId, ShardFollowTask.NAME, shardFollowTask, handler.getActionListener(shardId));
+            persistentTasksService.sendStartRequest(
+                taskId,
+                ShardFollowTask.NAME,
+                shardFollowTask,
+                null,
+                handler.getActionListener(shardId)
+            );
         }
     }
 

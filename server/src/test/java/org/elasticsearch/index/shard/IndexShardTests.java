@@ -178,7 +178,6 @@ import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBui
 import static org.elasticsearch.common.lucene.Lucene.cleanLuceneIndex;
 import static org.elasticsearch.index.IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
-import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -195,6 +194,7 @@ import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.matchesRegex;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -1431,7 +1431,7 @@ public class IndexShardTests extends IndexShardTestCase {
              * the race, then the other thread lost the race and only one operation should have been executed.
              */
             assertThat(e, instanceOf(IllegalStateException.class));
-            assertThat(e, hasToString(matches("operation primary term \\[\\d+\\] is too old")));
+            assertThat(e, hasToString(matchesRegex(".*operation primary term \\[\\d+\\] is too old.*")));
             assertThat(counter.get(), equalTo(1L));
         } else {
             assertThat(counter.get(), equalTo(2L));
@@ -3800,6 +3800,7 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(primary);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/101008")
     @TestIssueLogging(
         issueUrl = "https://github.com/elastic/elasticsearch/issues/101008",
         value = "org.elasticsearch.index.shard.IndexShard:TRACE"

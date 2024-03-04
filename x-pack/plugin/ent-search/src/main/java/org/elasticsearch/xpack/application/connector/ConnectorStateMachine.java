@@ -42,6 +42,13 @@ public class ConnectorStateMachine {
         return validNextStates(current).contains(next);
     }
 
+    /**
+     * Throws {@link ConnectorInvalidStatusTransitionException} if a
+     * transition from one {@link ConnectorStatus} to another is invalid.
+     *
+     * @param current The current {@link ConnectorStatus} of the {@link Connector}.
+     * @param next The proposed next {@link ConnectorStatus} of the {@link Connector}.
+     */
     public static void assertValidStateTransition(ConnectorStatus current, ConnectorStatus next)
         throws ConnectorInvalidStatusTransitionException {
         if (isValidTransition(current, next)) return;

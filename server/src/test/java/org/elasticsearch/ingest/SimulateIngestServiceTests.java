@@ -19,16 +19,25 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.test.LambdaMatchers.transformedMatch;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class SimulateIngestServiceTests extends ESTestCase {
+
+    private static <K, V> Map<K, V> newHashMap(K key, V value) {
+        Map<K, V> map = new HashMap<>();
+        map.put(key, value);
+        return map;
+    }
 
     public void testGetPipeline() {
         PipelineConfiguration pipelineConfiguration = new PipelineConfiguration("pipeline1", new BytesArray("""
@@ -57,74 +66,47 @@ public class SimulateIngestServiceTests extends ESTestCase {
             SimulateBulkRequest simulateBulkRequest = new SimulateBulkRequest((Map<String, Map<String, Object>>) null);
             SimulateIngestService simulateIngestService = new SimulateIngestService(ingestService, simulateBulkRequest);
             Pipeline pipeline = simulateIngestService.getPipeline("pipeline1");
-            assertThat(pipeline.getProcessors().size(), equalTo(1));
-            assertThat(pipeline.getProcessors().get(0).getType(), equalTo("processor1"));
+            assertThat(pipeline.getProcessors(), contains(transformedMatch(Processor::getType, equalTo("processor1"))));
             assertNull(simulateIngestService.getPipeline("pipeline2"));
         }
         {
             // Here we make sure that if we have a substitution with the same name as the original pipeline that we get the new one back
-            Map<String, Map<String, Object>> pipelineSubstitutions = new HashMap<>() {
-                {
-                    put("pipeline1", new HashMap<>() {
-                        {
-                            put("processors", List.of(new HashMap<>() {
-                                {
-                                    put("processor2", new HashMap<>());
-                                }
-                            }, new HashMap<>() {
-                                {
-                                    put("processor3", new HashMap<>());
-                                }
-                            }));
-                        }
-                    });
-                    put("pipeline2", new HashMap<>() {
-                        {
-                            put("processors", List.of(new HashMap<>() {
-                                {
-                                    put("processor3", new HashMap<>());
-                                }
-                            }));
-                        }
-                    });
-                }
-            };
+            Map<String, Map<String, Object>> pipelineSubstitutions = new HashMap<>();
+            pipelineSubstitutions.put(
+                "pipeline1",
+                newHashMap(
+                    "processors",
+                    List.of(newHashMap("processor2", Collections.emptyMap()), newHashMap("processor3", Collections.emptyMap()))
+                )
+            );
+            pipelineSubstitutions.put("pipeline2", newHashMap("processors", List.of(newHashMap("processor3", Collections.emptyMap()))));
+
             SimulateBulkRequest simulateBulkRequest = new SimulateBulkRequest(pipelineSubstitutions);
             SimulateIngestService simulateIngestService = new SimulateIngestService(ingestService, simulateBulkRequest);
             Pipeline pipeline1 = simulateIngestService.getPipeline("pipeline1");
-            assertThat(pipeline1.getProcessors().size(), equalTo(2));
-            assertThat(pipeline1.getProcessors().get(0).getType(), equalTo("processor2"));
-            assertThat(pipeline1.getProcessors().get(1).getType(), equalTo("processor3"));
+            assertThat(
+                pipeline1.getProcessors(),
+                contains(
+                    transformedMatch(Processor::getType, equalTo("processor2")),
+                    transformedMatch(Processor::getType, equalTo("processor3"))
+                )
+            );
             Pipeline pipeline2 = simulateIngestService.getPipeline("pipeline2");
-            assertThat(pipeline2.getProcessors().size(), equalTo(1));
-            assertThat(pipeline2.getProcessors().get(0).getType(), equalTo("processor3"));
+            assertThat(pipeline2.getProcessors(), contains(transformedMatch(Processor::getType, equalTo("processor3"))));
         }
         {
             /*
              * Here we make sure that if we have a substitution for a new pipeline we still get the original one back (as well as the new
              * one).
              */
-            Map<String, Map<String, Object>> pipelineSubstitutions = new HashMap<>() {
-                {
-                    put("pipeline2", new HashMap<>() {
-                        {
-                            put("processors", List.of(new HashMap<>() {
-                                {
-                                    put("processor3", new HashMap<>());
-                                }
-                            }));
-                        }
-                    });
-                }
-            };
+            Map<String, Map<String, Object>> pipelineSubstitutions = new HashMap<>();
+            pipelineSubstitutions.put("pipeline2", newHashMap("processors", List.of(newHashMap("processor3", Collections.emptyMap()))));
             SimulateBulkRequest simulateBulkRequest = new SimulateBulkRequest(pipelineSubstitutions);
             SimulateIngestService simulateIngestService = new SimulateIngestService(ingestService, simulateBulkRequest);
             Pipeline pipeline1 = simulateIngestService.getPipeline("pipeline1");
-            assertThat(pipeline1.getProcessors().size(), equalTo(1));
-            assertThat(pipeline1.getProcessors().get(0).getType(), equalTo("processor1"));
+            assertThat(pipeline1.getProcessors(), contains(transformedMatch(Processor::getType, equalTo("processor1"))));
             Pipeline pipeline2 = simulateIngestService.getPipeline("pipeline2");
-            assertThat(pipeline2.getProcessors().size(), equalTo(1));
-            assertThat(pipeline2.getProcessors().get(0).getType(), equalTo("processor3"));
+            assertThat(pipeline2.getProcessors(), contains(transformedMatch(Processor::getType, equalTo("processor3"))));
         }
     }
 

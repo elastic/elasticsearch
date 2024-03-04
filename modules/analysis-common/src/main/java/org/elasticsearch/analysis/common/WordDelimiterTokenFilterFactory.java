@@ -26,6 +26,7 @@ import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static org.apache.lucene.analysis.miscellaneous.WordDelimiterFilter.CATENATE_ALL;
 import static org.apache.lucene.analysis.miscellaneous.WordDelimiterFilter.CATENATE_NUMBERS;
@@ -101,17 +102,20 @@ public class WordDelimiterTokenFilterFactory extends AbstractTokenFilterFactory 
         return 0;
     }
 
+    // source => type
+    private static final Pattern typePattern = Pattern.compile("(.*)\\s*=>\\s*(.*)\\s*$");
+
     /**
      * parses a list of MappingCharFilter style rules into a custom byte[] type table
      */
     static byte[] parseTypes(Collection<String> rules) {
         SortedMap<Character, Byte> typeMap = new TreeMap<>();
         for (String rule : rules) {
-            Matcher m = MappingCharFilterFactory.rulePattern.matcher(rule);
+            Matcher m = typePattern.matcher(rule);
             if (m.find() == false) {
                 throw new RuntimeException("Invalid Mapping Rule : [" + rule + "]");
             }
-            String lhs = MappingCharFilterFactory.parseString(m.group(1).trim());
+            String lhs = parseString(m.group(1).trim());
             Byte rhs = parseType(m.group(2).trim());
             if (lhs.length() != 1) throw new RuntimeException("Invalid Mapping Rule : [" + rule + "]. Only a single character is allowed.");
             if (rhs == null) throw new RuntimeException("Invalid Mapping Rule : [" + rule + "]. Illegal type.");
@@ -137,6 +141,35 @@ public class WordDelimiterTokenFilterFactory extends AbstractTokenFilterFactory 
         else if (s.equals("ALPHANUM")) return WordDelimiterFilter.ALPHANUM;
         else if (s.equals("SUBWORD_DELIM")) return WordDelimiterFilter.SUBWORD_DELIM;
         else return null;
+    }
+
+    private static String parseString(String s) {
+        char[] out = new char[256];
+        int readPos = 0;
+        int len = s.length();
+        int writePos = 0;
+        while (readPos < len) {
+            char c = s.charAt(readPos++);
+            if (c == '\\') {
+                if (readPos >= len) throw new RuntimeException("Invalid escaped char in [" + s + "]");
+                c = s.charAt(readPos++);
+                switch (c) {
+                    case '\\' -> c = '\\';
+                    case 'n' -> c = '\n';
+                    case 't' -> c = '\t';
+                    case 'r' -> c = '\r';
+                    case 'b' -> c = '\b';
+                    case 'f' -> c = '\f';
+                    case 'u' -> {
+                        if (readPos + 3 >= len) throw new RuntimeException("Invalid escaped char in [" + s + "]");
+                        c = (char) Integer.parseInt(s.substring(readPos, readPos + 4), 16);
+                        readPos += 4;
+                    }
+                }
+            }
+            out[writePos++] = c;
+        }
+        return new String(out, 0, writePos);
     }
 
     @Override

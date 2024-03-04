@@ -12,41 +12,51 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.internal.BuildExtension;
 import org.elasticsearch.plugins.ExtensionLoader;
 
+import java.util.Objects;
 import java.util.ServiceLoader;
 
-public interface BuildVersion extends Writeable {
-    boolean onOrAfterMinimumCompatible();
+public abstract class BuildVersion implements Writeable {
 
-    boolean isFutureVersion();
+    private static class ExtensionHolder {
+        private static final BuildExtension BUILD_EXTENSION = findExtension();
+
+        private static boolean hasExtension() {
+            return Objects.nonNull(BUILD_EXTENSION);
+        }
+
+        private static BuildExtension findExtension() {
+            return ExtensionLoader.loadSingleton(ServiceLoader.load(BuildExtension.class)).orElse(null);
+        }
+    }
+
+    public abstract boolean onOrAfterMinimumCompatible();
+
+    public abstract boolean isFutureVersion();
 
     // temporary
     // TODO[wrb]: remove from PersistedClusterStateService
     // TODO[wrb]: remove from security bootstrap checks
     @Deprecated
-    default Version toVersion() {
+    public Version toVersion() {
         return null;
     }
 
-    static BuildVersion fromVersionId(int versionId) {
-        return ExtensionLoader.loadSingleton(ServiceLoader.load(BuildExtension.class))
-            .map(ext -> ext.fromVersionId(versionId))
-            .orElse(new DefaultBuildVersion(versionId));
+    public static BuildVersion fromVersionId(int versionId) {
+        return ExtensionHolder.hasExtension()
+            ? ExtensionHolder.BUILD_EXTENSION.fromVersionId(versionId)
+            : new DefaultBuildVersion(versionId);
     }
 
-    static BuildVersion current() {
-        return ExtensionLoader.loadSingleton(ServiceLoader.load(BuildExtension.class))
-            .map(BuildExtension::currentBuildVersion)
-            .orElse(DefaultBuildVersion.CURRENT);
+    public static BuildVersion current() {
+        return ExtensionHolder.hasExtension() ? ExtensionHolder.BUILD_EXTENSION.currentBuildVersion() : DefaultBuildVersion.CURRENT;
     }
 
-    static BuildVersion empty() {
-        return ExtensionLoader.loadSingleton(ServiceLoader.load(BuildExtension.class))
-            .map(ext -> ext.fromVersionId(0))
-            .orElse(DefaultBuildVersion.EMPTY);
+    public static BuildVersion empty() {
+        return ExtensionHolder.hasExtension() ? ExtensionHolder.BUILD_EXTENSION.fromVersionId(0) : DefaultBuildVersion.EMPTY;
     }
 
     // only exists for NodeMetadata#toXContent
-    default int id() {
+    public int id() {
         return -1;
     }
 }

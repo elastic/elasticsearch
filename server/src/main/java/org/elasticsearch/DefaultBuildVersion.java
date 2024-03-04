@@ -14,7 +14,7 @@ import java.io.IOException;
 import java.util.Objects;
 
 // TODO[wrb]: make package-private once default implementations are removed in BuildExtension
-public class DefaultBuildVersion implements BuildVersion {
+public class DefaultBuildVersion extends BuildVersion {
 
     public static BuildVersion CURRENT = new org.elasticsearch.DefaultBuildVersion(Version.CURRENT.id());
     public static BuildVersion EMPTY = new org.elasticsearch.DefaultBuildVersion(0);

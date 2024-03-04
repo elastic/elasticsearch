@@ -45,7 +45,8 @@ public class DateUtilsTests extends ESTestCase {
             "Asia/Qostanay", // part of tzdata2018h
             "America/Godthab", // part of tzdata2020a (maps to America/Nuuk)
             "America/Nuuk", // part of tzdata2020a
-            "America/Ciudad_Juarez" // part of tzdata2022g
+            "America/Ciudad_Juarez", // part of tzdata2022g
+            "Europe/Kyiv" // part of tzdata2022c
         )
     );
 
@@ -60,13 +61,14 @@ public class DateUtilsTests extends ESTestCase {
         return false;
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105841")
     public void testTimezoneIds() {
         assertNull(DateUtils.dateTimeZoneToZoneId(null));
         assertNull(DateUtils.zoneIdToDateTimeZone(null));
         for (String jodaId : DateTimeZone.getAvailableIDs()) {
             if (IGNORE.contains(jodaId) || maybeIgnore(jodaId)) continue;
             DateTimeZone jodaTz = DateTimeZone.forID(jodaId);
+            // some timezones get mapped back to problematic timezones
+            if (IGNORE.contains(jodaTz.toString())) continue;
             ZoneId zoneId = DateUtils.dateTimeZoneToZoneId(jodaTz); // does not throw
             long now = 0;
             assertThat(

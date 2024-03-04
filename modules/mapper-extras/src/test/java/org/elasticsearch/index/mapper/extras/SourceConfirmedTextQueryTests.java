@@ -473,9 +473,9 @@ public class SourceConfirmedTextQueryTests extends ESTestCase {
                 {
                     IndexSearcher searcher = new IndexSearcher(ir);
                     TopDocs td = searcher.search(
-                            sourceConfirmedQuery,
-                            3,
-                            new Sort(KeywordField.newSortField("sort", false, SortedSetSelector.Type.MAX))
+                        sourceConfirmedQuery,
+                        3,
+                        new Sort(KeywordField.newSortField("sort", false, SortedSetSelector.Type.MAX))
                     );
 
                     Weight weight = searcher.createWeight(searcher.rewrite(sourceConfirmedQuery), ScoreMode.COMPLETE_NO_SCORES, 1);
@@ -485,7 +485,8 @@ public class SourceConfirmedTextQueryTests extends ESTestCase {
                     checkMatches(weight, firstCtx, firstDoc - firstCtx.docBase, expectedMatches, 0, expectedFetch);
 
                     int secondDoc = td.scoreDocs[1].doc;
-                    LeafReaderContext secondCtx = searcher.getLeafContexts().get(ReaderUtil.subIndex(secondDoc, searcher.getLeafContexts()));
+                    LeafReaderContext secondCtx = searcher.getLeafContexts()
+                        .get(ReaderUtil.subIndex(secondDoc, searcher.getLeafContexts()));
                     checkMatches(weight, secondCtx, secondDoc - secondCtx.docBase, expectedMatches, 1, expectedFetch);
                 }
 
@@ -502,7 +503,8 @@ public class SourceConfirmedTextQueryTests extends ESTestCase {
         }
     }
 
-    private static void checkMatches(Weight w, LeafReaderContext ctx, int doc, int[] expectedMatches, int offset, boolean expectedFetch) throws IOException {
+    private static void checkMatches(Weight w, LeafReaderContext ctx, int doc, int[] expectedMatches, int offset, boolean expectedFetch)
+        throws IOException {
         int count = sourceFetchCount.get();
         Matches matches = w.matches(ctx, doc);
         if (expectedMatches.length == 0) {

@@ -65,4 +65,10 @@ include::{es-repo-dir}/data-streams/lifecycle/apis/explain-lifecycle.asciidoc[]
 
 include::{es-repo-dir}/data-streams/lifecycle/apis/get-lifecycle-stats.asciidoc[]
 
+include::{es-repo-dir}/data-streams/lifecycle/apis/put-global-retention.asciidoc[]
+
+include::{es-repo-dir}/data-streams/lifecycle/apis/get-global-retention.asciidoc[]
+
+include::{es-repo-dir}/data-streams/lifecycle/apis/delete-global-retention.asciidoc[]
+
 include::{es-repo-dir}/indices/downsample-data-stream.asciidoc[]

@@ -232,7 +232,7 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
             weightedTokensQueryBuilder.boost(boost);
             return weightedTokensQueryBuilder;
         }
-        // Note: Weighted tokens queries were introduced in 8.13.0. To support cross cluster search against older versions,
+        // Note: Weighted tokens queries were introduced in 8.13.0. To support mixed version clusters prior to 8.13.0,
         // if no token pruning configuration is specified we fall back to a boolean query.
         var boolQuery = QueryBuilders.boolQuery();
         for (var weightedToken : textExpansionResults.getWeightedTokens()) {

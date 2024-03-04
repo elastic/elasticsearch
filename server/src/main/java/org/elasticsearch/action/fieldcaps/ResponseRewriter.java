@@ -10,6 +10,7 @@ package org.elasticsearch.action.fieldcaps;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.core.Predicates;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -49,7 +50,7 @@ final class ResponseRewriter {
         String[] filters,
         String[] allowedTypes
     ) {
-        Predicate<IndexFieldCapabilities> test = ifc -> true;
+        Predicate<IndexFieldCapabilities> test = Predicates.always();
         Set<String> objects = null;
         Set<String> nestedObjects = null;
         if (allowedTypes.length > 0) {
@@ -109,7 +110,7 @@ final class ResponseRewriter {
     }
 
     private static boolean isNotMultifield(String field, Set<String> objectFields) {
-        int lastDotPos = field.lastIndexOf(".");
+        int lastDotPos = field.lastIndexOf('.');
         if (lastDotPos == -1) {
             return true;
         }

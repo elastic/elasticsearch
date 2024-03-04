@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services;
 
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
@@ -23,24 +22,23 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.atomic.AtomicReference;
 
 public abstract class SenderService implements InferenceService {
-    private final SetOnce<HttpRequestSenderFactory> factory;
-    private final SetOnce<ServiceComponents> serviceComponents;
-    private final AtomicReference<Sender> sender = new AtomicReference<>();
+    private final Sender sender;
+    private final ServiceComponents serviceComponents;
 
-    public SenderService(SetOnce<HttpRequestSenderFactory> factory, SetOnce<ServiceComponents> serviceComponents) {
-        this.factory = Objects.requireNonNull(factory);
+    public SenderService(HttpRequestSenderFactory factory, ServiceComponents serviceComponents) {
+        Objects.requireNonNull(factory);
+        sender = factory.createSender(name());
         this.serviceComponents = Objects.requireNonNull(serviceComponents);
     }
 
     protected Sender getSender() {
-        return sender.get();
+        return sender;
     }
 
     protected ServiceComponents getServiceComponents() {
-        return serviceComponents.get();
+        return serviceComponents;
     }
 
     @Override
@@ -63,7 +61,7 @@ public abstract class SenderService implements InferenceService {
         Map<String, Object> taskSettings,
         InputType inputType,
         ChunkingOptions chunkingOptions,
-        ActionListener<ChunkedInferenceServiceResults> listener
+        ActionListener<List<ChunkedInferenceServiceResults>> listener
     ) {
         init();
         doChunkedInfer(model, input, taskSettings, inputType, chunkingOptions, listener);
@@ -83,7 +81,7 @@ public abstract class SenderService implements InferenceService {
         Map<String, Object> taskSettings,
         InputType inputType,
         ChunkingOptions chunkingOptions,
-        ActionListener<ChunkedInferenceServiceResults> listener
+        ActionListener<List<ChunkedInferenceServiceResults>> listener
     );
 
     @Override
@@ -98,12 +96,11 @@ public abstract class SenderService implements InferenceService {
     }
 
     private void init() {
-        sender.updateAndGet(current -> Objects.requireNonNullElseGet(current, () -> factory.get().createSender(name())));
-        sender.get().start();
+        sender.start();
     }
 
     @Override
     public void close() throws IOException {
-        IOUtils.closeWhileHandlingException(sender.get());
+        IOUtils.closeWhileHandlingException(sender);
     }
 }

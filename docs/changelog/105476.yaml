@@ -1,0 +1,6 @@
+pr: 105476
+summary: "ESQL: Fix bug in grammar that allowed spaces inside id pattern"
+area: ES|QL
+type: bug
+issues:
+ - 105441

@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.inference.InferenceService;
@@ -59,6 +60,7 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
     private final ModelRegistry modelRegistry;
     private final InferenceServiceRegistry serviceRegistry;
     private final Client client;
+    private volatile boolean skipValidationAndStart;
 
     @Inject
     public TransportPutInferenceModelAction(
@@ -69,7 +71,8 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
         IndexNameExpressionResolver indexNameExpressionResolver,
         ModelRegistry modelRegistry,
         InferenceServiceRegistry serviceRegistry,
-        Client client
+        Client client,
+        Settings settings
     ) {
         super(
             PutInferenceModelAction.NAME,
@@ -85,6 +88,9 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
         this.modelRegistry = modelRegistry;
         this.serviceRegistry = serviceRegistry;
         this.client = client;
+        this.skipValidationAndStart = InferencePlugin.SKIP_VALIDATE_AND_START.get(settings);
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(InferencePlugin.SKIP_VALIDATE_AND_START, this::setSkipValidationAndStart);
     }
 
     @Override
@@ -94,7 +100,6 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
         ClusterState state,
         ActionListener<PutInferenceModelAction.Response> listener
     ) throws Exception {
-
         var requestAsMap = requestToMap(request);
         var resolvedTaskType = resolveTaskType(request.getTaskType(), (String) requestAsMap.remove(TaskType.NAME));
 
@@ -185,41 +190,51 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
         Set<String> platformArchitectures,
         ActionListener<PutInferenceModelAction.Response> listener
     ) {
-        ActionListener<Model> modelListener = listener.delegateFailureAndWrap((delegate, model) -> {
-            service.checkModelConfig(
-                model,
-                delegate.delegateFailureAndWrap(
-                    // model is valid, ok to persist then start
-                    (delegate2, verifiedModel) -> modelRegistry.storeModel(
-                        verifiedModel,
-                        delegate2.delegateFailureAndWrap((l, r) -> putAndStartModel(service, verifiedModel, l))
-                    )
-                )
-            );
+        ActionListener<Model> storeModelListener = listener.delegateFailureAndWrap(
+            (delegate, verifiedModel) -> modelRegistry.storeModel(
+                verifiedModel,
+                delegate.delegateFailureAndWrap((l, r) -> putAndStartModel(service, verifiedModel, l))
+            )
+        );
+
+        ActionListener<Model> parsedModelListener = listener.delegateFailureAndWrap((delegate, model) -> {
+            if (skipValidationAndStart) {
+                storeModelListener.onResponse(model);
+            } else {
+                service.checkModelConfig(model, storeModelListener);
+            }
         });
 
-        service.parseRequestConfig(inferenceEntityId, taskType, config, platformArchitectures, modelListener);
+        service.parseRequestConfig(inferenceEntityId, taskType, config, platformArchitectures, parsedModelListener);
 
     }
 
-    private static void putAndStartModel(
-        InferenceService service,
-        Model model,
-        ActionListener<PutInferenceModelAction.Response> finalListener
-    ) {
-        SubscribableListener.<Boolean>newForked((listener1) -> { service.putModel(model, listener1); }).<
-            PutInferenceModelAction.Response>andThen((listener2, modelDidPut) -> {
-                if (modelDidPut) {
+    private void putAndStartModel(InferenceService service, Model model, ActionListener<PutInferenceModelAction.Response> finalListener) {
+        SubscribableListener.<Boolean>newForked(listener -> {
+            var errorCatchingListener = ActionListener.<Boolean>wrap(listener::onResponse, e -> { listener.onResponse(false); });
+            service.isModelDownloaded(model, errorCatchingListener);
+        }).<Boolean>andThen((listener, isDownloaded) -> {
+            if (isDownloaded == false) {
+                service.putModel(model, listener);
+            } else {
+                listener.onResponse(true);
+            }
+        }).<PutInferenceModelAction.Response>andThen((listener, modelDidPut) -> {
+            if (modelDidPut) {
+                if (skipValidationAndStart) {
+                    listener.onResponse(new PutInferenceModelAction.Response(model.getConfigurations()));
+                } else {
                     service.start(
                         model,
-                        listener2.delegateFailureAndWrap(
+                        listener.delegateFailureAndWrap(
                             (l3, ok) -> l3.onResponse(new PutInferenceModelAction.Response(model.getConfigurations()))
                         )
                     );
-                } else {
-                    logger.warn("Failed to put model [{}]", model.getInferenceEntityId());
                 }
-            }).addListener(finalListener);
+            } else {
+                logger.warn("Failed to put model [{}]", model.getInferenceEntityId());
+            }
+        }).addListener(finalListener);
     }
 
     private Map<String, Object> requestToMap(PutInferenceModelAction.Request request) throws IOException {
@@ -232,6 +247,10 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
         ) {
             return parser.map();
         }
+    }
+
+    private void setSkipValidationAndStart(boolean skipValidationAndStart) {
+        this.skipValidationAndStart = skipValidationAndStart;
     }
 
     @Override

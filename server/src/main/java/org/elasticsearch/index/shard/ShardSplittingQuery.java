@@ -33,6 +33,7 @@ import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -140,7 +141,12 @@ final class ShardSplittingQuery extends Query {
                              * of the document that contains them.
                              */
                             FixedBitSet hasRoutingValue = new FixedBitSet(leafReader.maxDoc());
-                            findSplitDocs(RoutingFieldMapper.NAME, ref -> false, leafReader, maybeWrapConsumer.apply(hasRoutingValue::set));
+                            findSplitDocs(
+                                RoutingFieldMapper.NAME,
+                                Predicates.never(),
+                                leafReader,
+                                maybeWrapConsumer.apply(hasRoutingValue::set)
+                            );
                             IntConsumer bitSetConsumer = maybeWrapConsumer.apply(bitSet::set);
                             findSplitDocs(IdFieldMapper.NAME, includeInShard, leafReader, docId -> {
                                 if (hasRoutingValue.get(docId) == false) {

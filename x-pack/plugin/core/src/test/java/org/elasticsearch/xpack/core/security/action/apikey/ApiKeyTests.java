@@ -68,6 +68,7 @@ public class ApiKeyTests extends ESTestCase {
         assertThat(map.get("invalidated"), is(apiKey.isInvalidated()));
         assertThat(map.get("username"), equalTo(apiKey.getUsername()));
         assertThat(map.get("realm"), equalTo(apiKey.getRealm()));
+        assertThat(map.get("realm_type"), equalTo(apiKey.getRealmType()));
         assertThat(map.get("metadata"), equalTo(Objects.requireNonNullElseGet(apiKey.getMetadata(), Map::of)));
 
         if (apiKey.getRoleDescriptors() == null) {
@@ -172,6 +173,7 @@ public class ApiKeyTests extends ESTestCase {
             : null;
         final String username = randomAlphaOfLengthBetween(4, 10);
         final String realmName = randomAlphaOfLengthBetween(3, 8);
+        final String realmType = randomFrom(randomAlphaOfLengthBetween(3, 8), null);
         final Map<String, Object> metadata = randomMetadata();
         final List<RoleDescriptor> roleDescriptors = type == ApiKey.Type.CROSS_CLUSTER
             ? List.of(randomCrossClusterAccessRoleDescriptor())
@@ -190,6 +192,7 @@ public class ApiKeyTests extends ESTestCase {
             invalidation,
             username,
             realmName,
+            realmType,
             metadata,
             roleDescriptors,
             limitedByRoleDescriptors

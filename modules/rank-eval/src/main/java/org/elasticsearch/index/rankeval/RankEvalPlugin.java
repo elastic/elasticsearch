@@ -53,7 +53,7 @@ public class RankEvalPlugin extends Plugin implements ActionPlugin {
         Supplier<DiscoveryNodes> nodesInCluster,
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
-        return Collections.singletonList(new RestRankEvalAction());
+        return Collections.singletonList(new RestRankEvalAction(clusterSupportsFeature));
     }
 
     @Override

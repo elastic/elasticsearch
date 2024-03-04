@@ -51,7 +51,7 @@ public class ShutdownShardMigrationStatus implements Writeable, ChunkedToXConten
         @Nullable String explanation,
         @Nullable ShardAllocationDecision allocationDecision
     ) {
-        this(status, -1, -1, -1, shardsRemaining, explanation, null);
+        this(status, -1, -1, -1, shardsRemaining, explanation, allocationDecision);
     }
 
     public ShutdownShardMigrationStatus(

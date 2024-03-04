@@ -19,9 +19,9 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
-import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
+import org.elasticsearch.core.SimpleRefCounted;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.transport.LeakTracker;
 import org.elasticsearch.xcontent.ToXContent;
@@ -122,19 +122,7 @@ public class MultiSearchResponse extends ActionResponse implements Iterable<Mult
     private final Item[] items;
     private final long tookInMillis;
 
-    private final RefCounted refCounted = LeakTracker.wrap(new AbstractRefCounted() {
-        @Override
-        protected void closeInternal() {
-            for (int i = 0; i < items.length; i++) {
-                Item item = items[i];
-                var r = item.response;
-                if (r != null) {
-                    r.decRef();
-                    items[i] = null;
-                }
-            }
-        }
-    });
+    private final RefCounted refCounted = LeakTracker.wrap(new SimpleRefCounted());
 
     public MultiSearchResponse(StreamInput in) throws IOException {
         super(in);
@@ -163,7 +151,22 @@ public class MultiSearchResponse extends ActionResponse implements Iterable<Mult
 
     @Override
     public boolean decRef() {
-        return refCounted.decRef();
+        if (refCounted.decRef()) {
+            deallocate();
+            return true;
+        }
+        return false;
+    }
+
+    private void deallocate() {
+        for (int i = 0; i < items.length; i++) {
+            Item item = items[i];
+            var r = item.response;
+            if (r != null) {
+                r.decRef();
+                items[i] = null;
+            }
+        }
     }
 
     @Override

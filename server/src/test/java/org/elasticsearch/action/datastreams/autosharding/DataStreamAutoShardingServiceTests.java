@@ -45,6 +45,8 @@ import java.util.Set;
 import java.util.function.Function;
 
 import static org.elasticsearch.action.datastreams.autosharding.AutoShardingResult.NOT_APPLICABLE_RESULT;
+import static org.elasticsearch.action.datastreams.autosharding.AutoShardingType.COOLDOWN_PREVENTED_DECREASE;
+import static org.elasticsearch.action.datastreams.autosharding.AutoShardingType.COOLDOWN_PREVENTED_INCREASE;
 import static org.elasticsearch.action.datastreams.autosharding.AutoShardingType.DECREASE_SHARDS;
 import static org.elasticsearch.action.datastreams.autosharding.AutoShardingType.INCREASE_SHARDS;
 import static org.elasticsearch.action.datastreams.autosharding.AutoShardingType.NO_CHANGE_REQUIRED;
@@ -226,7 +228,8 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
         }
 
         {
-            // let's add a pre-existing sharding event so that we'll return some cool down period
+            // let's add a pre-existing sharding event so that we'll return some cool down period that's preventing an INCREASE_SHARDS
+            // event so the result type we're expecting is COOLDOWN_PREVENTED_INCREASE
             Metadata.Builder builder = Metadata.builder();
             Function<DataStreamAutoShardingEvent, DataStream> dataStreamSupplier = (autoShardingEvent) -> createDataStream(
                 builder,
@@ -256,11 +259,11 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
                 .build();
 
             AutoShardingResult autoShardingResult = service.calculate(state, dataStream, 2.5);
-            assertThat(autoShardingResult.type(), is(INCREASE_SHARDS));
+            assertThat(autoShardingResult.type(), is(COOLDOWN_PREVENTED_INCREASE));
             // no pre-existing scaling event so the cool down must be zero
             assertThat(autoShardingResult.targetNumberOfShards(), is(3));
-            // it's been 1005 millis since the last auto sharding event and the cool down is 15m (900_000 millis)
-            assertThat(autoShardingResult.coolDownRemaining(), is(TimeValue.timeValueMillis(898995)));
+            // it's been 1005 millis since the last auto sharding event and the cool down is 270secoinds (270_000 millis)
+            assertThat(autoShardingResult.coolDownRemaining(), is(TimeValue.timeValueMillis(268995)));
         }
 
         {
@@ -304,6 +307,8 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
     public void testCalculateDecreaseShardingRecommendations() {
         // the input is a data stream with 5 backing indices with 3 shards each
         {
+            // testing a decrease shards events prevented by the cool down period not lapsing due to the oldest generation index being
+            // "too new" (i.e. the cool down period hasn't lapsed since the oldest generation index)
             Metadata.Builder builder = Metadata.builder();
             Function<DataStreamAutoShardingEvent, DataStream> dataStreamSupplier = (autoShardingEvent) -> createDataStream(
                 builder,
@@ -311,7 +316,7 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
                 3,
                 now,
                 List.of(now - 10_000, now - 7000, now - 5000, now - 2000, now - 1000),
-                getWriteLoad(3, 0.333),
+                getWriteLoad(3, 0.25),
                 autoShardingEvent
             );
 
@@ -331,10 +336,10 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
 
             AutoShardingResult autoShardingResult = service.calculate(state, dataStream, 1.0);
             // the cooldown period for the decrease shards event hasn't lapsed since the data stream was created
-            assertThat(autoShardingResult.type(), is(NO_CHANGE_REQUIRED));
-            assertThat(autoShardingResult.coolDownRemaining(), is(TimeValue.ZERO));
-            // no change required so the recommendation is to keep 3 shards (the current count for the write index)
-            assertThat(autoShardingResult.targetNumberOfShards(), is(3));
+            assertThat(autoShardingResult.type(), is(COOLDOWN_PREVENTED_DECREASE));
+            assertThat(autoShardingResult.coolDownRemaining(), is(TimeValue.timeValueMillis(TimeValue.timeValueDays(3).millis() - 10_000)));
+            // based on the write load of 0.75 we should be reducing the number of shards to 1
+            assertThat(autoShardingResult.targetNumberOfShards(), is(1));
         }
 
         {
@@ -422,6 +427,53 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
             assertThat(autoShardingResult.type(), is(DECREASE_SHARDS));
             assertThat(autoShardingResult.targetNumberOfShards(), is(1));
             assertThat(autoShardingResult.coolDownRemaining(), is(TimeValue.ZERO));
+        }
+
+        {
+            // let's test a decrease in number of shards that's prevented by the cool down period due to a previous sharding event
+            // the expected result type here is COOLDOWN_PREVENTED_DECREASE
+            Metadata.Builder builder = Metadata.builder();
+            Function<DataStreamAutoShardingEvent, DataStream> dataStreamSupplier = (autoShardingEvent) -> createDataStream(
+                builder,
+                dataStreamName,
+                3,
+                now,
+                List.of(
+                    now - TimeValue.timeValueDays(21).getMillis(),
+                    now - TimeValue.timeValueDays(2).getMillis(), // triggers auto sharding event
+                    now - TimeValue.timeValueDays(1).getMillis(),
+                    now - 1000
+                ),
+                getWriteLoad(3, 0.25),
+                autoShardingEvent
+            );
+
+            // generation 2 triggered a decrease in shards event to 2 shards
+            DataStream dataStream = dataStreamSupplier.apply(
+                new DataStreamAutoShardingEvent(
+                    DataStream.getDefaultBackingIndexName(dataStreamName, 2),
+                    2,
+                    2,
+                    now - TimeValue.timeValueDays(2).getMillis()
+                )
+            );
+            builder.put(dataStream);
+            ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
+                .nodeFeatures(
+                    Map.of(
+                        "n1",
+                        Set.of(DataStreamAutoShardingService.DATA_STREAM_AUTO_SHARDING_FEATURE.id()),
+                        "n2",
+                        Set.of(DataStreamAutoShardingService.DATA_STREAM_AUTO_SHARDING_FEATURE.id())
+                    )
+                )
+                .metadata(builder)
+                .build();
+
+            AutoShardingResult autoShardingResult = service.calculate(state, dataStream, 1.0);
+            assertThat(autoShardingResult.type(), is(COOLDOWN_PREVENTED_DECREASE));
+            assertThat(autoShardingResult.targetNumberOfShards(), is(1));
+            assertThat(autoShardingResult.coolDownRemaining(), is(TimeValue.timeValueDays(1)));
         }
 
         {

@@ -8,9 +8,14 @@
 
 package org.elasticsearch.action.datastreams.autosharding;
 
+/**
+ * Represents the type of recommendation the auto sharding service provided.
+ */
 public enum AutoShardingType {
     INCREASE_SHARDS,
     DECREASE_SHARDS,
+    COOLDOWN_PREVENTED_INCREASE,
+    COOLDOWN_PREVENTED_DECREASE,
     NO_CHANGE_REQUIRED,
     NOT_APPLICABLE
 }

@@ -18,7 +18,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xcontent.ParseField;
@@ -32,8 +31,10 @@ import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfigUpdate;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -50,6 +51,34 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
     private final String modelId;
     private SetOnce<TextExpansionResults> weightedTokensSupplier;
     private final TokenPruningConfig tokenPruningConfig;
+
+    public enum AllowedFieldType {
+        RANK_FEATURES("rank_features"),
+        SPARSE_VECTOR("sparse_vector");
+
+        private final String typeName;
+
+        AllowedFieldType(String typeName) {
+            this.typeName = typeName;
+        }
+
+        public String getTypeName() {
+            return typeName;
+        }
+
+        public static boolean isFieldTypeAllowed(String typeName) {
+            for (AllowedFieldType fieldType : values()) {
+                if (fieldType.getTypeName().equals(typeName)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        public static String getAllowedFieldTypesAsString() {
+            return Arrays.stream(values()).map(value -> value.typeName).collect(Collectors.joining(", "));
+        }
+    }
 
     public TextExpansionQueryBuilder(String fieldName, String modelText, String modelId) {
         this(fieldName, modelText, modelId, null);
@@ -198,24 +227,14 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
     }
 
     private QueryBuilder weightedTokensToQuery(String fieldName, TextExpansionResults textExpansionResults) {
-        if (tokenPruningConfig != null) {
-            WeightedTokensQueryBuilder weightedTokensQueryBuilder = new WeightedTokensQueryBuilder(
-                fieldName,
-                textExpansionResults.getWeightedTokens(),
-                tokenPruningConfig
-            );
-            weightedTokensQueryBuilder.queryName(queryName);
-            weightedTokensQueryBuilder.boost(boost);
-            return weightedTokensQueryBuilder;
-        }
-        var boolQuery = QueryBuilders.boolQuery();
-        for (var weightedToken : textExpansionResults.getWeightedTokens()) {
-            boolQuery.should(QueryBuilders.termQuery(fieldName, weightedToken.token()).boost(weightedToken.weight()));
-        }
-        boolQuery.minimumShouldMatch(1);
-        boolQuery.boost(this.boost);
-        boolQuery.queryName(this.queryName);
-        return boolQuery;
+        WeightedTokensQueryBuilder weightedTokensQueryBuilder = new WeightedTokensQueryBuilder(
+            fieldName,
+            textExpansionResults.getWeightedTokens(),
+            tokenPruningConfig
+        );
+        weightedTokensQueryBuilder.queryName(queryName);
+        weightedTokensQueryBuilder.boost(boost);
+        return weightedTokensQueryBuilder;
     }
 
     @Override

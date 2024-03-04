@@ -1430,7 +1430,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
         );
         assertThat(exception.getRootCause(), instanceOf(MapperParsingException.class));
         assertEquals(
-            "Tried to add subobject [time] to object [__dynamic__test] which does not support subobjects",
+            "Tried to add nested object [time] to object [__dynamic__test] which does not support subobjects",
             exception.getRootCause().getMessage()
         );
     }
@@ -1805,6 +1805,53 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
         ObjectMapper artifacts = (ObjectMapper) mapping.getRoot().getMapper("artifacts");
         ObjectMapper leaf = (ObjectMapper) artifacts.getMapper("leaf");
         assertFalse(leaf.subobjects());
+    }
+
+    public void testSubobjectsFalseFlattened() throws IOException {
+        String mapping = """
+            {
+              "_doc": {
+                "properties": {
+                  "attributes": {
+                    "type": "object",
+                    "subobjects": false
+                  }
+                },
+                "dynamic_templates": [
+                  {
+                    "test": {
+                      "path_match": "attributes.*",
+                      "match_mapping_type": "object",
+                      "mapping": {
+                        "type": "flattened"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+            """;
+        String docJson = """
+            {
+              "attributes": {
+                "complex.attribute": {
+                  "a": "b"
+                },
+                "foo.bar": "baz"
+              }
+            }
+            """;
+
+        MapperService mapperService = createMapperService(mapping);
+        ParsedDocument parsedDoc = mapperService.documentMapper().parse(source(docJson));
+        merge(mapperService, dynamicMapping(parsedDoc.dynamicMappingsUpdate()));
+
+        Mapper fooBarMapper = mapperService.documentMapper().mappers().getMapper("attributes.foo.bar");
+        assertNotNull(fooBarMapper);
+        assertEquals("text", fooBarMapper.typeName());
+        Mapper fooStructuredMapper = mapperService.documentMapper().mappers().getMapper("attributes.complex.attribute");
+        assertNotNull(fooStructuredMapper);
+        assertEquals("flattened", fooStructuredMapper.typeName());
     }
 
     public void testMatchWithArrayOfFieldNames() throws IOException {

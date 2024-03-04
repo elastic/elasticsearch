@@ -16,9 +16,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
-import org.junit.After;
 import org.junit.ClassRule;
 
 import java.io.IOException;
@@ -37,116 +36,28 @@ public class TSDBRestEsqlIT extends ESRestTestCase {
     @ClassRule
     public static ElasticsearchCluster cluster = Clusters.testCluster();
 
-    private static final String MAPPING = """
-        {
-            "properties": {
-                "@timestamp": {
-                    "type": "date"
-                },
-                "metricset": {
-                    "type": "keyword",
-                    "time_series_dimension": true
-                },
-                "k8s": {
-                    "properties": {
-                        "pod": {
-                            "properties": {
-                                "uid": {
-                                    "type": "keyword",
-                                    "time_series_dimension": true
-                                },
-                                "name": {
-                                    "type": "keyword"
-                                },
-                                "cpu": {
-                                    "properties": {
-                                        "limit": {
-                                            "type": "scaled_float",
-                                            "scaling_factor": 1000.0,
-                                            "time_series_metric": "gauge"
-                                        },
-                                        "nanocores": {
-                                            "type": "long",
-                                            "time_series_metric": "gauge"
-                                        },
-                                        "node": {
-                                            "type": "scaled_float",
-                                            "scaling_factor": 1000.0,
-                                            "time_series_metric": "gauge"
-                                        }
-                                    }
-                                },
-                                "network": {
-                                    "properties": {
-                                        "rx": {
-                                             "type": "long",
-                                            "time_series_metric": "gauge"
-                                        },
-                                        "tx": {
-                                            "type": "long",
-                                            "time_series_metric": "gauge"
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        """;
-
-    private static final String SETTINGS = """
-        {
-             "index": {
-                 "mode": "time_series",
-                 "routing_path": [
-                     "metricset",
-                     "k8s.pod.uid"
-                 ]
-             }
-         }
-        """;
-
-    private static final String BULK =
-        """
-            {"create": {}}
-            {"@timestamp": "2021-04-29T17:29:12.470Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "network": {"tx": 2001818691, "rx": 802133794},"cpu": {"limit": 0.3787411612903226, "nanocores": 35222928, "node": 0.048845732}}}}
-            {"create": {}}
-            {"@timestamp": "2021-04-29T17:29:12.470Z", "metricset": "pod", "k8s": {"pod": {"name": "hamster", "uid":"947e4ced-1786-4e53-9e0c-5c447e959508", "network": {"tx": 2005177954, "rx": 801479970},"cpu": {"limit": 0.5786461612903226, "nanocores": 25222928, "node": 0.505805732}}}}
-            {"create": {}}
-            {"@timestamp": "2021-04-29T17:29:12.470Z", "metricset": "pod", "k8s": {"pod": {"name": "cow", "uid":"947e4ced-1786-4e53-9e0c-5c447e959509", "network": {"tx": 2006223737, "rx": 802337279},"cpu": {"limit": 0.5787451612903226, "nanocores": 55252928, "node": 0.606805732}}}}
-            {"create": {}}
-            {"@timestamp": "2021-04-29T17:29:12.470Z", "metricset": "pod", "k8s": {"pod": {"name": "rat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959510", "network": {"tx": 2012916202, "rx": 803685721},"cpu": {"limit": 0.6786461612903226, "nanocores": 75227928, "node": 0.058855732}}}}
-            {"create": {}}
-            {"@timestamp": "2021-04-29T17:29:22.470Z", "metricset": "pod", "k8s": {"pod": {"name": "rat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959510", "network": {"tx": 1434521831, "rx": 530575198},"cpu": {"limit": 0.7787411712903226, "nanocores": 75727928, "node": 0.068865732}}}}
-            {"create": {}}
-            {"@timestamp": "2021-04-29T17:29:22.470Z", "metricset": "pod", "k8s": {"pod": {"name": "cow", "uid":"947e4ced-1786-4e53-9e0c-5c447e959509", "network": {"tx": 1434577921, "rx": 530600088},"cpu": {"limit": 0.2782412612903226, "nanocores": 25222228, "node": 0.078875732}}}}
-            {"create": {}}
-            {"@timestamp": "2021-04-29T17:29:22.470Z", "metricset": "pod", "k8s": {"pod": {"name": "hamster", "uid":"947e4ced-1786-4e53-9e0c-5c447e959508", "network": {"tx": 1434587694, "rx": 530604797},"cpu": {"limit": 0.1717411612903226, "nanocores": 15121928, "node": 0.808805732}}}}
-            {"create": {}}
-            {"@timestamp": "2021-04-29T17:29:22.470Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "network": {"tx": 1434595272, "rx": 530605511},"cpu": {"limit": 0.8787481682903226, "nanocores": 95292928, "node": 0.908905732}}}}
-            """;
-
     @Override
     protected String getTestRestCluster() {
         return cluster.getHttpAddresses();
     }
 
-    @After
-    public void cleanup() throws IOException {
-        deleteIndex("_all");
-    }
-
     public void testTimeSeriesQuerying() throws IOException {
         assertTrue("time series querying relies on query pragma", Build.current().isSnapshot());
-        var settings = Settings.builder().loadFromSource(SETTINGS, XContentType.JSON).build();
-        createIndex("k8s", settings, MAPPING);
+        var settings = Settings.builder()
+            .loadFromStream("tsdb-settings.json", TSDBRestEsqlIT.class.getResourceAsStream("/tsdb-settings.json"), false)
+            .build();
+        String mapping = CsvTestsDataLoader.readTextFile(TSDBRestEsqlIT.class.getResource("/tsdb-mapping.json"));
+        createIndex("k8s", settings, mapping);
 
         Request bulk = new Request("POST", "/k8s/_bulk");
         bulk.addParameter("refresh", "true");
         bulk.addParameter("filter_path", "errors");
-        bulk.setJsonEntity(BULK);
+
+        String bulkBody = new String(
+            TSDBRestEsqlIT.class.getResourceAsStream("/tsdb-bulk-request.txt").readAllBytes(),
+            StandardCharsets.UTF_8
+        );
+        bulk.setJsonEntity(bulkBody);
         Response response = client().performRequest(bulk);
         assertEquals("{\"errors\":false}", EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8));
 

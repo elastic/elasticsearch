@@ -101,7 +101,8 @@ A shrink operation:
   disks)
 
 . Recovers the target index as though it were a closed index which
-  had just been re-opened.
+  had just been re-opened. Recovers shards to <<indices-get-settings,Index Setting>> 
+  `.routing.allocation.initial_recovery._id`.
 
 
 [[_shrinking_an_index]]

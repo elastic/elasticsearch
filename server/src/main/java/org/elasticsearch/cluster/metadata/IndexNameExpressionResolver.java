@@ -26,6 +26,7 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexVersion;
@@ -58,8 +59,6 @@ import java.util.stream.Stream;
 
 public class IndexNameExpressionResolver {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(IndexNameExpressionResolver.class);
-
-    private static final Predicate<String> ALWAYS_TRUE = s -> true;
 
     public static final String EXCLUDED_DATA_STREAMS_KEY = "es.excluded_ds";
     public static final IndexVersion SYSTEM_INDEX_ENFORCEMENT_INDEX_VERSION = IndexVersions.V_8_0_0;
@@ -101,7 +100,7 @@ public class IndexNameExpressionResolver {
             false,
             request.includeDataStreams(),
             SystemIndexAccessLevel.BACKWARDS_COMPATIBLE_ONLY,
-            ALWAYS_TRUE,
+            Predicates.always(),
             this.getNetNewSystemIndexPredicate()
         );
         return concreteIndexNames(context, request.indices());
@@ -397,7 +396,7 @@ public class IndexNameExpressionResolver {
 
     private void checkSystemIndexAccess(Context context, Set<Index> concreteIndices) {
         final Predicate<String> systemIndexAccessPredicate = context.getSystemIndexAccessPredicate();
-        if (systemIndexAccessPredicate == ALWAYS_TRUE) {
+        if (systemIndexAccessPredicate == Predicates.<String>always()) {
             return;
         }
         doCheckSystemIndexAccess(context, concreteIndices, systemIndexAccessPredicate);
@@ -947,11 +946,11 @@ public class IndexNameExpressionResolver {
         final SystemIndexAccessLevel systemIndexAccessLevel = getSystemIndexAccessLevel();
         final Predicate<String> systemIndexAccessLevelPredicate;
         if (systemIndexAccessLevel == SystemIndexAccessLevel.NONE) {
-            systemIndexAccessLevelPredicate = s -> false;
+            systemIndexAccessLevelPredicate = Predicates.never();
         } else if (systemIndexAccessLevel == SystemIndexAccessLevel.BACKWARDS_COMPATIBLE_ONLY) {
             systemIndexAccessLevelPredicate = getNetNewSystemIndexPredicate();
         } else if (systemIndexAccessLevel == SystemIndexAccessLevel.ALL) {
-            systemIndexAccessLevelPredicate = ALWAYS_TRUE;
+            systemIndexAccessLevelPredicate = Predicates.always();
         } else {
             // everything other than allowed should be included in the deprecation message
             systemIndexAccessLevelPredicate = systemIndices.getProductSystemIndexNamePredicate(threadContext);
@@ -981,7 +980,7 @@ public class IndexNameExpressionResolver {
         private final Predicate<String> netNewSystemIndexPredicate;
 
         Context(ClusterState state, IndicesOptions options, SystemIndexAccessLevel systemIndexAccessLevel) {
-            this(state, options, systemIndexAccessLevel, ALWAYS_TRUE, s -> false);
+            this(state, options, systemIndexAccessLevel, Predicates.always(), Predicates.never());
         }
 
         Context(
@@ -1722,7 +1721,7 @@ public class IndexNameExpressionResolver {
         }
 
         public ResolverContext(long startTime) {
-            super(null, null, startTime, false, false, false, false, SystemIndexAccessLevel.ALL, name -> false, name -> false);
+            super(null, null, startTime, false, false, false, false, SystemIndexAccessLevel.ALL, Predicates.never(), Predicates.never());
         }
 
         @Override

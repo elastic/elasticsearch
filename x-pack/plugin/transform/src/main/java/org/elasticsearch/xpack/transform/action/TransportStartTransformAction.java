@@ -160,6 +160,7 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
                     transformTask.getId(),
                     TransformTaskParams.NAME,
                     transformTask,
+                    null,
                     newPersistentTaskActionListener
                 );
             } else {
@@ -287,7 +288,7 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
     }
 
     private void cancelTransformTask(String taskId, String transformId, Exception exception, Consumer<Exception> onFailure) {
-        persistentTasksService.sendRemoveRequest(taskId, new ActionListener<>() {
+        persistentTasksService.sendRemoveRequest(taskId, null, new ActionListener<>() {
             @Override
             public void onResponse(PersistentTasksCustomMetadata.PersistentTask<?> task) {
                 // We succeeded in canceling the persistent task, but the

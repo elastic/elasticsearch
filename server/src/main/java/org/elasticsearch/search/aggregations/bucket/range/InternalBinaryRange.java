@@ -12,6 +12,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.AggregatorReducer;
@@ -268,6 +269,11 @@ public final class InternalBinaryRange extends InternalMultiBucketAggregation<In
             @Override
             public InternalAggregation get() {
                 return new InternalBinaryRange(name, format, keyed, reducer.get(), metadata);
+            }
+
+            @Override
+            public void close() {
+                Releasables.close(reducer);
             }
         };
     }

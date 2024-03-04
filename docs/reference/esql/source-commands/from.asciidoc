@@ -26,7 +26,7 @@ corresponds to a field, and can be accessed by the name of that field.
 [NOTE]
 ====
 By default, an {esql} query without an explicit <<esql-limit>> uses an implicit
-limit of 500. This applies to `FROM` too. A `FROM` command without `LIMIT`:
+limit of 1000. This applies to `FROM` too. A `FROM` command without `LIMIT`:
 
 [source,esql]
 ----
@@ -38,7 +38,7 @@ is executed as:
 [source,esql]
 ----
 FROM employees
-| LIMIT 500
+| LIMIT 1000
 ----
 ====
 

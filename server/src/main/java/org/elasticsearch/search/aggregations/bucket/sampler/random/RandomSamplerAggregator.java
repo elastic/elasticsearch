@@ -30,12 +30,14 @@ import java.util.Map;
 public class RandomSamplerAggregator extends BucketsAggregator implements SingleBucketAggregator {
 
     private final int seed;
+    private final Integer shardSeed;
     private final double probability;
     private final CheckedSupplier<Weight, IOException> weightSupplier;
 
     RandomSamplerAggregator(
         String name,
         int seed,
+        Integer shardSeed,
         double probability,
         CheckedSupplier<Weight, IOException> weightSupplier,
         AggregatorFactories factories,
@@ -53,6 +55,7 @@ public class RandomSamplerAggregator extends BucketsAggregator implements Single
             );
         }
         this.weightSupplier = weightSupplier;
+        this.shardSeed = shardSeed;
     }
 
     @Override
@@ -63,6 +66,7 @@ public class RandomSamplerAggregator extends BucketsAggregator implements Single
                 name,
                 bucketDocCount(owningBucketOrd),
                 seed,
+                shardSeed,
                 probability,
                 subAggregationResults,
                 metadata()
@@ -72,7 +76,7 @@ public class RandomSamplerAggregator extends BucketsAggregator implements Single
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalRandomSampler(name, 0, seed, probability, buildEmptySubAggregations(), metadata());
+        return new InternalRandomSampler(name, 0, seed, shardSeed, probability, buildEmptySubAggregations(), metadata());
     }
 
     /**

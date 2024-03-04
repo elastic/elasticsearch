@@ -41,6 +41,12 @@ import org.elasticsearch.xpack.core.security.action.Grant;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.apikey.GrantApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.GrantApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.profile.ActivateProfileAction;
+import org.elasticsearch.xpack.core.security.action.profile.ActivateProfileRequest;
+import org.elasticsearch.xpack.core.security.action.profile.ActivateProfileResponse;
+import org.elasticsearch.xpack.core.security.action.profile.GetProfilesAction;
+import org.elasticsearch.xpack.core.security.action.profile.GetProfilesRequest;
+import org.elasticsearch.xpack.core.security.action.profile.GetProfilesResponse;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateAction;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateRequest;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateResponse;
@@ -232,6 +238,84 @@ public class JwtRealmSingleNodeTests extends SecuritySingleNodeTestCase {
             ElasticsearchSecurityException e = expectThrows(
                 ElasticsearchSecurityException.class,
                 () -> client().execute(GrantApiKeyAction.INSTANCE, grantApiKeyRequest).actionGet()
+            );
+            assertThat(e.getMessage(), containsString("unable to authenticate user"));
+        }
+    }
+
+    public void testActivateProfileForJWT() throws Exception {
+        final JWTClaimsSet.Builder jwtClaims = new JWTClaimsSet.Builder();
+        final String principal;
+        final String sharedSecret;
+        final String realmName;
+        // id_token or access_token
+        if (randomBoolean()) {
+            principal = "me";
+            // JWT "id_token" valid for jwt0
+            jwtClaims.audience("es-01")
+                .issuer("my-issuer-01")
+                .subject(principal)
+                .claim("groups", "admin")
+                .issueTime(Date.from(Instant.now()))
+                .expirationTime(Date.from(Instant.now().plusSeconds(600)))
+                .build();
+            sharedSecret = jwt0SharedSecret;
+            realmName = "jwt0";
+        } else {
+            principal = "me@example.com";
+            // JWT "access_token" valid for jwt2
+            jwtClaims.audience("es-03")
+                .issuer("my-issuer-03")
+                .subject("user-03")
+                .claim("groups", "admin")
+                .claim("email", principal)
+                .issueTime(Date.from(Instant.now()))
+                .expirationTime(Date.from(Instant.now().plusSeconds(300)));
+            sharedSecret = jwt2SharedSecret;
+            realmName = "jwt2";
+        }
+        {
+            // JWT is valid but the client authentication is NOT
+            ActivateProfileRequest activateProfileRequest = getActivateProfileForJWT(
+                getSignedJWT(jwtClaims.build()),
+                randomFrom("WRONG", null)
+            );
+            ElasticsearchSecurityException e = expectThrows(
+                ElasticsearchSecurityException.class,
+                () -> client().execute(ActivateProfileAction.INSTANCE, activateProfileRequest).actionGet()
+            );
+            assertThat(e.getMessage(), containsString("unable to authenticate user"));
+        }
+        {
+            // both JWT and client authentication are valid
+            ActivateProfileRequest activateProfileRequest = getActivateProfileForJWT(getSignedJWT(jwtClaims.build()), sharedSecret);
+            ActivateProfileResponse activateProfileResponse = client().execute(ActivateProfileAction.INSTANCE, activateProfileRequest)
+                .actionGet();
+            assertThat(activateProfileResponse.getProfile(), notNullValue());
+            assertThat(activateProfileResponse.getProfile().uid(), notNullValue());
+            assertThat(activateProfileResponse.getProfile().user().username(), is(principal));
+            assertThat(activateProfileResponse.getProfile().user().realmName(), is(realmName));
+            // test to get the profile by uid
+            GetProfilesRequest getProfilesRequest = new GetProfilesRequest(List.of(activateProfileResponse.getProfile().uid()), Set.of());
+            GetProfilesResponse getProfilesResponse = client().execute(GetProfilesAction.INSTANCE, getProfilesRequest).actionGet();
+            assertThat(getProfilesResponse.getProfiles().size(), is(1));
+            assertThat(getProfilesResponse.getProfiles().get(0).uid(), is(activateProfileResponse.getProfile().uid()));
+            assertThat(getProfilesResponse.getProfiles().get(0).enabled(), is(true));
+            assertThat(getProfilesResponse.getProfiles().get(0).user().username(), is(principal));
+            assertThat(getProfilesResponse.getProfiles().get(0).user().realmName(), is(realmName));
+        }
+        {
+            // client authentication is valid but the JWT is not
+            final SignedJWT wrongJWT;
+            if (randomBoolean()) {
+                wrongJWT = getSignedJWT(jwtClaims.build(), ("wrong key that's longer than 256 bits").getBytes(StandardCharsets.UTF_8));
+            } else {
+                wrongJWT = getSignedJWT(jwtClaims.audience("wrong audience claim value").build());
+            }
+            ActivateProfileRequest activateProfileRequest = getActivateProfileForJWT(wrongJWT, sharedSecret);
+            ElasticsearchSecurityException e = expectThrows(
+                ElasticsearchSecurityException.class,
+                () -> client().execute(ActivateProfileAction.INSTANCE, activateProfileRequest).actionGet()
             );
             assertThat(e.getMessage(), containsString("unable to authenticate user"));
         }
@@ -695,5 +779,16 @@ public class JwtRealmSingleNodeTests extends SecuritySingleNodeTestCase {
         grantApiKeyRequest.setRefreshPolicy(randomFrom(IMMEDIATE, WAIT_UNTIL));
         grantApiKeyRequest.getApiKeyRequest().setName(randomAlphaOfLength(8));
         return grantApiKeyRequest;
+    }
+
+    private static ActivateProfileRequest getActivateProfileForJWT(SignedJWT signedJWT, String sharedSecret) {
+        ActivateProfileRequest activateProfileRequest = new ActivateProfileRequest();
+        activateProfileRequest.getGrant().setType("access_token");
+        activateProfileRequest.getGrant().setAccessToken(new SecureString(signedJWT.serialize().toCharArray()));
+        if (sharedSecret != null) {
+            activateProfileRequest.getGrant()
+                .setClientAuthentication(new Grant.ClientAuthentication("SharedSecret", new SecureString(sharedSecret.toCharArray())));
+        }
+        return activateProfileRequest;
     }
 }

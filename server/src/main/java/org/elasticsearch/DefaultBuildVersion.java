@@ -8,9 +8,6 @@
 
 package org.elasticsearch;
 
-import org.elasticsearch.common.io.stream.StreamOutput;
-
-import java.io.IOException;
 import java.util.Objects;
 
 // TODO[wrb]: make package-private once default implementations are removed in BuildExtension
@@ -25,11 +22,6 @@ public class DefaultBuildVersion extends BuildVersion {
     public DefaultBuildVersion(int versionId) {
         this.versionId = versionId;
         this.version = Version.fromId(versionId);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeInt(this.versionId);
     }
 
     @Override

@@ -8,14 +8,13 @@
 
 package org.elasticsearch;
 
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.internal.BuildExtension;
 import org.elasticsearch.plugins.ExtensionLoader;
 
 import java.util.Objects;
 import java.util.ServiceLoader;
 
-public abstract class BuildVersion implements Writeable {
+public abstract class BuildVersion {
 
     private static class ExtensionHolder {
         private static final BuildExtension BUILD_EXTENSION = findExtension();

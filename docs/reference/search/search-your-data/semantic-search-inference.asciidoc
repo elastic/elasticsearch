@@ -77,7 +77,7 @@ you can see an index named `test-data` with 182469 documents.
 [[reindexing-data-infer]]
 ==== Ingest the data through the {infer} ingest pipeline
 
-Create the embeddings from the text by reindexing the data throught the {infer}
+Create the embeddings from the text by reindexing the data through the {infer}
 pipeline that uses the chosen model as the inference model.
 
 include::{es-repo-dir}/tab-widgets/inference-api/infer-api-reindex-widget.asciidoc[]

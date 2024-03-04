@@ -32,7 +32,9 @@ import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
 
 import javax.inject.Inject;
 
@@ -142,6 +144,8 @@ public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project
 
                     System.out.println("Generating buildscan link for artifact...");
 
+                    // Output should be in the format: "<UUID><space><ISO-8601-timestamp>\n"
+                    // and multiple artifacts could be returned
                     Process process = new ProcessBuilder(
                         "buildkite-agent",
                         "artifact",
@@ -150,7 +154,7 @@ public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project
                         "--step",
                         System.getenv("BUILDKITE_JOB_ID"),
                         "--format",
-                        "%i"
+                        "%i %c"
                     ).start();
                     process.waitFor();
                     String processOutput;
@@ -159,7 +163,17 @@ public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project
                     } catch (IOException e) {
                         processOutput = "";
                     }
-                    String artifactUuid = processOutput.trim();
+
+                    // Sort them by timestamp, and grab the most recent one
+                    Optional<String> artifact = Arrays.stream(processOutput.trim().split("\n")).map(String::trim).min((a, b) -> {
+                        String[] partsA = a.split(" ");
+                        String[] partsB = b.split(" ");
+                        // ISO-8601 timestamps can be sorted lexicographically
+                        return partsB[1].compareTo(partsA[1]);
+                    });
+
+                    // Grab just the UUID from the artifact
+                    String artifactUuid = artifact.orElse("").split(" ")[0];
 
                     System.out.println("Artifact UUID: " + artifactUuid);
                     if (artifactUuid.isEmpty() == false) {

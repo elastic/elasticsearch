@@ -1161,7 +1161,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
          * A caller should also only read up to length, further bytes will be offered by another call to this method
          *
          * @param channel is the cache region to read from
-         * @param channelPos a position in che channel to read from
+         * @param channelPos a position in the channel to read from
          * @param relativePos
          * @param length of the blob
          * @return number of bytes read

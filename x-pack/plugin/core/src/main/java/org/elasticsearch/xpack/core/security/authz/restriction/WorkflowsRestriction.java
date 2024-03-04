@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.security.authz.restriction;
 
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Predicates;
 
 import java.util.Set;
 import java.util.function.Predicate;
@@ -26,10 +27,10 @@ public final class WorkflowsRestriction {
         this.names = names;
         if (names == null) {
             // No restriction, all workflows are allowed
-            this.predicate = name -> true;
+            this.predicate = Predicates.always();
         } else if (names.isEmpty()) {
             // Empty restriction, no workflow is allowed
-            this.predicate = name -> false;
+            this.predicate = Predicates.never();
         } else {
             this.predicate = name -> {
                 if (name == null) {

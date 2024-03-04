@@ -524,7 +524,8 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             if (size == GetSnapshotsRequest.NO_LIMIT) {
                 return new SnapshotsInRepo(resultsStream.toList(), totalCount, 0);
             } else {
-                final var results = new ArrayList<SnapshotInfo>(size);
+                final var allocateSize = Math.min(size, 1000); // ignore excessively-large sizes in request params
+                final var results = new ArrayList<SnapshotInfo>(allocateSize);
                 var remaining = 0;
                 for (var iterator = resultsStream.iterator(); iterator.hasNext();) {
                     final var snapshotInfo = iterator.next();

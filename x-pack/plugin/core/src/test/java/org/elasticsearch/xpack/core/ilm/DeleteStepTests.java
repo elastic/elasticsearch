@@ -21,7 +21,10 @@ import org.mockito.Mockito;
 
 import java.util.List;
 
+import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.hamcrest.Matchers.is;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 
 public class DeleteStepTests extends AbstractStepTestCase<DeleteStep> {
 
@@ -76,7 +79,7 @@ public class DeleteStepTests extends AbstractStepTestCase<DeleteStep> {
             assertEquals(indexMetadata.getIndex().getName(), request.indices()[0]);
             listener.onResponse(null);
             return null;
-        }).when(indicesClient).delete(Mockito.any(), Mockito.any());
+        }).when(indicesClient).delete(any(), any());
 
         DeleteStep step = createRandomInstance();
         ClusterState clusterState = ClusterState.builder(emptyClusterState())
@@ -86,7 +89,7 @@ public class DeleteStepTests extends AbstractStepTestCase<DeleteStep> {
 
         Mockito.verify(client, Mockito.only()).admin();
         Mockito.verify(adminClient, Mockito.only()).indices();
-        Mockito.verify(indicesClient, Mockito.only()).delete(Mockito.any(), Mockito.any());
+        Mockito.verify(indicesClient, Mockito.only()).delete(any(), any());
     }
 
     public void testExceptionThrown() {
@@ -102,7 +105,7 @@ public class DeleteStepTests extends AbstractStepTestCase<DeleteStep> {
             assertEquals(indexMetadata.getIndex().getName(), request.indices()[0]);
             listener.onFailure(exception);
             return null;
-        }).when(indicesClient).delete(Mockito.any(), Mockito.any());
+        }).when(indicesClient).delete(any(), any());
 
         DeleteStep step = createRandomInstance();
         ClusterState clusterState = ClusterState.builder(emptyClusterState())
@@ -118,6 +121,12 @@ public class DeleteStepTests extends AbstractStepTestCase<DeleteStep> {
     }
 
     public void testPerformActionCallsFailureListenerIfIndexIsTheDataStreamWriteIndex() {
+        doThrow(
+            new IllegalStateException(
+                "the client must not be called in this test as we should fail in the step validation phase before we call the delete API"
+            )
+        ).when(indicesClient).delete(any(DeleteIndexRequest.class), anyActionListener());
+
         String policyName = "test-ilm-policy";
         String dataStreamName = randomAlphaOfLength(10);
 

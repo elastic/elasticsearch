@@ -400,6 +400,13 @@ public final class MappingLookup {
     }
 
     /**
+     * TODO-MP
+     */
+    public Map<String, MappedFieldType> stringMappedFieldTypeMap() {
+        return fieldTypeLookup.getFullNameToFieldType();
+    }
+
+    /**
      * Returns the mapped field type for the given field name.
      */
     public MappedFieldType getFieldType(String field) {

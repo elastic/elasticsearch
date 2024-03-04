@@ -345,4 +345,15 @@ public class QueryRewriteContext {
             ? allFromMapping
             : () -> Iterators.concat(allFromMapping.iterator(), runtimeMappings.keySet().iterator());
     }
+
+    /**
+     * Same as {@link #getMatchingFieldNames(String)} with pattern {@code *} but returns an {@link Iterable} instead of a set.
+     */
+    public Iterable<Map.Entry<String, MappedFieldType>> getAllFields() {
+        var allFromMapping = mappingLookup.stringMappedFieldTypeMap();
+        // runtime mappings and non-runtime fields don't overlap, so we can simply concatenate the iterables here
+        return runtimeMappings.isEmpty()
+            ? allFromMapping.entrySet()
+            : () -> Iterators.concat(allFromMapping.entrySet().iterator(), runtimeMappings.entrySet().iterator());
+    }
 }

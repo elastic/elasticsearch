@@ -211,4 +211,8 @@ final class FieldTypeLookup {
     public String parentField(String field) {
         return fullSubfieldNameToParentPath.get(field);
     }
+
+    public Map<String, MappedFieldType> getFullNameToFieldType() {
+        return fullNameToFieldType;
+    }
 }

@@ -18,7 +18,7 @@ PUT _ingest/pipeline/cohere_embeddings
   "processors": [
     {
       "inference": {
-        "inference_id": "cohere_embeddings", <1>
+        "model_id": "cohere_embeddings", <1>
         "input_output": { <2>
           "input_field": "content",
           "output_field": "content_embedding"
@@ -45,7 +45,7 @@ PUT _ingest/pipeline/openai_embeddings
   "processors": [
     {
       "inference": {
-        "inference_id": "openai_embeddings", <1>
+        "model_id": "openai_embeddings", <1>
         "input_output": { <2>
           "input_field": "content",
           "output_field": "content_embedding"

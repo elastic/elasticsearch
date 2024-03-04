@@ -101,10 +101,11 @@ public class RandomSamplerAggregator extends BucketsAggregator implements Single
         }
         // No sampling is being done, collect all docs
         if (probability >= 1.0) {
+            grow(1);
             return new LeafBucketCollector() {
                 @Override
                 public void collect(int doc, long owningBucketOrd) throws IOException {
-                    collectBucket(sub, doc, 0);
+                    collectExistingBucket(sub, doc, 0);
                 }
             };
         }
@@ -117,11 +118,12 @@ public class RandomSamplerAggregator extends BucketsAggregator implements Single
         final DocIdSetIterator docIt = scorer.iterator();
         final Bits liveDocs = aggCtx.getLeafReaderContext().reader().getLiveDocs();
         try {
+            grow(1);
             // Iterate every document provided by the scorer iterator
             for (int docId = docIt.nextDoc(); docId != DocIdSetIterator.NO_MORE_DOCS; docId = docIt.nextDoc()) {
                 // If liveDocs is null, that means that every doc is a live doc, no need to check if it has been deleted or not
                 if (liveDocs == null || liveDocs.get(docIt.docID())) {
-                    collectBucket(sub, docIt.docID(), 0);
+                    collectExistingBucket(sub, docIt.docID(), 0);
                 }
             }
             // This collector could throw `CollectionTerminatedException` if the last leaf collector has stopped collecting

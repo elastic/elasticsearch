@@ -16,6 +16,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -24,6 +25,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -60,6 +62,7 @@ public abstract class LuceneOperator extends SourceOperator {
 
     private LuceneScorer currentScorer;
 
+    long processingNanos;
     int pagesEmitted;
     boolean doneCollecting;
 
@@ -198,6 +201,7 @@ public abstract class LuceneOperator extends SourceOperator {
         private final int processedSlices;
         private final Set<String> processedQueries;
         private final Set<String> processedShards;
+        private final long processingNanos;
         private final int totalSlices;
         private final int pagesEmitted;
         private final int sliceIndex;
@@ -208,6 +212,7 @@ public abstract class LuceneOperator extends SourceOperator {
         private Status(LuceneOperator operator) {
             processedSlices = operator.processedSlices;
             processedQueries = operator.processedQueries.stream().map(Query::toString).collect(Collectors.toCollection(TreeSet::new));
+            processingNanos = operator.processingNanos;
             processedShards = new TreeSet<>(operator.processedShards);
             sliceIndex = operator.sliceIndex;
             totalSlices = operator.sliceQueue.totalSlices();
@@ -233,6 +238,7 @@ public abstract class LuceneOperator extends SourceOperator {
             int processedSlices,
             Set<String> processedQueries,
             Set<String> processedShards,
+            long processingNanos,
             int sliceIndex,
             int totalSlices,
             int pagesEmitted,
@@ -243,6 +249,7 @@ public abstract class LuceneOperator extends SourceOperator {
             this.processedSlices = processedSlices;
             this.processedQueries = processedQueries;
             this.processedShards = processedShards;
+            this.processingNanos = processingNanos;
             this.sliceIndex = sliceIndex;
             this.totalSlices = totalSlices;
             this.pagesEmitted = pagesEmitted;
@@ -260,6 +267,7 @@ public abstract class LuceneOperator extends SourceOperator {
                 processedQueries = Collections.emptySet();
                 processedShards = Collections.emptySet();
             }
+            processingNanos = in.getTransportVersion().onOrAfter(TransportVersions.ESQL_TIMINGS) ? in.readVLong() : 0;
             sliceIndex = in.readVInt();
             totalSlices = in.readVInt();
             pagesEmitted = in.readVInt();
@@ -274,6 +282,9 @@ public abstract class LuceneOperator extends SourceOperator {
             if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_STATUS_INCLUDE_LUCENE_QUERIES)) {
                 out.writeCollection(processedQueries, StreamOutput::writeString);
                 out.writeCollection(processedShards, StreamOutput::writeString);
+            }
+            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_TIMINGS)) {
+                out.writeVLong(processingNanos);
             }
             out.writeVInt(sliceIndex);
             out.writeVInt(totalSlices);
@@ -298,6 +309,10 @@ public abstract class LuceneOperator extends SourceOperator {
 
         public Set<String> processedShards() {
             return processedShards;
+        }
+
+        public long processNanos() {
+            return processingNanos;
         }
 
         public int sliceIndex() {
@@ -330,6 +345,10 @@ public abstract class LuceneOperator extends SourceOperator {
             builder.field("processed_slices", processedSlices);
             builder.field("processed_queries", processedQueries);
             builder.field("processed_shards", processedShards);
+            builder.field("processing_nanos", processingNanos);
+            if (builder.humanReadable()) {
+                builder.field("processing_time", TimeValue.timeValueNanos(processingNanos));
+            }
             builder.field("slice_index", sliceIndex);
             builder.field("total_slices", totalSlices);
             builder.field("pages_emitted", pagesEmitted);
@@ -347,6 +366,7 @@ public abstract class LuceneOperator extends SourceOperator {
             return processedSlices == status.processedSlices
                 && processedQueries.equals(status.processedQueries)
                 && processedShards.equals(status.processedShards)
+                && processingNanos == status.processingNanos
                 && sliceIndex == status.sliceIndex
                 && totalSlices == status.totalSlices
                 && pagesEmitted == status.pagesEmitted
@@ -363,6 +383,11 @@ public abstract class LuceneOperator extends SourceOperator {
         @Override
         public String toString() {
             return Strings.toString(this);
+        }
+
+        @Override
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersions.V_8_11_X;
         }
     }
 

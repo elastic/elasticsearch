@@ -25,7 +25,9 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.lucene.LuceneOperator;
 import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.AbstractPageMappingOperator;
+import org.elasticsearch.compute.operator.AggregationOperator;
 import org.elasticsearch.compute.operator.DriverStatus;
+import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.LimitOperator;
 import org.elasticsearch.compute.operator.MvExpandOperator;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
@@ -52,6 +54,7 @@ import org.elasticsearch.xpack.esql.action.RestEsqlGetAsyncResultAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlQueryAction;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
+import org.elasticsearch.xpack.esql.session.EsqlIndexResolver;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
 import org.elasticsearch.xpack.ql.index.IndexResolver;
 
@@ -104,7 +107,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
                     services.clusterService().getClusterName().value(),
                     EsqlDataTypeRegistry.INSTANCE,
                     Set::of
-                )
+                ),
+                new EsqlIndexResolver(services.client(), EsqlDataTypeRegistry.INSTANCE)
             ),
             new ExchangeService(
                 services.clusterService().getSettings(),
@@ -163,8 +167,10 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
             List.of(
                 DriverStatus.ENTRY,
                 AbstractPageMappingOperator.Status.ENTRY,
+                AggregationOperator.Status.ENTRY,
                 ExchangeSinkOperator.Status.ENTRY,
                 ExchangeSourceOperator.Status.ENTRY,
+                HashAggregationOperator.Status.ENTRY,
                 LimitOperator.Status.ENTRY,
                 LuceneOperator.Status.ENTRY,
                 TopNOperatorStatus.ENTRY,

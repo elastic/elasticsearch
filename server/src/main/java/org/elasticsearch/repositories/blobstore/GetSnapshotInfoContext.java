@@ -5,12 +5,13 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-package org.elasticsearch.repositories;
+package org.elasticsearch.repositories.blobstore;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.CountDown;
+import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -21,9 +22,9 @@ import java.util.function.BiConsumer;
 import java.util.function.BooleanSupplier;
 
 /**
- * Describes the context of fetching one or more {@link SnapshotInfo} via {@link Repository#getSnapshotInfo(GetSnapshotInfoContext)}.
+ * Describes the context of fetching one or more {@link SnapshotInfo} via {@link Repository#getSnapshotInfo}.
  */
-public final class GetSnapshotInfoContext implements ActionListener<SnapshotInfo> {
+final class GetSnapshotInfoContext implements ActionListener<SnapshotInfo> {
 
     private static final Logger logger = LogManager.getLogger(GetSnapshotInfoContext.class);
 
@@ -59,7 +60,7 @@ public final class GetSnapshotInfoContext implements ActionListener<SnapshotInfo
 
     private final CountDown counter;
 
-    public GetSnapshotInfoContext(
+    GetSnapshotInfoContext(
         Collection<SnapshotId> snapshotIds,
         boolean abortOnFailure,
         BooleanSupplier isCancelled,
@@ -77,28 +78,28 @@ public final class GetSnapshotInfoContext implements ActionListener<SnapshotInfo
         this.doneListener = listener;
     }
 
-    public List<SnapshotId> snapshotIds() {
+    List<SnapshotId> snapshotIds() {
         return snapshotIds;
     }
 
     /**
      * @return true if fetching {@link SnapshotInfo} should be stopped after encountering any exception
      */
-    public boolean abortOnFailure() {
+    boolean abortOnFailure() {
         return abortOnFailure;
     }
 
     /**
      * @return true if fetching {@link SnapshotInfo} has been cancelled
      */
-    public boolean isCancelled() {
+    boolean isCancelled() {
         return isCancelled.getAsBoolean();
     }
 
     /**
      * @return true if fetching {@link SnapshotInfo} is either complete or should be stopped because of an error
      */
-    public boolean done() {
+    boolean done() {
         return counter.isCountedDown();
     }
 

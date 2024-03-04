@@ -42,6 +42,8 @@ public class DeleteStep extends AsyncRetryDuringSnapshotActionStep {
         if (dataStream != null) {
             assert dataStream.getWriteIndex() != null : dataStream.getName() + " has no write index";
 
+            // using index name equality across this if/else branch as the UUID of the index might change via restoring a data stream
+            // with one index from snapshot
             if (dataStream.getIndices().size() == 1 && dataStream.getWriteIndex().getName().equals(indexName)) {
                 // This is the last index in the data stream, the entire stream
                 // needs to be deleted, because we can't have an empty data stream

@@ -1062,7 +1062,8 @@ public class NodeStatsTests extends ESTestCase {
             adaptiveSelectionStats,
             scriptCacheStats,
             indexingPressureStats,
-            repositoriesStats
+            repositoriesStats,
+            null// TODO inject random stats
         );
     }
 

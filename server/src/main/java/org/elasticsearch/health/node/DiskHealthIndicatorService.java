@@ -93,7 +93,7 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
             if (featureService.clusterHasFeature(clusterState, HealthFeatures.SUPPORTS_HEALTH) == false) {
                 return createIndicator(
                     HealthStatus.GREEN,
-                    "No disk usage available. This probably means a cluster upgrade is in progress.",
+                    "No disk usage data available. The cluster currently has mixed versions (an upgrade may be in progress).",
                     HealthIndicatorDetails.EMPTY,
                     List.of(),
                     List.of()

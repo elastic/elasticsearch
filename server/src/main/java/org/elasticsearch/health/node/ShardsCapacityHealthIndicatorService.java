@@ -112,7 +112,7 @@ public class ShardsCapacityHealthIndicatorService implements HealthIndicatorServ
             if (featureService.clusterHasFeature(state, HealthFeatures.SUPPORTS_SHARDS_CAPACITY_INDICATOR) == false) {
                 return createIndicator(
                     HealthStatus.GREEN,
-                    "No shard limits configured yet. This probably means a cluster upgrade is in progress.",
+                    "No shard limits configured yet. The cluster currently has mixed versions (an upgrade may be in progress).",
                     HealthIndicatorDetails.EMPTY,
                     List.of(),
                     List.of()

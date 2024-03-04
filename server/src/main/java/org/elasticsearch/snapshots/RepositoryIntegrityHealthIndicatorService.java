@@ -61,6 +61,8 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
     public static final String NO_REPOS_CONFIGURED = "No snapshot repositories configured.";
     public static final String ALL_REPOS_HEALTHY = "All repositories are healthy.";
     public static final String NO_REPO_HEALTH_INFO = "No repository health info.";
+    public static final String MIXED_VERSIONS =
+        "No repository health info. The cluster currently has mixed versions (an upgrade may be in progress).";
 
     public static final List<HealthIndicatorImpact> IMPACTS = List.of(
         new HealthIndicatorImpact(
@@ -141,6 +143,7 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
         private final Set<String> invalidRepositories = new HashSet<>();
         private final Set<String> nodesWithInvalidRepos = new HashSet<>();
         private final HealthStatus healthStatus;
+        private boolean clusterHasFeature = true;
 
         private RepositoryHealthAnalyzer(
             ClusterState clusterState,
@@ -171,7 +174,11 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
                 || invalidRepositories.isEmpty() == false) {
                 healthStatus = YELLOW;
             } else if (repositoriesHealthByNode.isEmpty()) {
-                if (featureService.clusterHasFeature(clusterState, HealthFeatures.SUPPORTS_EXTENDED_REPOSITORY_INDICATOR) == false) {
+                clusterHasFeature = featureService.clusterHasFeature(
+                    clusterState,
+                    HealthFeatures.SUPPORTS_EXTENDED_REPOSITORY_INDICATOR
+                ) == false;
+                if (clusterHasFeature) {
                     healthStatus = GREEN;
                 } else {
                     healthStatus = UNKNOWN;
@@ -187,7 +194,7 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
 
         public String getSymptom() {
             if (healthStatus == GREEN) {
-                return ALL_REPOS_HEALTHY;
+                return clusterHasFeature ? ALL_REPOS_HEALTHY : MIXED_VERSIONS;
             } else if (healthStatus == UNKNOWN) {
                 return NO_REPO_HEALTH_INFO;
             }

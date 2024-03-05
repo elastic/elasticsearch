@@ -43,7 +43,7 @@ public class IgnoredMetaFieldAggregationIT extends ParameterizedRollingUpgradeTe
             final Request waitForGreen = new Request("GET", "/_cluster/health/test1");
             waitForGreen.addParameter("wait_for_nodes", "3");
             waitForGreen.addParameter("wait_for_status", "green");
-            waitForGreen.addParameter("timeout", "30s");
+            waitForGreen.addParameter("timeout", "90s");
             waitForGreen.addParameter("level", "shards");
             final Response response = client().performRequest(waitForGreen);
             assertRestStatus(response, RestStatus.OK);

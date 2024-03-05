@@ -828,6 +828,8 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             return Set.of();
         }
         Set<Index> indicesToBeRemoved = new HashSet<>();
+        // We know that there is lifecycle and retention because there are indices to be deleted
+        assert dataStream.getLifecycle() != null;
         TimeValue effectiveDataRetention = dataStream.getLifecycle().getEffectiveDataRetention();
         for (Index index : backingIndicesOlderThanRetention) {
             if (indicesToExcludeForRemainingRun.contains(index) == false) {

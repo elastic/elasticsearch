@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -32,8 +33,6 @@ public class ClusterStateObserver {
     protected final Logger logger;
 
     public static final Predicate<ClusterState> NON_NULL_MASTER_PREDICATE = state -> state.nodes().getMasterNode() != null;
-
-    private static final Predicate<ClusterState> MATCH_ALL_CHANGES_PREDICATE = state -> true;
 
     private final ClusterApplierService clusterApplierService;
     private final ThreadPool threadPool;
@@ -109,11 +108,11 @@ public class ClusterStateObserver {
     }
 
     public void waitForNextChange(Listener listener) {
-        waitForNextChange(listener, MATCH_ALL_CHANGES_PREDICATE);
+        waitForNextChange(listener, Predicates.always());
     }
 
     public void waitForNextChange(Listener listener, @Nullable TimeValue timeOutValue) {
-        waitForNextChange(listener, MATCH_ALL_CHANGES_PREDICATE, timeOutValue);
+        waitForNextChange(listener, Predicates.always(), timeOutValue);
     }
 
     public void waitForNextChange(Listener listener, Predicate<ClusterState> statePredicate) {

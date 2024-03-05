@@ -398,18 +398,18 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
     }
 
     private void getRunningDatafeed(String jobId, ActionListener<String> listener) {
-        ActionListener<Set<String>> datafeedListener = ActionListener.wrap(datafeeds -> {
+        ActionListener<Set<String>> datafeedListener = listener.delegateFailureAndWrap((delegate, datafeeds) -> {
             assert datafeeds.size() <= 1;
             if (datafeeds.isEmpty()) {
-                listener.onResponse(null);
+                delegate.onResponse(null);
                 return;
             }
 
             String datafeedId = datafeeds.iterator().next();
             PersistentTasksCustomMetadata tasks = clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
             PersistentTasksCustomMetadata.PersistentTask<?> datafeedTask = MlTasks.getDatafeedTask(datafeedId, tasks);
-            listener.onResponse(datafeedTask != null ? datafeedId : null);
-        }, listener::onFailure);
+            delegate.onResponse(datafeedTask != null ? datafeedId : null);
+        });
 
         datafeedConfigProvider.findDatafeedIdsForJobIds(Collections.singleton(jobId), datafeedListener);
     }

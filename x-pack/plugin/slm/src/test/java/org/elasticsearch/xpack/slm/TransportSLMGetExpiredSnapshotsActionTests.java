@@ -16,10 +16,10 @@ import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.repositories.GetSnapshotInfoContext;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
@@ -28,7 +28,6 @@ import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
-import org.elasticsearch.snapshots.SnapshotMissingException;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.tasks.Task;
@@ -39,6 +38,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
 import org.elasticsearch.xpack.core.slm.SnapshotRetentionConfiguration;
 
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -51,6 +51,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.oneOf;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -308,20 +309,26 @@ public class TransportSLMGetExpiredSnapshotsActionTests extends ESTestCase {
         }).when(repository).getRepositoryData(any(), any());
 
         doAnswer(invocation -> {
-            final GetSnapshotInfoContext getSnapshotInfoContext = invocation.getArgument(0);
-            final Set<SnapshotId> snapshotIds = new HashSet<>(getSnapshotInfoContext.snapshotIds());
+            final Collection<SnapshotId> snapshotIdCollection = invocation.getArgument(0);
+            assertFalse("should not abort on failure", invocation.getArgument(1));
+            final CheckedConsumer<SnapshotInfo, Exception> consumer = invocation.getArgument(3);
+            final ActionListener<Void> listener = invocation.getArgument(4);
+
+            final Set<SnapshotId> snapshotIds = new HashSet<>(snapshotIdCollection);
             for (SnapshotInfo snapshotInfo : snapshotInfos) {
                 if (snapshotIds.remove(snapshotInfo.snapshotId())) {
-                    threadPool.generic().execute(ActionRunnable.supply(getSnapshotInfoContext, () -> snapshotInfo));
+                    threadPool.generic().execute(() -> {
+                        try {
+                            consumer.accept(snapshotInfo);
+                        } catch (Exception e) {
+                            fail(e);
+                        }
+                    });
                 }
             }
-            for (SnapshotId snapshotId : snapshotIds) {
-                threadPool.generic().execute(ActionRunnable.supply(getSnapshotInfoContext, () -> {
-                    throw new SnapshotMissingException(REPO_NAME, snapshotId, null);
-                }));
-            }
+            listener.onResponse(null);
             return null;
-        }).when(repository).getSnapshotInfo(any());
+        }).when(repository).getSnapshotInfo(any(), anyBoolean(), any(), any(), any());
 
         doAnswer(invocation -> new RepositoryMetadata(REPO_NAME, "test", Settings.EMPTY)).when(repository).getMetadata();
 

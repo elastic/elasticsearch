@@ -1,0 +1,125 @@
+[role="xpack"]
+[[find-message-structure]]
+= Find messages structure API
+
+Finds the structure of a list of text messages.
+
+[discrete]
+[[find-message-structure-request]]
+== {api-request-title}
+
+`GET _text_structure/find_message_structure` +
+`POST _text_structure/find_message_structure`
+
+[discrete]
+[[find-message-structure-prereqs]]
+== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have `monitor_text_structure` or
+`monitor` cluster privileges to use this API. See
+<<security-privileges>>.
+
+[discrete]
+[[find-message-structure-desc]]
+== {api-description-title}
+
+This API provides a starting point for ingesting data into {es} in a format that
+is suitable for subsequent use with other {stack} functionality.
+
+The response from the API contains:
+
+* A couple of sample messages.
+* Statistics that reveal the most common values for all fields detected within
+the text and basic numeric statistics for numeric fields.
+* Information about the structure of the text, which is useful when you write
+ingest configurations to index it or similarly formatted text.
+* Appropriate mappings for an {es} index, which you could use to ingest the text.
+
+All this information can be calculated by the structure finder with no guidance.
+However, you can optionally override some of the decisions about the text
+structure by specifying one or more query parameters.
+
+Details of the output can be seen in the <<find-message-structure-examples,examples>>.
+
+If the structure finder produces unexpected results for some text,
+specify the `explain` query parameter. It causes an `explanation` to appear in
+the response, which should help in determining why the returned structure was
+chosen.
+
+[discrete]
+[[find-message-structure-query-parms]]
+== {api-query-parms-title}
+
+include::{es-repo-dir}/text-structure/apis/find-structure-shared.asciidoc[tag=param-column-names]
+include::{es-repo-dir}/text-structure/apis/find-structure-shared.asciidoc[tag=param-delimiter]
+include::{es-repo-dir}/text-structure/apis/find-structure-shared.asciidoc[tag=param-explain]
+include::{es-repo-dir}/text-structure/apis/find-structure-shared.asciidoc[tag=param-format]
+include::{es-repo-dir}/text-structure/apis/find-structure-shared.asciidoc[tag=param-grok-pattern]
+include::{es-repo-dir}/text-structure/apis/find-structure-shared.asciidoc[tag=param-ecs-compatibility]
+include::{es-repo-dir}/text-structure/apis/find-structure-shared.asciidoc[tag=param-quote]
+include::{es-repo-dir}/text-structure/apis/find-structure-shared.asciidoc[tag=param-should-trim-fields]
+include::{es-repo-dir}/text-structure/apis/find-structure-shared.asciidoc[tag=param-timeout]
+include::{es-repo-dir}/text-structure/apis/find-structure-shared.asciidoc[tag=param-timestamp-field]
+include::{es-repo-dir}/text-structure/apis/find-structure-shared.asciidoc[tag=param-timestamp-format]
+
+[discrete]
+[[find-message-structure-request-body]]
+== {api-request-body-title}
+
+`messages`::
+(Required, array of strings)
+The list of messages you want to analyze.
+
+[discrete]
+[[find-message-structure-examples]]
+== {api-examples-title}
+
+[discrete]
+[[find-message-structure-example]]
+=== Analyzing Elasticsearch log files
+
+Suppose you have a list of Elasticsearch logs messages.
+You can send it to the `find_message_structure` endpoint as follows:
+
+[source,console]
+----
+POST _text_structure/find_message_structure
+{
+  "messages": [
+    "[2024-03-05T10:52:36,256][INFO ][o.a.l.u.VectorUtilPanamaProvider] [laptop] Java vector incubator API enabled; uses preferredBitSize=128",
+    "[2024-03-05T10:52:41,038][INFO ][o.e.p.PluginsService     ] [laptop] loaded module [repository-url]",
+    "[2024-03-05T10:52:41,042][INFO ][o.e.p.PluginsService     ] [laptop] loaded module [rest-root]",
+    "[2024-03-05T10:52:41,043][INFO ][o.e.p.PluginsService     ] [laptop] loaded module [x-pack-core]tive methods for [MacOS]",
+    "[2024-03-05T10:52:41,043][INFO ][o.e.p.PluginsService     ] [laptop] loaded module [x-pack-redact]API enabled; uses preferredBitSize=128",
+    "[2024-03-05T10:52:41,043][INFO ][o.e.p.PluginsService     ] [laptop] loaded module [ingest-user-agent]",
+    "[2024-03-05T10:52:41,044][INFO ][o.e.p.PluginsService     ] [laptop] loaded module [x-pack-monitoring]",
+    "[2024-03-05T10:52:41,044][INFO ][o.e.p.PluginsService     ] [laptop] loaded module [repository-s3]",
+    "[2024-03-05T10:52:41,044][INFO ][o.e.p.PluginsService     ] [laptop] loaded module [x-pack-analytics]",
+    "[2024-03-05T10:52:41,044][INFO ][o.e.p.PluginsService     ] [laptop] loaded module [x-pack-ent-search]",
+    "[2024-03-05T10:52:41,044][INFO ][o.e.p.PluginsService     ] [laptop] loaded module [x-pack-autoscaling]",
+    "[2024-03-05T10:52:41,044][INFO ][o.e.p.PluginsService     ] [laptop] loaded module [lang-painless]]",
+    "[2024-03-05T10:52:41,059][INFO ][o.e.p.PluginsService     ] [laptop] loaded module [lang-expression]",
+    "[2024-03-05T10:52:41,059][INFO ][o.e.p.PluginsService     ] [laptop] loaded module [x-pack-eql]",
+    "[2024-03-05T10:52:43,291][INFO ][o.e.e.NodeEnvironment    ] [laptop] heap size [16gb], compressed ordinary object pointers [true]",
+    "[2024-03-05T10:52:46,098][INFO ][o.e.x.s.Security         ] [laptop] Security is enabled",
+    "[2024-03-05T10:52:47,227][INFO ][o.e.x.p.ProfilingPlugin  ] [laptop] Profiling is enabled",
+    "[2024-03-05T10:52:47,259][INFO ][o.e.x.p.ProfilingPlugin  ] [laptop] profiling index templates will not be installed or reinstalled",
+    "[2024-03-05T10:52:47,755][INFO ][o.e.i.r.RecoverySettings ] [laptop] using rate limit [40mb] with [default=40mb, read=0b, write=0b, max=0b]",
+    "[2024-03-05T10:52:47,787][INFO ][o.e.d.DiscoveryModule    ] [laptop] using discovery type [multi-node] and seed hosts providers [settings]",
+    "[2024-03-05T10:52:49,188][INFO ][o.e.n.Node               ] [laptop] initialized",
+    "[2024-03-05T10:52:49,199][INFO ][o.e.n.Node               ] [laptop] starting ..."
+  ]
+}
+----
+// TEST
+
+If the request does not encounter errors, you receive the following result:
+
+include::{es-repo-dir}/text-structure/apis/find-structure-shared.asciidoc[tag=example-eslogs-response]
+// TESTRESPONSE[s/"sample_start" : ".*",/"sample_start" : "$body.sample_start",/]
+// The substitution is because the text is pre-processed by the test harness,
+// so the fields may get reordered in the JSON the endpoint sees
+
+For a detailed description of the response format, or for additional examples
+on ingesting delimited text (such as CSV) or newline-delimited JSON, see the
+<<find-structure-examples,examples of the find text structure endpoint>>.

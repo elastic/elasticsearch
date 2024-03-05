@@ -109,7 +109,8 @@ public abstract class BWCCodec extends Codec {
                     0,
                     fieldInfo.getVectorEncoding(),
                     fieldInfo.getVectorSimilarityFunction(),
-                    fieldInfo.isSoftDeletesField()
+                    fieldInfo.isSoftDeletesField(),
+                    fieldInfo.isParentField()
                 )
             );
         }

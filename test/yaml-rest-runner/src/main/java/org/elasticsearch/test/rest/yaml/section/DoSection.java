@@ -10,6 +10,7 @@ package org.elasticsearch.test.rest.yaml.section;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.HasAttributeNodeSelector;
 import org.elasticsearch.client.Node;
@@ -86,6 +87,16 @@ import static org.junit.Assert.fail;
  */
 public class DoSection implements ExecutableSection {
     public static DoSection parse(XContentParser parser) throws IOException {
+        return parse(parser, false);
+    }
+
+    @UpdateForV9
+    @Deprecated
+    public static DoSection parseWithLegacyNodeSelectorSupport(XContentParser parser) throws IOException {
+        return parse(parser, true);
+    }
+
+    private static DoSection parse(XContentParser parser, boolean enableLegacyNodeSelectorSupport) throws IOException {
         String currentFieldName = null;
         XContentParser.Token token;
 
@@ -175,7 +186,7 @@ public class DoSection implements ExecutableSection {
                         if (token == XContentParser.Token.FIELD_NAME) {
                             selectorName = parser.currentName();
                         } else {
-                            NodeSelector newSelector = buildNodeSelector(selectorName, parser);
+                            NodeSelector newSelector = buildNodeSelector(selectorName, parser, enableLegacyNodeSelectorSupport);
                             nodeSelector = nodeSelector == NodeSelector.ANY
                                 ? newSelector
                                 : new ComposeNodeSelector(nodeSelector, newSelector);
@@ -610,10 +621,11 @@ public class DoSection implements ExecutableSection {
         )
     );
 
-    private static NodeSelector buildNodeSelector(String name, XContentParser parser) throws IOException {
+    private static NodeSelector buildNodeSelector(String name, XContentParser parser, boolean enableLegacyVersionSupport)
+        throws IOException {
         return switch (name) {
             case "attribute" -> parseAttributeValuesSelector(parser);
-            case "version" -> parseVersionSelector(parser);
+            case "version" -> parseVersionSelector(parser, enableLegacyVersionSupport);
             default -> throw new XContentParseException(parser.getTokenLocation(), "unknown node_selector [" + name + "]");
         };
     }
@@ -678,14 +690,31 @@ public class DoSection implements ExecutableSection {
         }
     }
 
-    private static NodeSelector parseVersionSelector(XContentParser parser) throws IOException {
+    private static NodeSelector parseVersionSelector(XContentParser parser, boolean enableLegacyVersionSupport) throws IOException {
         if (false == parser.currentToken().isValue()) {
             throw new XContentParseException(parser.getTokenLocation(), "expected [version] to be a value");
         }
 
-        var acceptedVersionRange = VersionRange.parseVersionRanges(parser.text());
-        final Predicate<String> nodeMatcher = nodeVersion -> matchWithRange(nodeVersion, acceptedVersionRange, parser.getTokenLocation());
-        final String versionSelectorString = "version ranges " + acceptedVersionRange;
+        final Predicate<String> nodeMatcher;
+        final String versionSelectorString;
+        if (parser.text().equals("current")) {
+            nodeMatcher = nodeVersion -> Build.current().version().equals(nodeVersion);
+            versionSelectorString = "version is " + Build.current().version() + " (current)";
+        } else if (parser.text().equals("original")) {
+            nodeMatcher = nodeVersion -> Build.current().version().equals(nodeVersion) == false;
+            versionSelectorString = "version is not current (original)";
+        } else {
+            if (enableLegacyVersionSupport) {
+                var acceptedVersionRange = VersionRange.parseVersionRanges(parser.text());
+                nodeMatcher = nodeVersion -> matchWithRange(nodeVersion, acceptedVersionRange, parser.getTokenLocation());
+                versionSelectorString = "version ranges " + acceptedVersionRange;
+            } else {
+                throw new XContentParseException(
+                    parser.getTokenLocation(),
+                    "unknown version selector [" + parser.text() + "]. Only [current] and [original] are allowed."
+                );
+            }
+        }
 
         return new NodeSelector() {
             @Override

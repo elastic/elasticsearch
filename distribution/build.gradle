@@ -332,10 +332,10 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
         }
       }
 
-    modulesFiles = { platform ->
+    modulesFiles = { os, architecture ->
       copySpec {
         eachFile {
-          if (it.relativePath.segments[-2] == 'bin' || ((platform == 'darwin-x86_64' || platform == 'darwin-aarch64') && it.relativePath.segments[-2] == 'MacOS')) {
+          if (it.relativePath.segments[-2] == 'bin' || (os == 'darwin' && it.relativePath.segments[-2] == 'MacOS')) {
             // bin files, wherever they are within modules (eg platform specific) should be executable
             // and MacOS is an alternative to bin on macOS
             it.mode = 0755
@@ -344,7 +344,12 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
           }
         }
         List excludePlatforms = ['linux-x86_64', 'linux-aarch64', 'windows-x86_64', 'darwin-x86_64', 'darwin-aarch64']
-        if (platform != null) {
+        if (os != null) {
+          String platform = os + '-' + architecture
+          if (architecture == 'x64') {
+            // ML platform dir uses the x86_64 nomenclature
+            platform = os + '-x86_64'
+          }
           excludePlatforms.remove(excludePlatforms.indexOf(platform))
         } else {
           excludePlatforms = []
@@ -430,15 +435,15 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
       }
     }
 
-    jdkFiles = { Project project, String platform, String architecture ->
+    jdkFiles = { Project project, String os, String architecture ->
       return copySpec {
-        from project.jdks."bundled_${platform}_${architecture}"
+        from project.jdks."bundled_${os}_${architecture}"
         exclude "demo/**"
         /*
          * The Contents/MacOS directory interferes with notarization, and is unused by our distribution, so we exclude
          * it from the build.
          */
-        if ("darwin".equals(platform)) {
+        if ("darwin".equals(os)) {
           exclude "Contents/MacOS"
         }
         eachFile { FileCopyDetails details ->

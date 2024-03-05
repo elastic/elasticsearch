@@ -30,7 +30,7 @@ public class ProjectOperator extends AbstractPageMappingOperator {
     }
 
     private final int[] projection;
-    private Block[] blocks;
+    private final Block[] blocks;
 
     /**
      * Creates an operator that applies the given projection, encoded as an integer list where
@@ -41,6 +41,7 @@ public class ProjectOperator extends AbstractPageMappingOperator {
      */
     public ProjectOperator(List<Integer> projection) {
         this.projection = projection.stream().mapToInt(Integer::intValue).toArray();
+        this.blocks = new Block[projection.size()];
     }
 
     @Override
@@ -49,11 +50,6 @@ public class ProjectOperator extends AbstractPageMappingOperator {
         if (blockCount == 0) {
             return page;
         }
-        if (blocks == null) {
-            blocks = new Block[projection.length];
-        }
-
-        Arrays.fill(blocks, null);
         int b = 0;
         for (int source : projection) {
             if (source >= blockCount) {
@@ -69,7 +65,9 @@ public class ProjectOperator extends AbstractPageMappingOperator {
         page.releaseBlocks();
         // Use positionCount explicitly to avoid re-computing - also, if the projection is empty, there may be
         // no more blocks left to determine the positionCount from.
-        return new Page(positionCount, blocks);
+        Page output = new Page(positionCount, blocks);
+        Arrays.fill(blocks, null);
+        return output;
     }
 
     @Override

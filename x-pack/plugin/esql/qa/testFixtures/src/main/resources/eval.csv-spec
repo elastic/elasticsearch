@@ -368,4 +368,57 @@ avg_height_feet:double
 // end::evalUnnamedColumnStats-result[]
 ;
 
+overwriteName#[skip:-8.13.0]
+FROM employees
+| SORT emp_no asc
+| EVAL full_name = concat(first_name, " ", last_name)
+| EVAL emp_no = concat(full_name, " ", to_string(emp_no))
+| KEEP full_name, emp_no
+| LIMIT 3;
 
+full_name:keyword | emp_no:keyword
+Georgi Facello    | Georgi Facello 10001
+Bezalel Simmel    | Bezalel Simmel 10002
+Parto Bamford     | Parto Bamford 10003
+;
+
+overwriteNameWhere#[skip:-8.13.0]
+FROM employees
+| SORT emp_no ASC
+| EVAL full_name = concat(first_name, " ", last_name)
+| EVAL emp_no = concat(full_name, " ", to_string(emp_no))
+| WHERE emp_no == "Bezalel Simmel 10002"
+| KEEP full_name, emp_no
+| LIMIT 3;
+
+full_name:keyword | emp_no:keyword
+Bezalel Simmel    | Bezalel Simmel 10002
+;
+
+overwriteNameAfterSort#[skip:-8.13.0]
+FROM employees
+| SORT emp_no ASC
+| EVAL emp_no = -emp_no
+| LIMIT 3
+| KEEP emp_no
+;
+
+emp_no:i
+-10001
+-10002
+-10003
+;
+
+overwriteNameAfterSortChained#[skip:-8.13.0]
+FROM employees
+| SORT emp_no ASC
+| EVAL x = emp_no, y = -emp_no, emp_no = y
+| LIMIT 3
+| KEEP emp_no
+;
+
+emp_no:i
+-10001
+-10002
+-10003
+;

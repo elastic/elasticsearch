@@ -19,6 +19,7 @@
 
 package org.elasticsearch.client;
 
+import org.apache.http.Consts;
 import org.apache.http.ContentTooLongException;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
@@ -26,18 +27,26 @@ import org.apache.http.ProtocolVersion;
 import org.apache.http.StatusLine;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
+import org.apache.http.impl.io.HttpTransportMetricsImpl;
+import org.apache.http.impl.nio.codecs.ChunkDecoder;
+import org.apache.http.impl.nio.reactor.SessionInputBufferImpl;
 import org.apache.http.message.BasicHttpResponse;
 import org.apache.http.message.BasicStatusLine;
 import org.apache.http.nio.ContentDecoder;
 import org.apache.http.nio.IOControl;
 import org.apache.http.nio.protocol.HttpAsyncResponseConsumer;
+import org.apache.http.nio.reactor.SessionInputBuffer;
 import org.apache.http.protocol.HttpContext;
 
+import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Modifier;
+import java.nio.ByteBuffer;
+import java.nio.channels.ReadableByteChannel;
+import java.util.Random;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertSame;
@@ -123,20 +132,57 @@ public class HeapBufferedAsyncResponseConsumerTests extends RestClientTestCase {
     public void testHttpAsyncResponseConsumerFactoryVisibility() throws ClassNotFoundException {
         assertEquals(Modifier.PUBLIC, HttpAsyncResponseConsumerFactory.class.getModifiers() & Modifier.PUBLIC);
     }
+
     public void testChunkedConfiguredBufferLimit() throws Exception {
+        HeapBufferedAsyncResponseConsumer consumer = new HeapBufferedAsyncResponseConsumer(MAX_TEST_BUFFER_SIZE);
+        AtomicInteger chunkCount = new AtomicInteger(0);
+        ProtocolVersion protocolVersion = new ProtocolVersion("HTTP", 1, 1);
+        StatusLine statusLine = new BasicStatusLine(protocolVersion, 200, "OK");
+        consumer.onResponseReceived(new BasicHttpResponse(statusLine));
+        HttpEntity entity = new StringEntity("", ContentType.APPLICATION_JSON) {
+            @Override
+            public long getContentLength() {
+                return -1;
+            }
+        };
+        consumer.onEntityEnclosed(entity, ContentType.APPLICATION_JSON);
+        final ReadableByteChannel channel = new ReadableByteChannel() {
+            @Override
+            public boolean isOpen() {
+                return false;
+            }
+            @Override
+            public void close(){
+
+            }
+            @Override
+            public int read(ByteBuffer dst){
+                return 0;
+            }
+        };
+
+        SessionInputBuffer inbuf = new SessionInputBufferImpl(32, 32, Consts.ASCII);
+        HttpTransportMetricsImpl metrics = new HttpTransportMetricsImpl();
+        ChunkDecoder decoder = new ChunkDecoder(channel, inbuf, metrics){
+            @Override
+            public int read(ByteBuffer dst){
+                Random random = new Random();
+                int nextInt = random.nextInt(2);
+                chunkCount.addAndGet(nextInt*TEST_BUFFER_LIMIT);
+                return nextInt*TEST_BUFFER_LIMIT;
+            }
+        };
+
         try {
-            new HeapBufferedAsyncResponseConsumer(randomIntBetween(Integer.MIN_VALUE, 0));
-        } catch (IllegalArgumentException e) {
-            assertEquals("bufferLimit must be greater than 0", e.getMessage());
+            for (int i = 0; i < 100; i++) {
+                consumer.onContentReceived(decoder,null);
+            }
+        } catch (ContentTooLongException e) {
+            assertEquals(
+                "entity chunkCount is too long [" + chunkCount + "] for the configured buffer limit [" + MAX_TEST_BUFFER_SIZE + "]",
+                e.getMessage()
+            );
         }
-        try {
-            new HeapBufferedAsyncResponseConsumer(0);
-        } catch (IllegalArgumentException e) {
-            assertEquals("bufferLimit must be greater than 0", e.getMessage());
-        }
-        int bufferLimit = randomIntBetween(1, MAX_TEST_BUFFER_SIZE - 100);
-        HeapBufferedAsyncResponseConsumer consumer = new HeapBufferedAsyncResponseConsumer(bufferLimit);
-        bufferLimitTest(consumer, bufferLimit);
     }
     private static void bufferLimitTest(HeapBufferedAsyncResponseConsumer consumer, int bufferLimit) throws Exception {
         ProtocolVersion protocolVersion = new ProtocolVersion("HTTP", 1, 1);

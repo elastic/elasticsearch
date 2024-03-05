@@ -1,6 +1,6 @@
 [role="xpack"]
 [[find-structure]]
-= Find structure API
+= Find text structure API
 
 Finds the structure of text. The text must
 contain data that is suitable to be ingested into the

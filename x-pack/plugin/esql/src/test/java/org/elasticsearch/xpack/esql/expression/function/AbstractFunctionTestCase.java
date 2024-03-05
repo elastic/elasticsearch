@@ -1121,18 +1121,13 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     private static String functionName() {
-        return mapFunctionName(
-            StringUtils.camelCaseToUnderscore(getTestClass().getSimpleName().replace("Tests", "")).toLowerCase(Locale.ROOT)
-        );
-    }
-
-    private static String mapFunctionName(String name) {
-        for (String suffix : new String[] { "point", "shape" }) {
-            if (name.endsWith("_" + suffix)) {
-                name = name.replace("_" + suffix, suffix);
-            }
+        Class<?> testClass = getTestClass();
+        if (testClass.isAnnotationPresent(FunctionName.class)) {
+            FunctionName functionNameAnnotation = testClass.getAnnotation(FunctionName.class);
+            return functionNameAnnotation.value();
+        } else {
+            return StringUtils.camelCaseToUnderscore(testClass.getSimpleName().replace("Tests", "")).toLowerCase(Locale.ROOT);
         }
-        return name;
     }
 
     private static FunctionDefinition definition(String name) {

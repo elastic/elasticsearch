@@ -217,19 +217,6 @@ public class WellKnownBinary {
         return geometry;
     }
 
-    /**
-     * Reads a point coordinate from the given WKB byte array with offset.
-     */
-    public static double coordinateFromWKB(int coordinateIndex, byte[] wkb, int offset, int length) {
-        final ByteBuffer byteBuffer = ByteBuffer.wrap(wkb, offset, length);
-        byteBuffer.order(byteBuffer.get() == 0 ? ByteOrder.BIG_ENDIAN : ByteOrder.LITTLE_ENDIAN);
-        final int type = byteBuffer.getInt();
-        if (type != 1 && type != 1001) {
-            throw new IllegalArgumentException("Expected a " + ShapeType.POINT + ", got [" + byteBuffer.getInt() + "]");
-        }
-        return byteBuffer.getDouble(byteBuffer.position() + coordinateIndex * 8);
-    }
-
     private static Geometry parseGeometry(ByteBuffer byteBuffer, boolean coerce) {
         byteBuffer.order(byteBuffer.get() == 0 ? ByteOrder.BIG_ENDIAN : ByteOrder.LITTLE_ENDIAN);
         final int type = byteBuffer.getInt();

@@ -68,6 +68,6 @@ public class StX extends UnaryScalarFunction {
 
     @ConvertEvaluator(extraName = "FromWKB", warnExceptions = { IllegalArgumentException.class })
     static double fromWellKnownBinary(BytesRef in) {
-        return UNSPECIFIED.wkbPointCoordinate(in, 0);
+        return UNSPECIFIED.wkbAsPoint(in).getX();
     }
 }

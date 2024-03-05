@@ -13,6 +13,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
@@ -21,14 +22,13 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.HttpClient;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
-import org.elasticsearch.xpack.inference.external.http.HttpResult;
-import org.elasticsearch.xpack.inference.external.request.HttpRequestTests;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
+import org.elasticsearch.xpack.inference.services.ServiceComponentsTests;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -36,7 +36,10 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
-import static org.elasticsearch.xpack.inference.external.http.HttpClientTests.createHttpPost;
+import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
+import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
+import static org.elasticsearch.xpack.inference.external.request.openai.OpenAiUtils.ORGANIZATION_HEADER;
+import static org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests.buildExpectation;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -47,7 +50,7 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class HttpRequestSenderFactoryTests extends ESTestCase {
+public class HttpRequestSenderTests extends ESTestCase {
     private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
     private final MockWebServer webServer = new MockWebServer();
     private ThreadPool threadPool;
@@ -79,36 +82,63 @@ public class HttpRequestSenderFactoryTests extends ESTestCase {
         try (var sender = senderFactory.createSender("test_service")) {
             sender.start();
 
-            int responseCode = randomIntBetween(200, 203);
-            String body = randomAlphaOfLengthBetween(2, 8096);
-            webServer.enqueue(new MockResponse().setResponseCode(responseCode).setBody(body));
+            String responseJson = """
+                {
+                  "object": "list",
+                  "data": [
+                      {
+                          "object": "embedding",
+                          "index": 0,
+                          "embedding": [
+                              0.0123,
+                              -0.0123
+                          ]
+                      }
+                  ],
+                  "model": "text-embedding-ada-002-v2",
+                  "usage": {
+                      "prompt_tokens": 8,
+                      "total_tokens": 8
+                  }
+                }
+                """;
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            String paramKey = randomAlphaOfLength(3);
-            String paramValue = randomAlphaOfLength(3);
-            var httpPost = createHttpPost(webServer.getPort(), paramKey, paramValue);
-
-            PlainActionFuture<HttpResult> listener = new PlainActionFuture<>();
-            sender.send(httpPost, null, listener);
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            sender.send(
+                OpenAiEmbeddingsExecutableRequestCreatorTests.makeCreator(getUrl(webServer), null, "key", "model", null),
+                List.of("abc"),
+                listener
+            );
 
             var result = listener.actionGet(TIMEOUT);
+            assertThat(result.asMap(), is(buildExpectation(List.of(List.of(0.0123F, -0.0123F)))));
 
-            assertThat(result.response().getStatusLine().getStatusCode(), equalTo(responseCode));
-            assertThat(new String(result.body(), StandardCharsets.UTF_8), is(body));
             assertThat(webServer.requests(), hasSize(1));
-            assertThat(webServer.requests().get(0).getUri().getPath(), equalTo(httpPost.httpRequestBase().getURI().getPath()));
-            assertThat(webServer.requests().get(0).getUri().getQuery(), equalTo(paramKey + "=" + paramValue));
+            assertNull(webServer.requests().get(0).getUri().getQuery());
             assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
+            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer key"));
+            assertNull(webServer.requests().get(0).getHeader(ORGANIZATION_HEADER));
+
+            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
+            assertThat(requestMap.size(), is(2));
+            assertThat(requestMap.get("input"), is(List.of("abc")));
+            assertThat(requestMap.get("model"), is("model"));
         }
     }
 
     public void testHttpRequestSender_Throws_WhenCallingSendBeforeStart() throws Exception {
-        var senderFactory = new HttpRequestSenderFactory(threadPool, clientManager, mockClusterServiceEmpty(), Settings.EMPTY);
+        var senderFactory = new HttpRequestSender.Factory(
+            ServiceComponentsTests.createWithEmptySettings(threadPool),
+            clientManager,
+            mockClusterServiceEmpty()
+        );
 
         try (var sender = senderFactory.createSender("test_service")) {
-            PlainActionFuture<HttpResult> listener = new PlainActionFuture<>();
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             var thrownException = expectThrows(
                 AssertionError.class,
-                () -> sender.send(HttpRequestTests.createMock("inferenceEntityId"), listener)
+                () -> sender.send(ExecutableRequestCreatorTests.createMock(), List.of(), listener)
             );
             assertThat(thrownException.getMessage(), is("call start() before sending a request"));
         }
@@ -118,23 +148,27 @@ public class HttpRequestSenderFactoryTests extends ESTestCase {
         var mockManager = mock(HttpClientManager.class);
         when(mockManager.getHttpClient()).thenReturn(mock(HttpClient.class));
 
-        var senderFactory = new HttpRequestSenderFactory(threadPool, mockManager, mockClusterServiceEmpty(), Settings.EMPTY);
+        var senderFactory = new HttpRequestSender.Factory(
+            ServiceComponentsTests.createWithEmptySettings(threadPool),
+            mockManager,
+            mockClusterServiceEmpty()
+        );
 
         try (var sender = senderFactory.createSender("test_service")) {
-            assertThat(sender, instanceOf(HttpRequestSenderFactory.HttpRequestSender.class));
+            assertThat(sender, instanceOf(HttpRequestSender.class));
             // hack to get around the sender interface so we can set the timeout directly
-            var httpSender = (HttpRequestSenderFactory.HttpRequestSender) sender;
+            var httpSender = (HttpRequestSender) sender;
             httpSender.setMaxRequestTimeout(TimeValue.timeValueNanos(1));
             sender.start();
 
-            PlainActionFuture<HttpResult> listener = new PlainActionFuture<>();
-            sender.send(HttpRequestTests.createMock("inferenceEntityId"), TimeValue.timeValueNanos(1), listener);
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            sender.send(ExecutableRequestCreatorTests.createMock(), List.of(), TimeValue.timeValueNanos(1), listener);
 
             var thrownException = expectThrows(ElasticsearchTimeoutException.class, () -> listener.actionGet(TIMEOUT));
 
             assertThat(
                 thrownException.getMessage(),
-                is(format("Request timed out waiting to be executed after [%s]", TimeValue.timeValueNanos(1)))
+                is(format("Request timed out waiting to be sent after [%s]", TimeValue.timeValueNanos(1)))
             );
         }
     }
@@ -143,24 +177,28 @@ public class HttpRequestSenderFactoryTests extends ESTestCase {
         var mockManager = mock(HttpClientManager.class);
         when(mockManager.getHttpClient()).thenReturn(mock(HttpClient.class));
 
-        var senderFactory = new HttpRequestSenderFactory(threadPool, mockManager, mockClusterServiceEmpty(), Settings.EMPTY);
+        var senderFactory = new HttpRequestSender.Factory(
+            ServiceComponentsTests.createWithEmptySettings(threadPool),
+            mockManager,
+            mockClusterServiceEmpty()
+        );
 
         try (var sender = senderFactory.createSender("test_service")) {
             sender.start();
 
-            PlainActionFuture<HttpResult> listener = new PlainActionFuture<>();
-            sender.send(HttpRequestTests.createMock("id"), TimeValue.timeValueNanos(1), listener);
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            sender.send(ExecutableRequestCreatorTests.createMock(), List.of(), TimeValue.timeValueNanos(1), listener);
 
             var thrownException = expectThrows(ElasticsearchTimeoutException.class, () -> listener.actionGet(TIMEOUT));
 
             assertThat(
                 thrownException.getMessage(),
-                is(format("Request timed out waiting to be executed after [%s]", TimeValue.timeValueNanos(1)))
+                is(format("Request timed out waiting to be sent after [%s]", TimeValue.timeValueNanos(1)))
             );
         }
     }
 
-    private static HttpRequestSenderFactory createSenderFactory(HttpClientManager clientManager, AtomicReference<Thread> threadRef) {
+    private static HttpRequestSender.Factory createSenderFactory(HttpClientManager clientManager, AtomicReference<Thread> threadRef) {
         var mockExecutorService = mock(ExecutorService.class);
         doAnswer(invocation -> {
             Runnable runnable = (Runnable) invocation.getArguments()[0];
@@ -175,6 +213,34 @@ public class HttpRequestSenderFactoryTests extends ESTestCase {
         when(mockThreadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         when(mockThreadPool.schedule(any(Runnable.class), any(), any())).thenReturn(mock(Scheduler.ScheduledCancellable.class));
 
-        return new HttpRequestSenderFactory(mockThreadPool, clientManager, mockClusterServiceEmpty(), Settings.EMPTY);
+        return new HttpRequestSender.Factory(
+            ServiceComponentsTests.createWithEmptySettings(mockThreadPool),
+            clientManager,
+            mockClusterServiceEmpty()
+        );
+    }
+
+    public static HttpRequestSender.Factory createSenderFactory(ThreadPool threadPool, HttpClientManager httpClientManager) {
+        return new HttpRequestSender.Factory(
+            ServiceComponentsTests.createWithEmptySettings(threadPool),
+            httpClientManager,
+            mockClusterServiceEmpty()
+        );
+    }
+
+    public static HttpRequestSender.Factory createSenderFactory(
+        ThreadPool threadPool,
+        HttpClientManager httpClientManager,
+        Settings settings
+    ) {
+        return new HttpRequestSender.Factory(
+            ServiceComponentsTests.createWithSettings(threadPool, settings),
+            httpClientManager,
+            mockClusterServiceEmpty()
+        );
+    }
+
+    public static Sender createSenderWithSingleRequestManager(HttpRequestSender.Factory factory, String serviceName) {
+        return factory.createSender(serviceName);
     }
 }

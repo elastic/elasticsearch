@@ -7,23 +7,23 @@
 
 package org.elasticsearch.xpack.inference.external.http.sender;
 
+import org.apache.http.client.protocol.HttpClientContext;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
 
-import java.io.Closeable;
 import java.util.List;
+import java.util.function.Supplier;
 
-public interface Sender extends Closeable {
-    void start();
-
-    void send(
-        ExecutableRequestCreator requestCreator,
+/**
+ * A contract for constructing a {@link Runnable} to handle sending an inference request to a 3rd party service.
+ */
+public interface ExecutableRequestCreator {
+    Runnable create(
         List<String> input,
-        @Nullable TimeValue timeout,
+        RequestSender requestSender,
+        Supplier<Boolean> hasRequestCompletedFunction,
+        HttpClientContext context,
         ActionListener<InferenceServiceResults> listener
     );
-
-    void send(ExecutableRequestCreator requestCreator, List<String> input, ActionListener<InferenceServiceResults> listener);
 }

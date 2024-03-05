@@ -377,12 +377,15 @@ public record StatelessCompoundCommit(
         }
 
         public StatelessCompoundCommit finish(String commitFileName) {
+            long totalSizeInBytes = headerSize + internalFilesSize;
             Map<String, BlobLocation> commitFiles = combineCommitFiles(
                 commitFileName,
                 primaryTerm,
                 internalFiles,
+                referencedBlobFiles,
+                0,
                 headerSize,
-                referencedBlobFiles
+                totalSizeInBytes
             );
 
             assert headerSize > 0;
@@ -392,7 +395,7 @@ public record StatelessCompoundCommit(
                 translogRecoveryStartFile,
                 nodeEphemeralId,
                 Collections.unmodifiableMap(commitFiles),
-                headerSize + internalFilesSize
+                totalSizeInBytes
             );
         }
     }
@@ -438,6 +441,7 @@ public record StatelessCompoundCommit(
                 List<InternalFile> internalFiles = input.readCollectionAsList(InternalFile::new);
                 long headerSize = input.readLong();
                 verifyChecksum(input);
+                long totalSizeInBytes = headerSize + internalFiles.stream().mapToLong(InternalFile::length).sum();
                 return statelessCompoundCommit(
                     shardId,
                     generation,
@@ -446,8 +450,9 @@ public record StatelessCompoundCommit(
                     nodeEphemeralId,
                     referencedBlobLocations,
                     internalFiles,
+                    offset,
                     headerSize,
-                    headerSize + internalFiles.stream().mapToLong(InternalFile::length).sum(),
+                    totalSizeInBytes,
                     blobNameSupplier
                 );
             } else {
@@ -529,9 +534,8 @@ public record StatelessCompoundCommit(
 
         try (XContentParser parser = XContentType.SMILE.xContent().createParser(XContentParserConfiguration.EMPTY, is)) {
             XContentStatelessCompoundCommit c = XContentStatelessCompoundCommit.PARSER.parse(parser, null);
-
-            long internalFilesLength = c.internalFiles.stream().mapToLong(InternalFile::length).sum();
             assert headerSize > 0;
+            long totalSizeInBytes = headerSize + c.internalFiles.stream().mapToLong(InternalFile::length).sum();
             return statelessCompoundCommit(
                 c.shardId,
                 c.generation,
@@ -540,8 +544,9 @@ public record StatelessCompoundCommit(
                 c.nodeEphemeralId,
                 c.referencedBlobLocations,
                 c.internalFiles,
-                offset + headerSize,
-                headerSize + internalFilesLength,
+                offset,
+                headerSize,
+                totalSizeInBytes,
                 blobNameSupplier
             );
         }
@@ -555,8 +560,9 @@ public record StatelessCompoundCommit(
         String nodeEphemeralId,
         Map<String, BlobLocation> referencedBlobLocations,
         List<InternalFile> internalFiles,
-        long startingOffset,
-        long sizeInBytes,
+        long internalFilesOffset,
+        long headerSizeInBytes,
+        long totalSizeInBytes,
         Function<Long, String> blobNameSupplier
     ) {
         String commitFileName = blobNameSupplier.apply(generation);
@@ -564,8 +570,10 @@ public record StatelessCompoundCommit(
             commitFileName,
             primaryTerm,
             internalFiles,
-            startingOffset,
-            referencedBlobLocations
+            referencedBlobLocations,
+            internalFilesOffset,
+            headerSizeInBytes,
+            totalSizeInBytes
         );
         return new StatelessCompoundCommit(
             shardId,
@@ -573,7 +581,7 @@ public record StatelessCompoundCommit(
             translogRecoveryStartFile,
             nodeEphemeralId,
             Collections.unmodifiableMap(commitFiles),
-            sizeInBytes
+            totalSizeInBytes
         );
     }
 
@@ -583,15 +591,17 @@ public record StatelessCompoundCommit(
         String blobName,
         long primaryTerm,
         List<InternalFile> internalFiles,
-        long startingOffset,
-        Map<String, BlobLocation> referencedBlobFiles
+        Map<String, BlobLocation> referencedBlobFiles,
+        long internalFilesOffset,
+        long headerSizeInBytes,
+        long totalSizeInBytes
     ) {
-        long blobLength = internalFiles.stream().mapToLong(InternalFile::length).sum() + startingOffset;
+        long blobLength = internalFilesOffset + totalSizeInBytes;
 
         var commitFiles = Maps.<String, BlobLocation>newHashMapWithExpectedSize(referencedBlobFiles.size() + internalFiles.size());
         commitFiles.putAll(referencedBlobFiles);
 
-        long currentOffset = startingOffset;
+        long currentOffset = internalFilesOffset + headerSizeInBytes;
         for (InternalFile internalFile : internalFiles) {
             commitFiles.put(internalFile.name(), new BlobLocation(primaryTerm, blobName, blobLength, currentOffset, internalFile.length()));
             currentOffset += internalFile.length();

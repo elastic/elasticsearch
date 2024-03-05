@@ -325,7 +325,6 @@ public class DocumentMapperTests extends MapperServiceTestCase {
                 .item(RoutingFieldMapper.class)
                 .item(SeqNoFieldMapper.class)
                 .item(SourceFieldMapper.class)
-                .item(TimeSeriesRoutingIdFieldMapper.class)
                 .item(VersionFieldMapper.class)
         );
         List<String> matching = new ArrayList<>(documentMapper.mappers().getMatchingFieldNames("*"));
@@ -340,7 +339,6 @@ public class DocumentMapperTests extends MapperServiceTestCase {
                 .item(IndexFieldMapper.CONTENT_TYPE)
                 .item(NestedPathFieldMapper.NAME)
                 .item(RoutingFieldMapper.CONTENT_TYPE)
-                .item(TimeSeriesRoutingIdFieldMapper.NAME)
                 .item(SeqNoFieldMapper.CONTENT_TYPE)
                 .item(SourceFieldMapper.CONTENT_TYPE)
                 .item(VersionFieldMapper.CONTENT_TYPE)

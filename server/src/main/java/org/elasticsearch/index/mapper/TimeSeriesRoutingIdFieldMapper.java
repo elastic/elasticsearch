@@ -45,7 +45,7 @@ public class TimeSeriesRoutingIdFieldMapper extends MetadataFieldMapper {
 
     public static final TimeSeriesRoutingIdFieldMapper INSTANCE = new TimeSeriesRoutingIdFieldMapper();
 
-    public static final TypeParser PARSER = new FixedTypeParser(c -> INSTANCE);
+    public static final TypeParser PARSER = new FixedTypeParser(c -> c.getIndexSettings().getMode().timeSeriesRoutingIdFieldMapper());
 
     static final class TimeSeriesRoutingIdFieldType extends MappedFieldType {
 

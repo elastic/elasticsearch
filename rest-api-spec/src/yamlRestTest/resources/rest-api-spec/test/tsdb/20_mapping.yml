@@ -121,8 +121,8 @@ top level wildcard dim object:
 ---
 exact match object type:
   - skip:
-      version: " - 8.12.99"
-      reason: routing_path error message updated in 8.13.0
+      version: " - 8.13.99"
+      reason: routing_path error message updated in 8.14.0
 
   - do:
       catch: '/All fields that match routing_path must be configured with \[time_series_dimension: true\] or flattened fields with a list of dimensions in \[time_series_dimensions\] and without the \[script\] parameter. \[dim\] was \[object\]./'
@@ -154,8 +154,8 @@ exact match object type:
 ---
 non keyword matches routing_path:
   - skip:
-      version: " - 8.12.99"
-      reason: routing_path error message updated in 8.13.0
+      version: " - 8.13.99"
+      reason: routing_path error message updated in 8.14.0
 
   - do:
       catch: '/All fields that match routing_path must be configured with \[time_series_dimension: true\] or flattened fields with a list of dimensions in \[time_series_dimensions\] and without the \[script\] parameter. \[@timestamp\] was \[date\]./'

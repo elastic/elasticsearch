@@ -260,8 +260,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 b.value(byteBuffer.get());
             }
 
-            @Override
-            KnnByteVectorField createKnnVectorField(String name, byte[] vector, VectorSimilarityFunction function) {
+            private KnnByteVectorField createKnnVectorField(String name, byte[] vector, VectorSimilarityFunction function) {
                 if (vector == null) {
                     throw new IllegalArgumentException("vector value must not be null");
                 }
@@ -269,11 +268,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 denseVectorFieldType.setVectorAttributes(vector.length, VectorEncoding.BYTE, function);
                 denseVectorFieldType.freeze();
                 return new KnnByteVectorField(name, vector, denseVectorFieldType);
-            }
-
-            @Override
-            KnnFloatVectorField createKnnVectorField(String name, float[] vector, VectorSimilarityFunction function) {
-                throw new IllegalArgumentException("cannot create a float vector field from byte");
             }
 
             @Override
@@ -462,8 +456,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 b.value(byteBuffer.getFloat());
             }
 
-            @Override
-            KnnFloatVectorField createKnnVectorField(String name, float[] vector, VectorSimilarityFunction function) {
+            private KnnFloatVectorField createKnnVectorField(String name, float[] vector, VectorSimilarityFunction function) {
                 if (vector == null) {
                     throw new IllegalArgumentException("vector value must not be null");
                 }
@@ -471,11 +464,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 denseVectorFieldType.setVectorAttributes(vector.length, VectorEncoding.FLOAT32, function);
                 denseVectorFieldType.freeze();
                 return new KnnFloatVectorField(name, vector, denseVectorFieldType);
-            }
-
-            @Override
-            KnnByteVectorField createKnnVectorField(String name, byte[] vector, VectorSimilarityFunction function) {
-                throw new IllegalArgumentException("cannot create a byte vector field from float");
             }
 
             @Override
@@ -624,10 +612,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
         public abstract void writeValue(ByteBuffer byteBuffer, float value);
 
         public abstract void readAndWriteValue(ByteBuffer byteBuffer, XContentBuilder b) throws IOException;
-
-        abstract KnnFloatVectorField createKnnVectorField(String name, float[] vector, VectorSimilarityFunction function);
-
-        abstract KnnByteVectorField createKnnVectorField(String name, byte[] vector, VectorSimilarityFunction function);
 
         abstract IndexFieldData.Builder fielddataBuilder(DenseVectorFieldType denseVectorFieldType, FieldDataContext fieldDataContext);
 
@@ -1185,31 +1169,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         public Query createExactKnnQuery(float[] queryVector) {
-            if (isIndexed() == false) {
-                throw new IllegalArgumentException(
-                    "to perform knn search on field [" + name() + "], its mapping must have [index] set to [true]"
-                );
-            }
-            if (queryVector.length != dims) {
-                throw new IllegalArgumentException(
-                    "the query vector has a different dimension [" + queryVector.length + "] than the index vectors [" + dims + "]"
-                );
-            }
-            elementType.checkVectorBounds(queryVector);
-            if (similarity == VectorSimilarity.DOT_PRODUCT || similarity == VectorSimilarity.COSINE) {
-                float squaredMagnitude = VectorUtil.dotProduct(queryVector, queryVector);
-                elementType.checkVectorMagnitude(similarity, ElementType.errorFloatElementsAppender(queryVector), squaredMagnitude);
-                if (similarity == VectorSimilarity.COSINE
-                    && ElementType.FLOAT.equals(elementType)
-                    && indexVersionCreated.onOrAfter(NORMALIZE_COSINE)
-                    && isNotUnitVector(squaredMagnitude)) {
-                    float length = (float) Math.sqrt(squaredMagnitude);
-                    queryVector = Arrays.copyOf(queryVector, queryVector.length);
-                    for (int i = 0; i < queryVector.length; i++) {
-                        queryVector[i] /= length;
-                    }
-                }
-            }
+            queryVector = validateAndNormalize(queryVector);
             VectorSimilarityFunction vectorSimilarityFunction = similarity.vectorSimilarityFunction(indexVersionCreated, elementType);
             return switch (elementType) {
                 case BYTE -> {
@@ -1252,32 +1212,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             Float similarityThreshold,
             BitSetProducer parentFilter
         ) {
-            if (isIndexed() == false) {
-                throw new IllegalArgumentException(
-                    "to perform knn search on field [" + name() + "], its mapping must have [index] set to [true]"
-                );
-            }
-
-            if (queryVector.length != dims) {
-                throw new IllegalArgumentException(
-                    "the query vector has a different dimension [" + queryVector.length + "] than the index vectors [" + dims + "]"
-                );
-            }
-            elementType.checkVectorBounds(queryVector);
-            if (similarity == VectorSimilarity.DOT_PRODUCT || similarity == VectorSimilarity.COSINE) {
-                float squaredMagnitude = VectorUtil.dotProduct(queryVector, queryVector);
-                elementType.checkVectorMagnitude(similarity, ElementType.errorFloatElementsAppender(queryVector), squaredMagnitude);
-                if (similarity == VectorSimilarity.COSINE
-                    && ElementType.FLOAT.equals(elementType)
-                    && indexVersionCreated.onOrAfter(NORMALIZE_COSINE)
-                    && isNotUnitVector(squaredMagnitude)) {
-                    float length = (float) Math.sqrt(squaredMagnitude);
-                    queryVector = Arrays.copyOf(queryVector, queryVector.length);
-                    for (int i = 0; i < queryVector.length; i++) {
-                        queryVector[i] /= length;
-                    }
-                }
-            }
+            queryVector = validateAndNormalize(queryVector);
             Query knnQuery = switch (elementType) {
                 case BYTE -> {
                     byte[] bytes = new byte[queryVector.length];
@@ -1301,6 +1236,35 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 );
             }
             return knnQuery;
+        }
+
+        private float[] validateAndNormalize(float[] queryVector) {
+            if (isIndexed() == false) {
+                throw new IllegalArgumentException(
+                    "to perform knn search on field [" + name() + "], its mapping must have [index] set to [true]"
+                );
+            }
+            if (queryVector.length != dims) {
+                throw new IllegalArgumentException(
+                    "the query vector has a different dimension [" + queryVector.length + "] than the index vectors [" + dims + "]"
+                );
+            }
+            elementType.checkVectorBounds(queryVector);
+            if (similarity == VectorSimilarity.DOT_PRODUCT || similarity == VectorSimilarity.COSINE) {
+                float squaredMagnitude = VectorUtil.dotProduct(queryVector, queryVector);
+                elementType.checkVectorMagnitude(similarity, ElementType.errorFloatElementsAppender(queryVector), squaredMagnitude);
+                if (similarity == VectorSimilarity.COSINE
+                    && ElementType.FLOAT.equals(elementType)
+                    && indexVersionCreated.onOrAfter(NORMALIZE_COSINE)
+                    && isNotUnitVector(squaredMagnitude)) {
+                    float length = (float) Math.sqrt(squaredMagnitude);
+                    queryVector = Arrays.copyOf(queryVector, queryVector.length);
+                    for (int i = 0; i < queryVector.length; i++) {
+                        queryVector[i] /= length;
+                    }
+                }
+            }
+            return queryVector;
         }
 
         VectorSimilarity getSimilarity() {

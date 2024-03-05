@@ -16,6 +16,7 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.license.License;
@@ -175,9 +176,9 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
             TypedChainTaskExecutor<InferenceResults> typedChainTaskExecutor = new TypedChainTaskExecutor<>(
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
                 // run through all tasks
-                r -> true,
+                Predicates.always(),
                 // Always fail immediately and return an error
-                ex -> true
+                Predicates.always()
             );
             request.getObjectsToInfer().forEach(stringObjectMap -> typedChainTaskExecutor.add(chainedTask -> {
                 if (task.isCancelled()) {

@@ -1,0 +1,6 @@
+pr: 105789
+summary: Make Health API more resilient to multi-version clusters
+area: Health
+type: bug
+issues:
+ - 90183

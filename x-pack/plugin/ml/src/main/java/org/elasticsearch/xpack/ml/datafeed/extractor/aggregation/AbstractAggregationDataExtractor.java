@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfigUtils;
 import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
+import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorQueryContext;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorUtils;
 
 import java.io.ByteArrayInputStream;
@@ -121,7 +122,7 @@ abstract class AbstractAggregationDataExtractor implements DataExtractor {
         LOGGER.debug("[{}] Executing aggregated search", context.jobId);
         ActionRequestBuilder<SearchRequest, SearchResponse> searchRequest = buildSearchRequest(buildBaseSearchSource());
         assert searchRequest.request().allowPartialSearchResults() == false;
-        SearchResponse searchResponse = executeSearchRequest(searchRequest);
+        SearchResponse searchResponse = executeSearchRequest(client, context.queryContext, searchRequest);
         try {
             LOGGER.debug("[{}] Search response was obtained", context.jobId);
             timingStatsReporter.reportSearchDuration(searchResponse.getTook());
@@ -142,9 +143,13 @@ abstract class AbstractAggregationDataExtractor implements DataExtractor {
         aggregationToJsonProcessor.process(aggs);
     }
 
-    private SearchResponse executeSearchRequest(ActionRequestBuilder<SearchRequest, SearchResponse> searchRequestBuilder) {
+    static SearchResponse executeSearchRequest(
+        Client client,
+        DataExtractorQueryContext context,
+        ActionRequestBuilder<SearchRequest, SearchResponse> searchRequestBuilder
+    ) {
         SearchResponse searchResponse = ClientHelper.executeWithHeaders(
-            context.queryContext.headers,
+            context.headers,
             ClientHelper.ML_ORIGIN,
             client,
             searchRequestBuilder::get
@@ -216,7 +221,7 @@ abstract class AbstractAggregationDataExtractor implements DataExtractor {
         ActionRequestBuilder<SearchRequest, SearchResponse> searchRequestBuilder = buildSearchRequest(
             DataExtractorUtils.getSearchSourceBuilderForSummary(context.queryContext)
         );
-        SearchResponse searchResponse = executeSearchRequest(searchRequestBuilder);
+        SearchResponse searchResponse = executeSearchRequest(client, context.queryContext, searchRequestBuilder);
         try {
             LOGGER.debug("[{}] Aggregating Data summary response was obtained", context.jobId);
             timingStatsReporter.reportSearchDuration(searchResponse.getTook());

@@ -16,16 +16,20 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class AbstractPageMappingOperatorStatusTests extends AbstractWireSerializingTestCase<AbstractPageMappingOperator.Status> {
     public static AbstractPageMappingOperator.Status simple() {
-        return new AbstractPageMappingOperator.Status(123);
+        return new AbstractPageMappingOperator.Status(200012, 123);
     }
 
     public static String simpleToJson() {
         return """
-            {"pages_processed":123}""";
+            {
+              "process_nanos" : 200012,
+              "process_time" : "200micros",
+              "pages_processed" : 123
+            }""";
     }
 
     public void testToXContent() {
-        assertThat(Strings.toString(simple()), equalTo(simpleToJson()));
+        assertThat(Strings.toString(simple(), true, true), equalTo(simpleToJson()));
     }
 
     @Override
@@ -35,11 +39,18 @@ public class AbstractPageMappingOperatorStatusTests extends AbstractWireSerializ
 
     @Override
     public AbstractPageMappingOperator.Status createTestInstance() {
-        return new AbstractPageMappingOperator.Status(randomNonNegativeInt());
+        return new AbstractPageMappingOperator.Status(randomNonNegativeLong(), randomNonNegativeInt());
     }
 
     @Override
     protected AbstractPageMappingOperator.Status mutateInstance(AbstractPageMappingOperator.Status instance) {
-        return new AbstractPageMappingOperator.Status(randomValueOtherThan(instance.pagesProcessed(), ESTestCase::randomNonNegativeInt));
+        long processNanos = instance.processNanos();
+        int pagesProcessed = instance.pagesProcessed();
+        switch (between(0, 1)) {
+            case 0 -> processNanos = randomValueOtherThan(processNanos, ESTestCase::randomNonNegativeLong);
+            case 1 -> pagesProcessed = randomValueOtherThan(pagesProcessed, ESTestCase::randomNonNegativeInt);
+            default -> throw new UnsupportedOperationException();
+        }
+        return new AbstractPageMappingOperator.Status(processNanos, pagesProcessed);
     }
 }

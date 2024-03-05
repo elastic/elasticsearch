@@ -116,7 +116,173 @@ POST _text_structure/find_message_structure
 If the request does not encounter errors, you receive the following result:
 
 [source,console-result]
-include::{es-repo-dir}/text-structure/apis/find-structure-shared.asciidoc[tag=example-eslogs-response]
+----
+{
+  "num_lines_analyzed" : 22,
+  "num_messages_analyzed" : 22,
+  "sample_start" : "[2024-03-05T10:52:36,256][INFO ][o.a.l.u.VectorUtilPanamaProvider] [laptop] Java vector incubator API enabled; uses preferredBitSize=128\n[2024-03-05T10:52:41,038][INFO ][o.e.p.PluginsService     ] [laptop] loaded module [repository-url]\n", <3>
+  "charset" : "UTF-8",
+  "format" : "semi_structured_text",
+  "multiline_start_pattern" : "^\\[\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
+  "grok_pattern" : "\\[%{TIMESTAMP_ISO8601:timestamp}\\]\\[%{LOGLEVEL:loglevel} \\]\\[.*",
+  "ecs_compatibility" : "disabled",
+  "timestamp_field" : "timestamp",
+  "joda_timestamp_formats" : [
+    "ISO8601"
+  ],
+  "java_timestamp_formats" : [
+    "ISO8601"
+  ],
+  "need_client_timezone" : true,
+  "mappings" : {
+    "properties" : {
+      "@timestamp" : {
+        "type" : "date"
+      },
+      "loglevel" : {
+        "type" : "keyword"
+      },
+      "message" : {
+        "type" : "text"
+      }
+    }
+  },
+  "ingest_pipeline" : {
+    "description" : "Ingest pipeline created by text structure finder",
+    "processors" : [
+      {
+        "grok" : {
+          "field" : "message",
+          "patterns" : [
+            "\\[%{TIMESTAMP_ISO8601:timestamp}\\]\\[%{LOGLEVEL:loglevel} \\]\\[.*"
+          ],
+          "ecs_compatibility" : "disabled"
+        }
+      },
+      {
+        "date" : {
+          "field" : "timestamp",
+          "timezone" : "{{ event.timezone }}",
+          "formats" : [
+            "ISO8601"
+          ]
+        }
+      },
+      {
+        "remove" : {
+          "field" : "timestamp"
+        }
+      }
+    ]
+  },
+  "field_stats" : {
+    "loglevel" : {
+      "count" : 22,
+      "cardinality" : 1,
+      "top_hits" : [
+        {
+          "value" : "INFO",
+          "count" : 22
+        }
+      ]
+    },
+    "message" : {
+      "count" : 22,
+      "cardinality" : 22,
+      "top_hits" : [
+        {
+          "value" : "[2024-03-05T10:52:36,256][INFO ][o.a.l.u.VectorUtilPanamaProvider] [laptop] Java vector incubator API enabled; uses preferredBitSize=128",
+          "count" : 1
+        },
+        {
+          "value" : "[2024-03-05T10:52:41,038][INFO ][o.e.p.PluginsService     ] [laptop] loaded module [repository-url]",
+          "count" : 1
+        },
+        {
+          "value" : "[2024-03-05T10:52:41,042][INFO ][o.e.p.PluginsService     ] [laptop] loaded module [rest-root]",
+          "count" : 1
+        },
+        {
+          "value" : "[2024-03-05T10:52:41,043][INFO ][o.e.p.PluginsService     ] [laptop] loaded module [ingest-user-agent]",
+          "count" : 1
+        },
+        {
+          "value" : "[2024-03-05T10:52:41,043][INFO ][o.e.p.PluginsService     ] [laptop] loaded module [x-pack-core]tive methods for [MacOS]",
+          "count" : 1
+        },
+        {
+          "value" : "[2024-03-05T10:52:41,043][INFO ][o.e.p.PluginsService     ] [laptop] loaded module [x-pack-redact]API enabled; uses preferredBitSize=128",
+          "count" : 1
+        },
+        {
+          "value" : "[2024-03-05T10:52:41,044][INFO ][o.e.p.PluginsService     ] [laptop] loaded module [lang-painless]]",
+          "count" : 1
+        },
+        {
+          "value" : "[2024-03-05T10:52:41,044][INFO ][o.e.p.PluginsService     ] [laptop] loaded module [repository-s3]",
+          "count" : 1
+        },
+        {
+          "value" : "[2024-03-05T10:52:41,044][INFO ][o.e.p.PluginsService     ] [laptop] loaded module [x-pack-analytics]",
+          "count" : 1
+        },
+        {
+          "value" : "[2024-03-05T10:52:41,044][INFO ][o.e.p.PluginsService     ] [laptop] loaded module [x-pack-autoscaling]",
+          "count" : 1
+        }
+      ]
+    },
+    "timestamp" : {
+      "count" : 22,
+      "cardinality" : 14,
+      "earliest" : "2024-03-05T10:52:36,256",
+      "latest" : "2024-03-05T10:52:49,199",
+      "top_hits" : [
+        {
+          "value" : "2024-03-05T10:52:41,044",
+          "count" : 6
+        },
+        {
+          "value" : "2024-03-05T10:52:41,043",
+          "count" : 3
+        },
+        {
+          "value" : "2024-03-05T10:52:41,059",
+          "count" : 2
+        },
+        {
+          "value" : "2024-03-05T10:52:36,256",
+          "count" : 1
+        },
+        {
+          "value" : "2024-03-05T10:52:41,038",
+          "count" : 1
+        },
+        {
+          "value" : "2024-03-05T10:52:41,042",
+          "count" : 1
+        },
+        {
+          "value" : "2024-03-05T10:52:43,291",
+          "count" : 1
+        },
+        {
+          "value" : "2024-03-05T10:52:46,098",
+          "count" : 1
+        },
+        {
+          "value" : "2024-03-05T10:52:47,227",
+          "count" : 1
+        },
+        {
+          "value" : "2024-03-05T10:52:47,259",
+          "count" : 1
+        }
+      ]
+    }
+  }
+}
+----
 // TESTRESPONSE[s/"sample_start" : ".*",/"sample_start" : "$body.sample_start",/]
 // The substitution is because the text is pre-processed by the test harness,
 // so the fields may get reordered in the JSON the endpoint sees

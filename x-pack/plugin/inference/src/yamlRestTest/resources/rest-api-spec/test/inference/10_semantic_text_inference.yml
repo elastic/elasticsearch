@@ -91,14 +91,14 @@ setup:
 
 ---
 "text expansion documents do not create new mappings":
-    - do:
+  - do:
       indices.get_mapping:
         index: test-sparse-index
 
-    - match: {test-sparse-index.mappings.properties.inference_field.type: semantic_text}
-    - match: {test-sparse-index.mappings.properties.another_inference_field.type: semantic_text}
-    - match: {test-sparse-index.mappings.properties.non_inference_field.type: text}
-    - length: {test-sparse-index.mappings.properties: 3}
+  - match: {test-sparse-index.mappings.properties.inference_field.type: semantic_text}
+  - match: {test-sparse-index.mappings.properties.another_inference_field.type: semantic_text}
+  - match: {test-sparse-index.mappings.properties.non_inference_field.type: text}
+  - length: {test-sparse-index.mappings.properties: 3}
 
 ---
 "Calculates text embeddings results for new documents":
@@ -130,8 +130,8 @@ setup:
 ---
 "text embeddings documents do not create new mappings":
   - do:
-    indices.get_mapping:
-      index: test-dense-index
+      indices.get_mapping:
+        index: test-dense-index
 
   - match: {test-dense-index.mappings.properties.inference_field.type: semantic_text}
   - match: {test-dense-index.mappings.properties.another_inference_field.type: semantic_text}

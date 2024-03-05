@@ -1173,7 +1173,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
     @FunctionalInterface
     public interface RangeMissingHandler {
         /**
-         * A strategy used to load the blob from remote storage in case if it is not cached yet
+         * Callback method used to fetch data (usually from a remote storage) and write it in the cache.
          *
          * @param channel is the cache region to write to
          * @param channelPos a position in the channel to write to

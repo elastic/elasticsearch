@@ -128,6 +128,8 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
                 System.getenv("JENKINS_URL") != null || System.getenv("BUILDKITE_BUILD_URL") != null || System.getProperty("isCI") != null
             );
             params.setDefaultParallel(ParallelDetector.findDefaultParallel(project));
+            // TODO: Test if cc issues are coming from here
+            params.setDefaultParallel(8);
             params.setInFipsJvm(Util.getBooleanProperty("tests.fips.enabled", false));
             params.setIsSnapshotBuild(Util.getBooleanProperty("build.snapshot", true));
             AtomicReference<BwcVersions> cache = new AtomicReference<>();

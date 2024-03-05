@@ -12,68 +12,72 @@
         "data_stream.namespace": {
           "type": "constant_keyword"
         },
+        "@timestamp": {
+          "type": "date_nanos"
+        },
+        "attributes": {
+          "type": "passthrough",
+          "time_series_dimension": true,
+          "dynamic": true
+        },
+        "resource": {
+          "properties": {
+            "attributes": {
+              "type": "passthrough",
+              "time_series_dimension": true,
+              "dynamic": true
+            }
+          }
+        },
+        "scope": {
+          "properties": {
+            "attributes": {
+              "type": "passthrough",
+              "time_series_dimension": true,
+              "dynamic": true
+            }
+          }
+        },
         "start_time": {
           "type": "date_nanos"
         },
         "metrics": {
-          "properties": {
-            "gauge": {
-              "type": "object",
-              "dynamic": true
-            },
-            "up_down_counter": {
-              "type": "object",
-              "dynamic": true
-            },
-            "counter": {
-              "type": "object",
-              "dynamic": true
-            },
-            "histogram": {
-              "type": "object",
-              "dynamic": true
-            },
-            "summary": {
-              "type": "object",
-              "dynamic": true
-            }
-          }
+          "type": "passthrough",
+          "dynamic": true
         }
       },
       "dynamic_templates": [
         {
-          "units": {
-            "path_match": "metrics.*.*",
-            "path_unmatch": "metrics.*.*.*",
-            "match_mapping_type": "object",
+          "dimensions": {
+            "path_match": ["resource.attributes.*", "scope.attributes.*", "attributes.*"],
             "mapping": {
-              "type": "passthrough"
+              "type": "keyword"
             }
           }
         },
         {
           "histograms": {
-            "path_match": "metrics.histogram.*.*",
             "mapping": {
-              "type": "histogram"
+              "type": "histogram",
+              "ignore_malformed": true
             }
           }
         },
         {
           "counter": {
-            "path_match": "metrics.counter.*.*",
             "mapping": {
               "type": "{dynamic_type}",
-              "time_series_metric": "counter"
+              "time_series_metric": "counter",
+              "ignore_malformed": true
             }
           }
         },
         {
           "gauge": {
-            "path_match": "metrics.gauge.*.*",
             "mapping": {
               "type": "{dynamic_type}",
-              "time_series_metric": "gauge"
+              "time_series_metric": "gauge",
+              "ignore_malformed": true
             }
           }
         }

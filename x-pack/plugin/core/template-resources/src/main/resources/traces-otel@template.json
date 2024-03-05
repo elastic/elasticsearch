@@ -1,5 +1,5 @@
 {
-  "index_patterns": ["traces-*.otel-*"],
+  "index_patterns": ["traces-otel.*-*"],
   "priority": 120,
   "data_stream": {},
   "composed_of": [

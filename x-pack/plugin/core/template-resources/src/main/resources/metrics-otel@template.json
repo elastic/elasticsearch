@@ -1,5 +1,5 @@
 {
-  "index_patterns": ["metrics-*.otel-*"],
+  "index_patterns": ["metrics-otel.*-*"],
   "priority": 120,
   "data_stream": {},
   "composed_of": [
@@ -12,6 +12,13 @@
   ],
   "ignore_missing_component_templates": ["metrics@custom", "metrics-otel@custom"],
   "allow_auto_create": true,
+  "template": {
+    "settings": {
+      "index": {
+        "mode": "time_series"
+      }
+    }
+  },
   "_meta": {
     "description": "OpenTelemetry metrics template installed by x-pack",
     "managed": true

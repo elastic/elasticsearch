@@ -17,6 +17,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
@@ -821,6 +822,12 @@ public class LogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
     static void indexDoc(RestClient client, String dataStreamName, String doc) throws IOException {
         Request request = new Request("POST", "/" + dataStreamName + "/_doc?refresh=true");
         request.setJsonEntity(doc);
+        assertOK(client.performRequest(request));
+    }
+
+    static void bulk(RestClient client, String dataStreamName, List<String> bulkLines) throws IOException {
+        Request request = new Request("POST", "/" + dataStreamName + "/_bulk?refresh=true");
+        request.setJsonEntity(bulkLines.stream().map(s -> s.replace("\n", "")).collect(Collectors.joining("\n")) + "\n");
         assertOK(client.performRequest(request));
     }
 

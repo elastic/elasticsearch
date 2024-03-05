@@ -28,6 +28,7 @@ import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.search.NestedHelper;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -306,6 +307,15 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
                 parentFilter = context.bitsetFilter(Queries.newNonNestedFilter(context.indexVersionCreated()));
             }
             if (filterQuery != null) {
+                NestedObjectMapper mapper = context.nestedLookup().getNestedMappers().get(parentPath);
+                NestedHelper nestedHelper = new NestedHelper(context.nestedLookup(), context::isFieldMapped);
+                // We treat the provided filter as a filter over PARENT documents, so if it might match nested documents
+                // we need to adjust it.
+                if (nestedHelper.mightMatchNestedDocs(filterQuery)) {
+                    // Ensure that the query only returns parent documents matching `filterQuery`
+                    filterQuery = Queries.filtered(filterQuery, Queries.not(mapper.nestedTypeFilter()));
+                }
+                // Now join the filterQuery & parentFilter to provide the matching blocks of children
                 filterQuery = new ToChildBlockJoinQuery(filterQuery, parentFilter);
             }
             return vectorFieldType.createKnnQuery(queryVector, adjustedNumCands, filterQuery, vectorSimilarity, parentFilter);

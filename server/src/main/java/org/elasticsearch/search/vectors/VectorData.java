@@ -18,6 +18,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HexFormat;
@@ -67,6 +68,16 @@ public record VectorData(float[] floatVector, byte[] byteVector) implements Writ
             vec[i] = byteVector[i];
         }
         return vec;
+    }
+
+    public void addToBuffer(ByteBuffer byteBuffer) {
+        if (floatVector != null) {
+            for (float val : floatVector) {
+                byteBuffer.putFloat(val);
+            }
+        } else {
+            byteBuffer.put(byteVector);
+        }
     }
 
     @Override
@@ -153,4 +164,5 @@ public record VectorData(float[] floatVector, byte[] byteVector) implements Writ
     public static VectorData fromBytes(byte[] vec) {
         return vec == null ? null : new VectorData(vec);
     }
+
 }

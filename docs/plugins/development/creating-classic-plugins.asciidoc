@@ -18,7 +18,7 @@ will refuse to start in the presence of plugins with the incorrect
 [discrete]
 ==== Classic plugin file structure
 
-Classis plugins are ZIP files composed of JAR files and
+Classic plugins are ZIP files composed of JAR files and
 <<plugin-descriptor-file-{plugin-type},a metadata file called
 `plugin-descriptor.properties`>>, a Java properties file that describes the
 plugin.

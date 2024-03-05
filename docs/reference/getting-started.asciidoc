@@ -8,6 +8,8 @@ This guide helps you learn how to:
 * add simple (non-timestamped) dataset to {es},
 * run basic searches.
 
+Example well-intentioned docs PR against the 8.12 release branch because I clicked the edit button on the docs.
+
 [TIP]
 ====
 If you're interested in using {es} with Python, check out Elastic Search Labs. This is the best place to explore AI-powered search use cases, such as working with embeddings, vector search, and retrieval augmented generation (RAG).

@@ -123,7 +123,21 @@ public class HeapBufferedAsyncResponseConsumerTests extends RestClientTestCase {
     public void testHttpAsyncResponseConsumerFactoryVisibility() throws ClassNotFoundException {
         assertEquals(Modifier.PUBLIC, HttpAsyncResponseConsumerFactory.class.getModifiers() & Modifier.PUBLIC);
     }
-
+    public void testChunkedConfiguredBufferLimit() throws Exception {
+        try {
+            new HeapBufferedAsyncResponseConsumer(randomIntBetween(Integer.MIN_VALUE, 0));
+        } catch (IllegalArgumentException e) {
+            assertEquals("bufferLimit must be greater than 0", e.getMessage());
+        }
+        try {
+            new HeapBufferedAsyncResponseConsumer(0);
+        } catch (IllegalArgumentException e) {
+            assertEquals("bufferLimit must be greater than 0", e.getMessage());
+        }
+        int bufferLimit = randomIntBetween(1, MAX_TEST_BUFFER_SIZE - 100);
+        HeapBufferedAsyncResponseConsumer consumer = new HeapBufferedAsyncResponseConsumer(bufferLimit);
+        bufferLimitTest(consumer, bufferLimit);
+    }
     private static void bufferLimitTest(HeapBufferedAsyncResponseConsumer consumer, int bufferLimit) throws Exception {
         ProtocolVersion protocolVersion = new ProtocolVersion("HTTP", 1, 1);
         StatusLine statusLine = new BasicStatusLine(protocolVersion, 200, "OK");

@@ -828,6 +828,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             return Set.of();
         }
         Set<Index> indicesToBeRemoved = new HashSet<>();
+        TimeValue effectiveDataRetention = dataStream.getLifecycle().getEffectiveDataRetention();
         for (Index index : backingIndicesOlderThanRetention) {
             if (indicesToExcludeForRemainingRun.contains(index) == false) {
                 IndexMetadata backingIndex = metadata.index(index);
@@ -836,7 +837,6 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 IndexMetadata.DownsampleTaskStatus downsampleStatus = INDEX_DOWNSAMPLE_STATUS.get(backingIndex.getSettings());
                 // we don't want to delete the source index if they have an in-progress downsampling operation because the
                 // target downsample index will remain in the system as a standalone index
-                TimeValue effectiveDataRetention = dataStream.getLifecycle().getEffectiveDataRetention();
                 if (downsampleStatus.equals(UNKNOWN)) {
                     indicesToBeRemoved.add(index);
 

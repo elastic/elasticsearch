@@ -1,0 +1,109 @@
+[[learning-to-rank]]
+== Learning To Rank
+
+preview::["The Learning To Rank feature is in technical preview and may be changed or removed in a future release. Elastic will work to fix any issues, but this feature is not subject to the support SLA of official GA features."]
+
+NOTE: This feature is available for Elastic Stack versions 8.12.0 and newer and requires a https://www.elastic.co/pricing[Platinum subscription] or higher.
+
+Learning To Rank (LTR) is a technique used to build a complex machine learning (ML) -based ranking function for your search engine.
+
+The LTR function takes a list of documents and a search context and outputs ranked documents:
+
+[[learning-to-rank-overview-diagram]]
+.Learning To Rank overview
+image::images/search/learning-to-rank-overview.png[Learning To Rank overview,align="center"]
+
+
+[discrete]
+[[learning-to-rank-search-context]]
+=== Search context
+
+In addition to the list of documents to sort, the LTR function also requires a search context. Typically, this search context includes at least the search terms provided by the user ('text_query' in the example above).
+
+The search context can also be a lot more complex and provides information like demographic data (geolocation, age, …) data for the user who submitted the search.
+
+[discrete]
+[[learning-to-rank-judgement-list]]
+=== Judgement list
+In the context of LTR the judgment list is the main input used to train the ML model. It consists of a dataset that contains pairs of queries and documents, along with their corresponding relevance labels.
+The relevance label typically contains either a binary label (relevant/irrelevant) or a more granular one as shown in the example above where the label can be a grade, or number between 0 (not relevant at all) to 4 (highly relevant).
+
+[[learning-to-rank-judgment-list-example]]
+.Judgment list example
+image::images/search/learning-to-rank-judgment-list.png[Judgment list example,align="center"]
+
+[discrete]
+[[judgment-list-notes]]
+==== Notes on judgment lists
+
+While a judgment list can be created manually by humans, there are techniques available to utilize user engagement data, such as clicks or conversions, to construct such a judgment list automatically.
+
+The quantity and the quality of your judgment list will greatly influence the overall performance of the LTR model. The following aspects should be considered very carefully when building your judgment list:
+
+* Most search engines can be searched using different query types (e.g: for a movie search engine, users are searching by title but also by actor or director).  It is essential to maintain a balanced number of examples for each query type in your judgment list to prevent overfitting and allow the model to generalize effectively across all query types.
+
+* Users often provide more positive examples than negative ones. By balancing the number of positive and negative examples, you help the model learn to distinguish between relevant and irrelevant content more accurately.
+
+[discrete]
+[[learning-to-rank-feature-extraction]]
+=== Feature extraction
+
+The ML models used for LTR are not able to understand the query and document pair directly but require that we transform their properties into an array of numerical features.
+
+These features fall into one of three main categories:
+
+* Document features:
+  These features are derived directly from the document properties.
+  Examples: product price in an eCommerce store
+
+* Query features:
+  These features are computed directly from the query submitted by the user.
+  Examples: number of words in the query
+
+* Query-document features:
+  Features used to provide information about the document in the context of the query.
+  Examples: BM25 score for the title field, …
+
+To prepare the dataset for training, the features are added to the judgment list:
+
+[[learning-to-rank-judgement-feature-extraction]]
+.Judgment list with features
+image::images/search/learning-to-rank-feature-extraction.png[Judgment list with features,align="center"]
+
+To do this, we use templated queries to extract features both when building the training dataset and during inference at query time:
+
+[source,json]
+----
+[
+  {
+    "query_extractor": {
+      "feature_name": "title_bm25",
+      "query": { "match": { "title": "{{query}}" } }
+    }
+  }
+]
+----
+// NOTCONSOLE
+
+[discrete]
+[[learning-to-rank-models]]
+=== Models
+
+The heart of LTR is of course an ML model. A model is trained using the training data described above in combination with an objective. In the case of LTR, the objective is to rank result documents in an optimal way with respect to a judgment list, given some ranking metric such as https://en.wikipedia.org/wiki/Evaluation_measures_(information_retrieval)#Discounted_cumulative_gain[nDCG^] or https://en.wikipedia.org/wiki/Evaluation_measures_(information_retrieval)#Mean_average_precision[MAP^]. The model has access to only the features in the training data, as well as the associated relevance labels which are used in the ranking metric.
+
+Many approaches and model types exist for LTR and the field is continuing to evolve, however LTR inference in {es} relies specifically on gradient boosted decision tree (GBDT) models. In {es}, we also only support model inference and not the training process itself. As such, training an LTR model needs to happen outside of {es} and using a GBDT model. Among the most popular LTR models used today, LambdaMART provides strong ranking performance with low inference latencies. It relies on GBDT models and is thus a perfect fit for LTR in {es}.
+
+https://xgboost.readthedocs.io/en/stable/[XGBoost^] is a well known library that provides an https://xgboost.readthedocs.io/en/stable/tutorials/learning_to_rank.html[implementation^] of LambdaMART, making it a popular choice for LTR. We offer helpers in https://eland.readthedocs.io/[eland^] to facilitate the integration of a trained https://xgboost.readthedocs.io/en/stable/python/python_api.html#xgboost.XGBRanker[XBGRanker^] model as your LTR model in {es}.
+
+[discrete]
+[[learning-to-rank-in-the-elastic-stack]]
+=== Learning To Rank in the Elastic stack
+
+In the next pages of this guide you will learn to:
+
+* train and deploy a LTR model using eland
+
+* search using your LTR model
+
+include::learning-to-rank-model-training.asciidoc[]
+include::learning-to-rank-search-usage.asciidoc[]

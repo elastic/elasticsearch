@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.services.textembedding;
+package org.elasticsearch.xpack.inference.services.elasticsearch;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -17,7 +17,7 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import static org.elasticsearch.xpack.core.ml.inference.assignment.AllocationStatus.State.STARTED;
 
-public class CustomElandModel extends TextEmbeddingModel {
+public class CustomElandModel extends ElasticsearchModel {
 
     public CustomElandModel(
         String inferenceEntityId,

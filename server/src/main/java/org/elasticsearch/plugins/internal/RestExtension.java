@@ -8,6 +8,7 @@
 
 package org.elasticsearch.plugins.internal;
 
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.action.cat.AbstractCatAction;
 
@@ -38,12 +39,12 @@ public interface RestExtension {
         return new RestExtension() {
             @Override
             public Predicate<AbstractCatAction> getCatActionsFilter() {
-                return action -> true;
+                return Predicates.always();
             }
 
             @Override
             public Predicate<RestHandler> getActionsFilter() {
-                return handler -> true;
+                return Predicates.always();
             }
         };
     }

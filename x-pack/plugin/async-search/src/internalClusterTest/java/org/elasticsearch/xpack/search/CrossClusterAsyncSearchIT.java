@@ -582,8 +582,8 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
             assertThat(remoteClusterSearchInfo.getTook().millis(), greaterThan(0L));
             ShardSearchFailure remoteShardSearchFailure = remoteClusterSearchInfo.getFailures().get(0);
             assertTrue(
-                "should have 'index corrupted' in reason but was: " + localShardSearchFailure.reason(),
-                localShardSearchFailure.reason().contains("index corrupted")
+                "should have 'index corrupted' in reason but was: " + remoteShardSearchFailure.reason(),
+                remoteShardSearchFailure.reason().contains("index corrupted")
             );
         } finally {
             finishedResponse.decRef();

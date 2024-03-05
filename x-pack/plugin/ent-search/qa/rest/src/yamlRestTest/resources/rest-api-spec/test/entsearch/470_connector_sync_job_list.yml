@@ -50,10 +50,10 @@ setup:
 
   - match: { count: 3 }
 
-  # Ascending order by creation_date for results
-  - match: { results.0.id: $sync-job-one-id }
+  # Descending order by creation_date for results
+  - match: { results.0.id: $sync-job-three-id }
   - match: { results.1.id: $sync-job-two-id }
-  - match: { results.2.id: $sync-job-three-id }
+  - match: { results.2.id: $sync-job-one-id }
 
 ---
 "List Connector Sync Jobs - with from":
@@ -84,9 +84,9 @@ setup:
 
   - match: { count: 3 }
 
-  # Ascending order by creation_date for results
-  - match: { results.0.id: $sync-job-two-id }
-  - match: { results.1.id: $sync-job-three-id }
+  # Descending order by creation_date for results
+  - match: { results.0.id: $sync-job-three-id }
+  - match: { results.1.id: $sync-job-two-id }
 
 ---
 "List Connector Sync Jobs - with size":

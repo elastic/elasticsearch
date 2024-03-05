@@ -320,7 +320,7 @@ public class RemoteClusterSecurityApiKeyRestIT extends AbstractRemoteClusterSecu
                 )
             );
 
-            // Check that authentication fails if we use a non-existent cross cluster access API key
+            // Check that authentication fails if we use a non-existent cross cluster access API key (when skip_unavailable=false)
             updateClusterSettings(
                 randomBoolean()
                     ? Settings.builder()
@@ -328,6 +328,7 @@ public class RemoteClusterSecurityApiKeyRestIT extends AbstractRemoteClusterSecu
                         .build()
                     : Settings.builder()
                         .put("cluster.remote.invalid_remote.mode", "proxy")
+                        .put("cluster.remote.invalid_remote.skip_unavailable", "false")
                         .put("cluster.remote.invalid_remote.proxy_address", fulfillingCluster.getRemoteClusterServerEndpoint(0))
                         .build()
             );

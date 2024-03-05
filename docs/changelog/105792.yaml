@@ -1,11 +1,11 @@
 pr: 105792
-summary: Change `skip_unavailable` default value to true
+summary: "Change `skip_unavailable` remote cluster setting default value to true"
 area: Search
 type: breaking
 issues: []
 breaking:
-  title: Change `skip_unavailable` default value to true
-  area: Search
+  title: "Change `skip_unavailable` remote cluster setting default value to true"
+  area: Cluster and node setting
   details: The default value of the `skip_unavailable` setting is now set to true.
     All existing and future remote clusters that do not define this setting will use the new default.
     This setting only affects cross-cluster searches using the _search or _async_search API.

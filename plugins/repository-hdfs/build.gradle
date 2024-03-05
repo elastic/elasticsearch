@@ -187,7 +187,11 @@ for (int hadoopVersion = minTestedHadoopVersion; hadoopVersion <= maxTestedHadoo
                 }
             }
             testClassesDirs = sourceSets.javaRestTest.output.classesDirs
-            classpath = sourceSets.javaRestTest.runtimeClasspath + files(portsFileDir)
+            // Set the keytab files in the classpath so that we can access them from test code without the security manager
+            // freaking out.
+            classpath = sourceSets.javaRestTest.runtimeClasspath +
+              configurations.krb5Keytabs +
+              files(portsFileDir)
         }
     }
 

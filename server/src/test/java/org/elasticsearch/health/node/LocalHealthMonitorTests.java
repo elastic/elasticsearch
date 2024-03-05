@@ -77,7 +77,6 @@ public class LocalHealthMonitorTests extends ESTestCase {
     }
 
     @Before
-    @SuppressWarnings("unchecked")
     public void setUp() throws Exception {
         super.setUp();
         // Set-up cluster state
@@ -338,11 +337,12 @@ public class LocalHealthMonitorTests extends ESTestCase {
     private ClusterState mutateState(ClusterState previous) {
         var masterNode = previous.nodes().getMasterNode();
         var healthNode = HealthNode.findHealthNode(previous);
+        var randomNode = DiscoveryNodeUtils.create(randomAlphaOfLength(10), randomAlphaOfLength(10));
         switch (randomInt(1)) {
-            case 0 -> masterNode = randomValueOtherThan(masterNode, () -> randomFrom(node, frozenNode));
-            case 1 -> healthNode = randomValueOtherThan(healthNode, () -> randomFrom(node, frozenNode));
+            case 0 -> masterNode = randomValueOtherThan(masterNode, () -> randomFrom(node, frozenNode, randomNode));
+            case 1 -> healthNode = randomValueOtherThan(healthNode, () -> randomFrom(node, frozenNode, randomNode));
         }
-        return ClusterStateCreationUtils.state(node, masterNode, healthNode, new DiscoveryNode[] { node, frozenNode })
+        return ClusterStateCreationUtils.state(node, masterNode, healthNode, new DiscoveryNode[] { node, frozenNode, randomNode })
             .copyAndUpdate(b -> b.putCustom(HealthMetadata.TYPE, healthMetadata));
     }
 

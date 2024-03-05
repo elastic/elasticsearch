@@ -34,10 +34,9 @@ public interface InferenceServiceResults extends NamedWriteable, ToXContentFragm
     List<? extends InferenceResults> transformToLegacyFormat();
 
     /**
-     * Retrieves a map representation of the results. It should be equivalent to parsing the
-     * XContent representation of the results.
+     * Convert the result to a map to aid with test assertions
      *
-     * @return the results as a map
+     * @return a map
      */
     Map<String, Object> asMap();
 }

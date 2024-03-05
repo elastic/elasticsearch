@@ -64,6 +64,7 @@ public class TransportFindFieldStructureAction extends HandledTransportAction<Fi
                     listener.onFailure(
                         new IllegalArgumentException("Input contained too few lines [" + hitCount + "] to obtain a meaningful sample")
                     );
+                    return;
                 }
                 List<String> messages = getMessages(searchResponse, request.getField());
                 try {

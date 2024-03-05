@@ -113,6 +113,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     private final boolean rolloverOnWrite;
     private final boolean failureStore;
     private final List<Index> failureIndices;
+    private volatile Set<String> failureStoreLookup;
 
     public DataStream(
         String name,
@@ -279,6 +280,20 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     @Nullable
     public Index getFailureStoreWriteIndex() {
         return isFailureStore() == false || failureIndices.isEmpty() ? null : failureIndices.get(failureIndices.size() - 1);
+    }
+
+    /**
+     * Returns true if the index name provided belongs to a failure store index.
+     * This method builds a local Set with all the failure store index names and then checks if it contains the name.
+     * This will perform better if there are multiple indices of this data stream checked.
+     */
+    public boolean isFailureStoreIndex(String indexName) {
+        if (failureStoreLookup == null) {
+            // There is a chance this will be calculated twice, but it's a relatively cheap action,
+            // so it's not worth synchronising
+            failureStoreLookup = failureIndices.stream().map(Index::getName).collect(Collectors.toSet());
+        }
+        return failureStoreLookup.contains(indexName);
     }
 
     public boolean rolloverOnWrite() {

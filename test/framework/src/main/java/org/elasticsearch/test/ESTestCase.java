@@ -192,6 +192,30 @@ import static org.hamcrest.Matchers.startsWith;
 @LuceneTestCase.SuppressReproduceLine
 public abstract class ESTestCase extends LuceneTestCase {
 
+    // A temporary list of ignored timezones.
+    //
+    // These should be cleaned up when all tested jdks (oracle, adoptopenjdk, openjdk etc) have the timezone db included
+    // see when a timezone was included in jdk version here https://www.oracle.com/java/technologies/tzdata-versions.html
+    // In some cases Joda and the JDK timezone data might also be out of sync,
+    // see https://github.com/elastic/elasticsearch/issues/82356
+    protected static final Set<String> IGNORED_TIMEZONE_IDS = Collections.unmodifiableSet(
+        new HashSet<>(
+            Arrays.asList(
+                "Eire",
+                "Europe/Dublin", // dublin timezone in joda does not account for DST
+                "Asia/Qostanay", // part of tzdata2018h
+                "America/Godthab", // part of tzdata2020a (maps to America/Nuuk)
+                "America/Nuuk", // part of tzdata2020a
+                "America/Ciudad_Juarez", // part of tzdata2022g
+                "America/Pangnirtung", // part of tzdata2022g
+                "Europe/Kyiv", // part of tzdata2022c,
+                "Pacific/Kanton", // part of tzdata2021b
+                "Pacific/Niue",
+                "Antarctica/Vostok"
+            )
+        )
+    );
+
     protected static final List<String> JODA_TIMEZONE_IDS;
     protected static final List<String> JAVA_TIMEZONE_IDS;
     protected static final List<String> JAVA_ZONE_IDS;
@@ -1058,8 +1082,17 @@ public abstract class ESTestCase extends LuceneTestCase {
      * still need to do internally e.g. in bwc serialization and in the extract() method
      * //TODO remove once joda is not supported
      */
-    private static String randomJodaAndJavaSupportedTimezone(List<String> zoneIds) {
-        return randomValueOtherThanMany(id -> JODA_TIMEZONE_IDS.contains(id) == false, () -> randomFrom(zoneIds));
+    private static boolean rejectTimezone(String zoneId) {
+        // reject if unknown to joda
+        return JODA_TIMEZONE_IDS.contains(zoneId) == false
+            // reject ignored ids
+            || IGNORED_TIMEZONE_IDS.contains(zoneId)
+            // some timezones get mapped back to problematic timezones
+            || IGNORED_TIMEZONE_IDS.contains(DateTimeZone.forID(zoneId).toString());
+    }
+
+    protected static String randomJodaAndJavaSupportedTimezone(List<String> javaZoneIds) {
+        return randomValueOtherThanMany(ESTestCase::rejectTimezone, () -> randomFrom(javaZoneIds));
     }
 
     /**
@@ -1099,13 +1132,13 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
-     * helper to get a random value in a certain range that's different from the input
+     * Helper to repeatedly get a random value until it doesn't match the reject predicate.
      */
-    public static <T> T randomValueOtherThanMany(Predicate<T> input, Supplier<T> randomSupplier) {
+    public static <T> T randomValueOtherThanMany(Predicate<T> reject, Supplier<T> randomSupplier) {
         T randomValue = null;
         do {
             randomValue = randomSupplier.get();
-        } while (input.test(randomValue));
+        } while (reject.test(randomValue));
         return randomValue;
     }
 

@@ -32,7 +32,6 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -59,7 +58,7 @@ public class SenderServiceTests extends ESTestCase {
         var sender = mock(Sender.class);
 
         var factory = mock(HttpRequestSender.Factory.class);
-        when(factory.createSender(anyString(), any())).thenReturn(sender);
+        when(factory.createSender(anyString())).thenReturn(sender);
 
         try (var service = new TestSenderService(factory, createWithEmptySettings(threadPool))) {
             PlainActionFuture<Boolean> listener = new PlainActionFuture<>();
@@ -67,7 +66,7 @@ public class SenderServiceTests extends ESTestCase {
 
             listener.actionGet(TIMEOUT);
             verify(sender, times(1)).start();
-            verify(factory, times(1)).createSender(anyString(), any());
+            verify(factory, times(1)).createSender(anyString());
         }
 
         verify(sender, times(1)).close();
@@ -79,7 +78,7 @@ public class SenderServiceTests extends ESTestCase {
         var sender = mock(Sender.class);
 
         var factory = mock(HttpRequestSender.Factory.class);
-        when(factory.createSender(anyString(), any())).thenReturn(sender);
+        when(factory.createSender(anyString())).thenReturn(sender);
 
         try (var service = new TestSenderService(factory, createWithEmptySettings(threadPool))) {
             PlainActionFuture<Boolean> listener = new PlainActionFuture<>();
@@ -89,7 +88,7 @@ public class SenderServiceTests extends ESTestCase {
             service.start(mock(Model.class), listener);
             listener.actionGet(TIMEOUT);
 
-            verify(factory, times(1)).createSender(anyString(), any());
+            verify(factory, times(1)).createSender(anyString());
             verify(sender, times(2)).start();
         }
 

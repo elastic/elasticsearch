@@ -73,14 +73,14 @@ class RequestExecutorService implements RequestExecutor {
     private final ThreadPool threadPool;
     private final CountDownLatch startupLatch;
     private final BlockingQueue<Runnable> controlQueue = new LinkedBlockingQueue<>();
-    private final RequestManager requestManager;
+    private final SingleRequestManager requestManager;
 
     RequestExecutorService(
         String serviceName,
         ThreadPool threadPool,
         @Nullable CountDownLatch startupLatch,
         RequestExecutorServiceSettings settings,
-        RequestManager requestManager
+        SingleRequestManager requestManager
     ) {
         this(serviceName, threadPool, QUEUE_CREATOR, startupLatch, settings, requestManager);
     }
@@ -94,7 +94,7 @@ class RequestExecutorService implements RequestExecutor {
         AdjustableCapacityBlockingQueue.QueueCreator<RejectableTask> createQueue,
         @Nullable CountDownLatch startupLatch,
         RequestExecutorServiceSettings settings,
-        RequestManager requestManager
+        SingleRequestManager requestManager
     ) {
         this.serviceName = Objects.requireNonNull(serviceName);
         this.threadPool = Objects.requireNonNull(threadPool);

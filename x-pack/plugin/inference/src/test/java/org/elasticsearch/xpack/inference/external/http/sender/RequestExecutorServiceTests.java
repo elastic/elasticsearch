@@ -17,7 +17,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
+import org.elasticsearch.xpack.inference.external.http.retry.RetryingHttpSender;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
@@ -81,7 +81,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
 
     public void testIsTerminated_IsTrue() throws InterruptedException {
         var latch = new CountDownLatch(1);
-        var service = createRequestExecutorService(latch, mock(RequestSender.class));
+        var service = createRequestExecutorService(latch, mock(RetryingHttpSender.class));
 
         service.shutdown();
         service.start();
@@ -94,7 +94,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
         var waitToShutdown = new CountDownLatch(1);
         var waitToReturnFromSend = new CountDownLatch(1);
 
-        var requestSender = mock(RequestSender.class);
+        var requestSender = mock(RetryingHttpSender.class);
         doAnswer(invocation -> {
             waitToShutdown.countDown();
             waitToReturnFromSend.await(TIMEOUT.getSeconds(), TimeUnit.SECONDS);
@@ -148,7 +148,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
             threadPool,
             null,
             RequestExecutorServiceSettingsTests.createRequestExecutorServiceSettings(1),
-            new SingleRequestManager(mock(RequestSender.class))
+            new SingleRequestManager(mock(RetryingHttpSender.class))
         );
 
         service.execute(ExecutableRequestCreatorTests.createMock(), List.of(), null, new PlainActionFuture<>());
@@ -165,7 +165,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
     }
 
     public void testTaskThrowsError_CallsOnFailure() {
-        var requestSender = mock(RequestSender.class);
+        var requestSender = mock(RetryingHttpSender.class);
 
         var service = createRequestExecutorService(null, requestSender);
 
@@ -244,7 +244,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
             mockQueueCreator(queue),
             null,
             createRequestExecutorServiceSettingsEmpty(),
-            new SingleRequestManager(mock(RequestSender.class))
+            new SingleRequestManager(mock(RetryingHttpSender.class))
         );
 
         when(queue.take()).thenThrow(new ElasticsearchException("failed")).thenAnswer(invocation -> {
@@ -268,7 +268,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
             mockQueueCreator(queue),
             null,
             createRequestExecutorServiceSettingsEmpty(),
-            new SingleRequestManager(mock(RequestSender.class))
+            new SingleRequestManager(mock(RetryingHttpSender.class))
         );
 
         Future<?> executorTermination = threadPool.generic().submit(() -> {
@@ -296,7 +296,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
             mockQueueCreator(queue),
             null,
             createRequestExecutorServiceSettingsEmpty(),
-            new SingleRequestManager(mock(RequestSender.class))
+            new SingleRequestManager(mock(RetryingHttpSender.class))
         );
 
         doAnswer(invocation -> {
@@ -322,7 +322,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
     }
 
     public void testChangingCapacity_SetsCapacityToTwo() throws ExecutionException, InterruptedException, TimeoutException {
-        var requestSender = mock(RequestSender.class);
+        var requestSender = mock(RetryingHttpSender.class);
 
         var settings = createRequestExecutorServiceSettings(1);
         var service = new RequestExecutorService("test_service", threadPool, null, settings, new SingleRequestManager(requestSender));
@@ -361,7 +361,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
 
     public void testChangingCapacity_DoesNotRejectsOverflowTasks_BecauseOfQueueFull() throws ExecutionException, InterruptedException,
         TimeoutException {
-        var requestSender = mock(RequestSender.class);
+        var requestSender = mock(RetryingHttpSender.class);
 
         var settings = createRequestExecutorServiceSettings(3);
         var service = new RequestExecutorService("test_service", threadPool, null, settings, new SingleRequestManager(requestSender));
@@ -406,7 +406,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
 
     public void testChangingCapacity_ToZero_SetsQueueCapacityToUnbounded() throws IOException, ExecutionException, InterruptedException,
         TimeoutException {
-        var requestSender = mock(RequestSender.class);
+        var requestSender = mock(RetryingHttpSender.class);
 
         var settings = createRequestExecutorServiceSettings(1);
         var service = new RequestExecutorService("test_service", threadPool, null, settings, new SingleRequestManager(requestSender));
@@ -463,10 +463,10 @@ public class RequestExecutorServiceTests extends ESTestCase {
     }
 
     private RequestExecutorService createRequestExecutorServiceWithMocks() {
-        return createRequestExecutorService(null, mock(RequestSender.class));
+        return createRequestExecutorService(null, mock(RetryingHttpSender.class));
     }
 
-    private RequestExecutorService createRequestExecutorService(@Nullable CountDownLatch startupLatch, RequestSender requestSender) {
+    private RequestExecutorService createRequestExecutorService(@Nullable CountDownLatch startupLatch, RetryingHttpSender requestSender) {
         return new RequestExecutorService(
             "test_service",
             threadPool,

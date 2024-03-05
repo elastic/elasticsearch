@@ -8,35 +8,23 @@
 package org.elasticsearch.xpack.inference.external.http.sender;
 
 import org.apache.http.client.protocol.HttpClientContext;
-import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
+import org.elasticsearch.xpack.inference.external.http.retry.RetryingHttpSender;
 
 import java.util.Objects;
 
 /**
  * Handles executing a single inference request at a time.
  */
-public class SingleRequestManager implements RequestManager {
+public class SingleRequestManager {
 
-    public static class Factory implements RequestManagerFactory {
+    protected RetryingHttpSender requestSender;
 
-        @Override
-        public RequestManager create(RequestSender requestSender) {
-            return new SingleRequestManager(requestSender);
-        }
-    }
-
-    protected RequestSender requestSender;
-
-    SingleRequestManager(RequestSender requestSender) {
+    public SingleRequestManager(RetryingHttpSender requestSender) {
         this.requestSender = Objects.requireNonNull(requestSender);
     }
 
-    @Override
     public void execute(InferenceRequest inferenceRequest, HttpClientContext context) {
-        if (inferenceRequest.getRequestCreator() == null
-            || inferenceRequest.getInput() == null
-            || inferenceRequest.getListener() == null
-            || inferenceRequest.hasCompleted()) {
+        if (isNoopRequest(inferenceRequest) || inferenceRequest.hasCompleted()) {
             return;
         }
 
@@ -49,5 +37,11 @@ public class SingleRequestManager implements RequestManager {
                 inferenceRequest.getListener()
             )
             .run();
+    }
+
+    private static boolean isNoopRequest(InferenceRequest inferenceRequest) {
+        return inferenceRequest.getRequestCreator() == null
+            || inferenceRequest.getInput() == null
+            || inferenceRequest.getListener() == null;
     }
 }

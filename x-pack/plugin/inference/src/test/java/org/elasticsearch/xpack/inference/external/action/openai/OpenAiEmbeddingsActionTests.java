@@ -23,7 +23,6 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
-import org.elasticsearch.xpack.inference.external.http.sender.SingleRequestManager;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.ServiceComponentsTests;
 import org.junit.After;
@@ -77,7 +76,7 @@ public class OpenAiEmbeddingsActionTests extends ESTestCase {
             mockClusterServiceEmpty()
         );
 
-        try (var sender = senderFactory.createSender("test_service", new SingleRequestManager.Factory())) {
+        try (var sender = senderFactory.createSender("test_service")) {
             sender.start();
 
             String responseJson = """

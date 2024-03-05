@@ -18,7 +18,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
-import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
 import org.elasticsearch.xpack.inference.external.http.retry.RetrySettings;
 import org.elasticsearch.xpack.inference.external.http.retry.RetryingHttpSender;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
@@ -45,28 +44,30 @@ public class HttpRequestSender implements Sender {
         private final ServiceComponents serviceComponents;
         private final HttpClientManager httpClientManager;
         private final ClusterService clusterService;
-        private final RequestSender requestSender;
+        private final SingleRequestManager requestManager;
 
         public Factory(ServiceComponents serviceComponents, HttpClientManager httpClientManager, ClusterService clusterService) {
             this.serviceComponents = Objects.requireNonNull(serviceComponents);
             this.httpClientManager = Objects.requireNonNull(httpClientManager);
             this.clusterService = Objects.requireNonNull(clusterService);
-            this.requestSender = new RetryingHttpSender(
+
+            var requestSender = new RetryingHttpSender(
                 this.httpClientManager.getHttpClient(),
                 serviceComponents.throttlerManager(),
                 new RetrySettings(serviceComponents.settings(), clusterService),
                 serviceComponents.threadPool()
             );
+            requestManager = new SingleRequestManager(requestSender);
         }
 
-        public Sender createSender(String serviceName, RequestManagerFactory requestManagerFactory) {
+        public Sender createSender(String serviceName) {
             return new HttpRequestSender(
                 serviceName,
                 serviceComponents.threadPool(),
                 httpClientManager,
                 clusterService,
                 serviceComponents.settings(),
-                requestManagerFactory.create(requestSender)
+                requestManager
             );
         }
     }
@@ -99,7 +100,7 @@ public class HttpRequestSender implements Sender {
         HttpClientManager httpClientManager,
         ClusterService clusterService,
         Settings settings,
-        RequestManager requestManager
+        SingleRequestManager requestManager
     ) {
         this.threadPool = Objects.requireNonNull(threadPool);
         this.manager = Objects.requireNonNull(httpClientManager);

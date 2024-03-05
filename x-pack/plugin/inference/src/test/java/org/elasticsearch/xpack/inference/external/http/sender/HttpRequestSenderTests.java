@@ -79,7 +79,7 @@ public class HttpRequestSenderTests extends ESTestCase {
     public void testCreateSender_SendsRequestAndReceivesResponse() throws Exception {
         var senderFactory = createSenderFactory(clientManager, threadRef);
 
-        try (var sender = senderFactory.createSender("test_service", new SingleRequestManager.Factory())) {
+        try (var sender = senderFactory.createSender("test_service")) {
             sender.start();
 
             String responseJson = """
@@ -134,7 +134,7 @@ public class HttpRequestSenderTests extends ESTestCase {
             mockClusterServiceEmpty()
         );
 
-        try (var sender = senderFactory.createSender("test_service", new SingleRequestManager.Factory())) {
+        try (var sender = senderFactory.createSender("test_service")) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             var thrownException = expectThrows(
                 AssertionError.class,
@@ -154,7 +154,7 @@ public class HttpRequestSenderTests extends ESTestCase {
             mockClusterServiceEmpty()
         );
 
-        try (var sender = senderFactory.createSender("test_service", new SingleRequestManager.Factory())) {
+        try (var sender = senderFactory.createSender("test_service")) {
             assertThat(sender, instanceOf(HttpRequestSender.class));
             // hack to get around the sender interface so we can set the timeout directly
             var httpSender = (HttpRequestSender) sender;
@@ -183,7 +183,7 @@ public class HttpRequestSenderTests extends ESTestCase {
             mockClusterServiceEmpty()
         );
 
-        try (var sender = senderFactory.createSender("test_service", new SingleRequestManager.Factory())) {
+        try (var sender = senderFactory.createSender("test_service")) {
             sender.start();
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
@@ -241,6 +241,6 @@ public class HttpRequestSenderTests extends ESTestCase {
     }
 
     public static Sender createSenderWithSingleRequestManager(HttpRequestSender.Factory factory, String serviceName) {
-        return factory.createSender(serviceName, new SingleRequestManager.Factory());
+        return factory.createSender(serviceName);
     }
 }

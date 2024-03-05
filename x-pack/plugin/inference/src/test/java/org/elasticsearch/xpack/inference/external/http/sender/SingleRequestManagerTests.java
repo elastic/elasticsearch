@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.inference.external.http.sender;
 
 import org.apache.http.client.protocol.HttpClientContext;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
+import org.elasticsearch.xpack.inference.external.http.retry.RetryingHttpSender;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -21,7 +21,7 @@ public class SingleRequestManagerTests extends ESTestCase {
         var request = mock(InferenceRequest.class);
         when(request.getRequestCreator()).thenReturn(requestCreator);
 
-        new SingleRequestManager(mock(RequestSender.class)).execute(mock(InferenceRequest.class), HttpClientContext.create());
+        new SingleRequestManager(mock(RetryingHttpSender.class)).execute(mock(InferenceRequest.class), HttpClientContext.create());
         verifyNoInteractions(requestCreator);
     }
 }

@@ -21,7 +21,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
-import org.elasticsearch.xpack.inference.external.http.sender.SingleRequestManager;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.junit.After;
 import org.junit.Before;
@@ -69,7 +68,7 @@ public class OpenAiActionCreatorTests extends ESTestCase {
     public void testCreate_OpenAiEmbeddingsModel() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var sender = senderFactory.createSender("test_service", new SingleRequestManager.Factory())) {
+        try (var sender = senderFactory.createSender("test_service")) {
             sender.start();
 
             String responseJson = """
@@ -122,7 +121,7 @@ public class OpenAiActionCreatorTests extends ESTestCase {
     public void testCreate_OpenAiEmbeddingsModel_WithoutUser() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var sender = senderFactory.createSender("test_service", new SingleRequestManager.Factory())) {
+        try (var sender = senderFactory.createSender("test_service")) {
             sender.start();
 
             String responseJson = """
@@ -174,7 +173,7 @@ public class OpenAiActionCreatorTests extends ESTestCase {
     public void testCreate_OpenAiEmbeddingsModel_WithoutOrganization() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var sender = senderFactory.createSender("test_service", new SingleRequestManager.Factory())) {
+        try (var sender = senderFactory.createSender("test_service")) {
             sender.start();
 
             String responseJson = """
@@ -233,7 +232,7 @@ public class OpenAiActionCreatorTests extends ESTestCase {
         );
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager, settings);
 
-        try (var sender = senderFactory.createSender("test_service", new SingleRequestManager.Factory())) {
+        try (var sender = senderFactory.createSender("test_service")) {
             sender.start();
 
             String responseJson = """
@@ -287,7 +286,7 @@ public class OpenAiActionCreatorTests extends ESTestCase {
     public void testExecute_ReturnsSuccessfulResponse_AfterTruncating_From413StatusCode() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var sender = senderFactory.createSender("test_service", new SingleRequestManager.Factory())) {
+        try (var sender = senderFactory.createSender("test_service")) {
             sender.start();
 
             var contentTooLargeErrorMessage =
@@ -370,7 +369,7 @@ public class OpenAiActionCreatorTests extends ESTestCase {
     public void testExecute_ReturnsSuccessfulResponse_AfterTruncating_From400StatusCode() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var sender = senderFactory.createSender("test_service", new SingleRequestManager.Factory())) {
+        try (var sender = senderFactory.createSender("test_service")) {
             sender.start();
 
             var contentTooLargeErrorMessage =
@@ -453,7 +452,7 @@ public class OpenAiActionCreatorTests extends ESTestCase {
     public void testExecute_TruncatesInputBeforeSending() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var sender = senderFactory.createSender("test_service", new SingleRequestManager.Factory())) {
+        try (var sender = senderFactory.createSender("test_service")) {
             sender.start();
 
             String responseJson = """

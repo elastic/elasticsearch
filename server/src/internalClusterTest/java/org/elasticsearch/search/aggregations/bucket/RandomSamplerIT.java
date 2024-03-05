@@ -85,6 +85,7 @@ public class RandomSamplerIT extends ESIntegTestCase {
         ensureSearchable();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105839")
     public void testRandomSamplerConsistentSeed() {
         double[] sampleMonotonicValue = new double[1];
         double[] sampleNumericValue = new double[1];

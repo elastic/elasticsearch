@@ -103,19 +103,17 @@ public class DataFrameAnalyticsConfigProvider {
         TimeValue timeout,
         ActionListener<DataFrameAnalyticsConfig> listener
     ) {
-
-        ActionListener<AcknowledgedResponse> deleteLeftOverDocsListener = ActionListener.wrap(
-            r -> index(prepareConfigForIndex(config, headers), null, listener),
-            listener::onFailure
-        );
-
-        ActionListener<Boolean> existsListener = ActionListener.wrap(exists -> {
+        ActionListener<Boolean> existsListener = listener.delegateFailureAndWrap((l, exists) -> {
             if (exists) {
-                listener.onFailure(ExceptionsHelper.dataFrameAnalyticsAlreadyExists(config.getId()));
+                l.onFailure(ExceptionsHelper.dataFrameAnalyticsAlreadyExists(config.getId()));
             } else {
-                deleteLeftOverDocs(config, timeout, deleteLeftOverDocsListener);
+                deleteLeftOverDocs(
+                    config,
+                    timeout,
+                    l.delegateFailureAndWrap((ll, r) -> index(prepareConfigForIndex(config, headers), null, ll))
+                );
             }
-        }, listener::onFailure);
+        });
 
         exists(config.getId(), existsListener);
     }
@@ -194,10 +192,10 @@ public class DataFrameAnalyticsConfigProvider {
             DataFrameAnalyticsConfig updatedConfig = updatedConfigBuilder.build();
 
             // Index the update config
-            index(updatedConfig, getResponse, ActionListener.wrap(indexedConfig -> {
+            index(updatedConfig, getResponse, listener.delegateFailureAndWrap((l, indexedConfig) -> {
                 auditor.info(id, Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_AUDIT_UPDATED, update.getUpdatedFields()));
-                listener.onResponse(indexedConfig);
-            }, listener::onFailure));
+                l.onResponse(indexedConfig);
+            }));
         }, listener::onFailure));
     }
 
@@ -269,20 +267,26 @@ public class DataFrameAnalyticsConfigProvider {
     public void get(String id, ActionListener<DataFrameAnalyticsConfig> listener) {
         GetDataFrameAnalyticsAction.Request request = new GetDataFrameAnalyticsAction.Request();
         request.setResourceId(id);
-        executeAsyncWithOrigin(client, ML_ORIGIN, GetDataFrameAnalyticsAction.INSTANCE, request, ActionListener.wrap(response -> {
-            List<DataFrameAnalyticsConfig> analytics = response.getResources().results();
-            if (analytics.size() != 1) {
-                listener.onFailure(
-                    ExceptionsHelper.badRequestException(
-                        "Expected a single match for data frame analytics [{}] " + "but got [{}]",
-                        id,
-                        analytics.size()
-                    )
-                );
-            } else {
-                listener.onResponse(analytics.get(0));
-            }
-        }, listener::onFailure));
+        executeAsyncWithOrigin(
+            client,
+            ML_ORIGIN,
+            GetDataFrameAnalyticsAction.INSTANCE,
+            request,
+            listener.delegateFailureAndWrap((delegate, response) -> {
+                List<DataFrameAnalyticsConfig> analytics = response.getResources().results();
+                if (analytics.size() != 1) {
+                    delegate.onFailure(
+                        ExceptionsHelper.badRequestException(
+                            "Expected a single match for data frame analytics [{}] " + "but got [{}]",
+                            id,
+                            analytics.size()
+                        )
+                    );
+                } else {
+                    delegate.onResponse(analytics.get(0));
+                }
+            })
+        );
     }
 
     /**
@@ -298,7 +302,7 @@ public class DataFrameAnalyticsConfigProvider {
             ML_ORIGIN,
             GetDataFrameAnalyticsAction.INSTANCE,
             request,
-            ActionListener.wrap(response -> listener.onResponse(response.getResources().results()), listener::onFailure)
+            listener.delegateFailureAndWrap((l, response) -> l.onResponse(response.getResources().results()))
         );
     }
 

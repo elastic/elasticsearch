@@ -137,6 +137,7 @@ public class SingleValueQueryTests extends MapperServiceTestCase {
         );
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105918")
     public void testNotMatchSome() throws IOException {
         int max = between(1, 100);
         testCase(

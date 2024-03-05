@@ -79,7 +79,8 @@ public class DesiredBalanceComputer {
 
         if (logger.isTraceEnabled()) {
             logger.trace(
-                "Recomputing desired balance for {}, {}, {}, {}",
+                "Recomputing desired balance for [{}]: {}, {}, {}, {}",
+                desiredBalanceInput.index(),
                 previousDesiredBalance,
                 desiredBalanceInput.routingAllocation().routingNodes().toString(),
                 desiredBalanceInput.routingAllocation().clusterInfo().toString(),

@@ -142,7 +142,7 @@ profile fetch:
   - gt: { profile.shards.0.fetch.breakdown.load_stored_fields: 0 }
   - match: { profile.shards.0.fetch.debug.stored_fields: [_id, _routing, _source] }
   - length: { profile.shards.0.fetch.children: 4 }
-  - match: { profile.shards.0.fetch.children.0.type: FetchIgnoredMetadataPhase }
+  - match: { profile.shards.0.fetch.children.0.type: FetchFieldsPhase }
   - gt: { profile.shards.0.fetch.children.0.breakdown.next_reader_count: 0 }
   - gt: { profile.shards.0.fetch.children.0.breakdown.next_reader: 0 }
   - gt: { profile.shards.0.fetch.children.0.breakdown.next_reader_count: 0 }

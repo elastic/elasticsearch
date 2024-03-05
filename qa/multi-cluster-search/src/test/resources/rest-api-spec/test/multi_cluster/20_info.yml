@@ -126,7 +126,7 @@
   - do:
       cluster.remote_info: {}
 
-  - is_true: remote1.skip_unavailable  # TODO: this line is failing
+  - is_false: remote1.skip_unavailable
 
   - do:
       cluster.put_settings:

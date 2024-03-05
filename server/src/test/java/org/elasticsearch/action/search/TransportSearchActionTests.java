@@ -475,6 +475,7 @@ public class TransportSearchActionTests extends ESTestCase {
             knownNodes.add(remoteSeedNode);
             nodes[i] = remoteSeedNode;
             settingsBuilder.put("cluster.remote.remote" + i + ".seeds", remoteSeedNode.getAddress().toString());
+            settingsBuilder.put("cluster.remote.remote" + i + ".skip_unavailable", "false");
             remoteIndices.put("remote" + i, new OriginalIndices(new String[] { "index" }, IndicesOptions.lenientExpandOpen()));
         }
         return mockTransportServices;

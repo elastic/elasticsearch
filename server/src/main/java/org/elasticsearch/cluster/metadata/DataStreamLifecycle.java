@@ -139,7 +139,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
      */
     @Nullable
     public TimeValue getEffectiveDataRetention(@Nullable DataStreamGlobalRetention globalRetention) {
-        var dataStreamRetention = dataRetention == null ? null : dataRetention.value;
+        var dataStreamRetention = getDataStreamRetention();
         if (globalRetention == null) {
             return dataStreamRetention;
         }
@@ -157,7 +157,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
 
     /**
      * The least amount of time data the data stream is requesting es to keep the data.
-     * NOTE: this can be overriden by the {@link DataStreamLifecycle#getEffectiveDataRetention(DataStreamGlobalRetention)} ()}.
+     * NOTE: this can be overridden by the {@link DataStreamLifecycle#getEffectiveDataRetention(DataStreamGlobalRetention)} ()}.
      * @return the time period or null, null represents that data should never be deleted.
      */
     @Nullable

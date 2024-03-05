@@ -866,17 +866,6 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         as(filter.child(), Limit.class);
     }
 
-    public void testBasicNullFolding() {
-        FoldNull rule = new FoldNull();
-        assertNullLiteral(rule.rule(new Add(EMPTY, L(randomInt()), Literal.NULL)));
-        assertNullLiteral(rule.rule(new Round(EMPTY, Literal.NULL, null)));
-        assertNullLiteral(rule.rule(new Pow(EMPTY, Literal.NULL, Literal.NULL)));
-        assertNullLiteral(rule.rule(new DateFormat(EMPTY, Literal.NULL, Literal.NULL, null)));
-        assertNullLiteral(rule.rule(new DateParse(EMPTY, Literal.NULL, Literal.NULL)));
-        assertNullLiteral(rule.rule(new DateTrunc(EMPTY, Literal.NULL, Literal.NULL)));
-        assertNullLiteral(rule.rule(new Substring(EMPTY, Literal.NULL, Literal.NULL, Literal.NULL)));
-    }
-
     public void testPruneSortBeforeStats() {
         LogicalPlan plan = optimizedPlan("""
             from test
@@ -3464,6 +3453,18 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     }
 
     // Null folding
+
+    public void testBasicNullFolding() {
+        FoldNull rule = new FoldNull();
+        assertNullLiteral(rule.rule(new Add(EMPTY, L(randomInt()), Literal.NULL)));
+        assertNullLiteral(rule.rule(new Round(EMPTY, Literal.NULL, null)));
+        assertNullLiteral(rule.rule(new Pow(EMPTY, Literal.NULL, Literal.NULL)));
+        assertNullLiteral(rule.rule(new DateFormat(EMPTY, Literal.NULL, Literal.NULL, null)));
+        assertNullLiteral(rule.rule(new DateParse(EMPTY, Literal.NULL, Literal.NULL)));
+        assertNullLiteral(rule.rule(new DateTrunc(EMPTY, Literal.NULL, Literal.NULL)));
+        assertNullLiteral(rule.rule(new Substring(EMPTY, Literal.NULL, Literal.NULL, Literal.NULL)));
+    }
+
     public void testNullFoldingIsNull() {
         FoldNull foldNull = new FoldNull();
         assertEquals(true, foldNull.rule(new IsNull(EMPTY, NULL)).fold());
@@ -3654,17 +3655,17 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     public void testIsNullAndNotNullMultiField() throws Exception {
         FieldAttribute fa = getFieldAttribute("a");
 
-        And andOne = new And(EMPTY, new IsNull(EMPTY, fa), new IsNotNull(EMPTY, getFieldAttribute("a")));
-        And andTwo = new And(EMPTY, new IsNull(EMPTY, getFieldAttribute("a")), new IsNotNull(EMPTY, getFieldAttribute("a")));
-        And andThree = new And(EMPTY, new IsNull(EMPTY, getFieldAttribute("a")), new IsNotNull(EMPTY, fa));
+        And andOne = new And(EMPTY, new IsNull(EMPTY, fa), new IsNotNull(EMPTY, getFieldAttribute("b")));
+        And andTwo = new And(EMPTY, new IsNull(EMPTY, getFieldAttribute("c")), new IsNotNull(EMPTY, getFieldAttribute("d")));
+        And andThree = new And(EMPTY, new IsNull(EMPTY, getFieldAttribute("e")), new IsNotNull(EMPTY, fa));
 
-        And and = new And(EMPTY, andOne, new And(EMPTY, andThree, andTwo));
+        And and = new And(EMPTY, andOne, new And(EMPTY, andTwo, andThree));
 
         assertEquals(FALSE, new LogicalPlanOptimizer.PropagateNullable().rule(and));
     }
 
-    // a IS NULL AND a > 1 => a IS NULL AND false
-    public void testIsNullAndComparison() throws Exception {
+    // a IS NULL AND a > 1 => a IS NULL AND NULL
+    public void testIsNullAndComparison() {
         FieldAttribute fa = getFieldAttribute("a");
         IsNull isNull = new IsNull(EMPTY, fa);
 
@@ -3672,18 +3673,18 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertEquals(new And(EMPTY, isNull, nullOf(BOOLEAN)), new LogicalPlanOptimizer.PropagateNullable().rule(and));
     }
 
-    // a IS NULL AND b < 1 AND c < 1 AND a < 1 => a IS NULL AND b < 1 AND c < 1 => a IS NULL AND b < 1 AND c < 1
-    public void testIsNullAndMultipleComparison() throws Exception {
+    // a IS NULL AND b < 1 AND c < 1 AND a < 1 => a IS NULL AND b < 1 AND c < 1 AND NULL
+    public void testIsNullAndMultipleComparison() {
         FieldAttribute fa = getFieldAttribute("a");
-        IsNull isNull = new IsNull(EMPTY, fa);
+        IsNull aIsNull = new IsNull(EMPTY, fa);
 
-        And nestedAnd = new And(EMPTY, lessThanOf(getFieldAttribute("b"), ONE), lessThanOf(getFieldAttribute("c"), ONE));
-        And and = new And(EMPTY, isNull, nestedAnd);
-        And top = new And(EMPTY, and, lessThanOf(fa, ONE));
+        And bLT1_AND_cLT1 = new And(EMPTY, lessThanOf(getFieldAttribute("b"), ONE), lessThanOf(getFieldAttribute("c"), ONE));
+        And aIsNull_AND_bLT1_AND_cLT1 = new And(EMPTY, aIsNull, bLT1_AND_cLT1);
+        And aIsNull_AND_bLT1_AND_cLT1_AND_aLT1 = new And(EMPTY, aIsNull_AND_bLT1_AND_cLT1, lessThanOf(fa, ONE));
 
-        Expression optimized = new LogicalPlanOptimizer.PropagateNullable().rule(top);
-        Expression expected = new And(EMPTY, and, nullOf(BOOLEAN));
-        assertEquals(Predicates.splitAnd(expected), Predicates.splitAnd(optimized));
+        Expression optimized = new LogicalPlanOptimizer.PropagateNullable().rule(aIsNull_AND_bLT1_AND_cLT1_AND_aLT1);
+        Expression aIsNull_AND_bLT1_AND_cLT1_AND_NULL = new And(EMPTY, aIsNull_AND_bLT1_AND_cLT1, nullOf(BOOLEAN));
+        assertEquals(Predicates.splitAnd(aIsNull_AND_bLT1_AND_cLT1_AND_NULL), Predicates.splitAnd(optimized));
     }
 
     // ((a+1)/2) > 1 AND a + 2 AND a IS NULL AND b < 3 => NULL AND NULL AND a IS NULL AND b < 3

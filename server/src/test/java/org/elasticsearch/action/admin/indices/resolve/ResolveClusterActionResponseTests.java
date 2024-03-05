@@ -15,35 +15,41 @@ import org.elasticsearch.transport.RemoteClusterAware;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.function.Supplier;
 
 public class ResolveClusterActionResponseTests extends AbstractWireSerializingTestCase<ResolveClusterActionResponse> {
 
     @Override
     protected ResolveClusterActionResponse createTestInstance() {
-        return new ResolveClusterActionResponse(randomResolveClusterInfoMap(() -> randomResolveClusterInfo()));
+        return new ResolveClusterActionResponse(randomResolveClusterInfoMap(null));
     }
 
-    private Map<String, ResolveClusterInfo> randomResolveClusterInfoMap(Supplier<ResolveClusterInfo> rcInfoSupplier) {
+    private ResolveClusterInfo randomResolveClusterInfo(ResolveClusterInfo existing) {
+        if (existing == null) {
+            return randomResolveClusterInfo();
+        } else {
+            return randomValueOtherThan(existing, () -> randomResolveClusterInfo());
+        }
+    }
+
+    private ResolveClusterInfo getResolveClusterInfoFromResponse(String key, ResolveClusterActionResponse response) {
+        if (response == null || response.getResolveClusterInfo() == null) {
+            return null;
+        }
+        return response.getResolveClusterInfo().get(key);
+    }
+
+    private Map<String, ResolveClusterInfo> randomResolveClusterInfoMap(ResolveClusterActionResponse existingResponse) {
         Map<String, ResolveClusterInfo> infoMap = new HashMap<>();
-        int numClusters = randomIntBetween(0, 100);
+        int numClusters = randomIntBetween(0, 50);
         if (randomBoolean() || numClusters == 0) {
-            infoMap.put(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, rcInfoSupplier.get());
+            String key = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
+            infoMap.put(key, randomResolveClusterInfo(getResolveClusterInfoFromResponse(key, existingResponse)));
         }
         for (int i = 0; i < numClusters; i++) {
-            infoMap.put("remote_" + i, rcInfoSupplier.get());
+            String key = "remote_" + i;
+            infoMap.put(key, randomResolveClusterInfo(getResolveClusterInfoFromResponse(key, existingResponse)));
         }
         return infoMap;
-    }
-
-    /**
-     * Useful for the mutateInstance method to ensure that no the new ResolveClusterInfo will not
-     * match the original one.
-     *
-     * @return version of ResolveClusterInfo that has randomized error strings
-     */
-    static ResolveClusterInfo randomResolveClusterInfoWithErrorString() {
-        return new ResolveClusterInfo(randomBoolean(), randomBoolean(), randomAlphaOfLength(125));
     }
 
     static ResolveClusterInfo randomResolveClusterInfo() {
@@ -63,6 +69,6 @@ public class ResolveClusterActionResponseTests extends AbstractWireSerializingTe
 
     @Override
     protected ResolveClusterActionResponse mutateInstance(ResolveClusterActionResponse response) {
-        return new ResolveClusterActionResponse(randomResolveClusterInfoMap(() -> randomResolveClusterInfoWithErrorString()));
+        return new ResolveClusterActionResponse(randomResolveClusterInfoMap(response));
     }
 }

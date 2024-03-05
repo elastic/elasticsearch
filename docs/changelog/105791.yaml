@@ -1,5 +1,5 @@
 pr: 105791
 summary: "Bugfix: Disable eager loading `BitSetFilterCache` on Indexing Nodes"
 area: Search
-type: "bug, enhancement"
+type: bug
 issues: []

@@ -85,6 +85,10 @@ public enum SpatialCoordinateTypes {
         }
     }
 
+    public double wkbPointCoordinate(BytesRef wkb, int coordinateIndex) {
+        return WellKnownBinary.coordinateFromWKB(coordinateIndex, wkb.bytes, wkb.offset, wkb.length);
+    }
+
     public BytesRef longAsWkb(long encoded) {
         return asWkb(longAsPoint(encoded));
     }

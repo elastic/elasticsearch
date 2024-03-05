@@ -80,7 +80,7 @@ You can analyze them with the `find_field_structure` endpoint as follows:
 
 [source,console]
 ----
-POST _bulk
+POST _bulk?refresh=true
 {"index":{"_index":"test-logs"}}
 {"message":"[2024-03-05T10:52:36,256][INFO ][o.a.l.u.VectorUtilPanamaProvider] [laptop] Java vector incubator API enabled; uses preferredBitSize=128"}
 {"index":{"_index":"test-logs"}}

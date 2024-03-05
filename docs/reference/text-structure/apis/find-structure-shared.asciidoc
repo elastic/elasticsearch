@@ -215,7 +215,6 @@ for more information about date and time format syntax.
 end::param-timestamp-format[]
 
 tag::example-eslogs-response[]
-[source,console-result]
 ----
 {
   "num_lines_analyzed" : 22,

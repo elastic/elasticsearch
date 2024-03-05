@@ -132,6 +132,7 @@ GET _text_structure/find_field_structure?index=test-logs&field=message
 
 If the request does not encounter errors, you receive the following result:
 
+[source,console-result]
 include::{es-repo-dir}/text-structure/apis/find-structure-shared.asciidoc[tag=example-eslogs-response]
 // TESTRESPONSE[s/"sample_start" : ".*",/"sample_start" : "$body.sample_start",/]
 // The substitution is because the text is pre-processed by the test harness,

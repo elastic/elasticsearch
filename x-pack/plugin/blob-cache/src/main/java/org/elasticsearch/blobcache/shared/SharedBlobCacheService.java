@@ -1179,7 +1179,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
          * @param channelPos a position in the channel to write to
          * @param relativePos a position in remote storate to read from
          * @param length of data to fetch
-         * @param progressUpdater callback to invoke with the number of copied bytes as they are copied
+         * @param progressUpdater consumer to invoke with the number of copied bytes as they are written in cache. This is used to notify waiting readers that data become available in cache.
          */
         void fillCacheRange(SharedBytes.IO channel, int channelPos, int relativePos, int length, IntConsumer progressUpdater)
             throws IOException;

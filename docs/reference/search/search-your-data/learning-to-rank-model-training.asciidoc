@@ -137,7 +137,7 @@ MLModel.import_ltr_model(
 ----
 // NOTCONSOLE
 
-This method will serialize the trained model and the Learning To Rank configuration (including feature extraction) in a format that {es} can understand before sending it to Elasticsearch using the https://www.elastic.co/guide/en/elasticsearch/reference/current/put-trained-models.htmlp[Create Trained Models API].
+This method will serialize the trained model and the Learning To Rank configuration (including feature extraction) in a format that {es} can understand before sending it to Elasticsearch using the <<put-trained-models, Create Trained Models API>>.
 
 The following types of models are supported for Learning To Rank: https://scikit-learn.org/stable/modules/generated/sklearn.tree.DecisionTreeRegressor.html[`DecisionTreeRegressor`^],  https://scikit-learn.org/stable/modules/generated/sklearn.ensemble.RandomForestRegressor.html[`RandomForestRegressor`^], https://lightgbm.readthedocs.io/en/latest/pythonapi/lightgbm.LGBMRegressor.html[`LGBMRegressor`^], https://xgboost.readthedocs.io/en/stable/python/python_api.html#xgboost.XGBRanker[`XGBRanker`^], https://xgboost.readthedocs.io/en/stable/python/python_api.html#xgboost.XGBRegressor[`XGBRegressor`^].
 

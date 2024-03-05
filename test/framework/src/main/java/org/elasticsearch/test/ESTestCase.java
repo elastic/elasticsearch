@@ -580,11 +580,13 @@ public abstract class ESTestCase extends LuceneTestCase {
      */
     protected final void assertSettingDeprecationsAndWarnings(final Setting<?>[] settings, final DeprecationWarning... warnings) {
         assertWarnings(true, Stream.concat(Arrays.stream(settings).map(setting -> {
-            String warningMessage = String.format(
-                Locale.ROOT,
-                "[%s] setting was deprecated in Elasticsearch and will be removed in a future release.",
-                setting.getKey()
-            );
+            String warningMessage = setting.hasAlias()
+                ? Strings.format(
+                    "[%s] setting was deprecated in Elasticsearch and will be removed in a future release. Please use [%s] instead.",
+                    setting.getAliasKey(),
+                    setting.getKey()
+                )
+                : Strings.format("[%s] setting was deprecated in Elasticsearch and will be removed in a future release.", setting.getKey());
             return new DeprecationWarning(
                 setting.getProperties().contains(Setting.Property.Deprecated) ? DeprecationLogger.CRITICAL : Level.WARN,
                 warningMessage

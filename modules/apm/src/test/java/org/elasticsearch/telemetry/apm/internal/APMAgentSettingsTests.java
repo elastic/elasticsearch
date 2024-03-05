@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.mockito.Mockito;
@@ -187,6 +188,8 @@ public class APMAgentSettingsTests extends ESTestCase {
 
         verify(apmAgentSettings).setAgentSetting("recording", "true");
         verify(apmAgentSettings).setAgentSetting("span_compression_enabled", "true");
+
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { APM_AGENT_SETTINGS });
     }
 
     /**
@@ -204,6 +207,8 @@ public class APMAgentSettingsTests extends ESTestCase {
             Settings settings = Settings.builder().put(prefix + "global_labels." + randomAlphaOfLength(5), "123").build();
             APM_AGENT_SETTINGS.getAsMap(settings);
         }
+
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { APM_AGENT_SETTINGS });
     }
 
     public void testTelemetryTracingNamesIncludeFallback() {

@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.spell.LevenshteinDistance;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
@@ -49,6 +50,7 @@ public abstract class AbstractScopedSettings {
     private final List<SettingUpdater<?>> settingUpdaters = new CopyOnWriteArrayList<>();
     private final Map<String, Setting<?>> complexMatchers;
     private final Map<String, Setting<?>> keySettings;
+
     private final Setting.Property scope;
     private Settings lastSettingsApplied;
 
@@ -61,6 +63,8 @@ public abstract class AbstractScopedSettings {
         this.scope = scope;
         Map<String, Setting<?>> complexMatchers = new HashMap<>();
         Map<String, Setting<?>> keySettings = new HashMap<>();
+        Map<String, Setting<?>> aliasSettings = new HashMap<>();
+
         for (Setting<?> setting : settingsSet) {
             if (setting.getProperties().contains(scope) == false) {
                 throw new IllegalArgumentException(
@@ -83,8 +87,17 @@ public abstract class AbstractScopedSettings {
                 complexMatchers.putIfAbsent(setting.getKey(), setting);
             } else {
                 keySettings.putIfAbsent(setting.getKey(), setting);
+                if (setting.hasAlias() && setting.isDynamic()) {
+                    aliasSettings.putIfAbsent(setting.getAliasKey(), setting);
+                }
             }
         }
+
+        Set<String> aliasCollisions = Sets.intersection(keySettings.keySet(), aliasSettings.keySet());
+        if (aliasCollisions.isEmpty() == false) {
+            throw new IllegalArgumentException(Strings.format("collision for dynamic alias: %s", aliasCollisions));
+        }
+        keySettings.putAll(aliasSettings);
         this.complexMatchers = Collections.unmodifiableMap(complexMatchers);
         this.keySettings = Collections.unmodifiableMap(keySettings);
     }
@@ -816,10 +829,21 @@ public abstract class AbstractScopedSettings {
             } else if (get(key) == null) {
                 throw new IllegalArgumentException(type + " setting [" + key + "], not recognized");
             } else if (isDelete == false && canUpdate.test(key)) {
-                get(key).validateWithoutDependencies(toApply); // we might not have a full picture here do to a dependency validation
+                Setting<?> setting = get(key);
+                setting.validateWithoutDependencies(toApply); // we might not have a full picture here do to a dependency validation
                 settingsBuilder.copy(key, toApply);
                 updates.copy(key, toApply);
                 changed |= toApply.get(key).equals(target.get(key)) == false;
+
+                if (setting.hasAlias() && setting.getRawKey().matchAlias(key)) {
+                    String newKey = setting.getRawKey().rewriteAlias(key);
+                    if (toApply.hasValue(newKey) == false) {
+                        // copy value of alias to rewritten key to properly trigger update consumers
+                        settingsBuilder.copy(newKey, key, toApply);
+                        updates.copy(newKey, key, toApply);
+                        changed |= toApply.get(key).equals(target.get(newKey)) == false;
+                    }
+                }
             } else {
                 if (isFinalSetting(key)) {
                     throw new IllegalArgumentException("final " + type + " setting [" + key + "], not updateable");
@@ -863,7 +887,9 @@ public abstract class AbstractScopedSettings {
         }
 
         for (Setting<?> existingSetting : complexMatchers.values()) {
-            if (newSetting.match(existingSetting.getKey()) || existingSetting.match(newSetting.getKey())) {
+            if ((newSetting.match(existingSetting.getKey()) || existingSetting.match(newSetting.getKey()))
+                || (newSetting.hasAlias() && existingSetting.match(newSetting.getAliasKey()))
+                || (existingSetting.hasAlias() && newSetting.match(existingSetting.getAliasKey()))) {
                 return existingSetting;
             }
         }

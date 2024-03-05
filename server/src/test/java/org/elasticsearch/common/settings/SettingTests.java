@@ -40,6 +40,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.index.IndexSettingsTests.newIndexMeta;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -49,11 +50,30 @@ import static org.hamcrest.Matchers.is;
 
 public class SettingTests extends ESTestCase {
 
-    public void testGet() {
+    public void testBoolSetting() {
         Setting<Boolean> booleanSetting = Setting.boolSetting("foo.bar", false, Property.Dynamic, Property.NodeScope);
+
+        assertFalse(booleanSetting.exists(Settings.EMPTY));
+        assertTrue(booleanSetting.exists(Settings.builder().put("foo.bar", false).build()));
+
         assertFalse(booleanSetting.get(Settings.EMPTY));
         assertFalse(booleanSetting.get(Settings.builder().put("foo.bar", false).build()));
         assertTrue(booleanSetting.get(Settings.builder().put("foo.bar", true).build()));
+    }
+
+    public void testBoolSettingWithAlias() {
+        Setting<Boolean> booleanSetting = Setting.boolSetting("foo.bar", "alias.bar", false, Property.Dynamic, Property.NodeScope);
+
+        assertFalse(booleanSetting.exists(Settings.EMPTY));
+        assertTrue(booleanSetting.exists(Settings.builder().put("foo.bar", true).build()));
+
+        assertFalse(booleanSetting.get(Settings.EMPTY));
+        assertTrue(booleanSetting.get(Settings.builder().put("foo.bar", true).build()));
+        ensureNoWarnings();
+
+        assertTrue(booleanSetting.exists(Settings.builder().put("alias.bar", true).build()));
+        assertTrue(booleanSetting.get(Settings.builder().put("alias.bar", true).build()));
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { booleanSetting });
     }
 
     public void testByteSizeSetting() {
@@ -663,7 +683,6 @@ public class SettingTests extends ESTestCase {
         assertTrue(settingUpdater.apply(Settings.EMPTY, build));
         assertEquals(1, c.a.intValue());
         assertEquals(1, c.b.intValue());
-
     }
 
     public void testListKeyExists() {
@@ -806,6 +825,47 @@ public class SettingTests extends ESTestCase {
         assertEquals("4", value.get(1));
     }
 
+    public void testListSettingsWithAlias() {
+        Setting<List<String>> listSetting = Setting.listSetting(
+            "foo.bar",
+            "foo.alias",
+            Function.identity(),
+            s -> Arrays.asList("default"),
+            Property.Dynamic,
+            Property.NodeScope
+        );
+
+        assertFalse(listSetting.exists(Settings.EMPTY));
+        assertThat(listSetting.get(Settings.EMPTY), contains("default"));
+
+        Settings settings = Settings.builder().put("foo.alias", "val1,val2").build();
+        assertTrue(listSetting.exists(settings));
+        assertThat(listSetting.get(settings), contains("val1", "val2"));
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { listSetting });
+
+        settings = Settings.builder().put("foo.alias.0", "val1").put("foo.alias.1", "val2").build();
+        assertTrue(listSetting.exists(settings));
+        assertThat(listSetting.get(settings), contains("val1", "val2"));
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { listSetting });
+
+        AbstractScopedSettings.SettingUpdater<List<String>> settingUpdater = listSetting.newUpdater(list -> {}, logger);
+        assertTrue(settingUpdater.hasChanged(Settings.builder().put("foo.alias", "val1,val2").build(), Settings.EMPTY));
+        assertFalse(
+            settingUpdater.hasChanged(
+                Settings.builder().put("foo.alias", "val1,val2").build(),
+                Settings.builder().put("foo.bar", "val1,val2").build()
+            )
+        );
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { listSetting });
+        assertFalse(
+            settingUpdater.hasChanged(
+                Settings.builder().put("foo.bar", "val1,val2").build(),
+                Settings.builder().put("foo.alias", "val1,val2").build()
+            )
+        );
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { listSetting });
+    }
+
     public void testListSettingAcceptsNumberSyntax() {
         Setting<List<String>> listSetting = Setting.listSetting(
             "foo.bar",
@@ -847,28 +907,31 @@ public class SettingTests extends ESTestCase {
         }
     }
 
-    public void testPrefixKeySettingFallbackAsMap() {
+    public void testPrefixKeySettingWithAliasAsMap() {
         Setting.AffixSetting<Boolean> setting = Setting.prefixKeySetting(
             "foo.",
-            "bar.",
+            "alias.",
             (ns, key) -> Setting.boolSetting(key, false, Property.NodeScope)
         );
 
         assertTrue(setting.match("foo.bar"));
-        assertTrue(setting.match("bar.bar"));
+        assertTrue(setting.match("alias.bar"));
 
         Map<String, Boolean> map = setting.getAsMap(Settings.builder().put("foo.bar", "true").build());
         assertEquals(1, map.size());
         assertTrue(map.get("bar"));
+        ensureNoWarnings();
 
-        map = setting.getAsMap(Settings.builder().put("bar.bar", "true").build());
+        map = setting.getAsMap(Settings.builder().put("alias.bar", "true").build());
         assertEquals(1, map.size());
         assertTrue(map.get("bar"));
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { setting });
 
         // Prefer primary
-        map = setting.getAsMap(Settings.builder().put("foo.bar", "false").put("bar.bar", "true").build());
+        map = setting.getAsMap(Settings.builder().put("foo.bar", "false").put("alias.bar", "true").build());
         assertEquals(1, map.size());
         assertFalse(map.get("bar"));
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { setting });
     }
 
     public void testAffixKeySetting() {
@@ -881,7 +944,10 @@ public class SettingTests extends ESTestCase {
         assertFalse(setting.match("foo.bar.baz.enabled"));
         assertFalse(setting.match("foo"));
         Setting<Boolean> concreteSetting = setting.getConcreteSetting("foo.bar.enable");
+
         assertTrue(concreteSetting.get(Settings.builder().put("foo.bar.enable", "true").build()));
+        assertTrue(setting.exists(Settings.builder().put("foo.bar.enable", "true").build()));
+
         assertFalse(concreteSetting.get(Settings.builder().put("foo.baz.enable", "true").build()));
 
         IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> setting.getConcreteSetting("foo"));
@@ -897,7 +963,7 @@ public class SettingTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> Setting.prefixKeySetting("foo.", "bar", (ns, key) -> Setting.boolSetting(key, false, Property.NodeScope))
         );
-        assertEquals("prefix must end with a '.'", exc.getMessage());
+        assertEquals("aliasPrefix must end with a '.'", exc.getMessage());
 
         Setting<List<String>> listAffixSetting = Setting.affixKeySetting(
             "foo.",
@@ -948,7 +1014,7 @@ public class SettingTests extends ESTestCase {
         assertTrue(namespaces.contains("boom"));
     }
 
-    public void testAffixAsMap() {
+    public void testPrefixKeySettingAsMap() {
         Setting.AffixSetting<String> setting = Setting.prefixKeySetting("foo.bar.", key -> Setting.simpleString(key, Property.NodeScope));
         Settings build = Settings.builder().put("foo.bar.baz", 2).put("foo.bar.foobar", 3).build();
         Map<String, String> asMap = setting.getAsMap(build);

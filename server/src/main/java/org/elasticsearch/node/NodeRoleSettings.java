@@ -18,7 +18,6 @@ public class NodeRoleSettings {
 
     public static final Setting<List<DiscoveryNodeRole>> NODE_ROLES_SETTING = Setting.listSetting(
         "node.roles",
-        null,
         DiscoveryNodeRole::getRoleFromRoleName,
         settings -> DiscoveryNodeRole.roles()
             .stream()

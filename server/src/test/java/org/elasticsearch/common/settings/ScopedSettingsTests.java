@@ -40,9 +40,110 @@ import java.util.function.Function;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.startsWith;
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.hasToString;
 
 public class ScopedSettingsTests extends ESTestCase {
+
+    public void testAliasCollisionForSettings() {
+        Set<Setting<?>> simpleSettings = Set.of(
+            Setting.boolSetting("alias.bool", (String) null, false, Property.NodeScope, Property.Dynamic),
+            Setting.boolSetting("foo.bool", "alias.bool", false, Property.NodeScope, Property.Dynamic)
+        );
+        Exception exception = assertThrows(IllegalArgumentException.class, () -> new ClusterSettings(Settings.EMPTY, simpleSettings));
+        assertThat(exception.getMessage(), equalTo("collision for dynamic alias: [alias.bool]"));
+
+        Set<Setting<?>> complexSettings = Set.of(
+            Setting.listSetting("foo.list", "alias.list", Function.identity(), s -> Collections.emptyList(), Property.NodeScope),
+            Setting.listSetting("alias.list", (String) null, Function.identity(), s -> Collections.emptyList(), Property.NodeScope)
+        );
+        exception = assertThrows(IllegalArgumentException.class, () -> new ClusterSettings(Settings.EMPTY, complexSettings));
+        assertThat(
+            exception.getMessage(),
+            either(equalTo("complex setting key: [alias.list] overlaps existing setting key: [foo.list]")).or(
+                equalTo("complex setting key: [foo.list] overlaps existing setting key: [alias.list]")
+            )
+        );
+    }
+
+    public void testUpdateDynamicSettingsWithAlias() {
+        Setting<Boolean> boolSetting = Setting.boolSetting("foo.bool", "alias.bool", false, Property.Dynamic, Property.NodeScope);
+        Setting<List<String>> listSetting = Setting.listSetting(
+            "foo.list",
+            "alias.list",
+            Function.identity(),
+            s -> Collections.emptyList(),
+            Property.Dynamic,
+            Property.NodeScope
+        );
+        Setting.AffixSetting<String> prefixSetting = Setting.prefixKeySetting("foo.prefix.", "alias.prefix.", (ns, key) -> {
+            // due to the way AffixSettings work, the alias has to be propagated to the concrete setting
+            return Setting.simpleString("foo.prefix." + ns, "alias.prefix." + ns, "", Property.Dynamic, Property.NodeScope);
+        });
+
+        ClusterSettings service = new ClusterSettings(Settings.EMPTY, Set.of(boolSetting, listSetting, prefixSetting));
+
+        Settings.Builder target = Settings.builder();
+        Settings.Builder updates = Settings.builder();
+
+        // simple setting
+        Settings toApply = Settings.builder().put("alias.bool", "false").build();
+        assertTrue(service.updateDynamicSettings(toApply, target, updates, "test"));
+        assertThat(target.build(), equalTo(Settings.builder().put(toApply).put("foo.bool", "false").build()));
+
+        toApply = Settings.builder().put("foo.bool", "true").put("alias.bool", "false").build();
+        assertTrue(service.updateDynamicSettings(toApply, target, updates, "test"));
+        assertFalse(service.updateDynamicSettings(toApply, target, updates, "test"));
+        assertThat(target.build(), equalTo(toApply));
+
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { boolSetting });
+
+        // reset target builder to isolate assertions
+        target.keys().clear();
+
+        // list setting
+        toApply = Settings.builder().put("alias.list", "1,2,3").build();
+        assertTrue(service.updateDynamicSettings(toApply, target, updates, "test"));
+        assertThat(target.build(), equalTo(Settings.builder().put(toApply).put("foo.list", "1,2,3").build()));
+
+        toApply = Settings.builder().put("alias.list.0", "1").build();
+        assertTrue(service.updateDynamicSettings(toApply, target, updates, "test"));
+        assertThat(target.build(), equalTo(Settings.builder().put("alias.list.0", "1").put("foo.list.0", "1").build()));
+
+        toApply = Settings.builder().put("foo.list", "1").put("alias.list", "2").build();
+        assertTrue(service.updateDynamicSettings(toApply, target, updates, "test"));
+        assertFalse(service.updateDynamicSettings(toApply, target, updates, "test"));
+        assertThat(target.build(), equalTo(toApply));
+
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { listSetting });
+
+        // reset target builder to isolate assertions
+        target.keys().clear();
+
+        // prefix (affix) setting
+        toApply = Settings.builder().put("alias.prefix.k1", "foo").put("alias.prefix.k2", "bar").build();
+        assertTrue(service.updateDynamicSettings(toApply, target, updates, "test"));
+        assertThat(
+            target.build(),
+            equalTo(Settings.builder().put(toApply).put("foo.prefix.k1", "foo").put("foo.prefix.k2", "bar").build())
+        );
+
+        toApply = Settings.builder().put("foo.prefix.k1", "hello").put("alias.prefix.k2", "world").build();
+        assertTrue(service.updateDynamicSettings(toApply, target, updates, "test"));
+        assertFalse(service.updateDynamicSettings(toApply, target, updates, "test"));
+        assertThat(
+            target.build(),
+            equalTo(Settings.builder().put(toApply).put("alias.prefix.k1", "foo").put("foo.prefix.k2", "world").build())
+        );
+
+        assertSettingDeprecationsAndWarnings(
+            new Setting<?>[] {
+                prefixSetting,
+                Setting.simpleString("foo.prefix.k1", "alias.prefix.k1", ""),
+                Setting.simpleString("foo.prefix.k2", "alias.prefix.k2", "") }
+        );
+
+    }
 
     public void testResetSetting() {
         Setting<Integer> dynamicSetting = Setting.intSetting("some.dyn.setting", 1, Property.Dynamic, Property.NodeScope);
@@ -547,52 +648,54 @@ public class ScopedSettingsTests extends ESTestCase {
             "list",
             (k) -> Setting.listSetting(k, Arrays.asList("1"), Integer::parseInt, Property.Dynamic, Property.NodeScope)
         );
-        Setting.AffixSetting<Boolean> fallbackSetting = Setting.prefixKeySetting(
-            "baz.",
+        Setting.AffixSetting<Boolean> aliasedSetting = Setting.prefixKeySetting(
             "bar.",
+            "alias.",
             (ns, k) -> Setting.boolSetting(k, false, Property.Dynamic, Property.NodeScope)
         );
         AbstractScopedSettings service = new ClusterSettings(
             Settings.EMPTY,
-            new HashSet<>(Arrays.asList(intSetting, listSetting, fallbackSetting))
+            new HashSet<>(Arrays.asList(intSetting, listSetting, aliasedSetting))
         );
         Map<String, List<Integer>> listResults = new HashMap<>();
         Map<String, Integer> intResults = new HashMap<>();
-        Map<String, Boolean> fallbackResults = new HashMap<>();
+        Map<String, Boolean> aliasResults = new HashMap<>();
 
         BiConsumer<String, Integer> intConsumer = intResults::put;
         BiConsumer<String, List<Integer>> listConsumer = listResults::put;
-        BiConsumer<String, Boolean> fallbackConsumer = fallbackResults::put;
+        BiConsumer<String, Boolean> alias = aliasResults::put;
 
         service.addAffixUpdateConsumer(listSetting, listConsumer, (s, k) -> {});
         service.addAffixUpdateConsumer(intSetting, intConsumer, (s, k) -> {});
-        service.addAffixUpdateConsumer(fallbackSetting, fallbackConsumer, (s, k) -> {});
+        service.addAffixUpdateConsumer(aliasedSetting, alias, (s, k) -> {});
         assertEquals(0, listResults.size());
         assertEquals(0, intResults.size());
-        assertEquals(0, fallbackResults.size());
+        assertEquals(0, aliasResults.size());
         service.applySettings(
             Settings.builder()
                 .put("foo.test.bar", 2)
                 .put("foo.test_1.bar", 7)
                 .putList("foo.test_list.list", "16", "17")
                 .putList("foo.test_list_1.list", "18", "19", "20")
-                .put("bar.abc", true)
-                .put("baz.def", true)
+                .put("bar.def", true)
+                .put("alias.abc", true)
                 .build()
         );
         assertEquals(2, intResults.get("test").intValue());
         assertEquals(7, intResults.get("test_1").intValue());
         assertEquals(Arrays.asList(16, 17), listResults.get("test_list"));
         assertEquals(Arrays.asList(18, 19, 20), listResults.get("test_list_1"));
-        assertEquals(true, fallbackResults.get("abc"));
-        assertEquals(true, fallbackResults.get("def"));
+        assertEquals(true, aliasResults.get("abc"));
+        assertEquals(true, aliasResults.get("def"));
         assertEquals(2, listResults.size());
         assertEquals(2, intResults.size());
-        assertEquals(2, fallbackResults.size());
+        assertEquals(2, aliasResults.size());
+
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { aliasedSetting });
 
         listResults.clear();
         intResults.clear();
-        fallbackResults.clear();
+        aliasResults.clear();
 
         service.applySettings(
             Settings.builder()
@@ -600,18 +703,20 @@ public class ScopedSettingsTests extends ESTestCase {
                 .put("foo.test_1.bar", 8)
                 .putList("foo.test_list.list", "16", "17")
                 .putNull("foo.test_list_1.list")
-                .put("bar.abc", true)
-                .put("baz.xyz", true)
+                .put("bar.xyz", true)
+                .put("alias.abc", true)
                 .build()
         );
         assertNull("test wasn't changed", intResults.get("test"));
         assertEquals(8, intResults.get("test_1").intValue());
         assertNull("test_list wasn't changed", listResults.get("test_list"));
         assertEquals(Arrays.asList(1), listResults.get("test_list_1")); // reset to default
-        assertNull("abc wasn't changed", fallbackResults.get("abc"));
-        assertEquals(true, fallbackResults.get("xyz"));
+        assertNull("abc wasn't changed", aliasResults.get("abc"));
+        assertEquals(true, aliasResults.get("xyz"));
         assertEquals(1, listResults.size());
         assertEquals(1, intResults.size());
+
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { aliasedSetting });
     }
 
     public void testAddConsumerAffixMap() {

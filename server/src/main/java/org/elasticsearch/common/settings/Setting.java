@@ -78,6 +78,8 @@ import java.util.stream.Stream;
  * </pre>
  */
 public class Setting<T> implements ToXContentObject {
+    private static final String DEPRECATION_MSG = "[{}] setting was deprecated in Elasticsearch and will be removed in a future release.";
+    private static final String ALIAS_DEPRECATION_MSG = DEPRECATION_MSG + " Please use [{}] instead.";
 
     public enum Property {
         /**
@@ -359,10 +361,24 @@ public class Setting<T> implements ToXContentObject {
     }
 
     /**
+     * Returns the settings (deprecated) alias key if exists, or {@code null} otherwise.
+     */
+    public final @Nullable String getAliasKey() {
+        return key.getAliasString();
+    }
+
+    /**
      * Returns the original representation of a setting key.
      */
     public final Key getRawKey() {
         return key;
+    }
+
+    /**
+     * Returns <code>true</code> if this setting has a (deprecated) alias.
+     */
+    public final boolean hasAlias() {
+        return key.hasAlias();
     }
 
     /**
@@ -512,6 +528,11 @@ public class Setting<T> implements ToXContentObject {
         return key.exists(builder.keys(), secureSettings == null ? Collections.emptySet() : secureSettings.getSettingNames());
     }
 
+    private boolean aliasExists(final Settings settings) {
+        SecureSettings secureSettings = settings.getSecureSettings();
+        return key.existsAlias(settings.keySet(), secureSettings == null ? Collections.emptySet() : secureSettings.getSettingNames());
+    }
+
     /**
      * Returns true if and only if this setting including fallback settings is present in the given settings instance.
      *
@@ -609,32 +630,33 @@ public class Setting<T> implements ToXContentObject {
      * @return the raw string representation of the setting value
      */
     String innerGetRaw(final Settings settings) {
-        final String key = getKey();
         SecureSettings secureSettings = settings.getSecureSettings();
-        if (secureSettings != null && secureSettings.getSettingNames().contains(key)) {
+        if (secureSettings != null && getRawKey().exists(secureSettings.getSettingNames(), Collections.emptySet())) {
             throw new IllegalArgumentException(
                 "Setting ["
-                    + key
+                    + getKey()
                     + "] is a non-secure setting"
                     + " and must be stored inside elasticsearch.yml, but was found inside the Elasticsearch keystore"
             );
         }
-        final String found = settings.get(key);
-        if (found != null) {
-            return found;
+        String found = settings.get(getKey());
+        if (found == null && hasAlias()) {
+            found = settings.get(getAliasKey());
         }
-        return defaultValue.apply(settings);
+        return found != null ? found : defaultValue.apply(settings);
     }
 
-    /** Logs a deprecation warning if the setting is deprecated and used. */
+    /**
+     * Logs a deprecation warning if the setting is deprecated and used.
+     * Additionally, regardless of any deprecation properties of the setting, a deprecation warning is given if an alias is used.
+     */
     void checkDeprecation(Settings settings) {
         // They're using the setting, so we need to tell them to stop
         if (this.isDeprecated() && this.exists(settings)) {
             // It would be convenient to show its replacement key, but replacement is often not so simple
             final String key = getKey();
-            String message = "[{}] setting was deprecated in Elasticsearch and will be removed in a future release.";
             if (this.isDeprecatedWarningOnly()) {
-                Settings.DeprecationLoggerHolder.deprecationLogger.warn(DeprecationCategory.SETTINGS, key, message, key);
+                Settings.DeprecationLoggerHolder.deprecationLogger.warn(DeprecationCategory.SETTINGS, key, DEPRECATION_MSG, key);
             } else if (this.isDeprecatedAndRemoved()) {
                 Settings.DeprecationLoggerHolder.deprecationLogger.critical(
                     DeprecationCategory.SETTINGS,
@@ -643,9 +665,17 @@ public class Setting<T> implements ToXContentObject {
                     key
                 );
             } else {
-                Settings.DeprecationLoggerHolder.deprecationLogger.critical(DeprecationCategory.SETTINGS, key, message, key);
+                Settings.DeprecationLoggerHolder.deprecationLogger.critical(DeprecationCategory.SETTINGS, key, DEPRECATION_MSG, key);
             }
+        } else if (aliasExists(settings)) {
+            logDeprecatedAlias();
         }
+    }
+
+    void logDeprecatedAlias() {
+        final String alias = getAliasKey();
+        final String key = getKey();
+        Settings.DeprecationLoggerHolder.deprecationLogger.warn(DeprecationCategory.SETTINGS, alias, ALIAS_DEPRECATION_MSG, alias, key);
     }
 
     /**
@@ -693,8 +723,7 @@ public class Setting<T> implements ToXContentObject {
     }
 
     public Setting<T> getConcreteSetting(String key) {
-        // we use startsWith here since the key might be foo.bar.0 if it's an array
-        assert key.startsWith(this.getKey()) : "was " + key + " expected: " + getKey();
+        assert this.key.match(key) : "was " + key + " expected: " + getKey();
         return this;
     }
 
@@ -1011,6 +1040,9 @@ public class Setting<T> implements ToXContentObject {
         @Override
         public Setting<T> getConcreteSetting(String key) {
             if (match(key)) {
+                if (this.key.matchAlias(key)) {
+                    logDeprecatedAlias();
+                }
                 String namespace = this.key.getNamespace(key);
                 return delegateFactory.apply(namespace, key);
             } else {
@@ -1020,6 +1052,9 @@ public class Setting<T> implements ToXContentObject {
 
         private Setting<T> getConcreteSetting(String namespace, String key) {
             if (match(key)) {
+                if (this.key.matchAlias(key)) {
+                    logDeprecatedAlias();
+                }
                 return delegateFactory.apply(namespace, key);
             } else {
                 throw new IllegalArgumentException("key [" + key + "] must match [" + getKey() + "] but didn't.");
@@ -1070,7 +1105,7 @@ public class Setting<T> implements ToXContentObject {
             matchStream(settings).distinct().forEach(key -> {
                 String namespace = this.key.getNamespace(key);
                 Setting<T> concreteSetting = getConcreteSetting(namespace, key);
-                if (map.containsKey(namespace) && this.key.isFallback(key)) {
+                if (map.containsKey(namespace) && this.key.matchAlias(key)) {
                     return;
                 }
                 map.put(namespace, concreteSetting.get(settings));
@@ -1435,6 +1470,10 @@ public class Setting<T> implements ToXContentObject {
         return new Setting<>(key, defaultValue, Function.identity(), properties);
     }
 
+    public static Setting<String> simpleString(String key, String aliasKey, String defaultValue, Property... properties) {
+        return new Setting<>(new SimpleKey(key, aliasKey), s -> defaultValue, Function.identity(), properties);
+    }
+
     public static int parseInt(String s, int minValue, String key) {
         return parseInt(s, minValue, Integer.MAX_VALUE, key, false);
     }
@@ -1475,6 +1514,15 @@ public class Setting<T> implements ToXContentObject {
 
     public static Setting<Boolean> boolSetting(String key, boolean defaultValue, Property... properties) {
         return new Setting<>(key, Boolean.toString(defaultValue), b -> parseBoolean(b, key, isFiltered(properties)), properties);
+    }
+
+    public static Setting<Boolean> boolSetting(String key, String aliasKey, boolean defaultValue, Property... properties) {
+        return new Setting<>(
+            new SimpleKey(key, aliasKey),
+            s -> Boolean.toString(defaultValue),
+            b -> parseBoolean(b, key, isFiltered(properties)),
+            properties
+        );
     }
 
     public static Setting<Boolean> boolSetting(String key, Setting<Boolean> fallbackSetting, Property... properties) {
@@ -1658,7 +1706,7 @@ public class Setting<T> implements ToXContentObject {
     }
 
     public static Setting<List<String>> stringListSetting(String key, List<String> defValue, Property... properties) {
-        return new ListSetting<>(key, null, s -> defValue, Setting::parseableStringToList, v -> {}, properties) {
+        return new ListSetting<>(key, null, null, s -> defValue, Setting::parseableStringToList, v -> {}, properties) {
             @Override
             public List<String> get(Settings settings) {
                 checkDeprecation(settings);
@@ -1677,7 +1725,7 @@ public class Setting<T> implements ToXContentObject {
         final Function<String, T> singleValueParser,
         final Property... properties
     ) {
-        return listSetting(key, null, singleValueParser, (s) -> defaultStringValue, properties);
+        return listSetting(key, null, null, singleValueParser, (s) -> defaultStringValue, v -> {}, properties);
     }
 
     public static <T> Setting<List<T>> listSetting(
@@ -1687,7 +1735,17 @@ public class Setting<T> implements ToXContentObject {
         final Validator<List<T>> validator,
         final Property... properties
     ) {
-        return listSetting(key, null, singleValueParser, (s) -> defaultStringValue, validator, properties);
+        return listSetting(key, null, null, singleValueParser, (s) -> defaultStringValue, validator, properties);
+    }
+
+    public static <T> Setting<List<T>> listSetting(
+        final String key,
+        final Function<String, T> singleValueParser,
+        final Function<Settings, List<String>> defaultStringValue,
+        final Validator<List<T>> validator,
+        final Property... properties
+    ) {
+        return listSetting(key, null, null, singleValueParser, defaultStringValue, validator, properties);
     }
 
     // TODO this one's two argument get is still broken
@@ -1712,6 +1770,28 @@ public class Setting<T> implements ToXContentObject {
 
     public static <T> Setting<List<T>> listSetting(
         final String key,
+        final String aliasKey,
+        final Function<String, T> singleValueParser,
+        final Function<Settings, List<String>> defaultStringValue,
+        final Property... properties
+    ) {
+        return listSetting(key, aliasKey, null, singleValueParser, defaultStringValue, v -> {}, properties);
+    }
+
+    public static <T> Setting<List<T>> listSetting(
+        final String key,
+        final @Nullable Setting<List<T>> fallbackSetting,
+        final Function<String, T> singleValueParser,
+        final Function<Settings, List<String>> defaultStringValue,
+        final Validator<List<T>> validator,
+        final Property... properties
+    ) {
+        return listSetting(key, null, fallbackSetting, singleValueParser, defaultStringValue, validator, properties);
+    }
+
+    private static <T> Setting<List<T>> listSetting(
+        final String key,
+        final @Nullable String aliasKey,
         final @Nullable Setting<List<T>> fallbackSetting,
         final Function<String, T> singleValueParser,
         final Function<Settings, List<String>> defaultStringValue,
@@ -1723,7 +1803,7 @@ public class Setting<T> implements ToXContentObject {
         }
         Function<String, List<T>> parser = (s) -> parseableStringToList(s).stream().map(singleValueParser).toList();
 
-        return new ListSetting<>(key, fallbackSetting, defaultStringValue, parser, validator, properties);
+        return new ListSetting<>(key, aliasKey, fallbackSetting, defaultStringValue, parser, validator, properties);
     }
 
     private static List<String> parseableStringToList(String parsableString) {
@@ -1765,6 +1845,7 @@ public class Setting<T> implements ToXContentObject {
 
         private ListSetting(
             final String key,
+            final String aliasKey,
             final @Nullable Setting<List<T>> fallbackSetting,
             final Function<Settings, List<String>> defaultStringValue,
             final Function<String, List<T>> parser,
@@ -1772,7 +1853,7 @@ public class Setting<T> implements ToXContentObject {
             final Property... properties
         ) {
             super(
-                new ListKey(key),
+                new ListKey(key, aliasKey),
                 fallbackSetting,
                 s -> Setting.arrayToParsableString(defaultStringValue.apply(s)),
                 parser,
@@ -1785,6 +1866,9 @@ public class Setting<T> implements ToXContentObject {
         @Override
         String innerGetRaw(final Settings settings) {
             List<String> array = settings.getAsList(getKey(), null);
+            if (array == null && hasAlias()) {
+                array = settings.getAsList(getAliasKey(), null);
+            }
             return array == null ? defaultValue.apply(settings) : arrayToParsableString(array);
         }
 
@@ -2048,16 +2132,16 @@ public class Setting<T> implements ToXContentObject {
     }
 
     /**
-     * Same as above but also matches the fallback prefix in addition to the prefix of the setting.
+     * Same as above but also matches the alias prefix in addition to the prefix of the setting.
      * @param nsDelegateFactory instantiate a setting given the namespace and the qualified key
      */
     public static <T> AffixSetting<T> prefixKeySetting(
         String prefix,
-        String fallbackPrefix,
+        String aliasPrefix,
         BiFunction<String, String, Setting<T>> nsDelegateFactory
     ) {
         Setting<T> delegate = nsDelegateFactory.apply("_na_", "_na_");
-        return new AffixSetting<>(new AffixKey(prefix, null, fallbackPrefix), delegate, nsDelegateFactory);
+        return new AffixSetting<>(new AffixKey(prefix, null, aliasPrefix), delegate, nsDelegateFactory);
     }
 
     /**
@@ -2097,24 +2181,80 @@ public class Setting<T> implements ToXContentObject {
     public interface Key {
         boolean match(String key);
 
+        boolean matchAlias(String key);
+
         /**
-         * Returns true if and only if this key is present in the given settings instance (ignoring given exclusions).
+         * Returns true if and only if this key (or its alias) is present in the settings instance (ignoring given exclusions).
          * @param keys keys to check
          * @param exclusions exclusions to ignore
          */
         boolean exists(Set<String> keys, Set<String> exclusions);
+
+        /**
+         * Returns true if and only if the alias is present in the settings instance (ignoring given exclusions).
+         * @param keys keys to check
+         * @param exclusions exclusions to ignore
+         */
+        boolean existsAlias(Set<String> keys, Set<String> exclusions);
+
+        boolean hasAlias();
+
+        @Nullable
+        String getAliasString();
+
+        /**
+         * Rewrite (deprecated) alias to non-alias key.
+         */
+        @Nullable
+        String rewriteAlias(String aliasKey);
     }
 
     public static class SimpleKey implements Key {
         protected final String key;
+        protected final @Nullable String aliasKey;
 
         public SimpleKey(String key) {
+            this(key, null);
+        }
+
+        public SimpleKey(String key, @Nullable String aliasKey) {
             this.key = Settings.internKeyOrValue(key);
+            this.aliasKey = aliasKey != null ? Settings.internKeyOrValue(aliasKey) : null;
         }
 
         @Override
         public boolean match(String key) {
-            return this.key.equals(key);
+            return this.key.equals(key) || matchAlias(key);
+        }
+
+        @Override
+        public boolean matchAlias(String key) {
+            return aliasKey != null && aliasKey.equals(key);
+        }
+
+        @Override
+        public boolean exists(Set<String> keys, Set<String> exclusions) {
+            return (keys.contains(key) && exclusions.contains(key) == false) || existsAlias(keys, exclusions);
+        }
+
+        @Override
+        public boolean existsAlias(Set<String> keys, Set<String> exclusions) {
+            return aliasKey != null && keys.contains(aliasKey) && exclusions.contains(aliasKey) == false;
+        }
+
+        @Override
+        public boolean hasAlias() {
+            return aliasKey != null;
+        }
+
+        @Override
+        public String getAliasString() {
+            return aliasKey;
+        }
+
+        @Override
+        public String rewriteAlias(String aliasedKey) {
+            return aliasKey != null && aliasedKey.equals(aliasKey) ? key : aliasedKey;
         }
 
         @Override
@@ -2127,24 +2267,19 @@ public class Setting<T> implements ToXContentObject {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             SimpleKey simpleKey = (SimpleKey) o;
-            return Objects.equals(key, simpleKey.key);
+            return Objects.equals(key, simpleKey.key) && Objects.equals(aliasKey, simpleKey.aliasKey);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(key);
-        }
-
-        @Override
-        public boolean exists(Set<String> keys, Set<String> exclusions) {
-            return keys.contains(key) && exclusions.contains(key) == false;
+            return Objects.hash(key, aliasKey);
         }
     }
 
     public static final class GroupKey extends SimpleKey {
 
         public GroupKey(String key) {
-            super(key);
+            super(key, null);
             if (key.endsWith(".") == false) {
                 throw new IllegalArgumentException("key must end with a '.'");
             }
@@ -2162,14 +2297,35 @@ public class Setting<T> implements ToXContentObject {
             }
             return keys.stream().filter(Predicate.not(exclusions::contains)).anyMatch(this::match);
         }
+
+        @Override
+        public boolean hasAlias() {
+            return false;
+        }
+
+        @Override
+        public String rewriteAlias(String aliasedKey) {
+            return aliasedKey;
+        }
     }
 
     public static final class ListKey extends SimpleKey {
         private final Pattern pattern;
+        private final Pattern aliasPattern;
 
         public ListKey(String key) {
-            super(key);
-            this.pattern = Pattern.compile(Pattern.quote(key) + "(\\.\\d+)?");
+            this(key, null);
+        }
+
+        public ListKey(String key, @Nullable String aliasKey) {
+            super(key, aliasKey);
+            if (aliasKey == null) {
+                pattern = Pattern.compile(Pattern.quote(key) + "(\\.\\d+)?");
+                aliasPattern = null;
+            } else {
+                pattern = Pattern.compile("(" + Pattern.quote(key) + "|" + Pattern.quote(aliasKey) + ")(\\.\\d+)?");
+                aliasPattern = Pattern.compile(Pattern.quote(aliasKey) + "(\\.\\d+)?");
+            }
         }
 
         @Override
@@ -2178,14 +2334,57 @@ public class Setting<T> implements ToXContentObject {
         }
 
         @Override
+        public boolean matchAlias(String key) {
+            return aliasPattern != null && aliasPattern.matcher(key).matches();
+        }
+
+        @Override
         public boolean exists(Set<String> keys, Set<String> exclusions) {
             if (keys.contains(key)) {
                 return exclusions.contains(key) == false;
+            }
+            if (aliasKey != null && keys.contains((aliasKey))) {
+                return exclusions.contains(aliasKey) == false;
             }
             if (exclusions.isEmpty()) {
                 return keys.stream().anyMatch(this::match);
             }
             return keys.stream().filter(Predicate.not(exclusions::contains)).anyMatch(this::match);
+        }
+
+        @Override
+        public boolean existsAlias(Set<String> keys, Set<String> exclusions) {
+            if (aliasKey == null) {
+                return false;
+            }
+            if (keys.contains((aliasKey))) {
+                return exclusions.contains(aliasKey) == false;
+            }
+            if (exclusions.isEmpty()) {
+                return keys.stream().anyMatch(this::matchAlias);
+            }
+            return keys.stream().filter(Predicate.not(exclusions::contains)).anyMatch(this::matchAlias);
+        }
+
+        @Override
+        public boolean hasAlias() {
+            return aliasPattern != null;
+        }
+
+        @Override
+        public String rewriteAlias(String aliasedKey) {
+            if (aliasKey == null) {
+                return aliasedKey;
+            }
+            if (aliasKey.equals(aliasedKey)) {
+                return key;
+            }
+            if (aliasedKey.startsWith(aliasKey)) {
+                String rewritten = key + aliasedKey.substring(aliasKey.length());
+                assert match(rewritten) : "Unexpected key after rewrite: " + rewritten;
+                return rewritten;
+            }
+            return aliasedKey;
         }
     }
 
@@ -2195,31 +2394,44 @@ public class Setting<T> implements ToXContentObject {
      */
     public static final class AffixKey implements Key {
         private final Pattern pattern;
-        private final Pattern fallbackPattern;
+        private final Pattern aliasPattern;
         private final String prefix;
         private final String suffix;
-        private final String fallbackPrefix;
+        private final String aliasPrefix;
         private final String keyString;
+        private final String aliasString;
 
-        AffixKey(String prefix, String suffix, String fallbackPrefix) {
+        AffixKey(String prefix, String suffix, String aliasPrefix) {
             assert prefix != null || suffix != null : "Either prefix or suffix must be non-null";
-            assert fallbackPrefix == null || prefix != null : "prefix must be non-null if fallbackPrefix is non-null";
+            assert aliasPrefix == null || prefix != null : "prefix must be non-null if aliasPrefix is non-null";
 
             this.prefix = prefix;
             if (prefix.endsWith(".") == false) {
                 throw new IllegalArgumentException("prefix must end with a '.'");
             }
+            StringBuilder sb = new StringBuilder(prefix);
+            if (suffix != null) {
+                sb.append('*').append('.').append(suffix);
+            }
+            keyString = Settings.internKeyOrValue(sb.toString());
 
             String prefixPattern;
-            this.fallbackPrefix = fallbackPrefix;
-            if (fallbackPrefix != null) {
-                if (fallbackPrefix.endsWith(".") == false) {
-                    throw new IllegalArgumentException("prefix must end with a '.'");
+            this.aliasPrefix = aliasPrefix;
+            if (aliasPrefix != null) {
+                if (aliasPrefix.endsWith(".") == false) {
+                    throw new IllegalArgumentException("aliasPrefix must end with a '.'");
                 }
-                fallbackPattern = Pattern.compile("(" + Pattern.quote(fallbackPrefix) + ")" + "((?:[-\\w]+[.])*[-\\w]+$)");
-                prefixPattern = "(" + Pattern.quote(prefix) + "|" + Pattern.quote(fallbackPrefix) + ")";
+                sb.setLength(0); // clear
+                sb.append(aliasPrefix);
+                if (suffix != null) {
+                    sb.append('*').append('.').append(suffix);
+                }
+                aliasString = Settings.internKeyOrValue(sb.toString());
+                aliasPattern = Pattern.compile("(" + Pattern.quote(aliasPrefix) + ")" + "((?:[-\\w]+[.])*[-\\w]+$)");
+                prefixPattern = "(" + Pattern.quote(prefix) + "|" + Pattern.quote(aliasPrefix) + ")";
             } else {
-                fallbackPattern = null;
+                aliasString = null;
+                aliasPattern = null;
                 prefixPattern = "(" + Pattern.quote(prefix) + ")";
             }
             this.suffix = suffix;
@@ -2229,19 +2441,17 @@ public class Setting<T> implements ToXContentObject {
                 // the last part of this regexp is to support both list and group keys
                 pattern = Pattern.compile("(" + prefixPattern + "([-\\w]+)\\." + Pattern.quote(suffix) + ")(?:\\..*)?");
             }
-            StringBuilder sb = new StringBuilder();
-            sb.append(prefix);
-            if (suffix != null) {
-                sb.append('*');
-                sb.append('.');
-                sb.append(suffix);
-            }
-            keyString = Settings.internKeyOrValue(sb.toString());
         }
 
         @Override
         public boolean match(String key) {
             return pattern.matcher(key).matches();
+        }
+
+        /** Does the key match the alias pattern? */
+        @Override
+        public boolean matchAlias(String key) {
+            return aliasPattern != null && aliasPattern.matcher(key).matches();
         }
 
         @Override
@@ -2252,18 +2462,30 @@ public class Setting<T> implements ToXContentObject {
             return keys.stream().filter(Predicate.not(exclusions::contains)).anyMatch(this::match);
         }
 
-        /**
-         * Does this key have a fallback prefix?
-         */
-        private boolean hasFallback() {
-            return fallbackPattern != null;
+        @Override
+        public boolean existsAlias(Set<String> keys, Set<String> exclusions) {
+            if (aliasPattern == null) {
+                return false;
+            }
+            if (exclusions.isEmpty()) {
+                return keys.stream().anyMatch(this::matchAlias);
+            }
+            return keys.stream().filter(Predicate.not(exclusions::contains)).anyMatch(this::matchAlias);
         }
 
-        /**
-         * Does the key start with the fallback prefix?
-         */
-        public boolean isFallback(String key) {
-            return hasFallback() && fallbackPattern.matcher(key).matches();
+        @Override
+        public boolean hasAlias() {
+            return aliasPrefix != null;
+        }
+
+        @Override
+        public String rewriteAlias(String aliasedKey) {
+            if (aliasPrefix != null && aliasedKey.startsWith(aliasPrefix)) {
+                String key = prefix + aliasedKey.substring(aliasPrefix.length());
+                assert match(key) : "Unexpected key after rewrite: " + key;
+                return key;
+            }
+            return aliasedKey;
         }
 
         /**
@@ -2302,6 +2524,11 @@ public class Setting<T> implements ToXContentObject {
         }
 
         @Override
+        public String getAliasString() {
+            return aliasString;
+        }
+
+        @Override
         public String toString() {
             return keyString;
         }
@@ -2313,12 +2540,12 @@ public class Setting<T> implements ToXContentObject {
             AffixKey that = (AffixKey) o;
             return Objects.equals(prefix, that.prefix)
                 && Objects.equals(suffix, that.suffix)
-                && Objects.equals(fallbackPrefix, that.fallbackPrefix);
+                && Objects.equals(aliasPrefix, that.aliasPrefix);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(prefix, suffix, fallbackPrefix);
+            return Objects.hash(prefix, suffix, aliasPrefix);
         }
     }
 }

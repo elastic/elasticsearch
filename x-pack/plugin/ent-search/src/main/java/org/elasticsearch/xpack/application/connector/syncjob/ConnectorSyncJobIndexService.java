@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.application.connector.syncjob;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -31,6 +32,7 @@ import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortOrder;
@@ -219,38 +221,72 @@ public class ConnectorSyncJobIndexService {
 
     /**
      * Cancels the {@link ConnectorSyncJob} in the underlying index.
-     * Canceling means to set the {@link ConnectorSyncStatus} to "canceling" and not "canceled" as this is an async operation.
-     * It also updates 'cancelation_requested_at' to the time, when the method was called.
+     * Canceling means to set the {@link ConnectorSyncStatus} either to "canceling" or "canceled"
+     * depending on the current {@link ConnectorSyncStatus} of the {@link ConnectorSyncJob}.
      *
      * @param connectorSyncJobId     The id of the connector sync job object.
      * @param listener               The action listener to invoke on response/failure.
      */
     public void cancelConnectorSyncJob(String connectorSyncJobId, ActionListener<UpdateResponse> listener) {
-        Instant cancellationRequestedAt = Instant.now();
-
-        final UpdateRequest updateRequest = new UpdateRequest(CONNECTOR_SYNC_JOB_INDEX_NAME, connectorSyncJobId).setRefreshPolicy(
-            WriteRequest.RefreshPolicy.IMMEDIATE
-        )
-            .doc(
-                Map.of(
-                    ConnectorSyncJob.STATUS_FIELD.getPreferredName(),
-                    ConnectorSyncStatus.CANCELING,
-                    ConnectorSyncJob.CANCELATION_REQUESTED_AT_FIELD.getPreferredName(),
-                    cancellationRequestedAt
-                )
-            );
-
         try {
-            client.update(
-                updateRequest,
-                new DelegatingIndexNotFoundOrDocumentMissingActionListener<>(connectorSyncJobId, listener, (l, updateResponse) -> {
-                    if (updateResponse.getResult() == DocWriteResponse.Result.NOT_FOUND) {
-                        l.onFailure(new ResourceNotFoundException(connectorSyncJobId));
-                        return;
+            getConnectorSyncJob(connectorSyncJobId, listener.delegateFailure((getSyncJobListener, syncJobSearchResult) -> {
+                Map<String, Object> syncJobFieldsToUpdate;
+                Instant now = Instant.now();
+
+                ConnectorSyncStatus prevStatus = getConnectorSyncJobStatusFromSearchResult(syncJobSearchResult);
+
+                try {
+                    if (ConnectorSyncStatus.PENDING.equals(prevStatus) || ConnectorSyncStatus.SUSPENDED.equals(prevStatus)) {
+                        // A pending or suspended non-running sync job is set to `canceled` directly
+                        // without a transition to the in-between `canceling` status
+                        ConnectorSyncStatus nextStatus = ConnectorSyncStatus.CANCELED;
+                        ConnectorSyncJobStateMachine.assertValidStateTransition(prevStatus, nextStatus);
+
+                        syncJobFieldsToUpdate = Map.of(
+                            ConnectorSyncJob.STATUS_FIELD.getPreferredName(),
+                            nextStatus,
+                            ConnectorSyncJob.CANCELATION_REQUESTED_AT_FIELD.getPreferredName(),
+                            now,
+                            ConnectorSyncJob.CANCELED_AT_FIELD.getPreferredName(),
+                            now,
+                            ConnectorSyncJob.COMPLETED_AT_FIELD.getPreferredName(),
+                            now
+                        );
+                    } else {
+                        ConnectorSyncStatus nextStatus = ConnectorSyncStatus.CANCELING;
+                        ConnectorSyncJobStateMachine.assertValidStateTransition(prevStatus, nextStatus);
+
+                        syncJobFieldsToUpdate = Map.of(
+                            ConnectorSyncJob.STATUS_FIELD.getPreferredName(),
+                            nextStatus,
+                            ConnectorSyncJob.CANCELATION_REQUESTED_AT_FIELD.getPreferredName(),
+                            now
+                        );
                     }
-                    l.onResponse(updateResponse);
-                })
-            );
+                } catch (ConnectorSyncJobInvalidStatusTransitionException e) {
+                    getSyncJobListener.onFailure(new ElasticsearchStatusException(e.getMessage(), RestStatus.BAD_REQUEST, e));
+                    return;
+                }
+
+                final UpdateRequest updateRequest = new UpdateRequest(CONNECTOR_SYNC_JOB_INDEX_NAME, connectorSyncJobId).setRefreshPolicy(
+                    WriteRequest.RefreshPolicy.IMMEDIATE
+                ).doc(syncJobFieldsToUpdate);
+
+                client.update(
+                    updateRequest,
+                    new DelegatingIndexNotFoundOrDocumentMissingActionListener<>(
+                        connectorSyncJobId,
+                        listener,
+                        (indexNotFoundListener, updateResponse) -> {
+                            if (updateResponse.getResult() == DocWriteResponse.Result.NOT_FOUND) {
+                                indexNotFoundListener.onFailure(new ResourceNotFoundException(connectorSyncJobId));
+                                return;
+                            }
+                            indexNotFoundListener.onResponse(updateResponse);
+                        }
+                    )
+                );
+            }));
         } catch (Exception e) {
             listener.onFailure(e);
         }
@@ -415,6 +451,12 @@ public class ConnectorSyncJobIndexService {
 
     }
 
+    private ConnectorSyncStatus getConnectorSyncJobStatusFromSearchResult(ConnectorSyncJobSearchResult searchResult) {
+        return ConnectorSyncStatus.connectorSyncStatus(
+            (String) searchResult.getResultMap().get(ConnectorSyncJob.STATUS_FIELD.getPreferredName())
+        );
+    }
+
     private void getSyncJobConnectorInfo(String connectorId, ActionListener<Connector> listener) {
         try {
 
@@ -485,29 +527,45 @@ public class ConnectorSyncJobIndexService {
      * @param listener               The action listener to invoke on response/failure.
      */
     public void updateConnectorSyncJobError(String connectorSyncJobId, String error, ActionListener<UpdateResponse> listener) {
-        final UpdateRequest updateRequest = new UpdateRequest(CONNECTOR_SYNC_JOB_INDEX_NAME, connectorSyncJobId).setRefreshPolicy(
-            WriteRequest.RefreshPolicy.IMMEDIATE
-        )
-            .doc(
-                Map.of(
-                    ConnectorSyncJob.ERROR_FIELD.getPreferredName(),
-                    error,
-                    ConnectorSyncJob.STATUS_FIELD.getPreferredName(),
-                    ConnectorSyncStatus.ERROR
-                )
-            );
-
         try {
-            client.update(
-                updateRequest,
-                new DelegatingIndexNotFoundOrDocumentMissingActionListener<>(connectorSyncJobId, listener, (l, updateResponse) -> {
-                    if (updateResponse.getResult() == DocWriteResponse.Result.NOT_FOUND) {
-                        l.onFailure(new ResourceNotFoundException(connectorSyncJobId));
-                        return;
-                    }
-                    l.onResponse(updateResponse);
-                })
-            );
+            getConnectorSyncJob(connectorSyncJobId, listener.delegateFailure((getSyncJobListener, syncJobSearchResult) -> {
+                ConnectorSyncStatus prevStatus = getConnectorSyncJobStatusFromSearchResult(syncJobSearchResult);
+                ConnectorSyncStatus nextStatus = ConnectorSyncStatus.ERROR;
+
+                try {
+                    ConnectorSyncJobStateMachine.assertValidStateTransition(prevStatus, nextStatus);
+                } catch (ConnectorSyncJobInvalidStatusTransitionException e) {
+                    getSyncJobListener.onFailure(new ElasticsearchStatusException(e.getMessage(), RestStatus.BAD_REQUEST, e));
+                    return;
+                }
+
+                final UpdateRequest updateRequest = new UpdateRequest(CONNECTOR_SYNC_JOB_INDEX_NAME, connectorSyncJobId).setRefreshPolicy(
+                    WriteRequest.RefreshPolicy.IMMEDIATE
+                )
+                    .doc(
+                        Map.of(
+                            ConnectorSyncJob.ERROR_FIELD.getPreferredName(),
+                            error,
+                            ConnectorSyncJob.STATUS_FIELD.getPreferredName(),
+                            nextStatus
+                        )
+                    );
+
+                client.update(
+                    updateRequest,
+                    new DelegatingIndexNotFoundOrDocumentMissingActionListener<>(
+                        connectorSyncJobId,
+                        listener,
+                        (indexNotFoundListener, updateResponse) -> {
+                            if (updateResponse.getResult() == DocWriteResponse.Result.NOT_FOUND) {
+                                indexNotFoundListener.onFailure(new ResourceNotFoundException(connectorSyncJobId));
+                                return;
+                            }
+                            indexNotFoundListener.onResponse(updateResponse);
+                        }
+                    )
+                );
+            }));
         } catch (Exception e) {
             listener.onFailure(e);
         }

@@ -435,6 +435,8 @@ each node's <<es-tmpdir,temporary directory>> at `$ES_TMPDIR/geoip-databases/<no
 Note that {es} will make a GET request to `${ingest.geoip.downloader.endpoint}?elastic_geoip_service_tos=agree`,
 expecting the list of metadata about databases typically found in `overview.json`.
 
+The GeoIP downloader uses the JDK's builtin cacerts. If you're using a custom endpoint, add the custom https endpoint cacert(s) to the JDK's truststore.
+
 [[ingest-geoip-downloader-poll-interval]]
 `ingest.geoip.downloader.poll.interval`::
 (<<dynamic-cluster-setting,Dynamic>>, <<time-units,time value>>)

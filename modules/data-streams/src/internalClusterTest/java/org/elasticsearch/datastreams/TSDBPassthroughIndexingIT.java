@@ -115,6 +115,15 @@ public class TSDBPassthroughIndexingIT extends ESSingleNodeTestCase {
         }
         """;
 
+    private static String getRandomDoc(Instant time) {
+        return DOC.replace("$time", formatInstant(time))
+            .replace("$uid", randomUUID())
+            .replace("$name", randomAlphaOfLength(4))
+            .replace("$number1", Long.toString(randomLong()))
+            .replace("$number2", Double.toString(randomDouble()))
+            .replace("$ip", InetAddresses.toAddrString(randomIp(randomBoolean())));
+    }
+
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return List.of(DataStreamsPlugin.class, InternalSettingsPlugin.class);
@@ -150,15 +159,7 @@ public class TSDBPassthroughIndexingIT extends ESSingleNodeTestCase {
         Instant time = Instant.now();
         for (int i = 0; i < indexingIters; i++) {
             var indexRequest = new IndexRequest("k8s").opType(DocWriteRequest.OpType.CREATE);
-            indexRequest.source(
-                DOC.replace("$time", formatInstant(time))
-                    .replace("$uid", randomUUID())
-                    .replace("$name", randomAlphaOfLength(4))
-                    .replace("$number1", Long.toString(randomLong()))
-                    .replace("$number2", Double.toString(randomDouble()))
-                    .replace("$ip", InetAddresses.toAddrString(randomIp(randomBoolean()))),
-                XContentType.JSON
-            );
+            indexRequest.source(getRandomDoc(time), XContentType.JSON);
             var indexResponse = client().index(indexRequest).actionGet();
             index = indexResponse.getIndex();
             String id = indexResponse.getId();
@@ -245,15 +246,7 @@ public class TSDBPassthroughIndexingIT extends ESSingleNodeTestCase {
         var bulkRequest = new BulkRequest(dataStreamName);
         for (int i = 0; i < numBulkItems; i++) {
             var indexRequest = new IndexRequest(dataStreamName).opType(DocWriteRequest.OpType.CREATE);
-            indexRequest.source(
-                DOC.replace("$time", formatInstant(time))
-                    .replace("$uid", randomUUID())
-                    .replace("$name", randomAlphaOfLength(4))
-                    .replace("$number1", Long.toString(randomLong()))
-                    .replace("$number2", Double.toString(randomDouble()))
-                    .replace("$ip", InetAddresses.toAddrString(randomIp(randomBoolean()))),
-                XContentType.JSON
-            );
+            indexRequest.source(getRandomDoc(time), XContentType.JSON);
             bulkRequest.add(indexRequest);
             time = time.plusMillis(1);
         }

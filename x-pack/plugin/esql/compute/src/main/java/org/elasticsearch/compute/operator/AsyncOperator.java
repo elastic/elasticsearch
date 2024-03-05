@@ -13,11 +13,13 @@ import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
+import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.tasks.TaskCancelledException;
 
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.LongAdder;
 
 /**
  * {@link AsyncOperator} performs an external computation specified in {@link #performAsync(Page, ActionListener)}.
@@ -33,6 +35,7 @@ public abstract class AsyncOperator implements Operator {
     private final DriverContext driverContext;
 
     private final int maxOutstandingRequests;
+    private final LongAdder totalTimeInNanos = new LongAdder();
     private boolean finished = false;
     private volatile boolean closed = false;
 
@@ -81,7 +84,11 @@ public abstract class AsyncOperator implements Operator {
                 onFailure(e);
                 onSeqNoCompleted(seqNo);
             });
-            performAsync(input, ActionListener.runAfter(listener, driverContext::removeAsyncAction));
+            final long startNanos = System.nanoTime();
+            performAsync(input, ActionListener.runAfter(listener, () -> {
+                driverContext.removeAsyncAction();
+                totalTimeInNanos.add(System.nanoTime() - startNanos);
+            }));
             success = true;
         } finally {
             if (success == false) {
@@ -201,6 +208,19 @@ public abstract class AsyncOperator implements Operator {
         } else {
             return null;
         }
+    }
+
+    protected record PageStats(long received, long completed) {
+
+    }
+
+    protected final PageStats pageStats() {
+        SeqNoStats stats = checkpoint.getStats(SequenceNumbers.NO_OPS_PERFORMED);
+        return new PageStats(stats.getMaxSeqNo(), stats.getLocalCheckpoint());
+    }
+
+    protected final long totalTimeInNanos() {
+        return totalTimeInNanos.sum();
     }
 
     @Override

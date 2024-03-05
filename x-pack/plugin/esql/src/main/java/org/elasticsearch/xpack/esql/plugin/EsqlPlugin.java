@@ -52,6 +52,7 @@ import org.elasticsearch.xpack.esql.action.RestEsqlAsyncQueryAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlDeleteAsyncResultAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlGetAsyncResultAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlQueryAction;
+import org.elasticsearch.xpack.esql.enrich.EnrichLookupOperator;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.session.EsqlIndexResolver;
@@ -176,7 +177,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
                 TopNOperatorStatus.ENTRY,
                 MvExpandOperator.Status.ENTRY,
                 ValuesSourceReaderOperator.Status.ENTRY,
-                SingleValueQuery.ENTRY
+                SingleValueQuery.ENTRY,
+                EnrichLookupOperator.Status.ENTRY
             ).stream(),
             Block.getNamedWriteables().stream()
         ).toList();

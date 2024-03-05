@@ -30,6 +30,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.http.HttpPreRequest;
 import org.elasticsearch.node.Node;
@@ -1908,7 +1909,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         }
 
         private static Predicate<AuditEventMetaInfo> buildIgnorePredicate(Map<String, EventFilterPolicy> policyMap) {
-            return policyMap.values().stream().map(EventFilterPolicy::ignorePredicate).reduce(x -> false, (x, y) -> x.or(y));
+            return policyMap.values().stream().map(EventFilterPolicy::ignorePredicate).reduce(Predicates.never(), Predicate::or);
         }
 
         @Override

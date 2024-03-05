@@ -46,7 +46,9 @@ public class DateUtilsTests extends ESTestCase {
             "America/Godthab", // part of tzdata2020a (maps to America/Nuuk)
             "America/Nuuk", // part of tzdata2020a
             "America/Ciudad_Juarez", // part of tzdata2022g
-            "Europe/Kyiv" // part of tzdata2022c
+            "America/Pangnirtung", // part of tzdata2022g
+            "Europe/Kyiv", // part of tzdata2022c,
+            "Pacific/Kanton" // part of tzdata2021b
         )
     );
 

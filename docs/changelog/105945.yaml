@@ -1,0 +1,5 @@
+pr: 105945
+summary: "[Connector API] Fix default oredering in `SyncJob` list endpoint"
+area: Extract&Transform
+type: bug
+issues: []

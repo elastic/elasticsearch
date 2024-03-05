@@ -72,7 +72,7 @@ image::images/search/learning-to-rank-feature-extraction.png[Judgment list with 
 
 To do this, we use templated queries to extract features both when building the training dataset and during inference at query time:
 
-[source,json]
+[source,js]
 ----
 [
   {

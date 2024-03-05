@@ -1,5 +1,5 @@
-[[rest-api-version]]
-=== Version API
+[[rest-api-root]]
+=== Root API
 ++++
 <titleabbrev>Version API</titleabbrev>
 ++++

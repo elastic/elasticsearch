@@ -57,11 +57,11 @@ not be included yet.
 * <<transform-apis,{transform-cap} APIs>>
 * <<usage-api,Usage API>>
 * <<watcher-api,Watcher APIs>>
-* <<rest-api-version,Version API>>
+* <<rest-api-root,Root API>>
 --
 
 include::{es-repo-dir}/api-conventions.asciidoc[]
-include::{es-repo-dir}/rest-api/version.asciidoc[]
+include::{es-repo-dir}/rest-api/root.asciidoc[]
 include::{es-repo-dir}/rest-api/common-options.asciidoc[]
 include::{es-repo-dir}/rest-api/rest-api-compatibility.asciidoc[]
 include::{es-repo-dir}/autoscaling/apis/autoscaling-apis.asciidoc[]

@@ -57,8 +57,8 @@ public final class StringUtils {
             char ch = s.charAt(i);
             if (Character.isAlphabetic(ch)) {
                 if (Character.isUpperCase(ch)) {
-                    // append `_` when encountering a capital after a small letter, but only if not the last letter, or `ST_`.
-                    if (i > 0 && i < s.length() - 1 && previousCharWasUp == false || sb.toString().equals("St")) {
+                    // append `_` when encountering a capital after a small letter, but only if not the last letter.
+                    if (i > 0 && i < s.length() - 1 && previousCharWasUp == false) {
                         sb.append("_");
                     }
                     previousCharWasUp = true;

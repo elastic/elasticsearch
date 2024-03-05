@@ -227,7 +227,7 @@ public class WellKnownBinary {
         if (type != 1 && type != 1001) {
             throw new IllegalArgumentException("Expected a " + ShapeType.POINT + ", got [" + byteBuffer.getInt() + "]");
         }
-        return byteBuffer.getDouble(5 + coordinateIndex * 8);
+        return byteBuffer.getDouble(byteBuffer.position() + coordinateIndex * 8);
     }
 
     private static Geometry parseGeometry(ByteBuffer byteBuffer, boolean coerce) {

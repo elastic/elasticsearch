@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.support.nodes;
 
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;

@@ -3063,7 +3063,7 @@ public class IndexShardTests extends IndexShardTestCase {
         IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
 
         AtomicBoolean called = new AtomicBoolean(false);
-        primary.waitForShardRecoveryIfNeeded(ActionListener.running(() -> called.set(true)));
+        primary.waitForEngineOrClosedShard(ActionListener.running(() -> called.set(true)));
         assertThat("listener should not have been called yet", called.get(), equalTo(false));
 
         recoverShardFromStore(primary);
@@ -3079,7 +3079,7 @@ public class IndexShardTests extends IndexShardTestCase {
         IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
 
         AtomicBoolean called = new AtomicBoolean(false);
-        primary.waitForShardRecoveryIfNeeded(ActionListener.running(() -> called.set(true)));
+        primary.waitForEngineOrClosedShard(ActionListener.running(() -> called.set(true)));
         assertThat("listener should not have been called yet", called.get(), equalTo(false));
 
         closeShards(primary);

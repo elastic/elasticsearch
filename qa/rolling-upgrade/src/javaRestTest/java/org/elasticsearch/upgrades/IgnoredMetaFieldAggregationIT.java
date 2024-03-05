@@ -52,7 +52,7 @@ public class IgnoredMetaFieldAggregationIT extends ParameterizedRollingUpgradeTe
             assertRestStatus(createIndexResponse, RestStatus.OK);
             final Response indexDocumentResponse = client().performRequest(indexDocument("test2", "barbar", "555.222.111.000"));
             assertRestStatus(indexDocumentResponse, RestStatus.CREATED);
-            assertIndexDocuments("test*", 1);
+            assertIndexDocuments("test*", 2);
 
             assertAggregateIgnoredMetadataField("test*");
             assertAggregateIgnoredMetadataFieldException(

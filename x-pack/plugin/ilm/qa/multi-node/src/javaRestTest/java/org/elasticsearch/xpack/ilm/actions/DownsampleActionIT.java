@@ -23,6 +23,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -395,7 +396,7 @@ public class DownsampleActionIT extends ESRestTestCase {
         }, 30, TimeUnit.SECONDS);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/103981")
+    @TestLogging(value = "org.elasticsearch.xpack.ilm:TRACE", reason = "https://github.com/elastic/elasticsearch/issues/103981")
     public void testRollupNonTSIndex() throws Exception {
         createIndex(index, alias, false);
         index(client(), index, true, null, "@timestamp", "2020-01-01T05:10:00Z", "volume", 11.0, "metricset", randomAlphaOfLength(5));

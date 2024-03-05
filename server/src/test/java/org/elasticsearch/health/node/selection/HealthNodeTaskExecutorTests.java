@@ -102,6 +102,7 @@ public class HealthNodeTaskExecutorTests extends ESTestCase {
                 eq("health-node"),
                 eq("health-node"),
                 eq(new HealthNodeTaskParams()),
+                eq(null),
                 any()
             )
         );
@@ -120,6 +121,7 @@ public class HealthNodeTaskExecutorTests extends ESTestCase {
             eq("health-node"),
             eq("health-node"),
             eq(new HealthNodeTaskParams()),
+            eq(null),
             any()
         );
     }

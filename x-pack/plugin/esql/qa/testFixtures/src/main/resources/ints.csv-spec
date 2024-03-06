@@ -560,15 +560,83 @@ warning:Line 1:76: org.elasticsearch.xpack.ql.InvalidArgumentException: [1002000
 x:long
 ;
 
-valuesLong
+valuesLong#[skip:-8.13.99, reason:Added in 8.14]
   FROM employees
-| WHERE emp_no <= 10009 
+| WHERE emp_no <= 10009
+| STATS l=VALUES(languages.long)
+;
+
+   l:long
+[2, 5, 4, 1, 3]
+;
+
+valuesLongGrouped#[skip:-8.13.99, reason:Added in 8.14]
+  FROM employees
+| WHERE emp_no <= 10009
 | EVAL first_letter = SUBSTRING(first_name, 0, 1)
 | STATS l=VALUES(languages.long) BY first_letter
 | SORT first_letter
 ;
 
    l:long | first_letter:keyword
+        3 | A
+        5 | B
+        5 | C
+        2 | G
+        1 | K
+        4 | P
+   [2, 1] | S
+        4 | T
+;
+
+valuesInt#[skip:-8.13.99, reason:Added in 8.14]
+  FROM employees
+| WHERE emp_no <= 10009
+| STATS l=VALUES(languages)
+;
+
+   l:integer
+[2, 5, 4, 1, 3]
+;
+
+valuesIntGrouped#[skip:-8.13.99, reason:Added in 8.14]
+  FROM employees
+| WHERE emp_no <= 10009
+| EVAL first_letter = SUBSTRING(first_name, 0, 1)
+| STATS l=VALUES(languages) BY first_letter
+| SORT first_letter
+;
+
+l:integer | first_letter:keyword
+        3 | A
+        5 | B
+        5 | C
+        2 | G
+        1 | K
+        4 | P
+   [2, 1] | S
+        4 | T
+;
+
+valuesShort#[skip:-8.13.99, reason:Added in 8.14]
+  FROM employees
+| WHERE emp_no <= 10009
+| STATS l=VALUES(languages.short)
+;
+
+   l:integer
+[2, 5, 4, 1, 3]
+;
+
+valuesShortGrouped#[skip:-8.13.99, reason:Added in 8.14]
+  FROM employees
+| WHERE emp_no <= 10009
+| EVAL first_letter = SUBSTRING(first_name, 0, 1)
+| STATS l=VALUES(languages.short) BY first_letter
+| SORT first_letter
+;
+
+l:integer | first_letter:keyword
         3 | A
         5 | B
         5 | C

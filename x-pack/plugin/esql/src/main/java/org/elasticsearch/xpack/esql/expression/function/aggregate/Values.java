@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.ValuesIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.ValuesLongAggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
@@ -23,8 +24,8 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 import java.util.List;
 
 public class Values extends AggregateFunction implements ToAggregator {
-    @FunctionInfo(returnType = { "long" }, description = "Collect values for a field.", isAggregation = true)
-    public Values(Source source, @Param(name = "v", type = { "long" }) Expression v) {
+    @FunctionInfo(returnType = { "int|long" }, description = "Collect values for a field.", isAggregation = true)
+    public Values(Source source, @Param(name = "v", type = { "int|long" }) Expression v) {
         super(source, v);
     }
 
@@ -46,6 +47,9 @@ public class Values extends AggregateFunction implements ToAggregator {
     @Override
     public AggregatorFunctionSupplier supplier(List<Integer> inputChannels) {
         DataType type = field().dataType();
+        if (type == DataTypes.INTEGER) {
+            return new ValuesIntAggregatorFunctionSupplier(inputChannels);
+        }
         if (type == DataTypes.LONG) {
             return new ValuesLongAggregatorFunctionSupplier(inputChannels);
         }

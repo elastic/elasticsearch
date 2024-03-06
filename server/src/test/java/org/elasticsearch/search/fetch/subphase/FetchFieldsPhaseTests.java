@@ -14,6 +14,11 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.mapper.DocValueFetcher;
@@ -71,6 +76,11 @@ public class FetchFieldsPhaseTests extends ESTestCase {
         when(sec.getFieldType(any())).thenReturn(fieldType);
         when(sec.getMatchingFieldNames(any())).thenReturn(Set.of("field"));
         when(sec.nestedLookup()).thenReturn(NestedLookup.EMPTY);
+        Settings settings = settings(
+            randomFrom(IndexVersion.current(), IndexVersions.DOC_VALUES_FOR_IGNORED_META_FIELD, IndexVersions.TIME_SERIES_ID_HASHING)
+        ).build();
+        IndexMetadata indexMetadata = new IndexMetadata.Builder("foo").settings(settings).numberOfShards(1).numberOfReplicas(0).build();
+        when(sec.getIndexSettings()).thenReturn(new IndexSettings(indexMetadata, Settings.EMPTY));
         FetchContext fetchContext = mock(FetchContext.class);
         when(fetchContext.fetchFieldsContext()).thenReturn(ffc);
         when(fetchContext.getSearchExecutionContext()).thenReturn(sec);

@@ -11,7 +11,7 @@ tag::param-column-names[]
 (Optional, string) If you have set `format` to `delimited`, you can specify the
 column names in a comma-separated list. If this parameter is not specified, the
 structure finder uses the column names from the header row of the text. If the
-text does not have a header role, columns are named "column1", "column2",
+text does not have a header row, columns are named "column1", "column2",
 "column3", etc.
 end::param-column-names[]
 
@@ -28,7 +28,7 @@ end::param-delimiter[]
 
 tag::param-explain[]
 `explain`::
-(Optional, Boolean) If this parameter is set to `true`, the response includes a
+(Optional, Boolean) If `true`, the response includes a
 field named `explanation`, which is an array of strings that indicate how the
 structure finder produced its result. The default value is `false`.
 end::param-explain[]
@@ -207,7 +207,7 @@ The following table provides the appropriate `timeformat` values for some exampl
 | dd.MM.yy HH:mm:ss.SSS      | 20.04.19 13:15:22.285
 |===
 
-See
+Refer to
 https://docs.oracle.com/javase/8/docs/api/java/time/format/DateTimeFormatter.html[the Java date/time format documentation]
 for more information about date and time format syntax.
 

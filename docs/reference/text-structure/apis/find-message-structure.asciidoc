@@ -24,11 +24,13 @@ Finds the structure of a list of text messages.
 == {api-description-title}
 
 This API provides a starting point for ingesting data into {es} in a format that
-is suitable for subsequent use with other {stack} functionality.
+is suitable for subsequent use with other {stack} functionality. Use this
+API in preference to `find_structure` when your input text has already been
+split up into separate messages by some other process.
 
 The response from the API contains:
 
-* A couple of sample messages.
+* Sample messages.
 * Statistics that reveal the most common values for all fields detected within
 the text and basic numeric statistics for numeric fields.
 * Information about the structure of the text, which is useful when you write
@@ -41,9 +43,9 @@ structure by specifying one or more query parameters.
 
 Details of the output can be seen in the <<find-message-structure-examples,examples>>.
 
-If the structure finder produces unexpected results for some text,
-specify the `explain` query parameter. It causes an `explanation` to appear in
-the response, which should help in determining why the returned structure was
+If the structure finder produces unexpected results,
+specify the `explain` query parameter and an `explanation` will appear in
+the response. It helps determine why the returned structure was
 chosen.
 
 [discrete]
@@ -78,7 +80,7 @@ The list of messages you want to analyze.
 [[find-message-structure-example]]
 === Analyzing Elasticsearch log files
 
-Suppose you have a list of Elasticsearch logs messages.
+Suppose you have a list of {es} logs messages.
 You can send it to the `find_message_structure` endpoint as follows:
 
 [source,console]
@@ -89,8 +91,8 @@ POST _text_structure/find_message_structure
     "[2024-03-05T10:52:36,256][INFO ][o.a.l.u.VectorUtilPanamaProvider] [laptop] Java vector incubator API enabled; uses preferredBitSize=128",
     "[2024-03-05T10:52:41,038][INFO ][o.e.p.PluginsService     ] [laptop] loaded module [repository-url]",
     "[2024-03-05T10:52:41,042][INFO ][o.e.p.PluginsService     ] [laptop] loaded module [rest-root]",
-    "[2024-03-05T10:52:41,043][INFO ][o.e.p.PluginsService     ] [laptop] loaded module [x-pack-core]tive methods for [MacOS]",
-    "[2024-03-05T10:52:41,043][INFO ][o.e.p.PluginsService     ] [laptop] loaded module [x-pack-redact]API enabled; uses preferredBitSize=128",
+    "[2024-03-05T10:52:41,043][INFO ][o.e.p.PluginsService     ] [laptop] loaded module [x-pack-core]",
+    "[2024-03-05T10:52:41,043][INFO ][o.e.p.PluginsService     ] [laptop] loaded module [x-pack-redact]",
     "[2024-03-05T10:52:41,043][INFO ][o.e.p.PluginsService     ] [laptop] loaded module [ingest-user-agent]",
     "[2024-03-05T10:52:41,044][INFO ][o.e.p.PluginsService     ] [laptop] loaded module [x-pack-monitoring]",
     "[2024-03-05T10:52:41,044][INFO ][o.e.p.PluginsService     ] [laptop] loaded module [repository-s3]",
@@ -207,11 +209,11 @@ If the request does not encounter errors, you receive the following result:
           "count" : 1
         },
         {
-          "value" : "[2024-03-05T10:52:41,043][INFO ][o.e.p.PluginsService     ] [laptop] loaded module [x-pack-core]tive methods for [MacOS]",
+          "value" : "[2024-03-05T10:52:41,043][INFO ][o.e.p.PluginsService     ] [laptop] loaded module [x-pack-core]",
           "count" : 1
         },
         {
-          "value" : "[2024-03-05T10:52:41,043][INFO ][o.e.p.PluginsService     ] [laptop] loaded module [x-pack-redact]API enabled; uses preferredBitSize=128",
+          "value" : "[2024-03-05T10:52:41,043][INFO ][o.e.p.PluginsService     ] [laptop] loaded module [x-pack-redact]",
           "count" : 1
         },
         {
@@ -283,10 +285,8 @@ If the request does not encounter errors, you receive the following result:
   }
 }
 ----
-// TESTRESPONSE[s/"sample_start" : ".*",/"sample_start" : "$body.sample_start",/]
-// The substitution is because the text is pre-processed by the test harness,
-// so the fields may get reordered in the JSON the endpoint sees
+// TESTRESPONSE
 
 For a detailed description of the response format, or for additional examples
-on ingesting delimited text (such as CSV) or newline-delimited JSON, see the
+on ingesting delimited text (such as CSV) or newline-delimited JSON, refer to the
 <<find-structure-examples,examples of the find text structure endpoint>>.

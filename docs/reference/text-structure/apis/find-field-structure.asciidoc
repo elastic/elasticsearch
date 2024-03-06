@@ -22,12 +22,14 @@ Finds the structure of a field in an Elasticsearch index.
 [[find-field-structure-desc]]
 == {api-description-title}
 
-This API provides a starting point for ingesting data into {es} in a format that
-is suitable for subsequent use with other {stack} functionality.
+This API provides a starting point for extracting further information from log messages
+already ingested into {es}. For example, if you have ingested data into a very simple
+index that has just `@timestamp` and `message` fields, you can use this API to
+see what common structure exists in the `message` field.
 
 The response from the API contains:
 
-* A couple of sample messages.
+* Sample messages.
 * Statistics that reveal the most common values for all fields detected within
 the text and basic numeric statistics for numeric fields.
 * Information about the structure of the text, which is useful when you write
@@ -40,9 +42,9 @@ structure by specifying one or more query parameters.
 
 Details of the output can be seen in the <<find-field-structure-examples,examples>>.
 
-If the structure finder produces unexpected results for some text,
-specify the `explain` query parameter. It causes an `explanation` to appear in
-the response, which should help in determining why the returned structure was
+If the structure finder produces unexpected results,
+specify the `explain` query parameter and an `explanation` will appear in
+the response. It helps determine why the returned structure was
 chosen.
 
 [discrete]
@@ -50,7 +52,7 @@ chosen.
 == {api-query-parms-title}
 
 `index`::
-(Required, string) The name of the index containing the field
+(Required, string) The name of the index containing the field.
 
 `field`::
 (Required, string) The name of the field that's analyzed.
@@ -75,7 +77,7 @@ include::{es-repo-dir}/text-structure/apis/find-structure-shared.asciidoc[tag=pa
 [[find-field-structure-example]]
 === Analyzing Elasticsearch log files
 
-Suppose you have a list of Elasticsearch logs messages in an index.
+Suppose you have a list of {es} log messages in an index.
 You can analyze them with the `find_field_structure` endpoint as follows:
 
 [source,console]
@@ -88,9 +90,9 @@ POST _bulk?refresh=true
 {"index":{"_index":"test-logs"}}
 {"message":"[2024-03-05T10:52:41,042][INFO ][o.e.p.PluginsService     ] [laptop] loaded module [rest-root]"}
 {"index":{"_index":"test-logs"}}
-{"message":"[2024-03-05T10:52:41,043][INFO ][o.e.p.PluginsService     ] [laptop] loaded module [x-pack-core]tive methods for [MacOS]"}
+{"message":"[2024-03-05T10:52:41,043][INFO ][o.e.p.PluginsService     ] [laptop] loaded module [x-pack-core]"}
 {"index":{"_index":"test-logs"}}
-{"message":"[2024-03-05T10:52:41,043][INFO ][o.e.p.PluginsService     ] [laptop] loaded module [x-pack-redact]API enabled; uses preferredBitSize=128"}
+{"message":"[2024-03-05T10:52:41,043][INFO ][o.e.p.PluginsService     ] [laptop] loaded module [x-pack-redact]"}
 {"index":{"_index":"test-logs"}}
 {"message":"[2024-03-05T10:52:41,043][INFO ][o.e.p.PluginsService     ] [laptop] loaded module [ingest-user-agent]"}
 {"index":{"_index":"test-logs"}}
@@ -224,11 +226,11 @@ If the request does not encounter errors, you receive the following result:
           "count" : 1
         },
         {
-          "value" : "[2024-03-05T10:52:41,043][INFO ][o.e.p.PluginsService     ] [laptop] loaded module [x-pack-core]tive methods for [MacOS]",
+          "value" : "[2024-03-05T10:52:41,043][INFO ][o.e.p.PluginsService     ] [laptop] loaded module [x-pack-core]",
           "count" : 1
         },
         {
-          "value" : "[2024-03-05T10:52:41,043][INFO ][o.e.p.PluginsService     ] [laptop] loaded module [x-pack-redact]API enabled; uses preferredBitSize=128",
+          "value" : "[2024-03-05T10:52:41,043][INFO ][o.e.p.PluginsService     ] [laptop] loaded module [x-pack-redact]",
           "count" : 1
         },
         {
@@ -305,5 +307,5 @@ If the request does not encounter errors, you receive the following result:
 // so the fields may get reordered in the JSON the endpoint sees
 
 For a detailed description of the response format, or for additional examples
-on ingesting delimited text (such as CSV) or newline-delimited JSON, see the
+on ingesting delimited text (such as CSV) or newline-delimited JSON, refer to the
 <<find-structure-examples,examples of the find text structure endpoint>>.

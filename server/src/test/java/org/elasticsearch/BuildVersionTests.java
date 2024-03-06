@@ -8,6 +8,7 @@
 
 package org.elasticsearch;
 
+import org.elasticsearch.env.BuildVersion;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.equalTo;

@@ -6,15 +6,17 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch;
+package org.elasticsearch.env;
+
+import org.elasticsearch.Version;
 
 import java.util.Objects;
 
 // TODO[wrb]: make package-private once default implementations are removed in BuildExtension
-public class DefaultBuildVersion extends BuildVersion {
+public final class DefaultBuildVersion extends BuildVersion {
 
-    public static BuildVersion CURRENT = new org.elasticsearch.DefaultBuildVersion(Version.CURRENT.id());
-    public static BuildVersion EMPTY = new org.elasticsearch.DefaultBuildVersion(0);
+    public static BuildVersion CURRENT = new DefaultBuildVersion(Version.CURRENT.id());
+    public static BuildVersion EMPTY = new DefaultBuildVersion(0);
 
     private final int versionId;
     private final Version version;
@@ -48,7 +50,7 @@ public class DefaultBuildVersion extends BuildVersion {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        org.elasticsearch.DefaultBuildVersion that = (org.elasticsearch.DefaultBuildVersion) o;
+        DefaultBuildVersion that = (DefaultBuildVersion) o;
         return versionId == that.versionId;
     }
 

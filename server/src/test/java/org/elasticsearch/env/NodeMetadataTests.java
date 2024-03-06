@@ -8,7 +8,6 @@
 package org.elasticsearch.env;
 
 import org.elasticsearch.Build;
-import org.elasticsearch.BuildVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.gateway.MetadataStateFormat;

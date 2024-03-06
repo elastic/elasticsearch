@@ -9,7 +9,6 @@
 package org.elasticsearch.env;
 
 import org.elasticsearch.Build;
-import org.elasticsearch.BuildVersion;
 import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.index.IndexVersion;

@@ -6,8 +6,9 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch;
+package org.elasticsearch.env;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.internal.BuildExtension;
 import org.elasticsearch.plugins.ExtensionLoader;
 
@@ -56,7 +57,7 @@ public abstract class BuildVersion {
 
     // only exists for NodeMetadata#toXContent
     // TODO[wrb]: make this abstract once all downstream classes override it
-    public int id() {
+    protected int id() {
         return -1;
     }
 }

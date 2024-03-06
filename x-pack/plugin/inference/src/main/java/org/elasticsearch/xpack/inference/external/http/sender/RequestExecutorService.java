@@ -11,17 +11,14 @@ import org.apache.http.client.protocol.HttpClientContext;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.common.AdjustableCapacityBlockingQueue;
-import org.elasticsearch.xpack.inference.external.http.HttpClient;
-import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.RequestExecutor;
-import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -36,8 +33,7 @@ import java.util.function.Consumer;
 import static org.elasticsearch.core.Strings.format;
 
 /**
- * An {@link java.util.concurrent.ExecutorService} for queuing and executing {@link RequestTask} containing
- * {@link org.apache.http.client.methods.HttpUriRequest}. This class is useful because the
+ * A service for queuing and executing {@link RequestTask}. This class is useful because the
  * {@link org.apache.http.impl.nio.conn.PoolingNHttpClientConnectionManager} will block when leasing a connection if no
  * connections are available. To avoid blocking the inference transport threads, this executor will queue up the
  * requests until connections are available.
@@ -48,12 +44,11 @@ import static org.elasticsearch.core.Strings.format;
  * {@link org.apache.http.client.config.RequestConfig.Builder#setConnectionRequestTimeout} for more info.
  */
 class RequestExecutorService implements RequestExecutor {
-
-    private static final AdjustableCapacityBlockingQueue.QueueCreator<AbstractRunnable> QUEUE_CREATOR =
+    private static final AdjustableCapacityBlockingQueue.QueueCreator<RejectableTask> QUEUE_CREATOR =
         new AdjustableCapacityBlockingQueue.QueueCreator<>() {
             @Override
-            public BlockingQueue<AbstractRunnable> create(int capacity) {
-                BlockingQueue<AbstractRunnable> queue;
+            public BlockingQueue<RejectableTask> create(int capacity) {
+                BlockingQueue<RejectableTask> queue;
                 if (capacity <= 0) {
                     queue = create();
                 } else {
@@ -64,41 +59,30 @@ class RequestExecutorService implements RequestExecutor {
             }
 
             @Override
-            public BlockingQueue<AbstractRunnable> create() {
+            public BlockingQueue<RejectableTask> create() {
                 return new LinkedBlockingQueue<>();
             }
         };
 
     private static final Logger logger = LogManager.getLogger(RequestExecutorService.class);
     private final String serviceName;
-    private final AdjustableCapacityBlockingQueue<AbstractRunnable> queue;
+    private final AdjustableCapacityBlockingQueue<RejectableTask> queue;
     private final AtomicBoolean running = new AtomicBoolean(true);
     private final CountDownLatch terminationLatch = new CountDownLatch(1);
     private final HttpClientContext httpContext;
-    private final HttpClient httpClient;
     private final ThreadPool threadPool;
     private final CountDownLatch startupLatch;
     private final BlockingQueue<Runnable> controlQueue = new LinkedBlockingQueue<>();
+    private final SingleRequestManager requestManager;
 
     RequestExecutorService(
         String serviceName,
-        HttpClient httpClient,
         ThreadPool threadPool,
         @Nullable CountDownLatch startupLatch,
-        RequestExecutorServiceSettings settings
+        RequestExecutorServiceSettings settings,
+        SingleRequestManager requestManager
     ) {
-        this(serviceName, httpClient, threadPool, QUEUE_CREATOR, startupLatch, settings);
-    }
-
-    private static BlockingQueue<AbstractRunnable> buildQueue(int capacity) {
-        BlockingQueue<AbstractRunnable> queue;
-        if (capacity <= 0) {
-            queue = new LinkedBlockingQueue<>();
-        } else {
-            queue = new LinkedBlockingQueue<>(capacity);
-        }
-
-        return queue;
+        this(serviceName, threadPool, QUEUE_CREATOR, startupLatch, settings, requestManager);
     }
 
     /**
@@ -106,18 +90,18 @@ class RequestExecutorService implements RequestExecutor {
      */
     RequestExecutorService(
         String serviceName,
-        HttpClient httpClient,
         ThreadPool threadPool,
-        AdjustableCapacityBlockingQueue.QueueCreator<AbstractRunnable> createQueue,
+        AdjustableCapacityBlockingQueue.QueueCreator<RejectableTask> createQueue,
         @Nullable CountDownLatch startupLatch,
-        RequestExecutorServiceSettings settings
+        RequestExecutorServiceSettings settings,
+        SingleRequestManager requestManager
     ) {
         this.serviceName = Objects.requireNonNull(serviceName);
-        this.httpClient = Objects.requireNonNull(httpClient);
         this.threadPool = Objects.requireNonNull(threadPool);
         this.httpContext = HttpClientContext.create();
         this.queue = new AdjustableCapacityBlockingQueue<>(createQueue, settings.getQueueCapacity());
         this.startupLatch = startupLatch;
+        this.requestManager = Objects.requireNonNull(requestManager);
 
         Objects.requireNonNull(settings);
         settings.registerQueueCapacityCallback(this::onCapacityChange);
@@ -179,7 +163,7 @@ class RequestExecutorService implements RequestExecutor {
      */
     private void handleTasks() throws InterruptedException {
         try {
-            AbstractRunnable task = queue.take();
+            RejectableTask task = queue.take();
 
             var command = controlQueue.poll();
             if (command != null) {
@@ -200,9 +184,9 @@ class RequestExecutorService implements RequestExecutor {
         }
     }
 
-    private void executeTask(AbstractRunnable task) {
+    private void executeTask(RejectableTask task) {
         try {
-            task.run();
+            requestManager.execute(task, httpContext);
         } catch (Exception e) {
             logger.warn(format("Http executor service [%s] failed to execute request [%s]", serviceName, task), e);
         }
@@ -212,7 +196,7 @@ class RequestExecutorService implements RequestExecutor {
         assert isShutdown() : "Requests should only be notified if the executor is shutting down";
 
         try {
-            List<AbstractRunnable> notExecuted = new ArrayList<>();
+            List<RejectableTask> notExecuted = new ArrayList<>();
             queue.drainTo(notExecuted);
 
             rejectTasks(notExecuted, this::rejectTaskBecauseOfShutdown);
@@ -221,7 +205,7 @@ class RequestExecutorService implements RequestExecutor {
         }
     }
 
-    private void rejectTaskBecauseOfShutdown(AbstractRunnable task) {
+    private void rejectTaskBecauseOfShutdown(RejectableTask task) {
         try {
             task.onRejection(
                 new EsRejectedExecutionException(
@@ -236,7 +220,7 @@ class RequestExecutorService implements RequestExecutor {
         }
     }
 
-    private void rejectTasks(List<AbstractRunnable> tasks, Consumer<AbstractRunnable> rejectionFunction) {
+    private void rejectTasks(List<RejectableTask> tasks, Consumer<RejectableTask> rejectionFunction) {
         for (var task : tasks) {
             rejectionFunction.accept(task);
         }
@@ -270,16 +254,22 @@ class RequestExecutorService implements RequestExecutor {
     }
 
     /**
-     * Send the request at some point in the future.
+     * Execute the request at some point in the future.
      *
-     * @param request  the http request to send
-     * @param timeout  the maximum time to wait for this request to complete (failing or succeeding). Once the time elapses, the
-     *                 listener::onFailure is called with a {@link org.elasticsearch.ElasticsearchTimeoutException}.
-     *                 If null, then the request will wait forever
-     * @param listener an {@link ActionListener<HttpResult>} for the response or failure
+     * @param requestCreator the http request to send
+     * @param input the text to perform inference on
+     * @param timeout the maximum time to wait for this request to complete (failing or succeeding). Once the time elapses, the
+     *                listener::onFailure is called with a {@link org.elasticsearch.ElasticsearchTimeoutException}.
+     *                If null, then the request will wait forever
+     * @param listener an {@link ActionListener<InferenceServiceResults>} for the response or failure
      */
-    public void execute(HttpRequest request, @Nullable TimeValue timeout, ActionListener<HttpResult> listener) {
-        RequestTask task = new RequestTask(request, httpClient, httpContext, timeout, threadPool, listener);
+    public void execute(
+        ExecutableRequestCreator requestCreator,
+        List<String> input,
+        @Nullable TimeValue timeout,
+        ActionListener<InferenceServiceResults> listener
+    ) {
+        var task = new RequestTask(requestCreator, input, timeout, threadPool, listener);
 
         if (isShutdown()) {
             EsRejectedExecutionException rejected = new EsRejectedExecutionException(

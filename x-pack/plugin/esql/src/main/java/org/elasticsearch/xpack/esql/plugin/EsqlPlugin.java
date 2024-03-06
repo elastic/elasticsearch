@@ -26,6 +26,7 @@ import org.elasticsearch.compute.lucene.LuceneOperator;
 import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.AbstractPageMappingOperator;
 import org.elasticsearch.compute.operator.AggregationOperator;
+import org.elasticsearch.compute.operator.AsyncOperator;
 import org.elasticsearch.compute.operator.DriverStatus;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.LimitOperator;
@@ -178,6 +179,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
                 MvExpandOperator.Status.ENTRY,
                 ValuesSourceReaderOperator.Status.ENTRY,
                 SingleValueQuery.ENTRY,
+                AsyncOperator.Status.ENTRY,
                 EnrichLookupOperator.Status.ENTRY
             ).stream(),
             Block.getNamedWriteables().stream()

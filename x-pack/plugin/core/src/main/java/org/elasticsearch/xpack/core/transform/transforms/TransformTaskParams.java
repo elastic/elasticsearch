@@ -86,6 +86,17 @@ public class TransformTaskParams implements SimpleDiffable<TransformTaskParams>,
         boolean remote,
         boolean unattended
     ) {
+        this(transformId, version, from, frequency, remote, Boolean.valueOf(unattended));
+    }
+
+    private TransformTaskParams(
+        String transformId,
+        TransformConfigVersion version,
+        Instant from,
+        TimeValue frequency,
+        boolean remote,
+        Boolean unattended
+    ) {
         this.transformId = transformId;
         this.version = version == null ? TransformConfigVersion.V_7_2_0 : version;
         this.from = from;

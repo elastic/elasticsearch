@@ -8,13 +8,12 @@
 
 package org.elasticsearch.env;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.internal.BuildExtension;
 import org.elasticsearch.plugins.ExtensionLoader;
 
-import java.util.Optional;
 import java.util.ServiceLoader;
-import java.util.function.IntFunction;
 
 public abstract class BuildVersion {
 
@@ -31,11 +30,11 @@ public abstract class BuildVersion {
     }
 
     public static BuildVersion fromVersionId(int versionId) {
-        return IdToBuildVersionHolder.ID_TO_BUILD_VERSION_FUNCTION.apply(versionId);
+        return CurrentExtensionHolder.BUILD_EXTENSION.fromVersionId(versionId);
     }
 
     public static BuildVersion current() {
-        return CurrentHolder.CURRENT;
+        return CurrentExtensionHolder.BUILD_EXTENSION.currentBuildVersion();
     }
 
     // only exists for NodeMetadata#toXContent
@@ -44,28 +43,29 @@ public abstract class BuildVersion {
         return -1;
     }
 
-    private static class ExtensionHolder {
-        private static final Optional<BuildExtension> BUILD_EXTENSION = findExtension();
+    private static class CurrentExtensionHolder {
+        private static final BuildExtension BUILD_EXTENSION = findExtension();
 
-        private static Optional<BuildExtension> findExtension() {
-            return ExtensionLoader.loadSingleton(ServiceLoader.load(BuildExtension.class));
+        private static BuildExtension findExtension() {
+            return ExtensionLoader.loadSingleton(ServiceLoader.load(BuildExtension.class)).orElse(new DefaultBuildExtension());
         }
     }
 
-    private static class IdToBuildVersionHolder {
-        private static final IntFunction<BuildVersion> ID_TO_BUILD_VERSION_FUNCTION = findIdToBuildVersionFunction();
+    private static class DefaultBuildExtension implements BuildExtension {
+        @Override
+        public Build getCurrentBuild() {
+            return Build.current();
+        }
 
-        private static IntFunction<BuildVersion> findIdToBuildVersionFunction() {
-            return ExtensionHolder.BUILD_EXTENSION.map(be -> (IntFunction<BuildVersion>) be::fromVersionId)
-                .orElse(DefaultBuildVersion::new);
+        @Override
+        public BuildVersion currentBuildVersion() {
+            return DefaultBuildVersion.CURRENT;
+        }
+
+        @Override
+        public BuildVersion fromVersionId(int versionId) {
+            return new DefaultBuildVersion(versionId);
         }
     }
 
-    private static class CurrentHolder {
-        private static final BuildVersion CURRENT = findCurrent();
-
-        private static BuildVersion findCurrent() {
-            return ExtensionHolder.BUILD_EXTENSION.map(BuildExtension::currentBuildVersion).orElse(DefaultBuildVersion.CURRENT);
-        }
-    }
 }

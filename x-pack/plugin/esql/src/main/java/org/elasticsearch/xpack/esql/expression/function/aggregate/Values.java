@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.ValuesDoubleAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.ValuesIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.ValuesLongAggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
@@ -52,6 +53,9 @@ public class Values extends AggregateFunction implements ToAggregator {
         }
         if (type == DataTypes.LONG) {
             return new ValuesLongAggregatorFunctionSupplier(inputChannels);
+        }
+        if (type == DataTypes.DOUBLE) {
+            return new ValuesDoubleAggregatorFunctionSupplier(inputChannels);
         }
         throw EsqlIllegalArgumentException.illegalDataType(type);
     }

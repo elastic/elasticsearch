@@ -423,3 +423,32 @@ ROW deg = [90.0, 180.0, 270.0]
 [90.0, 180.0, 270.0] | [1.5707963267948966, 3.141592653589793, 4.71238898038469]
 // end::to_radians-result[]
 ;
+
+values#[skip:-8.13.99, reason:Added in 8.14]
+  FROM employees
+| WHERE emp_no <= 10009
+| STATS h=VALUES(height)
+;
+
+   h:double
+[2.03, 2.08, 1.83, 1.78, 2.05, 1.56, 1.7, 2.1, 1.85]
+;
+
+valuesGrouped#[skip:-8.13.99, reason:Added in 8.14]
+  FROM employees
+| WHERE emp_no <= 10009
+| EVAL first_letter = SUBSTRING(first_name, 0, 1)
+| STATS h=VALUES(height) BY first_letter
+| SORT first_letter
+;
+
+   h:double | first_letter:keyword
+       1.56 | A
+       2.08 | B
+       1.78 | C
+       2.03 | G
+       2.05 | K
+       1.83 | P
+[2.1, 1.85] | S
+       1.70 | T
+;

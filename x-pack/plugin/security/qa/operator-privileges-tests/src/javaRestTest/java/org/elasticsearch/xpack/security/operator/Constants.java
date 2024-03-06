@@ -348,6 +348,8 @@ public class Constants {
         "cluster:monitor/task",
         "cluster:monitor/task/get",
         "cluster:monitor/tasks/lists",
+        "cluster:monitor/text_structure/find_field_structure",
+        "cluster:monitor/text_structure/find_message_structure",
         "cluster:monitor/text_structure/findstructure",
         "cluster:monitor/text_structure/test_grok_pattern",
         "cluster:monitor/transform/get",

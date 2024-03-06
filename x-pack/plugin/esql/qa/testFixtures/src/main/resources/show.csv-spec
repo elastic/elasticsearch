@@ -68,6 +68,8 @@ sinh                     |"double sinh(n:double|integer|long|unsigned_long)"|n  
 split                    |"keyword split(str:keyword|text, delim:keyword|text)"                                 |[str, delim]             |["keyword|text", "keyword|text"]            |["", ""]                                            |keyword                    | "Split a single valued string into multiple strings."                      | [false, false]       | false | false
 sqrt                     |"double sqrt(n:double|integer|long|unsigned_long)"     |n                        |"double|integer|long|unsigned_long"                 | ""                                                 |double                    | "Returns the square root of a number."                      | false                | false | false
 st_centroid              |"geo_point|cartesian_point st_centroid(field:geo_point|cartesian_point)" |field  |"geo_point|cartesian_point"                         | ""                                                 |"geo_point|cartesian_point"   | "The centroid of a spatial field."                      | false                | false | true
+st_x                     |"double st_x(point:geo_point|cartesian_point)"                           |point  |"geo_point|cartesian_point"                         | ""                                                 |double                        | "Extracts the x-coordinate from a point geometry."      | false                | false | false
+st_y                     |"double st_y(point:geo_point|cartesian_point)"                           |point  |"geo_point|cartesian_point"                         | ""                                                 |double                        | "Extracts the y-coordinate from a point geometry."      | false                | false | false
 starts_with              |"boolean starts_with(str:keyword|text, prefix:keyword|text)"                           |[str, prefix]             |["keyword|text", "keyword|text"]            |["", ""]                                            |boolean                    | "Returns a boolean that indicates whether a keyword string starts with another string"                      | [false, false]       | false | false
 substring                |"keyword substring(str:keyword|text, start:integer, ?length:integer)"                     |[str, start, length]       |["keyword|text", "integer", "integer"]         |["", "", ""]                                        |keyword                    | "Returns a substring of a string, specified by a start position and an optional length"                      | [false, false, true]| false | false
 sum                      |"long sum(field:double|integer|long)"                                          |field                     |"double|integer|long"                 | ""                                                 |long                    | "The sum of a numeric field."                      | false                | false | true
@@ -103,7 +105,7 @@ trim                     |"keyword|text trim(str:keyword|text)"                 
 ;
 
 
-showFunctionsSynopsis#[skip:-8.12.99]
+showFunctionsSynopsis#[skip:-8.13.99]
 show functions | keep synopsis;
 
 synopsis:keyword
@@ -165,6 +167,8 @@ double pi()
 "keyword split(str:keyword|text, delim:keyword|text)"
 "double sqrt(n:double|integer|long|unsigned_long)"
 "geo_point|cartesian_point st_centroid(field:geo_point|cartesian_point)"
+"double st_x(point:geo_point|cartesian_point)"
+"double st_y(point:geo_point|cartesian_point)"
 "boolean starts_with(str:keyword|text, prefix:keyword|text)"
 "keyword substring(str:keyword|text, start:integer, ?length:integer)"
 "long sum(field:double|integer|long)"
@@ -216,9 +220,9 @@ sinh                     | "double sinh(n:double|integer|long|unsigned_long)"   
 
 
 // see https://github.com/elastic/elasticsearch/issues/102120
-countFunctions#[skip:-8.12.99]
+countFunctions#[skip:-8.13.99]
 show functions |  stats  a = count(*), b = count(*), c = count(*) |  mv_expand c;
 
 a:long | b:long | c:long
-90     | 90     | 90
+92     | 92     | 92
 ;

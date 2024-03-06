@@ -69,9 +69,6 @@ steps:
             ES_RUNTIME_JAVA:
               - graalvm-ce17
               - openjdk17
-              - openjdk18
-              - openjdk19
-              - openjdk20
               - openjdk21
               - openjdk22
             GRADLE_TASK:

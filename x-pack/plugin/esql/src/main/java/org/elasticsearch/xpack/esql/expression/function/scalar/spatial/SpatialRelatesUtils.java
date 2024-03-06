@@ -23,7 +23,6 @@ import org.elasticsearch.lucene.spatial.CentroidCalculator;
 import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 import org.elasticsearch.lucene.spatial.GeometryDocValueReader;
 import org.elasticsearch.lucene.spatial.GeometryDocValueWriter;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes;
 
@@ -96,13 +95,7 @@ public class SpatialRelatesUtils {
         Object value = valueOf(expr);
 
         if (value instanceof BytesRef bytesRef) {
-            if (EsqlDataTypes.isSpatial(expr.dataType())) {
-                return SpatialCoordinateTypes.UNSPECIFIED.wkbToGeometry(bytesRef);
-            } else {
-                return SpatialCoordinateTypes.UNSPECIFIED.wktToGeometry(bytesRef.utf8ToString());
-            }
-        } else if (value instanceof String string) {
-            return SpatialCoordinateTypes.UNSPECIFIED.wktToGeometry(string);
+            return SpatialCoordinateTypes.UNSPECIFIED.wkbToGeometry(bytesRef);
         } else {
             throw new IllegalArgumentException(
                 "Unsupported combination of literal [" + value.getClass().getSimpleName() + "] of type [" + expr.dataType() + "]"

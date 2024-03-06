@@ -1,0 +1,5 @@
+pr: 106032
+summary: Unattended transforms can still go into the failed state
+area: Transform
+type: bug
+issues: []

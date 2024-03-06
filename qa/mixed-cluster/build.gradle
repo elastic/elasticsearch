@@ -69,7 +69,9 @@ BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
       setting 'xpack.security.enabled', 'false'
       /* There is a chance we have more master changes than "normal", so to avoid this test from failing,
        we increase the threshold (as this purpose of this test isn't to test that specific indicator). */
-      setting 'health.master_history.no_master_transitions_threshold', '10'
+      if (bwcVersion.onOrAfter(Version.fromString("8.4.0"))) {
+        setting 'health.master_history.no_master_transitions_threshold', '10'
+      }
       requiresFeature 'es.index_mode_feature_flag_registered', Version.fromString("8.0.0")
     }
 

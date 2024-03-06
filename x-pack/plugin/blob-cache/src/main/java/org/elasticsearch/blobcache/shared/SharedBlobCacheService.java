@@ -1155,7 +1155,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
     @FunctionalInterface
     public interface RangeAvailableHandler {
         /**
-         * Callback method used to read data from the cache. The target is typically captured by the strategy implementation.
+         * Callback method used to read data from the cache. The target is typically captured by the callback implementation.
          *
          * A caller that wants to read from position p should instead do a positional read from p + relativePos
          * A caller should also only read up to length, further bytes will be offered by another call to this method

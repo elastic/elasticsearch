@@ -10,6 +10,7 @@ package org.elasticsearch.search.fetch.subphase;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.document.DocumentField;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.index.mapper.LegacyTypeFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -20,6 +21,7 @@ import org.elasticsearch.search.lookup.Source;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -47,6 +49,9 @@ public class MetadataFetcher {
         boolean fetchStoredFields,
         final List<FieldAndFormat> additionalFields
     ) {
+        if (context.getIndexSettings().getIndexVersionCreated().before(IndexVersions.DOC_VALUES_FOR_IGNORED_META_FIELD)) {
+            return new MetadataFetcher(Collections.emptyMap());
+        }
         final List<MetadataField> metadataFields = new ArrayList<>(3);
         for (FieldAndFormat fieldAndFormat : Stream.concat(METADATA_FIELDS.stream(), additionalFields.stream()).toList()) {
             for (final String field : context.getMatchingFieldNames(fieldAndFormat.field)) {

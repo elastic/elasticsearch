@@ -61,6 +61,7 @@ public class CsvTestsDataLoader {
     private static final TestsDataset HEIGHTS = new TestsDataset("heights", "mapping-heights.json", "heights.csv");
     private static final TestsDataset DECADES = new TestsDataset("decades", "mapping-decades.json", "decades.csv");
     private static final TestsDataset AIRPORTS = new TestsDataset("airports", "mapping-airports.json", "airports.csv");
+    private static final TestsDataset AIRPORTS_MP = new TestsDataset("airports_mp", "mapping-airports.json", "airports_mp.csv");
     private static final TestsDataset AIRPORTS_WEB = new TestsDataset("airports_web", "mapping-airports_web.json", "airports_web.csv");
     private static final TestsDataset COUNTRIES_BBOX = new TestsDataset(
         "countries_bbox",
@@ -91,6 +92,7 @@ public class CsvTestsDataLoader {
         Map.entry(HEIGHTS.indexName, HEIGHTS),
         Map.entry(DECADES.indexName, DECADES),
         Map.entry(AIRPORTS.indexName, AIRPORTS),
+        Map.entry(AIRPORTS_MP.indexName, AIRPORTS_MP),
         Map.entry(AIRPORTS_WEB.indexName, AIRPORTS_WEB),
         Map.entry(COUNTRIES_BBOX.indexName, COUNTRIES_BBOX),
         Map.entry(COUNTRIES_BBOX_WEB.indexName, COUNTRIES_BBOX_WEB),

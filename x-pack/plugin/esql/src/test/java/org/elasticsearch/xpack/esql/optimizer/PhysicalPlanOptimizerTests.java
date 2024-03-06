@@ -3126,6 +3126,77 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         }
     }
 
+    /**
+     * Plan:
+     * LimitExec[1000[INTEGER]]
+     * \_AggregateExec[[],[SPATIALCENTROID(location{f}#16) AS location, SPATIALCENTROID(city_location{f}#19) AS city_location, COUNT([
+     * 2a][KEYWORD]) AS count],FINAL,null]
+     *   \_ExchangeExec[[xVal{r}#20, xDel{r}#21, yVal{r}#22, yDel{r}#23, count{r}#24, xVal{r}#25, xDel{r}#26, yVal{r}#27, yDel{r}#28,
+     * count{r}#29, count{r}#30, seen{r}#31],true]
+     *     \_FragmentExec[filter=null, estimatedRowSize=0, fragment=[
+     * Aggregate[[],[SPATIALCENTROID(location{f}#16) AS location, SPATIALCENTROID(city_location{f}#19) AS city_location, COUNT([
+     * 2a][KEYWORD]) AS count]]
+     * \_Filter[SPATIALINTERSECTS(location{f}#16,city_location{f}#19)]
+     *   \_EsRelation[airports][abbrev{f}#12, city{f}#18, city_location{f}#19, coun..]]]
+     *
+     * Optimized:
+     * LimitExec[1000[INTEGER]]
+     * \_AggregateExec[[],[SPATIALCENTROID(location{f}#16) AS location, SPATIALCENTROID(city_location{f}#19) AS city_location, COUNT([
+     * 2a][KEYWORD]) AS count],FINAL,108]
+     *   \_ExchangeExec[[xVal{r}#20, xDel{r}#21, yVal{r}#22, yDel{r}#23, count{r}#24, xVal{r}#25, xDel{r}#26, yVal{r}#27, yDel{r}#28,
+     * count{r}#29, count{r}#30, seen{r}#31],true]
+     *     \_AggregateExec[[],[SPATIALCENTROID(location{f}#16) AS location, SPATIALCENTROID(city_location{f}#19) AS city_location, COUNT([
+     * 2a][KEYWORD]) AS count],PARTIAL,108]
+     *       \_FilterExec[SPATIALINTERSECTS(location{f}#16,city_location{f}#19)]
+     *         \_FieldExtractExec[location{f}#16, city_location{f}#19][city_location{f}#19, location{f}#16]
+     *           \_EsQueryExec[airports], query[][_doc{f}#55], limit[], sort[] estimatedRowSize[104]
+     */
+    public void testIntersectsOnTwoPointFieldAndCentroidUsesDocValues() {
+        String query = """
+            FROM airports
+            | WHERE ST_INTERSECTS(location, city_location)
+            | STATS location=ST_CENTROID(location), city_location=ST_CENTROID(city_location), count=COUNT()
+            """;
+
+        var plan = this.physicalPlan(query, airports);
+        var limit = as(plan, LimitExec.class);
+        var agg = as(limit.child(), AggregateExec.class);
+        assertThat("No groupings in aggregation", agg.groupings().size(), equalTo(0));
+        // Before optimization the aggregation does not use doc-values
+        assertAggregation(agg, "count", Count.class);
+        assertAggregation(agg, "location", SpatialCentroid.class, GEO_POINT, false);
+        assertAggregation(agg, "city_location", SpatialCentroid.class, GEO_POINT, false);
+
+        var exchange = as(agg.child(), ExchangeExec.class);
+        var fragment = as(exchange.child(), FragmentExec.class);
+        var fAgg = as(fragment.fragment(), Aggregate.class);
+        var filter = as(fAgg.child(), Filter.class);
+        assertThat("filter contains ST_INTERSECTS", filter.condition(), instanceOf(SpatialIntersects.class));
+
+        // Now verify that optimization re-writes the ExchangeExec and pushed down the filter into the Lucene query
+        var optimized = optimizedPlan(plan);
+        limit = as(optimized, LimitExec.class);
+        agg = as(limit.child(), AggregateExec.class);
+        // Above the exchange (in coordinator) the aggregation is not using doc-values
+        assertAggregation(agg, "count", Count.class);
+        assertAggregation(agg, "location", SpatialCentroid.class, GEO_POINT, false);
+        assertAggregation(agg, "city_location", SpatialCentroid.class, GEO_POINT, false);
+        exchange = as(agg.child(), ExchangeExec.class);
+        agg = as(exchange.child(), AggregateExec.class);
+        assertThat("Aggregation is PARTIAL", agg.getMode(), equalTo(PARTIAL));
+        // below the exchange (in data node) the aggregation is using doc-values
+        assertAggregation(agg, "count", Count.class);
+        assertAggregation(agg, "location", SpatialCentroid.class, GEO_POINT, true);
+        assertAggregation(agg, "city_location", SpatialCentroid.class, GEO_POINT, true);
+        var filterExec = as(agg.child(), FilterExec.class);
+        var extract = as(filterExec.child(), FieldExtractExec.class);
+        assertTrue(
+            "Expect field attribute to be extracted as doc-values",
+            extract.attributesToExtract().stream().allMatch(attr -> extract.hasDocValuesAttribute(attr) && attr.dataType() == GEO_POINT)
+        );
+        source(extract.child());
+    }
+
     public void testPushSpatialIntersectsShapeToSource() {
         for (String query : new String[] { """
             FROM countriesBbox

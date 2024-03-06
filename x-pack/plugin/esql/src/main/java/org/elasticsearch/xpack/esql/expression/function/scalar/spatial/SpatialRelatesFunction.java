@@ -261,6 +261,10 @@ public abstract class SpatialRelatesFunction extends BinaryScalarFunction
             return visitor.matches();
         }
 
+        protected boolean pointRelatesPoint(long leftEncoded, long rightEncoded) {
+            return (queryRelation == DISJOINT) == (leftEncoded != rightEncoded);
+        }
+
         protected boolean pointRelatesGeometry(long encoded, Geometry geometry) {
             Component2D component2D = asLuceneComponent2D(crsType, geometry);
             return pointRelatesGeometry(encoded, component2D);

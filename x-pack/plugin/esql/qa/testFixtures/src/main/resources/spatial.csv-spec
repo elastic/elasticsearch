@@ -448,6 +448,25 @@ abbrev:keyword  |  airport:text         | city:keyword  |  city_location:geo_poi
 SYX             |  Sanya Phoenix Int'l  |  Sanya        |  POINT(109.5036 18.2533) |  598                         | POLYGON((109.1802 18.4609, 109.2304 18.4483, 109.2311 18.4261, 109.2696 18.411, 109.2602 18.3581, 109.2273 18.348, 109.2286 18.2638, 109.2842 18.2665, 109.3518 18.2166, 109.4508 18.1936, 109.4895 18.2281, 109.5137 18.2283, 109.4914 18.2781, 109.5041 18.2948, 109.4809 18.3034, 109.5029 18.3422, 109.5249 18.3375, 109.4993 18.3632, 109.535 18.4007, 109.5104 18.4374, 109.5231 18.4474, 109.5321 18.53, 109.4992 18.5568, 109.4192 18.5646, 109.4029 18.6302, 109.3286 18.5772, 109.309 18.5191, 109.2913 18.5141, 109.2434 18.5607, 109.2022 18.5572, 109.1815 18.5163, 109.1908 18.4711, 109.1802 18.4609)))
 ;
 
+airportCityLocationPointIntersection#[skip:-8.13.99, reason:st_intersects added in 8.14]
+FROM airports_mp
+| WHERE ST_INTERSECTS(location, city_location)
+;
+
+abbrev:keyword  |  city:keyword  |  city_location:geo_point |  country:keyword  |  location:geo_point  |  name:text       |  scalerank:i  |  type:k
+XXX             |  Atlantis      |  POINT(0 0)              |  Atlantis         |  POINT(0 0)          |  Atlantis Int'l  |  1            |  mid
+;
+
+airportCityLocationPointIntersectionCentroid#[skip:-8.13.99, reason:st_intersects added in 8.14]
+FROM airports_mp
+| WHERE ST_INTERSECTS(location, city_location)
+| STATS location=ST_CENTROID(location), city_location=ST_CENTROID(city_location), count=COUNT()
+;
+
+location:geo_point  | city_location:geo_point  |  count:long
+POINT (0 0)         | POINT (0 0)              |  1
+;
+
 geoPointEquals#[skip:-8.12.99, reason:spatial type geo_point improved in 8.13]
 // tag::to_geopoint-equals[]
 ROW wkt = ["POINT(42.97109630194 14.7552534413725)", "POINT(75.8092915005895 22.727749187571)"]

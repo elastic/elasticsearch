@@ -31,7 +31,7 @@ import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
-import org.elasticsearch.inference.ModelSettings;
+import org.elasticsearch.inference.SemanticTextModelSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.LeafNestedDocuments;
@@ -417,7 +417,7 @@ public class SemanticTextInferenceResultFieldMapperTests extends MetadataMapperT
         Map<String, Map<String, Object>> inferenceResultsMap = new HashMap<>();
         for (SemanticTextInferenceResults semanticTextInferenceResult : semanticTextInferenceResults) {
             Map<String, Object> fieldMap = new HashMap<>();
-            fieldMap.put(ModelSettings.NAME, modelSettingsMap());
+            fieldMap.put(SemanticTextModelSettings.NAME, modelSettingsMap());
             List<Map<String, Object>> parsedInferenceResults = new ArrayList<>(semanticTextInferenceResult.text().size());
 
             Iterator<SparseEmbeddingResults.Embedding> embeddingsIterator = semanticTextInferenceResult.sparseEmbeddingResults()
@@ -451,9 +451,9 @@ public class SemanticTextInferenceResultFieldMapperTests extends MetadataMapperT
 
     private static Map<String, Object> modelSettingsMap() {
         return Map.of(
-            ModelSettings.TASK_TYPE_FIELD.getPreferredName(),
+            SemanticTextModelSettings.TASK_TYPE_FIELD.getPreferredName(),
             TaskType.SPARSE_EMBEDDING.toString(),
-            ModelSettings.INFERENCE_ID_FIELD.getPreferredName(),
+            SemanticTextModelSettings.INFERENCE_ID_FIELD.getPreferredName(),
             randomAlphaOfLength(8)
         );
     }

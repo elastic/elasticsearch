@@ -33,7 +33,7 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelRegistry;
-import org.elasticsearch.inference.ModelSettings;
+import org.elasticsearch.inference.SemanticTextModelSettings;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
@@ -396,10 +396,10 @@ public class BulkOperationTests extends ESTestCase {
             Map<String, Object> inferenceService1FieldResults = (Map<String, Object>) inferenceRootResultField.get(inferenceFieldName);
             assertNotNull(inferenceService1FieldResults);
             assertThat(inferenceService1FieldResults.size(), equalTo(2));
-            Map<String, Object> modelSettings = (Map<String, Object>) inferenceService1FieldResults.get(ModelSettings.NAME);
+            Map<String, Object> modelSettings = (Map<String, Object>) inferenceService1FieldResults.get(SemanticTextModelSettings.NAME);
             assertNotNull(modelSettings);
-            assertNotNull(modelSettings.get(ModelSettings.TASK_TYPE_FIELD.getPreferredName()));
-            assertNotNull(modelSettings.get(ModelSettings.INFERENCE_ID_FIELD.getPreferredName()));
+            assertNotNull(modelSettings.get(SemanticTextModelSettings.TASK_TYPE_FIELD.getPreferredName()));
+            assertNotNull(modelSettings.get(SemanticTextModelSettings.INFERENCE_ID_FIELD.getPreferredName()));
 
             List<Map<String, Object>> inferenceResultElement = (List<Map<String, Object>>) inferenceService1FieldResults.get(
                 INFERENCE_RESULTS

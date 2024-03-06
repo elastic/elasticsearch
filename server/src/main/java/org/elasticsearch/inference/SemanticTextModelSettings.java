@@ -21,7 +21,7 @@ import java.util.Objects;
  * Serialization class for specifying the settings of a model from semantic_text inference to field mapper.
  * See {@link org.elasticsearch.action.bulk.BulkShardRequestInferenceProvider}
  */
-public class ModelSettings {
+public class SemanticTextModelSettings {
 
     public static final String NAME = "model_settings";
     public static final ParseField TASK_TYPE_FIELD = new ParseField("task_type");
@@ -33,7 +33,7 @@ public class ModelSettings {
     private final Integer dimensions;
     private final SimilarityMeasure similarity;
 
-    public ModelSettings(TaskType taskType, String inferenceId, Integer dimensions, SimilarityMeasure similarity) {
+    public SemanticTextModelSettings(TaskType taskType, String inferenceId, Integer dimensions, SimilarityMeasure similarity) {
         Objects.requireNonNull(taskType, "task type must not be null");
         Objects.requireNonNull(inferenceId, "inferenceId must not be null");
         this.taskType = taskType;
@@ -42,7 +42,7 @@ public class ModelSettings {
         this.similarity = similarity;
     }
 
-    public ModelSettings(Model model) {
+    public SemanticTextModelSettings(Model model) {
         this(
             model.getTaskType(),
             model.getInferenceEntityId(),
@@ -51,16 +51,16 @@ public class ModelSettings {
         );
     }
 
-    public static ModelSettings parse(XContentParser parser) throws IOException {
+    public static SemanticTextModelSettings parse(XContentParser parser) throws IOException {
         return PARSER.apply(parser, null);
     }
 
-    private static final ConstructingObjectParser<ModelSettings, Void> PARSER = new ConstructingObjectParser<>(NAME, args -> {
+    private static final ConstructingObjectParser<SemanticTextModelSettings, Void> PARSER = new ConstructingObjectParser<>(NAME, args -> {
         TaskType taskType = TaskType.fromString((String) args[0]);
         String inferenceId = (String) args[1];
         Integer dimensions = (Integer) args[2];
         SimilarityMeasure similarity = args[3] == null ? null : SimilarityMeasure.fromString((String) args[3]);
-        return new ModelSettings(taskType, inferenceId, dimensions, similarity);
+        return new SemanticTextModelSettings(taskType, inferenceId, dimensions, similarity);
     });
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), TASK_TYPE_FIELD);

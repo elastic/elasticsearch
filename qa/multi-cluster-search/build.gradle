@@ -48,6 +48,7 @@ BuildParams.bwcVersions.withWireCompatible(ccsSupportedVersion) { bwcVersion, ba
     setting 'cluster.remote.connections_per_cluster', '1'
     setting 'cluster.remote.my_remote_cluster.seeds',
       { "\"${remoteCluster.get().getAllTransportPortURI().get(0)}\"" }
+    setting 'cluster.remote.my_remote_cluster.skip_unavailable', 'false'
   }
 
   tasks.register("${baseName}#remote-cluster", RestIntegTestTask) {

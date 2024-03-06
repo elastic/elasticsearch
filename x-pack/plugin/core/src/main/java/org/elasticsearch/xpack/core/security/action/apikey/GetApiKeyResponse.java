@@ -30,25 +30,30 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  */
 public final class GetApiKeyResponse extends ActionResponse implements ToXContentObject {
 
-    private final ApiKey[] foundApiKeysInfo;
+    private final Collection<ApiKey> foundApiKeysInfo;
     private final Map<String, String> profileUidLookup;
 
     public GetApiKeyResponse(Collection<ApiKey> foundApiKeysInfo) {
+        this(foundApiKeysInfo, Map.of());
+    }
+
+    public GetApiKeyResponse(Collection<ApiKey> foundApiKeysInfo, Map<String, String> profileUidLookup) {
         Objects.requireNonNull(foundApiKeysInfo, "found_api_keys_info must be provided");
-        this.foundApiKeysInfo = foundApiKeysInfo.toArray(new ApiKey[0]);
+        this.foundApiKeysInfo = foundApiKeysInfo;
+        this.profileUidLookup = profileUidLookup;
     }
 
     public static GetApiKeyResponse emptyResponse() {
-        return new GetApiKeyResponse(List.of());
+        return new GetApiKeyResponse(List.of(), Map.of());
     }
 
     public ApiKey[] getApiKeyInfos() {
-        return foundApiKeysInfo;
+        return foundApiKeysInfo.toArray(new ApiKey[0]);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject().array("api_keys", (Object[]) foundApiKeysInfo);
+        builder.startObject().field("api_keys", foundApiKeysInfo);
         return builder.endObject();
     }
 
@@ -59,7 +64,7 @@ public final class GetApiKeyResponse extends ActionResponse implements ToXConten
 
     @SuppressWarnings("unchecked")
     static final ConstructingObjectParser<GetApiKeyResponse, Void> PARSER = new ConstructingObjectParser<>("get_api_key_response", args -> {
-        return (args[0] == null) ? GetApiKeyResponse.emptyResponse() : new GetApiKeyResponse((List<ApiKey>) args[0]);
+        return (args[0] == null) ? GetApiKeyResponse.emptyResponse() : new GetApiKeyResponse((List<ApiKey>) args[0], Map.of());
     });
     static {
         PARSER.declareObjectArray(optionalConstructorArg(), (p, c) -> ApiKey.fromXContent(p), new ParseField("api_keys"));

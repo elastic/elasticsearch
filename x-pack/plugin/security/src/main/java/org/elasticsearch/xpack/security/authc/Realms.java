@@ -49,6 +49,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
@@ -76,7 +77,8 @@ public class Realms extends AbstractLifecycleComponent implements Iterable<Realm
 
     private final Map<String, DomainConfig> domainNameToConfig;
     // The realmRefs include all realms explicitly or implicitly configured regardless whether they are disabled or not
-    private final Map<RealmConfig.RealmIdentifier, Authentication.RealmRef> realmRefs;
+    // protected for tests
+    protected final Map<RealmConfig.RealmIdentifier, Authentication.RealmRef> realmRefs;
 
     // the realms in current use. This list will change dynamically as the license changes
     private volatile List<Realm> activeRealms;
@@ -110,7 +112,13 @@ public class Realms extends AbstractLifecycleComponent implements Iterable<Realm
         // initRealms will add default file and native realm config if they are not explicitly configured
         final List<Realm> initialRealms = initRealms(realmConfigs);
         realmRefs = calculateRealmRefs(realmConfigs, realmToDomainConfig);
-        initialRealms.forEach(realm -> realm.initRealmRef(realmRefs));
+        for (Realm realm : initialRealms) {
+            Authentication.RealmRef realmRef = Objects.requireNonNull(
+                realmRefs.get(new RealmConfig.RealmIdentifier(realm.type(), realm.name())),
+                "realmRef can not be null"
+            );
+            realm.setRealmRef(realmRef);
+        }
 
         this.allConfiguredRealms = initialRealms;
         this.allConfiguredRealms.forEach(r -> r.initialize(this.allConfiguredRealms, licenseState));
@@ -155,6 +163,12 @@ public class Realms extends AbstractLifecycleComponent implements Iterable<Realm
                 new Authentication.RealmRef(realmIdentifier.getName(), realmIdentifier.getType(), nodeName, realmDomain)
             );
         }
+        assert realmRefs.values().stream().filter(realmRef -> NativeRealmSettings.TYPE.equals(realmRef.getType())).toList().size() == 1 :
+                "there must be exactly one native realm configured";
+        assert realmRefs.values().stream().filter(realmRef -> FileRealmSettings.TYPE.equals(realmRef.getType())).toList().size() == 1 :
+                "there must be exactly one file realm configured";
+        assert realmRefs.values().stream().filter(realmRef -> ReservedRealm.TYPE.equals(realmRef.getType())).toList().size() == 1 :
+                "there must be exactly one reserved realm configured";
         return Map.copyOf(realmRefs);
     }
 
@@ -368,8 +382,40 @@ public class Realms extends AbstractLifecycleComponent implements Iterable<Realm
         }
     }
 
-    public Map<RealmConfig.RealmIdentifier, Authentication.RealmRef> getRealmRefs() {
-        return realmRefs;
+    public Authentication.RealmRef getRealmRef(RealmConfig.RealmIdentifier realmIdentifier) {
+        if (FileRealmSettings.TYPE.equals(realmIdentifier.getType())) {
+            return getFileRealmRef();
+        } else if (NativeRealmSettings.TYPE.equals(realmIdentifier.getType())) {
+            return getNativeRealmRef();
+        } else if (ReservedRealm.TYPE.equals(realmIdentifier.getType())) {
+            return getReservedRealmRef();
+        } else {
+            return realmRefs.get(realmIdentifier);
+        }
+    }
+
+    public Authentication.RealmRef getNativeRealmRef() {
+        return realmRefs.values()
+            .stream()
+            .filter(realmRef -> NativeRealmSettings.TYPE.equals(realmRef.getType()))
+            .findFirst()
+            .orElseThrow(() -> new IllegalStateException("native realm realm ref not found"));
+    }
+
+    public Authentication.RealmRef getFileRealmRef() {
+        return realmRefs.values()
+                .stream()
+                .filter(realmRef -> FileRealmSettings.TYPE.equals(realmRef.getType()))
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException("file realm realm ref not found"));
+    }
+
+    public Authentication.RealmRef getReservedRealmRef() {
+        return realmRefs.values()
+                .stream()
+                .filter(realmRef -> ReservedRealm.TYPE.equals(realmRef.getType()))
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException("reserved realm realm ref not found"));
     }
 
     @Override

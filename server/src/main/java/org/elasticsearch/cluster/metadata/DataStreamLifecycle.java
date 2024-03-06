@@ -134,6 +134,16 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
      */
     @Nullable
     public TimeValue getEffectiveDataRetention() {
+        return getDataStreamRetention();
+    }
+
+    /**
+     * The least amount of time data the data stream is requesting es to keep the data.
+     * NOTE: this can be overriden by the {@link DataStreamLifecycle#getEffectiveDataRetention()}.
+     * @return the time period or null, null represents that data should never be deleted.
+     */
+    @Nullable
+    public TimeValue getDataStreamRetention() {
         return dataRetention == null ? null : dataRetention.value;
     }
 

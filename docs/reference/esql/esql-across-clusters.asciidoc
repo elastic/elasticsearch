@@ -60,26 +60,20 @@ FROM my-index-000001,cluster_one:my-index-000001,cluster_two:my-index-000001
 ==== Enrich across clusters
 
 Enrich in {esql} across clusters operates similarly to <<esql-enrich,local enrich>>.
-It offers three modes to control where the enrich command occurs.
-
-[discrete]
-[[esql-enrich-any]]
-==== Enrich with any mode
-
-The default mode, `_any`, allows {esql} to execute the enrich command on
-either the querying cluster or the fulfilling clusters. This mode selects
-the suitable clusters to execute the enrich, aiming to minimize computation
-or inter-cluster data transfer.
+If the enrich policy and its enrich indices are consistent across all clusters, simply
+write the enrich command as you would without across clusters. In this default mode,
+{esql} can execute the enrich command on either the querying cluster or the fulfilling
+clusters, aiming to minimize computation or inter-cluster data transfer. Ensuring that
+the policy exists with consistent data on both the querying cluster and the fulfilling
+clusters is critical for ES|QL to produce a consistent query result.
 
 In the following example, the enrich with `hosts` policy can be executed on
-either the querying cluster or the remote cluster cluster_one. Ensure that
-the policy exists with consistent data on both the querying cluster and the
-fulfilling clusters is critical for ES|QL to produce a consistent query result.
+either the querying cluster or the remote cluster cluster_one.
 
 [source,esql]
 ----
 FROM my-index-000001,cluster_one:my-index-000001
-| ENRICH _any:hosts ON ip
+| ENRICH hosts ON ip
 | LIMIT 10
 ----
 
@@ -91,15 +85,17 @@ policy to exist on the querying cluster as well.
 ----
 FROM cluster_one:my-index-000001,cluster_one:my-index-000002
 | LIMIT 10
-| ENRICH _any:hosts ON ip
+| ENRICH hosts ON ip
 ----
 
 [discrete]
 [[esql-enrich-coordinator]]
 ==== Enrich with coordinator mode
 
-In the `_coordinator` mode, {esql} executes the enrich command on the
-querying cluster.
+{esql} provides the enrich `_coordinator` mode to force {esql} to execute the enrich
+command on the querying cluster. This mode should be used when the enrich policy is
+not available on the remote clusters or maintaining consistency of enrich indices
+across clusters is challenging.
 
 [source,esql]
 ----
@@ -112,19 +108,17 @@ FROM my-index-000001,cluster_one:my-index-000001
 [discrete]
 [IMPORTANT]
 ====
-Enrich with the `_coordinator` mode might increase inter-cluster data transfer and
-workload on the querying cluster. This mode should be used when the enrich policy is
-not available on the remote clusters or maintaining consistency of enrich indices across
-clusters is challenging.
+Enrich with the `_coordinator` mode usually increase inter-cluster data transfer and
+workload on the querying cluster.
 ====
 
 [discrete]
 [[esql-enrich-remote]]
 ==== Enrich with remote mode
 
-In the `_remote` mode, {esql} executes the enrich command independently on
-each fulfilling cluster where the target indices reside. This mode is useful
-for managing different enrich data on each cluster, such as detailed
+{esql} also provides the enrich `_remote` mode to force {esql} to execute the enrich
+command independently on each fulfilling cluster where the target indices reside.
+This mode is useful for managing different enrich data on each cluster, such as detailed
 information of hosts for each region where the target (main) indices contain
 log events from these hosts.
 
@@ -140,7 +134,7 @@ FROM my-index-000001,cluster_one:my-index-000001,cluster_two:my-index-000001
 | LIMIT 10
 ----
 
-For now, the `_remote` enrich cannot be executed after a <<esql-stats-by,stats>>
+A `_remote` enrich cannot be executed after a <<esql-stats-by,stats>>
 command. The following example would result in an error:
 
 [source,esql]
@@ -169,9 +163,8 @@ FROM my-index-000001,cluster_one:my-index-000001,cluster_two:my-index-000001
 | LIMIT 10
 ----
 
-A `_remote` enrich command can be executed after an `_any` enrich or another
-`_remote` enrich, but not after a `_coordinator` enrich. The following
-example would result in an error.
+A `_remote` enrich command can't be executed after after a `_coordinator` enrich
+command. The following example would result in an error.
 
 [source,esql]
 ----

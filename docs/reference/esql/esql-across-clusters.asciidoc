@@ -77,7 +77,7 @@ the policy exists with consistent data on both the querying cluster and the fulf
 clusters is critical for ES|QL to produce a consistent query result.
 
 In the following example, the enrich with `hosts` policy can be executed on
-either the querying cluster or the remote cluster cluster_one.
+either the querying cluster or the remote cluster `cluster_one`.
 
 [source,esql]
 ----
@@ -92,7 +92,7 @@ policy to exist on the querying cluster as well.
 
 [source,esql]
 ----
-FROM cluster_one:my-index-000001,cluster_one:my-index-000002
+FROM cluster_one:my-index-000001,cluster_two:my-index-000001
 | LIMIT 10
 | ENRICH hosts ON ip
 ----

@@ -275,7 +275,7 @@ class RequestExecutorService implements RequestExecutor {
             input,
             timeout,
             threadPool,
-            // TODO when multi-tenancy (as well as batching) is implemented we need to be vary careful that we preserve
+            // TODO when multi-tenancy (as well as batching) is implemented we need to be very careful that we preserve
             // the thread contexts correctly to avoid accidentally retrieving the credentials for the wrong user
             ContextPreservingActionListener.wrapPreservingContext(listener, threadPool.getThreadContext())
         );

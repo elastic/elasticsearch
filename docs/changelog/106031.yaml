@@ -1,9 +1,9 @@
 pr: 106031
 summary: Deprecate allowing `fields` in scenarios where it is ignored
 area: Mapping
-type: "bug, deprecation"
+type: "deprecation"
 issues: 
-  - https://github.com/elastic/elasticsearch/issues/106026
+  - 106026
 deprecation:
   title: Deprecate allowing `fields` in scenarios where it is ignored
   area: Mapping

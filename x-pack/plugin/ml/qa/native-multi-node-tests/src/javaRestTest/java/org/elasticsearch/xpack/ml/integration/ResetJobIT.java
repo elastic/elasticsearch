@@ -8,11 +8,13 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.Blocked;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.core.ml.job.config.JobUpdate;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.junit.After;
@@ -34,10 +36,18 @@ public class ResetJobIT extends MlNativeAutodetectIntegTestCase {
     }
 
     public void testReset() throws Exception {
+        testReset(false);
+    }
+
+    public void testReset_previousResetFailed() throws Exception {
+        testReset(true);
+    }
+
+    private void testReset(boolean previousResetFailed) throws Exception {
         TimeValue bucketSpan = TimeValue.timeValueMinutes(30);
         long startTime = 1514764800000L;
         final int bucketCount = 100;
-        Job.Builder job = createJob("test-reset", bucketSpan);
+        Job.Builder job = createJob(bucketSpan);
 
         openJob(job.getId());
         postData(
@@ -52,6 +62,13 @@ public class ResetJobIT extends MlNativeAutodetectIntegTestCase {
 
         DataCounts dataCounts = getJobStats(job.getId()).get(0).getDataCounts();
         assertThat(dataCounts.getProcessedRecordCount(), greaterThan(0L));
+
+        if (previousResetFailed) {
+            JobUpdate jobUpdate = new JobUpdate.Builder(job.getId()).setBlocked(
+                new Blocked(Blocked.Reason.RESET, new TaskId(randomIdentifier(), randomInt()))
+            ).build();
+            updateJob(job.getId(), jobUpdate);
+        }
 
         resetJob(job.getId());
 
@@ -71,11 +88,11 @@ public class ResetJobIT extends MlNativeAutodetectIntegTestCase {
         assertThat("Audit messages: " + auditMessages, auditMessages.get(auditMessages.size() - 1), equalTo("Job has been reset"));
     }
 
-    private Job.Builder createJob(String jobId, TimeValue bucketSpan) {
+    private Job.Builder createJob(TimeValue bucketSpan) {
         Detector.Builder detector = new Detector.Builder("count", null);
         AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(Collections.singletonList(detector.build()));
         analysisConfig.setBucketSpan(bucketSpan);
-        Job.Builder job = new Job.Builder(jobId);
+        Job.Builder job = new Job.Builder(randomIdentifier());
         job.setAnalysisConfig(analysisConfig);
         DataDescription.Builder dataDescription = new DataDescription.Builder();
         job.setDataDescription(dataDescription);

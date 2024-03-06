@@ -124,7 +124,10 @@ public class TransportResetJobAction extends AcknowledgedTransportMasterNodeActi
                 waitExistingResetTaskToComplete(
                     job.getBlocked().getTaskId(),
                     request,
-                    ActionListener.wrap(r -> resetIfJobIsStillBlockedOnReset(task, request, listener), listener::onFailure)
+                    ActionListener.wrap(
+                        r -> resetIfJobIsStillBlockedOnReset(task, request, listener),
+                        e -> resetIfJobIsStillBlockedOnReset(task, request, listener)
+                    )
                 );
             } else {
                 ParentTaskAssigningClient taskClient = new ParentTaskAssigningClient(client, taskId);

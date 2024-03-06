@@ -12,6 +12,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.xpack.core.ml.utils.MapHelper;
+import org.elasticsearch.xpack.ml.queries.TokenPruningConfig;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -152,9 +153,20 @@ public class TextExpansionQueryIT extends PyTorchModelRestTestCase {
         bulkIndexDocs(inputs, tokenWeights, indexName);
 
         // Test text expansion search against the indexed rank features
+
         for (int i = 0; i < 5; i++) {
             int randomInput = randomIntBetween(0, inputs.size() - 1);
-            var textExpansionSearchResponse = textExpansionSearch(indexName, inputs.get(randomInput), modelId, "ml.tokens");
+
+            var textExpansionSearchResponse = randomBoolean()
+                ? textExpansionSearchWithPruningConfig(
+                    indexName,
+                    inputs.get(randomInput),
+                    modelId,
+                    "ml.tokens",
+                    new TokenPruningConfig(randomIntBetween(1, 10), randomFloat(), randomBoolean())
+                )
+                : textExpansionSearch(indexName, inputs.get(randomInput), modelId, "ml.tokens");
+
             assertOkWithErrorMessage(textExpansionSearchResponse);
 
             Map<String, Object> responseMap = responseAsMap(textExpansionSearchResponse);
@@ -279,6 +291,44 @@ public class TextExpansionQueryIT extends PyTorchModelRestTestCase {
                   }
                 }
             }""", fieldName, modelId, modelText));
+        return client().performRequest(request);
+    }
+
+    protected Response textExpansionSearchWithPruningConfig(
+        String index,
+        String modelText,
+        String modelId,
+        String fieldName,
+        TokenPruningConfig pruningConfig
+    ) throws IOException {
+        Request request = new Request("GET", index + "/_search?error_trace=true");
+
+        request.setJsonEntity(
+            Strings.format(
+                """
+                    {
+                        "query": {
+                          "text_expansion": {
+                            "%s": {
+                              "model_id": "%s",
+                              "model_text": "%s",
+                              "pruning_config": {
+                                "tokens_freq_ratio_threshold": "%d",
+                                "tokens_weight_threshold": "%f",
+                                "only_score_pruned_tokens": "%s"
+                              }
+                            }
+                          }
+                        }
+                    }""",
+                fieldName,
+                modelId,
+                modelText,
+                pruningConfig.getTokensFreqRatioThreshold(),
+                pruningConfig.getTokensWeightThreshold(),
+                pruningConfig.isOnlyScorePrunedTokens()
+            )
+        );
         return client().performRequest(request);
     }
 

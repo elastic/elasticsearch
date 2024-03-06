@@ -68,11 +68,11 @@ import org.elasticsearch.xpack.inference.rest.RestInferenceAction;
 import org.elasticsearch.xpack.inference.rest.RestPutInferenceModelAction;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.cohere.CohereService;
+import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService;
 import org.elasticsearch.xpack.inference.services.elser.ElserInternalService;
 import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceService;
 import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserService;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiService;
-import org.elasticsearch.xpack.inference.services.textembedding.TextEmbeddingInternalService;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -177,6 +177,8 @@ public class InferencePlugin extends Plugin
         inferenceServices.add(this::getInferenceServiceFactories);
 
         var factoryContext = new InferenceServiceExtension.InferenceServiceFactoryContext(services.client());
+        // This must be done after the HttpRequestSenderFactory is created so that the services can get the
+        // reference correctly
         var inferenceRegistry = new InferenceServiceRegistryImpl(inferenceServices, factoryContext);
         inferenceRegistry.init(services.client());
         inferenceServiceRegistry.set(inferenceRegistry);
@@ -194,11 +196,11 @@ public class InferencePlugin extends Plugin
     public List<InferenceServiceExtension.Factory> getInferenceServiceFactories() {
         return List.of(
             ElserInternalService::new,
-            context -> new HuggingFaceElserService(httpFactory, serviceComponents),
-            context -> new HuggingFaceService(httpFactory, serviceComponents),
-            context -> new OpenAiService(httpFactory, serviceComponents),
-            context -> new CohereService(httpFactory, serviceComponents),
-            TextEmbeddingInternalService::new
+            context -> new HuggingFaceElserService(httpFactory.get(), serviceComponents.get()),
+            context -> new HuggingFaceService(httpFactory.get(), serviceComponents.get()),
+            context -> new OpenAiService(httpFactory.get(), serviceComponents.get()),
+            context -> new CohereService(httpFactory.get(), serviceComponents.get()),
+            ElasticsearchInternalService::new
         );
     }
 

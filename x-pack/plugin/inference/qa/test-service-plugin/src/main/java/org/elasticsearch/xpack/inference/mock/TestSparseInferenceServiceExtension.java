@@ -58,7 +58,7 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
             String modelId,
             TaskType taskType,
             Map<String, Object> config,
-            Set<String> platfromArchitectures,
+            Set<String> platformArchitectures,
             ActionListener<Model> parsedModelListener
         ) {
             var serviceSettingsMap = (Map<String, Object>) config.remove(ModelConfigurations.SERVICE_SETTINGS);
@@ -115,7 +115,7 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
             for (int i = 0; i < input.size(); i++) {
                 var tokens = new ArrayList<SparseEmbeddingResults.WeightedToken>();
                 for (int j = 0; j < 5; j++) {
-                    tokens.add(new SparseEmbeddingResults.WeightedToken("feature_" + i + "_" + j, j + 1.0F));
+                    tokens.add(new SparseEmbeddingResults.WeightedToken("feature_" + j, j + 1.0F));
                 }
                 embeddings.add(new SparseEmbeddingResults.Embedding(tokens, false));
             }
@@ -127,12 +127,17 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
             for (int i = 0; i < input.size(); i++) {
                 var tokens = new ArrayList<TextExpansionResults.WeightedToken>();
                 for (int j = 0; j < 5; j++) {
-                    tokens.add(new TextExpansionResults.WeightedToken("feature_" + i + "_" + j, j + 1.0F));
+                    tokens.add(new TextExpansionResults.WeightedToken("feature_" + j, j + 1.0F));
                 }
                 chunks.add(new ChunkedTextExpansionResults.ChunkedResult(input.get(i), tokens));
             }
             return List.of(new ChunkedSparseEmbeddingResults(chunks));
         }
+
+        protected ServiceSettings getServiceSettingsFromMap(Map<String, Object> serviceSettingsMap) {
+            return TestServiceSettings.fromMap(serviceSettingsMap);
+        }
+
     }
 
     public record TestServiceSettings(String model, String hiddenField, boolean shouldReturnHiddenField) implements ServiceSettings {

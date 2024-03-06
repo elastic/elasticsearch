@@ -24,7 +24,7 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelRegistry;
-import org.elasticsearch.inference.ModelSettings;
+import org.elasticsearch.inference.SemanticTextModelSettings;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -270,7 +270,7 @@ public class BulkShardRequestInferenceProvider {
                         for (InferenceResults inferenceResults : results.transformToCoordinationFormat()) {
                             String inferenceFieldName = inferenceFieldNames.get(i++);
                             Map<String, Object> inferenceFieldResult = new LinkedHashMap<>();
-                            inferenceFieldResult.putAll(new ModelSettings(inferenceProvider.model).asMap());
+                            inferenceFieldResult.putAll(new SemanticTextModelSettings(inferenceProvider.model).asMap());
                             inferenceFieldResult.put(
                                 INFERENCE_RESULTS,
                                 List.of(

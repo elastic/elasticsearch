@@ -90,6 +90,17 @@ setup:
     - exists: _source._semantic_text_inference.another_inference_field.inference_results.0.inference
 
 ---
+"text expansion documents do not create new mappings":
+  - do:
+      indices.get_mapping:
+        index: test-sparse-index
+
+  - match: {test-sparse-index.mappings.properties.inference_field.type: semantic_text}
+  - match: {test-sparse-index.mappings.properties.another_inference_field.type: semantic_text}
+  - match: {test-sparse-index.mappings.properties.non_inference_field.type: text}
+  - length: {test-sparse-index.mappings.properties: 3}
+
+---
 "Calculates text embeddings results for new documents":
   - do:
       index:
@@ -114,6 +125,18 @@ setup:
 
   - exists: _source._semantic_text_inference.inference_field.inference_results.0.inference
   - exists: _source._semantic_text_inference.another_inference_field.inference_results.0.inference
+
+
+---
+"text embeddings documents do not create new mappings":
+  - do:
+      indices.get_mapping:
+        index: test-dense-index
+
+  - match: {test-dense-index.mappings.properties.inference_field.type: semantic_text}
+  - match: {test-dense-index.mappings.properties.another_inference_field.type: semantic_text}
+  - match: {test-dense-index.mappings.properties.non_inference_field.type: text}
+  - length: {test-dense-index.mappings.properties: 3}
 
 ---
 "Updating non semantic_text fields does not recalculate embeddings":

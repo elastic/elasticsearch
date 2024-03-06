@@ -9,7 +9,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.PrefixCodedTerms;
@@ -644,12 +643,7 @@ public abstract class MappedFieldType {
      * @return {@code true} if field is present in fieldInfos {@code false} otherwise
      */
     public boolean fieldHasValue(FieldInfos fieldInfos) {
-        for (FieldInfo fieldInfo : fieldInfos) {
-            if (fieldInfo.getName().equals(name())) {
-                return true;
-            }
-        }
-        return false;
+        return fieldInfos.fieldInfo(name()) != null;
     }
 
     /**

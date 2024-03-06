@@ -89,6 +89,7 @@ created the data stream:
   - skip:
       version: " - 8.0.99"
       reason: introduced in 8.1.0
+      features: default_shards
 
   - do:
       cluster.health:
@@ -135,6 +136,7 @@ fetch the tsid:
   - skip:
       version: " - 8.12.99"
       reason: _tsid hashing introduced in 8.13
+      features: default_shards
 
   - do:
       search:
@@ -154,6 +156,7 @@ fetch the tsid:
   - skip:
       version: " - 8.12.99"
       reason: _tsid hahing introduced in 8.13
+      features: default_shards
 
   - do:
       search:
@@ -559,6 +562,7 @@ dynamic templates with nesting:
 subobject in passthrough object auto flatten:
   - skip:
       version: " - 8.12.99"
+      features: default_shards
       reason: "Support for passthrough fields was added in 8.13"
   - do:
       indices.put_index_template:
@@ -602,6 +606,7 @@ subobject in passthrough object auto flatten:
 enable subobjects in passthrough object:
   - skip:
       version: " - 8.12.99"
+      features: default_shards
       reason: "Support for passthrough fields was added in 8.13"
   - do:
       catch: /Mapping definition for \[attributes\] has unsupported parameters:\  \[subobjects \:\ true\]/

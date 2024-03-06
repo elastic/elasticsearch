@@ -32,5 +32,6 @@
   "BOOTSTRAP_CHECK_SECURITY_MINIMAL_SETUP": "security-minimal-setup.html",
   "CONTACT_SUPPORT": "troubleshooting.html#troubleshooting-contact-support",
   "UNASSIGNED_SHARDS": "red-yellow-cluster-status.html",
-  "UNDESIRED_SHARD_ALLOCATION": "<FILL-THIS-IN>.html"
+  "UNDESIRED_SHARD_ALLOCATION": "<FILL-THIS-IN>.html",
+  "EXECUTABLE_JNA_TMPDIR": "executable-jna-tmpdir.html"
 }

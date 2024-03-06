@@ -448,6 +448,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                 persistentTaskId,
                 DownsampleShardTask.TASK_NAME,
                 params,
+                null,
                 ActionListener.wrap(
                     startedTask -> persistentTasksService.waitForPersistentTaskCondition(
                         startedTask.getId(),

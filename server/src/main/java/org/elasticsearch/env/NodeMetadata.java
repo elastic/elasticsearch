@@ -41,6 +41,7 @@ public final class NodeMetadata {
 
     private final IndexVersion oldestIndexVersion;
 
+    @UpdateForV9 // version should be non-null in the node metadata from v9 onwards
     private NodeMetadata(
         final String nodeId,
         final BuildVersion buildVersion,
@@ -161,15 +162,13 @@ public final class NodeMetadata {
             this.oldestIndexVersion = IndexVersion.fromId(oldestIndexVersion);
         }
 
-        private BuildVersion getVersionOrFallbackToEmpty() {
-            return Objects.requireNonNullElse(this.nodeVersion, BuildVersion.empty());
-        }
-
+        @UpdateForV9 // version is required in the node metadata from v9 onwards
         public NodeMetadata build() {
-            @UpdateForV9 // version is required in the node metadata from v9 onwards
-            final BuildVersion nodeVersion = getVersionOrFallbackToEmpty();
             final IndexVersion oldestIndexVersion;
 
+            if (this.nodeVersion == null) {
+                nodeVersion = BuildVersion.fromVersionId(0);
+            }
             if (this.previousNodeVersion == null) {
                 previousNodeVersion = nodeVersion;
             }

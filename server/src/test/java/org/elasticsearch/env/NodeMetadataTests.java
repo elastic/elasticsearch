@@ -91,7 +91,7 @@ public class NodeMetadataTests extends ESTestCase {
         Files.copy(resource, stateDir.resolve(NodeMetadata.FORMAT.getStateFileName(between(0, Integer.MAX_VALUE))));
         final NodeMetadata nodeMetadata = NodeMetadata.FORMAT.loadLatestState(logger, xContentRegistry(), tempDir);
         assertThat(nodeMetadata.nodeId(), equalTo("y6VUVMSaStO4Tz-B5BxcOw"));
-        assertThat(nodeMetadata.nodeVersion(), equalTo(BuildVersion.empty()));
+        assertThat(nodeMetadata.nodeVersion(), equalTo(BuildVersion.fromVersionId(0)));
     }
 
     public void testUpgradesLegitimateVersions() {
@@ -110,7 +110,7 @@ public class NodeMetadataTests extends ESTestCase {
 
         final IllegalStateException illegalStateException = expectThrows(
             IllegalStateException.class,
-            () -> new NodeMetadata(nodeId, BuildVersion.empty(), IndexVersion.current()).upgradeToCurrentVersion()
+            () -> new NodeMetadata(nodeId, BuildVersion.fromVersionId(0), IndexVersion.current()).upgradeToCurrentVersion()
         );
         assertThat(
             illegalStateException.getMessage(),

@@ -6,17 +6,17 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch;
+package org.elasticsearch.env;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.env.BuildVersion;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class BuildVersionTests extends ESTestCase {
-    public void testBuildVersionCurrentAndEmpty() {
+    public void testBuildVersionCurrent() {
         assertThat(BuildVersion.current(), equalTo(BuildVersion.fromVersionId(Version.CURRENT.id())));
-        assertThat(BuildVersion.empty(), equalTo(BuildVersion.fromVersionId(0)));
     }
 
     public void testBeforeMinimumCompatibleVersion() {

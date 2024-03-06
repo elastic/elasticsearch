@@ -38,10 +38,6 @@ public abstract class BuildVersion {
         return CurrentHolder.CURRENT;
     }
 
-    public static BuildVersion empty() {
-        return EmptyHolder.EMPTY;
-    }
-
     // only exists for NodeMetadata#toXContent
     // TODO[wrb]: make this abstract once all downstream classes override it
     protected int id() {
@@ -72,13 +68,4 @@ public abstract class BuildVersion {
             return ExtensionHolder.BUILD_EXTENSION.map(BuildExtension::currentBuildVersion).orElse(DefaultBuildVersion.CURRENT);
         }
     }
-
-    private static class EmptyHolder {
-        private static final BuildVersion EMPTY = findEmpty();
-
-        private static BuildVersion findEmpty() {
-            return ExtensionHolder.BUILD_EXTENSION.map(be -> be.fromVersionId(0)).orElse(DefaultBuildVersion.EMPTY);
-        }
-    }
-
 }

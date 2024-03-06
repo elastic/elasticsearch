@@ -16,7 +16,6 @@ import java.util.Objects;
 public final class DefaultBuildVersion extends BuildVersion {
 
     public static BuildVersion CURRENT = new DefaultBuildVersion(Version.CURRENT.id());
-    public static BuildVersion EMPTY = new DefaultBuildVersion(0);
 
     private final int versionId;
     private final Version version;

@@ -1,0 +1,11 @@
+pr: 106031
+summary: Deprecate allowing `fields` in scenarios where its ignored
+area: Mapping
+type: "bug, deprecation"
+issues: []
+deprecation:
+  title: Deprecate allowing `fields` in scenarios where its ignored
+  area: Mapping
+  details: Please describe the details of this change for the release notes. You can
+    use asciidoc.
+  impact: Please describe the impact of this change to users

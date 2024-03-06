@@ -182,15 +182,15 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
             )
         );
 
-        executeAsyncWithOrigin(DeleteByQueryAction.INSTANCE, deleteByQueryRequest, listener.delegateFailureAndWrap((delegate, response) -> {
+        executeAsyncWithOrigin(DeleteByQueryAction.INSTANCE, deleteByQueryRequest, listener.delegateFailureAndWrap((l, response) -> {
             if ((response.getBulkFailures().isEmpty() && response.getSearchFailures().isEmpty()) == false) {
                 Tuple<RestStatus, Throwable> statusAndReason = getStatusAndReason(response);
-                delegate.onFailure(
+                l.onFailure(
                     new ElasticsearchStatusException(statusAndReason.v2().getMessage(), statusAndReason.v1(), statusAndReason.v2())
                 );
                 return;
             }
-            delegate.onResponse(true);
+            l.onResponse(true);
         }));
     }
 
@@ -232,15 +232,15 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
     }
 
     private void deleteByQuery(ActionListener<Long> listener, DeleteByQueryRequest deleteByQueryRequest) {
-        executeAsyncWithOrigin(DeleteByQueryAction.INSTANCE, deleteByQueryRequest, listener.delegateFailureAndWrap((delegate, response) -> {
+        executeAsyncWithOrigin(DeleteByQueryAction.INSTANCE, deleteByQueryRequest, listener.delegateFailureAndWrap((l, response) -> {
             if ((response.getBulkFailures().isEmpty() && response.getSearchFailures().isEmpty()) == false) {
                 Tuple<RestStatus, Throwable> statusAndReason = getStatusAndReason(response);
-                delegate.onFailure(
+                l.onFailure(
                     new ElasticsearchStatusException(statusAndReason.v2().getMessage(), statusAndReason.v1(), statusAndReason.v2())
                 );
                 return;
             }
-            delegate.onResponse(response.getDeleted());
+            l.onResponse(response.getDeleted());
         }));
     }
 
@@ -355,20 +355,16 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
             .setAllowPartialSearchResults(false)
             .request();
 
-        executeAsyncWithOrigin(
-            TransportSearchAction.TYPE,
-            searchRequest,
-            resultListener.delegateFailureAndWrap((delegate, searchResponse) -> {
-                if (searchResponse.getHits().getHits().length == 0) {
-                    // do not fail if checkpoint does not exist but return an empty checkpoint
-                    logger.trace("found no checkpoint for transform [{}], returning empty checkpoint", transformId);
-                    delegate.onResponse(TransformCheckpoint.EMPTY);
-                    return;
-                }
-                BytesReference source = searchResponse.getHits().getHits()[0].getSourceRef();
-                parseCheckpointsLenientlyFromSource(source, transformId, delegate);
-            })
-        );
+        executeAsyncWithOrigin(TransportSearchAction.TYPE, searchRequest, resultListener.delegateFailureAndWrap((l, searchResponse) -> {
+            if (searchResponse.getHits().getHits().length == 0) {
+                // do not fail if checkpoint does not exist but return an empty checkpoint
+                logger.trace("found no checkpoint for transform [{}], returning empty checkpoint", transformId);
+                l.onResponse(TransformCheckpoint.EMPTY);
+                return;
+            }
+            BytesReference source = searchResponse.getHits().getHits()[0].getSourceRef();
+            parseCheckpointsLenientlyFromSource(source, transformId, l);
+        }));
     }
 
     @Override
@@ -393,10 +389,10 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
         executeAsyncWithOrigin(
             TransportSearchAction.TYPE,
             searchRequest,
-            checkpointAndVersionListener.delegateFailureAndWrap((delegate, searchResponse) -> {
+            checkpointAndVersionListener.delegateFailureAndWrap((l, searchResponse) -> {
                 if (searchResponse.getHits().getHits().length == 0) {
                     // do not fail, this _must_ be handled by the caller
-                    delegate.onResponse(null);
+                    l.onResponse(null);
                     return;
                 }
                 SearchHit hit = searchResponse.getHits().getHits()[0];
@@ -404,8 +400,8 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
                 parseCheckpointsLenientlyFromSource(
                     source,
                     transformId,
-                    delegate.delegateFailureAndWrap(
-                        (l, parsedCheckpoint) -> l.onResponse(
+                    l.delegateFailureAndWrap(
+                        (ll, parsedCheckpoint) -> ll.onResponse(
                             Tuple.tuple(
                                 parsedCheckpoint,
                                 new SeqNoPrimaryTermAndIndex(hit.getSeqNo(), hit.getPrimaryTerm(), hit.getIndex())
@@ -431,20 +427,16 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
             .setAllowPartialSearchResults(false)
             .request();
 
-        executeAsyncWithOrigin(
-            TransportSearchAction.TYPE,
-            searchRequest,
-            resultListener.delegateFailureAndWrap((delegate, searchResponse) -> {
-                if (searchResponse.getHits().getHits().length == 0) {
-                    delegate.onFailure(
-                        new ResourceNotFoundException(TransformMessages.getMessage(TransformMessages.REST_UNKNOWN_TRANSFORM, transformId))
-                    );
-                    return;
-                }
-                BytesReference source = searchResponse.getHits().getHits()[0].getSourceRef();
-                parseTransformLenientlyFromSource(source, transformId, delegate);
-            })
-        );
+        executeAsyncWithOrigin(TransportSearchAction.TYPE, searchRequest, resultListener.delegateFailureAndWrap((l, searchResponse) -> {
+            if (searchResponse.getHits().getHits().length == 0) {
+                l.onFailure(
+                    new ResourceNotFoundException(TransformMessages.getMessage(TransformMessages.REST_UNKNOWN_TRANSFORM, transformId))
+                );
+                return;
+            }
+            BytesReference source = searchResponse.getHits().getHits()[0].getSourceRef();
+            parseTransformLenientlyFromSource(source, transformId, l);
+        }));
     }
 
     @Override
@@ -468,9 +460,9 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
         executeAsyncWithOrigin(
             TransportSearchAction.TYPE,
             searchRequest,
-            configAndVersionListener.delegateFailureAndWrap((delegate, searchResponse) -> {
+            configAndVersionListener.delegateFailureAndWrap((l, searchResponse) -> {
                 if (searchResponse.getHits().getHits().length == 0) {
-                    delegate.onFailure(
+                    l.onFailure(
                         new ResourceNotFoundException(TransformMessages.getMessage(TransformMessages.REST_UNKNOWN_TRANSFORM, transformId))
                     );
                     return;
@@ -480,8 +472,8 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
                 parseTransformLenientlyFromSource(
                     source,
                     transformId,
-                    delegate.delegateFailureAndWrap(
-                        (l, config) -> l.onResponse(
+                    l.delegateFailureAndWrap(
+                        (ll, config) -> ll.onResponse(
                             Tuple.tuple(config, new SeqNoPrimaryTermAndIndex(hit.getSeqNo(), hit.getPrimaryTerm(), hit.getIndex()))
                         )
                     )
@@ -516,7 +508,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
 
         final ExpandedIdsMatcher requiredMatches = new ExpandedIdsMatcher(idTokens, allowNoMatch);
 
-        executeAsyncWithOrigin(request, foundConfigsListener.<SearchResponse>delegateFailureAndWrap((delegate, searchResponse) -> {
+        executeAsyncWithOrigin(request, foundConfigsListener.<SearchResponse>delegateFailureAndWrap((l, searchResponse) -> {
             long totalHits = searchResponse.getHits().getTotalHits().value;
             // important: preserve order
             Set<String> ids = Sets.newLinkedHashSetWithExpectedSize(searchResponse.getHits().getHits().length);
@@ -528,14 +520,14 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
                         configs.add(config);
                     }
                 } catch (IOException e) {
-                    delegate.onFailure(new ElasticsearchParseException("failed to parse search hit for ids", e));
+                    l.onFailure(new ElasticsearchParseException("failed to parse search hit for ids", e));
                     return;
                 }
             }
             requiredMatches.filterMatchedIds(ids);
             if (requiredMatches.hasUnmatchedIds()) {
                 // some required Ids were not found
-                delegate.onFailure(
+                l.onFailure(
                     new ResourceNotFoundException(
                         TransformMessages.getMessage(TransformMessages.REST_UNKNOWN_TRANSFORM, requiredMatches.unmatchedIdsString())
                     )
@@ -545,9 +537,9 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
             // if only exact ids have been given, take the count from docs to avoid potential duplicates
             // in versioned indexes (like transform)
             if (requiredMatches.isOnlyExact()) {
-                delegate.onResponse(new Tuple<>((long) ids.size(), Tuple.tuple(new ArrayList<>(ids), new ArrayList<>(configs))));
+                l.onResponse(new Tuple<>((long) ids.size(), Tuple.tuple(new ArrayList<>(ids), new ArrayList<>(configs))));
             } else {
-                delegate.onResponse(new Tuple<>(totalHits, Tuple.tuple(new ArrayList<>(ids), new ArrayList<>(configs))));
+                l.onResponse(new Tuple<>(totalHits, Tuple.tuple(new ArrayList<>(ids), new ArrayList<>(configs))));
             }
         }), client::search);
     }
@@ -596,31 +588,27 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
                     .query(QueryBuilders.termQuery(TransformField.ID.getPreferredName(), transformId))
                     .trackTotalHitsUpTo(1)
             );
-        executeAsyncWithOrigin(
-            TransportSearchAction.TYPE,
-            searchRequest,
-            deleteListener.delegateFailureAndWrap((delegate, searchResponse) -> {
-                if (searchResponse.getHits().getTotalHits().value == 0) {
-                    listener.onFailure(
-                        new ResourceNotFoundException(TransformMessages.getMessage(TransformMessages.REST_UNKNOWN_TRANSFORM, transformId))
-                    );
-                    return;
-                }
-
-                QueryBuilder dbqQuery = QueryBuilders.constantScoreQuery(
-                    QueryBuilders.boolQuery()
-                        // delete documents corresponding to given transform id...
-                        .filter(QueryBuilders.termQuery(TransformField.ID.getPreferredName(), transformId))
-                        // ...except given transform's config document
-                        .mustNot(QueryBuilders.termQuery("_id", TransformConfig.documentId(transformId)))
+        executeAsyncWithOrigin(TransportSearchAction.TYPE, searchRequest, deleteListener.delegateFailureAndWrap((l, searchResponse) -> {
+            if (searchResponse.getHits().getTotalHits().value == 0) {
+                listener.onFailure(
+                    new ResourceNotFoundException(TransformMessages.getMessage(TransformMessages.REST_UNKNOWN_TRANSFORM, transformId))
                 );
-                DeleteByQueryRequest dbqRequest = createDeleteByQueryRequest().indices(
-                    TransformInternalIndexConstants.INDEX_NAME_PATTERN,
-                    TransformInternalIndexConstants.INDEX_NAME_PATTERN_DEPRECATED
-                ).setQuery(dbqQuery).setRefresh(true);
-                executeAsyncWithOrigin(DeleteByQueryAction.INSTANCE, dbqRequest, delegate);
-            })
-        );
+                return;
+            }
+
+            QueryBuilder dbqQuery = QueryBuilders.constantScoreQuery(
+                QueryBuilders.boolQuery()
+                    // delete documents corresponding to given transform id...
+                    .filter(QueryBuilders.termQuery(TransformField.ID.getPreferredName(), transformId))
+                    // ...except given transform's config document
+                    .mustNot(QueryBuilders.termQuery("_id", TransformConfig.documentId(transformId)))
+            );
+            DeleteByQueryRequest dbqRequest = createDeleteByQueryRequest().indices(
+                TransformInternalIndexConstants.INDEX_NAME_PATTERN,
+                TransformInternalIndexConstants.INDEX_NAME_PATTERN_DEPRECATED
+            ).setQuery(dbqQuery).setRefresh(true);
+            executeAsyncWithOrigin(DeleteByQueryAction.INSTANCE, dbqRequest, l);
+        }));
     }
 
     @Override
@@ -720,36 +708,30 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
             .seqNoAndPrimaryTerm(true)
             .request();
 
-        executeAsyncWithOrigin(
-            TransportSearchAction.TYPE,
-            searchRequest,
-            resultListener.delegateFailureAndWrap((delegate, searchResponse) -> {
-                if (searchResponse.getHits().getHits().length == 0) {
-                    if (allowNoMatch) {
-                        delegate.onResponse(null);
-                    } else {
-                        delegate.onFailure(
-                            new ResourceNotFoundException(
-                                TransformMessages.getMessage(TransformMessages.UNKNOWN_TRANSFORM_STATS, transformId)
-                            )
-                        );
-                    }
-                    return;
-                }
-                SearchHit searchHit = searchResponse.getHits().getHits()[0];
-                try (XContentParser parser = createParser(searchHit)) {
-                    resultListener.onResponse(
-                        Tuple.tuple(TransformStoredDoc.fromXContent(parser), SeqNoPrimaryTermAndIndex.fromSearchHit(searchHit))
+        executeAsyncWithOrigin(TransportSearchAction.TYPE, searchRequest, resultListener.delegateFailureAndWrap((l, searchResponse) -> {
+            if (searchResponse.getHits().getHits().length == 0) {
+                if (allowNoMatch) {
+                    l.onResponse(null);
+                } else {
+                    l.onFailure(
+                        new ResourceNotFoundException(TransformMessages.getMessage(TransformMessages.UNKNOWN_TRANSFORM_STATS, transformId))
                     );
-                } catch (Exception e) {
-                    logger.error(
-                        TransformMessages.getMessage(TransformMessages.FAILED_TO_PARSE_TRANSFORM_STATISTICS_CONFIGURATION, transformId),
-                        e
-                    );
-                    resultListener.onFailure(e);
                 }
-            })
-        );
+                return;
+            }
+            SearchHit searchHit = searchResponse.getHits().getHits()[0];
+            try (XContentParser parser = createParser(searchHit)) {
+                resultListener.onResponse(
+                    Tuple.tuple(TransformStoredDoc.fromXContent(parser), SeqNoPrimaryTermAndIndex.fromSearchHit(searchHit))
+                );
+            } catch (Exception e) {
+                logger.error(
+                    TransformMessages.getMessage(TransformMessages.FAILED_TO_PARSE_TRANSFORM_STATISTICS_CONFIGURATION, transformId),
+                    e
+                );
+                resultListener.onFailure(e);
+            }
+        }));
     }
 
     @Override
@@ -776,7 +758,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
             .setTimeout(timeout)
             .request();
 
-        executeAsyncWithOrigin(searchRequest, listener.<SearchResponse>delegateFailureAndWrap((delegate, searchResponse) -> {
+        executeAsyncWithOrigin(searchRequest, listener.<SearchResponse>delegateFailureAndWrap((l, searchResponse) -> {
             List<TransformStoredDoc> stats = new ArrayList<>();
             String previousId = null;
             for (SearchHit hit : searchResponse.getHits().getHits()) {
@@ -786,12 +768,12 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
                     try (XContentParser parser = createParser(hit)) {
                         stats.add(TransformStoredDoc.fromXContent(parser));
                     } catch (IOException e) {
-                        delegate.onFailure(new ElasticsearchParseException("failed to parse transform stats from search hit", e));
+                        l.onFailure(new ElasticsearchParseException("failed to parse transform stats from search hit", e));
                         return;
                     }
                 }
             }
-            delegate.onResponse(stats);
+            l.onResponse(stats);
         }), client::search);
     }
 
@@ -917,7 +899,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
             )
             .request();
 
-        executeAsyncWithOrigin(request, listener.<SearchResponse>delegateFailureAndWrap((delegate, searchResponse) -> {
+        executeAsyncWithOrigin(request, listener.<SearchResponse>delegateFailureAndWrap((l, searchResponse) -> {
             long totalHits = total;
             String idOfLastHit = lastId;
 
@@ -949,12 +931,12 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
                     idOfLastHit,
                     nextPage,
                     timeout,
-                    delegate
+                    l
                 );
                 return;
             }
 
-            delegate.onResponse(new Tuple<>(totalHits, collectedIds));
+            l.onResponse(new Tuple<>(totalHits, collectedIds));
         }), client::search);
     }
 

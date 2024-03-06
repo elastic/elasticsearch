@@ -1,5 +1,6 @@
 pr: 106020
-summary: Reset job if existing reset fails
+summary: Fix resetting a job if an existing reset task has failed.
 area: Machine Learning
 type: bug
-issues: []
+issues:
+ - 105928

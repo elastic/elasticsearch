@@ -61,7 +61,7 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
     @Nullable
     private String fromSortValue;
 
-    private SortBy sort = SortBy.START_TIME;
+    private SnapshotSortKey sort = SnapshotSortKey.START_TIME;
 
     private SortOrder order = SortOrder.ASC;
 
@@ -106,7 +106,7 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
         ignoreUnavailable = in.readBoolean();
         verbose = in.readBoolean();
         after = in.readOptionalWriteable(After::new);
-        sort = in.readEnum(SortBy.class);
+        sort = in.readEnum(SnapshotSortKey.class);
         size = in.readVInt();
         order = SortOrder.readFromStream(in);
         offset = in.readVInt();
@@ -146,7 +146,7 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
             validationException = addValidationError("size must be -1 or greater than 0", validationException);
         }
         if (verbose == false) {
-            if (sort != SortBy.START_TIME) {
+            if (sort != SnapshotSortKey.START_TIME) {
                 validationException = addValidationError("can't use non-default sort with verbose=false", validationException);
             }
             if (size > 0) {
@@ -287,7 +287,7 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
         return after;
     }
 
-    public SortBy sort() {
+    public SnapshotSortKey sort() {
         return sort;
     }
 
@@ -306,7 +306,7 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
         return fromSortValue;
     }
 
-    public GetSnapshotsRequest sort(SortBy sort) {
+    public GetSnapshotsRequest sort(SnapshotSortKey sort) {
         this.sort = sort;
         return this;
     }
@@ -350,40 +350,6 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
         return new CancellableTask(id, type, action, getDescription(), parentTaskId, headers);
     }
 
-    public enum SortBy {
-        START_TIME("start_time"),
-        NAME("name"),
-        DURATION("duration"),
-        INDICES("index_count"),
-        SHARDS("shard_count"),
-        FAILED_SHARDS("failed_shard_count"),
-        REPOSITORY("repository");
-
-        private final String param;
-
-        SortBy(String param) {
-            this.param = param;
-        }
-
-        @Override
-        public String toString() {
-            return param;
-        }
-
-        public static SortBy of(String value) {
-            return switch (value) {
-                case "start_time" -> START_TIME;
-                case "name" -> NAME;
-                case "duration" -> DURATION;
-                case "index_count" -> INDICES;
-                case "shard_count" -> SHARDS;
-                case "failed_shard_count" -> FAILED_SHARDS;
-                case "repository" -> REPOSITORY;
-                default -> throw new IllegalArgumentException("unknown sort order [" + value + "]");
-            };
-        }
-    }
-
     public static final class After implements Writeable {
 
         private final String value;
@@ -405,7 +371,7 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
         }
 
         @Nullable
-        public static After from(@Nullable SnapshotInfo snapshotInfo, SortBy sortBy) {
+        public static After from(@Nullable SnapshotInfo snapshotInfo, SnapshotSortKey sortBy) {
             if (snapshotInfo == null) {
                 return null;
             }

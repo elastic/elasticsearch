@@ -113,7 +113,8 @@ public class CategorizeTextAggregator extends DeferableBucketAggregator {
     public InternalAggregation[] buildAggregations(long[] ordsToCollect) throws IOException {
         Bucket[][] topBucketsPerOrd = new Bucket[ordsToCollect.length][];
         for (int ordIdx = 0; ordIdx < ordsToCollect.length; ordIdx++) {
-            final TokenListCategorizer categorizer = categorizers.get(ordsToCollect[ordIdx]);
+            final long ord = ordsToCollect[ordIdx];
+            final TokenListCategorizer categorizer = (ord < categorizers.size()) ? categorizers.get(ord) : null;
             if (categorizer == null) {
                 topBucketsPerOrd[ordIdx] = new Bucket[0];
                 continue;

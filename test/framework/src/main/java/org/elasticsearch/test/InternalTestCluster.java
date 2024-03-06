@@ -64,6 +64,7 @@ import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
@@ -650,7 +651,7 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     private NodeAndClient getRandomNodeAndClient() {
-        return getRandomNodeAndClient(nc -> true);
+        return getRandomNodeAndClient(Predicates.always());
     }
 
     private synchronized NodeAndClient getRandomNodeAndClient(Predicate<NodeAndClient> predicate) {
@@ -1621,7 +1622,7 @@ public final class InternalTestCluster extends TestCluster {
      * Returns a reference to a random nodes instances of the given class &gt;T&lt;
      */
     public <T> T getInstance(Class<T> clazz) {
-        return getInstance(clazz, nc -> true);
+        return getInstance(clazz, Predicates.always());
     }
 
     private static <T> T getInstanceFromNode(Class<T> clazz, Node node) {
@@ -1990,7 +1991,7 @@ public final class InternalTestCluster extends TestCluster {
      * @return the name of a random node in a cluster
      */
     public String getRandomNodeName() {
-        return getNodeNameThat(ignored -> true);
+        return getNodeNameThat(Predicates.always());
     }
 
     /**

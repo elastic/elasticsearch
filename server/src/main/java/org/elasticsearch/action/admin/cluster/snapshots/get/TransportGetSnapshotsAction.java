@@ -154,7 +154,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         private final String fromSortValue;
         private final int offset;
         @Nullable
-        private final GetSnapshotsRequest.After after;
+        private final SnapshotSortKey.After after;
         private final int size;
 
         // current state
@@ -181,7 +181,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             SortOrder order,
             String fromSortValue,
             int offset,
-            GetSnapshotsRequest.After after,
+            SnapshotSortKey.After after,
             int size,
             SnapshotsInProgress snapshotsInProgress,
             boolean verbose,
@@ -223,9 +223,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                 return new GetSnapshotsResponse(
                     snapshotInfos,
                     failuresByRepository,
-                    finalRemaining > 0
-                        ? GetSnapshotsRequest.After.from(snapshotInfos.get(snapshotInfos.size() - 1), sortBy).asQueryParam()
-                        : null,
+                    finalRemaining > 0 ? sortBy.encodeAfterQueryParam(snapshotInfos.get(snapshotInfos.size() - 1)) : null,
                     totalCount.get(),
                     finalRemaining
                 );
@@ -518,73 +516,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                 return Predicates.always();
             }
             assert offset == 0 : "can't combine after and offset but saw [" + after + "] and offset [" + offset + "]";
-
-            final String snapshotName = after.snapshotName();
-            final String repoName = after.repoName();
-            final String value = after.value();
-            return switch (sortBy) {
-                case START_TIME -> filterByLongOffset(SnapshotInfo::startTime, Long.parseLong(value), snapshotName, repoName, order);
-                case NAME ->
-                    // TODO: cover via pre-flight predicate
-                    order == SortOrder.ASC
-                        ? (info -> compareName(snapshotName, repoName, info) < 0)
-                        : (info -> compareName(snapshotName, repoName, info) > 0);
-                case DURATION -> filterByLongOffset(
-                    info -> info.endTime() - info.startTime(),
-                    Long.parseLong(value),
-                    snapshotName,
-                    repoName,
-                    order
-                );
-                case INDICES ->
-                    // TODO: cover via pre-flight predicate
-                    filterByLongOffset(info -> info.indices().size(), Integer.parseInt(value), snapshotName, repoName, order);
-                case SHARDS -> filterByLongOffset(SnapshotInfo::totalShards, Integer.parseInt(value), snapshotName, repoName, order);
-                case FAILED_SHARDS -> filterByLongOffset(
-                    SnapshotInfo::failedShards,
-                    Integer.parseInt(value),
-                    snapshotName,
-                    repoName,
-                    order
-                );
-                case REPOSITORY ->
-                    // TODO: cover via pre-flight predicate
-                    order == SortOrder.ASC
-                        ? (info -> compareRepositoryName(snapshotName, repoName, info) < 0)
-                        : (info -> compareRepositoryName(snapshotName, repoName, info) > 0);
-            };
-        }
-
-        private static Predicate<SnapshotInfo> filterByLongOffset(
-            ToLongFunction<SnapshotInfo> extractor,
-            long after,
-            String snapshotName,
-            String repoName,
-            SortOrder order
-        ) {
-            return order == SortOrder.ASC ? info -> {
-                final long val = extractor.applyAsLong(info);
-                return after < val || (after == val && compareName(snapshotName, repoName, info) < 0);
-            } : info -> {
-                final long val = extractor.applyAsLong(info);
-                return after > val || (after == val && compareName(snapshotName, repoName, info) > 0);
-            };
-        }
-
-        private static int compareRepositoryName(String name, String repoName, SnapshotInfo info) {
-            final int res = repoName.compareTo(info.repository());
-            if (res != 0) {
-                return res;
-            }
-            return name.compareTo(info.snapshotId().getName());
-        }
-
-        private static int compareName(String name, String repoName, SnapshotInfo info) {
-            final int res = name.compareTo(info.snapshotId().getName());
-            if (res != 0) {
-                return res;
-            }
-            return repoName.compareTo(info.repository());
+            return sortBy.getAfterPredicate(after, order);
         }
 
     }

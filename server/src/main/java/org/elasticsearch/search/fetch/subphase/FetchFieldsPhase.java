@@ -69,7 +69,10 @@ public final class FetchFieldsPhase implements FetchSubPhase {
 
             @Override
             public StoredFieldsSpec storedFieldsSpec() {
-                return finalFieldFetcher.storedFieldsSpec();
+                if (finalMetadataFetcher != null) {
+                    return finalFieldFetcher.storedFieldsSpec();
+                }
+                return StoredFieldsSpec.NO_REQUIREMENTS;
             }
 
             @Override
@@ -79,7 +82,9 @@ public final class FetchFieldsPhase implements FetchSubPhase {
                 for (Map.Entry<String, DocumentField> entry : documentFields.entrySet()) {
                     hit.setDocumentField(entry.getKey(), entry.getValue());
                 }
-                hit.addDocumentFields(Collections.emptyMap(), finalMetadataFetcher.fetch(hitContext.source(), hitContext.docId()));
+                if (finalMetadataFetcher != null) {
+                    hit.addDocumentFields(Collections.emptyMap(), finalMetadataFetcher.fetch(hitContext.source(), hitContext.docId()));
+                }
             }
         };
     }

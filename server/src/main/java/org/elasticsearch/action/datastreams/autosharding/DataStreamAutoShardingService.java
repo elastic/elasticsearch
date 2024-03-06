@@ -292,7 +292,7 @@ public class DataStreamAutoShardingService {
             nowSupplier
         );
 
-        logger.debug(
+        logger.trace(
             "calculating the optimal number of shards for a potential decrease in number of shards for data stream [{}] with the"
                 + " max indexing load [{}] over the decrease shards cool down period",
             dataStream.getName(),
@@ -321,7 +321,7 @@ public class DataStreamAutoShardingService {
             );
         }
 
-        logger.debug(
+        logger.trace(
             "data stream autosharding service recommends maintaining the number of shards [{}] for data stream [{}]",
             writeIndex.getNumberOfShards(),
             dataStream.getName()

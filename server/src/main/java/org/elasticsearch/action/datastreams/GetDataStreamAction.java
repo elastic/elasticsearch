@@ -182,6 +182,9 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             public static final ParseField TEMPORAL_RANGE_START = new ParseField("start");
             public static final ParseField TEMPORAL_RANGE_END = new ParseField("end");
             public static final ParseField TIME_SINCE_LAST_AUTO_SHARD_EVENT = new ParseField("time_since_last_auto_shard_event");
+            public static final ParseField TIME_SINCE_LAST_AUTO_SHARD_EVENT_MILLIS = new ParseField(
+                "time_since_last_auto_shard_event_millis"
+            );
 
             private final DataStream dataStream;
             private final ClusterHealthStatus dataStreamStatus;
@@ -355,7 +358,8 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                     DataStreamAutoShardingEvent autoShardingEvent = dataStream.getAutoShardingEvent();
                     builder.startObject(AUTO_SHARDING_FIELD.getPreferredName());
                     autoShardingEvent.toXContent(builder, params);
-                    builder.field(
+                    builder.humanReadableField(
+                        TIME_SINCE_LAST_AUTO_SHARD_EVENT_MILLIS.getPreferredName(),
                         TIME_SINCE_LAST_AUTO_SHARD_EVENT.getPreferredName(),
                         autoShardingEvent.getTimeSinceLastAutoShardingEvent(System::currentTimeMillis)
                     );

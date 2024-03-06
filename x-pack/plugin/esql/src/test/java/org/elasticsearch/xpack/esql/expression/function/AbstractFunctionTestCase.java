@@ -967,7 +967,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         Map.entry(
             Set.of(EsqlDataTypes.CARTESIAN_POINT, EsqlDataTypes.CARTESIAN_SHAPE, DataTypes.KEYWORD, DataTypes.TEXT, DataTypes.NULL),
             "cartesian_point or cartesian_shape or string"
-        )
+        ),
+        Map.entry(Set.of(EsqlDataTypes.GEO_POINT, EsqlDataTypes.CARTESIAN_POINT, DataTypes.NULL), "geo_point or cartesian_point")
     );
 
     // TODO: generate this message dynamically, a la AbstractConvertFunction#supportedTypesNames()?

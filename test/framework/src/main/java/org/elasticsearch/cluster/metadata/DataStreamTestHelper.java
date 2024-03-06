@@ -91,6 +91,10 @@ public final class DataStreamTestHelper {
         return newInstance(name, indices, indices.size(), null);
     }
 
+    public static DataStream newInstance(String name, List<Index> indices, List<Index> failureIndices) {
+        return newInstance(name, indices, indices.size(), null, false, null, failureIndices);
+    }
+
     public static DataStream newInstance(String name, List<Index> indices, long generation, Map<String, Object> metadata) {
         return newInstance(name, indices, generation, metadata, false);
     }

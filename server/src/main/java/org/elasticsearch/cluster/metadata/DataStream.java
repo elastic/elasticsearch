@@ -291,7 +291,11 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         if (failureStoreLookup == null) {
             // There is a chance this will be calculated twice, but it's a relatively cheap action,
             // so it's not worth synchronising
-            failureStoreLookup = failureIndices.stream().map(Index::getName).collect(Collectors.toSet());
+            if (failureIndices == null || failureIndices.isEmpty()) {
+                failureStoreLookup = Set.of();
+            } else {
+                failureStoreLookup = failureIndices.stream().map(Index::getName).collect(Collectors.toSet());
+            }
         }
         return failureStoreLookup.contains(indexName);
     }

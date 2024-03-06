@@ -28,7 +28,8 @@ import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
-import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderFactory;
+import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
+import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.results.SparseEmbeddingResultsTests;
 import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserModel;
@@ -83,7 +84,6 @@ public class HuggingFaceServiceTests extends ESTestCase {
 
     public void testParseRequestConfig_CreatesAnEmbeddingsModel() throws IOException {
         try (var service = createHuggingFaceService()) {
-
             ActionListener<Model> modelVerificationActionListener = ActionListener.<Model>wrap((model) -> {
                 assertThat(model, instanceOf(HuggingFaceEmbeddingsModel.class));
 
@@ -408,7 +408,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
     }
 
     public void testInfer_SendsEmbeddingsRequest() throws IOException {
-        var senderFactory = new HttpRequestSenderFactory(threadPool, clientManager, mockClusterServiceEmpty(), Settings.EMPTY);
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var service = new HuggingFaceService(senderFactory, createWithEmptySettings(threadPool))) {
 
@@ -446,7 +446,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
     }
 
     public void testInfer_SendsElserRequest() throws IOException {
-        var senderFactory = new HttpRequestSenderFactory(threadPool, clientManager, mockClusterServiceEmpty(), Settings.EMPTY);
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var service = new HuggingFaceService(senderFactory, createWithEmptySettings(threadPool))) {
 
@@ -488,7 +488,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
     }
 
     public void testCheckModelConfig_IncludesMaxTokens() throws IOException {
-        var senderFactory = new HttpRequestSenderFactory(threadPool, clientManager, mockClusterServiceEmpty(), Settings.EMPTY);
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var service = new HuggingFaceService(senderFactory, createWithEmptySettings(threadPool))) {
 
@@ -513,7 +513,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
     }
 
     private HuggingFaceService createHuggingFaceService() {
-        return new HuggingFaceService(mock(HttpRequestSenderFactory.class), createWithEmptySettings(threadPool));
+        return new HuggingFaceService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool));
     }
 
     private Map<String, Object> getRequestConfigMap(Map<String, Object> serviceSettings, Map<String, Object> secretSettings) {

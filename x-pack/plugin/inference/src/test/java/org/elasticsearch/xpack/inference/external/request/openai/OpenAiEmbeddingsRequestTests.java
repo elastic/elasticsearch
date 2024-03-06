@@ -116,7 +116,7 @@ public class OpenAiEmbeddingsRequestTests extends ESTestCase {
         String model,
         @Nullable String user
     ) {
-        var embeddingsModel = OpenAiEmbeddingsModelTests.createModel(url, org, apiKey, model, user, null);
+        var embeddingsModel = OpenAiEmbeddingsModelTests.createModel(url, org, apiKey, model, user, (Integer) null);
 
         var account = new OpenAiAccount(embeddingsModel.getServiceSettings().uri(), org, embeddingsModel.getSecretSettings().apiKey());
         return new OpenAiEmbeddingsRequest(

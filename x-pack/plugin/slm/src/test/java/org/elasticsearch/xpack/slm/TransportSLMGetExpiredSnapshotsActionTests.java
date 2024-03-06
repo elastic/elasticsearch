@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.settings.Settings;
@@ -286,7 +287,7 @@ public class TransportSLMGetExpiredSnapshotsActionTests extends ESTestCase {
                 var repositoryData = RepositoryData.EMPTY;
                 for (SnapshotInfo snapshotInfo : snapshotInfos) {
                     var snapshotDetails = RepositoryData.SnapshotDetails.fromSnapshotInfo(snapshotInfo);
-                    if (rarely()) {
+                    if (randomBoolean()) {
                         snapshotDetails = new RepositoryData.SnapshotDetails(
                             snapshotDetails.getSnapshotState(),
                             snapshotDetails.getVersion(),
@@ -314,19 +315,20 @@ public class TransportSLMGetExpiredSnapshotsActionTests extends ESTestCase {
             final CheckedConsumer<SnapshotInfo, Exception> consumer = invocation.getArgument(3);
             final ActionListener<Void> listener = invocation.getArgument(4);
 
-            final Set<SnapshotId> snapshotIds = new HashSet<>(snapshotIdCollection);
-            for (SnapshotInfo snapshotInfo : snapshotInfos) {
-                if (snapshotIds.remove(snapshotInfo.snapshotId())) {
-                    threadPool.generic().execute(() -> {
-                        try {
-                            consumer.accept(snapshotInfo);
-                        } catch (Exception e) {
-                            fail(e);
-                        }
-                    });
+            try (var refs = new RefCountingRunnable(() -> listener.onResponse(null))) {
+                final Set<SnapshotId> snapshotIds = new HashSet<>(snapshotIdCollection);
+                for (SnapshotInfo snapshotInfo : snapshotInfos) {
+                    if (snapshotIds.remove(snapshotInfo.snapshotId())) {
+                        threadPool.generic().execute(ActionRunnable.run(refs.acquireListener(), () -> {
+                            try {
+                                consumer.accept(snapshotInfo);
+                            } catch (Exception e) {
+                                fail(e);
+                            }
+                        }));
+                    }
                 }
             }
-            listener.onResponse(null);
             return null;
         }).when(repository).getSnapshotInfo(any(), anyBoolean(), any(), any(), any());
 

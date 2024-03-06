@@ -18,9 +18,9 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
-import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
+import org.elasticsearch.core.SimpleRefCounted;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.transport.LeakTracker;
 import org.elasticsearch.xcontent.ToXContent;
@@ -76,16 +76,7 @@ public final class SearchHits implements Writeable, ChunkedToXContent, RefCounte
             sortFields,
             collapseField,
             collapseValues,
-            hits.length == 0 ? ALWAYS_REFERENCED : LeakTracker.wrap(new AbstractRefCounted() {
-                @Override
-                protected void closeInternal() {
-                    for (int i = 0; i < hits.length; i++) {
-                        assert hits[i] != null;
-                        hits[i].decRef();
-                        hits[i] = null;
-                    }
-                }
-            })
+            hits.length == 0 ? ALWAYS_REFERENCED : LeakTracker.wrap(new SimpleRefCounted())
         );
     }
 
@@ -141,22 +132,29 @@ public final class SearchHits implements Writeable, ChunkedToXContent, RefCounte
         final float maxScore = in.readFloat();
         int size = in.readVInt();
         final SearchHit[] hits;
+        boolean isPooled = false;
         if (size == 0) {
             hits = EMPTY;
         } else {
             hits = new SearchHit[size];
             for (int i = 0; i < hits.length; i++) {
-                hits[i] = SearchHit.readFrom(in, pooled);
+                var hit = SearchHit.readFrom(in, pooled);
+                hits[i] = hit;
+                isPooled = isPooled || hit.isPooled();
             }
         }
         var sortFields = in.readOptionalArray(Lucene::readSortField, SortField[]::new);
         var collapseField = in.readOptionalString();
         var collapseValues = in.readOptionalArray(Lucene::readSortValue, Object[]::new);
-        if (pooled) {
+        if (isPooled) {
             return new SearchHits(hits, totalHits, maxScore, sortFields, collapseField, collapseValues);
         } else {
             return unpooled(hits, totalHits, maxScore, sortFields, collapseField, collapseValues);
         }
+    }
+
+    public boolean isPooled() {
+        return refCounted != ALWAYS_REFERENCED;
     }
 
     @Override
@@ -249,7 +247,19 @@ public final class SearchHits implements Writeable, ChunkedToXContent, RefCounte
 
     @Override
     public boolean decRef() {
-        return refCounted.decRef();
+        if (refCounted.decRef()) {
+            deallocate();
+            return true;
+        }
+        return false;
+    }
+
+    private void deallocate() {
+        for (int i = 0; i < hits.length; i++) {
+            assert hits[i] != null;
+            hits[i].decRef();
+            hits[i] = null;
+        }
     }
 
     @Override

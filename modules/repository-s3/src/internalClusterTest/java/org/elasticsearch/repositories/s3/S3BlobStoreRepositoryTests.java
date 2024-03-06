@@ -39,7 +39,6 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
-import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
@@ -460,9 +459,9 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
             ClusterService clusterService,
             BigArrays bigArrays,
             RecoverySettings recoverySettings,
-            RepositoriesMetrics repositoriesMetrics
+            S3RepositoriesMetrics s3RepositoriesMetrics
         ) {
-            return new S3Repository(metadata, registry, getService(), clusterService, bigArrays, recoverySettings, repositoriesMetrics) {
+            return new S3Repository(metadata, registry, getService(), clusterService, bigArrays, recoverySettings, s3RepositoriesMetrics) {
 
                 @Override
                 public BlobStore blobStore() {
@@ -571,15 +570,9 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
         public void maybeTrack(final String rawRequest, Headers requestHeaders) {
             final S3HttpHandler.RequestComponents requestComponents = S3HttpHandler.parseRequestComponents(rawRequest);
             final String request = requestComponents.request();
-            final OperationPurpose purpose;
-            // TODO: Remove the condition once ES-7810 is resolved
-            if (false == request.startsWith("HEAD ")) {
-                purpose = OperationPurpose.parse(
-                    requestComponents.customQueryParameters().get(S3BlobStore.CUSTOM_QUERY_PARAMETER_PURPOSE).get(0)
-                );
-            } else {
-                purpose = null;
-            }
+            final OperationPurpose purpose = OperationPurpose.parse(
+                requestComponents.customQueryParameters().get(S3BlobStore.CUSTOM_QUERY_PARAMETER_PURPOSE).get(0)
+            );
             if (Regex.simpleMatch("GET /*/?prefix=*", request)) {
                 trackRequest("ListObjects");
                 metricsCount.computeIfAbsent(new S3BlobStore.StatsKey(S3BlobStore.Operation.LIST_OBJECTS, purpose), k -> new AtomicLong())
@@ -608,6 +601,10 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
                     new S3BlobStore.StatsKey(S3BlobStore.Operation.ABORT_MULTIPART_OBJECT, purpose),
                     k -> new AtomicLong()
                 ).incrementAndGet();
+            } else if (Regex.simpleMatch("HEAD /*/*", request)) {
+                trackRequest("HeadObject");
+                metricsCount.computeIfAbsent(new S3BlobStore.StatsKey(S3BlobStore.Operation.HEAD_OBJECT, purpose), k -> new AtomicLong())
+                    .incrementAndGet();
             }
         }
 

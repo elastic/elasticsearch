@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesIndexResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
@@ -17,6 +18,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
@@ -27,7 +29,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
-import org.elasticsearch.xpack.esql.session.EsqlSession;
+import org.elasticsearch.xpack.esql.session.EsqlIndexResolver;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
@@ -39,7 +41,6 @@ import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
-import org.elasticsearch.xpack.ql.index.IndexResolver;
 import org.elasticsearch.xpack.ql.plan.TableIdentifier;
 import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
@@ -247,6 +248,35 @@ public class AnalyzerTests extends ESTestCase {
             """, "_meta_field", "emp_no", "first_name", "gender", "job", "job.raw", "languages", "last_name", "long_noidx", "salary");
     }
 
+    public void testEscapedStar() {
+        assertProjection("""
+            from test
+            | eval a = 1, `a*` = 2
+            | keep `a*`
+            """, "a*");
+    }
+
+    public void testEscapeStarPlusPattern() {
+        assertProjection("""
+            row a = 0, `a*` = 1, `ab*` = 2, `ab*cd` = 3, `abc*de` = 4
+            | keep `a*`*, abc*
+            """, "a*", "abc*de");
+    }
+
+    public void testBacktickPlusPattern() {
+        assertProjection("""
+            row a = 0, `a``` = 1, `a``b*` = 2, `ab*cd` = 3, `abc*de` = 4
+            | keep a*, a````b`*`
+            """, "a", "a`", "ab*cd", "abc*de", "a`b*");
+    }
+
+    public void testRenameBacktickPlusPattern() {
+        assertProjection("""
+            row a = 0, `a*` = 1, `ab*` = 2, `ab*cd` = 3, `abc*de` = 4
+            | rename `ab*` as `xx*`
+            """, "a", "a*", "xx*", "ab*cd", "abc*de");
+    }
+
     public void testNoProjection() {
         assertProjection("""
             from test
@@ -391,7 +421,7 @@ public class AnalyzerTests extends ESTestCase {
             from test
             | keep *nonExisting
             """));
-        assertThat(e.getMessage(), containsString("No match found for [*nonExisting]"));
+        assertThat(e.getMessage(), containsString("No matches found for pattern [*nonExisting]"));
     }
 
     public void testErrorOnNoMatchingPatternExclusion() {
@@ -399,7 +429,7 @@ public class AnalyzerTests extends ESTestCase {
             from test
             | drop *nonExisting
             """));
-        assertThat(e.getMessage(), containsString("No match found for [*nonExisting]"));
+        assertThat(e.getMessage(), containsString("No matches found for pattern [*nonExisting]"));
     }
 
     //
@@ -468,7 +498,7 @@ public class AnalyzerTests extends ESTestCase {
             from test
             | keep un*
             """));
-        assertThat(e.getMessage(), containsString("No match found for [un*]"));
+        assertThat(e.getMessage(), containsString("No matches found for pattern [un*]"));
     }
 
     public void testDropUnsupportedFieldExplicit() {
@@ -718,7 +748,7 @@ public class AnalyzerTests extends ESTestCase {
         verifyUnsupported("""
             from test
             | drop dep.*
-            """, "Found 1 problem\n" + "line 2:8: No match found for [dep.*]", "mapping-multi-field-with-nested.json");
+            """, "Found 1 problem\n" + "line 2:8: No matches found for pattern [dep.*]", "mapping-multi-field-with-nested.json");
     }
 
     public void testSupportedDeepHierarchy() {
@@ -1390,14 +1420,14 @@ public class AnalyzerTests extends ESTestCase {
         AnalyzerContext context = new AnalyzerContext(configuration("from test"), new EsqlFunctionRegistry(), testIndex, enrichResolution);
         Analyzer analyzer = new Analyzer(context, TEST_VERIFIER);
         {
-            LogicalPlan plan = analyze("from test | EVAL x = to_string(languages) | ENRICH[ccq.mode:coordinator] languages ON x", analyzer);
+            LogicalPlan plan = analyze("from test | EVAL x = to_string(languages) | ENRICH _coordinator:languages ON x", analyzer);
             List<Enrich> resolved = new ArrayList<>();
             plan.forEachDown(Enrich.class, resolved::add);
             assertThat(resolved, hasSize(1));
         }
         var e = expectThrows(
             VerificationException.class,
-            () -> analyze("from test | EVAL x = to_string(languages) | ENRICH[ccq.mode:any] languages ON x", analyzer)
+            () -> analyze("from test | EVAL x = to_string(languages) | ENRICH _any:languages ON x", analyzer)
         );
         assertThat(e.getMessage(), containsString("error-2"));
         e = expectThrows(
@@ -1407,7 +1437,7 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("error-2"));
         e = expectThrows(
             VerificationException.class,
-            () -> analyze("from test | EVAL x = to_string(languages) | ENRICH[ccq.mode:remote] languages ON x", analyzer)
+            () -> analyze("from test | EVAL x = to_string(languages) | ENRICH _remote:languages ON x", analyzer)
         );
         assertThat(e.getMessage(), containsString("error-1"));
 
@@ -1521,6 +1551,7 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("Unknown column [x5], did you mean any of [x1, x2, x3]?"));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/103599")
     public void testInsensitiveEqualsWrongType() {
         var e = expectThrows(VerificationException.class, () -> analyze("""
             from test
@@ -1736,14 +1767,9 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     private static LogicalPlan analyzeWithEmptyFieldCapsResponse(String query) throws IOException {
-        IndexResolution resolution = IndexResolver.mergedMappings(
-            EsqlDataTypeRegistry.INSTANCE,
-            "test*",
-            readFieldCapsResponse("empty_field_caps_response.json"),
-            EsqlSession::specificValidity,
-            IndexResolver.PRESERVE_PROPERTIES,
-            IndexResolver.INDEX_METADATA_FIELD
-        );
+        List<FieldCapabilitiesIndexResponse> idxResponses = List.of(new FieldCapabilitiesIndexResponse("idx", "idx", Map.of(), true));
+        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(idxResponses, List.of());
+        IndexResolution resolution = new EsqlIndexResolver(null, EsqlDataTypeRegistry.INSTANCE).mergedMappings("test*", caps);
         var analyzer = analyzer(resolution, TEST_VERIFIER, configuration(query));
         return analyze(query, analyzer);
     }

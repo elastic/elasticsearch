@@ -3,14 +3,16 @@
  * or more contributor license agreements. Licensed under the Elastic License
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
+ *
+ * this file was contributed to by a generative AI
  */
 
 package org.elasticsearch.xpack.inference.services.cohere;
 
 import org.apache.http.HttpHeaders;
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -26,7 +28,8 @@ import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
-import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderFactory;
+import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
+import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingType;
@@ -90,13 +93,22 @@ public class CohereServiceTests extends ESTestCase {
     }
 
     public void testParseRequestConfig_CreatesACohereEmbeddingsModel() throws IOException {
-        try (
-            var service = new CohereService(
-                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
-                new SetOnce<>(createWithEmptySettings(threadPool))
-            )
-        ) {
-            var model = service.parseRequestConfig(
+        try (var service = createCohereService()) {
+            ActionListener<Model> modelListener = ActionListener.wrap(model -> {
+                MatcherAssert.assertThat(model, instanceOf(CohereEmbeddingsModel.class));
+
+                var embeddingsModel = (CohereEmbeddingsModel) model;
+                MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().getUri().toString(), is("url"));
+                MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().getModelId(), is("model"));
+                MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getEmbeddingType(), is(CohereEmbeddingType.FLOAT));
+                MatcherAssert.assertThat(
+                    embeddingsModel.getTaskSettings(),
+                    is(new CohereEmbeddingsTaskSettings(InputType.INGEST, CohereTruncation.START))
+                );
+                MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
+            }, e -> fail("Model parsing should have succeeded " + e.getMessage()));
+
+            service.parseRequestConfig(
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 getRequestConfigMap(
@@ -104,58 +116,43 @@ public class CohereServiceTests extends ESTestCase {
                     getTaskSettingsMap(InputType.INGEST, CohereTruncation.START),
                     getSecretSettingsMap("secret")
                 ),
-                Set.of()
+                Set.of(),
+                modelListener
             );
 
-            MatcherAssert.assertThat(model, instanceOf(CohereEmbeddingsModel.class));
-
-            var embeddingsModel = (CohereEmbeddingsModel) model;
-            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().getUri().toString(), is("url"));
-            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().getModel(), is("model"));
-            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getEmbeddingType(), is(CohereEmbeddingType.FLOAT));
-            MatcherAssert.assertThat(
-                embeddingsModel.getTaskSettings(),
-                is(new CohereEmbeddingsTaskSettings(InputType.INGEST, CohereTruncation.START))
-            );
-            MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
         }
     }
 
     public void testParseRequestConfig_ThrowsUnsupportedModelType() throws IOException {
-        try (
-            var service = new CohereService(
-                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
-                new SetOnce<>(createWithEmptySettings(threadPool))
-            )
-        ) {
-            var thrownException = expectThrows(
+        try (var service = createCohereService()) {
+            var failureListener = getModelListenerForException(
                 ElasticsearchStatusException.class,
-                () -> service.parseRequestConfig(
-                    "id",
-                    TaskType.SPARSE_EMBEDDING,
-                    getRequestConfigMap(
-                        CohereEmbeddingsServiceSettingsTests.getServiceSettingsMap("url", null, null),
-                        getTaskSettingsMapEmpty(),
-                        getSecretSettingsMap("secret")
-                    ),
-                    Set.of()
-                )
+                "The [cohere] service does not support task type [sparse_embedding]"
             );
 
-            MatcherAssert.assertThat(
-                thrownException.getMessage(),
-                is("The [cohere] service does not support task type [sparse_embedding]")
+            service.parseRequestConfig(
+                "id",
+                TaskType.SPARSE_EMBEDDING,
+                getRequestConfigMap(
+                    CohereEmbeddingsServiceSettingsTests.getServiceSettingsMap("url", null, null),
+                    getTaskSettingsMapEmpty(),
+                    getSecretSettingsMap("secret")
+                ),
+                Set.of(),
+                failureListener
             );
         }
     }
 
+    private static ActionListener<Model> getModelListenerForException(Class<?> exceptionClass, String expectedMessage) {
+        return ActionListener.<Model>wrap((model) -> fail("Model parsing should have failed"), e -> {
+            MatcherAssert.assertThat(e, instanceOf(exceptionClass));
+            MatcherAssert.assertThat(e.getMessage(), is(expectedMessage));
+        });
+    }
+
     public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInConfig() throws IOException {
-        try (
-            var service = new CohereService(
-                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
-                new SetOnce<>(createWithEmptySettings(threadPool))
-            )
-        ) {
+        try (var service = createCohereService()) {
             var config = getRequestConfigMap(
                 CohereEmbeddingsServiceSettingsTests.getServiceSettingsMap("url", null, null),
                 getTaskSettingsMapEmpty(),
@@ -163,49 +160,31 @@ public class CohereServiceTests extends ESTestCase {
             );
             config.put("extra_key", "value");
 
-            var thrownException = expectThrows(
+            var failureListener = getModelListenerForException(
                 ElasticsearchStatusException.class,
-                () -> service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, Set.of())
+                "Model configuration contains settings [{extra_key=value}] unknown to the [cohere] service"
             );
-
-            MatcherAssert.assertThat(
-                thrownException.getMessage(),
-                is("Model configuration contains settings [{extra_key=value}] unknown to the [cohere] service")
-            );
+            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, Set.of(), failureListener);
         }
     }
 
     public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInServiceSettingsMap() throws IOException {
-        try (
-            var service = new CohereService(
-                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
-                new SetOnce<>(createWithEmptySettings(threadPool))
-            )
-        ) {
+        try (var service = createCohereService()) {
             var serviceSettings = CohereEmbeddingsServiceSettingsTests.getServiceSettingsMap("url", "model", null);
             serviceSettings.put("extra_key", "value");
 
             var config = getRequestConfigMap(serviceSettings, getTaskSettingsMap(null, null), getSecretSettingsMap("secret"));
 
-            var thrownException = expectThrows(
+            var failureListener = getModelListenerForException(
                 ElasticsearchStatusException.class,
-                () -> service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, Set.of())
+                "Model configuration contains settings [{extra_key=value}] unknown to the [cohere] service"
             );
-
-            MatcherAssert.assertThat(
-                thrownException.getMessage(),
-                is("Model configuration contains settings [{extra_key=value}] unknown to the [cohere] service")
-            );
+            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, Set.of(), failureListener);
         }
     }
 
     public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInTaskSettingsMap() throws IOException {
-        try (
-            var service = new CohereService(
-                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
-                new SetOnce<>(createWithEmptySettings(threadPool))
-            )
-        ) {
+        try (var service = createCohereService()) {
             var taskSettingsMap = getTaskSettingsMap(InputType.INGEST, null);
             taskSettingsMap.put("extra_key", "value");
 
@@ -215,25 +194,17 @@ public class CohereServiceTests extends ESTestCase {
                 getSecretSettingsMap("secret")
             );
 
-            var thrownException = expectThrows(
+            var failureListener = getModelListenerForException(
                 ElasticsearchStatusException.class,
-                () -> service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, Set.of())
+                "Model configuration contains settings [{extra_key=value}] unknown to the [cohere] service"
             );
+            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, Set.of(), failureListener);
 
-            MatcherAssert.assertThat(
-                thrownException.getMessage(),
-                is("Model configuration contains settings [{extra_key=value}] unknown to the [cohere] service")
-            );
         }
     }
 
     public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInSecretSettingsMap() throws IOException {
-        try (
-            var service = new CohereService(
-                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
-                new SetOnce<>(createWithEmptySettings(threadPool))
-            )
-        ) {
+        try (var service = createCohereService()) {
             var secretSettingsMap = getSecretSettingsMap("secret");
             secretSettingsMap.put("extra_key", "value");
 
@@ -243,26 +214,26 @@ public class CohereServiceTests extends ESTestCase {
                 secretSettingsMap
             );
 
-            var thrownException = expectThrows(
+            var failureListener = getModelListenerForException(
                 ElasticsearchStatusException.class,
-                () -> service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, Set.of())
+                "Model configuration contains settings [{extra_key=value}] unknown to the [cohere] service"
             );
-
-            MatcherAssert.assertThat(
-                thrownException.getMessage(),
-                is("Model configuration contains settings [{extra_key=value}] unknown to the [cohere] service")
-            );
+            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, Set.of(), failureListener);
         }
     }
 
     public void testParseRequestConfig_CreatesACohereEmbeddingsModelWithoutUrl() throws IOException {
-        try (
-            var service = new CohereService(
-                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
-                new SetOnce<>(createWithEmptySettings(threadPool))
-            )
-        ) {
-            var model = service.parseRequestConfig(
+        try (var service = createCohereService()) {
+            var modelListener = ActionListener.<Model>wrap((model) -> {
+                MatcherAssert.assertThat(model, instanceOf(CohereEmbeddingsModel.class));
+
+                var embeddingsModel = (CohereEmbeddingsModel) model;
+                assertNull(embeddingsModel.getServiceSettings().getCommonSettings().getUri());
+                MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(CohereEmbeddingsTaskSettings.EMPTY_SETTINGS));
+                MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
+            }, (e) -> fail("Model parsing should have succeeded " + e.getMessage()));
+
+            service.parseRequestConfig(
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 getRequestConfigMap(
@@ -270,25 +241,15 @@ public class CohereServiceTests extends ESTestCase {
                     getTaskSettingsMapEmpty(),
                     getSecretSettingsMap("secret")
                 ),
-                Set.of()
+                Set.of(),
+                modelListener
             );
 
-            MatcherAssert.assertThat(model, instanceOf(CohereEmbeddingsModel.class));
-
-            var embeddingsModel = (CohereEmbeddingsModel) model;
-            assertNull(embeddingsModel.getServiceSettings().getCommonSettings().getUri());
-            MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(CohereEmbeddingsTaskSettings.EMPTY_SETTINGS));
-            MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
         }
     }
 
     public void testParsePersistedConfigWithSecrets_CreatesACohereEmbeddingsModel() throws IOException {
-        try (
-            var service = new CohereService(
-                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
-                new SetOnce<>(createWithEmptySettings(threadPool))
-            )
-        ) {
+        try (var service = createCohereService()) {
             var persistedConfig = getPersistedConfigMap(
                 CohereEmbeddingsServiceSettingsTests.getServiceSettingsMap("url", "model", null),
                 getTaskSettingsMap(null, null),
@@ -306,19 +267,14 @@ public class CohereServiceTests extends ESTestCase {
 
             var embeddingsModel = (CohereEmbeddingsModel) model;
             MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().getUri().toString(), is("url"));
-            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().getModel(), is("model"));
+            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().getModelId(), is("model"));
             MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new CohereEmbeddingsTaskSettings(null, null)));
             MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
         }
     }
 
     public void testParsePersistedConfigWithSecrets_ThrowsErrorTryingToParseInvalidModel() throws IOException {
-        try (
-            var service = new CohereService(
-                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
-                new SetOnce<>(createWithEmptySettings(threadPool))
-            )
-        ) {
+        try (var service = createCohereService()) {
             var persistedConfig = getPersistedConfigMap(
                 CohereEmbeddingsServiceSettingsTests.getServiceSettingsMap("url", null, null),
                 getTaskSettingsMapEmpty(),
@@ -343,12 +299,7 @@ public class CohereServiceTests extends ESTestCase {
     }
 
     public void testParsePersistedConfigWithSecrets_CreatesACohereEmbeddingsModelWithoutUrl() throws IOException {
-        try (
-            var service = new CohereService(
-                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
-                new SetOnce<>(createWithEmptySettings(threadPool))
-            )
-        ) {
+        try (var service = createCohereService()) {
             var persistedConfig = getPersistedConfigMap(
                 CohereEmbeddingsServiceSettingsTests.getServiceSettingsMap(null, null, null),
                 getTaskSettingsMap(InputType.INGEST, null),
@@ -372,12 +323,7 @@ public class CohereServiceTests extends ESTestCase {
     }
 
     public void testParsePersistedConfigWithSecrets_DoesNotThrowWhenAnExtraKeyExistsInConfig() throws IOException {
-        try (
-            var service = new CohereService(
-                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
-                new SetOnce<>(createWithEmptySettings(threadPool))
-            )
-        ) {
+        try (var service = createCohereService()) {
             var persistedConfig = getPersistedConfigMap(
                 CohereEmbeddingsServiceSettingsTests.getServiceSettingsMap("url", "model", CohereEmbeddingType.INT8),
                 getTaskSettingsMap(InputType.SEARCH, CohereTruncation.NONE),
@@ -396,7 +342,7 @@ public class CohereServiceTests extends ESTestCase {
 
             var embeddingsModel = (CohereEmbeddingsModel) model;
             MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().getUri().toString(), is("url"));
-            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().getModel(), is("model"));
+            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().getModelId(), is("model"));
             MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getEmbeddingType(), is(CohereEmbeddingType.INT8));
             MatcherAssert.assertThat(
                 embeddingsModel.getTaskSettings(),
@@ -407,12 +353,7 @@ public class CohereServiceTests extends ESTestCase {
     }
 
     public void testParsePersistedConfigWithSecrets_DoesNotThrowWhenAnExtraKeyExistsInSecretsSettings() throws IOException {
-        try (
-            var service = new CohereService(
-                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
-                new SetOnce<>(createWithEmptySettings(threadPool))
-            )
-        ) {
+        try (var service = createCohereService()) {
             var secretSettingsMap = getSecretSettingsMap("secret");
             secretSettingsMap.put("extra_key", "value");
 
@@ -439,12 +380,7 @@ public class CohereServiceTests extends ESTestCase {
     }
 
     public void testParsePersistedConfigWithSecrets_NotThrowWhenAnExtraKeyExistsInSecrets() throws IOException {
-        try (
-            var service = new CohereService(
-                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
-                new SetOnce<>(createWithEmptySettings(threadPool))
-            )
-        ) {
+        try (var service = createCohereService()) {
             var persistedConfig = getPersistedConfigMap(
                 CohereEmbeddingsServiceSettingsTests.getServiceSettingsMap("url", "model", null),
                 getTaskSettingsMap(null, null),
@@ -463,19 +399,14 @@ public class CohereServiceTests extends ESTestCase {
 
             var embeddingsModel = (CohereEmbeddingsModel) model;
             MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().getUri().toString(), is("url"));
-            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().getModel(), is("model"));
+            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().getModelId(), is("model"));
             MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new CohereEmbeddingsTaskSettings(null, null)));
             MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
         }
     }
 
     public void testParsePersistedConfigWithSecrets_NotThrowWhenAnExtraKeyExistsInServiceSettings() throws IOException {
-        try (
-            var service = new CohereService(
-                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
-                new SetOnce<>(createWithEmptySettings(threadPool))
-            )
-        ) {
+        try (var service = createCohereService()) {
             var serviceSettingsMap = CohereEmbeddingsServiceSettingsTests.getServiceSettingsMap("url", null, null);
             serviceSettingsMap.put("extra_key", "value");
 
@@ -498,12 +429,7 @@ public class CohereServiceTests extends ESTestCase {
     }
 
     public void testParsePersistedConfigWithSecrets_NotThrowWhenAnExtraKeyExistsInTaskSettings() throws IOException {
-        try (
-            var service = new CohereService(
-                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
-                new SetOnce<>(createWithEmptySettings(threadPool))
-            )
-        ) {
+        try (var service = createCohereService()) {
             var taskSettingsMap = getTaskSettingsMap(InputType.SEARCH, null);
             taskSettingsMap.put("extra_key", "value");
 
@@ -524,19 +450,14 @@ public class CohereServiceTests extends ESTestCase {
 
             var embeddingsModel = (CohereEmbeddingsModel) model;
             MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().getUri().toString(), is("url"));
-            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().getModel(), is("model"));
+            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().getModelId(), is("model"));
             MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new CohereEmbeddingsTaskSettings(InputType.SEARCH, null)));
             MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
         }
     }
 
     public void testParsePersistedConfig_CreatesACohereEmbeddingsModel() throws IOException {
-        try (
-            var service = new CohereService(
-                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
-                new SetOnce<>(createWithEmptySettings(threadPool))
-            )
-        ) {
+        try (var service = createCohereService()) {
             var persistedConfig = getPersistedConfigMap(
                 CohereEmbeddingsServiceSettingsTests.getServiceSettingsMap("url", "model", null),
                 getTaskSettingsMap(null, CohereTruncation.NONE)
@@ -548,19 +469,14 @@ public class CohereServiceTests extends ESTestCase {
 
             var embeddingsModel = (CohereEmbeddingsModel) model;
             MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().getUri().toString(), is("url"));
-            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().getModel(), is("model"));
+            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().getModelId(), is("model"));
             MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new CohereEmbeddingsTaskSettings(null, CohereTruncation.NONE)));
             assertNull(embeddingsModel.getSecretSettings());
         }
     }
 
     public void testParsePersistedConfig_ThrowsErrorTryingToParseInvalidModel() throws IOException {
-        try (
-            var service = new CohereService(
-                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
-                new SetOnce<>(createWithEmptySettings(threadPool))
-            )
-        ) {
+        try (var service = createCohereService()) {
             var persistedConfig = getPersistedConfigMap(
                 CohereEmbeddingsServiceSettingsTests.getServiceSettingsMap("url", null, null),
                 getTaskSettingsMapEmpty()
@@ -579,12 +495,7 @@ public class CohereServiceTests extends ESTestCase {
     }
 
     public void testParsePersistedConfig_CreatesACohereEmbeddingsModelWithoutUrl() throws IOException {
-        try (
-            var service = new CohereService(
-                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
-                new SetOnce<>(createWithEmptySettings(threadPool))
-            )
-        ) {
+        try (var service = createCohereService()) {
             var persistedConfig = getPersistedConfigMap(
                 CohereEmbeddingsServiceSettingsTests.getServiceSettingsMap(null, "model", CohereEmbeddingType.FLOAT),
                 getTaskSettingsMap(null, null)
@@ -596,7 +507,7 @@ public class CohereServiceTests extends ESTestCase {
 
             var embeddingsModel = (CohereEmbeddingsModel) model;
             assertNull(embeddingsModel.getServiceSettings().getCommonSettings().getUri());
-            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().getModel(), is("model"));
+            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().getModelId(), is("model"));
             MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getEmbeddingType(), is(CohereEmbeddingType.FLOAT));
             MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new CohereEmbeddingsTaskSettings(null, null)));
             assertNull(embeddingsModel.getSecretSettings());
@@ -604,12 +515,7 @@ public class CohereServiceTests extends ESTestCase {
     }
 
     public void testParsePersistedConfig_DoesNotThrowWhenAnExtraKeyExistsInConfig() throws IOException {
-        try (
-            var service = new CohereService(
-                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
-                new SetOnce<>(createWithEmptySettings(threadPool))
-            )
-        ) {
+        try (var service = createCohereService()) {
             var persistedConfig = getPersistedConfigMap(
                 CohereEmbeddingsServiceSettingsTests.getServiceSettingsMap("url", null, null),
                 getTaskSettingsMapEmpty()
@@ -628,12 +534,7 @@ public class CohereServiceTests extends ESTestCase {
     }
 
     public void testParsePersistedConfig_NotThrowWhenAnExtraKeyExistsInServiceSettings() throws IOException {
-        try (
-            var service = new CohereService(
-                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
-                new SetOnce<>(createWithEmptySettings(threadPool))
-            )
-        ) {
+        try (var service = createCohereService()) {
             var serviceSettingsMap = CohereEmbeddingsServiceSettingsTests.getServiceSettingsMap("url", null, null);
             serviceSettingsMap.put("extra_key", "value");
 
@@ -651,12 +552,7 @@ public class CohereServiceTests extends ESTestCase {
     }
 
     public void testParsePersistedConfig_NotThrowWhenAnExtraKeyExistsInTaskSettings() throws IOException {
-        try (
-            var service = new CohereService(
-                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
-                new SetOnce<>(createWithEmptySettings(threadPool))
-            )
-        ) {
+        try (var service = createCohereService()) {
             var taskSettingsMap = getTaskSettingsMap(InputType.INGEST, null);
             taskSettingsMap.put("extra_key", "value");
 
@@ -671,7 +567,7 @@ public class CohereServiceTests extends ESTestCase {
 
             var embeddingsModel = (CohereEmbeddingsModel) model;
             MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().getUri().toString(), is("url"));
-            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().getModel(), is("model"));
+            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().getModelId(), is("model"));
             MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new CohereEmbeddingsTaskSettings(InputType.INGEST, null)));
             assertNull(embeddingsModel.getSecretSettings());
         }
@@ -680,12 +576,12 @@ public class CohereServiceTests extends ESTestCase {
     public void testInfer_ThrowsErrorWhenModelIsNotCohereModel() throws IOException {
         var sender = mock(Sender.class);
 
-        var factory = mock(HttpRequestSenderFactory.class);
+        var factory = mock(HttpRequestSender.Factory.class);
         when(factory.createSender(anyString())).thenReturn(sender);
 
         var mockModel = getInvalidModel("model_id", "service_name");
 
-        try (var service = new CohereService(new SetOnce<>(factory), new SetOnce<>(createWithEmptySettings(threadPool)))) {
+        try (var service = new CohereService(factory, createWithEmptySettings(threadPool))) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(mockModel, List.of(""), new HashMap<>(), InputType.INGEST, listener);
 
@@ -705,9 +601,9 @@ public class CohereServiceTests extends ESTestCase {
     }
 
     public void testInfer_SendsRequest() throws IOException {
-        var senderFactory = new HttpRequestSenderFactory(threadPool, clientManager, mockClusterServiceEmpty(), Settings.EMPTY);
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new CohereService(new SetOnce<>(senderFactory), new SetOnce<>(createWithEmptySettings(threadPool)))) {
+        try (var service = new CohereService(senderFactory, createWithEmptySettings(threadPool))) {
 
             String responseJson = """
                 {
@@ -765,9 +661,9 @@ public class CohereServiceTests extends ESTestCase {
     }
 
     public void testCheckModelConfig_UpdatesDimensions() throws IOException {
-        var senderFactory = new HttpRequestSenderFactory(threadPool, clientManager, mockClusterServiceEmpty(), Settings.EMPTY);
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new CohereService(new SetOnce<>(senderFactory), new SetOnce<>(createWithEmptySettings(threadPool)))) {
+        try (var service = new CohereService(senderFactory, createWithEmptySettings(threadPool))) {
 
             String responseJson = """
                 {
@@ -828,9 +724,9 @@ public class CohereServiceTests extends ESTestCase {
     }
 
     public void testInfer_UnauthorisedResponse() throws IOException {
-        var senderFactory = new HttpRequestSenderFactory(threadPool, clientManager, mockClusterServiceEmpty(), Settings.EMPTY);
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new CohereService(new SetOnce<>(senderFactory), new SetOnce<>(createWithEmptySettings(threadPool)))) {
+        try (var service = new CohereService(senderFactory, createWithEmptySettings(threadPool))) {
 
             String responseJson = """
                 {
@@ -859,9 +755,9 @@ public class CohereServiceTests extends ESTestCase {
     }
 
     public void testInfer_SetsInputTypeToIngest_FromInferParameter_WhenTaskSettingsAreEmpty() throws IOException {
-        var senderFactory = new HttpRequestSenderFactory(threadPool, clientManager, mockClusterServiceEmpty(), Settings.EMPTY);
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new CohereService(new SetOnce<>(senderFactory), new SetOnce<>(createWithEmptySettings(threadPool)))) {
+        try (var service = new CohereService(senderFactory, createWithEmptySettings(threadPool))) {
 
             String responseJson = """
                 {
@@ -920,9 +816,9 @@ public class CohereServiceTests extends ESTestCase {
 
     public void testInfer_SetsInputTypeToIngestFromInferParameter_WhenModelSettingIsNull_AndRequestTaskSettingsIsSearch()
         throws IOException {
-        var senderFactory = new HttpRequestSenderFactory(threadPool, clientManager, mockClusterServiceEmpty(), Settings.EMPTY);
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new CohereService(new SetOnce<>(senderFactory), new SetOnce<>(createWithEmptySettings(threadPool)))) {
+        try (var service = new CohereService(senderFactory, createWithEmptySettings(threadPool))) {
 
             String responseJson = """
                 {
@@ -986,9 +882,9 @@ public class CohereServiceTests extends ESTestCase {
     }
 
     public void testInfer_DoesNotSetInputType_WhenNotPresentInTaskSettings_AndUnspecifiedIsPassedInRequest() throws IOException {
-        var senderFactory = new HttpRequestSenderFactory(threadPool, clientManager, mockClusterServiceEmpty(), Settings.EMPTY);
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new CohereService(new SetOnce<>(senderFactory), new SetOnce<>(createWithEmptySettings(threadPool)))) {
+        try (var service = new CohereService(senderFactory, createWithEmptySettings(threadPool))) {
 
             String responseJson = """
                 {
@@ -1057,6 +953,10 @@ public class CohereServiceTests extends ESTestCase {
         return new HashMap<>(
             Map.of(ModelConfigurations.SERVICE_SETTINGS, builtServiceSettings, ModelConfigurations.TASK_SETTINGS, taskSettings)
         );
+    }
+
+    private CohereService createCohereService() {
+        return new CohereService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool));
     }
 
     private PeristedConfig getPersistedConfigMap(

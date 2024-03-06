@@ -1,0 +1,139 @@
+// tag::cohere[]
+
+[source,console]
+--------------------------------------------------
+GET cohere-embeddings/_search
+{
+  "knn": {
+    "field": "content_embedding",
+    "query_vector_builder": {
+      "text_embedding": {
+        "model_id": "cohere_embeddings",
+        "model_text": "Calculate fuel cost"
+      }
+    },
+    "k": 10,
+    "num_candidates": 100
+  },
+  "_source": [
+    "id",
+    "content"
+  ]
+}
+--------------------------------------------------
+// TEST[skip:TBD]
+
+As a result, you receive the top 10 documents that are closest in meaning to the
+query from the `cohere-embeddings` index sorted by their proximity to the query:
+
+[source,consol-result]
+--------------------------------------------------
+"hits": [
+      {
+        "_index": "cohere-embeddings",
+        "_id": "-eFWCY4BECzWLnMZuI78",
+        "_score": 0.737484,
+        "_source": {
+          "id": 1690948,
+          "content": "Oxygen is supplied to the muscles via red blood cells. Red blood cells carry hemoglobin which oxygen bonds with as the hemoglobin rich blood cells pass through the blood vessels of the lungs.The now oxygen rich blood cells carry that oxygen to the cells that are demanding it, in this case skeletal muscle cells.ther ways in which muscles are supplied with oxygen include: 1  Blood flow from the heart is increased. 2  Blood flow to your muscles in increased. 3  Blood flow from nonessential organs is transported to working muscles."
+        }
+      },
+      {
+        "_index": "cohere-embeddings",
+        "_id": "HuFWCY4BECzWLnMZuI_8",
+        "_score": 0.7176013,
+        "_source": {
+          "id": 1692482,
+          "content": "The thoracic cavity is separated from the abdominal cavity by the  diaphragm. This is a broad flat muscle.    (muscular) diaphragm The diaphragm is a muscle that separat…e the thoracic from the abdominal cavity. The pelvis is the lowest part of the abdominal cavity and it has no physical separation from it    Diaphragm."
+        }
+      },
+      {
+        "_index": "cohere-embeddings",
+        "_id": "IOFWCY4BECzWLnMZuI_8",
+        "_score": 0.7154432,
+        "_source": {
+          "id": 1692489,
+          "content": "Muscular Wall Separating the Abdominal and Thoracic Cavities; Thoracic Cavity of a Fetal Pig; In Mammals the Diaphragm Separates the Abdominal Cavity from the"
+        }
+      },
+      {
+        "_index": "cohere-embeddings",
+        "_id": "C-FWCY4BECzWLnMZuI_8",
+        "_score": 0.695313,
+        "_source": {
+          "id": 1691493,
+          "content": "Burning, aching, tenderness and stiffness are just some descriptors of the discomfort you may feel in the muscles you exercised one to two days ago.For the most part, these sensations you experience after exercise are collectively known as delayed onset muscle soreness.urning, aching, tenderness and stiffness are just some descriptors of the discomfort you may feel in the muscles you exercised one to two days ago."
+        }
+      },
+      (...)
+    ]
+--------------------------------------------------
+// NOTCONSOLE
+
+// end::cohere[]
+
+
+// tag::openai[]
+
+[source,console]
+--------------------------------------------------
+GET openai-embeddings/_search
+{
+  "knn": {
+    "field": "content_embedding",
+    "query_vector_builder": {
+      "text_embedding": {
+        "model_id": "openai_embeddings",
+        "model_text": "Calculate fuel cost"
+      }
+    },
+    "k": 10,
+    "num_candidates": 100
+  },
+  "_source": [
+    "id",
+    "content"
+  ]
+}
+--------------------------------------------------
+// TEST[skip:TBD]
+
+As a result, you receive the top 10 documents that are closest in meaning to the
+query from the `openai-embeddings` index sorted by their proximity to the query:
+
+[source,consol-result]
+--------------------------------------------------
+"hits": [
+      {
+        "_index": "openai-embeddings",
+        "_id": "DDd5OowBHxQKHyc3TDSC",
+        "_score": 0.83704096,
+        "_source": {
+          "id": 862114,
+          "body": "How to calculate fuel cost for a road trip. By Tara Baukus Mello • Bankrate.com. Dear Driving for Dollars, My family is considering taking a long road trip to finish off the end of the summer, but I'm a little worried about gas prices and our overall fuel cost.It doesn't seem easy to calculate since we'll be traveling through many states and we are considering several routes.y family is considering taking a long road trip to finish off the end of the summer, but I'm a little worried about gas prices and our overall fuel cost. It doesn't seem easy to calculate since we'll be traveling through many states and we are considering several routes."
+        }
+      },
+      {
+        "_index": "openai-embeddings",
+        "_id": "ajd5OowBHxQKHyc3TDSC",
+        "_score": 0.8345704,
+        "_source": {
+          "id": 820622,
+          "body": "Home Heating Calculator. Typically, approximately 50% of the energy consumed in a home annually is for space heating. When deciding on a heating system, many factors will come into play: cost of fuel, installation cost, convenience and life style are all important.This calculator can help you estimate the cost of fuel for different heating appliances.hen deciding on a heating system, many factors will come into play: cost of fuel, installation cost, convenience and life style are all important. This calculator can help you estimate the cost of fuel for different heating appliances."
+        }
+      },
+      {
+        "_index": "openai-embeddings",
+        "_id": "Djd5OowBHxQKHyc3TDSC",
+        "_score": 0.8327426,
+        "_source": {
+          "id": 8202683,
+          "body": "Fuel is another important cost. This cost will depend on your boat, how far you travel, and how fast you travel. A 33-foot sailboat traveling at 7 knots should be able to travel 300 miles on 50 gallons of diesel fuel.If you are paying $4 per gallon, the trip would cost you $200.Most boats have much larger gas tanks than cars.uel is another important cost. This cost will depend on your boat, how far you travel, and how fast you travel. A 33-foot sailboat traveling at 7 knots should be able to travel 300 miles on 50 gallons of diesel fuel."
+        }
+      },
+      (...)
+    ]
+--------------------------------------------------
+// NOTCONSOLE
+
+// end::openai[]

@@ -41,3 +41,27 @@ setup:
         connector_sync_job_id: test-nonexistent-connector-sync-job-id
       catch: missing
 
+---
+"Delete connector fails for unprivileged user":
+  - skip:
+      features: headers
+
+  - do:
+      connector_sync_job.post:
+        body:
+          id: test-connector
+          job_type: full
+          trigger_method: on_demand
+
+  - set: { id: sync-job-id-to-delete }
+
+  - do:
+      catch: forbidden
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # entsearch-user with read-only access
+      connector_sync_job.delete:
+        connector_sync_job_id: $sync-job-id-to-delete
+
+  - do:
+      connector_sync_job.delete:
+        connector_sync_job_id: $sync-job-id-to-delete
+

@@ -20,6 +20,7 @@ module org.elasticsearch.server {
 
     requires org.elasticsearch.cli;
     requires org.elasticsearch.base;
+    requires org.elasticsearch.nativeaccess;
     requires org.elasticsearch.geo;
     requires org.elasticsearch.lz4;
     requires org.elasticsearch.pluginclassloader;
@@ -229,6 +230,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.gateway;
     exports org.elasticsearch.health;
     exports org.elasticsearch.health.node;
+    exports org.elasticsearch.health.node.tracker;
     exports org.elasticsearch.health.node.selection;
     exports org.elasticsearch.health.stats;
     exports org.elasticsearch.http;
@@ -380,6 +382,7 @@ module org.elasticsearch.server {
     opens org.elasticsearch.common.logging to org.apache.logging.log4j.core;
 
     exports org.elasticsearch.action.datastreams.lifecycle;
+    exports org.elasticsearch.action.datastreams.autosharding;
     exports org.elasticsearch.action.downsample;
     exports org.elasticsearch.plugins.internal
         to
@@ -435,4 +438,5 @@ module org.elasticsearch.server {
             org.elasticsearch.shardhealth,
             org.elasticsearch.serverless.shardhealth,
             org.elasticsearch.serverless.apifiltering;
+    exports org.elasticsearch.lucene.spatial;
 }

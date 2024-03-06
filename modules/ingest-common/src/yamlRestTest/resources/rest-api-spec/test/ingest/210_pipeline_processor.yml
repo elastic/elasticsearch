@@ -67,6 +67,9 @@ teardown:
 
 ---
 "Test Pipeline Processor with Circular Pipelines":
+- skip:
+    version: " - 8.12.99"
+    reason: exception class changed in 8.13.0
 - do:
     ingest.put_pipeline:
       id: "outer"
@@ -100,13 +103,13 @@ teardown:
 - match: { acknowledged: true }
 
 - do:
-    catch: /illegal_state_exception/
+    catch: /graph_structure_exception/
     index:
       index: test
       id: "1"
       pipeline: "outer"
       body: {}
-- match: { error.root_cause.0.type: "illegal_state_exception" }
+- match: { error.root_cause.0.type: "graph_structure_exception" }
 - match: { error.root_cause.0.reason: "Cycle detected for pipeline: outer" }
 
 ---

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.huggingface;
 
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.ChunkingOptions;
@@ -18,7 +17,7 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.action.huggingface.HuggingFaceActionCreator;
-import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderFactory;
+import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 
@@ -33,31 +32,36 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNot
 
 public abstract class HuggingFaceBaseService extends SenderService {
 
-    public HuggingFaceBaseService(SetOnce<HttpRequestSenderFactory> factory, SetOnce<ServiceComponents> serviceComponents) {
+    public HuggingFaceBaseService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents) {
         super(factory, serviceComponents);
     }
 
     @Override
-    public HuggingFaceModel parseRequestConfig(
+    public void parseRequestConfig(
         String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> config,
-        Set<String> platformArchitectures
+        Set<String> platformArchitectures,
+        ActionListener<Model> parsedModelListener
     ) {
-        Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
+        try {
+            Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
 
-        var model = createModel(
-            inferenceEntityId,
-            taskType,
-            serviceSettingsMap,
-            serviceSettingsMap,
-            TaskType.unsupportedTaskTypeErrorMsg(taskType, name())
-        );
+            var model = createModel(
+                inferenceEntityId,
+                taskType,
+                serviceSettingsMap,
+                serviceSettingsMap,
+                TaskType.unsupportedTaskTypeErrorMsg(taskType, name())
+            );
 
-        throwIfNotEmptyMap(config, name());
-        throwIfNotEmptyMap(serviceSettingsMap, name());
+            throwIfNotEmptyMap(config, name());
+            throwIfNotEmptyMap(serviceSettingsMap, name());
 
-        return model;
+            parsedModelListener.onResponse(model);
+        } catch (Exception e) {
+            parsedModelListener.onFailure(e);
+        }
     }
 
     @Override
@@ -121,7 +125,7 @@ public abstract class HuggingFaceBaseService extends SenderService {
         Map<String, Object> taskSettings,
         InputType inputType,
         ChunkingOptions chunkingOptions,
-        ActionListener<ChunkedInferenceServiceResults> listener
+        ActionListener<List<ChunkedInferenceServiceResults>> listener
     ) {
         listener.onFailure(new UnsupportedOperationException("Chunked inference not implemented for Hugging Face"));
     }

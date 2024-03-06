@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.inference.services.cohere;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
@@ -15,8 +17,9 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
+import org.elasticsearch.inference.SimilarityMeasure;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.inference.common.SimilarityMeasure;
 
 import java.io.IOException;
 import java.net.URI;
@@ -34,10 +37,13 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSim
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeAsType;
 
 public class CohereServiceSettings implements ServiceSettings {
-    public static final String NAME = "cohere_service_settings";
-    public static final String MODEL = "model";
 
-    public static CohereServiceSettings fromMap(Map<String, Object> map) {
+    private static final Logger logger = LogManager.getLogger(CohereServiceSettings.class);
+    public static final String NAME = "cohere_service_settings";
+    public static final String OLD_MODEL_ID_FIELD = "model";
+    public static final String MODEL_ID = "model_id";
+
+    public static CohereServiceSettings fromMap(Map<String, Object> map, boolean logDeprecations) {
         ValidationException validationException = new ValidationException();
 
         String url = extractOptionalString(map, URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
@@ -46,33 +52,43 @@ public class CohereServiceSettings implements ServiceSettings {
         Integer dims = removeAsType(map, DIMENSIONS, Integer.class);
         Integer maxInputTokens = removeAsType(map, MAX_INPUT_TOKENS, Integer.class);
         URI uri = convertToUri(url, URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        String model = extractOptionalString(map, MODEL, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        String oldModelId = extractOptionalString(map, OLD_MODEL_ID_FIELD, ModelConfigurations.SERVICE_SETTINGS, validationException);
+
+        String modelId = extractOptionalString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
+
+        if (logDeprecations && oldModelId != null) {
+            logger.info("The cohere [service_settings.model] field is deprecated. Please use [service_settings.model_id] instead.");
+        }
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
         }
 
-        return new CohereServiceSettings(uri, similarity, dims, maxInputTokens, model);
+        return new CohereServiceSettings(uri, similarity, dims, maxInputTokens, getModelId(oldModelId, modelId));
+    }
+
+    private static String getModelId(@Nullable String model, @Nullable String modelId) {
+        return modelId != null ? modelId : model;
     }
 
     private final URI uri;
     private final SimilarityMeasure similarity;
     private final Integer dimensions;
     private final Integer maxInputTokens;
-    private final String model;
+    private final String modelId;
 
     public CohereServiceSettings(
         @Nullable URI uri,
         @Nullable SimilarityMeasure similarity,
         @Nullable Integer dimensions,
         @Nullable Integer maxInputTokens,
-        @Nullable String model
+        @Nullable String modelId
     ) {
         this.uri = uri;
         this.similarity = similarity;
         this.dimensions = dimensions;
         this.maxInputTokens = maxInputTokens;
-        this.model = model;
+        this.modelId = modelId;
     }
 
     public CohereServiceSettings(
@@ -80,9 +96,9 @@ public class CohereServiceSettings implements ServiceSettings {
         @Nullable SimilarityMeasure similarity,
         @Nullable Integer dimensions,
         @Nullable Integer maxInputTokens,
-        @Nullable String model
+        @Nullable String modelId
     ) {
-        this(createOptionalUri(url), similarity, dimensions, maxInputTokens, model);
+        this(createOptionalUri(url), similarity, dimensions, maxInputTokens, modelId);
     }
 
     public CohereServiceSettings(StreamInput in) throws IOException {
@@ -90,7 +106,7 @@ public class CohereServiceSettings implements ServiceSettings {
         similarity = in.readOptionalEnum(SimilarityMeasure.class);
         dimensions = in.readOptionalVInt();
         maxInputTokens = in.readOptionalVInt();
-        model = in.readOptionalString();
+        modelId = in.readOptionalString();
     }
 
     public URI getUri() {
@@ -109,8 +125,8 @@ public class CohereServiceSettings implements ServiceSettings {
         return maxInputTokens;
     }
 
-    public String getModel() {
-        return model;
+    public String getModelId() {
+        return modelId;
     }
 
     @Override
@@ -141,11 +157,16 @@ public class CohereServiceSettings implements ServiceSettings {
         if (maxInputTokens != null) {
             builder.field(MAX_INPUT_TOKENS, maxInputTokens);
         }
-        if (model != null) {
-            builder.field(MODEL, model);
+        if (modelId != null) {
+            builder.field(MODEL_ID, modelId);
         }
 
         return builder;
+    }
+
+    @Override
+    public ToXContentObject getFilteredXContentObject() {
+        return this;
     }
 
     @Override
@@ -160,7 +181,7 @@ public class CohereServiceSettings implements ServiceSettings {
         out.writeOptionalEnum(similarity);
         out.writeOptionalVInt(dimensions);
         out.writeOptionalVInt(maxInputTokens);
-        out.writeOptionalString(model);
+        out.writeOptionalString(modelId);
     }
 
     @Override
@@ -172,11 +193,11 @@ public class CohereServiceSettings implements ServiceSettings {
             && Objects.equals(similarity, that.similarity)
             && Objects.equals(dimensions, that.dimensions)
             && Objects.equals(maxInputTokens, that.maxInputTokens)
-            && Objects.equals(model, that.model);
+            && Objects.equals(modelId, that.modelId);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(uri, similarity, dimensions, maxInputTokens, model);
+        return Objects.hash(uri, similarity, dimensions, maxInputTokens, modelId);
     }
 }

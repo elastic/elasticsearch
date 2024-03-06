@@ -16,8 +16,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.BiConsumer;
 
-import static org.elasticsearch.ingest.IngestDocument.PIPELINE_CYCLE_ERROR_MESSAGE;
-
 /**
  * Processor to be used within Simulate API to keep track of processors executed in pipeline.
  */
@@ -27,17 +25,21 @@ public final class TrackingResultProcessor implements Processor {
     private final ConditionalProcessor conditionalProcessor;
     private final List<SimulateProcessorResult> processorResultList;
     private final boolean ignoreFailure;
+    // This field indicates that this processor needs to run the initial check for cycles in pipeline processors:
+    private final boolean performCycleCheck;
 
     TrackingResultProcessor(
         boolean ignoreFailure,
         Processor actualProcessor,
         ConditionalProcessor conditionalProcessor,
-        List<SimulateProcessorResult> processorResultList
+        List<SimulateProcessorResult> processorResultList,
+        boolean performCycleCheck
     ) {
         this.ignoreFailure = ignoreFailure;
         this.processorResultList = processorResultList;
         this.actualProcessor = actualProcessor;
         this.conditionalProcessor = conditionalProcessor;
+        this.performCycleCheck = performCycleCheck;
     }
 
     @Override
@@ -87,57 +89,44 @@ public final class TrackingResultProcessor implements Processor {
                 );
                 throw e;
             }
-            ingestDocumentCopy.executePipeline(pipelineToCall, (result, e) -> {
-                // special handling for pipeline cycle errors
-                if (e instanceof ElasticsearchException
-                    && e.getCause() instanceof IllegalStateException
-                    && e.getCause().getMessage().startsWith(PIPELINE_CYCLE_ERROR_MESSAGE)) {
-                    if (ignoreFailure) {
-                        processorResultList.add(
-                            new SimulateProcessorResult(
-                                pipelineProcessor.getType(),
-                                pipelineProcessor.getTag(),
-                                pipelineProcessor.getDescription(),
-                                ingestDocument,
-                                e,
-                                conditionalWithResult
-                            )
-                        );
+            if (performCycleCheck) {
+                ingestDocumentCopy.executePipeline(pipelineToCall, (result, e) -> {
+                    // special handling for pipeline cycle errors
+                    if (e instanceof ElasticsearchException && e.getCause() instanceof GraphStructureException) {
+                        if (ignoreFailure) {
+                            processorResultList.add(
+                                new SimulateProcessorResult(
+                                    pipelineProcessor.getType(),
+                                    pipelineProcessor.getTag(),
+                                    pipelineProcessor.getDescription(),
+                                    ingestDocument,
+                                    e,
+                                    conditionalWithResult
+                                )
+                            );
+                        } else {
+                            processorResultList.add(
+                                new SimulateProcessorResult(
+                                    pipelineProcessor.getType(),
+                                    pipelineProcessor.getTag(),
+                                    pipelineProcessor.getDescription(),
+                                    e,
+                                    conditionalWithResult
+                                )
+                            );
+                        }
+                        handler.accept(null, e);
                     } else {
-                        processorResultList.add(
-                            new SimulateProcessorResult(
-                                pipelineProcessor.getType(),
-                                pipelineProcessor.getTag(),
-                                pipelineProcessor.getDescription(),
-                                e,
-                                conditionalWithResult
-                            )
-                        );
+                        // now that we know that there are no cycles between pipelines, decorate the processors for this pipeline and
+                        // execute it
+                        decorateAndExecutePipeline(pipeline, ingestDocument, conditionalWithResult, handler);
                     }
-                    handler.accept(null, e);
-                } else {
-                    // now that we know that there are no cycles between pipelines, decorate the processors for this pipeline and execute it
-                    CompoundProcessor verbosePipelineProcessor = decorate(pipeline.getCompoundProcessor(), null, processorResultList);
-                    // add the pipeline process to the results
-                    processorResultList.add(
-                        new SimulateProcessorResult(
-                            actualProcessor.getType(),
-                            actualProcessor.getTag(),
-                            actualProcessor.getDescription(),
-                            conditionalWithResult
-                        )
-                    );
-                    Pipeline verbosePipeline = new Pipeline(
-                        pipeline.getId(),
-                        pipeline.getDescription(),
-                        pipeline.getVersion(),
-                        pipeline.getMetadata(),
-                        verbosePipelineProcessor,
-                        pipeline.getDeprecated()
-                    );
-                    ingestDocument.executePipeline(verbosePipeline, handler);
-                }
-            });
+                });
+            } else {
+                // The cycle check has been done before, so we can just decorate the pipeline with our instrumentation and execute it:
+                decorateAndExecutePipeline(pipeline, ingestDocument, conditionalWithResult, handler);
+            }
+
             return;
         }
 
@@ -193,6 +182,37 @@ public final class TrackingResultProcessor implements Processor {
         });
     }
 
+    /*
+     * This method decorates the pipeline's compound processor with a new TrackingResultProcessor that does not do cycle checking, and
+     * executes the pipeline using that TrackingResultProcessor.
+     */
+    private void decorateAndExecutePipeline(
+        Pipeline pipeline,
+        IngestDocument ingestDocument,
+        Tuple<String, Boolean> conditionalWithResult,
+        BiConsumer<IngestDocument, Exception> handler
+    ) {
+        CompoundProcessor verbosePipelineProcessor = decorateNoCycleCheck(pipeline.getCompoundProcessor(), null, processorResultList);
+        // add the pipeline process to the results
+        processorResultList.add(
+            new SimulateProcessorResult(
+                actualProcessor.getType(),
+                actualProcessor.getTag(),
+                actualProcessor.getDescription(),
+                conditionalWithResult
+            )
+        );
+        Pipeline verbosePipeline = new Pipeline(
+            pipeline.getId(),
+            pipeline.getDescription(),
+            pipeline.getVersion(),
+            pipeline.getMetadata(),
+            verbosePipelineProcessor,
+            pipeline.getDeprecated()
+        );
+        ingestDocument.executePipeline(verbosePipeline, handler);
+    }
+
     private static void executeProcessor(Processor p, IngestDocument doc, BiConsumer<IngestDocument, Exception> handler) {
         if (p.isAsync()) {
             p.execute(doc, handler);
@@ -226,10 +246,31 @@ public final class TrackingResultProcessor implements Processor {
         return true;
     }
 
+    /*
+     * This decorates the existing processor with a new TrackingResultProcessor that does _not_ do checks for cycles in pipeline
+     * processors, with the assumption that that check has already been done.
+     */
+    private static CompoundProcessor decorateNoCycleCheck(
+        CompoundProcessor compoundProcessor,
+        ConditionalProcessor parentCondition,
+        List<SimulateProcessorResult> processorResultList
+    ) {
+        return decorate(compoundProcessor, parentCondition, processorResultList, false);
+    }
+
     public static CompoundProcessor decorate(
         CompoundProcessor compoundProcessor,
         ConditionalProcessor parentCondition,
         List<SimulateProcessorResult> processorResultList
+    ) {
+        return decorate(compoundProcessor, parentCondition, processorResultList, true);
+    }
+
+    private static CompoundProcessor decorate(
+        CompoundProcessor compoundProcessor,
+        ConditionalProcessor parentCondition,
+        List<SimulateProcessorResult> processorResultList,
+        boolean performCycleCheck
     ) {
         List<Processor> processors = new ArrayList<>();
         for (Processor processor : compoundProcessor.getProcessors()) {
@@ -242,7 +283,13 @@ public final class TrackingResultProcessor implements Processor {
                 processors.add(decorate(cp, conditionalProcessor, processorResultList));
             } else {
                 processors.add(
-                    new TrackingResultProcessor(compoundProcessor.isIgnoreFailure(), processor, conditionalProcessor, processorResultList)
+                    new TrackingResultProcessor(
+                        compoundProcessor.isIgnoreFailure(),
+                        processor,
+                        conditionalProcessor,
+                        processorResultList,
+                        performCycleCheck
+                    )
                 );
             }
         }
@@ -257,7 +304,13 @@ public final class TrackingResultProcessor implements Processor {
                 onFailureProcessors.add(decorate(cp, conditionalProcessor, processorResultList));
             } else {
                 onFailureProcessors.add(
-                    new TrackingResultProcessor(compoundProcessor.isIgnoreFailure(), processor, conditionalProcessor, processorResultList)
+                    new TrackingResultProcessor(
+                        compoundProcessor.isIgnoreFailure(),
+                        processor,
+                        conditionalProcessor,
+                        processorResultList,
+                        performCycleCheck
+                    )
                 );
             }
         }

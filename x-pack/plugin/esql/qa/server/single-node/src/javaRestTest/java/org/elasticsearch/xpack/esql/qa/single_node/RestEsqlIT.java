@@ -18,6 +18,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
+import org.hamcrest.Matchers;
 import org.junit.Assert;
 import org.junit.ClassRule;
 
@@ -29,12 +30,15 @@ import java.util.Locale;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.core.Is.is;
 
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class RestEsqlIT extends RestEsqlTestCase {
     @ClassRule
-    public static ElasticsearchCluster cluster = Clusters.testCluster();
+    public static ElasticsearchCluster cluster = Clusters.testCluster(
+        specBuilder -> specBuilder.plugin("mapper-size").plugin("mapper-murmur3")
+    );
 
     @Override
     protected String getTestRestCluster() {
@@ -99,5 +103,104 @@ public class RestEsqlIT extends RestEsqlTestCase {
         builder.pragmas(Settings.builder().put("data_partitioning", "shard").build());
         ResponseException re = expectThrows(ResponseException.class, () -> runEsqlSync(builder));
         assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("[pragma] only allowed in snapshot builds"));
+    }
+
+    public void testIncompatibleMappingsErrors() throws IOException {
+        // create first index
+        Request request = new Request("PUT", "/index1");
+        request.setJsonEntity("""
+            {
+               "mappings": {
+                 "_size": {
+                   "enabled": true
+                 },
+                 "properties": {
+                   "message": {
+                     "type": "keyword",
+                     "fields": {
+                       "hash": {
+                         "type": "murmur3"
+                       }
+                     }
+                   }
+                 }
+               }
+            }
+            """);
+        assertEquals(200, client().performRequest(request).getStatusLine().getStatusCode());
+
+        // create second index
+        request = new Request("PUT", "/index2");
+        request.setJsonEntity("""
+            {
+              "mappings": {
+                "properties": {
+                  "message": {
+                    "type": "long",
+                    "fields": {
+                      "hash": {
+                        "type": "integer"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            """);
+        assertEquals(200, client().performRequest(request).getStatusLine().getStatusCode());
+
+        // create alias
+        request = new Request("POST", "/_aliases");
+        request.setJsonEntity("""
+            {
+              "actions": [
+                {
+                  "add": {
+                    "index": "index1",
+                    "alias": "test_alias"
+                  }
+                },
+                {
+                  "add": {
+                    "index": "index2",
+                    "alias": "test_alias"
+                  }
+                }
+              ]
+            }
+            """);
+        assertEquals(200, client().performRequest(request).getStatusLine().getStatusCode());
+        assertException(
+            "from index1,index2 | stats count(message)",
+            "VerificationException",
+            "Cannot use field [message] due to ambiguities",
+            "incompatible types: [keyword] in [index1], [long] in [index2]"
+        );
+        assertException(
+            "from test_alias | where message is not null",
+            "VerificationException",
+            "Cannot use field [message] due to ambiguities",
+            "incompatible types: [keyword] in [index1], [long] in [index2]"
+        );
+        assertException("from test_alias | where _size is not null | limit 1", "Unknown column [_size]");
+        assertException(
+            "from test_alias | where message.hash is not null | limit 1",
+            "Cannot use field [message.hash] with unsupported type [murmur3]"
+        );
+        assertException(
+            "from index1 | where message.hash is not null | limit 1",
+            "Cannot use field [message.hash] with unsupported type [murmur3]"
+        );
+        // clean up
+        assertThat(deleteIndex("index1").isAcknowledged(), Matchers.is(true));
+        assertThat(deleteIndex("index2").isAcknowledged(), Matchers.is(true));
+    }
+
+    private void assertException(String query, String... errorMessages) throws IOException {
+        ResponseException re = expectThrows(ResponseException.class, () -> runEsqlSync(new RequestObjectBuilder().query(query)));
+        assertThat(re.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        for (var error : errorMessages) {
+            assertThat(re.getMessage(), containsString(error));
+        }
     }
 }

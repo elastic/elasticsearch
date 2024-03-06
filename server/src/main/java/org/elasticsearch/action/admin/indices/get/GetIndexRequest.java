@@ -9,7 +9,9 @@
 package org.elasticsearch.action.admin.indices.get;
 
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.info.ClusterInfoRequest;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.ArrayUtils;
@@ -20,7 +22,7 @@ import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashSet;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -64,7 +66,7 @@ public class GetIndexRequest extends ClusterInfoRequest<GetIndexRequest> {
         public static Feature[] fromRequest(RestRequest request) {
             if (request.hasParam("features")) {
                 String[] featureNames = request.param("features").split(",");
-                Set<Feature> features = new HashSet<>();
+                Set<Feature> features = EnumSet.noneOf(Feature.class);
                 List<String> invalidFeatures = new ArrayList<>();
                 for (int k = 0; k < featureNames.length; k++) {
                     try {
@@ -92,7 +94,15 @@ public class GetIndexRequest extends ClusterInfoRequest<GetIndexRequest> {
     private transient boolean includeDefaults = false;
 
     public GetIndexRequest() {
-
+        super(
+            DataStream.isFailureStoreEnabled()
+                ? IndicesOptions.builder(IndicesOptions.strictExpandOpen())
+                    .failureStoreOptions(
+                        IndicesOptions.FailureStoreOptions.builder().includeRegularIndices(true).includeFailureIndices(true)
+                    )
+                    .build()
+                : IndicesOptions.strictExpandOpen()
+        );
     }
 
     public GetIndexRequest(StreamInput in) throws IOException {

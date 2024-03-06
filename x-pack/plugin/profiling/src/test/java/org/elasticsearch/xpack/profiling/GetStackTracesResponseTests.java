@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.profiling;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.List;
 import java.util.Map;
 
 public class GetStackTracesResponseTests extends ESTestCase {
@@ -25,10 +24,10 @@ public class GetStackTracesResponseTests extends ESTestCase {
             Map.of(
                 "QjoLteG7HX3VUUXr-J4kHQ",
                 new StackTrace(
-                    List.of(1083999),
-                    List.of("QCCDqjSg3bMK1C4YRK6Tiw"),
-                    List.of("QCCDqjSg3bMK1C4YRK6TiwAAAAAAEIpf"),
-                    List.of(2),
+                    new int[] { 1083999 },
+                    new String[] { "QCCDqjSg3bMK1C4YRK6Tiw" },
+                    new String[] { "QCCDqjSg3bMK1C4YRK6TiwAAAAAAEIpf" },
+                    new int[] { 2 },
                     0.3d,
                     2.7d,
                     1

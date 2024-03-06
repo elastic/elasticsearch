@@ -1,0 +1,71 @@
+// tag::cohere[]
+
+[source,console]
+--------------------------------------------------
+PUT cohere-embeddings
+{
+  "mappings": {
+    "properties": {
+      "content_embedding": { <1>
+        "type": "dense_vector", <2>
+        "dims": 384, <3>
+        "element_type": "float"
+      },
+      "content": { <4>
+        "type": "text" <5>
+      }
+    }
+  }
+}
+--------------------------------------------------
+<1> The name of the field to contain the generated tokens. It must be refrenced
+in the {infer} pipeline configuration in the next step.
+<2> The field to contain the tokens is a `dense_vector` field.
+<3> The output dimensions of the model. Find this value in the
+https://docs.cohere.com/reference/embed[Cohere documentation] of the model you
+use.
+<4> The name of the field from which to create the dense vector representation.
+In this example, the name of the field is `content`. It must be referenced in
+the {infer} pipeline configuration in the next step.
+<5> The field type which is text in this example.
+
+// end::cohere[]
+
+
+// tag::openai[]
+
+[source,console]
+--------------------------------------------------
+PUT openai-embeddings
+{
+  "mappings": {
+    "properties": {
+      "content_embedding": { <1>
+        "type": "dense_vector", <2>
+        "dims": 1536, <3>
+        "element_type": "float",
+        "similarity": "dot_product" <4>
+      },
+      "content": { <5>
+        "type": "text" <6>
+      }
+    }
+  }
+}
+--------------------------------------------------
+<1> The name of the field to contain the generated tokens. It must be refrenced
+in the {infer} pipeline configuration in the next step.
+<2> The field to contain the tokens is a `dense_vector` field.
+<3> The output dimensions of the model. Find this value in the
+https://platform.openai.com/docs/guides/embeddings/embedding-models[OpenAI documentation]
+of the model you use.
+<4> The faster` dot_product` function can be used to calculate similarity
+because OpenAI embeddings are normalised to unit length. You can check the
+https://platform.openai.com/docs/guides/embeddings/which-distance-function-should-i-use[OpenAI docs]
+about which similarity function to use.
+<5> The name of the field from which to create the dense vector representation.
+In this example, the name of the field is `content`. It must be referenced in
+the {infer} pipeline configuration in the next step.
+<6> The field type which is text in this example.
+
+// end::openai[]

@@ -9,6 +9,7 @@ package org.elasticsearch.test.rest.yaml.section;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
 
@@ -23,9 +24,9 @@ class VersionRange {
 
     private VersionRange() {}
 
-    static final Predicate<Set<String>> NEVER = v -> false;
+    static final Predicate<Set<String>> NEVER = Predicates.never();
 
-    static final Predicate<Set<String>> ALWAYS = v -> true;
+    static final Predicate<Set<String>> ALWAYS = Predicates.always();
 
     static final Predicate<Set<String>> CURRENT = versions -> versions.size() == 1 && versions.contains(Build.current().version());
 

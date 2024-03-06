@@ -1,0 +1,153 @@
+setup:
+  - skip:
+      version: " - 8.12.99"
+      reason: semantic_text introduced in 8.13.0 # TODO change when 8.13.0 is released
+
+  - do:
+      inference.put_model:
+        task_type: sparse_embedding
+        inference_id: sparse-inference-id
+        body: >
+          {
+            "service": "test_service",
+            "service_settings": {
+              "model": "my_model",
+              "api_key": "abc64"
+            },
+            "task_settings": {
+            }
+          }
+  - do:
+      inference.put_model:
+        task_type: text_embedding
+        inference_id: dense-inference-id
+        body: >
+          {
+            "service": "text_embedding_test_service",
+            "service_settings": {
+              "model": "my_model",
+              "dimensions": 10,
+              "api_key": "abc64"
+            },
+            "task_settings": {
+            }
+          }
+
+  - do:
+      indices.create:
+        index: test-index
+        body:
+          mappings:
+            properties:
+              sparse_field:
+                type: semantic_text
+                model_id: sparse-inference-id
+              dense_field:
+                type: semantic_text
+                model_id: dense-inference-id
+              non_inference_field:
+                type: text
+
+---
+"Sparse vector results format":
+    - do:
+        index:
+          index: test-index
+          id: doc_1
+          body:
+            non_inference_field: "you know, for testing"
+            _semantic_text_inference:
+              sparse_field:
+                model_settings:
+                  inference_id: sparse-inference-id
+                  task_type: sparse_embedding
+                inference_results:
+                  - text: "inference test"
+                    inference:
+                      feature_1: 0.1
+                      feature_2: 0.2
+                      feature_3: 0.3
+                      feature_4: 0.4
+                  - text: "another inference test"
+                    inference:
+                      feature_1: 0.1
+                      feature_2: 0.2
+                      feature_3: 0.3
+                      feature_4: 0.4
+
+---
+"Dense vector results format":
+    - do:
+        index:
+          index: test-index
+          id: doc_1
+          body:
+            non_inference_field: "you know, for testing"
+            _semantic_text_inference:
+              dense_field:
+                model_settings:
+                  inference_id: sparse-inference-id
+                  task_type: text_embedding
+                  dimensions: 5
+                  similarity: cosine
+                inference_results:
+                  - text: "inference test"
+                    inference: [0.1, 0.2, 0.3, 0.4, 0.5]
+                  - text: "another inference test"
+                    inference: [-0.1, -0.2, -0.3, -0.4, -0.5]
+
+---
+"Model settings inference id not included":
+    - do:
+        catch: /Required \[inference_id\]/
+        index:
+          index: test-index
+          id: doc_1
+          body:
+            non_inference_field: "you know, for testing"
+            _semantic_text_inference:
+              sparse_field:
+                model_settings:
+                  task_type: sparse_embedding
+                inference_results:
+                  - text: "inference test"
+                    inference:
+                      feature_1: 0.1
+
+---
+"Model settings task type not included":
+    - do:
+        catch: /Required \[task_type\]/
+        index:
+          index: test-index
+          id: doc_1
+          body:
+            non_inference_field: "you know, for testing"
+            _semantic_text_inference:
+              sparse_field:
+                model_settings:
+                  inference_id: sparse-inference-id
+                inference_results:
+                  - text: "inference test"
+                    inference:
+                      feature_1: 0.1
+
+---
+"Model settings dense vector dimensions not included":
+  - do:
+      catch: /Model settings for field \[dense_field\] must contain dimensions/
+      index:
+        index: test-index
+        id: doc_1
+        body:
+          non_inference_field: "you know, for testing"
+          _semantic_text_inference:
+            dense_field:
+              model_settings:
+                inference_id: sparse-inference-id
+                task_type: text_embedding
+              inference_results:
+                - text: "inference test"
+                  inference: [0.1, 0.2, 0.3, 0.4, 0.5]
+                - text: "another inference test"
+                  inference: [-0.1, -0.2, -0.3, -0.4, -0.5]

@@ -8,7 +8,6 @@
 
 package org.elasticsearch.inference;
 
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
@@ -19,28 +18,22 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * Model settings that are interesting for semantic_text inference fields. This class is used to serialize common
- * ServiceSettings methods when building inference for semantic_text fields.
- *
- * @param taskType task type
- * @param inferenceId inference id
- * @param dimensions number of dimensions. May be null if not applicable
- * @param similarity similarity used by the service. May be null if not applicable
+ * Serialization class for specifying the settings of a model from semantic_text inference to field mapper.
+ * See {@link org.elasticsearch.action.bulk.BulkShardRequestInferenceProvider}
  */
-public record SemanticTextModelSettings(
-    TaskType taskType,
-    String inferenceId,
-    @Nullable Integer dimensions,
-    @Nullable SimilarityMeasure similarity
-) {
+public class ModelSettings {
 
     public static final String NAME = "model_settings";
-    private static final ParseField TASK_TYPE_FIELD = new ParseField("task_type");
-    private static final ParseField INFERENCE_ID_FIELD = new ParseField("inference_id");
-    private static final ParseField DIMENSIONS_FIELD = new ParseField("dimensions");
-    private static final ParseField SIMILARITY_FIELD = new ParseField("similarity");
+    public static final ParseField TASK_TYPE_FIELD = new ParseField("task_type");
+    public static final ParseField INFERENCE_ID_FIELD = new ParseField("inference_id");
+    public static final ParseField DIMENSIONS_FIELD = new ParseField("dimensions");
+    public static final ParseField SIMILARITY_FIELD = new ParseField("similarity");
+    private final TaskType taskType;
+    private final String inferenceId;
+    private final Integer dimensions;
+    private final SimilarityMeasure similarity;
 
-    public SemanticTextModelSettings(TaskType taskType, String inferenceId, Integer dimensions, SimilarityMeasure similarity) {
+    public ModelSettings(TaskType taskType, String inferenceId, Integer dimensions, SimilarityMeasure similarity) {
         Objects.requireNonNull(taskType, "task type must not be null");
         Objects.requireNonNull(inferenceId, "inferenceId must not be null");
         this.taskType = taskType;
@@ -49,7 +42,7 @@ public record SemanticTextModelSettings(
         this.similarity = similarity;
     }
 
-    public SemanticTextModelSettings(Model model) {
+    public ModelSettings(Model model) {
         this(
             model.getTaskType(),
             model.getInferenceEntityId(),
@@ -58,16 +51,16 @@ public record SemanticTextModelSettings(
         );
     }
 
-    public static SemanticTextModelSettings parse(XContentParser parser) throws IOException {
+    public static ModelSettings parse(XContentParser parser) throws IOException {
         return PARSER.apply(parser, null);
     }
 
-    private static final ConstructingObjectParser<SemanticTextModelSettings, Void> PARSER = new ConstructingObjectParser<>(NAME, args -> {
+    private static final ConstructingObjectParser<ModelSettings, Void> PARSER = new ConstructingObjectParser<>(NAME, args -> {
         TaskType taskType = TaskType.fromString((String) args[0]);
         String inferenceId = (String) args[1];
         Integer dimensions = (Integer) args[2];
-        SimilarityMeasure similarity = args[3] == null ? null : SimilarityMeasure.fromString((String) args[2]);
-        return new SemanticTextModelSettings(taskType, inferenceId, dimensions, similarity);
+        SimilarityMeasure similarity = args[3] == null ? null : SimilarityMeasure.fromString((String) args[3]);
+        return new ModelSettings(taskType, inferenceId, dimensions, similarity);
     });
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), TASK_TYPE_FIELD);
@@ -87,5 +80,21 @@ public record SemanticTextModelSettings(
             attrsMap.put(SIMILARITY_FIELD.getPreferredName(), similarity);
         }
         return Map.of(NAME, attrsMap);
+    }
+
+    public TaskType taskType() {
+        return taskType;
+    }
+
+    public String inferenceId() {
+        return inferenceId;
+    }
+
+    public Integer dimensions() {
+        return dimensions;
+    }
+
+    public SimilarityMeasure similarity() {
+        return similarity;
     }
 }

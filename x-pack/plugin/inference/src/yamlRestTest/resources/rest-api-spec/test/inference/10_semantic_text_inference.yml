@@ -6,7 +6,7 @@ setup:
   - do:
       inference.put_model:
         task_type: sparse_embedding
-        inference_id: test-inference-id
+        inference_id: sparse-inference-id
         body: >
           {
             "service": "test_service",
@@ -17,27 +17,57 @@ setup:
             "task_settings": {
             }
           }
+  - do:
+      inference.put_model:
+        task_type: text_embedding
+        inference_id: dense-inference-id
+        body: >
+          {
+            "service": "text_embedding_test_service",
+            "service_settings": {
+              "model": "my_model",
+              "dimensions": 10,
+              "api_key": "abc64"
+            },
+            "task_settings": {
+            }
+          }
 
   - do:
       indices.create:
-        index: test-index
+        index: test-sparse-index
         body:
           mappings:
             properties:
               inference_field:
                 type: semantic_text
-                model_id: test-inference-id
+                model_id: sparse-inference-id
               another_inference_field:
                 type: semantic_text
-                model_id: test-inference-id
+                model_id: sparse-inference-id
+              non_inference_field:
+                type: text
+
+  - do:
+      indices.create:
+        index: test-dense-index
+        body:
+          mappings:
+            properties:
+              inference_field:
+                type: semantic_text
+                model_id: dense-inference-id
+              another_inference_field:
+                type: semantic_text
+                model_id: dense-inference-id
               non_inference_field:
                 type: text
 
 ---
-"Calculates embeddings for new documents":
+"Calculates text expansion results for new documents":
     - do:
         index:
-          index: test-index
+          index: test-sparse-index
           id: doc_1
           body:
             inference_field: "inference test"
@@ -46,104 +76,35 @@ setup:
 
     - do:
         get:
-          index: test-index
+          index: test-sparse-index
           id: doc_1
 
     - match: { _source.inference_field: "inference test" }
     - match: { _source.another_inference_field: "another inference test" }
     - match: { _source.non_inference_field: "non inference test" }
 
-    - match: { _source._semantic_text_inference.inference_field.0.text: "inference test" }
-    - match: { _source._semantic_text_inference.another_inference_field.0.text: "another inference test" }
+    - match: { _source._semantic_text_inference.inference_field.inference_results.0.text: "inference test" }
+    - match: { _source._semantic_text_inference.another_inference_field.inference_results.0.text: "another inference test" }
 
-    - exists: _source._semantic_text_inference.inference_field.0.sparse_embedding
-    - exists: _source._semantic_text_inference.another_inference_field.0.sparse_embedding
-
----
-"Updating non semantic_text fields does not recalculate embeddings":
-    - do:
-        index:
-          index: test-index
-          id: doc_1
-          body:
-            inference_field: "inference test"
-            another_inference_field: "another inference test"
-            non_inference_field: "non inference test"
-
-    - do:
-        get:
-          index: test-index
-          id: doc_1
-
-    - set: { _source._semantic_text_inference.inference_field.0.sparse_embedding: inference_field_embedding }
-    - set: { _source._semantic_text_inference.another_inference_field.0.sparse_embedding: another_inference_field_embedding }
-
-    - do:
-        update:
-          index: test-index
-          id: doc_1
-          body:
-            doc:
-              non_inference_field: "another non inference test"
-
-    - do:
-        get:
-          index: test-index
-          id: doc_1
-
-    - match: { _source.inference_field: "inference test" }
-    - match: { _source.another_inference_field: "another inference test" }
-    - match: { _source.non_inference_field: "another non inference test" }
-
-    - match: { _source._semantic_text_inference.inference_field.0.text: "inference test" }
-    - match: { _source._semantic_text_inference.another_inference_field.0.text: "another inference test" }
-
-    - match: { _source._semantic_text_inference.inference_field.0.sparse_embedding: $inference_field_embedding }
-    - match: { _source._semantic_text_inference.another_inference_field.0.sparse_embedding: $another_inference_field_embedding }
+    - exists: _source._semantic_text_inference.inference_field.inference_results.0.inference
+    - exists: _source._semantic_text_inference.another_inference_field.inference_results.0.inference
 
 ---
-"Updating semantic_text fields recalculates embeddings":
-    - do:
-        index:
-          index: test-index
-          id: doc_1
-          body:
-            inference_field: "inference test"
-            another_inference_field: "another inference test"
-            non_inference_field: "non inference test"
+"text expansion documents do not create new mappings":
+  - do:
+      indices.get_mapping:
+        index: test-sparse-index
 
-    - do:
-        get:
-          index: test-index
-          id: doc_1
-
-    - do:
-        update:
-          index: test-index
-          id: doc_1
-          body:
-            doc:
-              inference_field: "updated inference test"
-              another_inference_field: "another updated inference test"
-
-    - do:
-        get:
-          index: test-index
-          id: doc_1
-
-    - match: { _source.inference_field: "updated inference test" }
-    - match: { _source.another_inference_field: "another updated inference test" }
-    - match: { _source.non_inference_field: "non inference test" }
-
-    - match: { _source._semantic_text_inference.inference_field.0.text: "updated inference test" }
-    - match: { _source._semantic_text_inference.another_inference_field.0.text: "another updated inference test" }
-
+  - match: {test-sparse-index.mappings.properties.inference_field.type: semantic_text}
+  - match: {test-sparse-index.mappings.properties.another_inference_field.type: semantic_text}
+  - match: {test-sparse-index.mappings.properties.non_inference_field.type: text}
+  - length: {test-sparse-index.mappings.properties: 3}
 
 ---
-"Reindex works for semantic_text fields":
+"Calculates text embeddings results for new documents":
   - do:
       index:
-        index: test-index
+        index: test-dense-index
         id: doc_1
         body:
           inference_field: "inference test"
@@ -152,11 +113,128 @@ setup:
 
   - do:
       get:
-        index: test-index
+        index: test-dense-index
         id: doc_1
 
-  - set: { _source._semantic_text_inference.inference_field.0.sparse_embedding: inference_field_embedding }
-  - set: { _source._semantic_text_inference.another_inference_field.0.sparse_embedding: another_inference_field_embedding }
+  - match: { _source.inference_field: "inference test" }
+  - match: { _source.another_inference_field: "another inference test" }
+  - match: { _source.non_inference_field: "non inference test" }
+
+  - match: { _source._semantic_text_inference.inference_field.inference_results.0.text: "inference test" }
+  - match: { _source._semantic_text_inference.another_inference_field.inference_results.0.text: "another inference test" }
+
+  - exists: _source._semantic_text_inference.inference_field.inference_results.0.inference
+  - exists: _source._semantic_text_inference.another_inference_field.inference_results.0.inference
+
+
+---
+"text embeddings documents do not create new mappings":
+  - do:
+      indices.get_mapping:
+        index: test-dense-index
+
+  - match: {test-dense-index.mappings.properties.inference_field.type: semantic_text}
+  - match: {test-dense-index.mappings.properties.another_inference_field.type: semantic_text}
+  - match: {test-dense-index.mappings.properties.non_inference_field.type: text}
+  - length: {test-dense-index.mappings.properties: 3}
+
+---
+"Updating non semantic_text fields does not recalculate embeddings":
+    - do:
+        index:
+          index: test-sparse-index
+          id: doc_1
+          body:
+            inference_field: "inference test"
+            another_inference_field: "another inference test"
+            non_inference_field: "non inference test"
+
+    - do:
+        get:
+          index: test-sparse-index
+          id: doc_1
+
+    - set: { _source._semantic_text_inference.inference_field.inference_results.0.inference: inference_field_embedding }
+    - set: { _source._semantic_text_inference.another_inference_field.inference_results.0.inference: another_inference_field_embedding }
+
+    - do:
+        update:
+          index: test-sparse-index
+          id: doc_1
+          body:
+            doc:
+              non_inference_field: "another non inference test"
+
+    - do:
+        get:
+          index: test-sparse-index
+          id: doc_1
+
+    - match: { _source.inference_field: "inference test" }
+    - match: { _source.another_inference_field: "another inference test" }
+    - match: { _source.non_inference_field: "another non inference test" }
+
+    - match: { _source._semantic_text_inference.inference_field.inference_results.0.text: "inference test" }
+    - match: { _source._semantic_text_inference.another_inference_field.inference_results.0.text: "another inference test" }
+
+    - match: { _source._semantic_text_inference.inference_field.inference_results.0.inference: $inference_field_embedding }
+    - match: { _source._semantic_text_inference.another_inference_field.inference_results.0.inference: $another_inference_field_embedding }
+
+---
+"Updating semantic_text fields recalculates embeddings":
+    - do:
+        index:
+          index: test-sparse-index
+          id: doc_1
+          body:
+            inference_field: "inference test"
+            another_inference_field: "another inference test"
+            non_inference_field: "non inference test"
+
+    - do:
+        get:
+          index: test-sparse-index
+          id: doc_1
+
+    - do:
+        update:
+          index: test-sparse-index
+          id: doc_1
+          body:
+            doc:
+              inference_field: "updated inference test"
+              another_inference_field: "another updated inference test"
+
+    - do:
+        get:
+          index: test-sparse-index
+          id: doc_1
+
+    - match: { _source.inference_field: "updated inference test" }
+    - match: { _source.another_inference_field: "another updated inference test" }
+    - match: { _source.non_inference_field: "non inference test" }
+
+    - match: { _source._semantic_text_inference.inference_field.inference_results.0.text: "updated inference test" }
+    - match: { _source._semantic_text_inference.another_inference_field.inference_results.0.text: "another updated inference test" }
+
+---
+"Reindex works for semantic_text fields":
+  - do:
+      index:
+        index: test-sparse-index
+        id: doc_1
+        body:
+          inference_field: "inference test"
+          another_inference_field: "another inference test"
+          non_inference_field: "non inference test"
+
+  - do:
+      get:
+        index: test-sparse-index
+        id: doc_1
+
+  - set: { _source._semantic_text_inference.inference_field.inference_results.0.inference: inference_field_embedding }
+  - set: { _source._semantic_text_inference.another_inference_field.inference_results.0.inference: another_inference_field_embedding }
 
   - do:
       indices.refresh: { }
@@ -169,10 +247,10 @@ setup:
             properties:
               inference_field:
                 type: semantic_text
-                model_id: test-inference-id
+                model_id: sparse-inference-id
               another_inference_field:
                 type: semantic_text
-                model_id: test-inference-id
+                model_id: sparse-inference-id
               non_inference_field:
                 type: text
 
@@ -181,7 +259,7 @@ setup:
         wait_for_completion: true
         body:
           source:
-            index: test-index
+            index: test-sparse-index
           dest:
             index: destination-index
   - do:
@@ -193,17 +271,17 @@ setup:
   - match: { _source.another_inference_field: "another inference test" }
   - match: { _source.non_inference_field: "non inference test" }
 
-  - match: { _source._semantic_text_inference.inference_field.0.text: "inference test" }
-  - match: { _source._semantic_text_inference.another_inference_field.0.text: "another inference test" }
+  - match: { _source._semantic_text_inference.inference_field.inference_results.0.text: "inference test" }
+  - match: { _source._semantic_text_inference.another_inference_field.inference_results.0.text: "another inference test" }
 
-  - match: { _source._semantic_text_inference.inference_field.0.sparse_embedding: $inference_field_embedding }
-  - match: { _source._semantic_text_inference.another_inference_field.0.sparse_embedding: $another_inference_field_embedding }
+  - match: { _source._semantic_text_inference.inference_field.inference_results.0.inference: $inference_field_embedding }
+  - match: { _source._semantic_text_inference.another_inference_field.inference_results.0.inference: $another_inference_field_embedding }
 
 ---
 "Fails for non-existent model":
   - do:
       indices.create:
-        index: incorrect-test-index
+        index: incorrect-test-sparse-index
         body:
           mappings:
             properties:
@@ -216,7 +294,7 @@ setup:
   - do:
       catch: bad_request
       index:
-        index: incorrect-test-index
+        index: incorrect-test-sparse-index
         id: doc_1
         body:
           inference_field: "inference test"
@@ -227,7 +305,7 @@ setup:
   # Succeeds when semantic_text field is not used
   - do:
       index:
-        index: incorrect-test-index
+        index: incorrect-test-sparse-index
         id: doc_1
         body:
           non_inference_field: "non inference test"

@@ -31,6 +31,8 @@ import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
+import org.elasticsearch.inference.ModelSettings;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.LeafNestedDocuments;
 import org.elasticsearch.search.NestedDocuments;
@@ -51,8 +53,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 
-import static org.elasticsearch.action.bulk.BulkShardRequestInferenceProvider.SPARSE_VECTOR_SUBFIELD_NAME;
-import static org.elasticsearch.action.bulk.BulkShardRequestInferenceProvider.TEXT_SUBFIELD_NAME;
+import static org.elasticsearch.action.bulk.BulkShardRequestInferenceProvider.INFERENCE_CHUNKS_RESULTS;
+import static org.elasticsearch.action.bulk.BulkShardRequestInferenceProvider.INFERENCE_CHUNKS_TEXT;
+import static org.elasticsearch.action.bulk.BulkShardRequestInferenceProvider.INFERENCE_RESULTS;
 import static org.hamcrest.Matchers.containsString;
 
 public class SemanticTextInferenceResultFieldMapperTests extends MetadataMapperTestCase {
@@ -214,7 +217,7 @@ public class SemanticTextInferenceResultFieldMapperTests extends MetadataMapperT
                     )
                 )
             );
-            assertThat(ex.getMessage(), containsString("Missing required subfields: [" + SPARSE_VECTOR_SUBFIELD_NAME + "]"));
+            assertThat(ex.getMessage(), containsString("Missing required subfields: [" + INFERENCE_CHUNKS_RESULTS + "]"));
         }
         {
             DocumentParsingException ex = expectThrows(
@@ -232,7 +235,7 @@ public class SemanticTextInferenceResultFieldMapperTests extends MetadataMapperT
                     )
                 )
             );
-            assertThat(ex.getMessage(), containsString("Missing required subfields: [" + TEXT_SUBFIELD_NAME + "]"));
+            assertThat(ex.getMessage(), containsString("Missing required subfields: [" + INFERENCE_CHUNKS_TEXT + "]"));
         }
         {
             DocumentParsingException ex = expectThrows(
@@ -252,7 +255,7 @@ public class SemanticTextInferenceResultFieldMapperTests extends MetadataMapperT
             );
             assertThat(
                 ex.getMessage(),
-                containsString("Missing required subfields: [" + SPARSE_VECTOR_SUBFIELD_NAME + ", " + TEXT_SUBFIELD_NAME + "]")
+                containsString("Missing required subfields: [" + INFERENCE_CHUNKS_RESULTS + ", " + INFERENCE_CHUNKS_TEXT + "]")
             );
         }
     }
@@ -411,8 +414,10 @@ public class SemanticTextInferenceResultFieldMapperTests extends MetadataMapperT
         Map<String, Object> extraSubfields
     ) throws IOException {
 
-        Map<String, List<Map<String, Object>>> inferenceResultsMap = new HashMap<>();
+        Map<String, Map<String, Object>> inferenceResultsMap = new HashMap<>();
         for (SemanticTextInferenceResults semanticTextInferenceResult : semanticTextInferenceResults) {
+            Map<String, Object> fieldMap = new HashMap<>();
+            fieldMap.put(ModelSettings.NAME, modelSettingsMap());
             List<Map<String, Object>> parsedInferenceResults = new ArrayList<>(semanticTextInferenceResult.text().size());
 
             Iterator<SparseEmbeddingResults.Embedding> embeddingsIterator = semanticTextInferenceResult.sparseEmbeddingResults()
@@ -425,17 +430,10 @@ public class SemanticTextInferenceResultFieldMapperTests extends MetadataMapperT
 
                 Map<String, Object> subfieldMap = new HashMap<>();
                 if (sparseVectorSubfieldOptions.include()) {
-                    Map<String, Object> embeddingMap = embedding.asMap();
-                    if (sparseVectorSubfieldOptions.includeIsTruncated() == false) {
-                        embeddingMap.remove(SparseEmbeddingResults.Embedding.IS_TRUNCATED);
-                    }
-                    if (sparseVectorSubfieldOptions.includeEmbedding() == false) {
-                        embeddingMap.remove(SparseEmbeddingResults.Embedding.EMBEDDING);
-                    }
-                    subfieldMap.put(SPARSE_VECTOR_SUBFIELD_NAME, embeddingMap);
+                    subfieldMap.put(INFERENCE_CHUNKS_RESULTS, embedding.asMap().get(SparseEmbeddingResults.Embedding.EMBEDDING));
                 }
                 if (includeTextSubfield) {
-                    subfieldMap.put(TEXT_SUBFIELD_NAME, text);
+                    subfieldMap.put(INFERENCE_CHUNKS_TEXT, text);
                 }
                 if (extraSubfields != null) {
                     subfieldMap.putAll(extraSubfields);
@@ -444,28 +442,42 @@ public class SemanticTextInferenceResultFieldMapperTests extends MetadataMapperT
                 parsedInferenceResults.add(subfieldMap);
             }
 
-            inferenceResultsMap.put(semanticTextInferenceResult.fieldName(), parsedInferenceResults);
+            fieldMap.put(INFERENCE_RESULTS, parsedInferenceResults);
+            inferenceResultsMap.put(semanticTextInferenceResult.fieldName(), fieldMap);
         }
 
         sourceBuilder.field(SemanticTextInferenceResultFieldMapper.NAME, inferenceResultsMap);
     }
 
+    private static Map<String, Object> modelSettingsMap() {
+        return Map.of(
+            ModelSettings.TASK_TYPE_FIELD.getPreferredName(),
+            TaskType.SPARSE_EMBEDDING.toString(),
+            ModelSettings.INFERENCE_ID_FIELD.getPreferredName(),
+            randomAlphaOfLength(8)
+        );
+    }
+
     private static void addInferenceResultsNestedMapping(XContentBuilder mappingBuilder, String semanticTextFieldName) throws IOException {
         mappingBuilder.startObject(semanticTextFieldName);
-        mappingBuilder.field("type", "nested");
-        mappingBuilder.startObject("properties");
-        mappingBuilder.startObject(SPARSE_VECTOR_SUBFIELD_NAME);
-        mappingBuilder.startObject("properties");
-        mappingBuilder.startObject(SparseEmbeddingResults.Embedding.EMBEDDING);
-        mappingBuilder.field("type", "sparse_vector");
-        mappingBuilder.endObject();
-        mappingBuilder.endObject();
-        mappingBuilder.endObject();
-        mappingBuilder.startObject(TEXT_SUBFIELD_NAME);
-        mappingBuilder.field("type", "text");
-        mappingBuilder.field("index", false);
-        mappingBuilder.endObject();
-        mappingBuilder.endObject();
+        {
+            mappingBuilder.field("type", "nested");
+            mappingBuilder.startObject("properties");
+            {
+                mappingBuilder.startObject(INFERENCE_CHUNKS_RESULTS);
+                {
+                    mappingBuilder.field("type", "sparse_vector");
+                }
+                mappingBuilder.endObject();
+                mappingBuilder.startObject(INFERENCE_CHUNKS_TEXT);
+                {
+                    mappingBuilder.field("type", "text");
+                    mappingBuilder.field("index", false);
+                }
+                mappingBuilder.endObject();
+            }
+            mappingBuilder.endObject();
+        }
         mappingBuilder.endObject();
     }
 
@@ -477,12 +489,7 @@ public class SemanticTextInferenceResultFieldMapperTests extends MetadataMapperT
         BooleanQuery.Builder queryBuilder = new BooleanQuery.Builder();
         for (String token : tokens) {
             queryBuilder.add(
-                new BooleanClause(
-                    new TermQuery(
-                        new Term(path + "." + SPARSE_VECTOR_SUBFIELD_NAME + "." + SparseEmbeddingResults.Embedding.EMBEDDING, token)
-                    ),
-                    BooleanClause.Occur.MUST
-                )
+                new BooleanClause(new TermQuery(new Term(path + "." + INFERENCE_CHUNKS_RESULTS, token)), BooleanClause.Occur.MUST)
             );
         }
         queryBuilder.add(new BooleanClause(mapper.nestedTypeFilter(), BooleanClause.Occur.FILTER));
@@ -497,12 +504,7 @@ public class SemanticTextInferenceResultFieldMapperTests extends MetadataMapperT
     ) {
         assertEquals(expectedParent, childDoc.getParent());
         visitedChildDocs.add(
-            new VisitedChildDocInfo(
-                childDoc.getPath(),
-                childDoc.getFields(
-                    childDoc.getPath() + "." + SPARSE_VECTOR_SUBFIELD_NAME + "." + SparseEmbeddingResults.Embedding.EMBEDDING
-                ).size()
-            )
+            new VisitedChildDocInfo(childDoc.getPath(), childDoc.getFields(childDoc.getPath() + "." + INFERENCE_CHUNKS_RESULTS).size())
         );
     }
 

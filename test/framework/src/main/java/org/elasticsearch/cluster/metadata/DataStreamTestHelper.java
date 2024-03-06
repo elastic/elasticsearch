@@ -74,6 +74,7 @@ import static org.elasticsearch.test.ESTestCase.generateRandomStringArray;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
+import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.elasticsearch.test.ESTestCase.randomMap;
 import static org.elasticsearch.test.ESTestCase.randomMillisUpToYear9999;
 import static org.mockito.ArgumentMatchers.any;
@@ -140,7 +141,8 @@ public final class DataStreamTestHelper {
             null,
             lifecycle,
             failureStores.size() > 0,
-            failureStores
+            failureStores,
+            null
         );
     }
 
@@ -311,7 +313,14 @@ public final class DataStreamTestHelper {
             randomBoolean() ? DataStreamLifecycle.newBuilder().dataRetention(randomMillisUpToYear9999()).build() : null,
             failureStore,
             failureIndices,
+            randomBoolean(),
             randomBoolean()
+                ? new DataStreamAutoShardingEvent(
+                    indices.get(indices.size() - 1).getName(),
+                    randomIntBetween(1, 10),
+                    randomMillisUpToYear9999()
+                )
+                : null
         );
     }
 

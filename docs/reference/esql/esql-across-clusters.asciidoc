@@ -70,7 +70,7 @@ FROM *:my-index-000001
 
 Enrich in {esql} across clusters operates similarly to <<esql-enrich,local enrich>>.
 If the enrich policy and its enrich indices are consistent across all clusters, simply
-write the enrich command as you would without across clusters. In this default mode,
+write the enrich command as you would without remote clusters. In this default mode,
 {esql} can execute the enrich command on either the querying cluster or the fulfilling
 clusters, aiming to minimize computation or inter-cluster data transfer. Ensuring that
 the policy exists with consistent data on both the querying cluster and the fulfilling

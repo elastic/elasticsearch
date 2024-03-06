@@ -43,7 +43,7 @@ FROM cluster_one:my-index-000001
 | LIMIT 10
 ----
 
-Similarly, this {esql} request queries the `my-index-000001` index across
+Similarly, this {esql} request queries the `my-index-000001` index from
 three clusters:
 
 * The local ("querying") cluster
@@ -52,6 +52,15 @@ three clusters:
 [source,esql]
 ----
 FROM my-index-000001,cluster_one:my-index-000001,cluster_two:my-index-000001
+| LIMIT 10
+----
+
+Likewise, this {esql} request queries the `my-index-000001` index from all
+remote clusters (`cluster_one`, `cluster_two`, and `cluster_three`):
+
+[source,esql]
+----
+FROM *:my-index-000001
 | LIMIT 10
 ----
 
@@ -184,7 +193,7 @@ the `FROM` command, for example: `-my_cluster:*`:
 [source,esql]
 ----
 FROM my-index-000001,cluster*:my-index-000001,-cluster_three:*
-LIMIT 10
+| LIMIT 10
 ----
 
 To exclude a specific remote index, prefix the index with a minus sign in

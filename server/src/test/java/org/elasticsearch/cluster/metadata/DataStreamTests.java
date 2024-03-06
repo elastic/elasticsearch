@@ -1781,6 +1781,164 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             .build();
     }
 
+    public void testWriteFailureIndex() {
+        boolean hidden = randomBoolean();
+        boolean system = hidden && randomBoolean();
+        DataStream noFailureStoreDataStream = new DataStream(
+            randomAlphaOfLength(10),
+            randomIndexInstances(),
+            randomNonNegativeInt(),
+            null,
+            hidden,
+            randomBoolean(),
+            system,
+            System::currentTimeMillis,
+            randomBoolean(),
+            randomBoolean() ? IndexMode.STANDARD : IndexMode.TIME_SERIES,
+            DataStreamLifecycleTests.randomLifecycle(),
+            false,
+            null,
+            randomBoolean(),
+            null
+        );
+        assertThat(noFailureStoreDataStream.getFailureStoreWriteIndex(), nullValue());
+
+        DataStream failureStoreDataStreamWithEmptyFailureIndices = new DataStream(
+            randomAlphaOfLength(10),
+            randomIndexInstances(),
+            randomNonNegativeInt(),
+            null,
+            hidden,
+            randomBoolean(),
+            system,
+            System::currentTimeMillis,
+            randomBoolean(),
+            randomBoolean() ? IndexMode.STANDARD : IndexMode.TIME_SERIES,
+            DataStreamLifecycleTests.randomLifecycle(),
+            true,
+            List.of(),
+            randomBoolean(),
+            null
+        );
+        assertThat(failureStoreDataStreamWithEmptyFailureIndices.getFailureStoreWriteIndex(), nullValue());
+
+        List<Index> failureIndices = randomIndexInstances();
+        String dataStreamName = randomAlphaOfLength(10);
+        Index writeFailureIndex = new Index(
+            getDefaultBackingIndexName(dataStreamName, randomNonNegativeInt()),
+            UUIDs.randomBase64UUID(LuceneTestCase.random())
+        );
+        failureIndices.add(writeFailureIndex);
+        DataStream failureStoreDataStream = new DataStream(
+            dataStreamName,
+            randomIndexInstances(),
+            randomNonNegativeInt(),
+            null,
+            hidden,
+            randomBoolean(),
+            system,
+            System::currentTimeMillis,
+            randomBoolean(),
+            randomBoolean() ? IndexMode.STANDARD : IndexMode.TIME_SERIES,
+            DataStreamLifecycleTests.randomLifecycle(),
+            true,
+            failureIndices,
+            randomBoolean(),
+            null
+        );
+        assertThat(failureStoreDataStream.getFailureStoreWriteIndex(), is(writeFailureIndex));
+    }
+
+    public void testIsFailureIndex() {
+        boolean hidden = randomBoolean();
+        boolean system = hidden && randomBoolean();
+        List<Index> backingIndices = randomIndexInstances();
+        DataStream noFailureStoreDataStream = new DataStream(
+            randomAlphaOfLength(10),
+            backingIndices,
+            randomNonNegativeInt(),
+            null,
+            hidden,
+            randomBoolean(),
+            system,
+            System::currentTimeMillis,
+            randomBoolean(),
+            randomBoolean() ? IndexMode.STANDARD : IndexMode.TIME_SERIES,
+            DataStreamLifecycleTests.randomLifecycle(),
+            false,
+            null,
+            randomBoolean(),
+            null
+        );
+        assertThat(
+            noFailureStoreDataStream.isFailureStoreIndex(backingIndices.get(randomIntBetween(0, backingIndices.size() - 1)).getName()),
+            is(false)
+        );
+
+        backingIndices = randomIndexInstances();
+        DataStream failureStoreDataStreamWithEmptyFailureIndices = new DataStream(
+            randomAlphaOfLength(10),
+            backingIndices,
+            randomNonNegativeInt(),
+            null,
+            hidden,
+            randomBoolean(),
+            system,
+            System::currentTimeMillis,
+            randomBoolean(),
+            randomBoolean() ? IndexMode.STANDARD : IndexMode.TIME_SERIES,
+            DataStreamLifecycleTests.randomLifecycle(),
+            true,
+            List.of(),
+            randomBoolean(),
+            null
+        );
+        assertThat(
+            failureStoreDataStreamWithEmptyFailureIndices.isFailureStoreIndex(
+                backingIndices.get(randomIntBetween(0, backingIndices.size() - 1)).getName()
+            ),
+            is(false)
+        );
+
+        backingIndices = randomIndexInstances();
+        List<Index> failureIndices = randomIndexInstances();
+        String dataStreamName = randomAlphaOfLength(10);
+        Index writeFailureIndex = new Index(
+            getDefaultBackingIndexName(dataStreamName, randomNonNegativeInt()),
+            UUIDs.randomBase64UUID(LuceneTestCase.random())
+        );
+        failureIndices.add(writeFailureIndex);
+        DataStream failureStoreDataStream = new DataStream(
+            dataStreamName,
+            backingIndices,
+            randomNonNegativeInt(),
+            null,
+            hidden,
+            randomBoolean(),
+            system,
+            System::currentTimeMillis,
+            randomBoolean(),
+            randomBoolean() ? IndexMode.STANDARD : IndexMode.TIME_SERIES,
+            DataStreamLifecycleTests.randomLifecycle(),
+            true,
+            failureIndices,
+            randomBoolean(),
+            null
+        );
+        assertThat(failureStoreDataStream.isFailureStoreIndex(writeFailureIndex.getName()), is(true));
+        assertThat(
+            failureStoreDataStream.isFailureStoreIndex(failureIndices.get(randomIntBetween(0, failureIndices.size() - 1)).getName()),
+            is(true)
+        );
+        assertThat(
+            failureStoreDataStreamWithEmptyFailureIndices.isFailureStoreIndex(
+                backingIndices.get(randomIntBetween(0, backingIndices.size() - 1)).getName()
+            ),
+            is(false)
+        );
+        assertThat(failureStoreDataStreamWithEmptyFailureIndices.isFailureStoreIndex(randomAlphaOfLength(10)), is(false));
+    }
+
     private record DataStreamMetadata(Long creationTimeInMillis, Long rolloverTimeInMillis, Long originationTimeInMillis) {
         public static DataStreamMetadata dataStreamMetadata(Long creationTimeInMillis, Long rolloverTimeInMillis) {
             return new DataStreamMetadata(creationTimeInMillis, rolloverTimeInMillis, null);

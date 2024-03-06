@@ -37,6 +37,7 @@ import org.elasticsearch.transport.NodeNotConnectedException;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.core.Strings.format;
@@ -80,7 +81,7 @@ public class LocalHealthMonitor implements ClusterStateListener {
     // This variable keeps track of whether there's an in-flight request. We keep this variable here rather than the Monitoring class,
     // as we'll create new instances of that class when we're (re)starting this local health monitoring process.
     // This variable allows us to ensure that there's always, at most, 1 request in-flight, at any given moment.
-    private final AtomicReference<Boolean> inFlightRequest = new AtomicReference<>(false);
+    private final AtomicBoolean inFlightRequest = new AtomicBoolean(false);
 
     private LocalHealthMonitor(
         Settings settings,
@@ -251,7 +252,7 @@ public class LocalHealthMonitor implements ClusterStateListener {
 
         private final List<HealthTracker<?>> healthTrackers;
 
-        private final AtomicReference<Boolean> inFlightRequest;
+        private final AtomicBoolean inFlightRequest;
         private volatile boolean cancelled = false;
         private volatile Scheduler.ScheduledCancellable scheduledRun;
 
@@ -262,7 +263,7 @@ public class LocalHealthMonitor implements ClusterStateListener {
             List<HealthTracker<?>> healthTrackers,
             ClusterService clusterService,
             Client client,
-            AtomicReference<Boolean> inFlightRequest
+            AtomicBoolean inFlightRequest
         ) {
             this.interval = interval;
             this.executor = executor;
@@ -282,7 +283,7 @@ public class LocalHealthMonitor implements ClusterStateListener {
             List<HealthTracker<?>> healthTrackers,
             ClusterService clusterService,
             Client client,
-            AtomicReference<Boolean> inFlightRequest
+            AtomicBoolean inFlightRequest
         ) {
             Monitoring monitoring = new Monitoring(
                 interval,

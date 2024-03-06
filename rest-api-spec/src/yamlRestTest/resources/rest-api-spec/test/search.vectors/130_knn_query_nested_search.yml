@@ -319,3 +319,90 @@ setup:
   # Rabbit only has one passage vector
   - match: {hits.hits.4.fields.name.0: "rabbit.jpg"}
   - length: { hits.hits.4.inner_hits.nested.hits.hits: 1 }
+---
+"nested kNN query search with filter that might match nested docs":
+  - skip:
+      version: ' - 8.13.99'
+      reason: 'bugfix for matching non-nested docs in 8.14'
+
+  - do:
+      indices.create:
+        index: nested_text
+        body:
+          mappings:
+            properties:
+              range:
+                type: long
+              other_nested_thing:
+                type: nested
+                properties:
+                  text:
+                    type: text
+              paragraphs:
+                type: nested
+                properties:
+                  other_nested_thing:
+                    type: nested
+                    properties:
+                      text:
+                        type: text
+                      vector:
+                        type: dense_vector
+                        dims: 2
+                        index: true
+                        similarity: cosine
+                  vector:
+                    type: dense_vector
+                    dims: 2
+                    index: true
+                    similarity: cosine
+  - do:
+      index:
+        index: nested_text
+        id: "1"
+        body:
+          publish_date: "1"
+          paragraphs:
+            - vector: [1, 1]
+              text: "some text"
+            - vector: [1, 2]
+              text: "some text"
+              other_nested_thing:
+                - text: "some text"
+                  vector: [1, 2]
+  - do:
+      index:
+        index: nested_text
+        id: "2"
+        body:
+          paragraphs:
+            - vector: [2, 1]
+              text: "some text"
+            - vector: [2, 2]
+              text: "some text"
+              other_nested_thing:
+                - text: "some text"
+                  vector: [ 1, 2 ]
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        index: nested_text
+        body:
+          query:
+            nested:
+              path: paragraphs
+              query:
+                knn:
+                  field: paragraphs.vector
+                  query_vector: [1, 2]
+                  num_candidates: 10
+                  filter:
+                    bool:
+                      must_not:
+                        exists:
+                          field: publish_date
+
+  - match: {hits.total.value: 1}
+  - match: {hits.hits.0._id: "2"}

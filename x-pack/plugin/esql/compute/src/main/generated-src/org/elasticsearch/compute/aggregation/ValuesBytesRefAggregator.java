@@ -7,34 +7,40 @@
 
 package org.elasticsearch.compute.aggregation;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.LongHash;
+import org.elasticsearch.common.util.BytesRefHash;
+import org.elasticsearch.common.util.LongLongHash;
 import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
+import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasable;
-@Aggregator({ @IntermediateState(name = "values", type = "INT_BLOCK") })
+import org.elasticsearch.core.Releasables;
+
+@Aggregator({ @IntermediateState(name = "values", type = "BYTES_REF_BLOCK") })
 @GroupingAggregator
-class ValuesIntAggregator {
+class ValuesBytesRefAggregator {
 
     public static SingleState initSingle(BigArrays bigArrays) {
         return new SingleState(bigArrays);
     }
 
-    public static void combine(SingleState state, int v) {
+    public static void combine(SingleState state, BytesRef v) {
         state.values.add(v);
     }
 
-    public static void combineIntermediate(SingleState state, IntBlock values) {
+    public static void combineIntermediate(SingleState state, BytesRefBlock values) {
+        BytesRef scratch = new BytesRef();
         int start = values.getFirstValueIndex(0);
         int end = start + values.getValueCount(0);
         for (int i = start; i < end; i++) {
-            combine(state, values.getInt(i));
+            combine(state, values.getBytesRef(i, scratch));
         }
     }
 
@@ -46,15 +52,16 @@ class ValuesIntAggregator {
         return new GroupingState(bigArrays);
     }
 
-    public static void combine(GroupingState state, int groupId, int v) {
-        state.values.add((((long) groupId) << Integer.SIZE) | (v & 0xFFFFFFFFL));
+    public static void combine(GroupingState state, int groupId, BytesRef v) {
+        state.values.add(groupId, BlockHash.hashOrdToGroup(state.bytes.add(v)));
     }
 
-    public static void combineIntermediate(GroupingState state, int groupId, IntBlock values, int valuesPosition) {
+    public static void combineIntermediate(GroupingState state, int groupId, BytesRefBlock values, int valuesPosition) {
+        BytesRef scratch = new BytesRef();
         int start = values.getFirstValueIndex(valuesPosition);
         int end = start + values.getValueCount(valuesPosition);
         for (int i = start; i < end; i++) {
-            combine(state, groupId, values.getInt(i));
+            combine(state, groupId, values.getBytesRef(i, scratch));
         }
     }
 
@@ -67,10 +74,9 @@ class ValuesIntAggregator {
     }
 
     public static class SingleState implements Releasable {
-        private final LongHash values;
-
+        private final BytesRefHash values;
         private SingleState(BigArrays bigArrays) {
-            values = new LongHash(1, bigArrays);
+            values = new BytesRefHash(1, bigArrays);
         }
 
         void toIntermediate(Block[] blocks, int offset, DriverContext driverContext) {
@@ -81,10 +87,11 @@ class ValuesIntAggregator {
             if (values.size() == 0) {
                 return blockFactory.newConstantNullBlock(1);
             }
-            try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder((int) values.size())) {
+            BytesRef scratch = new BytesRef();
+            try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder((int) values.size())) {
                 builder.beginPositionEntry();
                 for (int id = 0; id < values.size(); id++) {
-                    builder.appendInt((int) values.get(id));
+                    builder.appendBytesRef(values.get(id, scratch));
                 }
                 builder.endPositionEntry();
                 return builder.build();
@@ -98,11 +105,12 @@ class ValuesIntAggregator {
     }
 
     public static class GroupingState implements Releasable {
-        private final LongHash values;
-
+        private final LongLongHash values;
+        private final BytesRefHash bytes;
 
         private GroupingState(BigArrays bigArrays) {
-            values = new LongHash(1, bigArrays);
+            values = new LongLongHash(1, bigArrays);
+            bytes = new BytesRefHash(1, bigArrays);
         }
 
         void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
@@ -113,7 +121,9 @@ class ValuesIntAggregator {
             if (values.size() == 0) {
                 return blockFactory.newConstantNullBlock(selected.getPositionCount());
             }
-            try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(selected.getPositionCount())) {
+            BytesRef firstScratch = new BytesRef();
+            BytesRef scratch = new BytesRef();
+            try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(selected.getPositionCount())) {
                 for (int s = 0; s < selected.getPositionCount(); s++) {
                     int selectedGroup = selected.getInt(s);
                     /*
@@ -122,27 +132,25 @@ class ValuesIntAggregator {
                      * beginPositionEntry on single valued fields.
                      */
                     int count = 0;
-                    int first = 0;
+                    long first = 0;
                     for (int id = 0; id < values.size(); id++) {
-                        long both = values.get(id);
-                        int group = (int) (both >>> Integer.SIZE);
-                        if (group == selectedGroup) {
-                            int value = (int) both;
+                        if (values.getKey1(id) == selectedGroup) {
+                            long value = values.getKey2(id);
                             switch (count) {
                                 case 0 -> first = value;
                                 case 1 -> {
                                     builder.beginPositionEntry();
-                                    builder.appendInt(first);
-                                    builder.appendInt(value);
+                                    builder.appendBytesRef(bytes.get(first, scratch));
+                                    builder.appendBytesRef(bytes.get(value, scratch));
                                 }
-                                default -> builder.appendInt(value);
+                                default -> builder.appendBytesRef(bytes.get(value, scratch));
                             }
                             count++;
                         }
                     }
                     switch (count) {
                         case 0 -> builder.appendNull();
-                        case 1 -> builder.appendInt(first);
+                        case 1 -> builder.appendBytesRef(bytes.get(first, scratch));
                         default -> builder.endPositionEntry();
                     }
                 }
@@ -156,7 +164,7 @@ class ValuesIntAggregator {
 
         @Override
         public void close() {
-            values.close();
+            Releasables.closeExpectNoException(values, bytes);
         }
     }
 }

@@ -1005,3 +1005,32 @@ row a = "π/2 + a + B + Λ ºC" | eval lower = to_lower(a), upper = to_upper(a) 
 a:keyword           | upper:keyword         | lower:keyword
 π/2 + a + B + Λ ºC  | Π/2 + A + B + Λ ºC    | π/2 + a + b + λ ºc
 ;
+
+values#[skip:-8.13.99, reason:Added in 8.14]
+  FROM employees
+| WHERE emp_no <= 10009
+| STATS first_name=VALUES(first_name)
+;
+
+   first_name:keyword
+[Georgi, Bezalel, Parto, Chirstian, Kyoichi, Anneke, Tzvetan, Saniya, Sumant]
+;
+
+valuesGrouped#[skip:-8.13.99, reason:Added in 8.14]
+  FROM employees
+| WHERE emp_no <= 10009
+| EVAL first_letter = SUBSTRING(first_name, 0, 1)
+| STATS first_name=VALUES(first_name) BY first_letter
+| SORT first_letter
+;
+
+first_name:keyword | first_letter:keyword
+            Anneke | A
+           Bezalel | B
+         Chirstian | C
+            Georgi | G
+           Kyoichi | K
+             Parto | P
+  [Saniya, Sumant] | S
+           Tzvetan | T
+;

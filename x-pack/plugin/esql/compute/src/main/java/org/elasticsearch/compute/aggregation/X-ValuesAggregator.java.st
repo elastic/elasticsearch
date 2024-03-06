@@ -7,20 +7,28 @@
 
 package org.elasticsearch.compute.aggregation;
 
+$if(BytesRef)$
+import org.apache.lucene.util.BytesRef;
+$endif$
 import org.elasticsearch.common.util.BigArrays;
+$if(BytesRef)$
+import org.elasticsearch.common.util.BytesRefHash;
+$else$
 import org.elasticsearch.common.util.LongHash;
-$if(long||double)$
+$endif$
+$if(long||double||BytesRef)$
 import org.elasticsearch.common.util.LongLongHash;
 $endif$
 import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
+$if(BytesRef)$
+import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
+$endif$
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-$if(int)$
-import org.elasticsearch.compute.data.IntBlock;
-$elseif(double)$
-import org.elasticsearch.compute.data.DoubleBlock;
+$if(int||double||BytesRef)$
+import org.elasticsearch.compute.data.$Type$Block;
 $endif$
 import org.elasticsearch.compute.data.IntVector;
 $if(long)$
@@ -28,6 +36,9 @@ import org.elasticsearch.compute.data.LongBlock;
 $endif$
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasable;
+$if(BytesRef)$
+import org.elasticsearch.core.Releasables;
+$endif$
 
 @Aggregator({ @IntermediateState(name = "values", type = "$TYPE$_BLOCK") })
 @GroupingAggregator
@@ -45,11 +56,18 @@ $else$
 $endif$
     }
 
-    public static void combineIntermediate(SingleState state, $Type$Block block) {
-        int start = block.getFirstValueIndex(0);
-        int end = start + block.getValueCount(0);
+    public static void combineIntermediate(SingleState state, $Type$Block values) {
+$if(BytesRef)$
+        BytesRef scratch = new BytesRef();
+$endif$
+        int start = values.getFirstValueIndex(0);
+        int end = start + values.getValueCount(0);
         for (int i = start; i < end; i++) {
-            combine(state, block.get$Type$(i));
+$if(BytesRef)$
+            combine(state, values.getBytesRef(i, scratch));
+$else$
+            combine(state, values.get$Type$(i));
+$endif$
         }
     }
 
@@ -66,16 +84,25 @@ $if(long)$
         state.values.add(groupId, v);
 $elseif(double)$
         state.values.add(groupId, Double.doubleToLongBits(v));
+$elseif(BytesRef)$
+        state.values.add(groupId, BlockHash.hashOrdToGroup(state.bytes.add(v)));
 $elseif(int)$
         state.values.add((((long) groupId) << Integer.SIZE) | (v & 0xFFFFFFFFL));
 $endif$
     }
 
     public static void combineIntermediate(GroupingState state, int groupId, $Type$Block values, int valuesPosition) {
+$if(BytesRef)$
+        BytesRef scratch = new BytesRef();
+$endif$
         int start = values.getFirstValueIndex(valuesPosition);
         int end = start + values.getValueCount(valuesPosition);
         for (int i = start; i < end; i++) {
+$if(BytesRef)$
+            combine(state, groupId, values.getBytesRef(i, scratch));
+$else$
             combine(state, groupId, values.get$Type$(i));
+$endif$
         }
     }
 
@@ -88,10 +115,18 @@ $endif$
     }
 
     public static class SingleState implements Releasable {
+$if(BytesRef)$
+        private final BytesRefHash values;
+$else$
         private final LongHash values;
+$endif$
 
         private SingleState(BigArrays bigArrays) {
+$if(BytesRef)$
+            values = new BytesRefHash(1, bigArrays);
+$else$
             values = new LongHash(1, bigArrays);
+$endif$
         }
 
         void toIntermediate(Block[] blocks, int offset, DriverContext driverContext) {
@@ -102,6 +137,9 @@ $endif$
             if (values.size() == 0) {
                 return blockFactory.newConstantNullBlock(1);
             }
+$if(BytesRef)$
+            BytesRef scratch = new BytesRef();
+$endif$
             try ($Type$Block.Builder builder = blockFactory.new$Type$BlockBuilder((int) values.size())) {
                 builder.beginPositionEntry();
                 for (int id = 0; id < values.size(); id++) {
@@ -111,6 +149,8 @@ $elseif(double)$
                     builder.appendDouble(Double.longBitsToDouble(values.get(id)));
 $elseif(int)$
                     builder.appendInt((int) values.get(id));
+$elseif(BytesRef)$
+                    builder.appendBytesRef(values.get(id, scratch));
 $endif$
                 }
                 builder.endPositionEntry();
@@ -128,6 +168,10 @@ $endif$
 $if(long||double)$
         private final LongLongHash values;
 
+$elseif(BytesRef)$
+        private final LongLongHash values;
+        private final BytesRefHash bytes;
+
 $elseif(int)$
         private final LongHash values;
 
@@ -136,6 +180,9 @@ $endif$
         private GroupingState(BigArrays bigArrays) {
 $if(long||double)$
             values = new LongLongHash(1, bigArrays);
+$elseif(BytesRef)$
+            values = new LongLongHash(1, bigArrays);
+            bytes = new BytesRefHash(1, bigArrays);
 $elseif(int)$
             values = new LongHash(1, bigArrays);
 $endif$
@@ -149,6 +196,10 @@ $endif$
             if (values.size() == 0) {
                 return blockFactory.newConstantNullBlock(selected.getPositionCount());
             }
+$if(BytesRef)$
+            BytesRef firstScratch = new BytesRef();
+            BytesRef scratch = new BytesRef();
+$endif$
             try ($Type$Block.Builder builder = blockFactory.new$Type$BlockBuilder(selected.getPositionCount())) {
                 for (int s = 0; s < selected.getPositionCount(); s++) {
                     int selectedGroup = selected.getInt(s);
@@ -158,15 +209,13 @@ $endif$
                      * beginPositionEntry on single valued fields.
                      */
                     int count = 0;
-                    $type$ first = 0;
+                    $if(BytesRef)$long$else$$type$$endif$ first = 0;
                     for (int id = 0; id < values.size(); id++) {
-$if(long)$
-                        long group = values.getKey1(id);
-                        if (group == selectedGroup) {
+$if(long||BytesRef)$
+                        if (values.getKey1(id) == selectedGroup) {
                             long value = values.getKey2(id);
 $elseif(double)$
-                        long group = values.getKey1(id);
-                        if (group == selectedGroup) {
+                        if (values.getKey1(id) == selectedGroup) {
                             double value = Double.longBitsToDouble(values.getKey2(id));
 $elseif(int)$
                         long both = values.get(id);
@@ -178,17 +227,17 @@ $endif$
                                 case 0 -> first = value;
                                 case 1 -> {
                                     builder.beginPositionEntry();
-                                    builder.append$Type$(first);
-                                    builder.append$Type$(value);
+                                    builder.append$Type$($if(BytesRef)$bytes.get(first, scratch)$else$first$endif$);
+                                    builder.append$Type$($if(BytesRef)$bytes.get(value, scratch)$else$value$endif$);
                                 }
-                                default -> builder.append$Type$(value);
+                                default -> builder.append$Type$($if(BytesRef)$bytes.get(value, scratch)$else$value$endif$);
                             }
                             count++;
                         }
                     }
                     switch (count) {
                         case 0 -> builder.appendNull();
-                        case 1 -> builder.append$Type$(first);
+                        case 1 -> builder.append$Type$($if(BytesRef)$bytes.get(first, scratch)$else$first$endif$);
                         default -> builder.endPositionEntry();
                     }
                 }
@@ -202,7 +251,11 @@ $endif$
 
         @Override
         public void close() {
+$if(BytesRef)$
+            Releasables.closeExpectNoException(values, bytes);
+$else$
             values.close();
+$endif$
         }
     }
 }

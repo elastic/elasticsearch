@@ -19,7 +19,6 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasable;
-
 @Aggregator({ @IntermediateState(name = "values", type = "DOUBLE_BLOCK") })
 @GroupingAggregator
 class ValuesDoubleAggregator {
@@ -32,11 +31,11 @@ class ValuesDoubleAggregator {
         state.values.add(Double.doubleToLongBits(v));
     }
 
-    public static void combineIntermediate(SingleState state, DoubleBlock block) {
-        int start = block.getFirstValueIndex(0);
-        int end = start + block.getValueCount(0);
+    public static void combineIntermediate(SingleState state, DoubleBlock values) {
+        int start = values.getFirstValueIndex(0);
+        int end = start + values.getValueCount(0);
         for (int i = start; i < end; i++) {
-            combine(state, block.getDouble(i));
+            combine(state, values.getDouble(i));
         }
     }
 
@@ -125,8 +124,7 @@ class ValuesDoubleAggregator {
                     int count = 0;
                     double first = 0;
                     for (int id = 0; id < values.size(); id++) {
-                        long group = values.getKey1(id);
-                        if (group == selectedGroup) {
+                        if (values.getKey1(id) == selectedGroup) {
                             double value = Double.longBitsToDouble(values.getKey2(id));
                             switch (count) {
                                 case 0 -> first = value;

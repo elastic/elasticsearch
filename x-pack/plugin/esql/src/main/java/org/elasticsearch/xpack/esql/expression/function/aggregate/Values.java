@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.ValuesBytesRefAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.ValuesDoubleAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.ValuesIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.ValuesLongAggregatorFunctionSupplier;
@@ -25,8 +26,15 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 import java.util.List;
 
 public class Values extends AggregateFunction implements ToAggregator {
-    @FunctionInfo(returnType = { "int|long" }, description = "Collect values for a field.", isAggregation = true)
-    public Values(Source source, @Param(name = "v", type = { "int|long" }) Expression v) {
+    @FunctionInfo(
+        returnType = { "boolean|cartesian_point|date|double|geo_point|integer|ip|keyword|long|text|version" },
+        description = "Collect values for a field.",
+        isAggregation = true
+    )
+    public Values(
+        Source source,
+        @Param(name = "v", type = { "boolean|cartesian_point|date|double|geo_point|integer|ip|keyword|long|text|version" }) Expression v
+    ) {
         super(source, v);
     }
 
@@ -57,6 +65,10 @@ public class Values extends AggregateFunction implements ToAggregator {
         if (type == DataTypes.DOUBLE) {
             return new ValuesDoubleAggregatorFunctionSupplier(inputChannels);
         }
+        if (DataTypes.isString(type)) {
+            return new ValuesBytesRefAggregatorFunctionSupplier(inputChannels);
+        }
+        // NOCOMMIT cartesian_point, geo_point, version, ip, boolean
         throw EsqlIllegalArgumentException.illegalDataType(type);
     }
 }

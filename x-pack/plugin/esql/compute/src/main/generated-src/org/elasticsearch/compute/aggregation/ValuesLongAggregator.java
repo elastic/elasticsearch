@@ -19,7 +19,6 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasable;
-
 @Aggregator({ @IntermediateState(name = "values", type = "LONG_BLOCK") })
 @GroupingAggregator
 class ValuesLongAggregator {
@@ -32,11 +31,11 @@ class ValuesLongAggregator {
         state.values.add(v);
     }
 
-    public static void combineIntermediate(SingleState state, LongBlock block) {
-        int start = block.getFirstValueIndex(0);
-        int end = start + block.getValueCount(0);
+    public static void combineIntermediate(SingleState state, LongBlock values) {
+        int start = values.getFirstValueIndex(0);
+        int end = start + values.getValueCount(0);
         for (int i = start; i < end; i++) {
-            combine(state, block.getLong(i));
+            combine(state, values.getLong(i));
         }
     }
 
@@ -125,8 +124,7 @@ class ValuesLongAggregator {
                     int count = 0;
                     long first = 0;
                     for (int id = 0; id < values.size(); id++) {
-                        long group = values.getKey1(id);
-                        if (group == selectedGroup) {
+                        if (values.getKey1(id) == selectedGroup) {
                             long value = values.getKey2(id);
                             switch (count) {
                                 case 0 -> first = value;

@@ -17,18 +17,6 @@ import java.util.ServiceLoader;
 
 public abstract class BuildVersion {
 
-    private static class ExtensionHolder {
-        private static final BuildExtension BUILD_EXTENSION = findExtension();
-
-        private static boolean hasExtension() {
-            return Objects.nonNull(BUILD_EXTENSION);
-        }
-
-        private static BuildExtension findExtension() {
-            return ExtensionLoader.loadSingleton(ServiceLoader.load(BuildExtension.class)).orElse(null);
-        }
-    }
-
     public abstract boolean onOrAfterMinimumCompatible();
 
     public abstract boolean isFutureVersion();
@@ -48,11 +36,11 @@ public abstract class BuildVersion {
     }
 
     public static BuildVersion current() {
-        return ExtensionHolder.hasExtension() ? ExtensionHolder.BUILD_EXTENSION.currentBuildVersion() : DefaultBuildVersion.CURRENT;
+        return CurrentHolder.CURRENT;
     }
 
     public static BuildVersion empty() {
-        return ExtensionHolder.hasExtension() ? ExtensionHolder.BUILD_EXTENSION.fromVersionId(0) : DefaultBuildVersion.EMPTY;
+        return EmptyHolder.EMPTY;
     }
 
     // only exists for NodeMetadata#toXContent
@@ -60,4 +48,37 @@ public abstract class BuildVersion {
     protected int id() {
         return -1;
     }
+
+    private static class ExtensionHolder {
+        private static final BuildExtension BUILD_EXTENSION = findExtension();
+
+        private static boolean hasExtension() {
+            return Objects.nonNull(BUILD_EXTENSION);
+        }
+
+        private static BuildExtension findExtension() {
+            return ExtensionLoader.loadSingleton(ServiceLoader.load(BuildExtension.class)).orElse(null);
+        }
+    }
+
+    private static class CurrentHolder {
+        private static final BuildVersion CURRENT = findCurrent();
+
+        private static BuildVersion findCurrent() {
+            return ExtensionLoader.loadSingleton(ServiceLoader.load(BuildExtension.class))
+                .map(BuildExtension::currentBuildVersion)
+                .orElse(DefaultBuildVersion.CURRENT);
+        }
+    }
+
+    private static class EmptyHolder {
+        private static final BuildVersion EMPTY = findEmpty();
+
+        private static BuildVersion findEmpty() {
+            return ExtensionLoader.loadSingleton(ServiceLoader.load(BuildExtension.class))
+                .map(be -> be.fromVersionId(0))
+                .orElse(DefaultBuildVersion.EMPTY);
+        }
+    }
+
 }

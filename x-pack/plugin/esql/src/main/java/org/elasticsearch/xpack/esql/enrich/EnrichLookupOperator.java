@@ -7,10 +7,7 @@
 
 package org.elasticsearch.xpack.esql.enrich;
 
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -19,7 +16,6 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.AsyncOperator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
@@ -139,53 +135,33 @@ public final class EnrichLookupOperator extends AsyncOperator {
     }
 
     @Override
-    public Operator.Status status() {
-        final PageStats stats = pageStats();
-        assert stats.received() >= stats.completed() : stats.received() + " < " + stats.completed();
-        return new Status(stats.received(), stats.completed(), totalTerms, TimeValue.timeValueNanos(totalTimeInNanos()).millis());
+    protected Operator.Status status(long receivedPages, long completedPages, long totalTimeInMillis) {
+        return new EnrichLookupOperator.Status(receivedPages, completedPages, totalTimeInMillis, totalTerms);
     }
 
-    public static class Status implements Operator.Status {
+    public static class Status extends AsyncOperator.Status {
         public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
             Operator.Status.class,
             "enrich",
             Status::new
         );
 
-        final long receivedPages;
-        final long completedPages;
         final long totalTerms;
-        final long totalTimeInMillis;
 
-        Status(long receivedPages, long completedPages, long totalTerms, long totalTimeInMillis) {
-            this.receivedPages = receivedPages;
-            this.completedPages = completedPages;
+        Status(long receivedPages, long completedPages, long totalTimeInMillis, long totalTerms) {
+            super(receivedPages, completedPages, totalTimeInMillis);
             this.totalTerms = totalTerms;
-            this.totalTimeInMillis = totalTimeInMillis;
         }
 
         Status(StreamInput in) throws IOException {
-            if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_ENRICH_OPERATOR_STATUS)) {
-                this.receivedPages = in.readVLong();
-                this.completedPages = in.readVLong();
-                this.totalTerms = in.readVLong();
-                this.totalTimeInMillis = in.readVLong();
-            } else {
-                this.receivedPages = -1L;
-                this.completedPages = -1L;
-                this.totalTerms = -1L;
-                this.totalTimeInMillis = -1L;
-            }
+            super(in);
+            this.totalTerms = in.readVLong();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_ENRICH_OPERATOR_STATUS)) {
-                out.writeVLong(receivedPages);
-                out.writeVLong(completedPages);
-                out.writeVLong(totalTerms);
-                out.writeVLong(totalTimeInMillis);
-            }
+            super.writeTo(out);
+            out.writeVLong(totalTerms);
         }
 
         @Override
@@ -196,13 +172,8 @@ public final class EnrichLookupOperator extends AsyncOperator {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field("received_pages", receivedPages);
-            builder.field("completed_pages", completedPages);
+            innerToXContent(builder);
             builder.field("total_terms", totalTerms);
-            builder.field("total_time_in_millis", totalTimeInMillis);
-            if (totalTimeInMillis >= 0) {
-                builder.field("total_time", TimeValue.timeValueMillis(totalTimeInMillis));
-            }
             return builder.endObject();
         }
 
@@ -210,26 +181,14 @@ public final class EnrichLookupOperator extends AsyncOperator {
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
+            if (!super.equals(o)) return false;
             Status status = (Status) o;
-            return receivedPages == status.receivedPages
-                && completedPages == status.completedPages
-                && totalTerms == status.totalTerms
-                && totalTimeInMillis == status.totalTimeInMillis;
+            return totalTerms == status.totalTerms;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(receivedPages, completedPages, totalTerms, totalTimeInMillis);
-        }
-
-        @Override
-        public String toString() {
-            return Strings.toString(this);
-        }
-
-        @Override
-        public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.V_8_11_X;
+            return Objects.hash(super.hashCode(), totalTerms);
         }
     }
 }

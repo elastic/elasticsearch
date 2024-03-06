@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.enrich;
+package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -17,16 +17,15 @@ import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class EnrichOperatorStatusTests extends AbstractWireSerializingTestCase<EnrichLookupOperator.Status> {
+public class AsyncOperatorStatusTests extends AbstractWireSerializingTestCase<AsyncOperator.Status> {
     @Override
-    protected Writeable.Reader<EnrichLookupOperator.Status> instanceReader() {
-        return EnrichLookupOperator.Status::new;
+    protected Writeable.Reader<AsyncOperator.Status> instanceReader() {
+        return AsyncOperator.Status::new;
     }
 
     @Override
-    protected EnrichLookupOperator.Status createTestInstance() {
-        return new EnrichLookupOperator.Status(
-            randomNonNegativeLong(),
+    protected AsyncOperator.Status createTestInstance() {
+        return new AsyncOperator.Status(
             randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomLongBetween(1, TimeValue.timeValueHours(1).millis())
@@ -34,31 +33,22 @@ public class EnrichOperatorStatusTests extends AbstractWireSerializingTestCase<E
     }
 
     @Override
-    protected EnrichLookupOperator.Status mutateInstance(EnrichLookupOperator.Status in) throws IOException {
-        int field = randomIntBetween(0, 3);
+    protected AsyncOperator.Status mutateInstance(AsyncOperator.Status in) throws IOException {
+        int field = randomIntBetween(0, 2);
         return switch (field) {
-            case 0 -> new EnrichLookupOperator.Status(
+            case 0 -> new AsyncOperator.Status(
                 randomValueOtherThan(in.receivedPages(), ESTestCase::randomNonNegativeLong),
                 in.completedPages(),
-                in.totalTerms,
                 in.totalTimeInMillis()
             );
-            case 1 -> new EnrichLookupOperator.Status(
+            case 1 -> new AsyncOperator.Status(
                 in.receivedPages(),
                 randomValueOtherThan(in.completedPages(), ESTestCase::randomNonNegativeLong),
-                in.totalTerms,
                 in.totalTimeInMillis()
             );
-            case 2 -> new EnrichLookupOperator.Status(
+            case 2 -> new AsyncOperator.Status(
                 in.receivedPages(),
                 in.completedPages(),
-                randomValueOtherThan(in.totalTerms, ESTestCase::randomNonNegativeLong),
-                in.totalTimeInMillis()
-            );
-            case 3 -> new EnrichLookupOperator.Status(
-                in.receivedPages(),
-                in.completedPages(),
-                in.totalTerms,
                 randomValueOtherThan(in.totalTimeInMillis(), ESTestCase::randomNonNegativeLong)
             );
             default -> throw new AssertionError("unknown ");
@@ -66,15 +56,14 @@ public class EnrichOperatorStatusTests extends AbstractWireSerializingTestCase<E
     }
 
     public void testToXContent() {
-        var status = new EnrichLookupOperator.Status(100, 50, TimeValue.timeValueSeconds(10).millis(), 120);
+        var status = new AsyncOperator.Status(100, 50, TimeValue.timeValueSeconds(10).millis());
         String json = Strings.toString(status, true, true);
         assertThat(json, equalTo("""
             {
               "received_pages" : 100,
               "completed_pages" : 50,
               "total_time_in_millis" : 10000,
-              "total_time" : "10s",
-              "total_terms" : 120
+              "total_time" : "10s"
             }"""));
     }
 }

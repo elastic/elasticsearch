@@ -247,6 +247,7 @@ public class RcsCcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     private static void configureRemoteCluster() throws IOException {
         final Settings.Builder builder = Settings.builder();
+        builder.put("cluster.remote." + REMOTE_CLUSTER_NAME + ".skip_unavailable", "false");
         if (randomBoolean()) {
             builder.put("cluster.remote." + REMOTE_CLUSTER_NAME + ".mode", "proxy")
                 .put("cluster.remote." + REMOTE_CLUSTER_NAME + ".proxy_address", fulfillingCluster.getRemoteClusterServerEndpoint(0));

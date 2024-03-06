@@ -325,6 +325,7 @@ public class RemoteClusterSecurityApiKeyRestIT extends AbstractRemoteClusterSecu
                 randomBoolean()
                     ? Settings.builder()
                         .put("cluster.remote.invalid_remote.seeds", fulfillingCluster.getRemoteClusterServerEndpoint(0))
+                        .put("cluster.remote.invalid_remote.skip_unavailable", "false")
                         .build()
                     : Settings.builder()
                         .put("cluster.remote.invalid_remote.mode", "proxy")

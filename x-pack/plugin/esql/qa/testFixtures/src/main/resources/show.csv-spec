@@ -101,7 +101,8 @@ to_unsigned_long         |"unsigned_long to_unsigned_long(v:boolean|date|keyword
 to_upper                 |"keyword|text to_upper(str:keyword|text)"                                                        |str |"keyword|text"                                                                                             | "The input string"                                 |"keyword|text"                   | "Returns a new string representing the input string converted to upper case."                                                   |false                       |false | false
 to_ver                   |"version to_ver(v:keyword|text|version)"                                                         |v   |"keyword|text|version"                                                                                     |                                                    |version                          | "Converts an input string to a version value."                                                                                     |false                       |false           | false
 to_version               |"version to_version(v:keyword|text|version)"                                                     |v   |"keyword|text|version"                                                                                     |                                                    |version                          | "Converts an input string to a version value."                                                                                       |false                       |false           | false
-trim                     |"keyword|text trim(str:keyword|text)"                   |str                      |"keyword|text"    | ""                                                 |"keyword|text"       | "Removes leading and trailing whitespaces from a string." | false | false | false
+trim                     |"keyword|text trim(str:keyword|text)"                                                            |str |"keyword|text"                                                                                             | ""                                                 |"keyword|text"                   | "Removes leading and trailing whitespaces from a string." | false | false | false
+values                   |"long values(v:long)"                                                                            |v   |"long"                                                                                                     | ""                                                 |"long"                           | "Collect values for a field." | false | false | true
 ;
 
 
@@ -201,6 +202,7 @@ double tau()
 "version to_ver(v:keyword|text|version)"
 "version to_version(v:keyword|text|version)"
 "keyword|text trim(str:keyword|text)"
+"long values(v:long)"
 ;
 
 
@@ -224,5 +226,5 @@ countFunctions#[skip:-8.13.99]
 show functions |  stats  a = count(*), b = count(*), c = count(*) |  mv_expand c;
 
 a:long | b:long | c:long
-92     | 92     | 92
+93     | 93     | 93
 ;

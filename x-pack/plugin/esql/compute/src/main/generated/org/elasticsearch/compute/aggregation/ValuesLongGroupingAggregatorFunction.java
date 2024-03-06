@@ -9,40 +9,39 @@ import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
 import java.util.List;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
- * {@link GroupingAggregatorFunction} implementation for {@link MedianAbsoluteDeviationIntAggregator}.
+ * {@link GroupingAggregatorFunction} implementation for {@link ValuesLongAggregator}.
  * This class is generated. Do not edit it.
  */
-public final class MedianAbsoluteDeviationIntGroupingAggregatorFunction implements GroupingAggregatorFunction {
+public final class ValuesLongGroupingAggregatorFunction implements GroupingAggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
-      new IntermediateStateDesc("quart", ElementType.BYTES_REF)  );
+      new IntermediateStateDesc("values", ElementType.LONG)  );
 
-  private final QuantileStates.GroupingState state;
+  private final ValuesLongAggregator.GroupingState state;
 
   private final List<Integer> channels;
 
   private final DriverContext driverContext;
 
-  public MedianAbsoluteDeviationIntGroupingAggregatorFunction(List<Integer> channels,
-      QuantileStates.GroupingState state, DriverContext driverContext) {
+  public ValuesLongGroupingAggregatorFunction(List<Integer> channels,
+      ValuesLongAggregator.GroupingState state, DriverContext driverContext) {
     this.channels = channels;
     this.state = state;
     this.driverContext = driverContext;
   }
 
-  public static MedianAbsoluteDeviationIntGroupingAggregatorFunction create(List<Integer> channels,
+  public static ValuesLongGroupingAggregatorFunction create(List<Integer> channels,
       DriverContext driverContext) {
-    return new MedianAbsoluteDeviationIntGroupingAggregatorFunction(channels, MedianAbsoluteDeviationIntAggregator.initGrouping(driverContext.bigArrays()), driverContext);
+    return new ValuesLongGroupingAggregatorFunction(channels, ValuesLongAggregator.initGrouping(driverContext.bigArrays()), driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -57,8 +56,8 @@ public final class MedianAbsoluteDeviationIntGroupingAggregatorFunction implemen
   @Override
   public GroupingAggregatorFunction.AddInput prepareProcessPage(SeenGroupIds seenGroupIds,
       Page page) {
-    IntBlock valuesBlock = page.getBlock(channels.get(0));
-    IntVector valuesVector = valuesBlock.asVector();
+    LongBlock valuesBlock = page.getBlock(channels.get(0));
+    LongVector valuesVector = valuesBlock.asVector();
     if (valuesVector == null) {
       if (valuesBlock.mayHaveNulls()) {
         state.enableGroupIdTracking(seenGroupIds);
@@ -88,7 +87,7 @@ public final class MedianAbsoluteDeviationIntGroupingAggregatorFunction implemen
     };
   }
 
-  private void addRawInput(int positionOffset, IntVector groups, IntBlock values) {
+  private void addRawInput(int positionOffset, IntVector groups, LongBlock values) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = Math.toIntExact(groups.getInt(groupPosition));
       if (values.isNull(groupPosition + positionOffset)) {
@@ -97,19 +96,19 @@ public final class MedianAbsoluteDeviationIntGroupingAggregatorFunction implemen
       int valuesStart = values.getFirstValueIndex(groupPosition + positionOffset);
       int valuesEnd = valuesStart + values.getValueCount(groupPosition + positionOffset);
       for (int v = valuesStart; v < valuesEnd; v++) {
-        MedianAbsoluteDeviationIntAggregator.combine(state, groupId, values.getInt(v));
+        ValuesLongAggregator.combine(state, groupId, values.getLong(v));
       }
     }
   }
 
-  private void addRawInput(int positionOffset, IntVector groups, IntVector values) {
+  private void addRawInput(int positionOffset, IntVector groups, LongVector values) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = Math.toIntExact(groups.getInt(groupPosition));
-      MedianAbsoluteDeviationIntAggregator.combine(state, groupId, values.getInt(groupPosition + positionOffset));
+      ValuesLongAggregator.combine(state, groupId, values.getLong(groupPosition + positionOffset));
     }
   }
 
-  private void addRawInput(int positionOffset, IntBlock groups, IntBlock values) {
+  private void addRawInput(int positionOffset, IntBlock groups, LongBlock values) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -124,13 +123,13 @@ public final class MedianAbsoluteDeviationIntGroupingAggregatorFunction implemen
         int valuesStart = values.getFirstValueIndex(groupPosition + positionOffset);
         int valuesEnd = valuesStart + values.getValueCount(groupPosition + positionOffset);
         for (int v = valuesStart; v < valuesEnd; v++) {
-          MedianAbsoluteDeviationIntAggregator.combine(state, groupId, values.getInt(v));
+          ValuesLongAggregator.combine(state, groupId, values.getLong(v));
         }
       }
     }
   }
 
-  private void addRawInput(int positionOffset, IntBlock groups, IntVector values) {
+  private void addRawInput(int positionOffset, IntBlock groups, LongVector values) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -139,7 +138,7 @@ public final class MedianAbsoluteDeviationIntGroupingAggregatorFunction implemen
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = Math.toIntExact(groups.getInt(g));
-        MedianAbsoluteDeviationIntAggregator.combine(state, groupId, values.getInt(groupPosition + positionOffset));
+        ValuesLongAggregator.combine(state, groupId, values.getLong(groupPosition + positionOffset));
       }
     }
   }
@@ -148,15 +147,14 @@ public final class MedianAbsoluteDeviationIntGroupingAggregatorFunction implemen
   public void addIntermediateInput(int positionOffset, IntVector groups, Page page) {
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
     assert channels.size() == intermediateBlockCount();
-    Block quartUncast = page.getBlock(channels.get(0));
-    if (quartUncast.areAllValuesNull()) {
+    Block valuesUncast = page.getBlock(channels.get(0));
+    if (valuesUncast.areAllValuesNull()) {
       return;
     }
-    BytesRefVector quart = ((BytesRefBlock) quartUncast).asVector();
-    BytesRef scratch = new BytesRef();
+    LongBlock values = (LongBlock) valuesUncast;
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = Math.toIntExact(groups.getInt(groupPosition));
-      MedianAbsoluteDeviationIntAggregator.combineIntermediate(state, groupId, quart.getBytesRef(groupPosition + positionOffset, scratch));
+      ValuesLongAggregator.combineIntermediate(state, groupId, values, groupPosition + positionOffset);
     }
   }
 
@@ -165,9 +163,9 @@ public final class MedianAbsoluteDeviationIntGroupingAggregatorFunction implemen
     if (input.getClass() != getClass()) {
       throw new IllegalArgumentException("expected " + getClass() + "; got " + input.getClass());
     }
-    QuantileStates.GroupingState inState = ((MedianAbsoluteDeviationIntGroupingAggregatorFunction) input).state;
+    ValuesLongAggregator.GroupingState inState = ((ValuesLongGroupingAggregatorFunction) input).state;
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
-    MedianAbsoluteDeviationIntAggregator.combineStates(state, groupId, inState, position);
+    ValuesLongAggregator.combineStates(state, groupId, inState, position);
   }
 
   @Override
@@ -178,7 +176,7 @@ public final class MedianAbsoluteDeviationIntGroupingAggregatorFunction implemen
   @Override
   public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
       DriverContext driverContext) {
-    blocks[offset] = MedianAbsoluteDeviationIntAggregator.evaluateFinal(state, selected, driverContext);
+    blocks[offset] = ValuesLongAggregator.evaluateFinal(state, selected, driverContext);
   }
 
   @Override

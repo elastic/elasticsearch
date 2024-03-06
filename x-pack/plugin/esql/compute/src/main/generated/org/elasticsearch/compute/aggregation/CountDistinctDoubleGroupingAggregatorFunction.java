@@ -153,7 +153,11 @@ public final class CountDistinctDoubleGroupingAggregatorFunction implements Grou
   public void addIntermediateInput(int positionOffset, IntVector groups, Page page) {
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
     assert channels.size() == intermediateBlockCount();
-    BytesRefVector hll = page.<BytesRefBlock>getBlock(channels.get(0)).asVector();
+    Block hllUncast = page.getBlock(channels.get(0));
+    if (hllUncast.areAllValuesNull()) {
+      return;
+    }
+    BytesRefVector hll = ((BytesRefBlock) hllUncast).asVector();
     BytesRef scratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = Math.toIntExact(groups.getInt(groupPosition));

@@ -151,9 +151,21 @@ public final class SumDoubleGroupingAggregatorFunction implements GroupingAggreg
   public void addIntermediateInput(int positionOffset, IntVector groups, Page page) {
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
     assert channels.size() == intermediateBlockCount();
-    DoubleVector value = page.<DoubleBlock>getBlock(channels.get(0)).asVector();
-    DoubleVector delta = page.<DoubleBlock>getBlock(channels.get(1)).asVector();
-    BooleanVector seen = page.<BooleanBlock>getBlock(channels.get(2)).asVector();
+    Block valueUncast = page.getBlock(channels.get(0));
+    if (valueUncast.areAllValuesNull()) {
+      return;
+    }
+    DoubleVector value = ((DoubleBlock) valueUncast).asVector();
+    Block deltaUncast = page.getBlock(channels.get(1));
+    if (deltaUncast.areAllValuesNull()) {
+      return;
+    }
+    DoubleVector delta = ((DoubleBlock) deltaUncast).asVector();
+    Block seenUncast = page.getBlock(channels.get(2));
+    if (seenUncast.areAllValuesNull()) {
+      return;
+    }
+    BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
     assert value.getPositionCount() == delta.getPositionCount() && value.getPositionCount() == seen.getPositionCount();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = Math.toIntExact(groups.getInt(groupPosition));

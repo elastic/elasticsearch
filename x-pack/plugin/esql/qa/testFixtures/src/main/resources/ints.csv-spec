@@ -559,3 +559,22 @@ warning:Line 1:76: org.elasticsearch.xpack.ql.InvalidArgumentException: [1002000
 
 x:long
 ;
+
+valuesLong
+  FROM employees
+| WHERE emp_no <= 10009 
+| EVAL first_letter = SUBSTRING(first_name, 0, 1)
+| STATS l=VALUES(languages.long) BY first_letter
+| SORT first_letter
+;
+
+   l:long | first_letter:keyword
+        3 | A
+        5 | B
+        5 | C
+        2 | G
+        1 | K
+        4 | P
+   [2, 1] | S
+        4 | T
+;

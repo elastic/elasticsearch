@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Percentile;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroid;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Greatest;
@@ -409,6 +410,7 @@ public final class PlanNamedTypes {
             of(AggregateFunction.class, Percentile.class, PlanNamedTypes::writePercentile, PlanNamedTypes::readPercentile),
             of(AggregateFunction.class, SpatialCentroid.class, PlanNamedTypes::writeAggFunction, PlanNamedTypes::readAggFunction),
             of(AggregateFunction.class, Sum.class, PlanNamedTypes::writeAggFunction, PlanNamedTypes::readAggFunction),
+            of(AggregateFunction.class, Values.class, PlanNamedTypes::writeAggFunction, PlanNamedTypes::readAggFunction),
             // Multivalue functions
             of(ScalarFunction.class, MvAvg.class, PlanNamedTypes::writeMvFunction, PlanNamedTypes::readMvFunction),
             of(ScalarFunction.class, MvCount.class, PlanNamedTypes::writeMvFunction, PlanNamedTypes::readMvFunction),
@@ -1635,7 +1637,8 @@ public final class PlanNamedTypes {
         entry(name(Max.class), Max::new),
         entry(name(Median.class), Median::new),
         entry(name(MedianAbsoluteDeviation.class), MedianAbsoluteDeviation::new),
-        entry(name(SpatialCentroid.class), SpatialCentroid::new)
+        entry(name(SpatialCentroid.class), SpatialCentroid::new),
+        entry(name(Values.class), Values::new)
     );
 
     static AggregateFunction readAggFunction(PlanStreamInput in, String name) throws IOException {

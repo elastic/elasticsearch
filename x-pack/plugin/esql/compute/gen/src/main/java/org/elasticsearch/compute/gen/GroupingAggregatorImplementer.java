@@ -49,8 +49,6 @@ import static org.elasticsearch.compute.gen.Types.LIST_AGG_FUNC_DESC;
 import static org.elasticsearch.compute.gen.Types.LIST_INTEGER;
 import static org.elasticsearch.compute.gen.Types.PAGE;
 import static org.elasticsearch.compute.gen.Types.SEEN_GROUP_IDS;
-import static org.elasticsearch.compute.gen.Types.blockType;
-import static org.elasticsearch.compute.gen.Types.vectorType;
 
 /**
  * Implements "GroupingAggregationFunction" from a class containing static methods
@@ -72,7 +70,7 @@ public class GroupingAggregatorImplementer {
     private final boolean valuesIsBytesRef;
     private final List<Parameter> createParameters;
     private final ClassName implementation;
-    private final List<IntermediateStateDesc> intermediateState;
+    private final List<AggregatorImplementer.IntermediateStateDesc> intermediateState;
 
     public GroupingAggregatorImplementer(Elements elements, TypeElement declarationType, IntermediateState[] interStateAnno) {
         this.declarationType = declarationType;
@@ -102,10 +100,10 @@ public class GroupingAggregatorImplementer {
             (declarationType.getSimpleName() + "GroupingAggregatorFunction").replace("AggregatorGroupingAggregator", "GroupingAggregator")
         );
 
-        intermediateState = Arrays.stream(interStateAnno).map(state -> new IntermediateStateDesc(state.name(), state.type())).toList();
+        intermediateState = Arrays.stream(interStateAnno)
+            .map(AggregatorImplementer.IntermediateStateDesc::newIntermediateStateDesc)
+            .toList();
     }
-
-    record IntermediateStateDesc(String name, String elementType) {}
 
     public ClassName implementation() {
         return implementation;
@@ -421,11 +419,7 @@ public class GroupingAggregatorImplementer {
         builder.addStatement("assert channels.size() == intermediateBlockCount()");
         int count = 0;
         for (var interState : intermediateState) {
-            builder.addStatement(
-                "$T " + interState.name() + " = page.<$T>getBlock(channels.get(" + count + ")).asVector()",
-                vectorType(interState.elementType()),
-                blockType(interState.elementType())
-            );
+            interState.assignToVariable(builder, count);
             count++;
         }
         final String first = intermediateState.get(0).name();
@@ -433,13 +427,13 @@ public class GroupingAggregatorImplementer {
             builder.addStatement(
                 "assert "
                     + intermediateState.stream()
-                        .map(IntermediateStateDesc::name)
+                        .map(AggregatorImplementer.IntermediateStateDesc::name)
                         .skip(1)
                         .map(s -> first + ".getPositionCount() == " + s + ".getPositionCount()")
                         .collect(joining(" && "))
             );
         }
-        if (intermediateState.stream().map(IntermediateStateDesc::elementType).anyMatch(n -> n.equals("BYTES_REF"))) {
+        if (intermediateState.stream().map(AggregatorImplementer.IntermediateStateDesc::elementType).anyMatch(n -> n.equals("BYTES_REF"))) {
             builder.addStatement("$T scratch = new $T()", BYTES_REF, BYTES_REF);
         }
         builder.beginControlFlow("for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++)");
@@ -469,15 +463,11 @@ public class GroupingAggregatorImplementer {
     }
 
     String intermediateStateRowAccess() {
-        return intermediateState.stream().map(GroupingAggregatorImplementer::vectorAccess).collect(joining(", "));
-    }
-
-    static String vectorAccess(IntermediateStateDesc isd) {
-        String s = isd.name() + "." + vectorAccessorName(isd.elementType()) + "(groupPosition + positionOffset";
-        if (isd.elementType().equals("BYTES_REF")) {
-            s += ", scratch";
+        String rowAccess = intermediateState.stream().map(desc -> desc.access("groupPosition + positionOffset")).collect(joining(", "));
+        if (intermediateState.stream().anyMatch(AggregatorImplementer.IntermediateStateDesc::block)) {
+            rowAccess += ", groupPosition + positionOffset";
         }
-        return s + ")";
+        return rowAccess;
     }
 
     private void combineStates(MethodSpec.Builder builder) {

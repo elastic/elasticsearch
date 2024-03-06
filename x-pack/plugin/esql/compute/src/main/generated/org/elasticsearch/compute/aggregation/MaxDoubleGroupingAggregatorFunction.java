@@ -150,8 +150,16 @@ public final class MaxDoubleGroupingAggregatorFunction implements GroupingAggreg
   public void addIntermediateInput(int positionOffset, IntVector groups, Page page) {
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
     assert channels.size() == intermediateBlockCount();
-    DoubleVector max = page.<DoubleBlock>getBlock(channels.get(0)).asVector();
-    BooleanVector seen = page.<BooleanBlock>getBlock(channels.get(1)).asVector();
+    Block maxUncast = page.getBlock(channels.get(0));
+    if (maxUncast.areAllValuesNull()) {
+      return;
+    }
+    DoubleVector max = ((DoubleBlock) maxUncast).asVector();
+    Block seenUncast = page.getBlock(channels.get(1));
+    if (seenUncast.areAllValuesNull()) {
+      return;
+    }
+    BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
     assert max.getPositionCount() == seen.getPositionCount();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = Math.toIntExact(groups.getInt(groupPosition));

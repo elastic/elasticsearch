@@ -148,7 +148,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         private final SnapshotPredicates predicates;
 
         // snapshot ordering/pagination
-        private final GetSnapshotsRequest.SortBy sortBy;
+        private final SnapshotSortKey sortBy;
         private final SortOrder order;
         @Nullable
         private final String fromSortValue;
@@ -177,7 +177,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             String[] snapshots,
             boolean ignoreUnavailable,
             SnapshotPredicates predicates,
-            GetSnapshotsRequest.SortBy sortBy,
+            SnapshotSortKey sortBy,
             SortOrder order,
             String fromSortValue,
             int offset,
@@ -214,7 +214,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
          * the sort value range if possible.
          */
         private List<RepositoryMetadata> maybeFilterRepositories() {
-            if (sortBy != GetSnapshotsRequest.SortBy.REPOSITORY || fromSortValue == null) {
+            if (sortBy != SnapshotSortKey.REPOSITORY || fromSortValue == null) {
                 return repositories;
             }
             final Predicate<RepositoryMetadata> predicate = order == SortOrder.ASC
@@ -486,27 +486,6 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             return sortSnapshotsWithNoOffsetOrLimit(snapshotInfos);
         }
 
-        private static final Comparator<SnapshotInfo> BY_START_TIME = Comparator.comparingLong(SnapshotInfo::startTime)
-            .thenComparing(SnapshotInfo::snapshotId);
-
-        private static final Comparator<SnapshotInfo> BY_DURATION = Comparator.<SnapshotInfo>comparingLong(
-            sni -> sni.endTime() - sni.startTime()
-        ).thenComparing(SnapshotInfo::snapshotId);
-
-        private static final Comparator<SnapshotInfo> BY_INDICES_COUNT = Comparator.<SnapshotInfo>comparingInt(sni -> sni.indices().size())
-            .thenComparing(SnapshotInfo::snapshotId);
-
-        private static final Comparator<SnapshotInfo> BY_SHARDS_COUNT = Comparator.comparingInt(SnapshotInfo::totalShards)
-            .thenComparing(SnapshotInfo::snapshotId);
-
-        private static final Comparator<SnapshotInfo> BY_FAILED_SHARDS_COUNT = Comparator.comparingInt(SnapshotInfo::failedShards)
-            .thenComparing(SnapshotInfo::snapshotId);
-
-        private static final Comparator<SnapshotInfo> BY_NAME = Comparator.comparing(sni -> sni.snapshotId().getName());
-
-        private static final Comparator<SnapshotInfo> BY_REPOSITORY = Comparator.comparing(SnapshotInfo::repository)
-            .thenComparing(SnapshotInfo::snapshotId);
-
         private SnapshotsInRepo sortSnapshotsWithNoOffsetOrLimit(List<SnapshotInfo> snapshotInfos) {
             return sortSnapshots(snapshotInfos.stream(), snapshotInfos.size(), 0, GetSnapshotsRequest.NO_LIMIT);
         }
@@ -532,15 +511,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         }
 
         private Comparator<SnapshotInfo> buildComparator() {
-            final Comparator<SnapshotInfo> comparator = switch (sortBy) {
-                case START_TIME -> BY_START_TIME;
-                case NAME -> BY_NAME;
-                case DURATION -> BY_DURATION;
-                case INDICES -> BY_INDICES_COUNT;
-                case SHARDS -> BY_SHARDS_COUNT;
-                case FAILED_SHARDS -> BY_FAILED_SHARDS_COUNT;
-                case REPOSITORY -> BY_REPOSITORY;
-            };
+            final var comparator = sortBy.getSnapshotInfoComparator();
             return order == SortOrder.DESC ? comparator.reversed() : comparator;
         }
 
@@ -732,7 +703,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             return excludes.length == 0 || Regex.simpleMatch(excludes, policy) == false;
         }
 
-        private static SnapshotPredicates getSortValuePredicate(String fromSortValue, GetSnapshotsRequest.SortBy sortBy, SortOrder order) {
+        private static SnapshotPredicates getSortValuePredicate(String fromSortValue, SnapshotSortKey sortBy, SortOrder order) {
             if (fromSortValue == null) {
                 return MATCH_ALL;
             }

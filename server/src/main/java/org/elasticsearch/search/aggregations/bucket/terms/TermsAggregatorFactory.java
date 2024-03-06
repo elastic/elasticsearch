@@ -444,7 +444,8 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 if (maxOrd > 0
                     && maxOrd <= MAX_ORDS_TO_TRY_FILTERS
                     && context.enableRewriteToFilterByFilter()
-                    && false == context.isInSortOrderExecutionRequired()) {
+                    && false == context.isInSortOrderExecutionRequired()
+                    && false == excludeDeletedDocs) {
                     StringTermsAggregatorFromFilters adapted = StringTermsAggregatorFromFilters.adaptIntoFiltersOrNull(
                         name,
                         factories,
@@ -512,7 +513,8 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                         false,
                         subAggCollectMode,
                         showTermDocCountError,
-                        metadata
+                        metadata,
+                        excludeDeletedDocs
                     );
 
                 }
@@ -558,7 +560,8 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                     subAggCollectMode,
                     showTermDocCountError,
                     cardinality,
-                    metadata
+                    metadata,
+                    excludeDeletedDocs
                 );
             }
         };

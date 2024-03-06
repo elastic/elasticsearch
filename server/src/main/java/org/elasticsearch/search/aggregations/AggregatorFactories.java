@@ -18,7 +18,6 @@ import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatorFactory;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
@@ -369,7 +368,6 @@ public class AggregatorFactories {
                 }
                 if (current instanceof TermsAggregationBuilder termsBuilder) {
                     if (termsBuilder.minDocCount() == 0) {
-                        termsBuilder.executionHint(TermsAggregatorFactory.ExecutionMode.MAP.name().toLowerCase(Locale.ROOT));
                         termsBuilder.excludeDeletedDocs(true);
                     }
                 }

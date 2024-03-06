@@ -2,7 +2,6 @@ pr: 106031
 summary: Deprecate allowing `fields` in scenarios where it is ignored
 area: Mapping
 type: deprecation
-issues: []
 deprecation:
   title: Deprecate allowing `fields` in scenarios where it is ignored
   area: Mapping

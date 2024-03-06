@@ -5,7 +5,11 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
+
+import org.elasticsearch.gradle.internal.precommit.CheckForbiddenApisTask
+
 apply plugin: 'elasticsearch.publish'
+apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.mrjar'
 
 dependencies {
@@ -18,10 +22,12 @@ dependencies {
   }
 }
 
-sourceSets.main.java.srcDirs += ['src/main21/gen/']
-
-tasks.named('forbiddenApisMain').configure {
+tasks.withType(CheckForbiddenApisTask).configureEach {
   replaceSignatureFiles 'jdk-signatures'
+}
+
+tasks.named('forbiddenApisMain21').configure {
+  enabled = false
 }
 
 tasks.named('checkstyleMain21').configure {
@@ -48,10 +54,6 @@ tasks.withType(Test) {
 
 // TODO: --enable-native-access= both for test/ALL_UNNAMED, and in the es launcher
 
-tasks.named('forbiddenApisMain21').configure {
-  enabled = false
-}
-
 tasks.withType(Javadoc) {
   enabled = false
 }
@@ -60,27 +62,28 @@ tasks.withType(Javadoc) {
 // change the interface between native and java, i.e. if you change a
 // signature in vec.h.
 //   ./gradlew :libs:elasticsearch-vec:generateExtractedHeaders
-tasks.register("generateExtractedHeaders", Exec).configure {
-  description "Regenerate extracted headers"
-
-  def jextractHome = System.getenv("JEXTRACT_HOME")
-  if (jextractHome == null || jextractHome.isEmpty())
-     throw new IllegalArgumentException("JEXTRACT_HOME not set")
-  def genIncludes = file("includes.txt")
-  def genHeader = file("native/src/vec/headers/vec.h")
-  def genOutput = file("src/main21/java/")
-
-  inputs.files genIncludes, genHeader
-  outputs.dir genOutput
-
-  executable = "${jextractHome}/bin/jextract"
-  args = [
-    "--output", "${genOutput}",
-    "--source", "@${genIncludes}",
-    "-t" , "org.elasticsearch.vec.internal.gen",
-    "${genHeader}"
-  ]
-}
+// TODO: lazy register
+//tasks.register("generateExtractedHeaders", Exec).configure {
+//  description "Regenerate extracted headers"
+//
+//  def jextractHome = System.getenv("JEXTRACT_HOME")
+//  if (jextractHome == null || jextractHome.isEmpty())
+//     throw new IllegalArgumentException("JEXTRACT_HOME not set")
+//  def genIncludes = file("includes.txt")
+//  def genHeader = file("native/src/vec/headers/vec.h")
+//  def genOutput = file("src/main21/java/")
+//
+//  inputs.files genIncludes, genHeader
+//  outputs.dir genOutput
+//
+//  executable = "${jextractHome}/bin/jextract"
+//  args = [
+//    "--output", "${genOutput}",
+//    "--source", "@${genIncludes}",
+//    "-t" , "org.elasticsearch.vec.internal.gen",
+//    "${genHeader}"
+//  ]
+//}
 
 configurations {
   darwinAarch64

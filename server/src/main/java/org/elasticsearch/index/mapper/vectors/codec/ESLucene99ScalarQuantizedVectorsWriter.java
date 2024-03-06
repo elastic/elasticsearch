@@ -25,6 +25,7 @@ import org.apache.lucene.codecs.KnnFieldVectorsWriter;
 import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.KnnVectorsWriter;
 import org.apache.lucene.codecs.lucene95.OrdToDocDISIReaderConfiguration;
+import org.apache.lucene.codecs.lucene99.OffHeapQuantizedByteVectorValues;
 import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.index.DocIDMerger;
 import org.apache.lucene.index.DocsWithFieldSet;
@@ -37,22 +38,20 @@ import org.apache.lucene.index.Sorter;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.store.FSDirectory;
-import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.InfoStream;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.apache.lucene.util.ScalarQuantizer;
 import org.apache.lucene.util.SuppressForbidden;
 import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.CloseableRandomVectorScorerSupplier;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
-import org.elasticsearch.index.mapper.vectors.VectorScorerSupplierAdapter;
-import org.elasticsearch.index.mapper.vectors.VectorSimilarityTypeConverter;
-import org.elasticsearch.vec.VectorScorerProvider;
+import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
+import org.apache.lucene.util.quantization.QuantizedVectorsReader;
+import org.apache.lucene.util.quantization.ScalarQuantizedRandomVectorScorerSupplier;
+import org.apache.lucene.util.quantization.ScalarQuantizer;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -62,16 +61,18 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.apache.lucene.codecs.lucene99.Lucene99ScalarQuantizedVectorsFormat.QUANTIZED_VECTOR_COMPONENT;
+import static org.apache.lucene.codecs.lucene99.Lucene99ScalarQuantizedVectorsFormat.calculateDefaultConfidenceInterval;
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 import static org.apache.lucene.util.RamUsageEstimator.shallowSizeOfInstance;
-import static org.elasticsearch.index.mapper.vectors.codec.ESLucene99HnswVectorsWriter.DIRECT_MONOTONIC_BLOCK_SHIFT;
-import static org.elasticsearch.index.mapper.vectors.codec.ESLucene99ScalarQuantizedVectorsFormat.calculateDefaultConfidenceInterval;
 
 /**
  * Writes quantized vector values and metadata to index segments.
+ * Amended copy of Lucene99ScalarQuantizedVectorsWriter
  */
 @SuppressForbidden(reason = "copy from Lucene")
 public final class ESLucene99ScalarQuantizedVectorsWriter extends FlatVectorsWriter {
+
+    static final int DIRECT_MONOTONIC_BLOCK_SHIFT = 16;
 
     private static final long SHALLOW_RAM_BYTES_USED = shallowSizeOfInstance(ESLucene99ScalarQuantizedVectorsWriter.class);
 
@@ -407,12 +408,10 @@ public final class ESLucene99ScalarQuantizedVectorsWriter extends FlatVectorsWri
             DocsWithFieldSet docsWithField = writeQuantizedVectorData(tempQuantizedVectorData, byteVectorValues);
             CodecUtil.writeFooter(tempQuantizedVectorData);
             IOUtils.close(tempQuantizedVectorData);
-
             quantizationDataInput = segmentWriteState.directory.openInput(tempQuantizedVectorData.getName(), segmentWriteState.context);
             quantizedVectorData.copyBytes(quantizationDataInput, quantizationDataInput.length() - CodecUtil.footerLength());
             long vectorDataLength = quantizedVectorData.getFilePointer() - vectorDataOffset;
             CodecUtil.retrieveChecksum(quantizationDataInput);
-
             float confidenceInterval = this.confidenceInterval == null
                 ? calculateDefaultConfidenceInterval(fieldInfo.getVectorDimension())
                 : this.confidenceInterval;
@@ -428,44 +427,21 @@ public final class ESLucene99ScalarQuantizedVectorsWriter extends FlatVectorsWri
             );
             success = true;
             final IndexInput finalQuantizationDataInput = quantizationDataInput;
-
-            // -- chegar here --
-            RandomVectorScorerSupplier scorerSupplier;
-            VectorScorerProvider provider = VectorScorerProvider.getInstanceOrNull();
-            assert segmentWriteState.directory instanceof FSDirectory;
-            var unwrappedDir = FilterDirectory.unwrap(segmentWriteState.directory);
-            if (provider != null) {
-                if (unwrappedDir instanceof FSDirectory dir) {
-                    var similarity = VectorSimilarityTypeConverter.of(fieldInfo.getVectorSimilarityFunction());
-                    var path = dir.getDirectory().resolve(tempQuantizedVectorData.getName());
-                    var sc = mergedQuantizationState.getConstantMultiplier();
-                    var dim = byteVectorValues.dimension();
-                    var maxOrd = docsWithField.cardinality();
-                    var scorer = provider.getScalarQuantizedVectorScorer(dim, maxOrd, sc, similarity, path);
-                    scorerSupplier = new VectorScorerSupplierAdapter(scorer);
-                } else {
-                    var msg = "unexpected dir type: " + segmentWriteState.directory.getClass() +
-                        ", [" + segmentWriteState.directory + "]";
-                    throw new UnsupportedOperationException(msg);
-                }
-            } else {
-                throw new UnsupportedOperationException("expected provider, but was none");
-//                scorerSupplier = new ESScalarQuantizedRandomVectorScorerSupplier(
-//                    fieldInfo.getVectorSimilarityFunction(),
-//                    mergedQuantizationState,
-//                    new ESOffHeapQuantizedByteVectorValues.DenseOffHeapVectorValues(
-//                        fieldInfo.getVectorDimension(),
-//                        docsWithField.cardinality(),
-//                        quantizationDataInput
-//                    )
-//                );
-            }
-            //
-
             return new ScalarQuantizedCloseableRandomVectorScorerSupplier(() -> {
                 IOUtils.close(finalQuantizationDataInput);
                 segmentWriteState.directory.deleteFile(tempQuantizedVectorData.getName());
-            }, docsWithField.cardinality(), scorerSupplier);
+            },
+                docsWithField.cardinality(),
+                new ScalarQuantizedRandomVectorScorerSupplier(
+                    fieldInfo.getVectorSimilarityFunction(),
+                    mergedQuantizationState,
+                    new OffHeapQuantizedByteVectorValues.DenseOffHeapVectorValues(
+                        fieldInfo.getVectorDimension(),
+                        docsWithField.cardinality(),
+                        quantizationDataInput
+                    )
+                )
+            );
         } finally {
             if (success == false) {
                 IOUtils.closeWhileHandlingException(tempQuantizedVectorData, quantizationDataInput);
@@ -521,25 +497,34 @@ public final class ESLucene99ScalarQuantizedVectorsWriter extends FlatVectorsWri
         return false;
     }
 
-    private static ESQuantizedVectorsReader getQuantizedKnnVectorsReader(KnnVectorsReader vectorsReader, String fieldName) {
+    private static QuantizedVectorsReader getQuantizedKnnVectorsReader(KnnVectorsReader vectorsReader, String fieldName) {
         if (vectorsReader instanceof PerFieldKnnVectorsFormat.FieldsReader) {
             vectorsReader = ((PerFieldKnnVectorsFormat.FieldsReader) vectorsReader).getFieldReader(fieldName);
         }
-        if (vectorsReader instanceof ESQuantizedVectorsReader) {
-            return (ESQuantizedVectorsReader) vectorsReader;
+        if (vectorsReader instanceof QuantizedVectorsReader) {
+            return (QuantizedVectorsReader) vectorsReader;
         }
         return null;
     }
 
     private static ScalarQuantizer getQuantizedState(KnnVectorsReader vectorsReader, String fieldName) {
-        ESQuantizedVectorsReader reader = getQuantizedKnnVectorsReader(vectorsReader, fieldName);
+        QuantizedVectorsReader reader = getQuantizedKnnVectorsReader(vectorsReader, fieldName);
         if (reader != null) {
             return reader.getQuantizationState(fieldName);
         }
         return null;
     }
 
-    static ScalarQuantizer mergeAndRecalculateQuantiles(MergeState mergeState, FieldInfo fieldInfo, float confidenceInterval)
+    /**
+     * Merges the quantiles of the segments and recalculates the quantiles if necessary.
+     *
+     * @param mergeState The merge state
+     * @param fieldInfo The field info
+     * @param confidenceInterval The confidence interval
+     * @return The merged quantiles
+     * @throws IOException If there is a low-level I/O error
+     */
+    public static ScalarQuantizer mergeAndRecalculateQuantiles(MergeState mergeState, FieldInfo fieldInfo, float confidenceInterval)
         throws IOException {
         List<ScalarQuantizer> quantizationStates = new ArrayList<>(mergeState.liveDocs.length);
         List<Integer> segmentSizes = new ArrayList<>(mergeState.liveDocs.length);
@@ -569,9 +554,9 @@ public final class ESLucene99ScalarQuantizedVectorsWriter extends FlatVectorsWri
             }
             mergedQuantiles = ScalarQuantizer.fromVectors(
                 KnnVectorsWriter.MergedVectorValues.mergeFloatVectorValues(fieldInfo, mergeState),
-                confidenceInterval
-            ); // ,
-               // numVectors); // TODO: put this back when 9.9.2
+                confidenceInterval,
+                numVectors
+            );
         }
         return mergedQuantiles;
     }
@@ -596,7 +581,7 @@ public final class ESLucene99ScalarQuantizedVectorsWriter extends FlatVectorsWri
     /**
      * Writes the vector values to the output and returns a set of documents that contains vectors.
      */
-    private static DocsWithFieldSet writeQuantizedVectorData(IndexOutput output, ESQuantizedByteVectorValues quantizedByteVectorValues)
+    public static DocsWithFieldSet writeQuantizedVectorData(IndexOutput output, QuantizedByteVectorValues quantizedByteVectorValues)
         throws IOException {
         DocsWithFieldSet docsWithField = new DocsWithFieldSet();
         for (int docV = quantizedByteVectorValues.nextDoc(); docV != NO_MORE_DOCS; docV = quantizedByteVectorValues.nextDoc()) {
@@ -649,9 +634,9 @@ public final class ESLucene99ScalarQuantizedVectorsWriter extends FlatVectorsWri
             }
             ScalarQuantizer quantizer = ScalarQuantizer.fromVectors(
                 new FloatVectorWrapper(floatVectors, fieldInfo.getVectorSimilarityFunction() == VectorSimilarityFunction.COSINE),
-                confidenceInterval
-            ); // ,
-               // floatVectors.size()); // TODO: put this back when 9.9.2
+                confidenceInterval,
+                floatVectors.size()
+            );
             minQuantile = quantizer.getLowerQuantile();
             maxQuantile = quantizer.getUpperQuantile();
             if (infoStream.isEnabled(QUANTIZED_VECTOR_COMPONENT)) {
@@ -756,9 +741,9 @@ public final class ESLucene99ScalarQuantizedVectorsWriter extends FlatVectorsWri
     }
 
     private static class QuantizedByteVectorValueSub extends DocIDMerger.Sub {
-        private final ESQuantizedByteVectorValues values;
+        private final QuantizedByteVectorValues values;
 
-        QuantizedByteVectorValueSub(MergeState.DocMap docMap, ESQuantizedByteVectorValues values) {
+        QuantizedByteVectorValueSub(MergeState.DocMap docMap, QuantizedByteVectorValues values) {
             super(docMap);
             this.values = values;
             assert values.docID() == -1;
@@ -770,8 +755,8 @@ public final class ESLucene99ScalarQuantizedVectorsWriter extends FlatVectorsWri
         }
     }
 
-    /** Returns a merged view over all the segment's {@link ESQuantizedByteVectorValues}. */
-    static class MergedQuantizedVectorValues extends ESQuantizedByteVectorValues {
+    /** Returns a merged view over all the segment's {@link QuantizedByteVectorValues}. */
+    static class MergedQuantizedVectorValues extends QuantizedByteVectorValues {
         public static MergedQuantizedVectorValues mergeQuantizedByteVectorValues(
             FieldInfo fieldInfo,
             MergeState mergeState,
@@ -783,7 +768,7 @@ public final class ESLucene99ScalarQuantizedVectorsWriter extends FlatVectorsWri
             for (int i = 0; i < mergeState.knnVectorsReaders.length; i++) {
                 if (mergeState.knnVectorsReaders[i] != null
                     && mergeState.knnVectorsReaders[i].getFloatVectorValues(fieldInfo.name) != null) {
-                    ESQuantizedVectorsReader reader = getQuantizedKnnVectorsReader(mergeState.knnVectorsReaders[i], fieldInfo.name);
+                    QuantizedVectorsReader reader = getQuantizedKnnVectorsReader(mergeState.knnVectorsReaders[i], fieldInfo.name);
                     assert scalarQuantizer != null;
                     final QuantizedByteVectorValueSub sub;
                     // Either our quantization parameters are way different than the merged ones
@@ -793,7 +778,7 @@ public final class ESLucene99ScalarQuantizedVectorsWriter extends FlatVectorsWri
                         || shouldRequantize(reader.getQuantizationState(fieldInfo.name), scalarQuantizer)) {
                         sub = new QuantizedByteVectorValueSub(
                             mergeState.docMaps[i],
-                            new ESQuantizedFloatVectorValues(
+                            new QuantizedFloatVectorValues(
                                 mergeState.knnVectorsReaders[i].getFloatVectorValues(fieldInfo.name),
                                 fieldInfo.getVectorSimilarityFunction(),
                                 scalarQuantizer
@@ -871,12 +856,12 @@ public final class ESLucene99ScalarQuantizedVectorsWriter extends FlatVectorsWri
         }
 
         @Override
-        float getScoreCorrectionConstant() throws IOException {
+        public float getScoreCorrectionConstant() throws IOException {
             return current.values.getScoreCorrectionConstant();
         }
     }
 
-    private static class ESQuantizedFloatVectorValues extends ESQuantizedByteVectorValues {
+    private static class QuantizedFloatVectorValues extends QuantizedByteVectorValues {
         private final FloatVectorValues values;
         private final ScalarQuantizer quantizer;
         private final byte[] quantizedVector;
@@ -885,11 +870,7 @@ public final class ESLucene99ScalarQuantizedVectorsWriter extends FlatVectorsWri
 
         private final VectorSimilarityFunction vectorSimilarityFunction;
 
-        ESQuantizedFloatVectorValues(
-            FloatVectorValues values,
-            VectorSimilarityFunction vectorSimilarityFunction,
-            ScalarQuantizer quantizer
-        ) {
+        QuantizedFloatVectorValues(FloatVectorValues values, VectorSimilarityFunction vectorSimilarityFunction, ScalarQuantizer quantizer) {
             this.values = values;
             this.quantizer = quantizer;
             this.quantizedVector = new byte[values.dimension()];
@@ -902,7 +883,7 @@ public final class ESLucene99ScalarQuantizedVectorsWriter extends FlatVectorsWri
         }
 
         @Override
-        float getScoreCorrectionConstant() {
+        public float getScoreCorrectionConstant() {
             return offsetValue;
         }
 
@@ -957,11 +938,15 @@ public final class ESLucene99ScalarQuantizedVectorsWriter extends FlatVectorsWri
 
     static final class ScalarQuantizedCloseableRandomVectorScorerSupplier implements CloseableRandomVectorScorerSupplier {
 
-        private final RandomVectorScorerSupplier supplier;
+        private final ScalarQuantizedRandomVectorScorerSupplier supplier;
         private final Closeable onClose;
         private final int numVectors;
 
-        ScalarQuantizedCloseableRandomVectorScorerSupplier(Closeable onClose, int numVectors, RandomVectorScorerSupplier supplier) {
+        ScalarQuantizedCloseableRandomVectorScorerSupplier(
+            Closeable onClose,
+            int numVectors,
+            ScalarQuantizedRandomVectorScorerSupplier supplier
+        ) {
             this.onClose = onClose;
             this.supplier = supplier;
             this.numVectors = numVectors;
@@ -988,14 +973,14 @@ public final class ESLucene99ScalarQuantizedVectorsWriter extends FlatVectorsWri
         }
     }
 
-    private static final class OffsetCorrectedQuantizedByteVectorValues extends ESQuantizedByteVectorValues {
+    private static final class OffsetCorrectedQuantizedByteVectorValues extends QuantizedByteVectorValues {
 
-        private final ESQuantizedByteVectorValues in;
+        private final QuantizedByteVectorValues in;
         private final VectorSimilarityFunction vectorSimilarityFunction;
         private final ScalarQuantizer scalarQuantizer, oldScalarQuantizer;
 
         private OffsetCorrectedQuantizedByteVectorValues(
-            ESQuantizedByteVectorValues in,
+            QuantizedByteVectorValues in,
             VectorSimilarityFunction vectorSimilarityFunction,
             ScalarQuantizer scalarQuantizer,
             ScalarQuantizer oldScalarQuantizer
@@ -1007,7 +992,7 @@ public final class ESLucene99ScalarQuantizedVectorsWriter extends FlatVectorsWri
         }
 
         @Override
-        float getScoreCorrectionConstant() throws IOException {
+        public float getScoreCorrectionConstant() throws IOException {
             return scalarQuantizer.recalculateCorrectiveOffset(in.vectorValue(), oldScalarQuantizer, vectorSimilarityFunction);
         }
 

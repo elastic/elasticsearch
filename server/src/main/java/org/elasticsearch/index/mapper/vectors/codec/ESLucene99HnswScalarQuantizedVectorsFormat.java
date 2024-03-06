@@ -1,31 +1,19 @@
 /*
- * @notice
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.
- * The ASF licenses this file to You under the Apache License, Version 2.0
- * (the "License"); you may not use this file except in compliance with
- * the License.  You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- *
- * Modifications copyright (C) 2024 Elasticsearch B.V.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper.vectors.codec;
 
-import org.apache.lucene.codecs.FlatVectorsFormat;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.KnnVectorsWriter;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat;
-import org.apache.lucene.codecs.lucene99.Lucene99ScalarQuantizedVectorsFormat;
+import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader;
+import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsWriter;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.search.TaskExecutor;
@@ -34,20 +22,10 @@ import org.apache.lucene.util.hnsw.HnswGraph;
 import java.io.IOException;
 import java.util.concurrent.ExecutorService;
 
-import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
-import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN;
-import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAULT_NUM_MERGE_WORKER;
-
-/**
- * Lucene 9.9 vector format, which encodes numeric vector values into an associated graph connecting
- * the documents having values. The graph is used to power HNSW search. The format consists of two
- * files, and uses {@link Lucene99ScalarQuantizedVectorsFormat} to store the actual vectors: For
- * details on graph storage and file extensions, see {@link Lucene99HnswVectorsFormat}.
- */
 public final class ESLucene99HnswScalarQuantizedVectorsFormat extends KnnVectorsFormat {
 
-    static final int MAXIMUM_BEAM_WIDTH = 3200;
     static final int MAXIMUM_MAX_CONN = 512;
+    static final int MAXIMUM_BEAM_WIDTH = 3200;
 
     /**
      * Controls how many of the nearest neighbor candidates are connected to the new node. Defaults to
@@ -63,38 +41,11 @@ public final class ESLucene99HnswScalarQuantizedVectorsFormat extends KnnVectors
     private final int beamWidth;
 
     /** The format for storing, reading, merging vectors on disk */
-    private final FlatVectorsFormat flatVectorsFormat;
+    private final ESLucene99ScalarQuantizedVectorsFormat flatVectorsFormat;
 
     private final int numMergeWorkers;
     private final TaskExecutor mergeExec;
 
-    /** Constructs a format using default graph construction parameters */
-    public ESLucene99HnswScalarQuantizedVectorsFormat() {
-        this(DEFAULT_MAX_CONN, DEFAULT_BEAM_WIDTH, DEFAULT_NUM_MERGE_WORKER, null, null);
-    }
-
-    /**
-     * Constructs a format using the given graph construction parameters.
-     *
-     * @param maxConn the maximum number of connections to a node in the HNSW graph
-     * @param beamWidth the size of the queue maintained during graph construction.
-     */
-    public ESLucene99HnswScalarQuantizedVectorsFormat(int maxConn, int beamWidth) {
-        this(maxConn, beamWidth, DEFAULT_NUM_MERGE_WORKER, null, null);
-    }
-
-    /**
-     * Constructs a format using the given graph construction parameters and scalar quantization.
-     *
-     * @param maxConn the maximum number of connections to a node in the HNSW graph
-     * @param beamWidth the size of the queue maintained during graph construction.
-     * @param numMergeWorkers number of workers (threads) that will be used when doing merge. If
-     *     larger than 1, a non-null {@link ExecutorService} must be passed as mergeExec
-     * @param confidenceInterval the confidenceInterval for scalar quantizing the vectors, when `null`
-     *     it is calculated based on the vector field dimensions.
-     * @param mergeExec the {@link ExecutorService} that will be used by ALL vector writers that are
-     *     generated by this format to do the merge
-     */
     public ESLucene99HnswScalarQuantizedVectorsFormat(
         int maxConn,
         int beamWidth,
@@ -102,7 +53,7 @@ public final class ESLucene99HnswScalarQuantizedVectorsFormat extends KnnVectors
         Float confidenceInterval,
         ExecutorService mergeExec
     ) {
-        super("Lucene99HnswScalarQuantizedVectorsFormat");
+        super("Lucene99HnswScalarQuantizedVectorsFormat");  // TODO: rename to ESXXXXX
         if (maxConn <= 0 || maxConn > MAXIMUM_MAX_CONN) {
             throw new IllegalArgumentException(
                 "maxConn must be positive and less than or equal to " + MAXIMUM_MAX_CONN + "; maxConn=" + maxConn
@@ -132,19 +83,12 @@ public final class ESLucene99HnswScalarQuantizedVectorsFormat extends KnnVectors
 
     @Override
     public KnnVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
-        return new ESLucene99HnswVectorsWriter(
-            state,
-            maxConn,
-            beamWidth,
-            flatVectorsFormat.fieldsWriter(state),
-            numMergeWorkers,
-            mergeExec
-        );
+        return new Lucene99HnswVectorsWriter(state, maxConn, beamWidth, flatVectorsFormat.fieldsWriter(state), numMergeWorkers, mergeExec);
     }
 
     @Override
     public KnnVectorsReader fieldsReader(SegmentReadState state) throws IOException {
-        return new ESLucene99HnswVectorsReader(state, flatVectorsFormat.fieldsReader(state));
+        return new Lucene99HnswVectorsReader(state, flatVectorsFormat.fieldsReader(state));
     }
 
     @Override

@@ -20,6 +20,10 @@ import static org.hamcrest.Matchers.startsWith;
 
 public abstract class AbstractVectorTestCase extends ESTestCase {
 
+    protected AbstractVectorTestCase() {
+        logger.info(platformMsg());
+    }
+
     static boolean supported() {
         var jdkVersion = Runtime.version().feature();
         var arch = System.getProperty("os.arch");
@@ -36,10 +40,14 @@ public abstract class AbstractVectorTestCase extends ESTestCase {
     }
 
     static String notSupportedMsg() {
+        return "Not supported on [" + platformMsg() + "]";
+    }
+
+    static String platformMsg() {
         var jdkVersion = Runtime.version().feature();
         var arch = System.getProperty("os.arch");
         var osName = System.getProperty("os.name");
-        return "Not supported on [JDK=" + jdkVersion + ", os=" + osName + ", arch=" + arch + "]";
+        return "JDK=" + jdkVersion + ", os=" + osName + ", arch=" + arch;
     }
 
     /** Computes the scalar quantized dot product of the given vectors a and b. */

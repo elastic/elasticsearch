@@ -333,9 +333,24 @@ setup:
             properties:
               range:
                 type: long
+              other_nested_thing:
+                type: nested
+                properties:
+                  text:
+                    type: text
               paragraphs:
                 type: nested
                 properties:
+                  other_nested_thing:
+                    type: nested
+                    properties:
+                      text:
+                        type: text
+                      vector:
+                        type: dense_vector
+                        dims: 2
+                        index: true
+                        similarity: cosine
                   vector:
                     type: dense_vector
                     dims: 2
@@ -352,6 +367,9 @@ setup:
               text: "some text"
             - vector: [1, 2]
               text: "some text"
+              other_nested_thing:
+                - text: "some text"
+                  vector: [1, 2]
   - do:
       index:
         index: nested_text
@@ -362,6 +380,9 @@ setup:
               text: "some text"
             - vector: [2, 2]
               text: "some text"
+              other_nested_thing:
+                - text: "some text"
+                  vector: [ 1, 2 ]
   - do:
       indices.refresh: {}
 

@@ -24,6 +24,9 @@ import org.elasticsearch.xpack.core.transform.TransformField;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.Objects;
+import java.util.Optional;
+
+import static org.elasticsearch.xpack.core.transform.TransformField.UNATTENDED;
 
 public class TransformTaskParams implements SimpleDiffable<TransformTaskParams>, PersistentTaskParams {
 
@@ -37,11 +40,12 @@ public class TransformTaskParams implements SimpleDiffable<TransformTaskParams>,
     private final Instant from;
     private final TimeValue frequency;
     private final Boolean requiresRemote;
+    private final Boolean unattended;
 
     public static final ConstructingObjectParser<TransformTaskParams, Void> PARSER = new ConstructingObjectParser<>(
         NAME,
         true,
-        a -> new TransformTaskParams((String) a[0], (String) a[1], (Long) a[2], (String) a[3], (Boolean) a[4])
+        a -> new TransformTaskParams((String) a[0], (String) a[1], (Long) a[2], (String) a[3], (Boolean) a[4], (Boolean) a[5])
     );
 
     static {
@@ -50,28 +54,44 @@ public class TransformTaskParams implements SimpleDiffable<TransformTaskParams>,
         PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), FROM);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), FREQUENCY);
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), REQUIRES_REMOTE);
+        PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), UNATTENDED);
     }
 
-    private TransformTaskParams(String transformId, String version, Long from, String frequency, Boolean remote) {
+    private TransformTaskParams(String transformId, String version, Long from, String frequency, Boolean remote, Boolean unattended) {
         this(
             transformId,
             version == null ? null : TransformConfigVersion.fromString(version),
             from == null ? null : Instant.ofEpochMilli(from),
             frequency == null ? null : TimeValue.parseTimeValue(frequency, FREQUENCY.getPreferredName()),
-            remote == null ? false : remote.booleanValue()
+            remote != null && remote,
+            unattended
         );
     }
 
-    public TransformTaskParams(String transformId, TransformConfigVersion version, TimeValue frequency, boolean remote) {
-        this(transformId, version, null, frequency, remote);
+    public TransformTaskParams(
+        String transformId,
+        TransformConfigVersion version,
+        TimeValue frequency,
+        boolean remote,
+        boolean unattended
+    ) {
+        this(transformId, version, null, frequency, remote, unattended);
     }
 
-    public TransformTaskParams(String transformId, TransformConfigVersion version, Instant from, TimeValue frequency, boolean remote) {
+    public TransformTaskParams(
+        String transformId,
+        TransformConfigVersion version,
+        Instant from,
+        TimeValue frequency,
+        boolean remote,
+        boolean unattended
+    ) {
         this.transformId = transformId;
         this.version = version == null ? TransformConfigVersion.V_7_2_0 : version;
         this.from = from;
         this.frequency = frequency;
         this.requiresRemote = remote;
+        this.unattended = unattended;
     }
 
     public TransformTaskParams(StreamInput in) throws IOException {
@@ -84,6 +104,11 @@ public class TransformTaskParams implements SimpleDiffable<TransformTaskParams>,
         }
         this.frequency = in.readOptionalTimeValue();
         this.requiresRemote = in.readBoolean();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.TRANSFORM_PERSIST_UNATTENDED)) {
+            this.unattended = in.readOptionalBoolean();
+        } else {
+            this.unattended = null;
+        }
     }
 
     @Override
@@ -105,6 +130,9 @@ public class TransformTaskParams implements SimpleDiffable<TransformTaskParams>,
         }
         out.writeOptionalTimeValue(frequency);
         out.writeBoolean(requiresRemote);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.TRANSFORM_PERSIST_UNATTENDED)) {
+            out.writeOptionalBoolean(unattended);
+        }
     }
 
     @Override
@@ -119,6 +147,9 @@ public class TransformTaskParams implements SimpleDiffable<TransformTaskParams>,
             builder.field(FREQUENCY.getPreferredName(), frequency.getStringRep());
         }
         builder.field(REQUIRES_REMOTE.getPreferredName(), requiresRemote);
+        if (unattended != null) {
+            builder.field(UNATTENDED.getPreferredName(), unattended);
+        }
         builder.endObject();
         return builder;
     }
@@ -143,6 +174,15 @@ public class TransformTaskParams implements SimpleDiffable<TransformTaskParams>,
         return requiresRemote;
     }
 
+    /**
+     * @return `true` if we are unattended.<br>
+     * `false` if we know we aren't unattended.<br>
+     * `empty` if we can't determine the status (we are before {@link TransportVersions#TRANSFORM_PERSIST_UNATTENDED}).<br>
+     */
+    public Optional<Boolean> unattended() {
+        return Optional.ofNullable(unattended);
+    }
+
     public static TransformTaskParams fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }
@@ -163,11 +203,12 @@ public class TransformTaskParams implements SimpleDiffable<TransformTaskParams>,
             && Objects.equals(this.version, that.version)
             && Objects.equals(this.from, that.from)
             && Objects.equals(this.frequency, that.frequency)
-            && this.requiresRemote == that.requiresRemote;
+            && this.requiresRemote == that.requiresRemote
+            && this.unattended == that.unattended;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(transformId, version, from, frequency, requiresRemote);
+        return Objects.hash(transformId, version, from, frequency, requiresRemote, unattended);
     }
 }

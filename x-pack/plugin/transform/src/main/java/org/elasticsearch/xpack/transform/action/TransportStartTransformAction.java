@@ -253,7 +253,8 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
                     config.getVersion(),
                     request.from(),
                     config.getFrequency(),
-                    config.getSource().requiresRemoteCluster()
+                    config.getSource().requiresRemoteCluster(),
+                    TransformEffectiveSettings.isUnattended(config.getSettings())
                 )
             );
             ClientHelper.executeAsyncWithOrigin(

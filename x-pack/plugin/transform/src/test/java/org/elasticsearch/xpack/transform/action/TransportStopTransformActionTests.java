@@ -52,7 +52,7 @@ public class TransportStopTransformActionTests extends ESTestCase {
             .addTask(
                 "non-failed-task",
                 TransformTaskParams.NAME,
-                new TransformTaskParams("transform-task-1", TransformConfigVersion.CURRENT, null, false),
+                new TransformTaskParams("transform-task-1", TransformConfigVersion.CURRENT, null, false, false),
                 new PersistentTasksCustomMetadata.Assignment("current-data-node-with-1-tasks", "")
             );
         ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("_name")).metadata(buildMetadata(pTasksBuilder.build()));
@@ -71,7 +71,7 @@ public class TransportStopTransformActionTests extends ESTestCase {
         pTasksBuilder.addTask(
             "failed-task",
             TransformTaskParams.NAME,
-            new TransformTaskParams("transform-task-1", TransformConfigVersion.CURRENT, null, false),
+            new TransformTaskParams("transform-task-1", TransformConfigVersion.CURRENT, null, false, false),
             new PersistentTasksCustomMetadata.Assignment("current-data-node-with-1-tasks", "")
         )
             .updateTaskState(

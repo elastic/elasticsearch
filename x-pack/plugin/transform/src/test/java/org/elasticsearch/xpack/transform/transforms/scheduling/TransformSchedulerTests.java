@@ -74,7 +74,13 @@ public class TransformSchedulerTests extends ESTestCase {
         TimeValue frequency = TimeValue.timeValueSeconds(frequencySeconds);
         TimeValue minFrequency = TimeValue.timeValueSeconds(minFreqencySeconds);
         TimeValue fiveSeconds = TimeValue.timeValueSeconds(5);
-        TransformTaskParams transformTaskParams = new TransformTaskParams(transformId, TransformConfigVersion.CURRENT, frequency, false);
+        TransformTaskParams transformTaskParams = new TransformTaskParams(
+            transformId,
+            TransformConfigVersion.CURRENT,
+            frequency,
+            false,
+            false
+        );
         FakeClock clock = new FakeClock(Instant.ofEpochMilli(0));
         CopyOnWriteArrayList<TransformScheduler.Event> events = new CopyOnWriteArrayList<>();
         TransformScheduler.Listener listener = events::add;
@@ -133,7 +139,13 @@ public class TransformSchedulerTests extends ESTestCase {
     public void testSchedulingWithFailures() {
         String transformId = "test-failure-with-fake-clock";
         TimeValue frequency = TimeValue.timeValueHours(1);
-        TransformTaskParams transformTaskParams = new TransformTaskParams(transformId, TransformConfigVersion.CURRENT, frequency, false);
+        TransformTaskParams transformTaskParams = new TransformTaskParams(
+            transformId,
+            TransformConfigVersion.CURRENT,
+            frequency,
+            false,
+            false
+        );
         FakeClock clock = new FakeClock(Instant.ofEpochMilli(0));
         CopyOnWriteArrayList<TransformScheduler.Event> events = new CopyOnWriteArrayList<>();
         TransformScheduler.Listener listener = events::add;
@@ -185,7 +197,13 @@ public class TransformSchedulerTests extends ESTestCase {
     public void testScheduleNow() {
         String transformId = "test-schedule-now-with-fake-clock";
         TimeValue frequency = TimeValue.timeValueHours(1);
-        TransformTaskParams transformTaskParams = new TransformTaskParams(transformId, TransformConfigVersion.CURRENT, frequency, false);
+        TransformTaskParams transformTaskParams = new TransformTaskParams(
+            transformId,
+            TransformConfigVersion.CURRENT,
+            frequency,
+            false,
+            false
+        );
         FakeClock clock = new FakeClock(Instant.ofEpochMilli(0));
         CopyOnWriteArrayList<TransformScheduler.Event> events = new CopyOnWriteArrayList<>();
         TransformScheduler.Listener listener = events::add;
@@ -235,7 +253,13 @@ public class TransformSchedulerTests extends ESTestCase {
         String transformId = "test-with-fake-clock-concurrent";
         int frequencySeconds = 5;
         TimeValue frequency = TimeValue.timeValueSeconds(frequencySeconds);
-        TransformTaskParams transformTaskParams = new TransformTaskParams(transformId, TransformConfigVersion.CURRENT, frequency, false);
+        TransformTaskParams transformTaskParams = new TransformTaskParams(
+            transformId,
+            TransformConfigVersion.CURRENT,
+            frequency,
+            false,
+            false
+        );
         FakeClock clock = new FakeClock(Instant.ofEpochMilli(0));
         CopyOnWriteArrayList<TransformScheduler.Event> events = new CopyOnWriteArrayList<>();
         TransformScheduler.Listener listener = events::add;
@@ -273,7 +297,13 @@ public class TransformSchedulerTests extends ESTestCase {
         String transformId = "test-with-fake-clock-concurrent";
         int frequencySeconds = 5;
         TimeValue frequency = TimeValue.timeValueSeconds(frequencySeconds);
-        TransformTaskParams transformTaskParams = new TransformTaskParams(transformId, TransformConfigVersion.CURRENT, frequency, false);
+        TransformTaskParams transformTaskParams = new TransformTaskParams(
+            transformId,
+            TransformConfigVersion.CURRENT,
+            frequency,
+            false,
+            false
+        );
         FakeClock clock = new FakeClock(Instant.ofEpochMilli(0));
         CopyOnWriteArrayList<TransformScheduler.Event> events = new CopyOnWriteArrayList<>();
 
@@ -315,7 +345,13 @@ public class TransformSchedulerTests extends ESTestCase {
     public void testSchedulingWithSystemClock() throws Exception {
         String transformId = "test-with-system-clock";
         TimeValue frequency = TimeValue.timeValueSeconds(1);
-        TransformTaskParams transformTaskParams = new TransformTaskParams(transformId, TransformConfigVersion.CURRENT, frequency, false);
+        TransformTaskParams transformTaskParams = new TransformTaskParams(
+            transformId,
+            TransformConfigVersion.CURRENT,
+            frequency,
+            false,
+            false
+        );
         Clock clock = Clock.systemUTC();
         CopyOnWriteArrayList<TransformScheduler.Event> events = new CopyOnWriteArrayList<>();
 
@@ -340,7 +376,13 @@ public class TransformSchedulerTests extends ESTestCase {
     public void testScheduleNowWithSystemClock() throws Exception {
         String transformId = "test-schedule-now-with-system-clock";
         TimeValue frequency = TimeValue.timeValueHours(1);  // Very long pause between checkpoints
-        TransformTaskParams transformTaskParams = new TransformTaskParams(transformId, TransformConfigVersion.CURRENT, frequency, false);
+        TransformTaskParams transformTaskParams = new TransformTaskParams(
+            transformId,
+            TransformConfigVersion.CURRENT,
+            frequency,
+            false,
+            false
+        );
         Clock clock = Clock.systemUTC();
         CopyOnWriteArrayList<TransformScheduler.Event> events = new CopyOnWriteArrayList<>();
 
@@ -394,9 +436,27 @@ public class TransformSchedulerTests extends ESTestCase {
         String transformId2 = "test-register-transforms-2";
         String transformId3 = "test-register-transforms-3";
         TimeValue frequency = TimeValue.timeValueSeconds(5);
-        TransformTaskParams transformTaskParams1 = new TransformTaskParams(transformId1, TransformConfigVersion.CURRENT, frequency, false);
-        TransformTaskParams transformTaskParams2 = new TransformTaskParams(transformId2, TransformConfigVersion.CURRENT, frequency, false);
-        TransformTaskParams transformTaskParams3 = new TransformTaskParams(transformId3, TransformConfigVersion.CURRENT, frequency, false);
+        TransformTaskParams transformTaskParams1 = new TransformTaskParams(
+            transformId1,
+            TransformConfigVersion.CURRENT,
+            frequency,
+            false,
+            false
+        );
+        TransformTaskParams transformTaskParams2 = new TransformTaskParams(
+            transformId2,
+            TransformConfigVersion.CURRENT,
+            frequency,
+            false,
+            false
+        );
+        TransformTaskParams transformTaskParams3 = new TransformTaskParams(
+            transformId3,
+            TransformConfigVersion.CURRENT,
+            frequency,
+            false,
+            false
+        );
         FakeClock clock = new FakeClock(Instant.ofEpochMilli(0));
         CopyOnWriteArrayList<TransformScheduler.Event> events = new CopyOnWriteArrayList<>();
         TransformScheduler.Listener listener = events::add;
@@ -424,9 +484,27 @@ public class TransformSchedulerTests extends ESTestCase {
         String transformId2 = "test-register-transforms-2";
         String transformId3 = "test-register-transforms-3";
         TimeValue frequency = TimeValue.timeValueSeconds(5);
-        TransformTaskParams transformTaskParams1 = new TransformTaskParams(transformId1, TransformConfigVersion.CURRENT, frequency, false);
-        TransformTaskParams transformTaskParams2 = new TransformTaskParams(transformId2, TransformConfigVersion.CURRENT, frequency, false);
-        TransformTaskParams transformTaskParams3 = new TransformTaskParams(transformId3, TransformConfigVersion.CURRENT, frequency, false);
+        TransformTaskParams transformTaskParams1 = new TransformTaskParams(
+            transformId1,
+            TransformConfigVersion.CURRENT,
+            frequency,
+            false,
+            false
+        );
+        TransformTaskParams transformTaskParams2 = new TransformTaskParams(
+            transformId2,
+            TransformConfigVersion.CURRENT,
+            frequency,
+            false,
+            false
+        );
+        TransformTaskParams transformTaskParams3 = new TransformTaskParams(
+            transformId3,
+            TransformConfigVersion.CURRENT,
+            frequency,
+            false,
+            false
+        );
         FakeClock clock = new FakeClock(Instant.ofEpochMilli(0));
         CopyOnWriteArrayList<TransformScheduler.Event> events = new CopyOnWriteArrayList<>();
         TransformScheduler.Listener listener = events::add;

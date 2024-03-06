@@ -66,7 +66,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
 
         assertThat(
             executor.getAssignment(
-                new TransformTaskParams("new-task-id", TransformConfigVersion.CURRENT, null, true),
+                new TransformTaskParams("new-task-id", TransformConfigVersion.CURRENT, null, true, false),
                 cs.nodes().getAllNodes(),
                 cs
             ).getExecutorNode(),
@@ -74,7 +74,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
         );
         assertThat(
             executor.getAssignment(
-                new TransformTaskParams("new-task-id", TransformConfigVersion.CURRENT, null, false),
+                new TransformTaskParams("new-task-id", TransformConfigVersion.CURRENT, null, false, false),
                 cs.nodes().getAllNodes(),
                 cs
             ).getExecutorNode(),
@@ -82,7 +82,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
         );
         assertThat(
             executor.getAssignment(
-                new TransformTaskParams("new-old-task-id", TransformConfigVersion.V_7_7_0, null, true),
+                new TransformTaskParams("new-old-task-id", TransformConfigVersion.V_7_7_0, null, true, false),
                 cs.nodes().getAllNodes(),
                 cs
             ).getExecutorNode(),
@@ -97,7 +97,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
         TransformPersistentTasksExecutor executor = buildTaskExecutor();
 
         Assignment assignment = executor.getAssignment(
-            new TransformTaskParams("new-task-id", TransformConfigVersion.CURRENT, null, false),
+            new TransformTaskParams("new-task-id", TransformConfigVersion.CURRENT, null, false, false),
             cs.nodes().getAllNodes(),
             cs
         );
@@ -113,7 +113,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
         executor = buildTaskExecutor();
 
         assignment = executor.getAssignment(
-            new TransformTaskParams("new-task-id", TransformConfigVersion.CURRENT, null, false),
+            new TransformTaskParams("new-task-id", TransformConfigVersion.CURRENT, null, false, false),
             cs.nodes().getAllNodes(),
             cs
         );
@@ -126,7 +126,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
         executor = buildTaskExecutor();
 
         assignment = executor.getAssignment(
-            new TransformTaskParams("new-task-id", TransformConfigVersion.V_8_0_0, null, false),
+            new TransformTaskParams("new-task-id", TransformConfigVersion.V_8_0_0, null, false, false),
             cs.nodes().getAllNodes(),
             cs
         );
@@ -143,7 +143,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
         );
 
         assignment = executor.getAssignment(
-            new TransformTaskParams("new-task-id", TransformConfigVersion.V_7_5_0, null, false),
+            new TransformTaskParams("new-task-id", TransformConfigVersion.V_7_5_0, null, false, false),
             cs.nodes().getAllNodes(),
             cs
         );
@@ -156,7 +156,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
         executor = buildTaskExecutor();
 
         assignment = executor.getAssignment(
-            new TransformTaskParams("new-task-id", TransformConfigVersion.V_7_5_0, null, true),
+            new TransformTaskParams("new-task-id", TransformConfigVersion.V_7_5_0, null, true, false),
             cs.nodes().getAllNodes(),
             cs
         );
@@ -172,7 +172,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
         );
 
         assignment = executor.getAssignment(
-            new TransformTaskParams("new-task-id", TransformConfigVersion.CURRENT, null, false),
+            new TransformTaskParams("new-task-id", TransformConfigVersion.CURRENT, null, false, false),
             cs.nodes().getAllNodes(),
             cs
         );
@@ -185,7 +185,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
         executor = buildTaskExecutor();
 
         assignment = executor.getAssignment(
-            new TransformTaskParams("new-task-id", TransformConfigVersion.V_7_5_0, null, true),
+            new TransformTaskParams("new-task-id", TransformConfigVersion.V_7_5_0, null, true, false),
             cs.nodes().getAllNodes(),
             cs
         );
@@ -207,7 +207,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
         executor = buildTaskExecutor();
 
         assignment = executor.getAssignment(
-            new TransformTaskParams("new-task-id", TransformConfigVersion.V_7_5_0, null, true),
+            new TransformTaskParams("new-task-id", TransformConfigVersion.V_7_5_0, null, true, false),
             cs.nodes().getAllNodes(),
             cs
         );
@@ -391,19 +391,19 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
             .addTask(
                 "transform-task-1",
                 TransformTaskParams.NAME,
-                new TransformTaskParams("transform-task-1", TransformConfigVersion.CURRENT, null, false),
+                new TransformTaskParams("transform-task-1", TransformConfigVersion.CURRENT, null, false, false),
                 new PersistentTasksCustomMetadata.Assignment("current-data-node-with-1-tasks", "")
             )
             .addTask(
                 "transform-task-2",
                 TransformTaskParams.NAME,
-                new TransformTaskParams("transform-task-2", TransformConfigVersion.CURRENT, null, false),
+                new TransformTaskParams("transform-task-2", TransformConfigVersion.CURRENT, null, false, false),
                 new PersistentTasksCustomMetadata.Assignment("current-data-node-with-2-tasks", "")
             )
             .addTask(
                 "transform-task-3",
                 TransformTaskParams.NAME,
-                new TransformTaskParams("transform-task-3", TransformConfigVersion.CURRENT, null, false),
+                new TransformTaskParams("transform-task-3", TransformConfigVersion.CURRENT, null, false, false),
                 new PersistentTasksCustomMetadata.Assignment("current-data-node-with-2-tasks", "")
             );
 

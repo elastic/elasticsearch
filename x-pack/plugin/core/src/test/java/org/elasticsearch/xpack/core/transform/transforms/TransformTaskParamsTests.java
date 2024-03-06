@@ -24,6 +24,7 @@ public class TransformTaskParamsTests extends AbstractSerializingTransformTestCa
             randomBoolean() ? TransformConfigVersionUtils.randomVersion(random()) : null,
             randomBoolean() ? Instant.ofEpochMilli(randomLongBetween(0, 1_000_000_000_000L)) : null,
             randomBoolean() ? TimeValue.timeValueSeconds(randomLongBetween(1, 24 * 60 * 60)) : null,
+            randomBoolean(),
             randomBoolean()
         );
     }

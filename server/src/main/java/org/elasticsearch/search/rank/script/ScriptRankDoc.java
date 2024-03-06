@@ -20,7 +20,6 @@ import java.util.Map;
 public final class ScriptRankDoc {
     private final ScoreDoc scoreDoc;
     private final Map<String, Object> fields;
-    private final float[] queryScores;
 
     private Object userContext;
 
@@ -28,13 +27,10 @@ public final class ScriptRankDoc {
      * @param scoreDoc    A ScoreDoc containing the doc's (retriever) score, doc id, and shard id.
      * @param fields      A Map of field names to values, as per those requested in the "fields"
      *                    parameter of the script rank query.
-     * @param queryScores The scores (in order) for each query specified in the "queries" parameter
-     *                    of the script rank query.
      */
-    public ScriptRankDoc(ScoreDoc scoreDoc, Map<String, Object> fields, float[] queryScores) {
+    public ScriptRankDoc(ScoreDoc scoreDoc, Map<String, Object> fields) {
         this.scoreDoc = scoreDoc;
         this.fields = fields;
-        this.queryScores = queryScores;
     }
 
     /**
@@ -55,19 +51,6 @@ public final class ScriptRankDoc {
     public Object getField(String field) {
         return fields.get(field);
     }
-
-
-    /**
-     * Returns the score of the nth query as specified by the "query" param of
-     * the request.
-     *
-     * @param queryIndex The index of the query, starting at 0.
-     * @return The query's score for this document.
-     */
-    public float getQueryScore(int queryIndex) throws IndexOutOfBoundsException {
-        return queryScores[queryIndex]; // TODO: need to make this a vector of scores
-    }
-
 
     /**
      * TODO update documentation

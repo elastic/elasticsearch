@@ -9,8 +9,6 @@
 package org.elasticsearch.search.rank.script;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.Query;
-import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.fetch.FetchContext;
@@ -20,19 +18,14 @@ import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.SourceFilter;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
-import static org.apache.lucene.search.ScoreMode.COMPLETE;
 
 public class ScriptRankFetchSubPhaseProcessor implements FetchSubPhaseProcessor {
 
     private final FetchContext fetchContext;
     private final List<String> fields;
-    private final List<Query> queries;
 
     private final SourceFilter sourceFilter;
 
@@ -40,8 +33,7 @@ public class ScriptRankFetchSubPhaseProcessor implements FetchSubPhaseProcessor 
 
     public ScriptRankFetchSubPhaseProcessor(
         FetchContext fetchContext,
-        List<String> fields,
-        List<QueryBuilder> queryBuilders
+        List<String> fields
     ) {
         this.fetchContext = fetchContext;
         this.fields = fields;
@@ -49,14 +41,6 @@ public class ScriptRankFetchSubPhaseProcessor implements FetchSubPhaseProcessor 
             fields.toArray(String[]::new),
             null
         );
-        this.queries = new ArrayList<>();
-        for (QueryBuilder queryBuilder : queryBuilders) {
-            try {
-                queries.add(queryBuilder.toQuery(fetchContext.getSearchExecutionContext()));
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
-        }
     }
 
     @Override
@@ -78,22 +62,8 @@ public class ScriptRankFetchSubPhaseProcessor implements FetchSubPhaseProcessor 
             filteredSource = hitContext.source().filter(sourceFilter).source();
         }
 
-        float[] queryScores = null;
-        if (queries != null && queries.isEmpty() == false) {
-            queryScores = new float[queries.size()];
-            for (int i = 0; i < queries.size(); ++i) {
-                var weight = queries.get(i).createWeight(fetchContext.searcher(), COMPLETE, 1f);
-                var scorer = weight.scorer(hitContext.readerContext());
-                if (scorer == null) {
-                    queryScores[i] = 0f;
-                } else {
-                    var docId = scorer.iterator().advance(hitContext.docId());
-                    queryScores[i] = docId == hitContext.docId() ? scorer.score() : 0f;
-                }
-            }
-        }
 
-        hitContext.hit().setRankHitData(new ScriptRankHitData(filteredSource, queryScores));
+        hitContext.hit().setRankHitData(new ScriptRankHitData(filteredSource));
     }
 
     @Override

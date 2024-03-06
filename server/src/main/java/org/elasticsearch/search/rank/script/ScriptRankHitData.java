@@ -19,16 +19,13 @@ import java.util.Map;
 
 public class ScriptRankHitData implements RankHitData {
     private final Map<String, Object> fieldData;
-    private final float[] queryScores;
 
-    public ScriptRankHitData(Map<String, Object> fieldData, float[] queryScores) {
+    public ScriptRankHitData(Map<String, Object> fieldData) {
         this.fieldData = fieldData;
-        this.queryScores = queryScores;
     }
 
     public ScriptRankHitData(StreamInput in) throws IOException {
         fieldData = in.readGenericMap();
-        queryScores = in.readFloatArray();
     }
 
     @Override
@@ -44,22 +41,16 @@ public class ScriptRankHitData implements RankHitData {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeGenericMap(fieldData);
-        out.writeFloatArray(queryScores);
     }
 
     public Map<String, Object> getFieldData() {
         return fieldData;
     }
 
-    public float[] getQueryScores() {
-        return queryScores;
-    }
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field("field_data", fieldData);
-        builder.array("query_scores", queryScores);
         builder.endObject();
         return builder;
     }

@@ -13,7 +13,6 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
@@ -99,10 +98,5 @@ public class TestRankBuilder extends RankBuilder { // TODO noop
     @Override
     protected int doHashCode() {
         return 0;
-    }
-
-    @Override
-    public TestRankBuilder rewrite(QueryRewriteContext ctx) throws IOException {
-        return this;
     }
 }

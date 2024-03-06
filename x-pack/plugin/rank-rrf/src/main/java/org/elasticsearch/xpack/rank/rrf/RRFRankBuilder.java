@@ -12,7 +12,6 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.fetch.FetchContext;
@@ -121,10 +120,5 @@ public class RRFRankBuilder extends RankBuilder { // TODO rewrite is a noop
     @Override
     protected int doHashCode() {
         return Objects.hash(rankConstant);
-    }
-
-    @Override
-    public RRFRankBuilder rewrite(QueryRewriteContext ctx) throws IOException {
-        return this;
     }
 }

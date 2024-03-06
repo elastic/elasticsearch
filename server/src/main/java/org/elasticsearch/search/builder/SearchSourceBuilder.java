@@ -1137,19 +1137,13 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             highlightBuilder = this.highlightBuilder.rewrite(context);
         }
 
-        RankBuilder rankBuilder = this.rankBuilder;
-        if (rankBuilder != null) {
-            rankBuilder = this.rankBuilder.rewrite(context);
-        }
-
         boolean rewritten = subSearchSourceBuilders != this.subSearchSourceBuilders
             || postQueryBuilder != this.postQueryBuilder
             || knnSearch != this.knnSearch
             || aggregations != this.aggregations
             || rescoreBuilders != this.rescoreBuilders
             || sorts != this.sorts
-            || this.highlightBuilder != highlightBuilder
-            || this.rankBuilder != rankBuilder;
+            || this.highlightBuilder != highlightBuilder;
         if (rewritten) {
             return shallowCopy(
                 subSearchSourceBuilders,

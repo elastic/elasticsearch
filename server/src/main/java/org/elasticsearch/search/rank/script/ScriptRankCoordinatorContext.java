@@ -100,7 +100,8 @@ public class ScriptRankCoordinatorContext extends RankCoordinatorContext {
         RankScript.Factory factory = scriptService.compile(script, RankScript.CONTEXT);
         RankScript rankScript = factory.newInstance(script.getParams());
 
-        record LookupData(Map<String, Object> fields, float[] queryScores) {}
+        record LookupData(Map<String, Object> fields) {
+        }
 
         // TODO: John clean this up.
         Map<RankKey, LookupData> lookup = new HashMap<>();
@@ -108,10 +109,7 @@ public class ScriptRankCoordinatorContext extends RankCoordinatorContext {
             for (var hit : fetchResult.fetchResult().hits().getHits()) {
                 lookup.put(
                     new RankKey(hit.docId(), fetchResult.getShardIndex()),
-                    new LookupData(
-                        ((ScriptRankHitData) hit.getRankHitData()).getFieldData(),
-                        ((ScriptRankHitData) hit.getRankHitData()).getQueryScores()
-                    )
+                    new LookupData(((ScriptRankHitData) hit.getRankHitData()).getFieldData())
                 );
             }
         }
@@ -126,8 +124,7 @@ public class ScriptRankCoordinatorContext extends RankCoordinatorContext {
                 currentRetrieverResults.add(
                     new ScriptRankDoc(
                         scoreDoc,
-                        lookupData.fields,
-                        lookupData.queryScores
+                        lookupData.fields
                     )
                 );
             }

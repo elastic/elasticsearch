@@ -37,6 +37,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.ToLongFunction;
 
+import static org.elasticsearch.TransportVersions.AGGS_EXCLUDED_DELETED_DOCS;
+
 public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<TermsAggregationBuilder> {
     public static final int KEY_ORDER_CONCURRENCY_THRESHOLD = 50;
 
@@ -191,8 +193,9 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
         includeExclude = in.readOptionalWriteable(IncludeExclude::new);
         order = InternalOrder.Streams.readOrder(in);
         showTermDocCountError = in.readBoolean();
-        // TODO: protect with transport version
-        excludeDeletedDocs = in.readBoolean();
+        if (in.getTransportVersion().onOrAfter(AGGS_EXCLUDED_DELETED_DOCS)) {
+            excludeDeletedDocs = in.readBoolean();
+        }
     }
 
     @Override
@@ -208,8 +211,9 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
         out.writeOptionalWriteable(includeExclude);
         order.writeTo(out);
         out.writeBoolean(showTermDocCountError);
-        // TODO: protect with transport version
-        out.writeBoolean(excludeDeletedDocs);
+        if (out.getTransportVersion().onOrAfter(AGGS_EXCLUDED_DELETED_DOCS)) {
+            out.writeBoolean(excludeDeletedDocs);
+        }
     }
 
     /**

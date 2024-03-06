@@ -11,7 +11,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.LongIntBlockSourceOperator;
+import org.elasticsearch.compute.operator.LongDoubleTupleBlockSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.core.Tuple;
 
@@ -23,28 +23,32 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
-public class ValuesIntGroupingAggregatorFunctionTests extends GroupingAggregatorFunctionTestCase {
+public class ValuesDoubleGroupingAggregatorFunctionTests extends GroupingAggregatorFunctionTestCase {
     @Override
     protected AggregatorFunctionSupplier aggregatorFunction(List<Integer> inputChannels) {
-        return new ValuesIntAggregatorFunctionSupplier(inputChannels);
+        return new ValuesDoubleAggregatorFunctionSupplier(inputChannels);
     }
 
     @Override
     protected String expectedDescriptionOfAggregator() {
-        return "values of ints";
+        return "values of doubles";
     }
 
     @Override
     protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
-        return new LongIntBlockSourceOperator(
+        return new LongDoubleTupleBlockSourceOperator(
             blockFactory,
-            LongStream.range(0, size).mapToObj(l -> Tuple.tuple(randomLongBetween(0, 4), randomInt()))
+            LongStream.range(0, size).mapToObj(l -> Tuple.tuple(randomLongBetween(0, 4), randomDouble()))
         );
     }
 
     @Override
     public void assertSimpleGroup(List<Page> input, Block result, int position, Long group) {
-        Object[] values = input.stream().flatMapToInt(p -> allInts(p, group)).boxed().collect(Collectors.toSet()).toArray(Object[]::new);
+        Object[] values = input.stream()
+            .flatMapToDouble(p -> allDoubles(p, group))
+            .boxed()
+            .collect(Collectors.toSet())
+            .toArray(Object[]::new);
         Object resultValue = BlockUtils.toJavaObject(result, position);
         switch (values.length) {
             case 0 -> assertThat(resultValue, nullValue());

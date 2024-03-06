@@ -9,7 +9,7 @@ package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongHash;
-$if(long)$
+$if(long||double)$
 import org.elasticsearch.common.util.LongLongHash;
 $endif$
 import org.elasticsearch.compute.ann.Aggregator;
@@ -19,6 +19,8 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 $if(int)$
 import org.elasticsearch.compute.data.IntBlock;
+$elseif(double)$
+import org.elasticsearch.compute.data.DoubleBlock;
 $endif$
 import org.elasticsearch.compute.data.IntVector;
 $if(long)$
@@ -36,7 +38,11 @@ class Values$Type$Aggregator {
     }
 
     public static void combine(SingleState state, $type$ v) {
+$if(double)$
+        state.values.add(Double.doubleToLongBits(v));
+$else$
         state.values.add(v);
+$endif$
     }
 
     public static void combineIntermediate(SingleState state, $Type$Block block) {
@@ -58,6 +64,8 @@ class Values$Type$Aggregator {
     public static void combine(GroupingState state, int groupId, $type$ v) {
 $if(long)$
         state.values.add(groupId, v);
+$elseif(double)$
+        state.values.add(groupId, Double.doubleToLongBits(v));
 $elseif(int)$
         state.values.add((((long) groupId) << Integer.SIZE) | (v & 0xFFFFFFFFL));
 $endif$
@@ -99,6 +107,8 @@ $endif$
                 for (int id = 0; id < values.size(); id++) {
 $if(long)$
                     builder.appendLong(values.get(id));
+$elseif(double)$
+                    builder.appendDouble(Double.longBitsToDouble(values.get(id)));
 $elseif(int)$
                     builder.appendInt((int) values.get(id));
 $endif$
@@ -115,7 +125,7 @@ $endif$
     }
 
     public static class GroupingState implements Releasable {
-$if(long)$
+$if(long||double)$
         private final LongLongHash values;
 
 $elseif(int)$
@@ -124,7 +134,7 @@ $elseif(int)$
 $endif$
 
         private GroupingState(BigArrays bigArrays) {
-$if(long)$
+$if(long||double)$
             values = new LongLongHash(1, bigArrays);
 $elseif(int)$
             values = new LongHash(1, bigArrays);
@@ -154,6 +164,10 @@ $if(long)$
                         long group = values.getKey1(id);
                         if (group == selectedGroup) {
                             long value = values.getKey2(id);
+$elseif(double)$
+                        long group = values.getKey1(id);
+                        if (group == selectedGroup) {
+                            double value = Double.longBitsToDouble(values.getKey2(id));
 $elseif(int)$
                         long both = values.get(id);
                         int group = (int) (both >>> Integer.SIZE);

@@ -244,8 +244,8 @@ public abstract class AsyncOperator implements Operator {
     @Override
     public final Operator.Status status() {
         return status(
-            checkpoint.getMaxSeqNo(),
-            checkpoint.getProcessedCheckpoint(),
+            Math.max(0L, checkpoint.getMaxSeqNo()),
+            Math.max(0L, checkpoint.getProcessedCheckpoint()),
             TimeValue.timeValueNanos(totalTimeInNanos.sum()).millis()
         );
     }

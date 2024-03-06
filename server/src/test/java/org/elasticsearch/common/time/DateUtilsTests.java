@@ -21,9 +21,6 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.temporal.ChronoField;
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.Set;
 
 import static org.elasticsearch.common.time.DateUtils.clampToNanosRange;
 import static org.elasticsearch.common.time.DateUtils.toInstant;
@@ -35,42 +32,15 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class DateUtilsTests extends ESTestCase {
-    // list of ignored timezones.
-    // These should be cleaned up when all tested jdks (oracle, adoptopenjdk, openjdk etc) have the timezone db included
-    // see when a timezone was included in jdk version here https://www.oracle.com/java/technologies/tzdata-versions.html
-    private static final Set<String> IGNORE = new HashSet<>(
-        Arrays.asList(
-            "Eire",
-            "Europe/Dublin", // dublin timezone in joda does not account for DST
-            "Asia/Qostanay", // part of tzdata2018h
-            "America/Godthab", // part of tzdata2020a (maps to America/Nuuk)
-            "America/Nuuk", // part of tzdata2020a
-            "America/Ciudad_Juarez", // part of tzdata2022g
-            "America/Pangnirtung", // part of tzdata2022g
-            "Europe/Kyiv", // part of tzdata2022c,
-            "Pacific/Kanton" // part of tzdata2021b
-        )
-    );
-
-    // A temporary list of zones and JDKs, where Joda and the JDK timezone data are out of sync, until either Joda or the JDK
-    // are updated, see https://github.com/elastic/elasticsearch/issues/82356
-    private static final Set<String> IGNORE_IDS = new HashSet<>(Arrays.asList("Pacific/Niue", "America/Pangnirtung", "Antarctica/Vostok"));
-
-    private static boolean maybeIgnore(String jodaId) {
-        if (IGNORE_IDS.contains(jodaId)) {
-            return true;
-        }
-        return false;
-    }
 
     public void testTimezoneIds() {
         assertNull(DateUtils.dateTimeZoneToZoneId(null));
         assertNull(DateUtils.zoneIdToDateTimeZone(null));
         for (String jodaId : DateTimeZone.getAvailableIDs()) {
-            if (IGNORE.contains(jodaId) || maybeIgnore(jodaId)) continue;
+            if (IGNORED_TIMEZONE_IDS.contains(jodaId)) continue;
             DateTimeZone jodaTz = DateTimeZone.forID(jodaId);
             // some timezones get mapped back to problematic timezones
-            if (IGNORE.contains(jodaTz.toString())) continue;
+            if (IGNORED_TIMEZONE_IDS.contains(jodaTz.toString())) continue;
             ZoneId zoneId = DateUtils.dateTimeZoneToZoneId(jodaTz); // does not throw
             long now = 0;
             assertThat(

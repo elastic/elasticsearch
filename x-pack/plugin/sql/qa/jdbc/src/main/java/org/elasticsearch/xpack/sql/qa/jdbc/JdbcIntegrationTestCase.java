@@ -22,13 +22,8 @@ import java.io.InputStream;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Properties;
-import java.util.Set;
 
 public abstract class JdbcIntegrationTestCase extends ESRestTestCase {
 
@@ -142,11 +137,7 @@ public abstract class JdbcIntegrationTestCase extends ESRestTestCase {
         // from all available JDK timezones. While Joda and JDK are generally in sync, some timezones might not be known
         // to the current version of Joda and in this case the test might fail. To avoid that, we specify a timezone
         // known for both Joda and JDK
-        Set<String> timeZones = new HashSet<>(JODA_TIMEZONE_IDS);
-        timeZones.retainAll(JAVA_TIMEZONE_IDS);
-        List<String> ids = new ArrayList<>(timeZones);
-        Collections.sort(ids);
-        return randomFrom(ids);
+        return randomJodaAndJavaSupportedTimezone(JAVA_TIMEZONE_IDS);
     }
 
     private static Map<String, Object> searchStats() throws IOException {

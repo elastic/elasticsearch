@@ -51,6 +51,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -198,8 +199,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             String[] aliases = indexNameExpressionResolver.indexAliases(
                 clusterState,
                 index,
-                aliasMetadata -> true,
-                dataStreamAlias -> true,
+                Predicates.always(),
+                Predicates.always(),
                 true,
                 indicesAndAliases
             );

@@ -24,6 +24,6 @@ public enum FilteringPolicy {
                 return filteringPolicy;
             }
         }
-        throw new IllegalArgumentException("Unknown FilteringPolicy: " + policy);
+        throw new IllegalArgumentException("Unknown " + FilteringPolicy.class.getSimpleName() + " [" + policy + "].");
     }
 }

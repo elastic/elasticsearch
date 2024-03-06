@@ -119,13 +119,16 @@ import org.elasticsearch.xpack.core.security.action.ActionTypes;
 import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheAction;
 import org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationAction;
 import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyRequestTranslator;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequestBuilderFactory;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClusterApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.GrantApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.UpdateApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.UpdateApiKeyRequestTranslator;
 import org.elasticsearch.xpack.core.security.action.apikey.UpdateCrossClusterApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.enrollment.KibanaEnrollmentAction;
 import org.elasticsearch.xpack.core.security.action.enrollment.NodeEnrollmentAction;
@@ -135,6 +138,7 @@ import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectPrepareAut
 import org.elasticsearch.xpack.core.security.action.privilege.ClearPrivilegesCacheAction;
 import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.privilege.GetBuiltinPrivilegesAction;
+import org.elasticsearch.xpack.core.security.action.privilege.GetBuiltinPrivilegesResponseTranslator;
 import org.elasticsearch.xpack.core.security.action.privilege.GetPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.privilege.PutPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.profile.ActivateProfileAction;
@@ -147,6 +151,7 @@ import org.elasticsearch.xpack.core.security.action.role.ClearRolesCacheAction;
 import org.elasticsearch.xpack.core.security.action.role.DeleteRoleAction;
 import org.elasticsearch.xpack.core.security.action.role.GetRolesAction;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleAction;
+import org.elasticsearch.xpack.core.security.action.role.PutRoleRequestBuilderFactory;
 import org.elasticsearch.xpack.core.security.action.rolemapping.DeleteRoleMappingAction;
 import org.elasticsearch.xpack.core.security.action.rolemapping.GetRoleMappingsAction;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingAction;
@@ -558,6 +563,12 @@ public class Security extends Plugin
     private final SetOnce<Transport> transportReference = new SetOnce<>();
     private final SetOnce<ScriptService> scriptServiceReference = new SetOnce<>();
     private final SetOnce<OperatorOnlyRegistry> operatorOnlyRegistry = new SetOnce<>();
+    private final SetOnce<PutRoleRequestBuilderFactory> putRoleRequestBuilderFactory = new SetOnce<>();
+    private final SetOnce<CreateApiKeyRequestBuilderFactory> createApiKeyRequestBuilderFactory = new SetOnce<>();
+    private final SetOnce<UpdateApiKeyRequestTranslator> updateApiKeyRequestTranslator = new SetOnce<>();
+    private final SetOnce<BulkUpdateApiKeyRequestTranslator> bulkUpdateApiKeyRequestTranslator = new SetOnce<>();
+    private final SetOnce<GetBuiltinPrivilegesResponseTranslator> getBuiltinPrivilegesResponseTranslator = new SetOnce<>();
+    private final SetOnce<FileRolesStore> fileRolesStore = new SetOnce<>();
     private final SetOnce<OperatorPrivileges.OperatorPrivilegesService> operatorPrivilegesService = new SetOnce<>();
     private final SetOnce<ReservedRoleMappingAction> reservedRoleMappingAction = new SetOnce<>();
     private final SetOnce<WorkflowService> workflowService = new SetOnce<>();
@@ -802,13 +813,8 @@ public class Security extends Plugin
         final ReservedRolesStore reservedRolesStore = new ReservedRolesStore(Set.copyOf(INCLUDED_RESERVED_ROLES_SETTING.get(settings)));
         dlsBitsetCache.set(new DocumentSubsetBitsetCache(settings, threadPool));
         final FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(settings);
-        final FileRolesStore fileRolesStore = new FileRolesStore(
-            settings,
-            environment,
-            resourceWatcherService,
-            getLicenseState(),
-            xContentRegistry
-        );
+
+        this.fileRolesStore.set(new FileRolesStore(settings, environment, resourceWatcherService, getLicenseState(), xContentRegistry));
         final NativeRolesStore nativeRolesStore = new NativeRolesStore(
             settings,
             client,
@@ -817,6 +823,22 @@ public class Security extends Plugin
             clusterService
         );
         RoleDescriptor.setFieldPermissionsCache(fieldPermissionsCache);
+        // Need to set to default if it wasn't set by an extension
+        if (putRoleRequestBuilderFactory.get() == null) {
+            putRoleRequestBuilderFactory.set(new PutRoleRequestBuilderFactory.Default());
+        }
+        if (createApiKeyRequestBuilderFactory.get() == null) {
+            createApiKeyRequestBuilderFactory.set(new CreateApiKeyRequestBuilderFactory.Default());
+        }
+        if (getBuiltinPrivilegesResponseTranslator.get() == null) {
+            getBuiltinPrivilegesResponseTranslator.set(new GetBuiltinPrivilegesResponseTranslator.Default());
+        }
+        if (updateApiKeyRequestTranslator.get() == null) {
+            updateApiKeyRequestTranslator.set(new UpdateApiKeyRequestTranslator.Default());
+        }
+        if (bulkUpdateApiKeyRequestTranslator.get() == null) {
+            bulkUpdateApiKeyRequestTranslator.set(new BulkUpdateApiKeyRequestTranslator.Default());
+        }
 
         final Map<String, List<BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>>>> customRoleProviders = new LinkedHashMap<>();
         for (SecurityExtension extension : securityExtensions) {
@@ -868,7 +890,7 @@ public class Security extends Plugin
 
         final RoleProviders roleProviders = new RoleProviders(
             reservedRolesStore,
-            fileRolesStore,
+            fileRolesStore.get(),
             nativeRolesStore,
             customRoleProviders,
             getLicenseState()
@@ -1423,7 +1445,7 @@ public class Security extends Plugin
             new RestPutUserAction(settings, getLicenseState()),
             new RestDeleteUserAction(settings, getLicenseState()),
             new RestGetRolesAction(settings, getLicenseState()),
-            new RestPutRoleAction(settings, getLicenseState()),
+            new RestPutRoleAction(settings, getLicenseState(), putRoleRequestBuilderFactory.get(), fileRolesStore.get()),
             new RestDeleteRoleAction(settings, getLicenseState()),
             new RestChangePasswordAction(settings, securityContext.get(), getLicenseState()),
             new RestSetEnabledAction(settings, getLicenseState()),
@@ -1444,14 +1466,14 @@ public class Security extends Plugin
             new RestOpenIdConnectPrepareAuthenticationAction(settings, getLicenseState()),
             new RestOpenIdConnectAuthenticateAction(settings, getLicenseState()),
             new RestOpenIdConnectLogoutAction(settings, getLicenseState()),
-            new RestGetBuiltinPrivilegesAction(settings, getLicenseState()),
+            new RestGetBuiltinPrivilegesAction(settings, getLicenseState(), getBuiltinPrivilegesResponseTranslator.get()),
             new RestGetPrivilegesAction(settings, getLicenseState()),
             new RestPutPrivilegesAction(settings, getLicenseState()),
             new RestDeletePrivilegesAction(settings, getLicenseState()),
-            new RestCreateApiKeyAction(settings, getLicenseState()),
+            new RestCreateApiKeyAction(settings, getLicenseState(), createApiKeyRequestBuilderFactory.get()),
             new RestCreateCrossClusterApiKeyAction(settings, getLicenseState()),
-            new RestUpdateApiKeyAction(settings, getLicenseState()),
-            new RestBulkUpdateApiKeyAction(settings, getLicenseState()),
+            new RestUpdateApiKeyAction(settings, getLicenseState(), updateApiKeyRequestTranslator.get()),
+            new RestBulkUpdateApiKeyAction(settings, getLicenseState(), bulkUpdateApiKeyRequestTranslator.get()),
             new RestUpdateCrossClusterApiKeyAction(settings, getLicenseState()),
             new RestGrantApiKeyAction(settings, getLicenseState()),
             new RestInvalidateApiKeyAction(settings, getLicenseState()),
@@ -2028,18 +2050,24 @@ public class Security extends Plugin
     @Override
     public void loadExtensions(ExtensionLoader loader) {
         securityExtensions.addAll(loader.loadExtensions(SecurityExtension.class));
+        loadSingletonExtensionAndSetOnce(loader, operatorOnlyRegistry, OperatorOnlyRegistry.class);
+        loadSingletonExtensionAndSetOnce(loader, putRoleRequestBuilderFactory, PutRoleRequestBuilderFactory.class);
+        loadSingletonExtensionAndSetOnce(loader, getBuiltinPrivilegesResponseTranslator, GetBuiltinPrivilegesResponseTranslator.class);
+        loadSingletonExtensionAndSetOnce(loader, updateApiKeyRequestTranslator, UpdateApiKeyRequestTranslator.class);
+        loadSingletonExtensionAndSetOnce(loader, bulkUpdateApiKeyRequestTranslator, BulkUpdateApiKeyRequestTranslator.class);
+        loadSingletonExtensionAndSetOnce(loader, createApiKeyRequestBuilderFactory, CreateApiKeyRequestBuilderFactory.class);
+    }
 
-        // operator registry SPI
-        List<OperatorOnlyRegistry> operatorOnlyRegistries = loader.loadExtensions(OperatorOnlyRegistry.class);
-        if (operatorOnlyRegistries.size() > 1) {
-            throw new IllegalStateException(OperatorOnlyRegistry.class + " may not have multiple implementations");
-        } else if (operatorOnlyRegistries.size() == 1) {
-            OperatorOnlyRegistry operatorOnlyRegistry = operatorOnlyRegistries.get(0);
-            this.operatorOnlyRegistry.set(operatorOnlyRegistry);
-            logger.debug(
-                "Loaded implementation [{}] for interface OperatorOnlyRegistry",
-                operatorOnlyRegistry.getClass().getCanonicalName()
-            );
+    private <T> void loadSingletonExtensionAndSetOnce(ExtensionLoader loader, SetOnce<T> setOnce, Class<T> clazz) {
+        final List<T> loaded = loader.loadExtensions(clazz);
+        if (loaded.size() > 1) {
+            throw new IllegalStateException(clazz + " may not have multiple implementations");
+        } else if (loaded.size() == 1) {
+            final T singleLoaded = loaded.get(0);
+            setOnce.set(singleLoaded);
+            logger.debug("Loaded implementation [{}] for interface [{}]", singleLoaded.getClass().getCanonicalName(), clazz);
+        } else {
+            logger.debug("Will fall back on default implementation for interface [{}]", clazz);
         }
     }
 

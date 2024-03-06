@@ -332,6 +332,8 @@ public class EnrichLookupService {
             OutputOperator outputOperator = new OutputOperator(List.of(), Function.identity(), result::set);
             Driver driver = new Driver(
                 "enrich-lookup:" + sessionId,
+                System.currentTimeMillis(),
+                System.nanoTime(),
                 driverContext,
                 () -> lookupDescription(sessionId, shardId, matchType, matchField, extractFields, inputPage.getPositionCount()),
                 queryOperator,

@@ -82,7 +82,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_THREAD_POOL_NAME;
-import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME;
 
 /**
  * Computes the result of a {@link PhysicalPlan}.
@@ -434,7 +433,7 @@ public class ComputeService {
         driverRunner.executeDrivers(
             task,
             drivers,
-            transportService.getThreadPool().executor(ESQL_WORKER_THREAD_POOL_NAME),
+            transportService.getThreadPool().executor(ThreadPool.Names.SEARCH_WORKER),
             listenerCollectingStatus
         );
     }
@@ -628,7 +627,7 @@ public class ComputeService {
             final int endBatchIndex = Math.min(startBatchIndex + maxConcurrentShards, request.shardIds().size());
             List<ShardId> shardIds = request.shardIds().subList(startBatchIndex, endBatchIndex);
             acquireSearchContexts(clusterAlias, shardIds, configuration, request.aliasFilters(), ActionListener.wrap(searchContexts -> {
-                assert ThreadPool.assertCurrentThreadPool(ESQL_THREAD_POOL_NAME, ESQL_WORKER_THREAD_POOL_NAME);
+                assert ThreadPool.assertCurrentThreadPool(ESQL_THREAD_POOL_NAME, ThreadPool.Names.SEARCH_WORKER);
                 var computeContext = new ComputeContext(sessionId, clusterAlias, searchContexts, configuration, null, exchangeSink);
                 runCompute(
                     parentTask,

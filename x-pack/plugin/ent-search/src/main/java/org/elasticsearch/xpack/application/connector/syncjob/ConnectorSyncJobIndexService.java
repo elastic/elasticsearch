@@ -293,7 +293,7 @@ public class ConnectorSyncJobIndexService {
     }
 
     /**
-     * List the {@link ConnectorSyncJob} in ascending order of their 'created_at'.
+     * List the {@link ConnectorSyncJob} in descending order of their 'created_at'.
      *
      * @param from                  From index to start the search from.
      * @param size                  The maximum number of {@link Connector}s to return.
@@ -317,7 +317,7 @@ public class ConnectorSyncJobIndexService {
                 .size(size)
                 .query(query)
                 .fetchSource(true)
-                .sort(ConnectorSyncJob.CREATED_AT_FIELD.getPreferredName(), SortOrder.ASC);
+                .sort(ConnectorSyncJob.CREATED_AT_FIELD.getPreferredName(), SortOrder.DESC);
 
             final SearchRequest searchRequest = new SearchRequest(CONNECTOR_SYNC_JOB_INDEX_NAME).source(searchSource);
 

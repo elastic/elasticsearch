@@ -8,6 +8,7 @@
 
 package org.elasticsearch.plugins;
 
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.RuntimeField;
@@ -69,7 +70,7 @@ public interface MapperPlugin {
      * The default field predicate applied, which doesn't filter anything. That means that by default get mappings, get index
      * get field mappings and field capabilities API will return every field that's present in the mappings.
      */
-    Predicate<String> NOOP_FIELD_PREDICATE = field -> true;
+    Predicate<String> NOOP_FIELD_PREDICATE = Predicates.always();
 
     /**
      * The default field filter applied, which doesn't filter anything. That means that by default get mappings, get index

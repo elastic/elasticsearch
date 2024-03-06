@@ -21,6 +21,7 @@ import co.elastic.elasticsearch.serverless.constants.ServerlessTransportVersions
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
@@ -34,12 +35,14 @@ import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.RetentionLeaseNotFoundException;
@@ -53,6 +56,7 @@ import org.elasticsearch.indices.recovery.PeerRecoverySourceClusterStateDelay;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.recovery.StatelessPrimaryRelocationAction;
+import org.elasticsearch.monitor.jvm.HotThreads;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
@@ -196,6 +200,27 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
         final var preFlushStep = new SubscribableListener<Engine.FlushResult>();
 
         logShardStats("flushing before acquiring all primary operation permits", indexShard, engine);
+
+        final var threadDumpListener = new SubscribableListener<Void>();
+        if (logger.isDebugEnabled()) {
+            final var threadPool = indexShard.getThreadPool();
+            threadDumpListener.addTimeout(TimeValue.timeValueSeconds(5), threadPool, threadPool.generic());
+            threadDumpListener.addListener(new ActionListener<>() {
+                @Override
+                public void onResponse(Void unused) {}
+
+                @Override
+                public void onFailure(Exception e) {
+                    HotThreads.logLocalHotThreads(
+                        logger,
+                        Level.DEBUG,
+                        "hot threads during flush of " + indexShard.shardId(),
+                        ReferenceDocs.LOGGING
+                    );
+                }
+            });
+        }
+
         ActionListener.run(preFlushStep, l -> engine.flush(false, false, l));
         logger.debug("[{}] completed the flush, waiting to upload", request.shardId());
 
@@ -205,6 +230,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
         }).delegateFailureAndWrap((listener0, preFlushResult) -> {
             logger.debug("[{}] acquiring all primary operation permits", request.shardId());
             indexShard.relocated(request.targetAllocationId(), (primaryContext, handoffResultListener) -> {
+                threadDumpListener.onResponse(null);
                 logShardStats("obtained primary context", indexShard, engine);
                 logger.debug("[{}] obtained primary context: [{}]", request.shardId(), primaryContext);
 
@@ -293,12 +319,13 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
     private void logShardStats(String message, IndexShard indexShard, Engine engine) {
         if (logger.isDebugEnabled()) {
             logger.debug(
-                "{}: {}.Flush stats [{}], Translog stats [{}], Merge stats [{}], Segments {}",
+                "{}: {}. Flush stats [{}], Translog stats [{}], Merge stats [{}], Commit stats [{}], Segments {}",
                 indexShard.shardId(),
                 message,
                 Strings.toString(indexShard.flushStats()),
                 Strings.toString(indexShard.translogStats()),
                 Strings.toString(indexShard.mergeStats()),
+                Strings.toString(engine.commitStats()),
                 engine.segments()
             );
         }

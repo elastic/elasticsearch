@@ -106,17 +106,17 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
 
         // <3> Create the transform
         ActionListener<ValidateTransformAction.Response> validateTransformListener = listener.delegateFailureAndWrap(
-            (paramListener, unused) -> putTransform(request, paramListener)
+            (l, unused) -> putTransform(request, l)
         );
 
         // <2> Validate source and destination indices
         ActionListener<Void> checkPrivilegesListener = validateTransformListener.delegateFailureAndWrap(
-            (validateTransform, aVoid) -> ClientHelper.executeAsyncWithOrigin(
+            (l, aVoid) -> ClientHelper.executeAsyncWithOrigin(
                 client,
                 ClientHelper.TRANSFORM_ORIGIN,
                 ValidateTransformAction.INSTANCE,
                 new ValidateTransformAction.Request(config, request.isDeferValidation(), request.timeout()),
-                validateTransform
+                l
             )
         );
 
@@ -166,18 +166,18 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
 
     private void putTransform(Request request, ActionListener<AcknowledgedResponse> listener) {
         var config = request.getConfig();
-        transformConfigManager.putTransformConfiguration(config, listener.delegateFailureAndWrap((paramListener, unused) -> {
-            var configId = config.getId();
-            logger.debug("[{}] created transform", configId);
-            auditor.info(configId, "Created transform.");
+        transformConfigManager.putTransformConfiguration(config, listener.delegateFailureAndWrap((l, unused) -> {
+            var transformId = config.getId();
+            logger.debug("[{}] created transform", transformId);
+            auditor.info(transformId, "Created transform.");
 
             var validationFunc = FunctionFactory.create(config);
             TransformConfigLinter.getWarnings(validationFunc, config.getSource(), config.getSyncConfig()).forEach(warning -> {
-                logger.warn("[{}] {}", configId, warning);
-                auditor.warning(configId, warning);
+                logger.warn("[{}] {}", transformId, warning);
+                auditor.warning(transformId, warning);
             });
 
-            paramListener.onResponse(AcknowledgedResponse.TRUE);
+            l.onResponse(AcknowledgedResponse.TRUE);
         }));
     }
 }

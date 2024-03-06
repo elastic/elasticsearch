@@ -24,6 +24,7 @@ import org.apache.http.HttpEntity;
 import org.apache.http.HttpException;
 import org.apache.http.HttpResponse;
 import org.apache.http.entity.ContentType;
+import org.apache.http.impl.nio.codecs.ChunkDecoder;
 import org.apache.http.nio.ContentDecoder;
 import org.apache.http.nio.IOControl;
 import org.apache.http.nio.entity.ContentBufferEntity;
@@ -34,6 +35,7 @@ import org.apache.http.nio.util.SimpleInputBuffer;
 import org.apache.http.protocol.HttpContext;
 
 import java.io.IOException;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Default implementation of {@link org.apache.http.nio.protocol.HttpAsyncResponseConsumer}. Buffers the whole
@@ -46,6 +48,7 @@ public class HeapBufferedAsyncResponseConsumer extends AbstractAsyncResponseCons
     private final int bufferLimitBytes;
     private volatile HttpResponse response;
     private volatile SimpleInputBuffer buf;
+    private final AtomicInteger chunkCount = new AtomicInteger(0);
 
     /**
      * Creates a new instance of this consumer with the provided buffer limit
@@ -94,7 +97,15 @@ public class HeapBufferedAsyncResponseConsumer extends AbstractAsyncResponseCons
 
     @Override
     protected void onContentReceived(ContentDecoder decoder, IOControl ioctrl) throws IOException {
-        this.buf.consumeContent(decoder);
+        int chunkLength = this.buf.consumeContent(decoder);
+        chunkCount.addAndGet(chunkLength);
+        if(decoder instanceof ChunkDecoder){
+            if (chunkCount.get() > bufferLimitBytes) {
+                throw new ContentTooLongException(
+                    "entity chunkCount is too long [" + chunkCount.get() + "] for the configured buffer limit [" + bufferLimitBytes + "]"
+                );
+            }
+        }
     }
 
     @Override

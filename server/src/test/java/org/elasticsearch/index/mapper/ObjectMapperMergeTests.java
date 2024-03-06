@@ -213,10 +213,10 @@ public final class ObjectMapperMergeTests extends ESTestCase {
         final ObjectMapper mergedAdd1 = rootObjectMapper.merge(mergeWith, MapperMergeContext.root(false, false, 1));
 
         // THEN "baz" new field is added to merged mapping
-        assertEquals(3, rootObjectMapper.mapperSize());
-        assertEquals(4, mergeWith.mapperSize());
-        assertEquals(3, mergedAdd0.mapperSize());
-        assertEquals(4, mergedAdd1.mapperSize());
+        assertEquals(3, rootObjectMapper.getTotalFieldsCount());
+        assertEquals(4, mergeWith.getTotalFieldsCount());
+        assertEquals(3, mergedAdd0.getTotalFieldsCount());
+        assertEquals(4, mergedAdd1.getTotalFieldsCount());
     }
 
     public void testMergeWithLimitTruncatedObjectField() {
@@ -231,11 +231,11 @@ public final class ObjectMapperMergeTests extends ESTestCase {
         ObjectMapper mergedAdd1 = root.merge(mergeWith, MapperMergeContext.root(false, false, 1));
         ObjectMapper mergedAdd2 = root.merge(mergeWith, MapperMergeContext.root(false, false, 2));
         ObjectMapper mergedAdd3 = root.merge(mergeWith, MapperMergeContext.root(false, false, 3));
-        assertEquals(0, root.mapperSize());
-        assertEquals(0, mergedAdd0.mapperSize());
-        assertEquals(1, mergedAdd1.mapperSize());
-        assertEquals(2, mergedAdd2.mapperSize());
-        assertEquals(3, mergedAdd3.mapperSize());
+        assertEquals(0, root.getTotalFieldsCount());
+        assertEquals(0, mergedAdd0.getTotalFieldsCount());
+        assertEquals(1, mergedAdd1.getTotalFieldsCount());
+        assertEquals(2, mergedAdd2.getTotalFieldsCount());
+        assertEquals(3, mergedAdd3.getTotalFieldsCount());
 
         ObjectMapper parent1 = (ObjectMapper) mergedAdd1.getMapper("parent");
         assertNull(parent1.getMapper("child1"));
@@ -262,9 +262,9 @@ public final class ObjectMapperMergeTests extends ESTestCase {
 
         ObjectMapper mergedAdd0 = root.merge(mergeWith, MapperMergeContext.root(false, false, 0));
         ObjectMapper mergedAdd1 = root.merge(mergeWith, MapperMergeContext.root(false, false, 1));
-        assertEquals(2, root.mapperSize());
-        assertEquals(2, mergedAdd0.mapperSize());
-        assertEquals(3, mergedAdd1.mapperSize());
+        assertEquals(2, root.getTotalFieldsCount());
+        assertEquals(2, mergedAdd0.getTotalFieldsCount());
+        assertEquals(3, mergedAdd1.getTotalFieldsCount());
 
         ObjectMapper parent0 = (ObjectMapper) mergedAdd0.getMapper("parent");
         assertNotNull(parent0.getMapper("child1"));
@@ -285,13 +285,13 @@ public final class ObjectMapperMergeTests extends ESTestCase {
             createTextKeywordMultiField("text", "keyword2")
         ).build(MapperBuilderContext.root(false, false));
 
-        assertEquals(2, mergeInto.mapperSize());
-        assertEquals(2, mergeWith.mapperSize());
+        assertEquals(2, mergeInto.getTotalFieldsCount());
+        assertEquals(2, mergeWith.getTotalFieldsCount());
 
         ObjectMapper mergedAdd0 = mergeInto.merge(mergeWith, MapperMergeContext.root(false, false, 0));
         ObjectMapper mergedAdd1 = mergeInto.merge(mergeWith, MapperMergeContext.root(false, false, 1));
-        assertEquals(2, mergedAdd0.mapperSize());
-        assertEquals(3, mergedAdd1.mapperSize());
+        assertEquals(2, mergedAdd0.getTotalFieldsCount());
+        assertEquals(3, mergedAdd1.getTotalFieldsCount());
     }
 
     public void testMergeWithLimitRuntimeField() {
@@ -302,13 +302,31 @@ public final class ObjectMapperMergeTests extends ESTestCase {
             new TestRuntimeField("existing_runtime_field", "keyword")
         ).addRuntimeField(new TestRuntimeField("new_runtime_field", "keyword")).build(MapperBuilderContext.root(false, false));
 
-        assertEquals(3, mergeInto.mapperSize());
-        assertEquals(2, mergeWith.mapperSize());
+        assertEquals(3, mergeInto.getTotalFieldsCount());
+        assertEquals(2, mergeWith.getTotalFieldsCount());
 
         ObjectMapper mergedAdd0 = mergeInto.merge(mergeWith, MapperMergeContext.root(false, false, 0));
         ObjectMapper mergedAdd1 = mergeInto.merge(mergeWith, MapperMergeContext.root(false, false, 1));
-        assertEquals(3, mergedAdd0.mapperSize());
-        assertEquals(4, mergedAdd1.mapperSize());
+        assertEquals(3, mergedAdd0.getTotalFieldsCount());
+        assertEquals(4, mergedAdd1.getTotalFieldsCount());
+    }
+
+    public void testMergeSubobjectsFalseWithObject() {
+        RootObjectMapper mergeInto = new RootObjectMapper.Builder("_doc", Explicit.IMPLICIT_TRUE).add(
+            new ObjectMapper.Builder("parent", Explicit.IMPLICIT_FALSE)
+        ).build(MapperBuilderContext.root(false, false));
+        RootObjectMapper mergeWith = new RootObjectMapper.Builder("_doc", Explicit.IMPLICIT_TRUE).add(
+            new ObjectMapper.Builder("parent", Explicit.IMPLICIT_TRUE).add(
+                new ObjectMapper.Builder("child", Explicit.IMPLICIT_TRUE).add(
+                    new KeywordFieldMapper.Builder("grandchild", IndexVersion.current())
+                )
+            )
+        ).build(MapperBuilderContext.root(false, false));
+
+        ObjectMapper merged = mergeInto.merge(mergeWith, MapperMergeContext.root(false, false, Long.MAX_VALUE));
+        ObjectMapper parentMapper = (ObjectMapper) merged.getMapper("parent");
+        assertNotNull(parentMapper);
+        assertNotNull(parentMapper.getMapper("child.grandchild"));
     }
 
     private static RootObjectMapper createRootSubobjectFalseLeafWithDots() {

@@ -43,7 +43,6 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
     private Boolean requireDataStream;
     private String routing;
     private WriteRequest.RefreshPolicy refreshPolicy;
-    private String refreshPolicyString;
     private Long ifSeqNo;
     private Long ifPrimaryTerm;
     private DocWriteRequest.OpType opType;
@@ -175,20 +174,7 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
      * </p>
      */
     public IndexRequestBuilder setSource(XContentType xContentType, Object... source) {
-        if (source.length % 2 != 0) {
-            throw new IllegalArgumentException("The number of object passed must be even but was [" + source.length + "]");
-        }
-        try {
-            XContentBuilder builder = XContentFactory.contentBuilder(xContentType);
-            builder.startObject();
-            for (int i = 0; i < source.length; i++) {
-                builder.field(source[i++].toString(), source[i]);
-            }
-            builder.endObject();
-            return setSource(builder);
-        } catch (IOException e) {
-            throw new ElasticsearchGenerationException("Failed to generate", e);
-        }
+        return setSource(IndexRequest.getXContentBuilder(xContentType, source));
     }
 
     /**
@@ -278,13 +264,12 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
     }
 
     public IndexRequestBuilder setRefreshPolicy(String refreshPolicy) {
-        this.refreshPolicyString = refreshPolicy;
+        this.refreshPolicy = WriteRequest.RefreshPolicy.parse(refreshPolicy);
         return this;
     }
 
     @Override
     public IndexRequest request() {
-        validate();
         IndexRequest request = new IndexRequest();
         super.apply(request);
         request.id(id);
@@ -299,9 +284,6 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
         }
         if (refreshPolicy != null) {
             request.setRefreshPolicy(refreshPolicy);
-        }
-        if (refreshPolicyString != null) {
-            request.setRefreshPolicy(refreshPolicyString);
         }
         if (ifSeqNo != null) {
             request.setIfSeqNo(ifSeqNo);

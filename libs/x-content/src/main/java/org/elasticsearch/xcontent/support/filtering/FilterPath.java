@@ -167,19 +167,13 @@ public class FilterPath {
             }
 
             if (splitPosition > 0) {
-                String field = findEscapes
-                    ? filter.substring(0, splitPosition).replaceAll("\\\\.", ".")
-                    : filter.substring(0, splitPosition);
-                BuildNode child = node.children.get(field);
-                if (child == null) {
-                    child = new BuildNode(false);
-                    node.children.put(field, child);
-                }
+                String field = findEscapes ? filter.substring(0, splitPosition).replace("\\.", ".") : filter.substring(0, splitPosition);
+                BuildNode child = node.children.computeIfAbsent(field, f -> new BuildNode(false));
                 if (false == child.isFinalNode) {
                     insertNode(filter.substring(splitPosition + 1), child);
                 }
             } else {
-                String field = findEscapes ? filter.replaceAll("\\\\.", ".") : filter;
+                String field = findEscapes ? filter.replace("\\.", ".") : filter;
                 node.children.put(field, new BuildNode(true));
             }
         }

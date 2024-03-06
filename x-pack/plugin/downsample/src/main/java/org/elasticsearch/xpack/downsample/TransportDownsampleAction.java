@@ -115,7 +115,6 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
     private final IndexScopedSettings indexScopedSettings;
     private final ThreadContext threadContext;
     private final PersistentTasksService persistentTasksService;
-    private String downsamplingInterval;
 
     private static final Set<String> FORBIDDEN_SETTINGS = Set.of(
         IndexSettings.DEFAULT_PIPELINE.getKey(),
@@ -234,6 +233,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             return;
         }
 
+        final TaskId parentTask = new TaskId(clusterService.localNode().getId(), task.getId());
         // Shortcircuit if target index has been downsampled:
         final String downsampleIndexName = request.getTargetIndex();
         IndexMetadata downsampleIndex = state.getMetadata().index(downsampleIndexName);
@@ -245,6 +245,20 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                 return;
             } else if (downsampleStatus == DownsampleTaskStatus.SUCCESS) {
                 listener.onResponse(AcknowledgedResponse.TRUE);
+                return;
+            }
+            // In case the write block has been set on the target index means that the shard level downsampling itself was successful,
+            // but the previous invocation failed later performing settings update, refresh or force merge.
+            // The write block is used a signal to resume from the refresh part of the downsample api invocation.
+            if (downsampleIndex.getSettings().get(IndexMetadata.SETTING_BLOCKS_WRITE) != null) {
+                var refreshRequest = new RefreshRequest(downsampleIndexName);
+                refreshRequest.setParentTask(parentTask);
+                client.admin()
+                    .indices()
+                    .refresh(
+                        refreshRequest,
+                        new RefreshDownsampleIndexActionListener(listener, parentTask, downsampleIndexName, request.getWaitTimeout())
+                    );
                 return;
             }
         }
@@ -266,7 +280,6 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         // At any point if there is an issue, delete the downsample index
 
         // 1. Extract source index mappings
-        final TaskId parentTask = new TaskId(clusterService.localNode().getId(), task.getId());
         final GetMappingsRequest getMappingsRequest = new GetMappingsRequest().indices(sourceIndexName);
         getMappingsRequest.setParentTask(parentTask);
         client.admin().indices().getMappings(getMappingsRequest, listener.delegateFailureAndWrap((delegate, getMappingsResponse) -> {
@@ -285,7 +298,6 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
 
             // Validate downsampling interval
             validateDownsamplingInterval(mapperService, request.getDownsampleConfig());
-            downsamplingInterval = request.getDownsampleConfig().getInterval().toString();
 
             final List<String> dimensionFields = new ArrayList<>();
             final List<String> metricFields = new ArrayList<>();
@@ -436,6 +448,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                 persistentTaskId,
                 DownsampleShardTask.TASK_NAME,
                 params,
+                null,
                 ActionListener.wrap(
                     startedTask -> persistentTasksService.waitForPersistentTaskCondition(
                         startedTask.getId(),
@@ -761,12 +774,14 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
          * case downsample will fail.
          */
         int numberOfReplicas = settings.getAsInt(Downsample.DOWNSAMPLE_MIN_NUMBER_OF_REPLICAS_NAME, 0);
+        var downsampleInterval = request.getDownsampleConfig().getInterval().toString();
         Settings.Builder builder = Settings.builder()
             .put(IndexMetadata.SETTING_INDEX_HIDDEN, true)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, sourceIndexMetadata.getNumberOfShards())
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, String.valueOf(numberOfReplicas))
             .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "-1")
-            .put(IndexMetadata.INDEX_DOWNSAMPLE_STATUS.getKey(), DownsampleTaskStatus.STARTED);
+            .put(IndexMetadata.INDEX_DOWNSAMPLE_STATUS.getKey(), DownsampleTaskStatus.STARTED)
+            .put(IndexMetadata.INDEX_DOWNSAMPLE_INTERVAL.getKey(), downsampleInterval);
         if (sourceIndexMetadata.getSettings().hasValue(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey())) {
             builder.put(
                 MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(),
@@ -896,7 +911,6 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                             Settings.builder()
                                 .put(downsampleIndex.getSettings())
                                 .put(IndexMetadata.INDEX_DOWNSAMPLE_STATUS.getKey(), DownsampleTaskStatus.SUCCESS)
-                                .put(IndexMetadata.INDEX_DOWNSAMPLE_INTERVAL.getKey(), downsamplingInterval)
                                 .build(),
                             downsampleIndexName
                         );
@@ -947,11 +961,11 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                 .indices()
                 .forceMerge(request, ActionListener.wrap(mergeIndexResp -> actionListener.onResponse(AcknowledgedResponse.TRUE), t -> {
                     /*
-                     * At this point downsampel index has been created
-                     * successfully even force merge fails.
-                     * So, we should not fail the downsample operation
+                     * At this point downsample index has been created
+                     * successfully even if force merge failed.
+                     * So, we should not fail the downsample operation.
                      */
-                    logger.error("Failed to force-merge " + "downsample index [" + downsampleIndexName + "]", t);
+                    logger.error("Failed to force-merge downsample index [" + downsampleIndexName + "]", t);
                     actionListener.onResponse(AcknowledgedResponse.TRUE);
                 }));
         }

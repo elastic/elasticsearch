@@ -113,14 +113,40 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
     }
 
     /**
-     * Reduces the given aggregations to a single one and returns it. In <b>most</b> cases, the assumption will be the all given
-     * aggregations are of the same type (the same type as this aggregation). For best efficiency, when implementing,
-     * try reusing an existing instance (typically the first in the given list) to save on redundant object
-     * construction.
-     *
-     * @see #mustReduceOnSingleInternalAgg()
+     * Return an object that reduces several aggregations to a single one. This method handles the cases when the aggregation
+     * returns false in {@link #canLeadReduction()}. Otherwise, it calls {@link #getLeaderReducer(AggregationReduceContext, int)}
      */
-    public abstract InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext);
+    public final AggregatorReducer getReducer(AggregationReduceContext reduceContext, int size) {
+        if (canLeadReduction()) {
+            return getLeaderReducer(reduceContext, size);
+        }
+        InternalAggregation current = this;
+        return new AggregatorReducer() {
+
+            AggregatorReducer aggregatorReducer = null;
+
+            @Override
+            public void accept(InternalAggregation aggregation) {
+                if (aggregatorReducer != null) {
+                    aggregatorReducer.accept(aggregation);
+                } else if (aggregation.canLeadReduction()) {
+                    aggregatorReducer = aggregation.getReducer(reduceContext, size);
+                    aggregatorReducer.accept(aggregation);
+                }
+            }
+
+            @Override
+            public InternalAggregation get() {
+                return aggregatorReducer == null ? current : aggregatorReducer.get();
+            }
+        };
+    }
+
+    /**
+     * Return an object that Reduces several aggregations to a single one. This method is called when {@link #canLeadReduction()}
+     * returns true and expects an reducer that produces the right result.
+     */
+    protected abstract AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size);
 
     /**
      * Called by the parent sampling context. Should only ever be called once as some aggregations scale their internal values
@@ -132,7 +158,7 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
     }
 
     /**
-     * Signal the framework if the {@linkplain InternalAggregation#reduce(List, AggregationReduceContext)} phase needs to be called
+     * Signal the framework if the {@linkplain AggregatorReducer} phase needs to be called
      * when there is only one {@linkplain InternalAggregation}.
      */
     protected abstract boolean mustReduceOnSingleInternalAgg();

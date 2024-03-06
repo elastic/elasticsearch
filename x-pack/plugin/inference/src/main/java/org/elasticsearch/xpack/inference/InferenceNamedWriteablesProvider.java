@@ -23,12 +23,14 @@ import org.elasticsearch.xpack.core.inference.results.TextEmbeddingResults;
 import org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettings;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsTaskSettings;
-import org.elasticsearch.xpack.inference.services.elser.ElserMlNodeServiceSettings;
+import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalServiceSettings;
+import org.elasticsearch.xpack.inference.services.elasticsearch.MultilingualE5SmallInternalServiceSettings;
+import org.elasticsearch.xpack.inference.services.elser.ElserInternalServiceSettings;
 import org.elasticsearch.xpack.inference.services.elser.ElserMlNodeTaskSettings;
 import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceServiceSettings;
 import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserSecretSettings;
 import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserServiceSettings;
-import org.elasticsearch.xpack.inference.services.openai.OpenAiServiceSettings;
+import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsTaskSettings;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
@@ -82,12 +84,28 @@ public class InferenceNamedWriteablesProvider {
         // Default secret settings
         namedWriteables.add(new NamedWriteableRegistry.Entry(SecretSettings.class, DefaultSecretSettings.NAME, DefaultSecretSettings::new));
 
-        // ELSER config
+        // Internal ELSER config
         namedWriteables.add(
-            new NamedWriteableRegistry.Entry(ServiceSettings.class, ElserMlNodeServiceSettings.NAME, ElserMlNodeServiceSettings::new)
+            new NamedWriteableRegistry.Entry(ServiceSettings.class, ElserInternalServiceSettings.NAME, ElserInternalServiceSettings::new)
         );
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(TaskSettings.class, ElserMlNodeTaskSettings.NAME, ElserMlNodeTaskSettings::new)
+        );
+
+        // Internal TextEmbedding service config
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                ServiceSettings.class,
+                ElasticsearchInternalServiceSettings.NAME,
+                ElasticsearchInternalServiceSettings::new
+            )
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                ServiceSettings.class,
+                MultilingualE5SmallInternalServiceSettings.NAME,
+                MultilingualE5SmallInternalServiceSettings::new
+            )
         );
 
         // Hugging Face config
@@ -107,7 +125,11 @@ public class InferenceNamedWriteablesProvider {
 
         // OpenAI
         namedWriteables.add(
-            new NamedWriteableRegistry.Entry(ServiceSettings.class, OpenAiServiceSettings.NAME, OpenAiServiceSettings::new)
+            new NamedWriteableRegistry.Entry(
+                ServiceSettings.class,
+                OpenAiEmbeddingsServiceSettings.NAME,
+                OpenAiEmbeddingsServiceSettings::new
+            )
         );
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(TaskSettings.class, OpenAiEmbeddingsTaskSettings.NAME, OpenAiEmbeddingsTaskSettings::new)

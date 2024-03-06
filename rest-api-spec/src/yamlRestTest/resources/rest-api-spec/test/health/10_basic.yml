@@ -5,6 +5,14 @@
       reason: "health was added in 8.2.0, master_is_stable in 8.4.0, and REST API updated in 8.7"
 
   - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            # There is a chance we have more master changes than "normal", so to avoid this test from failing,
+            # we increase the threshold (as this purpose of this test isn't to test that specific indicator).
+            health.master_history.no_master_transitions_threshold: 10
+
+  - do:
       health_report: { }
 
   - is_true: cluster_name

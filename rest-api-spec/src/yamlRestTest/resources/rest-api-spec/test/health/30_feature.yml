@@ -5,6 +5,13 @@
       reason: "the API path changed in 8.7"
 
   - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            # There is a chance we have more master changes than "normal", so to avoid this test from failing,
+            # we increase the threshold (as this purpose of this test isn't to test that specific indicator).
+            health.master_history.no_master_transitions_threshold: 10
+  - do:
       health_report:
         feature: master_is_stable
 

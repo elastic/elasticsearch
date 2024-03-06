@@ -49,17 +49,6 @@ public class ExecutableRequestCreatorTests {
             );
         }).when(mockCreator).create(anyList(), any(), any(), any(), any());
 
-        // when(mockCreator.create(anyList(), any(), any(), any(), any())).thenReturn(
-        // () -> requestSender.send(
-        // mock(Logger.class),
-        // RequestTests.mockRequest(modelId),
-        // HttpClientContext.create(),
-        // () -> false,
-        // mock(ResponseHandler.class),
-        // new PlainActionFuture<>()
-        // )
-        // );
-
         return mockCreator;
     }
 }

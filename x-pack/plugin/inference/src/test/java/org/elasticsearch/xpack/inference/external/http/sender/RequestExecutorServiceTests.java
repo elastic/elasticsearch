@@ -53,7 +53,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
     private ThreadPool threadPool;
 
     @Before
-    public void init() throws Exception {
+    public void init() {
         threadPool = createThreadPool(inferenceUtilityPool());
     }
 

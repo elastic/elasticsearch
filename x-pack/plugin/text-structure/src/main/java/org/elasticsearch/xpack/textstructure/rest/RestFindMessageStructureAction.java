@@ -6,51 +6,46 @@
  */
 package org.elasticsearch.xpack.textstructure.rest;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.xpack.core.textstructure.action.FindStructureAction;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.textstructure.action.FindMessageStructureAction;
 import org.elasticsearch.xpack.core.textstructure.structurefinder.TextStructure;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
+import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.xpack.textstructure.TextStructurePlugin.BASE_PATH;
 
 @ServerlessScope(Scope.INTERNAL)
-public class RestFindStructureAction extends BaseRestHandler {
+public class RestFindMessageStructureAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            Route.builder(POST, BASE_PATH + "find_structure").replaces(POST, "/_ml/find_file_structure", RestApiVersion.V_8).build()
-        );
+        return List.of(new Route(GET, BASE_PATH + "find_message_structure"), new Route(POST, BASE_PATH + "find_message_structure"));
     }
 
     @Override
     public String getName() {
-        return "text_structure_find_structure_action";
+        return "text_structure_find_message_structure_action";
     }
 
     @Override
-    protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
-        FindStructureAction.Request request = new FindStructureAction.Request();
-        RestFindStructureArgumentsParser.parse(restRequest, request);
-
-        if (restRequest.hasContent()) {
-            request.setSample(restRequest.content());
-        } else {
-            throw new ElasticsearchParseException("request body is required");
+    protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
+        FindMessageStructureAction.Request request;
+        try (XContentParser parser = restRequest.contentOrSourceParamParser()) {
+            request = FindMessageStructureAction.Request.parseRequest(parser);
         }
-
-        return channel -> client.execute(FindStructureAction.INSTANCE, request, new RestToXContentListener<>(channel));
+        RestFindStructureArgumentsParser.parse(restRequest, request);
+        return channel -> client.execute(FindMessageStructureAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 
     @Override

@@ -30,16 +30,10 @@ public class IgnoredMetaFieldAggregationIT extends ParameterizedRollingUpgradeTe
 
     public void testAggregation() throws IOException {
         if (isOldCluster()) {
-            // NOTE: index 'test1' is created on a version that is missing doc values for the _ignored field which results in an aggregation
-            // failure
-            final Response createIndexResponse = client().performRequest(createNewIndex("test1", 3, true));
-            assertRestStatus(createIndexResponse, RestStatus.OK);
-            final Response indexDocumentResponse = client().performRequest(indexDocument("test1", "foofoo", "1024.12.321.777"));
-            assertRestStatus(indexDocumentResponse, RestStatus.CREATED);
-            assertIndexDocuments("test1", 1);
+            assertRestStatus(client().performRequest(createNewIndex("test1")), RestStatus.OK);
+            assertRestStatus(client().performRequest(indexDocument("test1", "foofoo", "1024.12.321.777")), RestStatus.CREATED);
             assertAggregateIgnoredMetadataFieldException("test1", "Fielddata is not supported on field [_ignored] of type [_ignored]");
         } else if (isUpgradedCluster()) {
-            // NOTE: index 'test2' is created on a version that has doc values for the _ignored field
             final Request waitForGreen = new Request("GET", "/_cluster/health/test1");
             waitForGreen.addParameter("wait_for_nodes", "3");
             waitForGreen.addParameter("wait_for_status", "green");
@@ -48,11 +42,8 @@ public class IgnoredMetaFieldAggregationIT extends ParameterizedRollingUpgradeTe
             final Response response = client().performRequest(waitForGreen);
             assertRestStatus(response, RestStatus.OK);
 
-            final Response createIndexResponse = client().performRequest(createNewIndex("test2", 3, true));
-            assertRestStatus(createIndexResponse, RestStatus.OK);
-            final Response indexDocumentResponse = client().performRequest(indexDocument("test2", "barbar", "555.222.111.000"));
-            assertRestStatus(indexDocumentResponse, RestStatus.CREATED);
-            assertIndexDocuments("test*", 2);
+            assertRestStatus(client().performRequest(createNewIndex("test2")), RestStatus.OK);
+            assertRestStatus(client().performRequest(indexDocument("test2", "barbar", "555.222.111.000")), RestStatus.CREATED);
 
             assertAggregateIgnoredMetadataField("test*");
             assertAggregateIgnoredMetadataFieldException(
@@ -63,11 +54,30 @@ public class IgnoredMetaFieldAggregationIT extends ParameterizedRollingUpgradeTe
         }
     }
 
+    public void testExistsUsingRuntimeField() throws IOException {
+        if (isOldCluster()) {
+            assertRestStatus(client().performRequest(createNewIndex("test1")), RestStatus.OK);
+            assertRestStatus(client().performRequest(indexDocument("test1", "foofoo", "1024.12.321.777")), RestStatus.CREATED);
+        } else if (isUpgradedCluster()) {
+            final Request waitForGreen = new Request("GET", "/_cluster/health/test1");
+            waitForGreen.addParameter("wait_for_nodes", "3");
+            waitForGreen.addParameter("wait_for_status", "green");
+            waitForGreen.addParameter("timeout", "90s");
+            waitForGreen.addParameter("level", "shards");
+            final Response response = client().performRequest(waitForGreen);
+            assertRestStatus(response, RestStatus.OK);
+
+            assertRestStatus(client().performRequest(createNewIndex("test2")), RestStatus.OK);
+            assertRestStatus(client().performRequest(indexDocument("test2", "barbar", "555.222.111.000")), RestStatus.CREATED);
+            assertExistsUsingRuntimeField("test*");
+        }
+    }
+
     private static void assertRestStatus(final Response indexDocumentResponse, final RestStatus restStatus) {
         assertThat(indexDocumentResponse.getStatusLine().getStatusCode(), Matchers.equalTo(restStatus.getStatus()));
     }
 
-    private static Request createNewIndex(final String indexName, int ignoreABove, boolean ignoreMalformed) throws IOException {
+    private static Request createNewIndex(final String indexName) throws IOException {
         final Request createIndex = new Request("PUT", "/" + indexName);
         final XContentBuilder mappings = XContentBuilder.builder(XContentType.JSON.xContent())
             .startObject()
@@ -75,11 +85,11 @@ public class IgnoredMetaFieldAggregationIT extends ParameterizedRollingUpgradeTe
             .startObject("properties")
             .startObject("keyword")
             .field("type", "keyword")
-            .field("ignore_above", ignoreABove)
+            .field("ignore_above", 3)
             .endObject()
             .startObject("ip_address")
             .field("type", "ip")
-            .field("ignore_malformed", ignoreMalformed)
+            .field("ignore_malformed", true)
             .endObject()
             .endObject()
             .endObject()
@@ -98,15 +108,6 @@ public class IgnoredMetaFieldAggregationIT extends ParameterizedRollingUpgradeTe
         indexRequest.addParameter("refresh", "true");
         indexRequest.setJsonEntity(Strings.toString(doc));
         return indexRequest;
-    }
-
-    @SuppressWarnings("unchecked")
-    private static void assertIndexDocuments(final String indexPattern, int expectedDocs) throws IOException {
-        final Response response = client().performRequest(new Request("POST", "/" + indexPattern + "/_search"));
-        final Map<String, Object> responseEntityAsMap = entityAsMap(response);
-        final Map<String, Object> hits = (Map<String, Object>) responseEntityAsMap.get("hits");
-        final List<Object> hitsList = (List<Object>) hits.get("hits");
-        assertThat(hitsList.size(), Matchers.equalTo(expectedDocs));
     }
 
     @SuppressWarnings("unchecked")
@@ -130,6 +131,43 @@ public class IgnoredMetaFieldAggregationIT extends ParameterizedRollingUpgradeTe
         final List<Map<String, Object>> buckets = (List<Map<String, Object>>) ignoredTerms.get("buckets");
         assertThat(buckets.stream().map(bucket -> bucket.get("key")).toList(), Matchers.containsInAnyOrder("ip_address", "keyword"));
         assertThat(buckets.stream().map(bucket -> bucket.get("doc_count")).toList(), Matchers.contains(1, 1));
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void assertExistsUsingRuntimeField(final String indexPattern) throws IOException {
+        final Request request = new Request("POST", "/" + indexPattern + "/_search");
+        request.addParameter("size", "2");
+        request.setJsonEntity(Strings.format("""
+            {
+               "runtime_mappings": {
+                 "has_ignored_fields": {
+                   "type": "boolean",
+                   "script": {
+                     "source": "if (doc['_ignored'].size() > 0) { emit(true) }"
+                   }
+                 }
+               },
+               "query": {
+                 "exists": {
+                   "field": "has_ignored_fields"
+                 }
+               }
+             }"""));
+        final Response response = client().performRequest(request);
+        final Map<String, Object> aggResponseEntityAsMap = entityAsMap(response);
+
+        final Map<String, Object> shards = (Map<String, Object>) aggResponseEntityAsMap.get("_shards");
+        final List<Object> failures = (List<Object>) shards.get("failures");
+        assertThat(failures.size(), Matchers.equalTo(1));
+        final Map<String, Object> failure = (Map<String, Object>) failures.get(0);
+        assertThat((String) failure.get("index"), Matchers.equalTo("test1"));
+
+        final Map<String, Object> hits = (Map<String, Object>) aggResponseEntityAsMap.get("hits");
+        final List<Object> hitsList = (List<Object>) hits.get("hits");
+        assertThat(hitsList.size(), Matchers.equalTo(1));
+        final Map<String, Object> ignoredHit = (Map<String, Object>) hitsList.get(0);
+        assertThat("test2", Matchers.equalTo(ignoredHit.get("_index")));
+        assertThat((List<String>) ignoredHit.get("_ignored"), Matchers.containsInAnyOrder("keyword", "ip_address"));
     }
 
     private static void assertAggregateIgnoredMetadataFieldException(final String indexPattern, final String exceptionMessage)

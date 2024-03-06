@@ -65,6 +65,10 @@ dependencies {
   compileOnly(project(':modules:lang-painless:spi'))
   clusterModules(project(':modules:lang-painless'))
 
+  testImplementation "org.junit.vintage:junit-vintage-engine:5.8.1"
+  testImplementation "org.junit.platform:junit-platform-launcher:1.8.1"
+  testImplementation "org.junit.jupiter:junit-jupiter:5.8.1"
+
   yamlRestTestImplementation "org.junit.vintage:junit-vintage-engine:5.8.1"
   yamlRestTestImplementation "org.junit.platform:junit-platform-launcher:1.8.1"
   yamlRestTestImplementation "org.junit.jupiter:junit-jupiter:5.8.1"
@@ -77,4 +81,20 @@ tasks.named('yamlRestTest').configure {
       maxLocalExecutors = 0
     }
     javaLauncher = javaToolchains.launcherFor { }
+}
+
+test {
+    useJUnitPlatform()
+
+    // useJUnitPlatform {
+    //   includeEngines 'junit-vintage'
+    // }
+
+    distribution {
+      enabled = true
+      maxLocalExecutors = 0
+    }
+    // javaLauncher = javaToolchains.launcherFor {
+    //   languageVersion = JavaLanguageVersion.of(18)
+    // }
 }

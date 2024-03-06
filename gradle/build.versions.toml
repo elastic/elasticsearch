@@ -1,7 +1,7 @@
 [versions]
 asm = "9.6"
 jackson = "2.15.0"
-junit5 = "5.8.1"
+junit5 = "5.10.2"
 spock = "2.1-groovy-3.0"
 
 [libraries]
@@ -32,7 +32,7 @@ jna = "net.java.dev.jna:jna:5.10.0"
 junit = "junit:junit:4.13.2"
 junit5-platform = { group = "org.junit", name="junit-bom", version.ref="junit5" }
 junit5-jupiter = { group = "org.junit.jupiter", name="junit-jupiter", version.ref="junit5" }
-junit5-platform-launcher = "org.junit.platform:junit-platform-launcher:1.8.1"
+junit5-platform-launcher = "org.junit.platform:junit-platform-launcher:1.10.2"
 junit5-vintage = { group = "org.junit.vintage", name="junit-vintage-engine", version.ref="junit5" }
 maven-model = "org.apache.maven:maven-model:3.6.2"
 mockito-core = "org.mockito:mockito-core:1.9.5"

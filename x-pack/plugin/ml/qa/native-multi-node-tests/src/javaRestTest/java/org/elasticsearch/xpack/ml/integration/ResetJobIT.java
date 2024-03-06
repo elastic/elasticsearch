@@ -47,7 +47,7 @@ public class ResetJobIT extends MlNativeAutodetectIntegTestCase {
         TimeValue bucketSpan = TimeValue.timeValueMinutes(30);
         long startTime = 1514764800000L;
         final int bucketCount = 100;
-        Job.Builder job = createJob(bucketSpan);
+        Job.Builder job = createJob("test-reset-" + previousResetFailed, bucketSpan);
 
         openJob(job.getId());
         postData(
@@ -88,11 +88,11 @@ public class ResetJobIT extends MlNativeAutodetectIntegTestCase {
         assertThat("Audit messages: " + auditMessages, auditMessages.get(auditMessages.size() - 1), equalTo("Job has been reset"));
     }
 
-    private Job.Builder createJob(TimeValue bucketSpan) {
+    private Job.Builder createJob(String jobId, TimeValue bucketSpan) {
         Detector.Builder detector = new Detector.Builder("count", null);
         AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(Collections.singletonList(detector.build()));
         analysisConfig.setBucketSpan(bucketSpan);
-        Job.Builder job = new Job.Builder(randomIdentifier());
+        Job.Builder job = new Job.Builder(jobId);
         job.setAnalysisConfig(analysisConfig);
         DataDescription.Builder dataDescription = new DataDescription.Builder();
         job.setDataDescription(dataDescription);

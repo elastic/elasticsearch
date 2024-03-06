@@ -8,6 +8,7 @@
 package org.elasticsearch.cluster.coordination;
 
 import org.apache.logging.log4j.Level;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionTestUtils;
@@ -28,6 +29,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils;
+import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.cluster.version.CompatibilityVersionsUtils;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.ReferenceDocs;
@@ -38,6 +40,7 @@ import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
@@ -946,6 +949,49 @@ public class NodeJoinExecutorTests extends ESTestCase {
 
         assertThat(resultingState.clusterFeatures().clusterHasFeature(new NodeFeature("f1")), is(true));
         assertThat(resultingState.clusterFeatures().clusterHasFeature(new NodeFeature("f2")), is(true));
+    }
+
+    public void testInconsistentSystemIndexVersionRejected() throws Exception {
+        // boilerplate setup
+        final AllocationService allocationService = createAllocationService();
+        final RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
+
+        final NodeJoinExecutor executor = new NodeJoinExecutor(allocationService, rerouteService, createFeatureService());
+
+        final DiscoveryNode masterNode = DiscoveryNodeUtils.create(UUIDs.base64UUID());
+
+        final DiscoveryNode joiningNode = DiscoveryNodeUtils.create(UUIDs.base64UUID());
+
+        final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(
+                DiscoveryNodes.builder().add(masterNode).localNodeId(masterNode.getId()).masterNodeId(masterNode.getId())
+            )
+            .nodeIdsToCompatibilityVersions(Map.of(masterNode.getId(), new CompatibilityVersions(TransportVersion.current(),
+                Map.of(".my-system-index", new SystemIndexDescriptor.MappingsVersion(1, 1)))))
+            .build();
+
+        assertThat(clusterState.clusterFeatures().clusterHasFeature(new NodeFeature("f1")), is(false));
+        assertThat(clusterState.clusterFeatures().clusterHasFeature(new NodeFeature("f2")), is(false));
+
+        AssertionError e = expectThrows(AssertionError.class, () -> ClusterStateTaskExecutorUtils.executeAndThrowFirstFailure(
+            clusterState,
+            executor,
+            List.of(
+                JoinTask.singleNode(
+                    joiningNode,
+                    new CompatibilityVersions(
+                        TransportVersion.current(),
+                        Map.of(".my-system-index", new SystemIndexDescriptor.MappingsVersion(1, 2))
+                    ),
+                    Set.of(),
+                    TEST_REASON,
+                    NO_FAILURE_LISTENER,
+                    0L
+                )
+            )
+        ));
+
+        assertThat(e.getMessage(), equalTo("System index hash mismatch"));
     }
 
     private DesiredNodeWithStatus createActualizedDesiredNode() {

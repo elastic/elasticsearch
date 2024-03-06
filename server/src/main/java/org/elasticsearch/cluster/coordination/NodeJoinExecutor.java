@@ -159,7 +159,8 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
                 } else {
                     try {
                         CompatibilityVersions compatibilityVersions = nodeJoinTask.compatibilityVersions();
-                        assert systemIndexVersionConsistent(compatibilityVersions.systemIndexMappingsVersion(), compatibilityVersionsMap);
+                        assert systemIndexVersionConsistent(compatibilityVersions.systemIndexMappingsVersion(), compatibilityVersionsMap)
+                            : "System index hash mismatch";
                         Set<String> features = nodeJoinTask.features();
                         if (enforceVersionBarrier) {
                             ensureVersionBarrier(node.getVersion(), minClusterNodeVersion);

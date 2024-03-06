@@ -1752,7 +1752,7 @@ public final class OptimizerRules {
          * If a match is found, the matching expression will be replaced by the replacer result
          * or removed if null is returned.
          */
-        private static boolean replace(
+        protected static boolean replace(
             Iterable<Expression> pattern,
             List<Expression> target,
             List<Expression> originalExpressions,

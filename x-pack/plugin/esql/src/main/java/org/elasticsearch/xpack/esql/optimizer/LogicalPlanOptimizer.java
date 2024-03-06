@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.optimizer;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
@@ -44,6 +45,8 @@ import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunctio
 import org.elasticsearch.xpack.ql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
+import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.RegexMatch;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanFunctionEqualsElimination;
@@ -74,6 +77,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -1608,8 +1612,45 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
     }
 
     public static class PropagateNullable extends OptimizerRules.PropagateNullable {
+        @Override
         protected Expression rule(And and) {
-            return super.rule(and);
+            List<Expression> splits = Predicates.splitAnd(and);
+
+            Set<Expression> nullExpressions = new LinkedHashSet<>();
+            Set<Expression> notNullExpressions = new LinkedHashSet<>();
+            List<Expression> others = new LinkedList<>();
+
+            // first find isNull/isNotNull
+            for (Expression ex : splits) {
+                // Avoid considering constants. It would lead to collisions with foldable propagation
+                // Folding will take care of them eventually anyway
+                if (ex instanceof IsNull isn && isn.field().foldable() == false) {
+                    nullExpressions.add(isn.field());
+                } else if (ex instanceof IsNotNull isnn && isnn.field().foldable() == false) {
+                    notNullExpressions.add(isnn.field());
+                }
+                // the rest
+                else {
+                    others.add(ex);
+                }
+            }
+
+            // check for is isNull and isNotNull --> FALSE
+            if (Sets.haveNonEmptyIntersection(nullExpressions, notNullExpressions)) {
+                return Literal.of(and, Boolean.FALSE);
+            }
+
+            // apply nullability across relevant/matching expressions
+
+            // first against all nullable expressions
+            // followed by all not-nullable expressions
+            boolean modified = replace(nullExpressions, others, splits, this::nullify);
+            modified |= replace(notNullExpressions, others, splits, this::nonNullify);
+            if (modified) {
+                // reconstruct the expression
+                return Predicates.combineAnd(splits);
+            }
+            return and;
         }
 
         protected Expression nullify(Expression exp, Expression nullExp) {

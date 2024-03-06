@@ -59,6 +59,11 @@ chosen.
 
 include::{es-repo-dir}/text-structure/apis/find-structure-shared.asciidoc[tag=param-column-names]
 include::{es-repo-dir}/text-structure/apis/find-structure-shared.asciidoc[tag=param-delimiter]
+
+`documents_to_sample`::
+(Optional, unsigned integer) The number of documents to include in the structural
+analysis. The minimum is 2; the default is 1000.
+
 include::{es-repo-dir}/text-structure/apis/find-structure-shared.asciidoc[tag=param-explain]
 include::{es-repo-dir}/text-structure/apis/find-structure-shared.asciidoc[tag=param-format]
 include::{es-repo-dir}/text-structure/apis/find-structure-shared.asciidoc[tag=param-grok-pattern]

@@ -8,7 +8,7 @@ PUT cohere-embeddings
     "properties": {
       "content_embedding": { <1>
         "type": "dense_vector", <2>
-        "dims": 384, <3>
+        "dims": 1024, <3>
         "element_type": "float"
       },
       "content": { <4>

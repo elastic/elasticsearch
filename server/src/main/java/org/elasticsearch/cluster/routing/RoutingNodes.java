@@ -511,7 +511,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                                 startedReplica,
                                 sourceShard.relocatingNodeId(),
                                 sourceShard.getExpectedShardSize(),
-                                "TODO",
+                                "restarting relocation",
                                 routingChangesObserver
                             );
                         } else {

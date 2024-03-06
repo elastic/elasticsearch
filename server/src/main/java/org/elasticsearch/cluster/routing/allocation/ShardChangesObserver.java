@@ -20,13 +20,13 @@ public class ShardChangesObserver implements RoutingChangesObserver {
 
     @Override
     public void shardStarted(ShardRouting initializingShard, ShardRouting startedShard) {
-        logger.info("{} started on node {}", shardIdentifier(startedShard), startedShard.currentNodeId());
+        logger.info("{} started on node [{}]", shardIdentifier(startedShard), startedShard.currentNodeId());
     }
 
     @Override
     public void relocationStarted(ShardRouting startedShard, ShardRouting targetRelocatingShard, String reason) {
         logger.info(
-            "{} is relocating ({}) from {} to {}",
+            "{} is relocating ({}) from [{}] to [{}]",
             shardIdentifier(startedShard),
             reason,
             startedShard.currentNodeId(),
@@ -36,12 +36,12 @@ public class ShardChangesObserver implements RoutingChangesObserver {
 
     @Override
     public void shardFailed(ShardRouting failedShard, UnassignedInfo unassignedInfo) {
-        logger.info("{} has failed on {}: {}", shardIdentifier(failedShard), failedShard.currentNodeId(), unassignedInfo.getReason());
+        logger.info("{} has failed on [{}]: {}", shardIdentifier(failedShard), failedShard.currentNodeId(), unassignedInfo.getReason());
     }
 
     @Override
     public void replicaPromoted(ShardRouting replicaShard) {
-        logger.info("{} is promoted to primary on {}", shardIdentifier(replicaShard), replicaShard.currentNodeId());
+        logger.info("{} is promoted to primary on [{}]", shardIdentifier(replicaShard), replicaShard.currentNodeId());
     }
 
     private static String shardIdentifier(ShardRouting shardRouting) {

@@ -124,8 +124,8 @@ end::param-should-trim-fields[]
 tag::param-timeout[]
 `timeout`::
 (Optional, <<time-units,time units>>) Sets the maximum amount of time that the
-structure analysis make take. If the analysis is still running when the timeout
-expires then it will be aborted. The default value is 25 seconds.
+structure analysis may take. If the analysis is still running when the timeout
+expires then it will be stopped. The default value is 25 seconds.
 end::param-timeout[]
 
 tag::param-timestamp-field[]

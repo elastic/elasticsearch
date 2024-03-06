@@ -471,6 +471,7 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
         );
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/106044")
     public void testBlockLoader() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181354]}"))));

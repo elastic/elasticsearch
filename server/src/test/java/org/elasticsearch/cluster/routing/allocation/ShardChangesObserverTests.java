@@ -30,7 +30,7 @@ import java.util.Set;
 import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.elasticsearch.test.MockLogAppender.assertThatLogger;
 
-public class ShardChangesObserverTest extends ESAllocationTestCase {
+public class ShardChangesObserverTests extends ESAllocationTestCase {
 
     public void testLogShardStarting() {
 

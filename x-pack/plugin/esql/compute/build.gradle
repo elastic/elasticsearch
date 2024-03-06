@@ -365,6 +365,17 @@ tasks.named('stringTemplates').configure {
     it.inputFile =  arrayStateInputFile
     it.outputFile = "org/elasticsearch/compute/aggregation/DoubleArrayState.java"
   }
+  File valuesAggregatorInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/aggregation/X-ValuesAggregator.java.st")
+  template {
+    it.properties = intProperties
+    it.inputFile =  valuesAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/ValuesIntAggregator.java"
+  }
+  template {
+    it.properties = longProperties
+    it.inputFile =  valuesAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/ValuesLongAggregator.java"
+  }
   File multivalueDedupeInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/operator/X-MultivalueDedupe.java.st")
   template {
     it.properties = intProperties

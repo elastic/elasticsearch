@@ -9,33 +9,41 @@ package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongHash;
+$if(long)$
+import org.elasticsearch.common.util.LongLongHash;
+$endif$
 import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+$if(int)$
 import org.elasticsearch.compute.data.IntBlock;
+$endif$
 import org.elasticsearch.compute.data.IntVector;
+$if(long)$
+import org.elasticsearch.compute.data.LongBlock;
+$endif$
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasable;
 
-@Aggregator({ @IntermediateState(name = "values", type = "INT_BLOCK") })
+@Aggregator({ @IntermediateState(name = "values", type = "$TYPE$_BLOCK") })
 @GroupingAggregator
-class ValuesIntAggregator {
+class Values$Type$Aggregator {
 
     public static SingleState initSingle(BigArrays bigArrays) {
         return new SingleState(bigArrays);
     }
 
-    public static void combine(SingleState state, int v) {
+    public static void combine(SingleState state, $type$ v) {
         state.values.add(v);
     }
 
-    public static void combineIntermediate(SingleState state, IntBlock block) {
+    public static void combineIntermediate(SingleState state, $Type$Block block) {
         int start = block.getFirstValueIndex(0);
         int end = start + block.getValueCount(0);
         for (int i = start; i < end; i++) {
-            combine(state, block.getInt(i));
+            combine(state, block.get$Type$(i));
         }
     }
 
@@ -47,15 +55,19 @@ class ValuesIntAggregator {
         return new GroupingState(bigArrays);
     }
 
-    public static void combine(GroupingState state, int groupId, int v) {
+    public static void combine(GroupingState state, int groupId, $type$ v) {
+$if(long)$
+        state.values.add(groupId, v);
+$elseif(int)$
         state.values.add((((long) groupId) << Integer.SIZE) | (v & 0xFFFFFFFFL));
+$endif$
     }
 
-    public static void combineIntermediate(GroupingState state, int groupId, IntBlock values, int valuesPosition) {
+    public static void combineIntermediate(GroupingState state, int groupId, $Type$Block values, int valuesPosition) {
         int start = values.getFirstValueIndex(valuesPosition);
         int end = start + values.getValueCount(valuesPosition);
         for (int i = start; i < end; i++) {
-            combine(state, groupId, values.getInt(i));
+            combine(state, groupId, values.get$Type$(i));
         }
     }
 
@@ -82,13 +94,18 @@ class ValuesIntAggregator {
             if (values.size() == 0) {
                 return blockFactory.newConstantNullBlock(1);
             }
-            IntBlock.Builder builder = blockFactory.newIntBlockBuilder((int) values.size());
-            builder.beginPositionEntry();
-            for (int id = 0; id < values.size(); id++) {
-                builder.appendInt((int) values.get(id));
+            try ($Type$Block.Builder builder = blockFactory.new$Type$BlockBuilder((int) values.size())) {
+                builder.beginPositionEntry();
+                for (int id = 0; id < values.size(); id++) {
+$if(long)$
+                    builder.appendLong(values.get(id));
+$elseif(int)$
+                    builder.appendInt((int) values.get(id));
+$endif$
+                }
+                builder.endPositionEntry();
+                return builder.build();
             }
-            builder.endPositionEntry();
-            return builder.build();
         }
 
         @Override
@@ -98,10 +115,20 @@ class ValuesIntAggregator {
     }
 
     public static class GroupingState implements Releasable {
+$if(long)$
+        private final LongLongHash values;
+
+$elseif(int)$
         private final LongHash values;
 
+$endif$
+
         private GroupingState(BigArrays bigArrays) {
+$if(long)$
+            values = new LongLongHash(1, bigArrays);
+$elseif(int)$
             values = new LongHash(1, bigArrays);
+$endif$
         }
 
         void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
@@ -110,43 +137,49 @@ class ValuesIntAggregator {
 
         Block toBlock(BlockFactory blockFactory, IntVector selected) {
             if (values.size() == 0) {
-                return blockFactory.newConstantNullBlock(1);
+                return blockFactory.newConstantNullBlock(selected.getPositionCount());
             }
-            IntBlock.Builder builder = blockFactory.newIntBlockBuilder(selected.getPositionCount());
-            for (int s = 0; s < selected.getPositionCount(); s++) {
-                int selectedGroup = selected.getInt(s);
-                /*
-                 * Count can effectively be in three states - 0, 1, many. We use those
-                 * states to buffer the first value, so we can avoid calling
-                 * beginPositionEntry on single valued fields.
-                 */
-                int count = 0;
-                int first = 0;
-                for (int id = 0; id < values.size(); id++) {
-                    long both = values.get(id);
-                    int group = (int) (both >>> Integer.SIZE);
-                    if (group == selectedGroup) {
-                        int value = (int) both;
-                        switch (count) {
-                            case 0 -> first = value;
-                            case 1 -> {
-                                builder.beginPositionEntry();
-                                builder.appendInt(first);
-                                builder.appendInt(value);
+            try ($Type$Block.Builder builder = blockFactory.new$Type$BlockBuilder(selected.getPositionCount())) {
+                for (int s = 0; s < selected.getPositionCount(); s++) {
+                    int selectedGroup = selected.getInt(s);
+                    /*
+                     * Count can effectively be in three states - 0, 1, many. We use those
+                     * states to buffer the first value, so we can avoid calling
+                     * beginPositionEntry on single valued fields.
+                     */
+                    int count = 0;
+                    $type$ first = 0;
+                    for (int id = 0; id < values.size(); id++) {
+$if(long)$
+                        long group = values.getKey1(id);
+                        if (group == selectedGroup) {
+                            long value = values.getKey2(id);
+$elseif(int)$
+                        long both = values.get(id);
+                        int group = (int) (both >>> Integer.SIZE);
+                        if (group == selectedGroup) {
+                            int value = (int) both;
+$endif$
+                            switch (count) {
+                                case 0 -> first = value;
+                                case 1 -> {
+                                    builder.beginPositionEntry();
+                                    builder.append$Type$(first);
+                                    builder.append$Type$(value);
+                                }
+                                default -> builder.append$Type$(value);
                             }
-                            default -> builder.appendInt(value);
+                            count++;
                         }
-                        count++;
+                    }
+                    switch (count) {
+                        case 0 -> builder.appendNull();
+                        case 1 -> builder.append$Type$(first);
+                        default -> builder.endPositionEntry();
                     }
                 }
-                switch (count) {
-                    case 0 -> builder.appendNull();
-                    case 1 -> builder.appendInt(first);
-                    default -> builder.endPositionEntry();
-                }
+                return builder.build();
             }
-            IntBlock b = builder.build();
-            return b;
         }
 
         void enableGroupIdTracking(SeenGroupIds seen) {

@@ -112,11 +112,11 @@ public class StoredFieldsPhase implements FetchSubPhase {
                     if (storedField.hasValue(loadedFields)) {
                         DocumentField df = new DocumentField(storedField.name, storedField.process(loadedFields));
                         if (includeMetadataFields == false) {
-                            // NOTE: this branch exists for backward compatibility
                             if (storedField.isMetadataField == false) {
                                 docFields.put(storedField.name, df);
                             }
                         } else {
+                            // NOTE: this branch exists for backward compatibility
                             if (storedField.isMetadataField) {
                                 metaFields.put(storedField.name, df);
                             } else {

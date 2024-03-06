@@ -9,9 +9,11 @@ package org.elasticsearch.xpack.inference.external.http.sender;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -51,7 +53,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
     private ThreadPool threadPool;
 
     @Before
-    public void init() {
+    public void init() throws Exception {
         threadPool = createThreadPool(inferenceUtilityPool());
     }
 
@@ -213,6 +215,61 @@ public class RequestExecutorServiceTests extends ESTestCase {
             thrownException.getMessage(),
             is(format("Request timed out waiting to be sent after [%s]", TimeValue.timeValueNanos(1)))
         );
+    }
+
+    public void testSend_PreservesThreadContext() throws InterruptedException, ExecutionException, TimeoutException {
+        var service = createRequestExecutorServiceWithMocks();
+
+        // starting this on a separate thread to ensure we aren't using the same thread context that the rest of the test will execute with
+        threadPool.generic().execute(service::start);
+
+        ThreadContext threadContext = threadPool.getThreadContext();
+        threadContext.putHeader("not empty", "value");
+
+        var requestSender = mock(RetryingHttpSender.class);
+
+        var waitToShutdown = new CountDownLatch(1);
+        var waitToReturnFromSend = new CountDownLatch(1);
+
+        // this code will be executed by the queue's thread
+        doAnswer(invocation -> {
+            var serviceThreadContext = threadPool.getThreadContext();
+            // ensure that the spawned thread didn't pick up the header that was set initially on a separate thread
+            assertNull(serviceThreadContext.getHeader("not empty"));
+
+            @SuppressWarnings("unchecked")
+            ActionListener<InferenceServiceResults> listener = (ActionListener<InferenceServiceResults>) invocation.getArguments()[5];
+            listener.onResponse(null);
+
+            waitToShutdown.countDown();
+            waitToReturnFromSend.await(TIMEOUT.getSeconds(), TimeUnit.SECONDS);
+            return Void.TYPE;
+        }).when(requestSender).send(any(), any(), any(), any(), any(), any());
+
+        var finishedOnResponse = new CountDownLatch(1);
+        ActionListener<InferenceServiceResults> listener = new ActionListener<>() {
+            @Override
+            public void onResponse(InferenceServiceResults ignore) {
+                // if we've preserved the thread context correctly then the header should still exist
+                ThreadContext listenerContext = threadPool.getThreadContext();
+                assertThat(listenerContext.getHeader("not empty"), is("value"));
+                finishedOnResponse.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                throw new RuntimeException("onFailure shouldn't be called", e);
+            }
+        };
+
+        service.execute(ExecutableRequestCreatorTests.createMock(requestSender), List.of(), null, listener);
+
+        Future<?> executorTermination = submitShutdownRequest(waitToShutdown, waitToReturnFromSend, service);
+
+        executorTermination.get(TIMEOUT.millis(), TimeUnit.MILLISECONDS);
+        assertTrue(service.isTerminated());
+
+        finishedOnResponse.await(TIMEOUT.getSeconds(), TimeUnit.SECONDS);
     }
 
     public void testSend_NotifiesTasksOfShutdown() {

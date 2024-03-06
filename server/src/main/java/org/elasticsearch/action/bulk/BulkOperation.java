@@ -93,6 +93,38 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         long startTimeNanos,
         ActionListener<BulkResponse> listener
     ) {
+        this(
+            task,
+            threadPool,
+            executorName,
+            clusterService,
+            bulkRequest,
+            client,
+            responses,
+            indicesThatCannotBeCreated,
+            indexNameExpressionResolver,
+            relativeTimeProvider,
+            startTimeNanos,
+            listener,
+            new ClusterStateObserver(clusterService, bulkRequest.timeout(), logger, threadPool.getThreadContext())
+        );
+    }
+
+    BulkOperation(
+        Task task,
+        ThreadPool threadPool,
+        String executorName,
+        ClusterService clusterService,
+        BulkRequest bulkRequest,
+        NodeClient client,
+        AtomicArray<BulkItemResponse> responses,
+        Map<String, IndexNotFoundException> indicesThatCannotBeCreated,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        LongSupplier relativeTimeProvider,
+        long startTimeNanos,
+        ActionListener<BulkResponse> listener,
+        ClusterStateObserver observer
+    ) {
         super(listener);
         this.task = task;
         this.threadPool = threadPool;
@@ -106,7 +138,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         this.relativeTimeProvider = relativeTimeProvider;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.client = client;
-        this.observer = new ClusterStateObserver(clusterService, bulkRequest.timeout(), logger, threadPool.getThreadContext());
+        this.observer = observer;
     }
 
     @Override
@@ -331,6 +363,16 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                         if (failureStoreReference != null) {
                             addDocumentToRedirectRequests(bulkItemRequest, bulkItemResponse.getFailure().getCause(), failureStoreReference);
                         }
+
+                        // Check for any previously recorded responses in the buffer since this might be a failure during a redirect
+                        BulkItemResponse response = responses.get(bulkItemResponse.getItemId());
+                        if (response != null) {
+                            // Response already recorded. We should only be here if the existing response is a failure and
+                            // we are encountering a new failure while redirecting.
+                            assert response.isFailed() : "Attempting to overwrite successful bulk item result with a failure";
+                            response.getFailure().getCause().addSuppressed(bulkItemResponse.getFailure().getCause());
+                            bulkItemResponse = response;
+                        }
                     } else {
                         bulkItemResponse.getResponse().setShardInfo(bulkShardResponse.getShardInfo());
                     }
@@ -345,13 +387,24 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                 for (BulkItemRequest request : bulkShardRequest.items()) {
                     final String indexName = request.index();
                     DocWriteRequest<?> docWriteRequest = request.request();
-                    BulkItemResponse.Failure failure = new BulkItemResponse.Failure(indexName, docWriteRequest.id(), e);
-                    BulkItemResponse response = BulkItemResponse.failure(request.id(), docWriteRequest.opType(), failure);
 
                     String failureStoreReference = getRedirectTarget(docWriteRequest, getClusterState().metadata());
                     if (failureStoreReference != null) {
                         addDocumentToRedirectRequests(request, e, failureStoreReference);
                     }
+
+                    // Check for any previously recorded responses in the buffer since this might be a failure during a redirect
+                    BulkItemResponse response = responses.get(request.id());
+                    if (response == null) {
+                        BulkItemResponse.Failure failure = new BulkItemResponse.Failure(indexName, docWriteRequest.id(), e);
+                        response = BulkItemResponse.failure(request.id(), docWriteRequest.opType(), failure);
+                    } else {
+                        // Response already recorded. We should only be here if the existing response is a failure and
+                        // we are encountering a new failure while redirecting.
+                        assert response.isFailed() : "Attempting to overwrite successful bulk item result with a failure";
+                        response.getFailure().getCause().addSuppressed(e);
+                    }
+                    // Always replace the item in the responses for thread visibility of any mutations
                     responses.set(request.id(), response);
                 }
                 completeShardOperation();
@@ -555,7 +608,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
             assert bulkItemResponse.isFailed() : "Attempting to overwrite successful bulk item result with a failure";
             bulkItemResponse.getFailure().getCause().addSuppressed(exception);
         }
-        // Always replace the item in the responses for thread visibility of any mutationsa
+        // Always replace the item in the responses for thread visibility of any mutations
         responses.set(idx, bulkItemResponse);
         // make sure the request gets never processed again
         bulkRequest.requests.set(idx, null);

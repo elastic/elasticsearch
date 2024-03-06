@@ -57,9 +57,9 @@ public abstract class BuildVersion {
     }
 
     private static class IdToBuildVersionHolder {
-        private static final IntFunction<BuildVersion> ID_TO_BUILD_VERSION_FUNCTION = findFromInt();
+        private static final IntFunction<BuildVersion> ID_TO_BUILD_VERSION_FUNCTION = findIdToBuildVersionFunction();
 
-        private static IntFunction<BuildVersion> findFromInt() {
+        private static IntFunction<BuildVersion> findIdToBuildVersionFunction() {
             return ExtensionHolder.BUILD_EXTENSION.map(be -> (IntFunction<BuildVersion>) be::fromVersionId)
                 .orElse(DefaultBuildVersion::new);
         }

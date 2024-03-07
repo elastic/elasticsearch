@@ -14,7 +14,6 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.FieldData;
@@ -31,8 +30,6 @@ import java.util.Collections;
  * A field mapper that records fields that have been ignored because they were malformed.
  */
 public final class IgnoredFieldMapper extends MetadataFieldMapper {
-
-    public static final IndexVersion AGGS_SUPPORT_VERSION = IndexVersion.fromId(Version.V_8_13_0.id());
 
     public static final String NAME = "_ignored";
 
@@ -51,7 +48,7 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
     public static final TypeParser PARSER = new FixedTypeParser(c -> getInstance(c.indexVersionCreated()));
 
     private static MetadataFieldMapper getInstance(IndexVersion indexVersion) {
-        return indexVersion.onOrAfter(AGGS_SUPPORT_VERSION) ? INSTANCE : LEGACY_INSTANCE;
+        return indexVersion.onOrAfter(IndexVersions.DOC_VALUES_FOR_IGNORED_META_FIELD) ? INSTANCE : LEGACY_INSTANCE;
     }
 
     public static final class LegacyIgnoredFieldType extends StringFieldType {
@@ -75,8 +72,8 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
             throw new IllegalArgumentException(
                 "aggregations on the '"
                     + typeName()
-                    + "' field are supported for indices created by stack version "
-                    + AGGS_SUPPORT_VERSION
+                    + "' field are supported for indices created by version "
+                    + IndexVersions.DOC_VALUES_FOR_IGNORED_META_FIELD
                     + " or higher"
             );
         }

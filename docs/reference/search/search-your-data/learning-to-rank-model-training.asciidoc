@@ -12,7 +12,8 @@ NOTE: This feature is available for Elastic Stack versions 8.12.0 and newer and 
 [[learning-to-rank-model-training-workflow]]
 ==== Train and deploy a model using Eland
 
-https://xgboost.readthedocs.io/en/stable/[XGBoost^] model training typically leverages a standard, Python data science toolkit such as Pandas and scikit-learn
+Typically, the https://xgboost.readthedocs.io/en/stable/[XGBoost^] model training process uses standard Python data science tools like Pandas and scikit-learn.
+
 
 We have developed an example notebook available https://github.com/elastic/elasticsearch-labs/blob/main/notebooks/search/08-learning-to-rank.ipynb[here^], detailing an end-to-end model training and deployment workflow.
 

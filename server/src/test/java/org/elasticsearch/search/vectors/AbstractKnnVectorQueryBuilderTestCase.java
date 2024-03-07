@@ -13,6 +13,7 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -23,6 +24,8 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.QueryRewriteContext;
+import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.test.AbstractBuilderTestCase;
@@ -38,7 +41,9 @@ import java.util.List;
 import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.nullValue;
 
 abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCase<KnnVectorQueryBuilder> {
     private static final String VECTOR_FIELD = "vector";
@@ -252,5 +257,40 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
             byteQueryVector[i] = (byte) queryVector[i];
         }
         return byteQueryVector;
+    }
+
+    public void testRewriteWithQueryVectorBuilder() throws Exception {
+        int dims = randomInt(1024);
+        float[] expectedArray = new float[dims];
+        for (int i = 0; i < dims; i++) {
+            expectedArray[i] = randomFloat();
+        }
+        KnnVectorQueryBuilder knnVectorQueryBuilder = new KnnVectorQueryBuilder(
+            "field",
+            new TestQueryVectorBuilderPlugin.TestQueryVectorBuilder(expectedArray),
+            5,
+            1f
+        );
+        knnVectorQueryBuilder.boost(randomFloat());
+        List<QueryBuilder> filters = new ArrayList<>();
+        int numFilters = randomIntBetween(1, 5);
+        for (int i = 0; i < numFilters; i++) {
+            String filterFieldName = randomBoolean() ? KEYWORD_FIELD_NAME : TEXT_FIELD_NAME;
+            filters.add(QueryBuilders.termQuery(filterFieldName, randomAlphaOfLength(10)));
+        }
+        knnVectorQueryBuilder.addFilterQueries(filters);
+
+        QueryRewriteContext context = new QueryRewriteContext(null, null, null);
+        PlainActionFuture<QueryBuilder> knnFuture = new PlainActionFuture<>();
+        Rewriteable.rewriteAndFetch(knnVectorQueryBuilder, context, knnFuture);
+        KnnVectorQueryBuilder rewritten = (KnnVectorQueryBuilder) knnFuture.get();
+
+        assertThat(rewritten.getFieldName(), equalTo(knnVectorQueryBuilder.getFieldName()));
+        assertThat(rewritten.boost(), equalTo(knnVectorQueryBuilder.boost()));
+        assertThat(rewritten.queryVector(), equalTo(expectedArray));
+        assertThat(rewritten.queryVectorBuilder(), nullValue());
+        assertThat(rewritten.getVectorSimilarity(), equalTo(1f));
+        assertThat(rewritten.filterQueries(), hasSize(numFilters));
+        assertThat(rewritten.filterQueries(), equalTo(filters));
     }
 }

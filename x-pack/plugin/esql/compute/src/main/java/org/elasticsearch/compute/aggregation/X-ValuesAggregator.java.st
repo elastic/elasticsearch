@@ -19,12 +19,12 @@ $endif$
 $if(long||double||BytesRef)$
 import org.elasticsearch.common.util.LongLongHash;
 $endif$
-import org.elasticsearch.compute.ann.Aggregator;
-import org.elasticsearch.compute.ann.GroupingAggregator;
-import org.elasticsearch.compute.ann.IntermediateState;
 $if(BytesRef)$
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 $endif$
+import org.elasticsearch.compute.ann.Aggregator;
+import org.elasticsearch.compute.ann.GroupingAggregator;
+import org.elasticsearch.compute.ann.IntermediateState;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 $if(int||double||BytesRef)$
@@ -38,8 +38,10 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasable;
 $if(BytesRef)$
 import org.elasticsearch.core.Releasables;
-$endif$
 
+$else$
+
+$endif$
 /**
  * Aggregates field values for $type$.
  * This class is generated. Edit @{code X-ValuesAggregator.java.st} instead
@@ -139,10 +141,11 @@ $endif$
     public static class SingleState implements Releasable {
 $if(BytesRef)$
         private final BytesRefHash values;
+
 $else$
         private final LongHash values;
-$endif$
 
+$endif$
         private SingleState(BigArrays bigArrays) {
 $if(BytesRef)$
             values = new BytesRefHash(1, bigArrays);
@@ -216,7 +219,6 @@ $elseif(int)$
         private final LongHash values;
 
 $endif$
-
         private GroupingState(BigArrays bigArrays) {
 $if(long||double)$
             values = new LongLongHash(1, bigArrays);

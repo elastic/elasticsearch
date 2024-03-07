@@ -3648,7 +3648,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         FieldAttribute fa = getFieldAttribute("a");
 
         And and = new And(EMPTY, new IsNull(EMPTY, fa), new IsNotNull(EMPTY, fa));
-        assertEquals(FALSE, new LogicalPlanOptimizer.PropagateNullable().rule(and));
+        assertEquals(FALSE, new PropagateNullable().rule(and));
     }
 
     // a IS NULL AND b IS NOT NULL AND c IS NULL AND d IS NOT NULL AND e IS NULL AND a IS NOT NULL => false
@@ -3661,7 +3661,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         And and = new And(EMPTY, andOne, new And(EMPTY, andTwo, andThree));
 
-        assertEquals(FALSE, new LogicalPlanOptimizer.PropagateNullable().rule(and));
+        assertEquals(FALSE, new PropagateNullable().rule(and));
     }
 
     // a IS NULL AND a > 1 => a IS NULL AND NULL
@@ -3670,7 +3670,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         IsNull isNull = new IsNull(EMPTY, fa);
 
         And and = new And(EMPTY, isNull, greaterThanOf(fa, ONE));
-        assertEquals(new And(EMPTY, isNull, nullOf(BOOLEAN)), new LogicalPlanOptimizer.PropagateNullable().rule(and));
+        assertEquals(new And(EMPTY, isNull, nullOf(BOOLEAN)), new PropagateNullable().rule(and));
     }
 
     // a IS NULL AND b < 1 AND c < 1 AND a < 1 => a IS NULL AND b < 1 AND c < 1 AND NULL
@@ -3682,7 +3682,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         And aIsNull_AND_bLT1_AND_cLT1 = new And(EMPTY, aIsNull, bLT1_AND_cLT1);
         And aIsNull_AND_bLT1_AND_cLT1_AND_aLT1 = new And(EMPTY, aIsNull_AND_bLT1_AND_cLT1, lessThanOf(fa, ONE));
 
-        Expression optimized = new LogicalPlanOptimizer.PropagateNullable().rule(aIsNull_AND_bLT1_AND_cLT1_AND_aLT1);
+        Expression optimized = new PropagateNullable().rule(aIsNull_AND_bLT1_AND_cLT1_AND_aLT1);
         Expression aIsNull_AND_bLT1_AND_cLT1_AND_NULL = new And(EMPTY, aIsNull_AND_bLT1_AND_cLT1, nullOf(BOOLEAN));
         assertEquals(Predicates.splitAnd(aIsNull_AND_bLT1_AND_cLT1_AND_NULL), Predicates.splitAnd(optimized));
     }
@@ -3696,8 +3696,9 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         And aIsNull_AND_bLT1_AND_cLT1 = new And(EMPTY, aIsNull, bLT1_AND_cLT1);
         And aIsNull_AND_bLT1_AND_cLT1_AND_aLT1 = new And(EMPTY, aIsNull_AND_bLT1_AND_cLT1, lessThanOf(a, ONE));
 
-        Expression optimized = new LogicalPlanOptimizer.PropagateNullable().rule(aIsNull_AND_bLT1_AND_cLT1_AND_aLT1);
-        assertEquals(Predicates.splitAnd(aIsNull_AND_bLT1_AND_cLT1_AND_aLT1), Predicates.splitAnd(optimized));
+        Expression optimized = new PropagateNullable().rule(aIsNull_AND_bLT1_AND_cLT1_AND_aLT1);
+        Literal nullLiteral = new Literal(EMPTY, null, BOOLEAN);
+        assertEquals(asList(aIsNull, nullLiteral, nullLiteral, nullLiteral), Predicates.splitAnd(optimized));
     }
 
     // ((a+1)/2) > 1 AND a + 2 AND a IS NULL AND b < 3 => NULL AND NULL AND a IS NULL AND b < 3
@@ -3713,7 +3714,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         Expression kept = new And(EMPTY, isNull, lessThanOf(getFieldAttribute("b"), THREE));
         And and = new And(EMPTY, nullified, kept);
 
-        Expression optimized = new LogicalPlanOptimizer.PropagateNullable().rule(and);
+        Expression optimized = new PropagateNullable().rule(and);
         Expression expected = new And(EMPTY, new And(EMPTY, nullOf(BOOLEAN), nullOf(BOOLEAN)), kept);
 
         assertEquals(Predicates.splitAnd(expected), Predicates.splitAnd(optimized));
@@ -3726,13 +3727,13 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         Or or = new Or(EMPTY, new IsNull(EMPTY, fa), new IsNotNull(EMPTY, fa));
         Filter dummy = new Filter(EMPTY, relation(), or);
-        LogicalPlan transformed = new LogicalPlanOptimizer.PropagateNullable().apply(dummy);
+        LogicalPlan transformed = new PropagateNullable().apply(dummy);
         assertSame(dummy, transformed);
         assertEquals(or, ((Filter) transformed).condition());
 
         or = new Or(EMPTY, new IsNull(EMPTY, fa), greaterThanOf(fa, ONE));
         dummy = new Filter(EMPTY, relation(), or);
-        transformed = new LogicalPlanOptimizer.PropagateNullable().apply(dummy);
+        transformed = new PropagateNullable().apply(dummy);
         assertSame(dummy, transformed);
         assertEquals(or, ((Filter) transformed).condition());
     }
@@ -3745,7 +3746,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         Or or = new Or(EMPTY, isNull, greaterThanOf(fa, THREE));
         And and = new And(EMPTY, new Add(EMPTY, fa, ONE), or);
 
-        assertEquals(and, new LogicalPlanOptimizer.PropagateNullable().rule(and));
+        assertEquals(and, new PropagateNullable().rule(and));
     }
 
     private Literal nullOf(DataType dataType) {

@@ -28,7 +28,7 @@ public class TextExpansionFullClusterRestartIT extends ParameterizedFullClusterR
         .module("x-pack-ml")
         .build();
 
-    public FullClusterRestartIT(@Name("cluster") FullClusterRestartUpgradeStatus upgradeStatus) {
+    public TextExpansionFullClusterRestartIT(@Name("cluster") FullClusterRestartUpgradeStatus upgradeStatus) {
         super(upgradeStatus);
     }
 

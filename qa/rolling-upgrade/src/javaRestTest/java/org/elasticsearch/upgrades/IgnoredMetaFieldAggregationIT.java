@@ -18,23 +18,45 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.hamcrest.Matchers;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 public class IgnoredMetaFieldAggregationIT extends ParameterizedRollingUpgradeTestCase {
+
+    private static String aggFirstIndex;
+    private static boolean aggFirstCreated;
+    private static String aggSecondIndex;
+    private static String runtimeFieldFirstIndex;
+    private static boolean runtimeFieldFirstCreated;
+    private static String runtimeFieldSecondIndex;
+
     public IgnoredMetaFieldAggregationIT(@Name("upgradedNodes") int upgradedNodes) {
         super(upgradedNodes);
     }
 
+    @Before
+    public void setup() {
+        aggFirstCreated = false;
+        runtimeFieldFirstCreated = false;
+        aggFirstIndex = "aaa_" + randomAlphaOfLength(8).toLowerCase(Locale.ROOT);
+        aggSecondIndex = "bbb_" + randomAlphaOfLength(9).toLowerCase(Locale.ROOT);
+        runtimeFieldFirstIndex = "ccc_" + randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        runtimeFieldSecondIndex = "ddd_" + randomAlphaOfLength(11).toLowerCase(Locale.ROOT);
+    }
+
     public void testAggregation() throws IOException {
         if (isOldCluster()) {
-            assertRestStatus(client().performRequest(createNewIndex("test1")), RestStatus.OK);
-            assertRestStatus(client().performRequest(indexDocument("test1", "foofoo", "1024.12.321.777")), RestStatus.CREATED);
-            assertAggregateIgnoredMetadataFieldException("test1", "Fielddata is not supported on field [_ignored] of type [_ignored]");
+            final String firstIndex = randomAlphaOfLength(10);
+            assertRestStatus(client().performRequest(createNewIndex(firstIndex)), RestStatus.OK);
+            assertRestStatus(client().performRequest(indexDocument(firstIndex, "foofoo", "1024.12.321.777")), RestStatus.CREATED);
+            assertAggregateIgnoredMetadataFieldException(firstIndex, "Fielddata is not supported on field [_ignored] of type [_ignored]");
+            aggFirstCreated = true;
         } else if (isUpgradedCluster()) {
-            final Request waitForGreen = new Request("GET", "/_cluster/health/test1");
+            final Request waitForGreen = new Request("GET", "/_cluster/health");
             waitForGreen.addParameter("wait_for_nodes", "3");
             waitForGreen.addParameter("wait_for_status", "green");
             waitForGreen.addParameter("timeout", "90s");
@@ -42,24 +64,31 @@ public class IgnoredMetaFieldAggregationIT extends ParameterizedRollingUpgradeTe
             final Response response = client().performRequest(waitForGreen);
             assertRestStatus(response, RestStatus.OK);
 
-            assertRestStatus(client().performRequest(createNewIndex("test2")), RestStatus.OK);
-            assertRestStatus(client().performRequest(indexDocument("test2", "barbar", "555.222.111.000")), RestStatus.CREATED);
+            assertRestStatus(client().performRequest(createNewIndex(aggSecondIndex)), RestStatus.OK);
+            assertRestStatus(client().performRequest(indexDocument(aggSecondIndex, "barbar", "555.222.111.000")), RestStatus.CREATED);
 
-            assertAggregateIgnoredMetadataField("test*");
-            assertAggregateIgnoredMetadataFieldException(
-                "test1",
-                "unexpected docvalues type NONE for field '_ignored' (expected one of [SORTED, SORTED_SET]). Re-index with correct docvalues type."
-            );
-            assertAggregateIgnoredMetadataField("test2");
+            final String indexPattern = aggFirstCreated ? (aggFirstIndex + "," + aggSecondIndex) : aggSecondIndex;
+            assertAggregateIgnoredMetadataField(indexPattern);
+            if (aggFirstCreated) {
+                assertAggregateIgnoredMetadataFieldException(
+                    aggFirstIndex,
+                    "unexpected docvalues type NONE for field '_ignored' (expected one of [SORTED, SORTED_SET])"
+                );
+            }
+            assertAggregateIgnoredMetadataField(aggSecondIndex);
         }
     }
 
     public void testExistsUsingRuntimeField() throws IOException {
         if (isOldCluster()) {
-            assertRestStatus(client().performRequest(createNewIndex("test1")), RestStatus.OK);
-            assertRestStatus(client().performRequest(indexDocument("test1", "foofoo", "1024.12.321.777")), RestStatus.CREATED);
+            assertRestStatus(client().performRequest(createNewIndex(runtimeFieldFirstIndex)), RestStatus.OK);
+            assertRestStatus(
+                client().performRequest(indexDocument(runtimeFieldFirstIndex, "foofoo", "1024.12.321.777")),
+                RestStatus.CREATED
+            );
+            runtimeFieldFirstCreated = true;
         } else if (isUpgradedCluster()) {
-            final Request waitForGreen = new Request("GET", "/_cluster/health/test1");
+            final Request waitForGreen = new Request("GET", "/_cluster/health");
             waitForGreen.addParameter("wait_for_nodes", "3");
             waitForGreen.addParameter("wait_for_status", "green");
             waitForGreen.addParameter("timeout", "90s");
@@ -67,9 +96,15 @@ public class IgnoredMetaFieldAggregationIT extends ParameterizedRollingUpgradeTe
             final Response response = client().performRequest(waitForGreen);
             assertRestStatus(response, RestStatus.OK);
 
-            assertRestStatus(client().performRequest(createNewIndex("test2")), RestStatus.OK);
-            assertRestStatus(client().performRequest(indexDocument("test2", "barbar", "555.222.111.000")), RestStatus.CREATED);
-            assertExistsUsingRuntimeField("test*");
+            assertRestStatus(client().performRequest(createNewIndex(runtimeFieldSecondIndex)), RestStatus.OK);
+            assertRestStatus(
+                client().performRequest(indexDocument(runtimeFieldSecondIndex, "barbar", "555.222.111.000")),
+                RestStatus.CREATED
+            );
+            final String indexPattern = runtimeFieldFirstCreated
+                ? (runtimeFieldFirstIndex + "," + runtimeFieldSecondIndex)
+                : runtimeFieldSecondIndex;
+            assertExistsUsingRuntimeField(indexPattern, runtimeFieldFirstIndex, runtimeFieldSecondIndex);
         }
     }
 
@@ -134,7 +169,8 @@ public class IgnoredMetaFieldAggregationIT extends ParameterizedRollingUpgradeTe
     }
 
     @SuppressWarnings("unchecked")
-    private static void assertExistsUsingRuntimeField(final String indexPattern) throws IOException {
+    private static void assertExistsUsingRuntimeField(final String indexPattern, final String firstIndex, final String secondIndex)
+        throws IOException {
         final Request request = new Request("POST", "/" + indexPattern + "/_search");
         request.addParameter("size", "2");
         request.setJsonEntity(Strings.format("""
@@ -160,13 +196,13 @@ public class IgnoredMetaFieldAggregationIT extends ParameterizedRollingUpgradeTe
         final List<Object> failures = (List<Object>) shards.get("failures");
         assertThat(failures.size(), Matchers.equalTo(1));
         final Map<String, Object> failure = (Map<String, Object>) failures.get(0);
-        assertThat((String) failure.get("index"), Matchers.equalTo("test1"));
+        assertThat((String) failure.get("index"), Matchers.equalTo(firstIndex));
 
         final Map<String, Object> hits = (Map<String, Object>) aggResponseEntityAsMap.get("hits");
         final List<Object> hitsList = (List<Object>) hits.get("hits");
         assertThat(hitsList.size(), Matchers.equalTo(1));
         final Map<String, Object> ignoredHit = (Map<String, Object>) hitsList.get(0);
-        assertThat("test2", Matchers.equalTo(ignoredHit.get("_index")));
+        assertThat(secondIndex, Matchers.equalTo(ignoredHit.get("_index")));
         assertThat((List<String>) ignoredHit.get("_ignored"), Matchers.containsInAnyOrder("keyword", "ip_address"));
     }
 

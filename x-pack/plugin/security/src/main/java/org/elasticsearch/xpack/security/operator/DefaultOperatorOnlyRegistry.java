@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.security.operator;
 
 import org.elasticsearch.action.admin.cluster.allocation.TransportDeleteDesiredBalanceAction;
-import org.elasticsearch.action.admin.cluster.allocation.TransportGetDesiredBalanceStatsAction;
+import org.elasticsearch.action.admin.cluster.allocation.TransportGetDesiredBalanceAction;
 import org.elasticsearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.cluster.configuration.TransportClearVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.cluster.desirednodes.GetDesiredNodesAction;
@@ -52,7 +52,7 @@ public class DefaultOperatorOnlyRegistry implements OperatorOnlyRegistry {
         TransportDeleteDesiredNodesAction.TYPE.name(),
         GetDesiredNodesAction.NAME,
         UpdateDesiredNodesAction.NAME,
-        TransportGetDesiredBalanceStatsAction.TYPE.name(),
+        TransportGetDesiredBalanceAction.TYPE.name(),
         TransportDeleteDesiredBalanceAction.TYPE.name()
     );
 

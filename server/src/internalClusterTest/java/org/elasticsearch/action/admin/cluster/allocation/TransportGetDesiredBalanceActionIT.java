@@ -24,7 +24,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
-public class TransportGetDesiredBalanceStatsActionIT extends ESIntegTestCase {
+public class TransportGetDesiredBalanceActionIT extends ESIntegTestCase {
 
     public void testDesiredBalanceOnMultiNodeCluster() throws Exception {
         internalCluster().startMasterOnlyNode();
@@ -40,15 +40,15 @@ public class TransportGetDesiredBalanceStatsActionIT extends ESIntegTestCase {
         var clusterHealthResponse = clusterAdmin().health(new ClusterHealthRequest().waitForStatus(ClusterHealthStatus.GREEN)).get();
         assertEquals(RestStatus.OK, clusterHealthResponse.status());
 
-        DesiredBalanceStatsResponse desiredBalanceResponse = client().execute(TransportGetDesiredBalanceStatsAction.TYPE, new DesiredBalanceRequest())
+        DesiredBalanceResponse desiredBalanceResponse = client().execute(TransportGetDesiredBalanceAction.TYPE, new DesiredBalanceRequest())
             .get();
 
         assertEquals(1, desiredBalanceResponse.getRoutingTable().size());
-        Map<Integer, DesiredBalanceStatsResponse.DesiredShards> shardsMap = desiredBalanceResponse.getRoutingTable().get(index);
+        Map<Integer, DesiredBalanceResponse.DesiredShards> shardsMap = desiredBalanceResponse.getRoutingTable().get(index);
         assertEquals(numberOfShards, shardsMap.size());
         for (var entry : shardsMap.entrySet()) {
             Integer shardId = entry.getKey();
-            DesiredBalanceStatsResponse.DesiredShards desiredShards = entry.getValue();
+            DesiredBalanceResponse.DesiredShards desiredShards = entry.getValue();
             IndexShardRoutingTable shardRoutingTable = clusterAdmin().prepareState()
                 .get()
                 .getState()
@@ -58,7 +58,7 @@ public class TransportGetDesiredBalanceStatsActionIT extends ESIntegTestCase {
                 assertShard(shardRoutingTable.shard(i), desiredShards.current().get(i));
             }
             assertEquals(
-                new DesiredBalanceStatsResponse.ShardAssignmentView(getShardNodeIds(shardRoutingTable), numberOfReplicas + 1, 0, 0),
+                new DesiredBalanceResponse.ShardAssignmentView(getShardNodeIds(shardRoutingTable), numberOfReplicas + 1, 0, 0),
                 desiredShards.desired()
             );
         }
@@ -75,15 +75,15 @@ public class TransportGetDesiredBalanceStatsActionIT extends ESIntegTestCase {
         var clusterHealthResponse = clusterAdmin().health(new ClusterHealthRequest(index).waitForStatus(ClusterHealthStatus.YELLOW)).get();
         assertEquals(RestStatus.OK, clusterHealthResponse.status());
 
-        DesiredBalanceStatsResponse desiredBalanceResponse = client().execute(TransportGetDesiredBalanceStatsAction.TYPE, new DesiredBalanceRequest())
+        DesiredBalanceResponse desiredBalanceResponse = client().execute(TransportGetDesiredBalanceAction.TYPE, new DesiredBalanceRequest())
             .get();
 
         assertEquals(1, desiredBalanceResponse.getRoutingTable().size());
-        Map<Integer, DesiredBalanceStatsResponse.DesiredShards> shardsMap = desiredBalanceResponse.getRoutingTable().get(index);
+        Map<Integer, DesiredBalanceResponse.DesiredShards> shardsMap = desiredBalanceResponse.getRoutingTable().get(index);
         assertEquals(numberOfShards, shardsMap.size());
         for (var entry : shardsMap.entrySet()) {
             Integer shardId = entry.getKey();
-            DesiredBalanceStatsResponse.DesiredShards desiredShards = entry.getValue();
+            DesiredBalanceResponse.DesiredShards desiredShards = entry.getValue();
             IndexShardRoutingTable shardRoutingTable = clusterAdmin().prepareState()
                 .get()
                 .getState()
@@ -93,7 +93,7 @@ public class TransportGetDesiredBalanceStatsActionIT extends ESIntegTestCase {
                 assertShard(shardRoutingTable.shard(i), desiredShards.current().get(i));
             }
             assertEquals(
-                new DesiredBalanceStatsResponse.ShardAssignmentView(
+                new DesiredBalanceResponse.ShardAssignmentView(
                     getShardNodeIds(shardRoutingTable),
                     numberOfReplicas + 1,
                     numberOfReplicas,
@@ -104,7 +104,7 @@ public class TransportGetDesiredBalanceStatsActionIT extends ESIntegTestCase {
         }
     }
 
-    private void assertShard(ShardRouting shard, DesiredBalanceStatsResponse.ShardView shardView) {
+    private void assertShard(ShardRouting shard, DesiredBalanceResponse.ShardView shardView) {
         assertEquals(shard.state(), shardView.state());
         assertEquals(shard.primary(), shardView.primary());
         assertEquals(shard.shardId().id(), shardView.shardId());

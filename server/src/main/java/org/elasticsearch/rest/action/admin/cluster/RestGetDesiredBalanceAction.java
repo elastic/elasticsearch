@@ -9,7 +9,7 @@
 package org.elasticsearch.rest.action.admin.cluster;
 
 import org.elasticsearch.action.admin.cluster.allocation.DesiredBalanceRequest;
-import org.elasticsearch.action.admin.cluster.allocation.TransportGetDesiredBalanceStatsAction;
+import org.elasticsearch.action.admin.cluster.allocation.TransportGetDesiredBalanceAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -33,7 +33,7 @@ public class RestGetDesiredBalanceAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         return restChannel -> client.execute(
-            TransportGetDesiredBalanceStatsAction.TYPE,
+            TransportGetDesiredBalanceAction.TYPE,
             new DesiredBalanceRequest(),
             new RestRefCountedChunkedToXContentListener<>(restChannel)
         );

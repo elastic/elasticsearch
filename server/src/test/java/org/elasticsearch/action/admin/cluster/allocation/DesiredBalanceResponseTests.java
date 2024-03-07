@@ -33,16 +33,16 @@ import static java.util.stream.Collectors.toMap;
 import static org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceStatsTests.randomDesiredBalanceStats;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 
-public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase<DesiredBalanceStatsResponse> {
+public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase<DesiredBalanceResponse> {
 
     @Override
-    protected Writeable.Reader<DesiredBalanceStatsResponse> instanceReader() {
-        return DesiredBalanceStatsResponse::from;
+    protected Writeable.Reader<DesiredBalanceResponse> instanceReader() {
+        return DesiredBalanceResponse::from;
     }
 
     @Override
-    protected DesiredBalanceStatsResponse createTestInstance() {
-        return new DesiredBalanceStatsResponse(
+    protected DesiredBalanceResponse createTestInstance() {
+        return new DesiredBalanceResponse(
             randomDesiredBalanceStats(),
             randomClusterBalanceStats(),
             randomRoutingTable(),
@@ -98,19 +98,19 @@ public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase
         return ClusterInfoTests.randomClusterInfo();
     }
 
-    private Map<String, Map<Integer, DesiredBalanceStatsResponse.DesiredShards>> randomRoutingTable() {
-        Map<String, Map<Integer, DesiredBalanceStatsResponse.DesiredShards>> routingTable = new HashMap<>();
+    private Map<String, Map<Integer, DesiredBalanceResponse.DesiredShards>> randomRoutingTable() {
+        Map<String, Map<Integer, DesiredBalanceResponse.DesiredShards>> routingTable = new HashMap<>();
         for (int i = 0; i < randomInt(8); i++) {
             String indexName = randomAlphaOfLength(8);
-            Map<Integer, DesiredBalanceStatsResponse.DesiredShards> desiredShards = new HashMap<>();
+            Map<Integer, DesiredBalanceResponse.DesiredShards> desiredShards = new HashMap<>();
             for (int j = 0; j < randomInt(8); j++) {
                 int shardId = randomInt(1024);
                 desiredShards.put(
                     shardId,
-                    new DesiredBalanceStatsResponse.DesiredShards(
+                    new DesiredBalanceResponse.DesiredShards(
                         IntStream.range(0, randomIntBetween(1, 4))
                             .mapToObj(
-                                k -> new DesiredBalanceStatsResponse.ShardView(
+                                k -> new DesiredBalanceResponse.ShardView(
                                     randomFrom(ShardRoutingState.STARTED, ShardRoutingState.UNASSIGNED, ShardRoutingState.INITIALIZING),
                                     randomBoolean(),
                                     randomAlphaOfLength(8),
@@ -125,7 +125,7 @@ public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase
                                 )
                             )
                             .toList(),
-                        new DesiredBalanceStatsResponse.ShardAssignmentView(
+                        new DesiredBalanceResponse.ShardAssignmentView(
                             randomUnique(() -> randomAlphaOfLength(8), randomIntBetween(1, 8)),
                             randomInt(8),
                             randomInt(8),
@@ -140,27 +140,27 @@ public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase
     }
 
     @Override
-    protected DesiredBalanceStatsResponse mutateInstance(DesiredBalanceStatsResponse instance) {
+    protected DesiredBalanceResponse mutateInstance(DesiredBalanceResponse instance) {
         return switch (randomInt(4)) {
-            case 0 -> new DesiredBalanceStatsResponse(
+            case 0 -> new DesiredBalanceResponse(
                 randomValueOtherThan(instance.getStats(), DesiredBalanceStatsTests::randomDesiredBalanceStats),
                 instance.getClusterBalanceStats(),
                 instance.getRoutingTable(),
                 instance.getClusterInfo()
             );
-            case 1 -> new DesiredBalanceStatsResponse(
+            case 1 -> new DesiredBalanceResponse(
                 instance.getStats(),
                 randomValueOtherThan(instance.getClusterBalanceStats(), this::randomClusterBalanceStats),
                 instance.getRoutingTable(),
                 instance.getClusterInfo()
             );
-            case 2 -> new DesiredBalanceStatsResponse(
+            case 2 -> new DesiredBalanceResponse(
                 instance.getStats(),
                 instance.getClusterBalanceStats(),
                 randomValueOtherThan(instance.getRoutingTable(), this::randomRoutingTable),
                 instance.getClusterInfo()
             );
-            case 3 -> new DesiredBalanceStatsResponse(
+            case 3 -> new DesiredBalanceResponse(
                 instance.getStats(),
                 instance.getClusterBalanceStats(),
                 instance.getRoutingTable(),
@@ -172,7 +172,7 @@ public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase
 
     @SuppressWarnings("unchecked")
     public void testToXContent() throws IOException {
-        DesiredBalanceStatsResponse response = new DesiredBalanceStatsResponse(
+        DesiredBalanceResponse response = new DesiredBalanceResponse(
             randomDesiredBalanceStats(),
             randomClusterBalanceStats(),
             randomRoutingTable(),
@@ -304,13 +304,13 @@ public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase
                 indexEntry.getValue().keySet().stream().map(String::valueOf).collect(Collectors.toSet())
             );
             for (var shardEntry : indexEntry.getValue().entrySet()) {
-                DesiredBalanceStatsResponse.DesiredShards desiredShards = shardEntry.getValue();
+                DesiredBalanceResponse.DesiredShards desiredShards = shardEntry.getValue();
                 Map<String, Object> jsonDesiredShard = (Map<String, Object>) jsonIndexShards.get(String.valueOf(shardEntry.getKey()));
                 assertThat(jsonDesiredShard.keySet(), containsInAnyOrder("current", "desired"));
                 List<Map<String, Object>> jsonCurrent = (List<Map<String, Object>>) jsonDesiredShard.get("current");
                 for (int i = 0; i < jsonCurrent.size(); i++) {
                     Map<String, Object> jsonShard = jsonCurrent.get(i);
-                    DesiredBalanceStatsResponse.ShardView shardView = desiredShards.current().get(i);
+                    DesiredBalanceResponse.ShardView shardView = desiredShards.current().get(i);
                     assertEquals(jsonShard.get("state"), shardView.state().toString());
                     assertEquals(jsonShard.get("primary"), shardView.primary());
                     assertEquals(jsonShard.get("node"), shardView.node());
@@ -342,7 +342,7 @@ public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase
 
     public void testChunking() {
         AbstractChunkedSerializingTestCase.assertChunkCount(
-            new DesiredBalanceStatsResponse(randomDesiredBalanceStats(), randomClusterBalanceStats(), randomRoutingTable(), randomClusterInfo()),
+            new DesiredBalanceResponse(randomDesiredBalanceStats(), randomClusterBalanceStats(), randomRoutingTable(), randomClusterInfo()),
             response -> 3 + ClusterInfoTests.getChunkCount(response.getClusterInfo()) + response.getRoutingTable()
                 .values()
                 .stream()

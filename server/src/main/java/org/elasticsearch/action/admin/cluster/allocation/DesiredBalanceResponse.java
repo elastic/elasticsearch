@@ -36,7 +36,7 @@ import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.endObjec
 import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.singleChunk;
 import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.startObject;
 
-public class DesiredBalanceStatsResponse extends ActionResponse implements ChunkedToXContentObject {
+public class DesiredBalanceResponse extends ActionResponse implements ChunkedToXContentObject {
 
     private static final TransportVersion CLUSTER_BALANCE_STATS_VERSION = TransportVersions.V_8_7_0;
     private static final TransportVersion CLUSTER_INFO_VERSION = TransportVersions.V_8_8_0;
@@ -46,7 +46,7 @@ public class DesiredBalanceStatsResponse extends ActionResponse implements Chunk
     private final Map<String, Map<Integer, DesiredShards>> routingTable;
     private final ClusterInfo clusterInfo;
 
-    public DesiredBalanceStatsResponse(
+    public DesiredBalanceResponse(
         DesiredBalanceStats stats,
         ClusterBalanceStats clusterBalanceStats,
         Map<String, Map<Integer, DesiredShards>> routingTable,
@@ -58,8 +58,8 @@ public class DesiredBalanceStatsResponse extends ActionResponse implements Chunk
         this.clusterInfo = clusterInfo;
     }
 
-    public static DesiredBalanceStatsResponse from(StreamInput in) throws IOException {
-        return new DesiredBalanceStatsResponse(
+    public static DesiredBalanceResponse from(StreamInput in) throws IOException {
+        return new DesiredBalanceResponse(
             DesiredBalanceStats.readFrom(in),
             in.getTransportVersion().onOrAfter(CLUSTER_BALANCE_STATS_VERSION)
                 ? ClusterBalanceStats.readFrom(in)
@@ -132,7 +132,7 @@ public class DesiredBalanceStatsResponse extends ActionResponse implements Chunk
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        return o instanceof DesiredBalanceStatsResponse that
+        return o instanceof DesiredBalanceResponse that
             && Objects.equals(stats, that.stats)
             && Objects.equals(clusterBalanceStats, that.clusterBalanceStats)
             && Objects.equals(routingTable, that.routingTable)

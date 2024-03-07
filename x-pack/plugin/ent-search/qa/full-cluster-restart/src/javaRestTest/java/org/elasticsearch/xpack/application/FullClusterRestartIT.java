@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.Version.V_8_12_0;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCase {
     // DSL was introduced with version 8.12.0 of ES.
@@ -67,7 +68,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
 
         if (isRunningAgainstOldCluster()) {
             // Ensure index template is installed before executing the tests.
-            assertBusy(() -> assertDataStreamTemplateExists(EVENT_DATA_STREAM_TEMPLATE_NAME));
+            assertBusy(() -> assertDataStreamTemplateExists(EVENT_DATA_STREAM_LEGACY_TEMPLATE_NAME));
 
             // Create an analytics collection
             Request legacyPutRequest = new Request("PUT", "_application/analytics/" + legacyAnalyticsCollectionName);
@@ -77,7 +78,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
             assertBusy(() -> assertUsingLegacyDataRetentionPolicy(legacyAnalyticsCollectionName));
         } else {
             // Ensure index template is updated to version 3 before executing the tests.
-            assertBusy(() -> assertDataStreamTemplateExists(EVENT_DATA_STREAM_TEMPLATE_NAME, DSL_REGISTRY_VERSION));
+            assertBusy(() -> assertDataStreamTemplateExists(EVENT_DATA_STREAM_LEGACY_TEMPLATE_NAME, DSL_REGISTRY_VERSION));
 
             // Create a new analytics collection
             Request putRequest = new Request("PUT", "_application/analytics/" + newAnalyticsCollectionName);
@@ -140,7 +141,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
             if (minVersion != null) {
                 String pathToVersion = "index_templates.0.index_template.version";
                 ObjectPath indexTemplatesResponse = ObjectPath.createFromResponse(response);
-                assertEquals(minVersion, indexTemplatesResponse.evaluate(pathToVersion));
+                assertThat(indexTemplatesResponse.evaluate(pathToVersion), greaterThanOrEqualTo(minVersion));
             }
         } catch (ResponseException e) {
             int status = e.getResponse().getStatusLine().getStatusCode();

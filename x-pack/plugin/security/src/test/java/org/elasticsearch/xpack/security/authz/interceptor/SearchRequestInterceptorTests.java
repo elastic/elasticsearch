@@ -12,6 +12,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.license.MockLicenseState;
+import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
@@ -54,7 +55,7 @@ public class SearchRequestInterceptorTests extends ESTestCase {
     public void testForceExcludeDeletedDocs() {
         SearchRequest searchRequest = new SearchRequest();
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
-        TermsAggregationBuilder termsAggregationBuilder = new TermsAggregationBuilder("myterms");
+        TermsAggregationBuilder termsAggregationBuilder =  AggregationBuilders.terms("myterms");
         termsAggregationBuilder.minDocCount(0);
         searchSourceBuilder.aggregation(termsAggregationBuilder);
         searchRequest.source(searchSourceBuilder);

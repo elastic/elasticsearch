@@ -15,15 +15,18 @@ NOTE: This feature is available for Elastic Stack versions 8.12.0 and newer and 
 Typically, the https://xgboost.readthedocs.io/en/stable/[XGBoost^] model training process uses standard Python data science tools like Pandas and scikit-learn.
 
 
-We have developed an example notebook available https://github.com/elastic/elasticsearch-labs/blob/main/notebooks/search/08-learning-to-rank.ipynb[here^], detailing an end-to-end model training and deployment workflow.
+We have developed an
+https://github.com/elastic/elasticsearch-labs/blob/main/notebooks/search/08-learning-to-rank.ipynb[example
+notebook^] available in the `elasticsearch-labs` repo. This interactive Python notebook
+details an end-to-end model training and deployment workflow.
 
-We highly recommend integrating https://eland.readthedocs.io/[eland^] into your workflow since it provides some important features in the workflow to integrate Learning To Rank in {es}:
+We highly recommend using https://eland.readthedocs.io/[eland^] in your workflow, because it provides important functionalities for working with LTR in {es}. Use eland to:
 
 * Configure feature extraction
 
 * Extract features for training
 
-* Deploy the model into {es}
+* Deploy the model in {es}
 
 [discrete]
 [[learning-to-rank-model-training-feature-definition]]
@@ -70,7 +73,7 @@ feature_extractors=[
 ----
 // NOTCONSOLE
 
-Once the feature extractors have been defined, they are wrapped within an `eland.ml.ltr.LTRModelConfig` object which will be used in subsequent steps of the training process:
+Once the feature extractors have been defined, they are wrapped in an `eland.ml.ltr.LTRModelConfig` object for use in later training steps:
 
 [source,python]
 ----
@@ -84,7 +87,10 @@ ltr_config = LTRModelConfig(feature_extractors)
 [[learning-to-rank-model-training-feature-extraction]]
 ===== Extracting features for training
 
-One of the most important steps of the training process is to build the dataset that will be used by extracting and adding features to it. Eland provides another helper class, `eland.ml.ltr.FeatureLogger`, to aid in this process:
+Building your dataset is a critical step in the training process. This involves
+extracting relevant features and adding them to your judgment list. We
+recommend using Eland's `eland.ml.ltr.FeatureLogger` helper class for this
+process.
 
 [source,python]
 ----
@@ -95,7 +101,7 @@ feature_logger = FeatureLogger(es_client, MOVIE_INDEX, ltr_config)
 ----
 // NOTCONSOLE
 
-The FeatureLogger provides an `extract_features` method allowing you to extract features for a list of specific documents from your judgment list. At the same time, query parameters used by the feature extractors defined earlier can be passed:
+The FeatureLogger provides an `extract_features` method which enables you to extract features for a list of specific documents from your judgment list. At the same time, you can pass query parameters to the feature extractors defined earlier:
 
 [source,python]
 ----
@@ -106,21 +112,21 @@ feature_logger.extract_features(
 ----
 // NOTCONSOLE
 
-Our https://github.com/elastic/elasticsearch-labs/blob/main/notebooks/search/08-learning-to-rank.ipynb[example notebook^] provides a complete example explaining how to use the `FeatureLogger` to add features to the judgment list in order to build the training dataset.
+Our https://github.com/elastic/elasticsearch-labs/blob/main/notebooks/search/08-learning-to-rank.ipynb[example notebook^] explains how to use the `FeatureLogger` to build a training dataset, by adding features to a judgment list.
 
 [discrete]
 [[learning-to-rank-model-training-feature-extraction-notes]]
-====== Notes on features extraction
+====== Notes on feature extraction
 
-* We strongly advise against implementing feature extraction on your own. It's crucial to maintain consistency in feature extraction between the training environment and inference in {es}. By utilizing eland tooling, which is developed and tested in tandem with {es}, you can ensure that they function together consistently.
+* We strongly advise against implementing feature extraction on your own. It's crucial to maintain consistency in feature extraction between the training environment and inference in {es}. By using eland tooling, which is developed and tested in tandem with {es}, you can ensure that they function together consistently.
 
-* Feature extraction is performed by executing queries on the {es} server which could cause a lot of stress on your cluster, especially when your judgment list contains a lot of examples or you have many features. Our feature logger implementation is designed to minimize the number of search requests sent to the server in order to reduce the load, however building the training dataset might best be performed using an {es} cluster that is isolated from any user-facing, production traffic
+* Feature extraction is performed by executing queries on the {es} server. This could put a lot of stress on your cluster, especially when your judgment list contains a lot of examples or you have many features. Our feature logger implementation is designed to minimize the number of search requests sent to the server and reduce load. However, it might be best to build your training dataset using an {es} cluster that is isolated from any user-facing, production traffic.
 
 [discrete]
 [[learning-to-rank-model-deployment]]
 ===== Deploy your model into {es}
 
-Once your model is trained you will be able to deploy it into your {es} cluster. For this purpose, eland provides the `MLModel.import_ltr_model method`:
+Once your model is trained you will be able to deploy it in your {es} cluster. You can use Eland's `MLModel.import_ltr_model method`:
 
 [source,python]
 ----
@@ -138,9 +144,14 @@ MLModel.import_ltr_model(
 ----
 // NOTCONSOLE
 
-This method will serialize the trained model and the Learning To Rank configuration (including feature extraction) in a format that {es} can understand before sending it to Elasticsearch using the <<put-trained-models, Create Trained Models API>>.
+This method will serialize the trained model and the Learning To Rank configuration (including feature extraction) in a format that {es} can understand. The model is then deployed to {es} using the <<put-trained-models, Create Trained Models API>>.
 
-The following types of models are supported for Learning To Rank: https://scikit-learn.org/stable/modules/generated/sklearn.tree.DecisionTreeRegressor.html[`DecisionTreeRegressor`^],  https://scikit-learn.org/stable/modules/generated/sklearn.ensemble.RandomForestRegressor.html[`RandomForestRegressor`^], https://lightgbm.readthedocs.io/en/latest/pythonapi/lightgbm.LGBMRegressor.html[`LGBMRegressor`^], https://xgboost.readthedocs.io/en/stable/python/python_api.html#xgboost.XGBRanker[`XGBRanker`^], https://xgboost.readthedocs.io/en/stable/python/python_api.html#xgboost.XGBRegressor[`XGBRegressor`^].
+* https://scikit-learn.org/stable/modules/generated/sklearn.tree.DecisionTreeRegressor.html[`DecisionTreeRegressor`^]
+* https://scikit-learn.org/stable/modules/generated/sklearn.ensemble.RandomForestRegressor.html[`RandomForestRegressor`^]
+* https://lightgbm.readthedocs.io/en/latest/pythonapi/lightgbm.LGBMRegressor.html[`LGBMRegressor`^]
+* https://xgboost.readthedocs.io/en/stable/python/python_api.html#xgboost.XGBRanker[`XGBRanker`^]
+* https://xgboost.readthedocs.io/en/stable/python/python_api.html#xgboost.XGBRegressor[`XGBRegressor`^]
+
 
 More model types will be supported in the future.
 
@@ -148,4 +159,5 @@ More model types will be supported in the future.
 [[learning-to-rank-model-management]]
 ==== Learning To Rank model management
 
-Once your model is deployed into {es} it is possible to manage it using the https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-df-trained-models-apis.html[trained model APIs].
+Once your model is deployed in {es} you can manage it using the https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-df-trained-models-apis.html[trained model APIs].
+You're now ready to work with your LTR model as a rescorer at <<learning-to-rank-search-usage, search time>>.

@@ -130,7 +130,7 @@ if (providers.systemProperty('idea.active').getOrNull() == 'true') {
       ':server:generateModulesList',
       ':server:generatePluginsList',
       ':generateProviderImpls',
-      ':libs:elasticsearch-native:libraries:extractLibs'].collect { elasticsearchProject.right()?.task(it) ?: it })
+      ':libs:elasticsearch-native:elasticsearch-native-libraries:extractLibs'].collect { elasticsearchProject.right()?.task(it) ?: it })
   }
 
   // this path is produced by the extractLibs task above

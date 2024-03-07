@@ -172,14 +172,14 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
     }
 
     private static void configureNativeLibraryPath(Project project) {
-        String nativeProject = ":libs:elasticsearch-native:libraries";
+        String nativeProject = ":libs:elasticsearch-native:elasticsearch-native-libraries";
         if (project.getPath().equals(nativeProject)) {
             return;
         }
 
         Configuration nativeConfig = project.getConfigurations().create("nativeLibs");
         nativeConfig.defaultDependencies(deps -> {
-            deps.add(project.getDependencies().project(Map.of("path", nativeProject, "configuration", "runtimePath")));
+            deps.add(project.getDependencies().project(Map.of("path", nativeProject, "configuration", "default")));
         });
 
         project.getTasks().withType(Test.class).configureEach(test -> {

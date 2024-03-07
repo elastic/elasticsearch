@@ -292,7 +292,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
     libsKeystoreCli project(path: ':distribution:tools:keystore-cli')
     libsSecurityCli project(':x-pack:plugin:security:cli')
     libsGeoIpCli project(':distribution:tools:geoip-cli')
-    libsNative project(path: ':libs:elasticsearch-native:libraries', configuration: 'runtimePath')
+    libsNative project(':libs:elasticsearch-native:elasticsearch-native-libraries')
   }
 
   project.ext {

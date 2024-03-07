@@ -108,8 +108,7 @@ public record AutoExpandReplicas(int minReplicas, int maxReplicas, boolean enabl
             }
         }
         int replicas = calculateDesiredNumberOfReplicas(numMatchingDataNodes);
-        // Make sure in stateless auto-expand indices always have at least 1 replica, this is necessary for example in cases where
-        // we have only one search node and it is marked for shutdown.
+        // Make sure in stateless auto-expand indices always have at least 1 replica to ensure all shard roles are always present
         if (replicas == 0
             && Objects.equals(
                 indexMetadata.getSettings().get(ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.getKey()),

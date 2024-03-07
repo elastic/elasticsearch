@@ -17,7 +17,7 @@ and <<esql-execute-enrich-policy,execute>> the enrich policy first.
 
 `mode`::
 The mode of the enrich command in cross cluster {esql}.
-See <<ccq-enrich, cross cluster enrich>>.
+See <<ccq-enrich, enrich across clusters>>.
 
 `match_field`::
 The match field. `ENRICH` uses its value to look for records in the enrich

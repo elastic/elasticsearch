@@ -74,7 +74,7 @@ on remote clusters:
 FROM cluster_one:employees-00001,cluster_two:other-employees-*
 ----
 
-See <<esql-cross-clusters, cross cluster in {esql}>>.
+See <<esql-cross-clusters, using {esql} across clusters}>>.
 
 Use the optional `METADATA` directive to enable <<esql-metadata-fields,metadata fields>>:
 

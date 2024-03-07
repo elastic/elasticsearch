@@ -259,11 +259,11 @@ public class LocalHealthMonitorTests extends ESTestCase {
      * (due to a health node change) while there is an in-flight request to the previous health node.
      */
     public void testResetDuringInFlightRequest() throws Exception {
-        ClusterState previous = ClusterStateCreationUtils.state(node, node, node, new DiscoveryNode[] { node, frozenNode })
+        ClusterState initialState = ClusterStateCreationUtils.state(node, node, node, new DiscoveryNode[] { node, frozenNode })
             .copyAndUpdate(b -> b.putCustom(HealthMetadata.TYPE, healthMetadata));
-        ClusterState current = ClusterStateCreationUtils.state(node, frozenNode, node, new DiscoveryNode[] { node, frozenNode })
+        ClusterState newState = ClusterStateCreationUtils.state(node, frozenNode, node, new DiscoveryNode[] { node, frozenNode })
             .copyAndUpdate(b -> b.putCustom(HealthMetadata.TYPE, healthMetadata));
-        when(clusterService.state()).thenReturn(previous);
+        when(clusterService.state()).thenReturn(initialState);
 
         var requestCounter = new AtomicInteger();
         doAnswer(invocation -> {
@@ -272,8 +272,8 @@ public class LocalHealthMonitorTests extends ESTestCase {
             var currentValue = requestCounter.incrementAndGet();
             // We only want to switch the health node during the first request. Any following request(s) should simply succeed.
             if (currentValue == 1) {
-                when(clusterService.state()).thenReturn(current);
-                localHealthMonitor.clusterChanged(new ClusterChangedEvent("health-node-switch", current, previous));
+                when(clusterService.state()).thenReturn(newState);
+                localHealthMonitor.clusterChanged(new ClusterChangedEvent("health-node-switch", newState, initialState));
             }
             ActionListener<AcknowledgedResponse> listener = invocation.getArgument(2);
             listener.onResponse(null);
@@ -281,7 +281,7 @@ public class LocalHealthMonitorTests extends ESTestCase {
         }).when(client).execute(any(), any(), any());
 
         localHealthMonitor.setMonitorInterval(TimeValue.timeValueMillis(10));
-        localHealthMonitor.clusterChanged(new ClusterChangedEvent("start-up", previous, ClusterState.EMPTY_STATE));
+        localHealthMonitor.clusterChanged(new ClusterChangedEvent("start-up", initialState, ClusterState.EMPTY_STATE));
         // Assert that we've sent the update request twice, even though the health info itself hasn't changed (i.e. we send again due to
         // the health node change).
         assertBusy(() -> assertThat(requestCounter.get(), equalTo(2)));

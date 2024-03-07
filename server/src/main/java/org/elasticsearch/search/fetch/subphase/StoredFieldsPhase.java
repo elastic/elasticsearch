@@ -56,7 +56,11 @@ public class StoredFieldsPhase implements FetchSubPhase {
 
     private static final List<StoredField> METADATA_FIELDS = List.of(
         new StoredField("_routing", RoutingFieldMapper.FIELD_TYPE, true),
-        new StoredField("_ignored", IgnoredFieldMapper.FIELD_TYPE, true),
+        // NOTE: using 'IgnoredFieldMapper.LEGACY_FIELD_TYPE' is not a mistake. The _ignored field
+        // was a stored field before introducing doc values and removing the stored field. We need
+        // this to be able to read the _ignored field value from old indices having it as a stored field
+        // for backward compatibility.
+        new StoredField("_ignored", IgnoredFieldMapper.LEGACY_FIELD_TYPE, true),
         // pre-6.0 indexes can return a _type field, this will be valueless in modern indexes and ignored
         new StoredField("_type", LegacyTypeFieldMapper.FIELD_TYPE, true)
     );
@@ -111,17 +115,10 @@ public class StoredFieldsPhase implements FetchSubPhase {
                 for (StoredField storedField : storedFields) {
                     if (storedField.hasValue(loadedFields)) {
                         DocumentField df = new DocumentField(storedField.name, storedField.process(loadedFields));
-                        if (includeMetadataFields == false) {
-                            if (storedField.isMetadataField == false) {
-                                docFields.put(storedField.name, df);
-                            }
+                        if (storedField.isMetadataField && includeMetadataFields) {
+                            metaFields.put(storedField.name, df);
                         } else {
-                            // NOTE: this branch exists for backward compatibility
-                            if (storedField.isMetadataField) {
-                                metaFields.put(storedField.name, df);
-                            } else {
-                                docFields.put(storedField.name, df);
-                            }
+                            docFields.put(storedField.name, df);
                         }
                     }
                 }

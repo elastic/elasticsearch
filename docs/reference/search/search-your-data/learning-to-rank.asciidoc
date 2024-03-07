@@ -5,9 +5,11 @@ preview::["The Learning To Rank feature is in technical preview and may be chang
 
 NOTE: This feature is available for Elastic Stack versions 8.12.0 and newer and requires a https://www.elastic.co/pricing[Platinum subscription] or higher.
 
-Learning To Rank (LTR) is a technique used to build a complex machine learning (ML) -based ranking function for your search engine.
-
-The LTR function takes a list of documents and a search context and outputs ranked documents:
+Learning To Rank (LTR) uses a trained machine learning (ML) model to build a
+ranking function for your search engine. Typically, the model is used as a
+second stage re-ranker, to improve the relevance of search results returned by a
+simpler, first stage retrieval algorithm. The LTR function takes a list of
+documents and a search context and outputs ranked documents:
 
 [[learning-to-rank-overview-diagram]]
 .Learning To Rank overview

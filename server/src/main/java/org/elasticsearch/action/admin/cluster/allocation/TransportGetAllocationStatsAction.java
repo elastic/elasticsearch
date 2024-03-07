@@ -17,6 +17,7 @@ import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.allocation.AllocationStatsService;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationStats;
@@ -35,7 +36,7 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
     TransportGetAllocationStatsAction.Request,
     TransportGetAllocationStatsAction.Response> {
 
-    public static final ActionType<DesiredBalanceResponse> TYPE = new ActionType<>("cluster:monitor/allocation/stats");
+    public static final ActionType<TransportGetAllocationStatsAction.Response> TYPE = new ActionType<>("cluster:monitor/allocation/stats");
 
     private final AllocationStatsService allocationStatsService;
 
@@ -69,7 +70,7 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
 
     @Override
     protected ClusterBlockException checkBlock(Request request, ClusterState state) {
-        return null;
+        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
     }
 
     public static class Request extends MasterNodeReadRequest<Request> {
@@ -87,21 +88,24 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
 
     public static class Response extends ActionResponse {
 
-        private final Map<String, NodeAllocationStats> stats;
+        private final Map<String, NodeAllocationStats> nodeAllocationStats;
 
-        public Response(Map<String, NodeAllocationStats> stats) {
-            this.stats = stats;
+        public Response(Map<String, NodeAllocationStats> nodeAllocationStats) {
+            this.nodeAllocationStats = nodeAllocationStats;
         }
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            this.stats = in.readImmutableMap(StreamInput::readString, NodeAllocationStats::new);
+            this.nodeAllocationStats = in.readImmutableMap(StreamInput::readString, NodeAllocationStats::new);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeMap(stats, StreamOutput::writeString, StreamOutput::writeWriteable);
+            out.writeMap(nodeAllocationStats, StreamOutput::writeString, StreamOutput::writeWriteable);
+        }
+
+        public Map<String, NodeAllocationStats> getNodeAllocationStats() {
+            return nodeAllocationStats;
         }
     }
-
 }

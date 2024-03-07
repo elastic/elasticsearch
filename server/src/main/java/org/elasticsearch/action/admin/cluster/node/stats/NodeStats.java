@@ -171,6 +171,30 @@ public class NodeStats extends BaseNodeResponse implements ChunkedToXContent {
         this.nodeAllocationStats = nodeAllocationStats;
     }
 
+    public NodeStats withNodeAllocationStats(@Nullable NodeAllocationStats nodeAllocationStats) {
+        return new NodeStats(
+            getNode(),
+            timestamp,
+            indices,
+            os,
+            process,
+            jvm,
+            threadPool,
+            fs,
+            transport,
+            http,
+            breaker,
+            scriptStats,
+            discoveryStats,
+            ingestStats,
+            adaptiveSelectionStats,
+            scriptCacheStats,
+            indexingPressureStats,
+            repositoriesStats,
+            nodeAllocationStats
+        );
+    }
+
     public long getTimestamp() {
         return this.timestamp;
     }

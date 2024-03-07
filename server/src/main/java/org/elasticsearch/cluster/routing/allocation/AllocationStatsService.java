@@ -49,18 +49,22 @@ public class AllocationStatsService {
             int undesiredShards = 0;
             double forecastedWriteLoad = 0.0;
             long forecastedDiskUsage = 0;
+            long currentDiskUsage = 0;
             for (ShardRouting shardRouting : node) {
                 IndexMetadata indexMetadata = state.metadata().getIndexSafe(shardRouting.index());
-                forecastedWriteLoad += writeLoadForecaster.getForecastedWriteLoad(indexMetadata).orElse(0.0);
-                forecastedDiskUsage += Math.max(
-                    indexMetadata.getForecastedShardSizeInBytes().orElse(0),
-                    info.getShardSize(shardRouting.shardId(), shardRouting.primary(), 0)
-                );
                 if (isDesiredAllocation(desiredBalance, shardRouting) == false) {
                     undesiredShards++;
                 }
+                long shardSize = info.getShardSize(shardRouting.shardId(), shardRouting.primary(), 0);
+                forecastedWriteLoad += writeLoadForecaster.getForecastedWriteLoad(indexMetadata).orElse(0.0);
+                forecastedDiskUsage += Math.max(indexMetadata.getForecastedShardSizeInBytes().orElse(0), shardSize);
+                currentDiskUsage += shardSize;
+
             }
-            new NodeAllocationStats(node.size(), undesiredShards, forecastedWriteLoad, forecastedDiskUsage);
+            stats.put(
+                node.nodeId(),
+                new NodeAllocationStats(node.size(), undesiredShards, forecastedWriteLoad, forecastedDiskUsage, currentDiskUsage)
+            );
         }
 
         return stats;

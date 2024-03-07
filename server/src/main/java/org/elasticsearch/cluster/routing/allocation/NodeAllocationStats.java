@@ -11,18 +11,22 @@ package org.elasticsearch.cluster.routing.allocation;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-public record NodeAllocationStats(int shards, int undesiredShards, double forecastedIngestLoad, long forecastedDiskUsage)
-    implements
-        Writeable,
-        ToXContentFragment {
+public record NodeAllocationStats(
+    int shards,
+    int undesiredShards,
+    double forecastedIngestLoad,
+    long forecastedDiskUsage,
+    long currentDiskUsage
+) implements Writeable, ToXContentFragment {
 
     public NodeAllocationStats(StreamInput in) throws IOException {
-        this(in.readVInt(), in.readVInt(), in.readDouble(), in.readVLong());
+        this(in.readVInt(), in.readVInt(), in.readDouble(), in.readVLong(), in.readVLong());
     }
 
     @Override
@@ -31,13 +35,17 @@ public record NodeAllocationStats(int shards, int undesiredShards, double foreca
         out.writeVInt(undesiredShards);
         out.writeDouble(forecastedIngestLoad);
         out.writeVLong(forecastedDiskUsage);
+        out.writeVLong(currentDiskUsage);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder.field("shards", shards)
+        return builder.startObject("allocations")
+            .field("shards", shards)
             .field("undesired_shards", undesiredShards)
             .field("forecasted_ingest_load", forecastedIngestLoad)
-            .field("forecasted_disk_usage", forecastedDiskUsage);
+            .humanReadableField("forecasted_disk_usage_in_bytes", "forecasted_disk_usage", ByteSizeValue.ofBytes(forecastedDiskUsage))
+            .humanReadableField("current_disk_usage_in_bytes", "current_disk_usage", ByteSizeValue.ofBytes(currentDiskUsage))
+            .endObject();
     }
 }

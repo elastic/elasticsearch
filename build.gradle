@@ -108,6 +108,11 @@ tasks.register("updateCIBwcVersions") {
       ".buildkite/pipelines/periodic.bwc.template.yml",
       BuildParams.bwcVersions.allIndexCompatible
     )
+    writeBuildkiteList(
+      ".buildkite/pipelines/periodic.yml",
+      ".buildkite/pipelines/periodic.yml",
+      BuildParams.bwcVersions.unreleasedIndexCompatible
+    )
     writeBuildkiteSteps(
       ".buildkite/pipelines/periodic-packaging.yml",
       ".buildkite/pipelines/periodic-packaging.template.yml",

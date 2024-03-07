@@ -21,6 +21,7 @@ WARNING: This can use a significant amount of memory and ES|QL doesn't yet
          it is used to collect more values than can fit into memory. Once it
          collects too many values it will fail the query with
          a <<circuit-breaker-errors, Circuit Breaker Error>>.
+
 *Example*
 
 [source.merge.styled,esql]

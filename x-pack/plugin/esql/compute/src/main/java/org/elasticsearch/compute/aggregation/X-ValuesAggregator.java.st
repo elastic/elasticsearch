@@ -179,6 +179,13 @@ $endif$
         }
     }
 
+    /**
+     * State for a grouped {@code VALUES} aggregation. This implementation
+     * emphasizes collect-time performance over the performance of rendering
+     * results. That's good, but it's a pretty intensive emphasis, requiring
+     * an {@code O(n^2)} operation for collection to support a {@code O(1)}
+     * collector operation. But at least it's fairly simple.
+     */
     public static class GroupingState implements Releasable {
 $if(long||double)$
         private final LongLongHash values;
@@ -260,7 +267,7 @@ $endif$
         }
 
         void enableGroupIdTracking(SeenGroupIds seen) {
-            // we figure out seen values from their
+            // we figure out seen values from nulls on the values block
         }
 
         @Override

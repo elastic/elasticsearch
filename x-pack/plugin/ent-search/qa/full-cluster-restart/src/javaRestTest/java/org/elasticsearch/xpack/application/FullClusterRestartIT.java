@@ -25,14 +25,14 @@ import java.util.List;
 import static org.elasticsearch.Version.V_8_12_0;
 
 public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCase {
-    // DSL was introduced with version 8.1.2.0 of ES.
+    // DSL was introduced with version 8.12.0 of ES.
     private static final Version DSL_DEFAULT_RETENTION_VERSION = V_8_12_0;
 
     // DSL was introduced with the version 3 of the registry.
     private static final int DSL_REGISTRY_VERSION = 3;
 
     // Legacy name we used for ILM policy configuration in versions prior to 8.12.0.
-    private static final String EVENT_DATA_STREAM_TEMPLATE_NAME = "behavioral_analytics-events-default";
+    private static final String EVENT_DATA_STREAM_LEGACY_TEMPLATE_NAME = "behavioral_analytics-events-default";
 
     // Event data streams template name.
     private static final String EVENT_DATA_STREAM_LEGACY_ILM_POLICY_NAME = "behavioral_analytics-events-default_policy";
@@ -66,7 +66,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
         String newAnalyticsCollectionName = "newstuff";
 
         if (isRunningAgainstOldCluster()) {
-            // Ensure index templates is installed before executing the tests.
+            // Ensure index template is installed before executing the tests.
             assertBusy(() -> assertDataStreamTemplateExists(EVENT_DATA_STREAM_TEMPLATE_NAME));
 
             // Create an analytics collection

@@ -12,14 +12,12 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
-import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlConfigurationFunction;
 import org.elasticsearch.xpack.ql.InvalidArgumentException;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.TypeResolutions;
-import org.elasticsearch.xpack.ql.expression.function.scalar.ConfigurationFunction;
-import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.ql.session.Configuration;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -36,7 +34,7 @@ import java.util.function.Function;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isDate;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isStringAndExact;
 
-public class DateExtract extends ConfigurationFunction implements EvaluatorMapper {
+public class DateExtract extends EsqlConfigurationFunction {
 
     private ChronoField chronoField;
 
@@ -117,11 +115,6 @@ public class DateExtract extends ConfigurationFunction implements EvaluatorMappe
     }
 
     @Override
-    public ScriptTemplate asScript() {
-        throw new UnsupportedOperationException("functions do not support scripting");
-    }
-
-    @Override
     protected TypeResolution resolveType() {
         if (childrenResolved() == false) {
             return new TypeResolution("Unresolved children");
@@ -135,10 +128,4 @@ public class DateExtract extends ConfigurationFunction implements EvaluatorMappe
     public boolean foldable() {
         return children().get(0).foldable() && children().get(1).foldable();
     }
-
-    @Override
-    public Object fold() {
-        return EvaluatorMapper.super.fold();
-    }
-
 }

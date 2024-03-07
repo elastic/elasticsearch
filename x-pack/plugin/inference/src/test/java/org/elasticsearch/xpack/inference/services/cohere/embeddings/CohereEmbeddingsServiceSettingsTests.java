@@ -13,10 +13,10 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.inference.InferenceNamedWriteablesProvider;
-import org.elasticsearch.xpack.inference.common.SimilarityMeasure;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettings;
@@ -57,12 +57,89 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
                     dims,
                     ServiceFields.MAX_INPUT_TOKENS,
                     maxInputTokens,
-                    CohereServiceSettings.MODEL,
+                    CohereServiceSettings.OLD_MODEL_ID_FIELD,
                     model,
                     CohereEmbeddingsServiceSettings.EMBEDDING_TYPE,
                     CohereEmbeddingType.INT8.toString()
                 )
+            ),
+            false
+        );
+
+        MatcherAssert.assertThat(
+            serviceSettings,
+            is(
+                new CohereEmbeddingsServiceSettings(
+                    new CohereServiceSettings(ServiceUtils.createUri(url), SimilarityMeasure.DOT_PRODUCT, dims, maxInputTokens, model),
+                    CohereEmbeddingType.INT8
+                )
             )
+        );
+    }
+
+    public void testFromMap_WithModelId() {
+        var url = "https://www.abc.com";
+        var similarity = SimilarityMeasure.DOT_PRODUCT.toString();
+        var dims = 1536;
+        var maxInputTokens = 512;
+        var model = "model";
+        var serviceSettings = CohereEmbeddingsServiceSettings.fromMap(
+            new HashMap<>(
+                Map.of(
+                    ServiceFields.URL,
+                    url,
+                    ServiceFields.SIMILARITY,
+                    similarity,
+                    ServiceFields.DIMENSIONS,
+                    dims,
+                    ServiceFields.MAX_INPUT_TOKENS,
+                    maxInputTokens,
+                    CohereServiceSettings.OLD_MODEL_ID_FIELD,
+                    model,
+                    CohereEmbeddingsServiceSettings.EMBEDDING_TYPE,
+                    CohereEmbeddingType.INT8.toString()
+                )
+            ),
+            false
+        );
+
+        MatcherAssert.assertThat(
+            serviceSettings,
+            is(
+                new CohereEmbeddingsServiceSettings(
+                    new CohereServiceSettings(ServiceUtils.createUri(url), SimilarityMeasure.DOT_PRODUCT, dims, maxInputTokens, model),
+                    CohereEmbeddingType.INT8
+                )
+            )
+        );
+    }
+
+    public void testFromMap_PrefersModelId_OverModel() {
+        var url = "https://www.abc.com";
+        var similarity = SimilarityMeasure.DOT_PRODUCT.toString();
+        var dims = 1536;
+        var maxInputTokens = 512;
+        var model = "model";
+        var serviceSettings = CohereEmbeddingsServiceSettings.fromMap(
+            new HashMap<>(
+                Map.of(
+                    ServiceFields.URL,
+                    url,
+                    ServiceFields.SIMILARITY,
+                    similarity,
+                    ServiceFields.DIMENSIONS,
+                    dims,
+                    ServiceFields.MAX_INPUT_TOKENS,
+                    maxInputTokens,
+                    CohereServiceSettings.OLD_MODEL_ID_FIELD,
+                    "old_model",
+                    CohereServiceSettings.MODEL_ID,
+                    model,
+                    CohereEmbeddingsServiceSettings.EMBEDDING_TYPE,
+                    CohereEmbeddingType.INT8.toString()
+                )
+            ),
+            false
         );
 
         MatcherAssert.assertThat(
@@ -77,14 +154,14 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
     }
 
     public void testFromMap_MissingEmbeddingType_DoesNotThrowException() {
-        var serviceSettings = CohereEmbeddingsServiceSettings.fromMap(new HashMap<>(Map.of()));
+        var serviceSettings = CohereEmbeddingsServiceSettings.fromMap(new HashMap<>(Map.of()), false);
         assertNull(serviceSettings.getEmbeddingType());
     }
 
     public void testFromMap_EmptyEmbeddingType_ThrowsError() {
         var thrownException = expectThrows(
             ValidationException.class,
-            () -> CohereEmbeddingsServiceSettings.fromMap(new HashMap<>(Map.of(CohereEmbeddingsServiceSettings.EMBEDDING_TYPE, "")))
+            () -> CohereEmbeddingsServiceSettings.fromMap(new HashMap<>(Map.of(CohereEmbeddingsServiceSettings.EMBEDDING_TYPE, "")), true)
         );
 
         MatcherAssert.assertThat(
@@ -101,7 +178,10 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
     public void testFromMap_InvalidEmbeddingType_ThrowsError() {
         var thrownException = expectThrows(
             ValidationException.class,
-            () -> CohereEmbeddingsServiceSettings.fromMap(new HashMap<>(Map.of(CohereEmbeddingsServiceSettings.EMBEDDING_TYPE, "abc")))
+            () -> CohereEmbeddingsServiceSettings.fromMap(
+                new HashMap<>(Map.of(CohereEmbeddingsServiceSettings.EMBEDDING_TYPE, "abc")),
+                false
+            )
         );
 
         MatcherAssert.assertThat(
@@ -118,7 +198,8 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
         var exception = expectThrows(
             ElasticsearchStatusException.class,
             () -> CohereEmbeddingsServiceSettings.fromMap(
-                new HashMap<>(Map.of(CohereEmbeddingsServiceSettings.EMBEDDING_TYPE, List.of("abc")))
+                new HashMap<>(Map.of(CohereEmbeddingsServiceSettings.EMBEDDING_TYPE, List.of("abc"))),
+                false
             )
         );
 

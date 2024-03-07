@@ -35,7 +35,7 @@ import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.PutEnrichPolicyAction;
 import org.elasticsearch.xpack.enrich.EnrichPlugin;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
-import org.elasticsearch.xpack.esql.analysis.VerificationException;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.junit.After;
@@ -414,7 +414,7 @@ public class CrossClustersEnrichIT extends AbstractMultiClustersTestCase {
             | %s
             """, enrichHosts(Enrich.Mode.REMOTE));
         var error = expectThrows(VerificationException.class, () -> runQuery(query).close());
-        assertThat(error.getMessage(), containsString("enrich with [ccq.mode:remote] can't be executed after LIMIT"));
+        assertThat(error.getMessage(), containsString("ENRICH with remote policy can't be executed after LIMIT"));
     }
 
     public void testLimitThenEnrichRemote() {
@@ -425,7 +425,7 @@ public class CrossClustersEnrichIT extends AbstractMultiClustersTestCase {
             | %s
             """, enrichHosts(Enrich.Mode.REMOTE));
         var error = expectThrows(VerificationException.class, () -> runQuery(query).close());
-        assertThat(error.getMessage(), containsString("enrich with [ccq.mode:remote] can't be executed after LIMIT"));
+        assertThat(error.getMessage(), containsString("ENRICH with remote policy can't be executed after LIMIT"));
     }
 
     public void testAggThenEnrichRemote() {
@@ -438,7 +438,7 @@ public class CrossClustersEnrichIT extends AbstractMultiClustersTestCase {
             | sort vendor
             """, enrichHosts(Enrich.Mode.ANY), enrichVendors(Enrich.Mode.REMOTE));
         var error = expectThrows(VerificationException.class, () -> runQuery(query).close());
-        assertThat(error.getMessage(), containsString("enrich with [ccq.mode:remote] can't be executed after STATS"));
+        assertThat(error.getMessage(), containsString("ENRICH with remote policy can't be executed after STATS"));
     }
 
     public void testEnrichCoordinatorThenEnrichRemote() {
@@ -452,7 +452,7 @@ public class CrossClustersEnrichIT extends AbstractMultiClustersTestCase {
         var error = expectThrows(VerificationException.class, () -> runQuery(query).close());
         assertThat(
             error.getMessage(),
-            containsString("enrich with [ccq.mode:remote] can't be executed after another enrich with [ccq.mode:coordinator]")
+            containsString("ENRICH with remote policy can't be executed after another ENRICH with coordinator policy")
         );
     }
 
@@ -460,6 +460,9 @@ public class CrossClustersEnrichIT extends AbstractMultiClustersTestCase {
         EsqlQueryRequest request = new EsqlQueryRequest();
         request.query(query);
         request.pragmas(AbstractEsqlIntegTestCase.randomPragmas());
+        if (randomBoolean()) {
+            request.profile(true);
+        }
         return client(LOCAL_CLUSTER).execute(EsqlQueryAction.INSTANCE, request).actionGet(30, TimeUnit.SECONDS);
     }
 

@@ -17,6 +17,7 @@ import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -444,11 +445,12 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
                 return;
             }
 
-            // ignore trigger if indexer is running or completely stopped
+            // ignore trigger if indexer is running, stopping, stopped or aborting
             IndexerState indexerState = getIndexer().getState();
             if (IndexerState.INDEXING.equals(indexerState)
                 || IndexerState.STOPPING.equals(indexerState)
-                || IndexerState.STOPPED.equals(indexerState)) {
+                || IndexerState.STOPPED.equals(indexerState)
+                || IndexerState.ABORTING.equals(indexerState)) {
                 logger.debug("[{}] indexer for transform has state [{}]. Ignoring trigger.", getTransformId(), indexerState);
                 return;
             }
@@ -575,7 +577,12 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
     }
 
     void initializeIndexer(ClientTransformIndexerBuilder indexerBuilder) {
-        indexer.set(indexerBuilder.build(getThreadPool(), context));
+        initializeIndexer(indexerBuilder.build(getThreadPool(), context));
+    }
+
+    /** Visible for testing. */
+    void initializeIndexer(ClientTransformIndexer indexer) {
+        this.indexer.set(indexer);
     }
 
     ThreadPool getThreadPool() {
@@ -601,7 +608,7 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
     }
 
     public static Collection<PersistentTask<?>> findAllTransformTasks(ClusterState clusterState) {
-        return findTransformTasks(task -> true, clusterState);
+        return findTransformTasks(Predicates.always(), clusterState);
     }
 
     public static Collection<PersistentTask<?>> findTransformTasks(Set<String> transformIds, ClusterState clusterState) {
@@ -610,7 +617,7 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
 
     public static Collection<PersistentTask<?>> findTransformTasks(String transformIdPattern, ClusterState clusterState) {
         Predicate<PersistentTasksCustomMetadata.PersistentTask<?>> taskMatcher = transformIdPattern == null
-            || Strings.isAllOrWildcard(transformIdPattern) ? t -> true : t -> {
+            || Strings.isAllOrWildcard(transformIdPattern) ? Predicates.always() : t -> {
                 TransformTaskParams transformParams = (TransformTaskParams) t.getParams();
                 return Regex.simpleMatch(transformIdPattern, transformParams.getId());
             };

@@ -14,6 +14,7 @@ import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 
 public class ESKnnByteVectorQuery extends KnnByteVectorQuery implements ProfilingQuery {
+
     private long vectorOpsCount;
 
     public ESKnnByteVectorQuery(String field, byte[] target, int k, Query filter) {

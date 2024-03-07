@@ -57,6 +57,7 @@ public class TransportPutRoleAction extends HandledTransportAction<PutRoleReques
     }
 
     private Exception validateRequest(final PutRoleRequest request) {
+        // TODO we can remove this -- `execute()` already calls `request.validate()` before `doExecute()`
         ActionRequestValidationException validationException = request.validate();
         if (validationException != null) {
             return validationException;

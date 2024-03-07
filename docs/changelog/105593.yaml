@@ -1,0 +1,5 @@
+pr: 105593
+summary: "ESQL: push down \"[text_field] is not null\""
+area: ES|QL
+type: enhancement
+issues: []

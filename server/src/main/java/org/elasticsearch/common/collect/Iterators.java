@@ -278,6 +278,9 @@ public class Iterators {
 
         @Override
         public T next() {
+            if (head == null) {
+                throw new NoSuchElementException();
+            }
             T next = head;
             head = fn.get();
             return next;

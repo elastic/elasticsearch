@@ -9,12 +9,14 @@
 package org.elasticsearch.common.collect;
 
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Objects;
@@ -213,6 +215,29 @@ public class IteratorsTests extends ESTestCase {
         final var index = new AtomicInteger();
         Iterators.map(Iterators.forArray(array), i -> i * 2)
             .forEachRemaining(i -> assertEquals(array[index.getAndIncrement()] * 2, (long) i));
+        assertEquals(array.length, index.get());
+    }
+
+    public void testZip() {
+        assertEmptyIterator(Iterators.zip(Iterators.concat(), Tuple::new));
+
+        final var array = randomIntegerArray();
+        final var index = new AtomicInteger();
+        Iterators.zip(Iterators.forArray(array), Tuple::new).forEachRemaining(t -> {
+            int idx = index.getAndIncrement();
+            assertEquals(idx, t.v1().intValue());
+            assertEquals(array[idx], t.v2());
+        });
+        assertEquals(array.length, index.get());
+    }
+
+    public void testSupplier() {
+        assertEmptyIterator(Iterators.fromSupplier(() -> null));
+
+        final var array = randomIntegerArray();
+        final var index = new AtomicInteger();
+        final var queue = new LinkedList<>(Arrays.asList(array));
+        Iterators.fromSupplier(queue::pollFirst).forEachRemaining(i -> assertEquals(array[index.getAndIncrement()], i));
         assertEquals(array.length, index.get());
     }
 

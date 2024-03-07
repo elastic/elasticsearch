@@ -107,12 +107,12 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
                     var routingBuilder = builders[i];
                     ids[i] = TsidExtractingIdFieldMapper.createId(false, routingBuilder, tsid, timestamp, new byte[16]);
                 } else {
-                    SortedDocValues routingIdDocValues = DocValues.getSorted(reader, TimeSeriesRoutingIdFieldMapper.NAME);
-                    found = routingIdDocValues.advanceExact(docId);
+                    SortedDocValues routingHashDocValues = DocValues.getSorted(reader, TimeSeriesRoutingHashFieldMapper.NAME);
+                    found = routingHashDocValues.advanceExact(docId);
                     assert found;
-                    BytesRef routingIdBytes = routingIdDocValues.lookupOrd(routingIdDocValues.ordValue());
-                    int routingId = TimeSeriesRoutingIdFieldMapper.decode(Uid.decodeId(routingIdBytes.bytes));
-                    ids[i] = TsidExtractingIdFieldMapper.createId(routingId, tsid, timestamp);
+                    BytesRef routingHashBytes = routingHashDocValues.lookupOrd(routingHashDocValues.ordValue());
+                    int routingHash = TimeSeriesRoutingHashFieldMapper.decode(Uid.decodeId(routingHashBytes.bytes));
+                    ids[i] = TsidExtractingIdFieldMapper.createId(routingHash, tsid, timestamp);
                 }
             }
             return new TsIdLeaf(docIdsInLeaf, ids);

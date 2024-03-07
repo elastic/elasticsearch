@@ -26,32 +26,25 @@ import java.util.Base64;
 import java.util.Collections;
 
 /**
- * Mapper for the {@code _seq_no} field.
+ * Mapper for the {@code _ts_routing_hash} field.
  *
- * We expect to use the seq# for sorting, during collision checking and for
- * doing range searches. Therefore the {@code _seq_no} field is stored both
- * as a numeric doc value and as numeric indexed field.
- *
- * This mapper also manages the primary term field, which has no ES named
- * equivalent. The primary term is only used during collision after receiving
- * identical seq# values for two document copies. The primary term is stored as
- * a doc value field without being indexed, since it is only intended for use
- * as a key-value lookup.
-
+ * The field contains the routing hash, as calculated in coordinating nodes for docs in time-series indexes.
+ * It's stored to be retrieved and added as a prefix when reconstructing the _id field in search queries.
+ * The prefix can then used for routing Get and Delete requests (by doc id) to the right shard.
  */
-public class TimeSeriesRoutingIdFieldMapper extends MetadataFieldMapper {
+public class TimeSeriesRoutingHashFieldMapper extends MetadataFieldMapper {
 
-    public static final String NAME = "_routing_id";
+    public static final String NAME = "_ts_routing_hash";
 
-    public static final TimeSeriesRoutingIdFieldMapper INSTANCE = new TimeSeriesRoutingIdFieldMapper();
+    public static final TimeSeriesRoutingHashFieldMapper INSTANCE = new TimeSeriesRoutingHashFieldMapper();
 
-    public static final TypeParser PARSER = new FixedTypeParser(c -> c.getIndexSettings().getMode().timeSeriesRoutingIdFieldMapper());
+    public static final TypeParser PARSER = new FixedTypeParser(c -> c.getIndexSettings().getMode().timeSeriesRoutingHashFieldMapper());
 
-    static final class TimeSeriesRoutingIdFieldType extends MappedFieldType {
+    static final class TimeSeriesRoutingHashFieldType extends MappedFieldType {
 
-        private static final TimeSeriesRoutingIdFieldType INSTANCE = new TimeSeriesRoutingIdFieldType();
+        private static final TimeSeriesRoutingHashFieldType INSTANCE = new TimeSeriesRoutingHashFieldType();
 
-        private TimeSeriesRoutingIdFieldType() {
+        private TimeSeriesRoutingHashFieldType() {
             super(NAME, false, false, true, TextSearchInfo.NONE, Collections.emptyMap());
         }
 
@@ -84,16 +77,16 @@ public class TimeSeriesRoutingIdFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    private TimeSeriesRoutingIdFieldMapper() {
-        super(TimeSeriesRoutingIdFieldType.INSTANCE);
+    private TimeSeriesRoutingHashFieldMapper() {
+        super(TimeSeriesRoutingHashFieldType.INSTANCE);
     }
 
     @Override
     public void postParse(DocumentParserContext context) {
         if (context.indexSettings().getMode() == IndexMode.TIME_SERIES
-            && context.indexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.TIME_SERIES_ROUTING_ID_IN_ID)
-            && context.sourceToParse().id() != null) {
-            var field = new SortedDocValuesField(NAME, Uid.encodeId(context.sourceToParse().id()));
+            && context.indexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.TIME_SERIES_ROUTING_HASH_IN_ID)) {
+            String routingHash = context.sourceToParse().routing();
+            var field = new SortedDocValuesField(NAME, Uid.encodeId(routingHash != null ? routingHash : encode(0)));
             context.rootDoc().add(field);
         }
     }

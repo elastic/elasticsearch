@@ -22,11 +22,13 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.plugins.internal.DocumentSizeObserver;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.Map;
 
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.hamcrest.Matchers.containsString;
@@ -667,12 +669,12 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
             .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dim")
             .build();
         MapperService mapper = createMapperService(IndexVersion.current(), indexSettings, () -> false);
-        SourceToParse source = new SourceToParse(TimeSeriesRoutingIdFieldMapper.encode(0), new BytesArray("""
+        SourceToParse source = new SourceToParse(null, new BytesArray("""
             {
                 "@timestamp": 1609459200000,
                 "dim": "6a841a21",
                 "value": 100
-            }"""), XContentType.JSON);
+            }"""), XContentType.JSON, TimeSeriesRoutingHashFieldMapper.encode(0), Map.of(), DocumentSizeObserver.EMPTY_INSTANCE);
         Engine.Index index = IndexShard.prepareIndex(
             mapper,
             source,
@@ -690,18 +692,18 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
         assertNotNull(index.parsedDoc().dynamicMappingsUpdate());
     }
 
-    public void testParseWithDynamicMappingInvalidId() {
+    public void testParseWithDynamicMappingInvalidRoutingHash() {
         Settings indexSettings = Settings.builder()
             .put(IndexSettings.MODE.getKey(), "time_series")
             .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dim")
             .build();
         MapperService mapper = createMapperService(IndexVersion.current(), indexSettings, () -> false);
-        SourceToParse source = new SourceToParse("no-such-id-exists", new BytesArray("""
+        SourceToParse source = new SourceToParse(null, new BytesArray("""
             {
                 "@timestamp": 1609459200000,
                 "dim": "6a841a21",
                 "value": 100
-            }"""), XContentType.JSON);
+            }"""), XContentType.JSON, "no such routing hash", Map.of(), DocumentSizeObserver.EMPTY_INSTANCE);
         var failure = expectThrows(DocumentParsingException.class, () -> {
             IndexShard.prepareIndex(
                 mapper,
@@ -718,7 +720,7 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
                 System.nanoTime()
             );
         });
-        assertThat(failure.getMessage(), equalTo("[5:1] failed to parse: Last unit does not have enough valid bits"));
+        assertThat(failure.getMessage(), equalTo("[5:1] failed to parse: Illegal base64 character 20"));
     }
 
     public void testParseWithDynamicMappingNullId() {
@@ -751,7 +753,7 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
         });
         assertThat(
             failure.getMessage(),
-            equalTo("[5:1] failed to parse: _id was null but must be set because index [index] is in time_series mode")
+            equalTo("[5:1] failed to parse: _ts_routing_hash was null but must be set because index [index] is in time_series mode")
         );
     }
 }

@@ -56,13 +56,11 @@ import org.elasticsearch.geometry.Point;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.OnScriptError;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
-import org.elasticsearch.index.mapper.TimeSeriesRoutingIdFieldMapper;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -812,13 +810,7 @@ public class PainlessExecuteAction {
                     XContentType xContentType = request.contextSetup.xContentType;
                     String id;
                     if (indexService.getIndexSettings().getMode() == IndexMode.TIME_SERIES) {
-                        if (indexService.getIndexSettings()
-                            .getIndexVersionCreated()
-                            .onOrAfter(IndexVersions.TIME_SERIES_ROUTING_ID_IN_ID)) {
-                            id = TimeSeriesRoutingIdFieldMapper.encode(0);
-                        } else {
-                            id = null;
-                        }
+                        id = null; // The id gets auto generated for time series indices.
                     } else {
                         id = "_id";
                     }

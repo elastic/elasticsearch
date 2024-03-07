@@ -22,7 +22,7 @@ import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersions;
-import org.elasticsearch.index.mapper.TimeSeriesRoutingIdFieldMapper;
+import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.transport.Transports;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParser.Token;
@@ -37,6 +37,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.function.IntConsumer;
 import java.util.function.IntSupplier;
 import java.util.function.Predicate;
@@ -70,15 +71,19 @@ public abstract class IndexRouting {
         this.routingFactor = metadata.getRoutingFactor();
     }
 
-    public void preProcess(IndexRequest indexRequest) {}
-
-    public void postProcess(IndexRequest indexRequest) {}
+    public void process(IndexRequest indexRequest) {}
 
     /**
      * Called when indexing a document to generate the shard id that should contain
      * a document with the provided parameters.
      */
-    public abstract int indexShard(String id, @Nullable String routing, XContentType sourceType, BytesReference source);
+    public abstract int indexShard(
+        String id,
+        @Nullable String routing,
+        XContentType sourceType,
+        BytesReference source,
+        Consumer<String> routingHashRecorder
+    );
 
     /**
      * Called when updating a document to generate the shard id that should contain
@@ -145,7 +150,7 @@ public abstract class IndexRouting {
         protected abstract int shardId(String id, @Nullable String routing);
 
         @Override
-        public void preProcess(IndexRequest indexRequest) {
+        public void process(IndexRequest indexRequest) {
             if ("".equals(indexRequest.id())) {
                 throw new IllegalArgumentException("if _id is specified it must not be empty");
             }
@@ -157,7 +162,13 @@ public abstract class IndexRouting {
         }
 
         @Override
-        public int indexShard(String id, @Nullable String routing, XContentType sourceType, BytesReference source) {
+        public int indexShard(
+            String id,
+            @Nullable String routing,
+            XContentType sourceType,
+            BytesReference source,
+            Consumer<String> routingHashRecorder
+        ) {
             if (id == null) {
                 throw new IllegalStateException("id is required and should have been set by process");
             }
@@ -243,14 +254,14 @@ public abstract class IndexRouting {
         private final XContentParserConfiguration parserConfig;
         private final boolean indexTracksRoutingId;
 
-        private int routingId = 0;
+        private int routingHash = 0;
 
         ExtractFromSource(IndexMetadata metadata) {
             super(metadata);
             if (metadata.isRoutingPartitionedIndex()) {
                 throw new IllegalArgumentException("routing_partition_size is incompatible with routing_path");
             }
-            indexTracksRoutingId = metadata.getCreationVersion().onOrAfter(IndexVersions.TIME_SERIES_ROUTING_ID_IN_ID);
+            indexTracksRoutingId = metadata.getCreationVersion().onOrAfter(IndexVersions.TIME_SERIES_ROUTING_HASH_IN_ID);
             List<String> routingPaths = metadata.getRoutingPaths();
             isRoutingPath = Regex.simpleMatcher(routingPaths.toArray(String[]::new));
             this.parserConfig = XContentParserConfiguration.EMPTY.withFiltering(Set.copyOf(routingPaths), null, true);
@@ -261,17 +272,20 @@ public abstract class IndexRouting {
         }
 
         @Override
-        public void postProcess(IndexRequest indexRequest) {
-            if (indexRequest.id() == null && indexTracksRoutingId) {
-                indexRequest.id(TimeSeriesRoutingIdFieldMapper.encode(routingId));
-            }
-        }
-
-        @Override
-        public int indexShard(String id, @Nullable String routing, XContentType sourceType, BytesReference source) {
+        public int indexShard(
+            String id,
+            @Nullable String routing,
+            XContentType sourceType,
+            BytesReference source,
+            Consumer<String> routingHashRecorder
+        ) {
             assert Transports.assertNotTransportThread("parsing the _source can get slow");
             checkNoRouting(routing);
-            return hashToShardId(hashSource(sourceType, source).buildHash(IndexRouting.ExtractFromSource::defaultOnEmpty));
+            int hash = hashSource(sourceType, source).buildHash(IndexRouting.ExtractFromSource::defaultOnEmpty);
+            if (indexTracksRoutingId) {
+                routingHashRecorder.accept(TimeSeriesRoutingHashFieldMapper.encode(hash));
+            }
+            return hashToShardId(hash);
         }
 
         public String createId(XContentType sourceType, BytesReference source, byte[] suffix) {
@@ -379,7 +393,7 @@ public abstract class IndexRouting {
                     hash = 31 * hash + thisHash;
                     prev = next;
                 }
-                routingId = hash;
+                routingHash = hash;
                 return hash;
             }
         }

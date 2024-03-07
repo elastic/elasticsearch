@@ -28,7 +28,7 @@ import org.elasticsearch.index.mapper.ProvidedIdFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
-import org.elasticsearch.index.mapper.TimeSeriesRoutingIdFieldMapper;
+import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
 
 import java.io.IOException;
@@ -94,7 +94,7 @@ public enum IndexMode {
         }
 
         @Override
-        public MetadataFieldMapper timeSeriesRoutingIdFieldMapper() {
+        public MetadataFieldMapper timeSeriesRoutingHashFieldMapper() {
             // non time-series indices must not have a TimeSeriesRoutingIdFieldMapper
             return null;
         }
@@ -193,8 +193,8 @@ public enum IndexMode {
         }
 
         @Override
-        public MetadataFieldMapper timeSeriesRoutingIdFieldMapper() {
-            return TimeSeriesRoutingIdFieldMapper.INSTANCE;
+        public MetadataFieldMapper timeSeriesRoutingHashFieldMapper() {
+            return TimeSeriesRoutingHashFieldMapper.INSTANCE;
         }
 
         public IdFieldMapper idFieldMapperWithoutFieldData() {
@@ -339,7 +339,7 @@ public enum IndexMode {
      * the _tsid field. The field mapper will be added to the list of the metadata
      * field mappers for the index.
      */
-    public abstract MetadataFieldMapper timeSeriesRoutingIdFieldMapper();
+    public abstract MetadataFieldMapper timeSeriesRoutingHashFieldMapper();
 
     /**
      * How {@code time_series_dimension} fields are handled by indices in this mode.

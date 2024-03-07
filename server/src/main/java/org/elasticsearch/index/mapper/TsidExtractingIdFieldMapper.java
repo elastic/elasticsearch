@@ -82,12 +82,12 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
                     )
                 );
             }
-        } else if (context.sourceToParse().id() != null) {
-            int routingId = TimeSeriesRoutingIdFieldMapper.decode(context.sourceToParse().id());
-            id = createId(routingId, tsid, timestamp);
+        } else if (context.sourceToParse().routing() != null) {
+            int routingHash = TimeSeriesRoutingHashFieldMapper.decode(context.sourceToParse().routing());
+            id = createId(routingHash, tsid, timestamp);
         } else {
             throw new IllegalArgumentException(
-                "_id was null but must be set because index ["
+                "_ts_routing_hash was null but must be set because index ["
                     + context.indexSettings().getIndexMetadata().getIndex().getName()
                     + "] is in time_series mode"
             );
@@ -98,12 +98,12 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
         context.doc().add(new StringField(NAME, uidEncoded, Field.Store.YES));
     }
 
-    public static String createId(int routingId, BytesRef tsid, long timestamp) {
+    public static String createId(int routingHash, BytesRef tsid, long timestamp) {
         Hash128 hash = new Hash128();
         MurmurHash3.hash128(tsid.bytes, tsid.offset, tsid.length, SEED, hash);
 
         byte[] bytes = new byte[20];
-        ByteUtils.writeIntLE(routingId, bytes, 0);
+        ByteUtils.writeIntLE(routingHash, bytes, 0);
         ByteUtils.writeLongLE(hash.h1, bytes, 4);
         ByteUtils.writeLongBE(timestamp, bytes, 12);   // Big Ending shrinks the inverted index by ~37%
 

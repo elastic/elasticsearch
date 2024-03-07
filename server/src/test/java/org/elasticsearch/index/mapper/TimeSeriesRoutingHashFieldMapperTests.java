@@ -22,11 +22,11 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
-public class TimeSeriesRoutingIdFieldMapperTests extends MetadataMapperTestCase {
+public class TimeSeriesRoutingHashFieldMapperTests extends MetadataMapperTestCase {
 
     @Override
     protected String fieldName() {
-        return TimeSeriesRoutingIdFieldMapper.NAME;
+        return TimeSeriesRoutingHashFieldMapper.NAME;
     }
 
     @Override
@@ -53,15 +53,15 @@ public class TimeSeriesRoutingIdFieldMapperTests extends MetadataMapperTestCase 
     private static ParsedDocument parseDocument(int hash, DocumentMapper docMapper, CheckedConsumer<XContentBuilder, IOException> f)
         throws IOException {
         // Add the @timestamp field required by DataStreamTimestampFieldMapper for all time series indices
-        return docMapper.parse(source(TimeSeriesRoutingIdFieldMapper.encode(hash), b -> {
+        return docMapper.parse(source(null, b -> {
             f.accept(b);
             b.field("@timestamp", "2021-10-01");
-        }, null));
+        }, TimeSeriesRoutingHashFieldMapper.encode(hash)));
     }
 
-    private static int getRoutingId(ParsedDocument document) {
-        BytesRef value = document.rootDoc().getBinaryValue(TimeSeriesRoutingIdFieldMapper.NAME);
-        return TimeSeriesRoutingIdFieldMapper.decode(Uid.decodeId(value.bytes));
+    private static int getRoutingHash(ParsedDocument document) {
+        BytesRef value = document.rootDoc().getBinaryValue(TimeSeriesRoutingHashFieldMapper.NAME);
+        return TimeSeriesRoutingHashFieldMapper.decode(Uid.decodeId(value.bytes));
     }
 
     @SuppressWarnings("unchecked")
@@ -73,7 +73,7 @@ public class TimeSeriesRoutingIdFieldMapperTests extends MetadataMapperTestCase 
         int hash = randomInt();
         ParsedDocument doc = parseDocument(hash, docMapper, b -> b.field("a", "value"));
         assertThat(doc.rootDoc().getField("a").binaryValue(), equalTo(new BytesRef("value")));
-        assertEquals(hash, getRoutingId(doc));
+        assertEquals(hash, getRoutingHash(doc));
     }
 
     public void testDisabledInStandardMode() throws Exception {
@@ -81,10 +81,10 @@ public class TimeSeriesRoutingIdFieldMapperTests extends MetadataMapperTestCase 
             getIndexSettingsBuilder().put(IndexSettings.MODE.getKey(), IndexMode.STANDARD.name()).build(),
             mapping(b -> {})
         ).documentMapper();
-        assertThat(docMapper.metadataMapper(TimeSeriesRoutingIdFieldMapper.class), is(nullValue()));
+        assertThat(docMapper.metadataMapper(TimeSeriesRoutingHashFieldMapper.class), is(nullValue()));
 
         ParsedDocument doc = docMapper.parse(source("id", b -> b.field("field", "value"), null));
-        assertThat(doc.rootDoc().getBinaryValue("_routing_id"), is(nullValue()));
+        assertThat(doc.rootDoc().getBinaryValue("_ts_routing_hash"), is(nullValue()));
         assertThat(doc.rootDoc().get("field"), equalTo("value"));
     }
 
@@ -94,12 +94,12 @@ public class TimeSeriesRoutingIdFieldMapperTests extends MetadataMapperTestCase 
         }));
         Exception e = expectThrows(
             DocumentParsingException.class,
-            () -> parseDocument(randomInt(), docMapper, b -> b.field("_routing_id", "foo"))
+            () -> parseDocument(randomInt(), docMapper, b -> b.field("_ts_routing_hash", "foo"))
         );
 
         assertThat(
             e.getCause().getMessage(),
-            containsString("Field [_routing_id] is a metadata field and cannot be added inside a document")
+            containsString("Field [_ts_routing_hash] is a metadata field and cannot be added inside a document")
         );
     }
 }

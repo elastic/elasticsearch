@@ -900,7 +900,7 @@ final class DefaultSearchContext extends SearchContext {
         if (indexService.getIndexSettings().getMode() == IndexMode.TIME_SERIES) {
             IndexRouting.ExtractFromSource indexRouting = null;
             List<String> routingPaths = null;
-            if (indexService.getIndexSettings().getIndexVersionCreated().before(IndexVersions.TIME_SERIES_ROUTING_ID_IN_ID)) {
+            if (indexService.getIndexSettings().getIndexVersionCreated().before(IndexVersions.TIME_SERIES_ROUTING_HASH_IN_ID)) {
                 indexRouting = (IndexRouting.ExtractFromSource) indexService.getIndexSettings().getIndexRouting();
                 routingPaths = indexService.getMetadata().getRoutingPaths();
                 for (String routingField : routingPaths) {

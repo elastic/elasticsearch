@@ -30,7 +30,7 @@ import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
-import org.elasticsearch.index.mapper.TimeSeriesRoutingIdFieldMapper;
+import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.test.ESTestCase;
@@ -81,7 +81,7 @@ public class IndicesModuleTests extends ESTestCase {
         IdFieldMapper.NAME,
         RoutingFieldMapper.NAME,
         TimeSeriesIdFieldMapper.NAME,
-        TimeSeriesRoutingIdFieldMapper.NAME,
+        TimeSeriesRoutingHashFieldMapper.NAME,
         IndexFieldMapper.NAME,
         SourceFieldMapper.NAME,
         NestedPathFieldMapper.NAME,

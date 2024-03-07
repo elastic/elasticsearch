@@ -209,7 +209,7 @@ public class IdLoaderTests extends ESTestCase {
             }
             Sort sort = new Sort(
                 new SortField(TimeSeriesIdFieldMapper.NAME, SortField.Type.STRING, false),
-                new SortField(TimeSeriesRoutingIdFieldMapper.NAME, SortField.Type.STRING, false),
+                new SortField(TimeSeriesRoutingHashFieldMapper.NAME, SortField.Type.STRING, false),
                 new SortedNumericSortField(DataStreamTimestampFieldMapper.DEFAULT_PATH, SortField.Type.LONG, true)
             );
             config.setIndexSort(sort);
@@ -241,7 +241,10 @@ public class IdLoaderTests extends ESTestCase {
         BytesRef tsid = builder.buildTsidHash().toBytesRef();
         fields.add(new SortedDocValuesField(TimeSeriesIdFieldMapper.NAME, tsid));
         fields.add(
-            new SortedDocValuesField(TimeSeriesRoutingIdFieldMapper.NAME, Uid.encodeId(TimeSeriesRoutingIdFieldMapper.encode(routingHash)))
+            new SortedDocValuesField(
+                TimeSeriesRoutingHashFieldMapper.NAME,
+                Uid.encodeId(TimeSeriesRoutingHashFieldMapper.encode(routingHash))
+            )
         );
         iw.addDocument(fields);
     }

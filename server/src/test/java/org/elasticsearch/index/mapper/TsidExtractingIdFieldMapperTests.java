@@ -20,6 +20,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.plugins.internal.DocumentSizeObserver;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
@@ -27,6 +28,7 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -692,7 +694,7 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
 
     public void testExpectedId() throws IOException {
         assertThat(
-            parse(TimeSeriesRoutingIdFieldMapper.encode(ROUTING_HASH), mapperService(), testCase.source).id(),
+            parse(TimeSeriesRoutingHashFieldMapper.encode(ROUTING_HASH), mapperService(), testCase.source).id(),
             equalTo(testCase.expectedId)
         );
     }
@@ -705,25 +707,35 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
         MapperService mapperService = mapperService();
         for (CheckedConsumer<XContentBuilder, IOException> equivalent : testCase.equivalentSources) {
             assertThat(
-                parse(TimeSeriesRoutingIdFieldMapper.encode(ROUTING_HASH), mapperService, equivalent).id(),
+                parse(TimeSeriesRoutingHashFieldMapper.encode(ROUTING_HASH), mapperService, equivalent).id(),
                 equalTo(testCase.expectedId)
             );
         }
     }
 
-    private ParsedDocument parse(@Nullable String id, MapperService mapperService, CheckedConsumer<XContentBuilder, IOException> source)
-        throws IOException {
+    private ParsedDocument parse(
+        @Nullable String routingHash,
+        MapperService mapperService,
+        CheckedConsumer<XContentBuilder, IOException> source
+    ) throws IOException {
         try (XContentBuilder builder = XContentBuilder.builder(randomFrom(XContentType.values()).xContent())) {
             builder.startObject();
             source.accept(builder);
             builder.endObject();
-            SourceToParse sourceToParse = new SourceToParse(id, BytesReference.bytes(builder), builder.contentType());
+            SourceToParse sourceToParse = new SourceToParse(
+                null,
+                BytesReference.bytes(builder),
+                builder.contentType(),
+                routingHash,
+                Map.of(),
+                DocumentSizeObserver.EMPTY_INSTANCE
+            );
             return mapperService.documentParser().parseDocument(sourceToParse, mapperService.mappingLookup());
         }
     }
 
     public void testRoutingPathCompliant() throws IOException {
-        IndexVersion version = IndexVersions.TIME_SERIES_ROUTING_ID_IN_ID;
+        IndexVersion version = IndexVersions.TIME_SERIES_ROUTING_HASH_IN_ID;
         IndexRouting indexRouting = createIndexSettings(version, indexSettings(version)).getIndexRouting();
         assertThat(indexRouting.getShard(testCase.expectedId, null), equalTo(SHARD_ID));
         assertThat(indexRouting.deleteShard(testCase.expectedId, null), equalTo(SHARD_ID));
@@ -787,7 +799,7 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
 
     public void testSourceDescription() throws IOException {
         assertThat(TsidExtractingIdFieldMapper.INSTANCE.documentDescription(documentParserContext()), equalTo("a time series document"));
-        ParsedDocument d = parse(TimeSeriesRoutingIdFieldMapper.encode(ROUTING_HASH), mapperService(), testCase.randomSource());
+        ParsedDocument d = parse(TimeSeriesRoutingHashFieldMapper.encode(ROUTING_HASH), mapperService(), testCase.randomSource());
         IndexableField timestamp = d.rootDoc().getField(DataStreamTimestampFieldMapper.DEFAULT_PATH);
         assertThat(
             TsidExtractingIdFieldMapper.INSTANCE.documentDescription(documentParserContext(timestamp)),
@@ -818,7 +830,7 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
     public void testParsedDescription() throws IOException {
         assertThat(
             TsidExtractingIdFieldMapper.INSTANCE.documentDescription(
-                parse(TimeSeriesRoutingIdFieldMapper.encode(ROUTING_HASH), mapperService(), testCase.randomSource())
+                parse(TimeSeriesRoutingHashFieldMapper.encode(ROUTING_HASH), mapperService(), testCase.randomSource())
             ),
             equalTo("[" + testCase.expectedId + "][" + testCase.expectedTsid + "@" + testCase.expectedTimestamp + "]")
         );

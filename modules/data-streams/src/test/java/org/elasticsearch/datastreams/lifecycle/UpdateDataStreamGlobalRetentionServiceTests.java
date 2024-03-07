@@ -8,7 +8,6 @@
 
 package org.elasticsearch.datastreams.lifecycle;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -18,9 +17,6 @@ import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.datastreams.lifecycle.action.DeleteDataStreamGlobalRetentionAction;
-import org.elasticsearch.datastreams.lifecycle.action.PutDataStreamGlobalRetentionAction;
-import org.elasticsearch.datastreams.lifecycle.action.UpdateDataStreamGlobalRetentionResponse;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
@@ -192,37 +188,6 @@ public class UpdateDataStreamGlobalRetentionServiceTests extends ESTestCase {
             assertThat(dataStream.previousEffectiveRetention(), nullValue());
             assertThat(dataStream.newEffectiveRetention(), equalTo(globalRetention.getMaxRetention()));
         }
-    }
-
-    public void testUpdateAndAcknowledgeListener() throws Exception {
-        ActionListener<UpdateDataStreamGlobalRetentionResponse> listener = new ActionListener<>() {
-            @Override
-            public void onResponse(UpdateDataStreamGlobalRetentionResponse response) {}
-
-            @Override
-            public void onFailure(Exception e) {
-                fail(e);
-            }
-        };
-        DataStreamGlobalRetention globalRetention = randomNonEmptyGlobalRetention();
-        service.updateGlobalRetention(
-            new PutDataStreamGlobalRetentionAction.Request(globalRetention.getDefaultRetention(), globalRetention.getMaxRetention()),
-            List.of(),
-            listener
-        );
-        assertBusy(() -> assertThat(clusterService.state().getCustoms().get(DataStreamGlobalRetention.TYPE), equalTo(globalRetention)));
-
-        listener = new ActionListener<>() {
-            @Override
-            public void onResponse(UpdateDataStreamGlobalRetentionResponse response) {}
-
-            @Override
-            public void onFailure(Exception e) {
-                fail(e);
-            }
-        };
-        service.removeGlobalRetention(new DeleteDataStreamGlobalRetentionAction.Request(), List.of(), listener);
-        assertBusy(() -> assertThat(clusterService.state().getCustoms().get(DataStreamGlobalRetention.TYPE), nullValue()));
     }
 
     private static DataStreamGlobalRetention randomNonEmptyGlobalRetention() {

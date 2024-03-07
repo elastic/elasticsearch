@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ml.inference.ingest;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -103,6 +104,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
             )
         );
         clusterService = new ClusterService(settings, clusterSettings, tp, null);
+        clusterService.getClusterApplierService().setInitialState(ClusterState.EMPTY_STATE);
     }
 
     public void testCreateProcessorWithTooManyExisting() {
@@ -117,7 +119,12 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
             );
 
             try {
-                processorFactory.accept(buildClusterStateWithModelReferences("model1"));
+                final var clusterState = buildClusterStateWithModelReferences("model1");
+                safeAwait(
+                    SubscribableListener.<Void>newForked(
+                        l -> clusterService.getClusterApplierService().onNewClusterState("test", () -> clusterState, l)
+                    )
+                );
             } catch (IOException ioe) {
                 throw new AssertionError(ioe.getMessage());
             }

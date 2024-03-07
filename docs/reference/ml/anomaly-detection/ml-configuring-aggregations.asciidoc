@@ -18,7 +18,7 @@ There are a number of requirements for using aggregations in {dfeeds}.
 === Aggregations
 
 * Using 
-<<search-aggregations-metrics-scripted-metric-aggregation, scripted metric>>
+{ref}/search-aggregations-metrics-scripted-metric-aggregation.html[scripted metric]
 aggregations is not supported in {dfeeds}.
 
 * Your aggregation must include a `date_histogram` aggregation or a top level 
@@ -81,7 +81,7 @@ chart.
 that match values in the job configuration are fed to the job.
 
 * Using 
-<<search-aggregations-metrics-scripted-metric-aggregation, scripted metric>>
+{ref}/search-aggregations-metrics-scripted-metric-aggregation.html[scripted metric]
 aggregations is not supported in {dfeeds}.
 
 

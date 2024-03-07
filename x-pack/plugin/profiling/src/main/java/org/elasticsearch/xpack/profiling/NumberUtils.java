@@ -16,12 +16,15 @@ final class NumberUtils {
      * Converts a positive double number to a string.
      *
      * @param value The double value.
-     * @return The corresponding string representation truncated to four fractional digits.
+     * @return The corresponding string representation rounded to four fractional digits.
      */
     public static String doubleToString(double value) {
+        if (value < 0.0001d) {
+            return "0";
+        }
         StringBuilder sb = new StringBuilder();
         int i = (int) value;
-        int f = (int) ((value - i) * 10000.0d);
+        int f = (int) ((value - i) * 10000.0d + 0.5d);
         sb.append(i);
         sb.append(".");
         if (f < 10) {

@@ -26,7 +26,6 @@ import org.elasticsearch.core.Releasables;
 @Aggregator({ @IntermediateState(name = "values", type = "BYTES_REF_BLOCK") })
 @GroupingAggregator
 class ValuesBytesRefAggregator {
-
     public static SingleState initSingle(BigArrays bigArrays) {
         return new SingleState(bigArrays);
     }
@@ -88,6 +87,9 @@ class ValuesBytesRefAggregator {
                 return blockFactory.newConstantNullBlock(1);
             }
             BytesRef scratch = new BytesRef();
+            if (values.size() == 1) {
+                return blockFactory.newConstantBytesRefBlockWith(values.get(0, scratch), 1);
+            }
             try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder((int) values.size())) {
                 builder.beginPositionEntry();
                 for (int id = 0; id < values.size(); id++) {
@@ -121,7 +123,6 @@ class ValuesBytesRefAggregator {
             if (values.size() == 0) {
                 return blockFactory.newConstantNullBlock(selected.getPositionCount());
             }
-            BytesRef firstScratch = new BytesRef();
             BytesRef scratch = new BytesRef();
             try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(selected.getPositionCount())) {
                 for (int s = 0; s < selected.getPositionCount(); s++) {

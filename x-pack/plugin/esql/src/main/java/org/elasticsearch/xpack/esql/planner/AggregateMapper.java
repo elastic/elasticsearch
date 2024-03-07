@@ -152,7 +152,7 @@ public class AggregateMapper {
             extraConfigs = List.of("SourceValues", "DocValues");
         } else if (Values.class.isAssignableFrom(clazz)) {
             // TODO can't we figure this out from the function itself?
-            types = List.of("Int", "Long", "Double", "BytesRef");
+            types = List.of("Int", "Long", "Double", "Boolean", "BytesRef");
         } else {
             assert clazz == CountDistinct.class : "Expected CountDistinct, got: " + clazz;
             types = Stream.concat(NUMERIC.stream(), Stream.of("Boolean", "BytesRef")).toList();

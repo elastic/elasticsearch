@@ -43,7 +43,6 @@ $endif$
 @Aggregator({ @IntermediateState(name = "values", type = "$TYPE$_BLOCK") })
 @GroupingAggregator
 class Values$Type$Aggregator {
-
     public static SingleState initSingle(BigArrays bigArrays) {
         return new SingleState(bigArrays);
     }
@@ -140,6 +139,17 @@ $endif$
 $if(BytesRef)$
             BytesRef scratch = new BytesRef();
 $endif$
+            if (values.size() == 1) {
+$if(long)$
+                return blockFactory.newConstantLongBlockWith(values.get(0), 1);
+$elseif(double)$
+                return blockFactory.newConstantDoubleBlockWith(Double.longBitsToDouble(values.get(0)), 1);
+$elseif(int)$
+                return blockFactory.newConstantIntBlockWith((int) values.get(0), 1);
+$elseif(BytesRef)$
+                return blockFactory.newConstantBytesRefBlockWith(values.get(0, scratch), 1);
+$endif$
+            }
             try ($Type$Block.Builder builder = blockFactory.new$Type$BlockBuilder((int) values.size())) {
                 builder.beginPositionEntry();
                 for (int id = 0; id < values.size(); id++) {
@@ -197,7 +207,6 @@ $endif$
                 return blockFactory.newConstantNullBlock(selected.getPositionCount());
             }
 $if(BytesRef)$
-            BytesRef firstScratch = new BytesRef();
             BytesRef scratch = new BytesRef();
 $endif$
             try ($Type$Block.Builder builder = blockFactory.new$Type$BlockBuilder(selected.getPositionCount())) {

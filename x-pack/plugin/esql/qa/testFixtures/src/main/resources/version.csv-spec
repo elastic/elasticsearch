@@ -310,3 +310,34 @@ v:v        | version:v |version_text:s   | id:i  |  m:i  |  g:v   | i:v     |  c
 null       | null      | null            | 13    | 0     | 1.3.0  | 0.1     | none
 null       | null      | null            | 11    | 0     | 1.3.0  | 0.1     | none
 ;
+
+values#[skip:-8.13.99, reason:Added in 8.14]
+  FROM apps
+| STATS version=VALUES(version)
+;
+
+   version:version
+[1, 2.1, 2.3.4, 2.12.0, 1.11.0, 5.2.9, 5.2.9-SNAPSHOT, 1.2.3.4, bad]
+;
+
+valuesGrouped#[skip:-8.13.99, reason:Added in 8.14]
+  FROM apps
+| STATS version=VALUES(version) BY name
+| SORT name
+;
+
+version:version | name:keyword
+   [1, 1.2.3.4] | aaaaa
+            2.1 | bbbbb
+          2.3.4 | ccccc
+         2.12.0 | ddddd
+         1.11.0 | eeeee
+          5.2.9 | fffff
+ 5.2.9-SNAPSHOT | ggggg
+        1.2.3.4 | hhhhh
+            bad | iiiii
+          5.2.9 | jjjjj
+           null | kkkkk
+           null | lllll
+          5.2.9 | mmmmm
+;

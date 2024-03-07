@@ -232,3 +232,32 @@ emp_no:integer |languages:integer |byte2bool:boolean |short2bool:boolean
 10020          |null              |null              |null
 10030          |3                 |true              |true
 ;
+
+values#[skip:-8.13.99, reason:Added in 8.14]
+  FROM employees
+| WHERE emp_no <= 10009
+| STATS still_hired=VALUES(still_hired)
+;
+
+   still_hired:boolean
+[false, true]
+;
+
+valuesGrouped#[skip:-8.13.99, reason:Added in 8.14]
+  FROM employees
+| WHERE emp_no <= 10009
+| EVAL first_letter = SUBSTRING(first_name, 0, 1)
+| STATS still_hired=VALUES(still_hired) BY first_letter
+| SORT first_letter
+;
+
+still_hired:boolean | first_letter:keyword
+              false | A
+               true | B
+               true | C
+               true | G
+               true | K
+              false | P
+      [false, true] | S
+               true | T
+;

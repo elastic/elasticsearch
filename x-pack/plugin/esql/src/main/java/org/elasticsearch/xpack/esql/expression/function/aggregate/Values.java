@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.ValuesBooleanAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.ValuesBytesRefAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.ValuesDoubleAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.ValuesIntAggregatorFunctionSupplier;
@@ -16,6 +17,7 @@ import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
@@ -65,10 +67,13 @@ public class Values extends AggregateFunction implements ToAggregator {
         if (type == DataTypes.DOUBLE) {
             return new ValuesDoubleAggregatorFunctionSupplier(inputChannels);
         }
-        if (DataTypes.isString(type)) {
+        if (DataTypes.isString(type) || type == DataTypes.IP || type == DataTypes.VERSION) {
             return new ValuesBytesRefAggregatorFunctionSupplier(inputChannels);
         }
-        // NOCOMMIT cartesian_point, geo_point, version, ip, boolean
+        if (type == DataTypes.BOOLEAN) {
+            return new ValuesBooleanAggregatorFunctionSupplier(inputChannels);
+        }
+        // TODO cartesian_point, geo_point
         throw EsqlIllegalArgumentException.illegalDataType(type);
     }
 }

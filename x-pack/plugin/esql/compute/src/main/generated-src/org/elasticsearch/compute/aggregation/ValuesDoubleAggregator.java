@@ -22,7 +22,6 @@ import org.elasticsearch.core.Releasable;
 @Aggregator({ @IntermediateState(name = "values", type = "DOUBLE_BLOCK") })
 @GroupingAggregator
 class ValuesDoubleAggregator {
-
     public static SingleState initSingle(BigArrays bigArrays) {
         return new SingleState(bigArrays);
     }
@@ -81,6 +80,9 @@ class ValuesDoubleAggregator {
         Block toBlock(BlockFactory blockFactory) {
             if (values.size() == 0) {
                 return blockFactory.newConstantNullBlock(1);
+            }
+            if (values.size() == 1) {
+                return blockFactory.newConstantDoubleBlockWith(Double.longBitsToDouble(values.get(0)), 1);
             }
             try (DoubleBlock.Builder builder = blockFactory.newDoubleBlockBuilder((int) values.size())) {
                 builder.beginPositionEntry();

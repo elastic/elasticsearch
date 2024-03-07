@@ -21,7 +21,6 @@ import org.elasticsearch.core.Releasable;
 @Aggregator({ @IntermediateState(name = "values", type = "INT_BLOCK") })
 @GroupingAggregator
 class ValuesIntAggregator {
-
     public static SingleState initSingle(BigArrays bigArrays) {
         return new SingleState(bigArrays);
     }
@@ -80,6 +79,9 @@ class ValuesIntAggregator {
         Block toBlock(BlockFactory blockFactory) {
             if (values.size() == 0) {
                 return blockFactory.newConstantNullBlock(1);
+            }
+            if (values.size() == 1) {
+                return blockFactory.newConstantIntBlockWith((int) values.get(0), 1);
             }
             try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder((int) values.size())) {
                 builder.beginPositionEntry();

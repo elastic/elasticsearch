@@ -441,3 +441,38 @@ setup:
   - length: { values: 2 }
   - match: { values.0.0: "IT Director" }
   - match: { values.1.0: "Payroll Specialist" }
+
+---
+values:
+  - skip:
+      version: " - 8.13.99"
+      reason: "values is available in 8.14+"
+
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test | STATS job = VALUES(job) | LIMIT 1'
+  - match: { columns.0.name: "job" }
+  - match: { columns.0.type: "text" }
+  - length: { values: 1 }
+  - match: { values.0: [ [ "IT Director", "Payroll Specialist" ] ] }
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "emp_no": 30, "name": "Stuff", "job": "Other", "tag": "baz" }
+
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test | STATS job = VALUES(job) BY tag | SORT tag | LIMIT 10'
+  - match: { columns.0.name: "job" }
+  - match: { columns.0.type: "text" }
+  - match: { columns.1.name: "tag" }
+  - match: { columns.1.type: "text" }
+  - length: { values: 2 }
+  - match: { values.0: [ [ "Payroll Specialist", "Other" ], "baz" ] }
+  - match: { values.1: [ "IT Director", "foo bar" ] }

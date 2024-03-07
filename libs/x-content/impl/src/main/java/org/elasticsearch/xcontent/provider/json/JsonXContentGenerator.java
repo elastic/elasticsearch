@@ -499,7 +499,12 @@ public class JsonXContentGenerator implements XContentGenerator {
     @Override
     public void writeRawValue(String value) throws IOException {
         try {
-            generator.writeRaw(value);
+            if (supportsRawWrites()) {
+                generator.writeRaw(value);
+            } else {
+                // fallback to a regular string for formats that don't allow writing the value as is
+                generator.writeString(value);
+            }
         } catch (JsonGenerationException e) {
             throw new XContentGenerationException(e);
         }

@@ -992,6 +992,16 @@ class NodeConstruction {
         final TimeValue metricsInterval = settings.getAsTime("telemetry.agent.metrics_interval", TimeValue.timeValueSeconds(10));
         final NodeMetrics nodeMetrics = new NodeMetrics(telemetryProvider.getMeterRegistry(), nodeService, metricsInterval);
 
+        // Register noop versions of inference services if Inference plugin is not available
+        Optional<InferenceRegistryPlugin> inferenceRegistryPlugin = getSinglePlugin(InferenceRegistryPlugin.class);
+        InferenceServiceRegistry inferenceServiceRegistry = inferenceRegistryPlugin.map(
+            InferenceRegistryPlugin::getInferenceServiceRegistry
+        ).orElse(new InferenceServiceRegistry.NoopInferenceServiceRegistry());
+        ModelRegistry modelRegistry = inferenceRegistryPlugin.map(InferenceRegistryPlugin::getModelRegistry)
+            .orElse(new ModelRegistry.NoopModelRegistry());
+        modules.bindToInstance(InferenceServiceRegistry.class, inferenceServiceRegistry);
+        modules.bindToInstance(ModelRegistry.class, modelRegistry);
+
         final SearchService searchService = serviceProvider.newSearchService(
             pluginsService,
             clusterService,
@@ -1003,7 +1013,9 @@ class NodeConstruction {
             responseCollectorService,
             circuitBreakerService,
             systemIndices.getExecutorSelector(),
-            telemetryProvider.getTracer()
+            telemetryProvider.getTracer(),
+            modelRegistry,
+            inferenceServiceRegistry
         );
 
         modules.add(
@@ -1103,18 +1115,6 @@ class NodeConstruction {
                 serviceProvider.newReadinessService(pluginsService, clusterService, environment)
             );
         }
-
-        // Register noop versions of inference services if Inference plugin is not available
-        Optional<InferenceRegistryPlugin> inferenceRegistryPlugin = getSinglePlugin(InferenceRegistryPlugin.class);
-        modules.bindToInstance(
-            InferenceServiceRegistry.class,
-            inferenceRegistryPlugin.map(InferenceRegistryPlugin::getInferenceServiceRegistry)
-                .orElse(new InferenceServiceRegistry.NoopInferenceServiceRegistry())
-        );
-        modules.bindToInstance(
-            ModelRegistry.class,
-            inferenceRegistryPlugin.map(InferenceRegistryPlugin::getModelRegistry).orElse(new ModelRegistry.NoopModelRegistry())
-        );
 
         injector = modules.createInjector();
 

@@ -602,6 +602,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 null,
                 () -> true,
                 scriptService,
+                null,
                 null
             );
         }

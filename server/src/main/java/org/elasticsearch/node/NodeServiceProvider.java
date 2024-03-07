@@ -26,6 +26,8 @@ import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.inference.InferenceServiceRegistry;
+import org.elasticsearch.inference.ModelRegistry;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.readiness.ReadinessService;
 import org.elasticsearch.script.ScriptContext;
@@ -120,7 +122,9 @@ class NodeServiceProvider {
         ResponseCollectorService responseCollectorService,
         CircuitBreakerService circuitBreakerService,
         ExecutorSelector executorSelector,
-        Tracer tracer
+        Tracer tracer,
+        ModelRegistry modelRegistry,
+        InferenceServiceRegistry inferenceServiceRegistry
     ) {
         return new SearchService(
             clusterService,
@@ -132,7 +136,9 @@ class NodeServiceProvider {
             responseCollectorService,
             circuitBreakerService,
             executorSelector,
-            tracer
+            tracer,
+            modelRegistry,
+            inferenceServiceRegistry
         );
     }
 

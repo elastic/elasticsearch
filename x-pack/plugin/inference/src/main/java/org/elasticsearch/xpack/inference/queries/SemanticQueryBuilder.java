@@ -11,6 +11,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -19,14 +20,14 @@ import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.inference.InferenceProviderRegistry;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
-import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.SemanticTextModelSettings;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 
 import java.io.IOException;
@@ -34,9 +35,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-
-import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
-import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuilder> {
     public static final String NAME = "semantic_query";
@@ -47,6 +45,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
     private final String query;
 
     private SetOnce<InferenceServiceResults> inferenceResultsSupplier;
+    private SetOnce<SemanticTextModelSettings> modelSettingsSupplier;
 
     public SemanticQueryBuilder(String fieldName, String query) {
         if (fieldName == null) {
@@ -65,12 +64,13 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         this.query = in.readString();
     }
 
-    private SemanticQueryBuilder(SemanticQueryBuilder other, SetOnce<InferenceServiceResults> inferenceResultsSupplier) {
+    private SemanticQueryBuilder(SemanticQueryBuilder other, SetOnce<InferenceServiceResults> inferenceResultsSupplier, SetOnce<SemanticTextModelSettings> modelSettingsSupplier) {
         this.fieldName = other.fieldName;
         this.query = other.query;
         this.boost = other.boost;
         this.queryName = other.queryName;
         this.inferenceResultsSupplier = inferenceResultsSupplier;
+        this.modelSettingsSupplier = modelSettingsSupplier;
     }
 
     @Override
@@ -115,28 +115,37 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
             throw new IllegalArgumentException("Field [" + fieldName + "] has multiple models associated with it");
         }
 
-        // TODO: How to determine task type?
-        InferenceAction.Request inferenceRequest = new InferenceAction.Request(
-            TaskType.SPARSE_EMBEDDING,
-            modelsForField.iterator().next(),
-            List.of(query),
-            Map.of(),
-            InputType.SEARCH
-        );
+        String inferenceId = modelsForField.iterator().next();
 
-        SetOnce<InferenceServiceResults> inferenceResultsSupplier = new SetOnce<>();
-        queryRewriteContext.registerAsyncAction((client, listener) -> executeAsyncWithOrigin(
-            client,
-            ML_ORIGIN,
-            InferenceAction.INSTANCE,
-            inferenceRequest,
-            listener.delegateFailureAndWrap((l, inferenceResponse) -> {
-                inferenceResultsSupplier.set(inferenceResponse.getResults());
-                l.onResponse(null);
-            })
-        ));
+        modelSettingsSupplier = new SetOnce<>();
+        inferenceResultsSupplier = new SetOnce<>();
+        queryRewriteContext.registerAsyncAction((client, listener) -> {
+            InferenceProviderRegistry.getInstance(
+                List.of(inferenceId),
+                queryRewriteContext.getModelRegistry(),
+                queryRewriteContext.getInferenceServiceRegistry(),
+                listener.delegateFailureAndWrap((l, inferenceProviderRegistry) -> {
+                    modelSettingsSupplier.set(new SemanticTextModelSettings(inferenceProviderRegistry.getModel(inferenceId)));
+                    performInference(inferenceId, inferenceProviderRegistry, l);
+                })
+            );
+        });
 
-        return new SemanticQueryBuilder(this, inferenceResultsSupplier);
+        return new SemanticQueryBuilder(this, inferenceResultsSupplier, modelSettingsSupplier);
+    }
+
+    private void performInference(String inferenceId, InferenceProviderRegistry inferenceProviderRegistry, ActionListener<?> listener) {
+        inferenceProviderRegistry.getInfereceService(inferenceId)
+            .infer(
+                inferenceProviderRegistry.getModel(inferenceId),
+                List.of(query),
+                Map.of(),
+                InputType.SEARCH,
+                listener.delegateFailureAndWrap((l, inferenceServiceResults) -> {
+                    inferenceResultsSupplier.set(inferenceServiceResults);
+                    l.onResponse(null);
+                })
+            );
     }
 
     @Override
@@ -156,14 +165,14 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
 
         InferenceResults inferenceResults = inferenceResultsList.get(0);
         MappedFieldType fieldType = context.getFieldType(fieldName);
-        if (fieldType instanceof SemanticTextFieldMapper.SemanticTextFieldType == false) {
-            // TODO: Better exception type to throw here?
-            throw new IllegalArgumentException(
-                "Field [" + fieldName + "] is not registered as a " + SemanticTextFieldMapper.CONTENT_TYPE + " field type"
-            );
+        if (fieldType instanceof SemanticTextFieldMapper.SemanticTextFieldType semanticTextFieldType) {
+            return semanticTextFieldType.semanticQuery(inferenceResults, modelSettingsSupplier.get(), context);
         }
 
-        return ((SemanticTextFieldMapper.SemanticTextFieldType) fieldType).semanticQuery(inferenceResults, context, boost, queryName);
+        // TODO: Better exception type to throw here?
+        throw new IllegalArgumentException(
+            "Field [" + fieldName + "] is not registered as a " + SemanticTextFieldMapper.CONTENT_TYPE + " field type"
+        );
     }
 
     @Override

@@ -72,6 +72,8 @@ import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason;
+import org.elasticsearch.inference.InferenceServiceRegistry;
+import org.elasticsearch.inference.ModelRegistry;
 import org.elasticsearch.node.ResponseCollectorService;
 import org.elasticsearch.script.FieldScript;
 import org.elasticsearch.script.ScriptService;
@@ -306,6 +308,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private final Tracer tracer;
 
+    private final ModelRegistry modelRegistry;
+    private final InferenceServiceRegistry inferenceServiceRegistry;
+
     public SearchService(
         ClusterService clusterService,
         IndicesService indicesService,
@@ -316,7 +321,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         ResponseCollectorService responseCollectorService,
         CircuitBreakerService circuitBreakerService,
         ExecutorSelector executorSelector,
-        Tracer tracer
+        Tracer tracer,
+        ModelRegistry modelRegistry,
+        InferenceServiceRegistry inferenceServiceRegistry
     ) {
         Settings settings = clusterService.getSettings();
         this.threadPool = threadPool;
@@ -333,6 +340,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         );
         this.executorSelector = executorSelector;
         this.tracer = tracer;
+        this.modelRegistry = modelRegistry;
+        this.inferenceServiceRegistry = inferenceServiceRegistry;
 
         TimeValue keepAliveInterval = KEEPALIVE_INTERVAL_SETTING.get(settings);
         setKeepAlives(DEFAULT_KEEPALIVE_SETTING.get(settings), MAX_KEEPALIVE_SETTING.get(settings));
@@ -1761,7 +1770,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      * Returns a new {@link QueryRewriteContext} with the given {@code now} provider
      */
     public QueryRewriteContext getRewriteContext(LongSupplier nowInMillis, IndicesRequest indicesRequest) {
-        return indicesService.getRewriteContext(nowInMillis, indicesRequest);
+        return indicesService.getRewriteContext(nowInMillis, indicesRequest, modelRegistry, inferenceServiceRegistry);
     }
 
     public CoordinatorRewriteContextProvider getCoordinatorRewriteContextProvider(LongSupplier nowInMillis) {

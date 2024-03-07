@@ -21,6 +21,8 @@ import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.TextFieldMapper;
+import org.elasticsearch.inference.InferenceServiceRegistry;
+import org.elasticsearch.inference.ModelRegistry;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.xcontent.XContentParser;
@@ -60,6 +62,8 @@ public class QueryRewriteContext {
     protected boolean allowUnmappedFields;
     protected boolean mapUnmappedFieldAsString;
     protected Predicate<String> allowedFields;
+    private final ModelRegistry modelRegistry;
+    private final InferenceServiceRegistry inferenceServiceRegistry;
     private final Map<String, Set<String>> modelsForFields;
 
     public QueryRewriteContext(
@@ -77,6 +81,8 @@ public class QueryRewriteContext {
         final ValuesSourceRegistry valuesSourceRegistry,
         final BooleanSupplier allowExpensiveQueries,
         final ScriptCompiler scriptService,
+        final ModelRegistry modelRegistry,
+        final InferenceServiceRegistry inferenceServiceRegistry,
         final Map<String, Set<String>> modelsForFields
     ) {
 
@@ -95,6 +101,8 @@ public class QueryRewriteContext {
         this.valuesSourceRegistry = valuesSourceRegistry;
         this.allowExpensiveQueries = allowExpensiveQueries;
         this.scriptService = scriptService;
+        this.modelRegistry = modelRegistry;
+        this.inferenceServiceRegistry = inferenceServiceRegistry;
         this.modelsForFields = modelsForFields != null ?
             modelsForFields.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> Set.copyOf(e.getValue()))) :
             Collections.emptyMap();
@@ -116,6 +124,8 @@ public class QueryRewriteContext {
             null,
             null,
             null,
+            null,
+            null,
             null
         );
     }
@@ -124,6 +134,8 @@ public class QueryRewriteContext {
         final XContentParserConfiguration parserConfiguration,
         final Client client,
         final LongSupplier nowInMillis,
+        final ModelRegistry modelRegistry,
+        final InferenceServiceRegistry inferenceServiceRegistry,
         final Map<String, Set<String>> modelsForFields
     ) {
         this(
@@ -141,6 +153,8 @@ public class QueryRewriteContext {
             null,
             null,
             null,
+            modelRegistry,
+            inferenceServiceRegistry,
             modelsForFields
         );
     }
@@ -376,6 +390,14 @@ public class QueryRewriteContext {
         return runtimeMappings.isEmpty()
             ? allFromMapping
             : () -> Iterators.concat(allFromMapping.iterator(), runtimeMappings.keySet().iterator());
+    }
+
+    public ModelRegistry getModelRegistry() {
+        return modelRegistry;
+    }
+
+    public InferenceServiceRegistry getInferenceServiceRegistry() {
+        return inferenceServiceRegistry;
     }
 
     public Set<String> getModelsForField(String fieldName) {

@@ -127,6 +127,8 @@ import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.store.CompositeIndexFoldersDeletionListener;
+import org.elasticsearch.inference.InferenceServiceRegistry;
+import org.elasticsearch.inference.ModelRegistry;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.plugins.PluginsService;
@@ -1697,7 +1699,8 @@ public class IndicesService extends AbstractLifecycleComponent
     /**
      * Returns a new {@link QueryRewriteContext} with the given {@code now} provider
      */
-    public QueryRewriteContext getRewriteContext(LongSupplier nowInMillis, IndicesRequest indicesRequest) {
+    public QueryRewriteContext getRewriteContext(LongSupplier nowInMillis, IndicesRequest indicesRequest, ModelRegistry modelRegistry,
+                                                 InferenceServiceRegistry inferenceServiceRegistry) {
         Index[] indices = indexNameExpressionResolver.concreteIndices(clusterService.state(), indicesRequest);
         Map<String, Set<String>> modelsForFields = new HashMap<>();
         for (Index index : indices) {
@@ -1710,7 +1713,7 @@ public class IndicesService extends AbstractLifecycleComponent
             }
         }
 
-        return new QueryRewriteContext(parserConfig, client, nowInMillis, modelsForFields);
+        return new QueryRewriteContext(parserConfig, client, nowInMillis, modelRegistry, inferenceServiceRegistry, modelsForFields);
     }
 
     public DataRewriteContext getDataRewriteContext(LongSupplier nowInMillis) {

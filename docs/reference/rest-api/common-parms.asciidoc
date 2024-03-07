@@ -600,6 +600,13 @@ Query vector. Must have the same number of dimensions as the vector field you
 are searching against.
 end::knn-query-vector[]
 
+tag::knn-query-vector-builder[]
+A configuration object indicating how to build a query_vector before executing
+the request. You must provide a `query_vector_builder` or `query_vector`, but
+not both. Refer to <<knn-semantic-search>> to learn more.
+end::knn-query-vector-builder[]
+
+
 tag::knn-similarity[]
 The minimum similarity required for a document to be considered a match. The similarity
 value calculated relates to the raw <<dense-vector-similarity, `similarity`>> used. Not the

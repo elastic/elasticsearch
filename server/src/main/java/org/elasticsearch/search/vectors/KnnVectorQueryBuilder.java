@@ -177,7 +177,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         } else {
             this.vectorSimilarity = null;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.KNN_QUERY_VECTOR_BUILDER)) {
             this.queryVectorBuilder = in.readOptionalNamedWriteable(QueryVectorBuilder.class);
         } else {
             this.queryVectorBuilder = null;
@@ -256,7 +256,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
             out.writeOptionalFloat(vectorSimilarity);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.KNN_QUERY_VECTOR_BUILDER)) {
             out.writeOptionalNamedWriteable(queryVectorBuilder);
         }
     }

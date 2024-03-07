@@ -122,18 +122,12 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=knn-num-candidates]
 
 `query_vector`::
 (Optional, array of floats)
-Either `query_vector` or `query_vector_builder` are required.
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=knn-query-vector]
 ====
 
 `query_vector_builder`::
 (Optional, object)
-Either `query_vector` or `query_vector_builder` are required.
-A configuration object indicating how to build a query_vector before executing
-the request. You must provide a `query_vector_builder` or `query_vector`, but
-not both. Refer to <<knn-semantic-search>> to learn more.
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=knn-query-vector]
-====
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=knn-query-vector-builder]
 
 include::{es-repo-dir}/search/search.asciidoc[tag=docvalue-fields-def]
 include::{es-repo-dir}/search/search.asciidoc[tag=fields-param-def]

@@ -47,6 +47,7 @@ import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfigTests;
+import org.elasticsearch.xpack.core.transform.transforms.TransformEffectiveSettings;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPosition;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
@@ -309,7 +310,7 @@ public class ClientTransformIndexerTests extends ESTestCase {
         }
         TransformConfig config = configBuilder.build();
 
-        boolean pitEnabled = config.getSettings().getUsePit() == null || config.getSettings().getUsePit();
+        boolean pitEnabled = TransformEffectiveSettings.isPitDisabled(config.getSettings()) == false;
 
         try (var threadPool = createThreadPool()) {
             final var client = new PitMockClient(threadPool, true);

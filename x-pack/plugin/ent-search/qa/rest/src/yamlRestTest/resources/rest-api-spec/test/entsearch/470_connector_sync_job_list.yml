@@ -50,10 +50,10 @@ setup:
 
   - match: { count: 3 }
 
-  # Ascending order by creation_date for results
-  - match: { results.0.id: $sync-job-one-id }
+  # Descending order by creation_date for results
+  - match: { results.0.id: $sync-job-three-id }
   - match: { results.1.id: $sync-job-two-id }
-  - match: { results.2.id: $sync-job-three-id }
+  - match: { results.2.id: $sync-job-one-id }
 
 ---
 "List Connector Sync Jobs - with from":
@@ -84,9 +84,9 @@ setup:
 
   - match: { count: 3 }
 
-  # Ascending order by creation_date for results
+  # Descending order by creation_date for results
   - match: { results.0.id: $sync-job-two-id }
-  - match: { results.1.id: $sync-job-three-id }
+  - match: { results.1.id: $sync-job-one-id }
 
 ---
 "List Connector Sync Jobs - with size":
@@ -117,7 +117,8 @@ setup:
 
   - match: { count: 3 }
 
-  - match: { results.0.id: $sync-job-one-id }
+  # Descending order by creation_date for results
+  - match: { results.0.id: $sync-job-three-id }
 
 ---
 "List Connector Sync Jobs - Get pending jobs":
@@ -216,9 +217,11 @@ setup:
       connector_sync_job.list:
         connector_id: connector-one
         job_type: full,incremental
+
+  # Descending order by creation_date for results
   - match: { count: 2 }
-  - match: { results.0.id: $sync-job-one-id }
-  - match: { results.1.id: $sync-job-two-id }
+  - match: { results.0.id: $sync-job-two-id }
+  - match: { results.1.id: $sync-job-one-id }
 
 ---
 "List Connector Sync Jobs - with invalid job type":

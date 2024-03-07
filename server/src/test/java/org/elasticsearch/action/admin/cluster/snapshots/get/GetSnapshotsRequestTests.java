@@ -39,8 +39,7 @@ public class GetSnapshotsRequestTests extends ESTestCase {
             assertThat(e.getMessage(), containsString("can't use offset with verbose=false"));
         }
         {
-            final GetSnapshotsRequest request = new GetSnapshotsRequest("repo", "snapshot").verbose(false)
-                .sort(GetSnapshotsRequest.SortBy.INDICES);
+            final GetSnapshotsRequest request = new GetSnapshotsRequest("repo", "snapshot").verbose(false).sort(SnapshotSortKey.INDICES);
             final ActionRequestValidationException e = request.validate();
             assertThat(e.getMessage(), containsString("can't use non-default sort with verbose=false"));
         }

@@ -50,10 +50,12 @@ public class IgnoredMetaFieldAggregationIT extends ParameterizedRollingUpgradeTe
 
     public void testAggregation() throws IOException {
         if (isOldCluster()) {
-            final String firstIndex = randomAlphaOfLength(10);
-            assertRestStatus(client().performRequest(createNewIndex(firstIndex)), RestStatus.OK);
-            assertRestStatus(client().performRequest(indexDocument(firstIndex, "foofoo", "1024.12.321.777")), RestStatus.CREATED);
-            assertAggregateIgnoredMetadataFieldException(firstIndex, "Fielddata is not supported on field [_ignored] of type [_ignored]");
+            assertRestStatus(client().performRequest(createNewIndex(aggFirstIndex)), RestStatus.OK);
+            assertRestStatus(client().performRequest(indexDocument(aggFirstIndex, "foofoo", "1024.12.321.777")), RestStatus.CREATED);
+            assertAggregateIgnoredMetadataFieldException(
+                aggFirstIndex,
+                "Fielddata is not supported on field [_ignored] of type [_ignored]"
+            );
             aggFirstCreated = true;
         } else if (isUpgradedCluster()) {
             final Request waitForGreen = new Request("GET", "/_cluster/health");

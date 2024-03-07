@@ -18,6 +18,7 @@ import org.elasticsearch.index.mapper.LegacyTypeFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 
 import java.util.ArrayList;
@@ -167,7 +168,11 @@ public class FieldsVisitor extends FieldNamesProvidingStoredFieldsVisitor {
         }
         List<Object> values = fieldsValues.get(RoutingFieldMapper.NAME);
         if (values == null || values.isEmpty()) {
-            return null;
+            // Check _ts_routing_hash for TSDB.
+            values = fieldsValues.get(TimeSeriesRoutingHashFieldMapper.NAME);
+            if (values == null || values.isEmpty()) {
+                return null;
+            }
         }
         assert values.size() == 1;
         return values.get(0).toString();

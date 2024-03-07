@@ -108,3 +108,83 @@ teardown:
       indices.delete:
         index: .fs-logs-foobar-*
   - is_true: acknowledged
+
+---
+"Redirect shard failure in data stream to failure store":
+  - skip:
+      version: " - 8.13.99"
+      reason: "data stream failure stores only redirect ingest failures in 8.14+"
+      features: [allowed_warnings, contains]
+
+  - do:
+      allowed_warnings:
+        - "index template [generic_logs_template] has index patterns [logs-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [generic_logs_template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: generic_logs_template
+        body:
+          index_patterns: logs-*
+          data_stream:
+            failure_store: true
+          template:
+            settings:
+              number_of_shards:   1
+              number_of_replicas: 1
+            mappings:
+              properties:
+                '@timestamp':
+                  type: date
+                count:
+                  type: long
+
+
+  - do:
+      index:
+        index:  logs-foobar
+        refresh: true
+        body:
+          '@timestamp': '2020-12-12'
+          count: 'invalid value'
+
+  - do:
+      indices.get_data_stream:
+        name: logs-foobar
+  - match: { data_streams.0.name: logs-foobar }
+  - match: { data_streams.0.timestamp_field.name: '@timestamp' }
+  - length: { data_streams.0.indices: 1 }
+  - match: { data_streams.0.indices.0.index_name: '/\.ds-logs-foobar-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
+  - match: { data_streams.0.failure_store: true }
+  - length: { data_streams.0.failure_indices: 1 }
+  - match: { data_streams.0.failure_indices.0.index_name: '/\.fs-logs-foobar-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
+
+  - do:
+      search:
+        index: logs-foobar
+        body: { query: { match_all: {} } }
+  - length:   { hits.hits: 0  }
+
+  - do:
+      search:
+        index: .fs-logs-foobar-*
+  - length:   { hits.hits: 1  }
+  - match: { hits.hits.0._index: "/\\.fs-logs-foobar-(\\d{4}\\.\\d{2}\\.\\d{2}-)?000001/" }
+  - exists: hits.hits.0._source.@timestamp
+  - not_exists: hits.hits.0._source.count
+  - match: { hits.hits.0._source.document.index: 'logs-foobar' }
+  - match: { hits.hits.0._source.document.source.@timestamp: '2020-12-12' }
+  - match: { hits.hits.0._source.document.source.count: 'invalid value' }
+  - match: { hits.hits.0._source.error.type: 'document_parsing_exception' }
+  - contains: { hits.hits.0._source.error.message: "failed to parse field [count] of type [long] in document with id " }
+  - contains: { hits.hits.0._source.error.message: "Preview of field's value: 'invalid value'" }
+  - contains: { hits.hits.0._source.error.stack_trace: "org.elasticsearch.index.mapper.DocumentParsingException: " }
+  - contains: { hits.hits.0._source.error.stack_trace: "failed to parse field [count] of type [long] in document with id" }
+  - contains: { hits.hits.0._source.error.stack_trace: "Preview of field's value: 'invalid value'" }
+
+  - do:
+      indices.delete_data_stream:
+        name: logs-foobar
+  - is_true: acknowledged
+
+  - do:
+      indices.delete:
+        index: .fs-logs-foobar-*
+  - is_true: acknowledged

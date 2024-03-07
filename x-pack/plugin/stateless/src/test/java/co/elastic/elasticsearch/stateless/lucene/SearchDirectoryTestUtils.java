@@ -17,9 +17,8 @@
 
 package co.elastic.elasticsearch.stateless.lucene;
 
+import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
 import co.elastic.elasticsearch.stateless.commits.BlobLocation;
-
-import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 
 import java.util.Map;
 
@@ -39,7 +38,11 @@ public class SearchDirectoryTestUtils {
         return target.cacheFile().getCacheKey();
     }
 
-    public static SharedBlobCacheService<FileCacheKey> getCacheService(SearchDirectory target) {
+    public static StatelessSharedBlobCacheService.CacheFile getCacheFile(SearchIndexInput target) {
+        return target.cacheFile();
+    }
+
+    public static StatelessSharedBlobCacheService getCacheService(SearchDirectory target) {
         return target.getCacheService();
     }
 }

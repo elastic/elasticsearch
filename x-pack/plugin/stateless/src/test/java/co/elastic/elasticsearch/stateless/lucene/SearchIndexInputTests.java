@@ -18,8 +18,8 @@
 package co.elastic.elasticsearch.stateless.lucene;
 
 import co.elastic.elasticsearch.stateless.Stateless;
+import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
 
-import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.common.lucene.store.ESIndexInputTestCase;
 import org.elasticsearch.common.settings.Settings;
@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils;
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 
+import static co.elastic.elasticsearch.stateless.TestUtils.newCacheService;
 import static org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTestCase.randomChecksumBytes;
 import static org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTestCase.randomIOContext;
 import static org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils.pageAligned;
@@ -51,13 +52,7 @@ public class SearchIndexInputTests extends ESIndexInputTestCase {
         final var settings = sharedCacheSettings(cacheSize);
         try (
             NodeEnvironment nodeEnvironment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
-            SharedBlobCacheService<FileCacheKey> sharedBlobCacheService = new SharedBlobCacheService<>(
-                nodeEnvironment,
-                settings,
-                threadPool,
-                Stateless.SHARD_READ_THREAD_POOL,
-                BlobCacheMetrics.NOOP
-            )
+            StatelessSharedBlobCacheService sharedBlobCacheService = newCacheService(nodeEnvironment, settings, threadPool)
         ) {
             final ShardId shardId = new ShardId(new Index("_index_name", "_index_id"), 0);
             for (int i = 0; i < 100; i++) {
@@ -92,13 +87,7 @@ public class SearchIndexInputTests extends ESIndexInputTestCase {
         final var settings = sharedCacheSettings(ByteSizeValue.ofBytes(randomLongBetween(0, 10_000_000)));
         try (
             NodeEnvironment nodeEnvironment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
-            SharedBlobCacheService<FileCacheKey> sharedBlobCacheService = new SharedBlobCacheService<>(
-                nodeEnvironment,
-                settings,
-                threadPool,
-                Stateless.SHARD_READ_THREAD_POOL,
-                BlobCacheMetrics.NOOP
-            )
+            StatelessSharedBlobCacheService sharedBlobCacheService = newCacheService(nodeEnvironment, settings, threadPool)
         ) {
             final ShardId shardId = new ShardId(new Index("_index_name", "_index_id"), 0);
             final byte[] input = randomByteArrayOfLength(randomIntBetween(1, 100_000));

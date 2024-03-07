@@ -17,6 +17,7 @@
 
 package co.elastic.elasticsearch.stateless;
 
+import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
 import co.elastic.elasticsearch.stateless.lucene.FileCacheKey;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 
@@ -370,7 +371,7 @@ public class CorruptionIT extends AbstractStatelessIntegTestCase {
         }
 
         @Override
-        protected SharedBlobCacheService<FileCacheKey> createSharedBlobCacheService(
+        protected StatelessSharedBlobCacheService createSharedBlobCacheService(
             PluginServices services,
             NodeEnvironment nodeEnvironment,
             Settings settings,
@@ -386,7 +387,7 @@ public class CorruptionIT extends AbstractStatelessIntegTestCase {
         }
     }
 
-    public static class TestSharedBlobCacheService extends SharedBlobCacheService<FileCacheKey> {
+    public static class TestSharedBlobCacheService extends StatelessSharedBlobCacheService {
 
         List<Predicate<FileCacheKey>> cacheKeyPredicates = Collections.synchronizedList(new ArrayList<>());
 

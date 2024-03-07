@@ -18,6 +18,7 @@
 package co.elastic.elasticsearch.stateless.lucene;
 
 import co.elastic.elasticsearch.stateless.Stateless;
+import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -28,7 +29,6 @@ import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.common.BlobCacheBufferedIndexInput;
 import org.elasticsearch.blobcache.common.ByteBufferReference;
 import org.elasticsearch.blobcache.common.ByteRange;
-import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.OperationPurpose;
@@ -48,20 +48,20 @@ public final class SearchIndexInput extends BlobCacheBufferedIndexInput {
 
     private final IOContext context;
 
-    private final SharedBlobCacheService<FileCacheKey>.CacheFile cacheFile;
+    private final StatelessSharedBlobCacheService.CacheFile cacheFile;
 
     private final long length;
     private final BlobContainer blobContainer;
 
-    private final SharedBlobCacheService<FileCacheKey> cacheService;
+    private final StatelessSharedBlobCacheService cacheService;
     private final long offset;
 
     public SearchIndexInput(
         String name,
-        SharedBlobCacheService<FileCacheKey>.CacheFile cacheFile,
+        StatelessSharedBlobCacheService.CacheFile cacheFile,
         IOContext context,
         BlobContainer blobContainer,
-        SharedBlobCacheService<FileCacheKey> cacheService,
+        StatelessSharedBlobCacheService cacheService,
         long length,
         long offset
     ) {
@@ -241,8 +241,13 @@ public final class SearchIndexInput extends BlobCacheBufferedIndexInput {
     );
 
     // for tests only
-    SharedBlobCacheService<FileCacheKey>.CacheFile cacheFile() {
+    StatelessSharedBlobCacheService.CacheFile cacheFile() {
         return cacheFile;
+    }
+
+    // for tests only
+    StatelessSharedBlobCacheService getCacheService() {
+        return cacheService;
     }
 
     @Override

@@ -18,13 +18,14 @@
 package co.elastic.elasticsearch.stateless.test;
 
 import co.elastic.elasticsearch.stateless.Stateless;
+import co.elastic.elasticsearch.stateless.TestUtils;
 import co.elastic.elasticsearch.stateless.action.NewCommitNotificationResponse;
 import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
+import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
 import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessClusterConsistencyService;
 import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessElectionStrategy;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitCleaner;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
-import co.elastic.elasticsearch.stateless.lucene.FileCacheKey;
 import co.elastic.elasticsearch.stateless.lucene.IndexDirectory;
 import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
 import co.elastic.elasticsearch.stateless.lucene.StatelessCommitRef;
@@ -47,8 +48,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.blobcache.BlobCacheMetrics;
-import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -110,6 +109,7 @@ import static org.mockito.Mockito.when;
 
 public class FakeStatelessNode implements Closeable {
     public final DiscoveryNode node;
+    public final Path pathHome;
     public final Path repoPath;
     public final Settings nodeSettings;
     public final ClusterSettings clusterSettings;
@@ -156,11 +156,8 @@ public class FakeStatelessNode implements Closeable {
         this.primaryTerm = primaryTerm;
         node = DiscoveryNodeUtils.create("node", ESTestCase.buildNewFakeTransportAddress(), Version.CURRENT);
         repoPath = LuceneTestCase.createTempDir();
-        nodeSettings = Settings.builder()
-            .put(Environment.PATH_HOME_SETTING.getKey(), LuceneTestCase.createTempDir().toAbsolutePath())
-            .put(PATH_REPO_SETTING.getKey(), repoPath)
-            .put(BUCKET_SETTING.getKey(), repoPath)
-            .build();
+        pathHome = LuceneTestCase.createTempDir().toAbsolutePath();
+        nodeSettings = nodeSettings();
         clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         environment = environmentSupplier.apply(nodeSettings);
 
@@ -198,13 +195,7 @@ public class FakeStatelessNode implements Closeable {
             client = createClient(nodeSettings, threadPool);
             nodeEnvironment = nodeEnvironmentSupplier.apply(nodeSettings);
             localCloseables.add(nodeEnvironment);
-            final var sharedCacheService = new SharedBlobCacheService<FileCacheKey>(
-                nodeEnvironment,
-                nodeSettings,
-                threadPool,
-                Stateless.SHARD_READ_THREAD_POOL,
-                BlobCacheMetrics.NOOP
-            );
+            final var sharedCacheService = createCacheService(nodeEnvironment, nodeSettings, threadPool);
             localCloseables.add(sharedCacheService);
             indexingDirectory = localCloseables.add(
                 new IndexDirectory(
@@ -282,6 +273,14 @@ public class FakeStatelessNode implements Closeable {
         }
     }
 
+    protected StatelessSharedBlobCacheService createCacheService(
+        NodeEnvironment nodeEnvironment,
+        Settings settings,
+        ThreadPool threadPool
+    ) {
+        return TestUtils.newCacheService(nodeEnvironment, settings, threadPool);
+    }
+
     public List<StatelessCommitRef> generateIndexCommits(int commitsNumber) throws IOException {
         return generateIndexCommits(commitsNumber, false, generation -> {});
     }
@@ -338,6 +337,14 @@ public class FakeStatelessNode implements Closeable {
         }
 
         return commits;
+    }
+
+    protected Settings nodeSettings() {
+        return Settings.builder()
+            .put(Environment.PATH_HOME_SETTING.getKey(), pathHome)
+            .put(PATH_REPO_SETTING.getKey(), repoPath)
+            .put(BUCKET_SETTING.getKey(), repoPath)
+            .build();
     }
 
     protected StatelessCommitCleaner createCommitCleaner(

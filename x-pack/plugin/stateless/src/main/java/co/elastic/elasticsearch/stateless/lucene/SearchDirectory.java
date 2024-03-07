@@ -17,6 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.lucene;
 
+import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
 import co.elastic.elasticsearch.stateless.commits.BlobLocation;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 
@@ -35,7 +36,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.common.ByteRange;
-import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.OperationPurpose;
@@ -68,7 +68,7 @@ public class SearchDirectory extends ByteSizeDirectory {
 
     private final ShardId shardId;
 
-    private final SharedBlobCacheService<FileCacheKey> cacheService;
+    private final StatelessSharedBlobCacheService cacheService;
 
     private final SetOnce<LongFunction<BlobContainer>> blobContainer = new SetOnce<>();
     private final AtomicReference<String> corruptionMarker = new AtomicReference<>();
@@ -79,7 +79,7 @@ public class SearchDirectory extends ByteSizeDirectory {
     private volatile Map<String, BlobLocation> currentMetadata = Map.of();
     private volatile long currentDataSetSizeInBytes = 0L;
 
-    public SearchDirectory(SharedBlobCacheService<FileCacheKey> cacheService, ShardId shardId) {
+    public SearchDirectory(StatelessSharedBlobCacheService cacheService, ShardId shardId) {
         super(EmptyDirectory.INSTANCE);
         this.cacheService = cacheService;
         this.shardId = shardId;
@@ -202,7 +202,7 @@ public class SearchDirectory extends ByteSizeDirectory {
     /**
      * For test usage only.
      */
-    SharedBlobCacheService<FileCacheKey> getCacheService() {
+    StatelessSharedBlobCacheService getCacheService() {
         return cacheService;
     }
 

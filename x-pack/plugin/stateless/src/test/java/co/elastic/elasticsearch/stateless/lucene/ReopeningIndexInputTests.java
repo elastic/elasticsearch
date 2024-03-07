@@ -18,6 +18,7 @@
 package co.elastic.elasticsearch.stateless.lucene;
 
 import co.elastic.elasticsearch.stateless.Stateless;
+import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
 import co.elastic.elasticsearch.stateless.commits.BlobLocation;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.test.FakeStatelessNode;
@@ -28,7 +29,6 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.tests.mockfile.FilterFileSystemProvider;
 import org.apache.lucene.tests.mockfile.HandleTrackingFS;
-import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.common.BlobCacheBufferedIndexInput;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -69,6 +69,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
+import static co.elastic.elasticsearch.stateless.TestUtils.newCacheService;
 import static org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTestCase.randomChecksumBytes;
 import static org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTestCase.randomIOContext;
 import static org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils.pageAligned;
@@ -96,13 +97,7 @@ public class ReopeningIndexInputTests extends ESIndexInputTestCase {
         final Path blobStorePath = PathUtils.get(createTempDir().toString());
         try (
             NodeEnvironment nodeEnvironment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
-            SharedBlobCacheService<FileCacheKey> sharedBlobCacheService = new SharedBlobCacheService<>(
-                nodeEnvironment,
-                settings,
-                threadPool,
-                Stateless.SHARD_READ_THREAD_POOL,
-                BlobCacheMetrics.NOOP
-            );
+            StatelessSharedBlobCacheService sharedBlobCacheService = newCacheService(nodeEnvironment, settings, threadPool);
             FsBlobStore blobStore = new FsBlobStore(randomIntBetween(1, 8) * 1024, blobStorePath, false);
             IndexDirectory indexDirectory = new IndexDirectory(
                 newFSDirectory(indexDataPath),
@@ -171,13 +166,7 @@ public class ReopeningIndexInputTests extends ESIndexInputTestCase {
         final Path blobStorePath = PathUtils.get(createTempDir().toString());
         try (
             NodeEnvironment nodeEnvironment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
-            SharedBlobCacheService<FileCacheKey> sharedBlobCacheService = new SharedBlobCacheService<>(
-                nodeEnvironment,
-                settings,
-                threadPool,
-                Stateless.SHARD_READ_THREAD_POOL,
-                BlobCacheMetrics.NOOP
-            );
+            StatelessSharedBlobCacheService sharedBlobCacheService = newCacheService(nodeEnvironment, settings, threadPool);
             FsBlobStore blobStore = new FsBlobStore(randomIntBetween(1, 8) * 1024, blobStorePath, false);
             IndexDirectory indexDirectory = new IndexDirectory(
                 newFSDirectory(indexDataPath),

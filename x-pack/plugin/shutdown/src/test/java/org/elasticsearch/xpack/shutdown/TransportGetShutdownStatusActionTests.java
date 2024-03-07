@@ -469,7 +469,7 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
     }
 
     public void testStalledIfShardCopyOnAnotherNodeHasDifferentRole() {
-        Index index = new Index(randomAlphaOfLength(5), randomAlphaOfLengthBetween(1, 20));
+        Index index = new Index(randomIdentifier(), randomUUID());
         IndexMetadata imd = generateIndexMetadata(index, 3, 0);
         IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(index)
             .addShard(

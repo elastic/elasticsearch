@@ -4,7 +4,7 @@
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
-          machineType: n1-standard-32
+          machineType: n1-standard-16
           buildDirectory: /dev/shm/bk
         env:
           BWC_VERSION: $BWC_VERSION

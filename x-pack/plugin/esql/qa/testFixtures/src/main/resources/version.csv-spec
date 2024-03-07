@@ -322,6 +322,29 @@ values#[skip:-8.13.99, reason:Added in 8.14]
 
 valuesGrouped#[skip:-8.13.99, reason:Added in 8.14]
   FROM apps
+| EVAL name=SUBSTRING(name, 0, 1)
+| STATS version=VALUES(version) BY name
+| SORT name
+;
+
+version:version | name:keyword
+   [1, 1.2.3.4] | a
+            2.1 | b
+          2.3.4 | c
+         2.12.0 | d
+         1.11.0 | e
+          5.2.9 | f
+ 5.2.9-SNAPSHOT | g
+        1.2.3.4 | h
+            bad | i
+          5.2.9 | j
+           null | k
+           null | l
+          5.2.9 | m
+;
+
+valuesGroupedByOrdinals#[skip:-8.13.99, reason:Added in 8.14]
+  FROM apps
 | STATS version=VALUES(version) BY name
 | SORT name
 ;

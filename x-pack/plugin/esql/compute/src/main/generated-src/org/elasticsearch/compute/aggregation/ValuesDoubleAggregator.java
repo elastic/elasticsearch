@@ -19,6 +19,7 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasable;
+
 /**
  * Aggregates field values for double.
  * This class is generated. Edit @{code X-ValuesAggregator.java.st} instead
@@ -64,7 +65,12 @@ class ValuesDoubleAggregator {
     }
 
     public static void combineStates(GroupingState current, int currentGroupId, GroupingState state, int statePosition) {
-        throw new UnsupportedOperationException();
+        for (int id = 0; id < state.values.size(); id++) {
+            if (state.values.getKey1(id) == statePosition) {
+                double value = Double.longBitsToDouble(state.values.getKey2(id));
+                combine(current, currentGroupId, value);
+            }
+        }
     }
 
     public static Block evaluateFinal(GroupingState state, IntVector selected, DriverContext driverContext) {

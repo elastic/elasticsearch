@@ -261,3 +261,25 @@ still_hired:boolean | first_letter:keyword
       [false, true] | S
                true | T
 ;
+
+valuesGroupedByOrdinals#[skip:-8.13.99, reason:Added in 8.14]
+  FROM employees
+| WHERE emp_no <= 10009
+| STATS still_hired=VALUES(still_hired) BY job_positions
+| SORT job_positions
+;
+
+still_hired:boolean | job_positions:keyword
+      true          | Accountant
+      true          | Head Human Resources
+      [false, true] | Internship
+      true          | Junior Developer
+      false         | Principal Support Engineer
+      true          | Purchase Manager
+      true          | Reporting Analyst
+      [false, true] | Senior Python Developer
+      [false, true] | Senior Team Lead
+      true          | Support Engineer
+      [false, true] | Tech Lead
+      [false, true] | null
+;

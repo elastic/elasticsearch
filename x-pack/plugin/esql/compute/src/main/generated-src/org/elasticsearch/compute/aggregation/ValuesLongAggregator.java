@@ -19,6 +19,7 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasable;
+
 /**
  * Aggregates field values for long.
  * This class is generated. Edit @{code X-ValuesAggregator.java.st} instead
@@ -64,7 +65,12 @@ class ValuesLongAggregator {
     }
 
     public static void combineStates(GroupingState current, int currentGroupId, GroupingState state, int statePosition) {
-        throw new UnsupportedOperationException();
+        for (int id = 0; id < state.values.size(); id++) {
+            if (state.values.getKey1(id) == statePosition) {
+                long value = state.values.getKey2(id);
+                combine(current, currentGroupId, value);
+            }
+        }
     }
 
     public static Block evaluateFinal(GroupingState state, IntVector selected, DriverContext driverContext) {

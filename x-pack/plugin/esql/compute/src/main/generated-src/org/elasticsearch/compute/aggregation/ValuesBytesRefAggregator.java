@@ -11,10 +11,10 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.common.util.LongLongHash;
+import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
-import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -70,7 +70,13 @@ class ValuesBytesRefAggregator {
     }
 
     public static void combineStates(GroupingState current, int currentGroupId, GroupingState state, int statePosition) {
-        throw new UnsupportedOperationException();
+        BytesRef scratch = new BytesRef();
+        for (int id = 0; id < state.values.size(); id++) {
+            if (state.values.getKey1(id) == statePosition) {
+                long value = state.values.getKey2(id);
+                combine(current, currentGroupId, state.bytes.get(value, scratch));
+            }
+        }
     }
 
     public static Block evaluateFinal(GroupingState state, IntVector selected, DriverContext driverContext) {
@@ -79,6 +85,7 @@ class ValuesBytesRefAggregator {
 
     public static class SingleState implements Releasable {
         private final BytesRefHash values;
+
         private SingleState(BigArrays bigArrays) {
             values = new BytesRefHash(1, bigArrays);
         }

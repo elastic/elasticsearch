@@ -452,3 +452,25 @@ valuesGrouped#[skip:-8.13.99, reason:Added in 8.14]
 [2.1, 1.85] | S
        1.70 | T
 ;
+
+valuesGroupedByOrdinals#[skip:-8.13.99, reason:Added in 8.14]
+  FROM employees
+| WHERE emp_no <= 10009
+| STATS h=VALUES(height) BY job_positions
+| SORT job_positions
+;
+
+         h:double | job_positions:keyword
+             2.03 | Accountant
+             1.78 | Head Human Resources
+      [2.1, 1.85] | Internship
+              2.1 | Junior Developer
+             1.56 | Principal Support Engineer
+              2.1 | Purchase Manager
+             1.78 | Reporting Analyst
+[2.03, 2.1, 1.85] | Senior Python Developer
+     [2.08, 1.56] | Senior Team Lead
+             1.78 | Support Engineer
+     [1.78, 1.56] | Tech Lead
+[1.83, 2.05, 1.7] | null
+;

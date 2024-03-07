@@ -18,6 +18,7 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasable;
+
 /**
  * Aggregates field values for int.
  * This class is generated. Edit @{code X-ValuesAggregator.java.st} instead
@@ -63,7 +64,14 @@ class ValuesIntAggregator {
     }
 
     public static void combineStates(GroupingState current, int currentGroupId, GroupingState state, int statePosition) {
-        throw new UnsupportedOperationException();
+        for (int id = 0; id < state.values.size(); id++) {
+            long both = state.values.get(id);
+            int group = (int) (both >>> Integer.SIZE);
+            if (group == statePosition) {
+                int value = (int) both;
+                combine(current, currentGroupId, value);
+            }
+        }
     }
 
     public static Block evaluateFinal(GroupingState state, IntVector selected, DriverContext driverContext) {
@@ -113,7 +121,6 @@ class ValuesIntAggregator {
      */
     public static class GroupingState implements Releasable {
         private final LongHash values;
-
 
         private GroupingState(BigArrays bigArrays) {
             values = new LongHash(1, bigArrays);

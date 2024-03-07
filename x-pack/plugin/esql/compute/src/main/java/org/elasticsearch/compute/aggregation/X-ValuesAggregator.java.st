@@ -111,7 +111,25 @@ $endif$
     }
 
     public static void combineStates(GroupingState current, int currentGroupId, GroupingState state, int statePosition) {
-        throw new UnsupportedOperationException();
+$if(BytesRef)$
+        BytesRef scratch = new BytesRef();
+$endif$
+        for (int id = 0; id < state.values.size(); id++) {
+$if(long||BytesRef)$
+            if (state.values.getKey1(id) == statePosition) {
+                long value = state.values.getKey2(id);
+$elseif(double)$
+            if (state.values.getKey1(id) == statePosition) {
+                double value = Double.longBitsToDouble(state.values.getKey2(id));
+$elseif(int)$
+            long both = state.values.get(id);
+            int group = (int) (both >>> Integer.SIZE);
+            if (group == statePosition) {
+                int value = (int) both;
+$endif$
+                combine(current, currentGroupId, $if(BytesRef)$state.bytes.get(value, scratch)$else$value$endif$);
+            }
+        }
     }
 
     public static Block evaluateFinal(GroupingState state, IntVector selected, DriverContext driverContext) {

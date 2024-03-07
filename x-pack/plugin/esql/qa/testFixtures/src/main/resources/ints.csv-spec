@@ -589,6 +589,28 @@ valuesLongGrouped#[skip:-8.13.99, reason:Added in 8.14]
         4 | T
 ;
 
+valuesLongGroupedByOrdinals#[skip:-8.13.99, reason:Added in 8.14]
+  FROM employees
+| WHERE emp_no <= 10009
+| STATS l=VALUES(languages.long) BY job_positions
+| SORT job_positions
+;
+
+      l:long | job_positions:keyword
+           2 | Accountant
+           5 | Head Human Resources
+      [2, 1] | Internship
+           2 | Junior Developer
+           3 | Principal Support Engineer
+           2 | Purchase Manager
+           5 | Reporting Analyst
+      [2, 1] | Senior Python Developer
+      [5, 3] | Senior Team Lead
+           5 | Support Engineer
+      [5, 3] | Tech Lead
+      [4, 1] | null
+;
+
 valuesInt#[skip:-8.13.99, reason:Added in 8.14]
   FROM employees
 | WHERE emp_no <= 10009
@@ -618,6 +640,28 @@ l:integer | first_letter:keyword
         4 | T
 ;
 
+valuesIntGroupedByOrdinals#[skip:-8.13.99, reason:Added in 8.14]
+  FROM employees
+| WHERE emp_no <= 10009
+| STATS l=VALUES(languages) BY job_positions
+| SORT job_positions
+;
+
+   l:integer | job_positions:keyword
+           2 | Accountant
+           5 | Head Human Resources
+      [2, 1] | Internship
+           2 | Junior Developer
+           3 | Principal Support Engineer
+           2 | Purchase Manager
+           5 | Reporting Analyst
+      [2, 1] | Senior Python Developer
+      [5, 3] | Senior Team Lead
+           5 | Support Engineer
+      [5, 3] | Tech Lead
+      [4, 1] | null
+;
+
 valuesShort#[skip:-8.13.99, reason:Added in 8.14]
   FROM employees
 | WHERE emp_no <= 10009
@@ -645,4 +689,26 @@ l:integer | first_letter:keyword
         4 | P
    [2, 1] | S
         4 | T
+;
+
+valuesShortGroupedByOrdinals#[skip:-8.13.99, reason:Added in 8.14]
+  FROM employees
+| WHERE emp_no <= 10009
+| STATS l=VALUES(languages.short) BY job_positions
+| SORT job_positions
+;
+
+   l:integer | job_positions:keyword
+           2 | Accountant
+           5 | Head Human Resources
+      [2, 1] | Internship
+           2 | Junior Developer
+           3 | Principal Support Engineer
+           2 | Purchase Manager
+           5 | Reporting Analyst
+      [2, 1] | Senior Python Developer
+      [5, 3] | Senior Team Lead
+           5 | Support Engineer
+      [5, 3] | Tech Lead
+      [4, 1] | null
 ;

@@ -289,6 +289,20 @@ values#[skip:-8.13.99, reason:Added in 8.14]
 
 valuesGrouped#[skip:-8.13.99, reason:Added in 8.14]
   FROM hosts
+| EVAL host=SUBSTRING(host, 0, 1)
+| STATS ip0=VALUES(ip0) BY host
+| SORT host
+;
+
+                   ip0:ip | host:keyword
+         [127.0.0.1, ::1] | a
+                127.0.0.1 | b
+[fe80::cae2:65ff:fece:feb9, fe80::cae2:65ff:fece:fec0, fe80::cae2:65ff:fece:fec1, fe81::cae2:65ff:fece:feb9, fe82::cae2:65ff:fece:fec0] | e
+fe80::cae2:65ff:fece:feb9 | g
+;
+
+valuesGroupedByOrdinals#[skip:-8.13.99, reason:Added in 8.14]
+  FROM hosts
 | STATS ip0=VALUES(ip0) BY host
 | SORT host
 ;

@@ -27,9 +27,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.PipelineConfiguration;
+import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -59,6 +61,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextSimilarityConf
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ZeroShotClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ZeroShotClassificationConfigUpdate;
 import org.elasticsearch.xpack.ml.MachineLearning;
+import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -88,6 +91,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
     @Before
     public void setUpVariables() {
         ThreadPool tp = mock(ThreadPool.class);
+        when(tp.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         when(tp.generic()).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
         client = mock(Client.class);
         Settings settings = Settings.builder().put("node.name", "InferenceProcessorFactoryTests_node").build();
@@ -104,7 +108,15 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
             )
         );
         clusterService = new ClusterService(settings, clusterSettings, tp, null);
-        clusterService.getClusterApplierService().setInitialState(ClusterState.EMPTY_STATE);
+        final var clusterApplierService = clusterService.getClusterApplierService();
+        clusterApplierService.setInitialState(ClusterState.EMPTY_STATE);
+        clusterApplierService.setNodeConnectionsService(ClusterServiceUtils.createNoOpNodeConnectionsService());
+        clusterApplierService.start();
+    }
+
+    @After
+    public void cleanUp() {
+        clusterService.getClusterApplierService().close();
     }
 
     public void testCreateProcessorWithTooManyExisting() {

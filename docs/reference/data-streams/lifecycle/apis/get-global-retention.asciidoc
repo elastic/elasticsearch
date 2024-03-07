@@ -28,9 +28,9 @@ Gets the global retention settings that applied on data streams managed by data 
 [[get-global-retention-api-query-parms]]
 ==== {api-query-parms-title}
 
-`local`::
-(Boolean) Specifies whether to retrieve local information. The default value
-is `false`, which means the information is retrieved from the master node.
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=local]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
 [[get-global-retention-api-response-body]]
 ==== {api-response-body-title}

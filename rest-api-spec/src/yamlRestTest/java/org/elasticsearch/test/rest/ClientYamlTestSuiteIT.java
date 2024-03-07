@@ -13,6 +13,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 
 import org.apache.lucene.tests.util.TimeUnits;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
@@ -39,9 +40,15 @@ public class ClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         super(testCandidate);
     }
 
+    @UpdateForV9 // remove restCompat check
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
-        return createParameters();
+        String restCompatProperty = System.getProperty("tests.restCompat");
+        if ("true".equals(restCompatProperty)) {
+            return createParametersWithLegacyNodeSelectorSupport();
+        } else {
+            return createParameters();
+        }
     }
 
     @Override

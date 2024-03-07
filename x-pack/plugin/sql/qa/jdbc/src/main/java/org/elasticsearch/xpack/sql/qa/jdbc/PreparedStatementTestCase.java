@@ -301,6 +301,7 @@ public abstract class PreparedStatementTestCase extends JdbcIntegrationTestCase 
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105840")
     public void testConstantKeywordField() throws IOException, SQLException {
         String mapping = """
             "properties":{"id":{"type":"integer"},"text":{"type":"constant_keyword"}}""";
@@ -368,6 +369,7 @@ public abstract class PreparedStatementTestCase extends JdbcIntegrationTestCase 
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105840")
     public void testStringEscaping() throws SQLException {
         try (Connection connection = esJdbc()) {
             try (PreparedStatement statement = connection.prepareStatement("SELECT ?, ?, ?, ?")) {

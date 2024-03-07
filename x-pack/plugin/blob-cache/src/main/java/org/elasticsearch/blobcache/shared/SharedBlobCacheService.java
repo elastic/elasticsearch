@@ -715,6 +715,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         CacheFileRegion(RegionKey<KeyType> regionKey, int regionSize) {
             this.regionKey = regionKey;
             assert regionSize > 0;
+            // NOTE we use a constant string for description to avoid consume extra heap space
             tracker = new SparseFileTracker("file", regionSize);
         }
 

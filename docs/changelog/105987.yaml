@@ -1,0 +1,6 @@
+pr: 105987
+summary: Fix `categorize_text` aggregation nested under empty buckets
+area: Machine Learning
+type: bug
+issues:
+ - 105836

@@ -18,5 +18,5 @@
   - exists: nodes.$node_id.allocations.shards
   - exists: nodes.$node_id.allocations.undesired_shards
   - exists: nodes.$node_id.allocations.forecasted_ingest_load
-  - exists: nodes.$node_id.allocations.forecasted_disk_usage
-  - exists: nodes.$node_id.allocations.current_disk_usage
+  - exists: nodes.$node_id.allocations.forecasted_disk_usage_in_bytes
+  - exists: nodes.$node_id.allocations.current_disk_usage_in_bytes

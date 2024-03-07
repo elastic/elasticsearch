@@ -36,7 +36,7 @@ dependencies {
     exclude group: 'net.sf.jopt-simple', module: 'jopt-simple'
   }
   api(project(':modules:aggregations'))
-  api(project(':x-pack:plugin:ql'))
+  api(project(':x-pack:plugin:qlcore'))
   api(project(':x-pack:plugin:esql'))
   api(project(':x-pack:plugin:esql:compute'))
   expression(project(path: ':modules:lang-expression', configuration: 'zip'))

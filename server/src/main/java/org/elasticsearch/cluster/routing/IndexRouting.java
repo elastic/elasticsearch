@@ -254,8 +254,6 @@ public abstract class IndexRouting {
         private final XContentParserConfiguration parserConfig;
         private final boolean indexTracksRoutingId;
 
-        private int routingHash = 0;
-
         ExtractFromSource(IndexMetadata metadata) {
             super(metadata);
             if (metadata.isRoutingPartitionedIndex()) {
@@ -393,7 +391,6 @@ public abstract class IndexRouting {
                     hash = 31 * hash + thisHash;
                     prev = next;
                 }
-                routingHash = hash;
                 return hash;
             }
         }

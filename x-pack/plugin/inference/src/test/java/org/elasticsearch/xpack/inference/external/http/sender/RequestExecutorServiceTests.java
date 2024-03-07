@@ -218,13 +218,16 @@ public class RequestExecutorServiceTests extends ESTestCase {
     }
 
     public void testSend_PreservesThreadContext() throws InterruptedException, ExecutionException, TimeoutException {
+        var headerKey = "not empty";
+        var headerValue = "value";
+
         var service = createRequestExecutorServiceWithMocks();
 
         // starting this on a separate thread to ensure we aren't using the same thread context that the rest of the test will execute with
         threadPool.generic().execute(service::start);
 
         ThreadContext threadContext = threadPool.getThreadContext();
-        threadContext.putHeader("not empty", "value");
+        threadContext.putHeader(headerKey, headerValue);
 
         var requestSender = mock(RetryingHttpSender.class);
 
@@ -235,7 +238,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
         doAnswer(invocation -> {
             var serviceThreadContext = threadPool.getThreadContext();
             // ensure that the spawned thread didn't pick up the header that was set initially on a separate thread
-            assertNull(serviceThreadContext.getHeader("not empty"));
+            assertNull(serviceThreadContext.getHeader(headerKey));
 
             @SuppressWarnings("unchecked")
             ActionListener<InferenceServiceResults> listener = (ActionListener<InferenceServiceResults>) invocation.getArguments()[5];
@@ -252,7 +255,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
             public void onResponse(InferenceServiceResults ignore) {
                 // if we've preserved the thread context correctly then the header should still exist
                 ThreadContext listenerContext = threadPool.getThreadContext();
-                assertThat(listenerContext.getHeader("not empty"), is("value"));
+                assertThat(listenerContext.getHeader(headerKey), is(headerValue));
                 finishedOnResponse.countDown();
             }
 

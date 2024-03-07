@@ -26,9 +26,18 @@ The search context can also be a lot more complex and provides information like 
 
 [discrete]
 [[learning-to-rank-judgement-list]]
-=== Judgement list
-In the context of LTR the judgment list is the main input used to train the ML model. It consists of a dataset that contains pairs of queries and documents, along with their corresponding relevance labels.
-The relevance label typically contains either a binary label (relevant/irrelevant) or a more granular one as shown in the example above where the label can be a grade, or number between 0 (not relevant at all) to 4 (highly relevant).
+=== Judgment list
+The LTR model is usually trained on human-curated judgment lists, where users have
+ranked the relevance of documents to their search queries. Judgment lists
+determine the ideal ordering of results for a given search query. The goal of
+LTR is for the model to mirror the judgment list rankings as closely as possible
+for new queries and documents.
+
+The judgment list is the main input used to train the model. It consists of a dataset that contains pairs of queries and documents, along with their corresponding relevance labels.
+The relevance judgment is typically either a binary (relevant/irrelevant) or a more
+granular label, such as a grade between 0 (completely irrelevant) to 4 (highly
+relevant). The example above uses a graded relevance judgment.
+
 
 [[learning-to-rank-judgment-list-example]]
 .Judgment list example

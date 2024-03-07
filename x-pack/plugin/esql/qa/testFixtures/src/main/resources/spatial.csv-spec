@@ -69,6 +69,30 @@ c:geo_point
 POINT(39.58327988510707 20.619513023697994)
 ;
 
+centroidFromString4#[skip:-8.13.99, reason:st_x and st_y added in 8.14]
+ROW wkt = ["POINT(42.97109629958868 14.7552534006536)", "POINT(75.80929149873555 22.72774917539209)", "POINT(-0.030548143003023033 24.37553649504829)"]
+| MV_EXPAND wkt
+| EVAL pt = TO_GEOPOINT(wkt)
+| STATS c = ST_CENTROID(pt)
+| EVAL x = ST_X(c), y = ST_Y(c);
+
+c:geo_point                                 | x:double          | y:double
+POINT(39.58327988510707 20.619513023697994) | 39.58327988510707 | 20.619513023697994
+;
+
+stXFromString#[skip:-8.13.99, reason:st_x and st_y added in 8.14]
+// tag::st_x_y[]
+ROW point = TO_GEOPOINT("POINT(42.97109629958868 14.7552534006536)")
+| EVAL x =  ST_X(point), y = ST_Y(point)
+// end::st_x_y[]
+;
+
+// tag::st_x_y-result[]
+point:geo_point                            | x:double          | y:double
+POINT(42.97109629958868 14.7552534006536)  | 42.97109629958868 | 14.7552534006536
+// end::st_x_y-result[]
+;
+
 simpleLoad#[skip:-8.12.99, reason:spatial type geo_point improved precision in 8.13]
 FROM airports | WHERE scalerank == 9 | SORT abbrev | WHERE length(name) > 12;
 
@@ -85,6 +109,17 @@ OZH             |  Zaporizhzhia    |  POINT(35.1175 47.85)    |  Ukraine        
 TRZ             |  Trichinopoly    |  POINT(78.7047 10.7903)  |  India            |  POINT(78.7089578747476 10.7603571306554)   |  Tiruchirappalli              |  9            |  mid 
 WIIT            |  Bandar Lampung  |  POINT(105.2667 -5.45)   |  Indonesia        |  POINT(105.176060419161 -5.242566777132)    |  Radin Inten II               |  9            |  mid 
 ZAH             |  Zāhedān         |  POINT(60.8628 29.4964)  |  Iran             |  POINT(60.900708564915 29.4752941956573)    |  Zahedan Int'l                |  9            |  mid 
+;
+
+stXFromAirportsSupportsNull#[skip:-8.13.99, reason:st_x and st_y added in 8.14]
+FROM airports
+| EVAL x = FLOOR(ABS(ST_X(city_location))/200), y = FLOOR(ABS(ST_Y(city_location))/100)
+| STATS c = count(*) BY x, y
+;
+
+c:long  | x:double  | y:double
+872     | 0.0       | 0.0
+19      | null      | null
 ;
 
 centroidFromAirports#[skip:-8.12.99, reason:st_centroid added in 8.13]
@@ -397,6 +432,15 @@ ROW wkt = ["POINT(4297.10986328125 -1475.530029296875)", "POINT(7580.93017578125
 
 c:cartesian_point
 POINT(3949.163965353159 1078.2645465797348)
+;
+
+stXFromCartesianString#[skip:-8.13.99, reason:st_x and st_y added in 8.14]
+ROW point = TO_CARTESIANPOINT("POINT(4297.10986328125 -1475.530029296875)")
+| EVAL x =  ST_X(point), y = ST_Y(point)
+;
+
+point:cartesian_point                       | x:double          | y:double
+POINT(4297.10986328125 -1475.530029296875)  | 4297.10986328125 | -1475.530029296875
 ;
 
 simpleCartesianLoad#[skip:-8.12.99, reason:spatial type cartesian_point improved precision in 8.13]

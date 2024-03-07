@@ -174,6 +174,14 @@ Not only does this remove the need to figure out what the appropriate
 weighting is using linear combination, but RRF is also shown to give improved
 relevance over either query individually.
 
+[[rrf-using-sub-searches]]
+==== Reciprocal rank fusion using sub searches
+
+RRF using sub searches is no longer supported. Use the
+<<retriever, retriever API>> instead. See
+<<rrf-using-multiple-standard-retrievers, using multiple standard retrievers>>
+for an example.
+
 [[rrf-full-example]]
 ==== Reciprocal rank fusion full example
 

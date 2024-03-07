@@ -564,6 +564,14 @@ preview:[]
 (Optional, <<retriever, retriever object>>) Defines a top-level retriever to specify
 a desired set of top documents instead of a standard query or knn search.
 
+[[request-body-rank]]
+`rank`::
+preview:[]
+This param is in technical preview and may change in the future. The syntax will
+likely change before GA.
++
+This parameter is deprecated and will be removed. Use <<retriever, retriever>> instead.
+
 [[search-api-body-runtime]]
 // tag::runtime-mappings-def[]
 `runtime_mappings`::
@@ -650,7 +658,6 @@ POST _search?size=1&filter_path=hits.hits
 (Optional, Boolean) If `true`, returns sequence number and primary term of the
 last modification of each hit. See <<optimistic-concurrency-control>>.
 
-[[request-body-search-size]]
 `size`::
 (Optional, integer) The number of hits to return. Needs to be non-negative and defaults to `10`.
 +
@@ -711,6 +718,14 @@ exclude fields from this subset using the `excludes` property.
 Stats groups to associate with the search. Each group maintains a statistics
 aggregation for its associated searches. You can retrieve these stats using the
 <<indices-stats,indices stats API>>.
+
+[[request-body-sub-searches]]
+`sub_searches`::
+preview:[]
+This param is in technical preview and may change in the future. The syntax will
+likely change before GA.
++
+This parameter is deprecated and will be removed. Use <<retriever, retriever>> instead.
 
 [[request-body-search-terminate-after]]
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=terminate_after]

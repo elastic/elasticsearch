@@ -1,5 +1,5 @@
 [[retriever]]
-=== Retriever
+=== Retriever API
 
 preview::["This functionality is in technical preview and may be changed or removed in a future release. The syntax will likely change before GA. Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features."]
 
@@ -198,7 +198,7 @@ GET /index/_search
 
 ==== Using `from` and `size` with a retriever tree
 
-The <<search-from-param, `from`>> and <<request-body-search-size, `size`>>
+The <<search-from-param, `from`>> and <<search-size-param, `size`>>
 parameters are provided globally as part of the general
 <<search-search, search API>>. They are applied to all retrievers in a
 retriever tree unless a specific retriever overrides the `size` parameter

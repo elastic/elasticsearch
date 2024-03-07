@@ -231,16 +231,6 @@ public final class FlattenedFieldMapper extends FieldMapper {
         private final String rootName;
         private final boolean isDimension;
 
-        @Override
-        public boolean isDimension() {
-            return isDimension;
-        }
-
-        @Override
-        public boolean supportsDimension() {
-            return true;
-        }
-
         KeyedFlattenedFieldType(
             String rootName,
             boolean indexed,
@@ -288,6 +278,24 @@ public final class FlattenedFieldMapper extends FieldMapper {
         public Query existsQuery(SearchExecutionContext context) {
             Term term = new Term(name(), FlattenedFieldParser.createKeyedValue(key, ""));
             return new PrefixQuery(term);
+        }
+
+        @Override
+        public void validateMatchedRoutingPath(final String routingPath) {
+            if (false == isDimension) {
+                throw new IllegalArgumentException(
+                    "All fields that match routing_path "
+                        + "must be keywords with [time_series_dimension: true] "
+                        + "or flattened fields with a list of dimensions in [time_series_dimensions] and "
+                        + "without the [script] parameter. ["
+                        + this.rootName
+                        + "."
+                        + this.key
+                        + "] was ["
+                        + typeName()
+                        + "]."
+                );
+            }
         }
 
         @Override
@@ -723,19 +731,23 @@ public final class FlattenedFieldMapper extends FieldMapper {
         }
 
         @Override
-        public boolean supportsDimension() {
-            return true;
-        }
-
-        @Override
         public List<String> dimensions() {
             return this.dimensions;
         }
 
         @Override
         public void validateMatchedRoutingPath(final String routingPath) {
-            if (this.dimensions.contains(routingPath) == false) {
-                super.validateMatchedRoutingPath(routingPath);
+            if (false == isDimension && this.dimensions.contains(routingPath) == false) {
+                throw new IllegalArgumentException(
+                    "All fields that match routing_path "
+                        + "must be keywords with [time_series_dimension: true] "
+                        + "or flattened fields with a list of dimensions in [time_series_dimensions] and "
+                        + "without the [script] parameter. ["
+                        + name()
+                        + "] was ["
+                        + typeName()
+                        + "]."
+                );
             }
         }
     }

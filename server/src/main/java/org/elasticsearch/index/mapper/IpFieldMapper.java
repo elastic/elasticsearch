@@ -69,7 +69,7 @@ public class IpFieldMapper extends FieldMapper {
         return (IpFieldMapper) in;
     }
 
-    public static final class Builder extends FieldMapper.DimensionBuilder {
+    public static final class Builder extends FieldMapper.Builder {
 
         private final Parameter<Boolean> indexed = Parameter.indexParam(m -> toType(m).indexed, true);
         private final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, true);
@@ -166,7 +166,7 @@ public class IpFieldMapper extends FieldMapper {
 
         @Override
         public IpFieldMapper build(MapperBuilderContext context) {
-            if (super.isDimension || context.parentObjectContainsDimensions()) {
+            if (context.parentObjectContainsDimensions()) {
                 dimension.setValue(true);
             }
             return new IpFieldMapper(
@@ -244,21 +244,6 @@ public class IpFieldMapper extends FieldMapper {
         @Override
         public boolean mayExistInIndex(SearchExecutionContext context) {
             return context.fieldExistsInIndex(name());
-        }
-
-        @Override
-        public boolean isDimension() {
-            return isDimension;
-        }
-
-        @Override
-        public boolean supportsDimension() {
-            return true;
-        }
-
-        @Override
-        public boolean hasScriptValues() {
-            return scriptValues != null;
         }
 
         private static InetAddress parse(Object value) {
@@ -475,6 +460,13 @@ public class IpFieldMapper extends FieldMapper {
                 return result;
             }
             return terms.intersect(prefixAutomaton, searchBytes);
+        }
+
+        /**
+         * @return true if field has been marked as a dimension field
+         */
+        public boolean isDimension() {
+            return isDimension;
         }
     }
 

@@ -1415,19 +1415,6 @@ public abstract class FieldMapper extends Mapper {
         }
     }
 
-    public abstract static class DimensionBuilder extends Builder {
-
-        protected boolean isDimension = false;
-
-        public DimensionBuilder(String name) {
-            super(name);
-        }
-
-        void setDimension() {
-            this.isDimension = true;
-        }
-    }
-
     public static BiConsumer<String, MappingParserContext> notInMultiFields(String type) {
         return (n, c) -> {
             if (c.isWithinMultiField()) {

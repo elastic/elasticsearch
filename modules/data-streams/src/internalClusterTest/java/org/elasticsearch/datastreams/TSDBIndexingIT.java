@@ -260,7 +260,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
             assertThat(
                 e.getCause().getCause().getMessage(),
                 equalTo(
-                    "All fields that match routing_path must be configured with [time_series_dimension: true] "
+                    "All fields that match routing_path must be keywords with [time_series_dimension: true] "
                         + "or flattened fields with a list of dimensions in [time_series_dimensions] and "
                         + "without the [script] parameter. [metricset] was not a dimension."
                 )
@@ -289,7 +289,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
         }
     }
 
-    public void testTsdbTemplatesNoKeywordFieldType() throws Exception {
+    public void testInvalidTsdbTemplatesNoKeywordFieldType() throws Exception {
         var mappingTemplate = """
             {
               "_doc":{
@@ -315,7 +315,18 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
                 .build()
         );
-        client().execute(TransportPutComposableIndexTemplateAction.TYPE, request).actionGet();
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> client().execute(TransportPutComposableIndexTemplateAction.TYPE, request).actionGet()
+        );
+        assertThat(
+            e.getCause().getCause().getMessage(),
+            equalTo(
+                "All fields that match routing_path must be keywords with [time_series_dimension: true] "
+                    + "or flattened fields with a list of dimensions in [time_series_dimensions] and "
+                    + "without the [script] parameter. [metricset] was [long]."
+            )
+        );
     }
 
     public void testInvalidTsdbTemplatesMissingSettings() throws Exception {

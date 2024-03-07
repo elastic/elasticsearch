@@ -230,13 +230,13 @@ dynamic templates:
         refresh: true
         body:
           - '{ "create": { "dynamic_templates": { "data": "counter_metric" } } }'
-          - '{ "@timestamp": "2023-09-01T13:03:08.138Z", "data": "10", "attributes.dim1": "A", "attributes.dim2": "1", "attributes.another.dim1": "C", "attributes.another.dim2": "10.5" }'
+          - '{ "@timestamp": "2023-09-01T13:03:08.138Z", "data": "10", "attributes.dim1": "A", "attributes.dim2": "1", "attributes.another.dim1": "C", "attributes.another.dim2": "10" }'
           - '{ "create": { "dynamic_templates": { "data": "counter_metric" } } }'
-          - '{ "@timestamp": "2023-09-01T13:03:09.138Z", "data": "20", "attributes.dim1": "A", "attributes.dim2": "1", "attributes.another.dim1": "C", "attributes.another.dim2": "10.5" }'
+          - '{ "@timestamp": "2023-09-01T13:03:09.138Z", "data": "20", "attributes.dim1": "A", "attributes.dim2": "1", "attributes.another.dim1": "C", "attributes.another.dim2": "10" }'
           - '{ "create": { "dynamic_templates": { "data": "counter_metric" } } }'
-          - '{ "@timestamp": "2023-09-01T13:03:10.138Z", "data": "30", "attributes.dim1": "B", "attributes.dim2": "2", "attributes.another.dim1": "D", "attributes.another.dim2": "20.5" }'
+          - '{ "@timestamp": "2023-09-01T13:03:10.138Z", "data": "30", "attributes.dim1": "B", "attributes.dim2": "2", "attributes.another.dim1": "D", "attributes.another.dim2": "20" }'
           - '{ "create": { "dynamic_templates": { "data": "counter_metric" } } }'
-          - '{ "@timestamp": "2023-09-01T13:03:10.238Z", "data": "40", "attributes.dim1": "B", "attributes.dim2": "2", "attributes.another.dim1": "D", "attributes.another.dim2": "20.5" }'
+          - '{ "@timestamp": "2023-09-01T13:03:10.238Z", "data": "40", "attributes.dim1": "B", "attributes.dim2": "2", "attributes.another.dim1": "D", "attributes.another.dim2": "20" }'
 
   - do:
       search:
@@ -262,7 +262,7 @@ dynamic templates:
                     field: _tsid
 
   - length: { aggregations.filterA.tsids.buckets: 1 }
-  - match: { aggregations.filterA.tsids.buckets.0.key: "MD2HE8yse1ZklY-p0-bRcC8gYpiKqVppKhfZ18WLDvTuNPo7EnyZdkhvafL006Xf2Q" }
+  - match: { aggregations.filterA.tsids.buckets.0.key: "MD2HE8yse1ZklY-p0-bRcC8gYpiK8yYWLhfZ18WLDvTuBX1YJX1Ll7UMNJqYNES5Eg" }
   - match: { aggregations.filterA.tsids.buckets.0.doc_count: 2 }
 
   - do:
@@ -281,7 +281,7 @@ dynamic templates:
                     field: _tsid
 
   - length: { aggregations.filterA.tsids.buckets: 1 }
-  - match: { aggregations.filterA.tsids.buckets.0.key: "MD2HE8yse1ZklY-p0-bRcC8gYpiKqVppKhfZ18WLDvTuNPo7EnyZdkhvafL006Xf2Q" }
+  - match: { aggregations.filterA.tsids.buckets.0.key: "MD2HE8yse1ZklY-p0-bRcC8gYpiK8yYWLhfZ18WLDvTuBX1YJX1Ll7UMNJqYNES5Eg" }
   - match: { aggregations.filterA.tsids.buckets.0.doc_count: 2 }
 
   - do:
@@ -300,7 +300,7 @@ dynamic templates:
                     field: _tsid
 
   - length: { aggregations.filterA.tsids.buckets: 1 }
-  - match: { aggregations.filterA.tsids.buckets.0.key: "MD2HE8yse1ZklY-p0-bRcC8gYpiKqVppKhfZ18WLDvTuNPo7EnyZdkhvafL006Xf2Q" }
+  - match: { aggregations.filterA.tsids.buckets.0.key: "MD2HE8yse1ZklY-p0-bRcC8gYpiK8yYWLhfZ18WLDvTuBX1YJX1Ll7UMNJqYNES5Eg" }
   - match: { aggregations.filterA.tsids.buckets.0.doc_count: 2 }
 
   - do:
@@ -312,14 +312,14 @@ dynamic templates:
             filterA:
               filter:
                 term:
-                  another.dim2: 10.5
+                  another.dim2: 10
               aggs:
                 tsids:
                   terms:
                     field: _tsid
 
   - length: { aggregations.filterA.tsids.buckets: 1 }
-  - match: { aggregations.filterA.tsids.buckets.0.key: "MD2HE8yse1ZklY-p0-bRcC8gYpiKqVppKhfZ18WLDvTuNPo7EnyZdkhvafL006Xf2Q" }
+  - match: { aggregations.filterA.tsids.buckets.0.key: "MD2HE8yse1ZklY-p0-bRcC8gYpiK8yYWLhfZ18WLDvTuBX1YJX1Ll7UMNJqYNES5Eg" }
   - match: { aggregations.filterA.tsids.buckets.0.doc_count: 2 }
 
 ---
@@ -463,13 +463,13 @@ dynamic templates with nesting:
         refresh: true
         body:
           - '{ "create": { "dynamic_templates": { "data": "counter_metric" } } }'
-          - '{ "@timestamp": "2023-09-01T13:03:08.138Z","data": "10", "resource.attributes.dim1": "A", "resource.attributes.another.dim1": "1", "attributes.dim2": "C", "attributes.another.dim2": "10.5" }'
+          - '{ "@timestamp": "2023-09-01T13:03:08.138Z","data": "10", "resource.attributes.dim1": "A", "resource.attributes.another.dim1": "1", "attributes.dim2": "C", "attributes.another.dim2": "10" }'
           - '{ "create": { "dynamic_templates": { "data": "counter_metric" } } }'
-          - '{ "@timestamp": "2023-09-01T13:03:09.138Z","data": "20", "resource.attributes.dim1": "A", "resource.attributes.another.dim1": "1", "attributes.dim2": "C", "attributes.another.dim2": "10.5" }'
+          - '{ "@timestamp": "2023-09-01T13:03:09.138Z","data": "20", "resource.attributes.dim1": "A", "resource.attributes.another.dim1": "1", "attributes.dim2": "C", "attributes.another.dim2": "10" }'
           - '{ "create": { "dynamic_templates": { "data": "counter_metric" } } }'
-          - '{ "@timestamp": "2023-09-01T13:03:10.138Z","data": "30", "resource.attributes.dim1": "B", "resource.attributes.another.dim1": "2", "attributes.dim2": "D", "attributes.another.dim2": "20.5" }'
+          - '{ "@timestamp": "2023-09-01T13:03:10.138Z","data": "30", "resource.attributes.dim1": "B", "resource.attributes.another.dim1": "2", "attributes.dim2": "D", "attributes.another.dim2": "20" }'
           - '{ "create": { "dynamic_templates": { "data": "counter_metric" } } }'
-          - '{ "@timestamp": "2023-09-01T13:03:10.238Z","data": "40", "resource.attributes.dim1": "B", "resource.attributes.another.dim1": "2", "attributes.dim2": "D", "attributes.another.dim2": "20.5" }'
+          - '{ "@timestamp": "2023-09-01T13:03:10.238Z","data": "40", "resource.attributes.dim1": "B", "resource.attributes.another.dim1": "2", "attributes.dim2": "D", "attributes.another.dim2": "20" }'
 
   - do:
       search:
@@ -495,7 +495,7 @@ dynamic templates with nesting:
                     field: _tsid
 
   - length: { aggregations.filterA.tsids.buckets: 1 }
-  - match: { aggregations.filterA.tsids.buckets.0.key: "MK0AtuFZowY4QPzoYEAZNK6pWmkqIGKYiosO9O4X2dfFL8p_4TfsFAUUYYv9EqSmEQ" }
+  - match: { aggregations.filterA.tsids.buckets.0.key: "MK0AtuFZowY4QPzoYEAZNK7zJhYuIGKYiosO9O4X2dfFtp-JEbk39FSSMEq_vwX7uw" }
   - match: { aggregations.filterA.tsids.buckets.0.doc_count: 2 }
 
   - do:
@@ -514,7 +514,7 @@ dynamic templates with nesting:
                     field: _tsid
 
   - length: { aggregations.filterA.tsids.buckets: 1 }
-  - match: { aggregations.filterA.tsids.buckets.0.key: "MK0AtuFZowY4QPzoYEAZNK6pWmkqIGKYiosO9O4X2dfFL8p_4TfsFAUUYYv9EqSmEQ" }
+  - match: { aggregations.filterA.tsids.buckets.0.key: "MK0AtuFZowY4QPzoYEAZNK7zJhYuIGKYiosO9O4X2dfFtp-JEbk39FSSMEq_vwX7uw" }
   - match: { aggregations.filterA.tsids.buckets.0.doc_count: 2 }
 
   - do:
@@ -533,7 +533,7 @@ dynamic templates with nesting:
                     field: _tsid
 
   - length: { aggregations.filterA.tsids.buckets: 1 }
-  - match: { aggregations.filterA.tsids.buckets.0.key: "MK0AtuFZowY4QPzoYEAZNK6pWmkqIGKYiosO9O4X2dfFL8p_4TfsFAUUYYv9EqSmEQ" }
+  - match: { aggregations.filterA.tsids.buckets.0.key: "MK0AtuFZowY4QPzoYEAZNK7zJhYuIGKYiosO9O4X2dfFtp-JEbk39FSSMEq_vwX7uw" }
   - match: { aggregations.filterA.tsids.buckets.0.doc_count: 2 }
 
   - do:
@@ -545,14 +545,14 @@ dynamic templates with nesting:
             filterA:
               filter:
                 term:
-                  another.dim2: 10.5
+                  another.dim2: 10
               aggs:
                 tsids:
                   terms:
                     field: _tsid
 
   - length: { aggregations.filterA.tsids.buckets: 1 }
-  - match: { aggregations.filterA.tsids.buckets.0.key: "MK0AtuFZowY4QPzoYEAZNK6pWmkqIGKYiosO9O4X2dfFL8p_4TfsFAUUYYv9EqSmEQ" }
+  - match: { aggregations.filterA.tsids.buckets.0.key: "MK0AtuFZowY4QPzoYEAZNK7zJhYuIGKYiosO9O4X2dfFtp-JEbk39FSSMEq_vwX7uw" }
   - match: { aggregations.filterA.tsids.buckets.0.doc_count: 2 }
 
 ---

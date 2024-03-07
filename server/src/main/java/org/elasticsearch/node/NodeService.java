@@ -198,7 +198,6 @@ public class NodeService implements Closeable {
             repositoriesStats ? this.repositoriesService.getRepositoriesThrottlingStats() : null,
             null
         );
-
     }
 
     public IngestService getIngestService() {

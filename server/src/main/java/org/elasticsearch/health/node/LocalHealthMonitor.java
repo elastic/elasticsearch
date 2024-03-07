@@ -157,7 +157,9 @@ public class LocalHealthMonitor implements ClusterStateListener {
     private void startMonitoringIfNecessary() {
         if (prerequisitesFulfilled && enabled) {
             if (isMonitorRunning() == false) {
-                monitoring = Monitoring.start(monitorInterval, threadPool, healthTrackers, clusterService, client, inFlightRequest);
+                // First create the Monitoring instance, so we always have something to cancel.
+                monitoring = new Monitoring(monitorInterval, threadPool, healthTrackers, clusterService, client, inFlightRequest);
+                monitoring.start();
                 logger.debug("Local health monitoring started {}", monitoring);
             } else {
                 logger.trace("Local health monitoring already started {}, skipping", monitoring);
@@ -246,7 +248,7 @@ public class LocalHealthMonitor implements ClusterStateListener {
 
         private final TimeValue interval;
         private final Executor executor;
-        private final Scheduler scheduler;
+        private final ThreadPool threadPool;
         private final ClusterService clusterService;
         private final Client client;
 
@@ -258,16 +260,15 @@ public class LocalHealthMonitor implements ClusterStateListener {
 
         private Monitoring(
             TimeValue interval,
-            Scheduler scheduler,
-            Executor executor,
+            ThreadPool threadPool,
             List<HealthTracker<?>> healthTrackers,
             ClusterService clusterService,
             Client client,
             AtomicBoolean inFlightRequest
         ) {
             this.interval = interval;
-            this.executor = executor;
-            this.scheduler = scheduler;
+            this.threadPool = threadPool;
+            this.executor = threadPool.executor(ThreadPool.Names.MANAGEMENT);
             this.clusterService = clusterService;
             this.healthTrackers = healthTrackers;
             this.client = client;
@@ -275,27 +276,10 @@ public class LocalHealthMonitor implements ClusterStateListener {
         }
 
         /**
-         * Creates a monitoring instance and starts the schedules the first run.
+         * Schedule the first run of the monitor.
          */
-        static Monitoring start(
-            TimeValue interval,
-            ThreadPool threadPool,
-            List<HealthTracker<?>> healthTrackers,
-            ClusterService clusterService,
-            Client client,
-            AtomicBoolean inFlightRequest
-        ) {
-            Monitoring monitoring = new Monitoring(
-                interval,
-                threadPool,
-                threadPool.executor(ThreadPool.Names.MANAGEMENT),
-                healthTrackers,
-                clusterService,
-                client,
-                inFlightRequest
-            );
-            monitoring.scheduledRun = threadPool.schedule(monitoring, TimeValue.ZERO, monitoring.executor);
-            return monitoring;
+        public void start() {
+            scheduledRun = threadPool.schedule(this, TimeValue.ZERO, executor);
         }
 
         /**
@@ -315,7 +299,13 @@ public class LocalHealthMonitor implements ClusterStateListener {
                 return false;
             }
             cancelled = true;
-            scheduledRun.cancel();
+            var scheduledRun = this.scheduledRun;
+            // There is a chance this Monitoring instance gets cancelled before the `scheduledRun` field is assigned.
+            // However, this is not a problem as the most important thing is the `cancelled` field being set to false in this class,
+            // as that field actually prevents any updates to the HealthTrackers' states.
+            if (scheduledRun != null) {
+                scheduledRun.cancel();
+            }
             return true;
         }
 
@@ -405,7 +395,7 @@ public class LocalHealthMonitor implements ClusterStateListener {
                 return;
             }
             try {
-                scheduledRun = scheduler.schedule(this, interval, executor);
+                scheduledRun = threadPool.schedule(this, interval, executor);
             } catch (final EsRejectedExecutionException e) {
                 logger.debug(() -> format("Scheduled health monitoring was rejected on thread pool [%s]", executor), e);
             }

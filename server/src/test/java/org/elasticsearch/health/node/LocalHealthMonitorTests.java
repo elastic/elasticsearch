@@ -30,12 +30,11 @@ import org.elasticsearch.health.metadata.HealthMetadata;
 import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.health.node.tracker.HealthTracker;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
-import org.junit.AfterClass;
 import org.junit.Before;
-import org.junit.BeforeClass;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -44,11 +43,13 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 public class LocalHealthMonitorTests extends ESTestCase {
@@ -56,7 +57,7 @@ public class LocalHealthMonitorTests extends ESTestCase {
     private static final DiskHealthInfo GREEN = new DiskHealthInfo(HealthStatus.GREEN, null);
     private static final DiskHealthInfo YELLOW = new DiskHealthInfo(HealthStatus.YELLOW, null);
     private static final DiskHealthInfo RED = new DiskHealthInfo(HealthStatus.RED, null);
-    private static ThreadPool threadPool;
+    private ThreadPool threadPool;
     private ClusterService clusterService;
     private DiscoveryNode node;
     private DiscoveryNode frozenNode;
@@ -66,19 +67,11 @@ public class LocalHealthMonitorTests extends ESTestCase {
     private MockHealthTracker mockHealthTracker;
     private LocalHealthMonitor localHealthMonitor;
 
-    @BeforeClass
-    public static void setUpThreadPool() {
-        threadPool = new TestThreadPool(LocalHealthMonitorTests.class.getSimpleName());
-    }
-
-    @AfterClass
-    public static void tearDownThreadPool() {
-        terminate(threadPool);
-    }
-
     @Before
     public void setUp() throws Exception {
         super.setUp();
+
+        threadPool = spy(new TestThreadPool(LocalHealthMonitorTests.class.getSimpleName()));
         // Set-up cluster state
         healthMetadata = new HealthMetadata(
             HealthMetadata.Disk.newBuilder()
@@ -138,6 +131,7 @@ public class LocalHealthMonitorTests extends ESTestCase {
 
         // Kill monitoring process running in the background after each test.
         localHealthMonitor.setEnabled(false);
+        terminate(threadPool);
     }
 
     @SuppressWarnings("unchecked")
@@ -285,6 +279,49 @@ public class LocalHealthMonitorTests extends ESTestCase {
         // Assert that we've sent the update request twice, even though the health info itself hasn't changed (i.e. we send again due to
         // the health node change).
         assertBusy(() -> assertThat(requestCounter.get(), equalTo(2)));
+    }
+
+    /**
+     * This test verifies that we correctly cancel a Monitoring instance when we only just started the instance.
+     * In other words, we're verifying the behaviour when the monitor is cancelled <i>before</i> the <code>threadPool.schedule(...)</code>
+     * invocation returns.
+     */
+    public void test() throws Exception {
+        ClusterState initialState = ClusterStateCreationUtils.state(node, node, node, new DiscoveryNode[] { node, frozenNode })
+            .copyAndUpdate(b -> b.putCustom(HealthMetadata.TYPE, healthMetadata));
+        when(clusterService.state()).thenReturn(initialState);
+
+        var cancelableRef = new AtomicReference<LocalHealthMonitor.Monitoring>();
+        var counter = new AtomicInteger();
+        doAnswer(invocation -> {
+            var cancellable = ((Scheduler.ScheduledCancellable) invocation.callRealMethod());
+            var currentCount = counter.incrementAndGet();
+            if (currentCount == 1) {
+                LocalHealthMonitor.Monitoring monitoring = invocation.getArgument(0);
+                cancelableRef.set(monitoring);
+                assertBusy(() -> assertTrue(monitoring.isCancelled()));
+            }
+            return cancellable;
+        }).when(threadPool).schedule(any(), any(), any());
+
+        doAnswer(invocation -> {
+            ActionListener<AcknowledgedResponse> listener = invocation.getArgument(2);
+            listener.onResponse(null);
+            return null;
+        }).when(client).execute(any(), any(), any());
+
+        localHealthMonitor.setMonitorInterval(TimeValue.timeValueMillis(10));
+        // Run in a new thread because the `threadPool.schedule(...)` invocation will hang (as defined above).
+        new Thread(() -> localHealthMonitor.clusterChanged(new ClusterChangedEvent("start-up", initialState, ClusterState.EMPTY_STATE)))
+            .start();
+        assertBusy(() -> assertThat(counter.get(), greaterThanOrEqualTo(2)));
+        localHealthMonitor.setEnabled(false);
+
+        assertBusy(() -> {
+            var cancelable = cancelableRef.get();
+            assertNotNull(cancelable);
+            assertTrue(cancelable.isCancelled());
+        });
     }
 
     /**

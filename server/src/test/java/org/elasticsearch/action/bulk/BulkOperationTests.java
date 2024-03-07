@@ -37,7 +37,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexVersion;
@@ -50,7 +49,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpNodeClient;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xcontent.XContentType;
 import org.junit.After;
 import org.junit.Assume;
 import org.junit.Before;
@@ -416,8 +414,7 @@ public class BulkOperationTests extends ESTestCase {
             .filter(item -> item.getIndex().equals(ds2FailureStore1.getIndex().getName()))
             .findFirst()
             .orElseThrow(() -> new AssertionError("Could not find redirected item"));
-        assertThat(failedItem, is(notNullValue()));
-        System.out.println(XContentHelper.toXContent(bulkItemResponses, XContentType.JSON, true).utf8ToString());
+        assertThat(failedItem.getIndex(), is(notNullValue()));
     }
 
     /**
@@ -478,12 +475,7 @@ public class BulkOperationTests extends ESTestCase {
         // Mock client that rejects all shard requests on the first shard in the backing index, and all requests to the only shard of
         // the failure store index.
         NodeClient client = getNodeClient(
-            failingShards(
-                Map.of(
-                    new ShardId(ds2BackingIndex1.getIndex(), 0),
-                    () -> new MapperException("root cause")
-                )
-            )
+            failingShards(Map.of(new ShardId(ds2BackingIndex1.getIndex(), 0), () -> new MapperException("root cause")))
         );
 
         // Create a new cluster state that has a non-retryable cluster block on it
@@ -539,12 +531,7 @@ public class BulkOperationTests extends ESTestCase {
         // Mock client that rejects all shard requests on the first shard in the backing index, and all requests to the only shard of
         // the failure store index.
         NodeClient client = getNodeClient(
-            failingShards(
-                Map.of(
-                    new ShardId(ds2BackingIndex1.getIndex(), 0),
-                    () -> new MapperException("root cause")
-                )
-            )
+            failingShards(Map.of(new ShardId(ds2BackingIndex1.getIndex(), 0), () -> new MapperException("root cause")))
         );
 
         // Create a new cluster state that has a retryable cluster block on it
@@ -608,12 +595,7 @@ public class BulkOperationTests extends ESTestCase {
         // Mock client that rejects all shard requests on the first shard in the backing index, and all requests to the only shard of
         // the failure store index.
         NodeClient client = getNodeClient(
-            failingShards(
-                Map.of(
-                    new ShardId(ds2BackingIndex1.getIndex(), 0),
-                    () -> new MapperException("root cause")
-                )
-            )
+            failingShards(Map.of(new ShardId(ds2BackingIndex1.getIndex(), 0), () -> new MapperException("root cause")))
         );
 
         // Create a new cluster state that has a retryable cluster block on it
@@ -657,9 +639,7 @@ public class BulkOperationTests extends ESTestCase {
     /**
      * Maps an entire shard id to an exception to throw when it is encountered in the mock shard bulk action
      */
-    private CheckedFunction<BulkShardRequest, BulkShardResponse, Exception> failingShards(
-        Map<ShardId, Supplier<Exception>> shardsToFail
-    ) {
+    private CheckedFunction<BulkShardRequest, BulkShardResponse, Exception> failingShards(Map<ShardId, Supplier<Exception>> shardsToFail) {
         return (BulkShardRequest request) -> {
             if (shardsToFail.containsKey(request.shardId())) {
                 throw shardsToFail.get(request.shardId()).get();

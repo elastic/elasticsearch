@@ -237,7 +237,7 @@ public class Iterators {
 
         private int idx = 0;
 
-        public ZipIterator(Iterator<? extends T> input, BiFunction<Integer, T, ? extends U> fn) {
+        ZipIterator(Iterator<? extends T> input, BiFunction<Integer, T, ? extends U> fn) {
             this.input = input;
             this.fn = fn;
         }
@@ -266,7 +266,7 @@ public class Iterators {
         private final Supplier<? extends T> fn;
         private T head;
 
-        public SupplierIterator(Supplier<? extends T> fn) {
+        SupplierIterator(Supplier<? extends T> fn) {
             this.fn = fn;
             this.head = fn.get();
         }

@@ -250,8 +250,8 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         // an operation is allowed in index into a data stream, but this isn't done when resolve call is cached, so
         // the validation needs to be performed here too.
         if (ia.getParentDataStream() != null &&
-            // avoid valid cases when directly indexing into a backing index
-            // (for example when directly indexing into .ds-logs-foobar-000001)
+        // avoid valid cases when directly indexing into a backing index
+        // (for example when directly indexing into .ds-logs-foobar-000001)
             ia.getName().equals(docWriteRequest.index()) == false && docWriteRequest.opType() != DocWriteRequest.OpType.CREATE) {
             throw new IllegalArgumentException("only write ops with an op_type of create are allowed in data streams");
         }
@@ -263,9 +263,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
     private static void validateRedirectIndex(IndexAbstraction ia) {
         if (ia.isDataStreamRelated() == false) {
             // We should only be dealing with traffic targeting concrete data streams.
-            throw new IllegalArgumentException(
-                "only write ops to data streams with enabled failure stores can be redirected on failure."
-            );
+            throw new IllegalArgumentException("only write ops to data streams with enabled failure stores can be redirected on failure.");
         }
     }
 
@@ -317,7 +315,6 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         bulkRequest = null;
     }
 
-
     /**
      * Discards all failure store redirections and completes the bulk request.
      * @param exception any documents that could have been redirected will have this exception added as a suppressed exception
@@ -342,6 +339,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
 
             // Lazily get the cluster state to avoid keeping it around longer than it is needed
             private ClusterState clusterState = null;
+
             private ClusterState getClusterState() {
                 if (clusterState == null) {
                     clusterState = clusterService.state();
@@ -434,7 +432,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
             return null;
         }
         // Do not resolve a failure store for documents that were already headed to one
-        if (docWriteRequest instanceof IndexRequest indexRequest && indexRequest.isWriteToFailureStore() == true) {
+        if (docWriteRequest instanceof IndexRequest indexRequest && indexRequest.isWriteToFailureStore()) {
             return null;
         }
         // If there is no index abstraction, then the request is using a pattern of some sort, which data streams do not support
@@ -534,7 +532,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
             @Override
             public void onClusterServiceClose() {
                 // TODO: There is likely very little we can do about this, and our time in this JVM is likely short,
-                //  should we just get out of here ASAP?
+                // should we just get out of here ASAP?
                 onFailure(new NodeClosedException(clusterService.localNode()));
             }
 

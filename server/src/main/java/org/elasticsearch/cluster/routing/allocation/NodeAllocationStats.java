@@ -21,8 +21,8 @@ public record NodeAllocationStats(int shards, int undesiredShards, double foreca
         Writeable,
         ToXContentFragment {
 
-    public NodeAllocationStats(StreamInput in) throws IOException {
-        this(in.readVInt(), in.readVInt(), in.readDouble(), in.readVLong());
+    public static NodeAllocationStats readFrom(StreamInput in) throws IOException {
+        return new NodeAllocationStats(in.readVInt(), in.readVInt(), in.readDouble(), in.readVLong());
     }
 
     @Override
@@ -35,8 +35,8 @@ public record NodeAllocationStats(int shards, int undesiredShards, double foreca
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder
-            .field("shards", shards)
+        return builder.field("shards", shards)
+            .field("undesired_shards", undesiredShards)
             .field("forecasted_ingest_load", forecastedIngestLoad)
             .field("forecasted_disk_usage", forecastedDiskUsage);
     }

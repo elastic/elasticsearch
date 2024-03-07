@@ -17,6 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.commits;
 
+import co.elastic.elasticsearch.stateless.Stateless;
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 import co.elastic.elasticsearch.stateless.lucene.StatelessCommitRef;
 
@@ -31,11 +32,13 @@ import java.io.ByteArrayOutputStream;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableSet;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.atomic.AtomicLong;
@@ -92,10 +95,15 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         this.blobName = StatelessCompoundCommit.blobNameFromGeneration(generation);
     }
 
-    public void appendCommit(StatelessCommitRef reference) throws IOException {
+    public void appendCommit(StatelessCommitRef reference) {
         assert assertCompareAndSetAppendingCommitThread(null, Thread.currentThread());
         try {
             doAppendCommit(reference);
+        } catch (IOException e) {
+            throw new UncheckedIOException(
+                "Unable to append commit [" + reference.getPrimaryTerm() + ", " + reference.getGeneration() + "]",
+                e
+            );
         } finally {
             assert assertCompareAndSetAppendingCommitThread(Thread.currentThread(), null);
         }
@@ -105,7 +113,7 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         assert primaryTermAndGeneration.primaryTerm() == reference.getPrimaryTerm();
         assert primaryTermAndGeneration.generation() <= reference.getGeneration();
         assert pendingCompoundCommits.isEmpty() || pendingCompoundCommits.last().getGeneration() < reference.getGeneration();
-        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.FLUSH, ThreadPool.Names.REFRESH);
+        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.FLUSH, ThreadPool.Names.REFRESH, Stateless.SHARD_WRITE_THREAD_POOL);
         // TODO: add #freeze method to ensure that no new commits are added after a new VBCC is created
 
         // TODO: align 4KiB
@@ -165,8 +173,8 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
             compoundCommits.add(
                 new StatelessCompoundCommit(
                     shardId,
-                    commitRef.getGeneration(),
-                    commitRef.getPrimaryTerm(),
+                    new PrimaryTermAndGeneration(commitRef.getPrimaryTerm(), commitRef.getGeneration()),
+                    commitRef.getTranslogRecoveryStartFile(),
                     nodeEphemeralId,
                     Collections.unmodifiableMap(commitLocations),
                     pendingCompoundCommit.getSizeInBytes()
@@ -178,6 +186,22 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
 
     public String getBlobName() {
         return blobName;
+    }
+
+    public ShardId getShardId() {
+        return shardId;
+    }
+
+    public long getGeneration() {
+        return primaryTermAndGeneration.generation();
+    }
+
+    public long getTotalSizeInBytes() {
+        return pendingCompoundCommits.stream().mapToLong(PendingCompoundCommit::getSizeInBytes).sum();
+    }
+
+    public Set<String> getInternalFiles() {
+        return internalLocations.keySet();
     }
 
     @Override
@@ -219,7 +243,7 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         }
     }
 
-    private BlobLocation getBlobLocation(String fileName) {
+    BlobLocation getBlobLocation(String fileName) {
         var internalLocation = internalLocations.get(fileName);
         return internalLocation == null ? uploadedBlobLocationsSupplier.apply(fileName) : internalLocation;
     }

@@ -14,6 +14,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
@@ -52,10 +53,14 @@ public class IgnoredMetaFieldAggregationIT extends ParameterizedRollingUpgradeTe
         if (isOldCluster()) {
             assertRestStatus(client().performRequest(createNewIndex(aggFirstIndex)), RestStatus.OK);
             assertRestStatus(client().performRequest(indexDocument(aggFirstIndex, "foofoo", "1024.12.321.777")), RestStatus.CREATED);
-            assertAggregateIgnoredMetadataFieldException(
-                aggFirstIndex,
-                "Fielddata is not supported on field [_ignored] of type [_ignored]"
-            );
+            if (getOldClusterIndexVersion().before(IndexVersions.DOC_VALUES_FOR_IGNORED_META_FIELD)) {
+                assertAggregateIgnoredMetadataFieldException(
+                    aggFirstIndex,
+                    "Fielddata is not supported on field [_ignored] of type [_ignored]"
+                );
+            } else {
+                assertAggregateIgnoredMetadataField(aggFirstIndex);
+            }
             aggFirstCreated = true;
         } else if (isUpgradedCluster()) {
             final Request waitForGreen = new Request("GET", "/_cluster/health");
@@ -71,7 +76,7 @@ public class IgnoredMetaFieldAggregationIT extends ParameterizedRollingUpgradeTe
 
             final String indexPattern = aggFirstCreated ? (aggFirstIndex + "," + aggSecondIndex) : aggSecondIndex;
             assertAggregateIgnoredMetadataField(indexPattern);
-            if (aggFirstCreated) {
+            if (aggFirstCreated && getOldClusterIndexVersion().before(IndexVersions.DOC_VALUES_FOR_IGNORED_META_FIELD)) {
                 assertAggregateIgnoredMetadataFieldException(
                     aggFirstIndex,
                     "unexpected docvalues type NONE for field '_ignored' (expected one of [SORTED, SORTED_SET])"
@@ -106,7 +111,7 @@ public class IgnoredMetaFieldAggregationIT extends ParameterizedRollingUpgradeTe
             final String indexPattern = runtimeFieldFirstCreated
                 ? (runtimeFieldFirstIndex + "," + runtimeFieldSecondIndex)
                 : runtimeFieldSecondIndex;
-            assertExistsUsingRuntimeField(indexPattern, runtimeFieldFirstIndex, runtimeFieldSecondIndex);
+            assertExistsUsingRuntimeField(indexPattern, runtimeFieldFirstCreated, runtimeFieldFirstIndex, runtimeFieldSecondIndex);
         }
     }
 
@@ -171,8 +176,12 @@ public class IgnoredMetaFieldAggregationIT extends ParameterizedRollingUpgradeTe
     }
 
     @SuppressWarnings("unchecked")
-    private static void assertExistsUsingRuntimeField(final String indexPattern, final String firstIndex, final String secondIndex)
-        throws IOException {
+    private static void assertExistsUsingRuntimeField(
+        final String indexPattern,
+        boolean firstIndexExists,
+        final String firstIndex,
+        final String secondIndex
+    ) throws IOException {
         final Request request = new Request("POST", "/" + indexPattern + "/_search");
         request.addParameter("size", "2");
         request.setJsonEntity(Strings.format("""
@@ -194,11 +203,13 @@ public class IgnoredMetaFieldAggregationIT extends ParameterizedRollingUpgradeTe
         final Response response = client().performRequest(request);
         final Map<String, Object> aggResponseEntityAsMap = entityAsMap(response);
 
-        final Map<String, Object> shards = (Map<String, Object>) aggResponseEntityAsMap.get("_shards");
-        final List<Object> failures = (List<Object>) shards.get("failures");
-        assertThat(failures.size(), Matchers.equalTo(1));
-        final Map<String, Object> failure = (Map<String, Object>) failures.get(0);
-        assertThat((String) failure.get("index"), Matchers.equalTo(firstIndex));
+        if (firstIndexExists) {
+            final Map<String, Object> shards = (Map<String, Object>) aggResponseEntityAsMap.get("_shards");
+            final List<Object> failures = (List<Object>) shards.get("failures");
+            assertThat(failures.size(), Matchers.equalTo(1));
+            final Map<String, Object> failure = (Map<String, Object>) failures.get(0);
+            assertThat((String) failure.get("index"), Matchers.equalTo(firstIndex));
+        }
 
         final Map<String, Object> hits = (Map<String, Object>) aggResponseEntityAsMap.get("hits");
         final List<Object> hitsList = (List<Object>) hits.get("hits");

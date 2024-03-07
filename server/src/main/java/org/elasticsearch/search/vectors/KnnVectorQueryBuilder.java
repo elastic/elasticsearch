@@ -28,6 +28,7 @@ import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.search.NestedHelper;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -274,7 +275,6 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
             );
         }
 
-        final BitSetProducer parentFilter;
         BooleanQuery.Builder builder = new BooleanQuery.Builder();
         for (QueryBuilder query : this.filterQueries) {
             builder.add(query.toQuery(context), BooleanClause.Occur.FILTER);
@@ -289,6 +289,8 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         String parentPath = context.nestedLookup().getNestedParent(fieldName);
 
         if (parentPath != null) {
+            final BitSetProducer parentBitSet;
+            final Query parentFilter;
             NestedObjectMapper originalObjectMapper = context.nestedScope().getObjectMapper();
             if (originalObjectMapper != null) {
                 try {
@@ -296,19 +298,28 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
                     context.nestedScope().previousLevel();
                     NestedObjectMapper objectMapper = context.nestedScope().getObjectMapper();
                     parentFilter = objectMapper == null
-                        ? context.bitsetFilter(Queries.newNonNestedFilter(context.indexVersionCreated()))
-                        : context.bitsetFilter(objectMapper.nestedTypeFilter());
+                        ? Queries.newNonNestedFilter(context.indexVersionCreated())
+                        : objectMapper.nestedTypeFilter();
                 } finally {
                     context.nestedScope().nextLevel(originalObjectMapper);
                 }
             } else {
                 // we are NOT in a nested context, coming from the top level knn search
-                parentFilter = context.bitsetFilter(Queries.newNonNestedFilter(context.indexVersionCreated()));
+                parentFilter = Queries.newNonNestedFilter(context.indexVersionCreated());
             }
+            parentBitSet = context.bitsetFilter(parentFilter);
             if (filterQuery != null) {
-                filterQuery = new ToChildBlockJoinQuery(filterQuery, parentFilter);
+                NestedHelper nestedHelper = new NestedHelper(context.nestedLookup(), context::isFieldMapped);
+                // We treat the provided filter as a filter over PARENT documents, so if it might match nested documents
+                // we need to adjust it.
+                if (nestedHelper.mightMatchNestedDocs(filterQuery)) {
+                    // Ensure that the query only returns parent documents matching `filterQuery`
+                    filterQuery = Queries.filtered(filterQuery, parentFilter);
+                }
+                // Now join the filterQuery & parentFilter to provide the matching blocks of children
+                filterQuery = new ToChildBlockJoinQuery(filterQuery, parentBitSet);
             }
-            return vectorFieldType.createKnnQuery(queryVector, adjustedNumCands, filterQuery, vectorSimilarity, parentFilter);
+            return vectorFieldType.createKnnQuery(queryVector, adjustedNumCands, filterQuery, vectorSimilarity, parentBitSet);
         }
         return vectorFieldType.createKnnQuery(queryVector, adjustedNumCands, filterQuery, vectorSimilarity, null);
     }

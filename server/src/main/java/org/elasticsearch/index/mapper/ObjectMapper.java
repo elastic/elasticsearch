@@ -456,7 +456,7 @@ public class ObjectMapper extends Mapper {
 
     @Override
     public ObjectMapper merge(Mapper mergeWith, MapperMergeContext mapperMergeContext) {
-        return merge(mergeWith, MergeReason.MAPPING_UPDATE, mapperMergeContext);
+        return merge(mergeWith, mapperMergeContext.getMapperBuilderContext().getMergeReason(), mapperMergeContext);
     }
 
     @Override

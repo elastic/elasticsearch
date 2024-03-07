@@ -53,9 +53,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 
-import static org.elasticsearch.action.bulk.BulkShardRequestInferenceProvider.INFERENCE_CHUNKS_RESULTS;
-import static org.elasticsearch.action.bulk.BulkShardRequestInferenceProvider.INFERENCE_CHUNKS_TEXT;
-import static org.elasticsearch.action.bulk.BulkShardRequestInferenceProvider.INFERENCE_RESULTS;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextInferenceResultFieldMapper.INFERENCE_CHUNKS_RESULTS;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextInferenceResultFieldMapper.INFERENCE_CHUNKS_TEXT;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextInferenceResultFieldMapper.INFERENCE_RESULTS;
 import static org.hamcrest.Matchers.containsString;
 
 public class SemanticTextInferenceResultFieldMapperTests extends MetadataMapperTestCase {

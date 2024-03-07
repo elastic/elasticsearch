@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.mapper;
 
 import org.apache.lucene.search.Query;
-import org.elasticsearch.action.bulk.BulkShardRequestInferenceProvider;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DocumentParserContext;
@@ -40,10 +39,6 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.stream.Collectors;
-
-import static org.elasticsearch.action.bulk.BulkShardRequestInferenceProvider.INFERENCE_CHUNKS_RESULTS;
-import static org.elasticsearch.action.bulk.BulkShardRequestInferenceProvider.INFERENCE_CHUNKS_TEXT;
-import static org.elasticsearch.action.bulk.BulkShardRequestInferenceProvider.ROOT_INFERENCE_FIELD;
 
 /**
  * A mapper for the {@code _semantic_text_inference} field.
@@ -101,8 +96,13 @@ import static org.elasticsearch.action.bulk.BulkShardRequestInferenceProvider.RO
  * </pre>
  */
 public class SemanticTextInferenceResultFieldMapper extends MetadataFieldMapper {
-    public static final String CONTENT_TYPE = "_semantic_text_inference";
-    public static final String NAME = ROOT_INFERENCE_FIELD;
+    public static final String NAME = "_inference";
+    public static final String CONTENT_TYPE = "_inference";
+
+    public static final String INFERENCE_RESULTS = "results";
+    public static final String INFERENCE_CHUNKS_RESULTS = "inference";
+    public static final String INFERENCE_CHUNKS_TEXT = "text";
+
     public static final TypeParser PARSER = new FixedTypeParser(c -> new SemanticTextInferenceResultFieldMapper());
 
     private static final Logger logger = LogManager.getLogger(SemanticTextInferenceResultFieldMapper.class);
@@ -173,7 +173,7 @@ public class SemanticTextInferenceResultFieldMapper extends MetadataFieldMapper 
             failIfTokenIsNot(parser, XContentParser.Token.FIELD_NAME);
 
             String currentName = parser.currentName();
-            if (BulkShardRequestInferenceProvider.INFERENCE_RESULTS.equals(currentName)) {
+            if (INFERENCE_RESULTS.equals(currentName)) {
                 NestedObjectMapper nestedObjectMapper = createInferenceResultsObjectMapper(
                     context,
                     mapperBuilderContext,

@@ -26,11 +26,8 @@ import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceRegistry;
-import org.elasticsearch.inference.InferenceServiceRegistryImpl;
-import org.elasticsearch.inference.ModelRegistry;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
-import org.elasticsearch.plugins.InferenceRegistryPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
@@ -58,7 +55,7 @@ import org.elasticsearch.xpack.inference.external.http.sender.RequestExecutorSer
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextInferenceResultFieldMapper;
-import org.elasticsearch.xpack.inference.registry.ModelRegistryImpl;
+import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.rest.RestDeleteInferenceModelAction;
 import org.elasticsearch.xpack.inference.rest.RestGetInferenceModelAction;
 import org.elasticsearch.xpack.inference.rest.RestInferenceAction;
@@ -80,13 +77,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public class InferencePlugin extends Plugin
-    implements
-        ActionPlugin,
-        ExtensiblePlugin,
-        SystemIndexPlugin,
-        InferenceRegistryPlugin,
-        MapperPlugin {
+public class InferencePlugin extends Plugin implements ActionPlugin, ExtensiblePlugin, SystemIndexPlugin, MapperPlugin {
 
     /**
      * When this setting is true the verification check that
@@ -111,8 +102,6 @@ public class InferencePlugin extends Plugin
     private final SetOnce<ServiceComponents> serviceComponents = new SetOnce<>();
 
     private final SetOnce<InferenceServiceRegistry> inferenceServiceRegistry = new SetOnce<>();
-    private final SetOnce<ModelRegistry> modelRegistry = new SetOnce<>();
-
     private List<InferenceServiceExtension> inferenceServiceExtensions;
 
     public InferencePlugin(Settings settings) {
@@ -164,7 +153,7 @@ public class InferencePlugin extends Plugin
         );
         httpFactory.set(httpRequestSenderFactory);
 
-        ModelRegistry modelReg = new ModelRegistryImpl(services.client());
+        ModelRegistry modelRegistry = new ModelRegistry(services.client());
 
         if (inferenceServiceExtensions == null) {
             inferenceServiceExtensions = new ArrayList<>();
@@ -175,13 +164,11 @@ public class InferencePlugin extends Plugin
         var factoryContext = new InferenceServiceExtension.InferenceServiceFactoryContext(services.client());
         // This must be done after the HttpRequestSenderFactory is created so that the services can get the
         // reference correctly
-        var inferenceRegistry = new InferenceServiceRegistryImpl(inferenceServices, factoryContext);
-        inferenceRegistry.init(services.client());
-        inferenceServiceRegistry.set(inferenceRegistry);
-        modelRegistry.set(modelReg);
+        var registry = new InferenceServiceRegistry(inferenceServices, factoryContext);
+        registry.init(services.client());
+        inferenceServiceRegistry.set(registry);
 
-        // Don't return components as they will be registered using InferenceRegistryPlugin methods to retrieve them
-        return List.of();
+        return List.of(modelRegistry, registry);
     }
 
     @Override
@@ -278,16 +265,6 @@ public class InferencePlugin extends Plugin
         var throttlerToClose = serviceComponentsRef != null ? serviceComponentsRef.throttlerManager() : null;
 
         IOUtils.closeWhileHandlingException(inferenceServiceRegistry.get(), throttlerToClose);
-    }
-
-    @Override
-    public InferenceServiceRegistry getInferenceServiceRegistry() {
-        return inferenceServiceRegistry.get();
-    }
-
-    @Override
-    public ModelRegistry getModelRegistry() {
-        return modelRegistry.get();
     }
 
     @Override

@@ -85,7 +85,6 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasEntry;
-import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -601,9 +600,18 @@ public class RealmsTests extends ESTestCase {
             )
         );
         // reserved, file, native
-        assertThat(realms.getRealmRef(new RealmConfig.RealmIdentifier("reserved", "reserved")), is(buildRealmRef("reserved", "reserved", "")));
-        assertThat(realms.getRealmRef(new RealmConfig.RealmIdentifier("file", "default_file")), is(buildRealmRef("default_file", "file", "")));
-        assertThat(realms.getRealmRef(new RealmConfig.RealmIdentifier("native", "default_native")), is(buildRealmRef("default_native", "native", "")));
+        assertThat(
+            realms.getRealmRef(new RealmConfig.RealmIdentifier("reserved", "reserved")),
+            is(buildRealmRef("reserved", "reserved", ""))
+        );
+        assertThat(
+            realms.getRealmRef(new RealmConfig.RealmIdentifier("file", "default_file")),
+            is(buildRealmRef("default_file", "file", ""))
+        );
+        assertThat(
+            realms.getRealmRef(new RealmConfig.RealmIdentifier("native", "default_native")),
+            is(buildRealmRef("default_native", "native", ""))
+        );
     }
 
     public void testFeatureTrackingWithMultipleRealms() throws Exception {

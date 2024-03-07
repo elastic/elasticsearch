@@ -115,15 +115,15 @@ public final class TransportGetApiKeyAction extends TransportAction<GetApiKeyReq
             } else if (resultsAndErrors.errors().isEmpty()) {
                 assert subjects.size() == resultsAndErrors.results().size();
                 final Map<String, String> profileUidLookup = resultsAndErrors.results()
-                        .stream()
-                        .filter(t -> Objects.nonNull(t.v2()))
-                        .map(t -> new Tuple<>(t.v1().getUser().principal(), t.v2().uid()))
-                        .collect(Collectors.toUnmodifiableMap(Tuple::v1, Tuple::v2));
+                    .stream()
+                    .filter(t -> Objects.nonNull(t.v2()))
+                    .map(t -> new Tuple<>(t.v1().getUser().principal(), t.v2().uid()))
+                    .collect(Collectors.toUnmodifiableMap(Tuple::v1, Tuple::v2));
                 listener.onResponse(profileUidLookup);
             } else {
                 final ElasticsearchStatusException exception = new ElasticsearchStatusException(
-                        "failed to retrieve profile for users. please retry without fetching profile uid (with_profile_uid=false)",
-                        RestStatus.INTERNAL_SERVER_ERROR
+                    "failed to retrieve profile for users. please retry without fetching profile uid (with_profile_uid=false)",
+                    RestStatus.INTERNAL_SERVER_ERROR
                 );
                 resultsAndErrors.errors().values().forEach(exception::addSuppressed);
                 listener.onFailure(exception);

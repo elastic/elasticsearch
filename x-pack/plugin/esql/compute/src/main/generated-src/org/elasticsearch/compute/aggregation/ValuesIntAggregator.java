@@ -18,6 +18,11 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasable;
+/**
+ * Aggregates field values for int.
+ * This class is generated. Edit @{code X-ValuesAggregator.java.st} instead
+ * of this file.
+ */
 @Aggregator({ @IntermediateState(name = "values", type = "INT_BLOCK") })
 @GroupingAggregator
 class ValuesIntAggregator {

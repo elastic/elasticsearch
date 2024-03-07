@@ -40,6 +40,11 @@ $if(BytesRef)$
 import org.elasticsearch.core.Releasables;
 $endif$
 
+/**
+ * Aggregates field values for $type$.
+ * This class is generated. Edit @{code X-ValuesAggregator.java.st} instead
+ * of this file.
+ */
 @Aggregator({ @IntermediateState(name = "values", type = "$TYPE$_BLOCK") })
 @GroupingAggregator
 class Values$Type$Aggregator {

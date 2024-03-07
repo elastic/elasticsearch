@@ -23,6 +23,11 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
+/**
+ * Aggregates field values for BytesRef.
+ * This class is generated. Edit @{code X-ValuesAggregator.java.st} instead
+ * of this file.
+ */
 @Aggregator({ @IntermediateState(name = "values", type = "BYTES_REF_BLOCK") })
 @GroupingAggregator
 class ValuesBytesRefAggregator {

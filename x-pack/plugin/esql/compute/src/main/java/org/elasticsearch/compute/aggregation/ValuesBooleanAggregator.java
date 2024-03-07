@@ -20,6 +20,9 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
+/**
+ * Aggregates field values for booleans.
+ */
 @Aggregator({ @IntermediateState(name = "values", type = "BOOLEAN_BLOCK") })
 @GroupingAggregator
 class ValuesBooleanAggregator {

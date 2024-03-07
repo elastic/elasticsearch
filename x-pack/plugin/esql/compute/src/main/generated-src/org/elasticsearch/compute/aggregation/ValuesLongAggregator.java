@@ -19,6 +19,11 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasable;
+/**
+ * Aggregates field values for long.
+ * This class is generated. Edit @{code X-ValuesAggregator.java.st} instead
+ * of this file.
+ */
 @Aggregator({ @IntermediateState(name = "values", type = "LONG_BLOCK") })
 @GroupingAggregator
 class ValuesLongAggregator {

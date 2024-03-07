@@ -23,7 +23,6 @@ import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
-import org.elasticsearch.xpack.ql.expression.AttributeMap;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Literal;
@@ -173,28 +172,6 @@ public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<Logical
     }
 
     static class InferIsNotNull extends OptimizerRules.InferIsNotNull {
-
-        protected boolean doResolve(Expression exp, AttributeMap<Expression> aliases, Set<Expression> resolvedExpressions) {
-            boolean changed = false;
-            // check if the expression can be skipped
-            if (skipExpression(exp)) {
-                resolvedExpressions.add(exp);
-            } else {
-                for (Expression e : exp.references()) {
-                    Expression resolved = aliases.resolve(e, e);
-                    // found a root attribute, bail out
-                    if (resolved instanceof Attribute a && resolved == e) {
-                        resolvedExpressions.add(a);
-                        // don't mark things as change if the original expression hasn't been broken down
-                        changed |= resolved != exp;
-                    } else {
-                        // go further
-                        changed |= doResolve(resolved, aliases, resolvedExpressions);
-                    }
-                }
-            }
-            return changed;
-        }
 
         @Override
         protected boolean skipExpression(Expression e) {

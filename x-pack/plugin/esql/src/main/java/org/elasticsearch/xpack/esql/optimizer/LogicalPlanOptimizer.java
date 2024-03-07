@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -38,7 +39,6 @@ import org.elasticsearch.xpack.ql.expression.ExpressionSet;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
-import org.elasticsearch.xpack.ql.expression.Nullability;
 import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
@@ -1590,23 +1590,10 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         }
     }
 
-    public static class FoldNull extends OptimizerRules.OptimizerExpressionRule<Expression> {
-
-        public FoldNull() {
-            super(TransformDirection.UP);
-        }
+    public static class FoldNull extends OptimizerRules.FoldNull {
 
         @Override
-        protected Expression rule(Expression e) {
-            if (e instanceof In in) {
-                if (Expressions.isNull(in.value())) {
-                    return Literal.of(in, null);
-                }
-            } else if (e instanceof Alias == false
-                && e.nullable() == Nullability.TRUE
-                && Expressions.anyMatch(e.children(), Expressions::isNull)) {
-                    return Literal.of(e, null);
-                }
+        protected Expression tryReplaceIsNullIsNotNull(Expression e) {
             return e;
         }
     }
@@ -1654,6 +1641,13 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         }
 
         protected Expression nullify(Expression exp, Expression nullExp) {
+            if (exp instanceof Coalesce) {
+                List<Expression> newChildren = new ArrayList<>(exp.children());
+                newChildren.removeIf(e -> e.semanticEquals(nullExp));
+                if (newChildren.size() != exp.children().size() && newChildren.size() > 0) { // coalesce needs at least one input
+                    return exp.replaceChildren(newChildren);
+                }
+            }
             return Literal.of(exp, null);
         }
     }

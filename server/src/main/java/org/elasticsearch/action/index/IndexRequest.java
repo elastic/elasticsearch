@@ -881,7 +881,6 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
     @Override
     public int route(IndexRouting indexRouting) {
-        assert routing == null : routing;
         return indexRouting.indexShard(id, routing, contentType, source, this::routing);
     }
 

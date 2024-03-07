@@ -8,7 +8,7 @@
 
 package org.elasticsearch.gradle.internal
 
-import spock.lang.TempDir
+
 import spock.lang.Unroll
 import com.github.tomakehurst.wiremock.WireMockServer
 

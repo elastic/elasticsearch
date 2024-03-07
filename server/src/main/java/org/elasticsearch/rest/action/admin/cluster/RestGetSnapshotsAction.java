@@ -9,6 +9,7 @@
 package org.elasticsearch.rest.action.admin.cluster;
 
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.get.SnapshotSortKey;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -59,7 +60,7 @@ public class RestGetSnapshotsAction extends BaseRestHandler {
         GetSnapshotsRequest getSnapshotsRequest = new GetSnapshotsRequest(repositories).snapshots(snapshots);
         getSnapshotsRequest.ignoreUnavailable(request.paramAsBoolean("ignore_unavailable", getSnapshotsRequest.ignoreUnavailable()));
         getSnapshotsRequest.verbose(request.paramAsBoolean("verbose", getSnapshotsRequest.verbose()));
-        final GetSnapshotsRequest.SortBy sort = GetSnapshotsRequest.SortBy.of(request.param("sort", getSnapshotsRequest.sort().toString()));
+        final SnapshotSortKey sort = SnapshotSortKey.of(request.param("sort", getSnapshotsRequest.sort().toString()));
         getSnapshotsRequest.sort(sort);
         final int size = request.paramAsInt("size", getSnapshotsRequest.size());
         getSnapshotsRequest.size(size);

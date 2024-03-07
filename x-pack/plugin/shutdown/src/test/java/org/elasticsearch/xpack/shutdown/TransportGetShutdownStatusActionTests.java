@@ -497,7 +497,7 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
             new CancellableTask(1, "direct", GetShutdownStatusAction.NAME, "", TaskId.EMPTY_TASK_ID, Map.of()),
             state,
             SHUTTING_DOWN_NODE_ID,
-            SingleNodeShutdownMetadata.Type.REMOVE,
+            SingleNodeShutdownMetadata.Type.SIGTERM,
             true,
             clusterInfoService,
             snapshotsInfoService,

@@ -13,9 +13,12 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -81,6 +84,24 @@ public class IgnoredFieldMapperTests extends MetadataMapperTestCase {
             LeafReaderContext context = searcher.getIndexReader().leaves().get(0);
             valueFetcher.setNextReader(context);
             assertEquals(List.of("field"), valueFetcher.fetchValues(Source.empty(XContentType.JSON), 0, new ArrayList<>()));
+        });
+    }
+
+    public void testIgnoredFieldType() throws IOException {
+        IndexVersion version = IndexVersionUtils.randomVersionBetween(
+            random(),
+            IndexVersions.FIRST_DETACHED_INDEX_VERSION,
+            IndexVersion.current()
+        );
+        boolean afterIntroducingDocValues = version.onOrAfter(IndexVersions.DOC_VALUES_FOR_IGNORED_META_FIELD);
+        boolean beforeRemovingStoredField = version.before(IndexVersions.DOC_VALUES_FOR_IGNORED_META_FIELD);
+        MapperService mapperService = createMapperService(version, fieldMapping(b -> b.field("type", "keyword").field("ignore_above", 3)));
+        withLuceneIndex(mapperService, iw -> {
+            iw.addDocument(mapperService.documentMapper().parse(source(b -> b.field("field", "value_to_ignore"))).rootDoc());
+        }, iw -> {
+            MappedFieldType mappedFieldType = mapperService.fieldType(IgnoredFieldMapper.NAME);
+            assertEquals("version = " + version, afterIntroducingDocValues, mappedFieldType.hasDocValues());
+            assertEquals("version = " + version, beforeRemovingStoredField, mappedFieldType.isStored());
         });
     }
 

@@ -38,4 +38,5 @@ public final class UpdateApiKeyRequest extends BaseSingleUpdateApiKeyRequest {
     public ApiKey.Type getType() {
         return ApiKey.Type.REST;
     }
+
 }

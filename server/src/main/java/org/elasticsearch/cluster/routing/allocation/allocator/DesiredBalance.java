@@ -8,13 +8,9 @@
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.shard.ShardId;
 
-import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
@@ -23,7 +19,7 @@ import java.util.Objects;
  *
  * @param assignments a set of the (persistent) node IDs to which each {@link ShardId} should be allocated
  */
-public record DesiredBalance(long lastConvergedIndex, Map<ShardId, ShardAssignment> assignments) implements Writeable {
+public record DesiredBalance(long lastConvergedIndex, Map<ShardId, ShardAssignment> assignments) {
 
     public static final DesiredBalance INITIAL = new DesiredBalance(-1, Map.of());
 
@@ -78,15 +74,5 @@ public record DesiredBalance(long lastConvergedIndex, Map<ShardId, ShardAssignme
             builder.append(newLine).append(shardId).append(": ").append(oldAssignment).append(" -> ").append(updatedAssignment);
         }
         return builder.append(newLine).toString();
-    }
-
-    public static DesiredBalance readFrom(StreamInput in) throws IOException {
-        return new DesiredBalance(in.readVLong(), in.readImmutableMap(ShardId::new, ShardAssignment::readFrom));
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeVLong(lastConvergedIndex);
-        out.writeMap(assignments);
     }
 }

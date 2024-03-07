@@ -786,18 +786,17 @@ public abstract class StreamInput extends InputStream {
      */
     public <K, V> Map<K, V> readImmutableMap(Writeable.Reader<K> keyReader, Writeable.Reader<V> valueReader) throws IOException {
         final int size = readVInt();
-        return switch (size) {
-            case 0 -> Map.of();
-            case 1 -> Map.of(keyReader.read(this), valueReader.read(this));
-            default -> {
-                @SuppressWarnings({ "rawtypes", "unchecked" })
-                Map.Entry<K, V> entries[] = new Map.Entry[size];
-                for (int i = 0; i < size; ++i) {
-                    entries[i] = Map.entry(keyReader.read(this), valueReader.read(this));
-                }
-                yield Map.ofEntries(entries);
-            }
-        };
+        if (size == 0) {
+            return Map.of();
+        } else if (size == 1) {
+            return Map.of(keyReader.read(this), valueReader.read(this));
+        }
+        @SuppressWarnings({ "rawtypes", "unchecked" })
+        Map.Entry<K, V> entries[] = new Map.Entry[size];
+        for (int i = 0; i < size; ++i) {
+            entries[i] = Map.entry(keyReader.read(this), valueReader.read(this));
+        }
+        return Map.ofEntries(entries);
     }
 
     /**
@@ -1235,13 +1234,6 @@ public abstract class StreamInput extends InputStream {
                 yield Set.of(typedEntries);
             }
         };
-    }
-
-    /**
-     * Reads a list of strings which was written using {@link StreamOutput#writeStringCollection}. The returned set is immutable.
-     */
-    public Set<String> readStringCollectionAsImmutableSet() throws IOException {
-        return readCollectionAsImmutableSet(StreamInput::readString);
     }
 
     /**

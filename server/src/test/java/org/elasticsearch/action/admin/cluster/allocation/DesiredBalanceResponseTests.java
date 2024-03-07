@@ -342,12 +342,7 @@ public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase
 
     public void testChunking() {
         AbstractChunkedSerializingTestCase.assertChunkCount(
-            new DesiredBalanceStatsResponse(
-                randomDesiredBalanceStats(),
-                randomClusterBalanceStats(),
-                randomRoutingTable(),
-                randomClusterInfo()
-            ),
+            new DesiredBalanceStatsResponse(randomDesiredBalanceStats(), randomClusterBalanceStats(), randomRoutingTable(), randomClusterInfo()),
             response -> 3 + ClusterInfoTests.getChunkCount(response.getClusterInfo()) + response.getRoutingTable()
                 .values()
                 .stream()

@@ -21,6 +21,7 @@ public final class DefaultBuildVersion extends BuildVersion {
     private final Version version;
 
     public DefaultBuildVersion(int versionId) {
+        assert versionId >= 0 : "Release version IDs must be non-negative integers";
         this.versionId = versionId;
         this.version = Version.fromId(versionId);
     }

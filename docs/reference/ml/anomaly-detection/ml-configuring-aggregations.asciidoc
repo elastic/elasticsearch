@@ -17,6 +17,10 @@ There are a number of requirements for using aggregations in {dfeeds}.
 [[aggs-aggs]]
 === Aggregations
 
+* Using 
+<<search-aggregations-metrics-scripted-metric-aggregation, scripted metric>>
+aggregations is not supported in {dfeeds}.
+
 * Your aggregation must include a `date_histogram` aggregation or a top level 
 `composite` aggregation, which in turn must contain a `max` aggregation on the 
 time field. It ensures that the aggregated data is a time series and the 
@@ -75,6 +79,10 @@ chart.
 
 * Your {dfeed} can contain multiple aggregations, but only the ones with names
 that match values in the job configuration are fed to the job.
+
+* Using 
+<<search-aggregations-metrics-scripted-metric-aggregation, scripted metric>>
+aggregations is not supported in {dfeeds}.
 
 
 [discrete]

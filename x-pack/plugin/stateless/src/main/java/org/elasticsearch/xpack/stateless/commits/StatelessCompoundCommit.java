@@ -53,12 +53,10 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.OutputStream;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -209,7 +207,8 @@ public record StatelessCompoundCommit(
         }
     }
 
-    private static long writeHeader(
+    // visible for testing
+    static long writeHeader(
         PositionTrackingOutputStreamStreamOutput positionTracking,
         ShardId shardId,
         long generation,
@@ -313,91 +312,6 @@ public record StatelessCompoundCommit(
         assert headerSize >= 0;
         assert headerSize == codecSize + 4 + 4 + xContentHeader.length() + 4;
         return headerSize;
-    }
-
-    public static class Writer {
-
-        private final ShardId shardId;
-        private final long generation;
-        private final long primaryTerm;
-        private final String nodeEphemeralId;
-        private final long translogRecoveryStartFile;
-
-        // Referenced blob files are files already stored in different blobs on the object store. We already
-        // know the location, so we directly serialize the location. Internal files are files that
-        // are going to be written in this commit file. We do not know their specific blob locations as we
-        // don't know the correct offset until serializing the header of the commit. However, on the read path we
-        // convert these internal files into blob locations as we can correctly calculate the offsets after
-        // knowing the length of the serialized header.
-        private final Map<String, BlobLocation> referencedBlobFiles = new HashMap<>();
-        private final List<InternalFile> internalFiles = new ArrayList<>();
-        private long headerSize = -1;
-        private long internalFilesSize;
-
-        public Writer(ShardId shardId, long generation, long primaryTerm, long translogRecoveryStartFile, String nodeEphemeralId) {
-            this.shardId = shardId;
-            this.generation = generation;
-            this.primaryTerm = primaryTerm;
-            this.nodeEphemeralId = nodeEphemeralId;
-            this.translogRecoveryStartFile = translogRecoveryStartFile;
-        }
-
-        public void addReferencedBlobFile(String name, BlobLocation location) {
-            referencedBlobFiles.put(name, Objects.requireNonNull(location));
-        }
-
-        public void addInternalFile(String fileName, long fileLength) {
-            internalFilesSize += fileLength;
-            internalFiles.add(new InternalFile(fileName, fileLength));
-        }
-
-        public List<String> getInternalFiles() {
-            return internalFiles.stream().map(InternalFile::name).collect(Collectors.toList());
-        }
-
-        public void writeHeaderToStore(PositionTrackingOutputStreamStreamOutput output, int version) throws IOException {
-            headerSize = writeHeader(
-                output,
-                shardId,
-                generation,
-                primaryTerm,
-                nodeEphemeralId,
-                translogRecoveryStartFile,
-                referencedBlobFiles,
-                internalFiles,
-                version
-            );
-        }
-
-        public long writeToStore(OutputStream output, Directory directory) throws IOException {
-            var positionTracking = new PositionTrackingOutputStreamStreamOutput(output);
-            writeHeaderToStore(positionTracking, CURRENT_VERSION);
-            writeInternalFilesToStore(positionTracking, internalFiles, directory);
-            return positionTracking.position();
-        }
-
-        public StatelessCompoundCommit finish(String commitFileName) {
-            long totalSizeInBytes = headerSize + internalFilesSize;
-            Map<String, BlobLocation> commitFiles = combineCommitFiles(
-                commitFileName,
-                primaryTerm,
-                internalFiles,
-                referencedBlobFiles,
-                0,
-                headerSize,
-                totalSizeInBytes
-            );
-
-            assert headerSize > 0;
-            return new StatelessCompoundCommit(
-                shardId,
-                new PrimaryTermAndGeneration(primaryTerm, generation),
-                translogRecoveryStartFile,
-                nodeEphemeralId,
-                Collections.unmodifiableMap(commitFiles),
-                totalSizeInBytes
-            );
-        }
     }
 
     private static final String SHARD_COMMIT_CODEC = "stateless_commit";

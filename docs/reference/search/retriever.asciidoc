@@ -160,22 +160,10 @@ equally weighting two or more child retrievers.
 
 ===== Parameters
 
-`retrievers`::
-(Required, array of retriever objects)
-+
-A list of child retrievers to specify which sets of returned top documents
-will have the RRF formula applied to them. Each child retriever carries an
-equal weight as part of the RRF formula. Two or more child retrievers are
-required.
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=rrf-retrievers]
 
-`rank_constant`::
-(Optional, integer)
-+
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=rrf-rank-constant]
 
-`rank_constant`::
-(Optional, integer)
-+
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=rrf-window-size]
 
 ===== Restrictions

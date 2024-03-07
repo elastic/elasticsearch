@@ -8,8 +8,8 @@
 package org.elasticsearch.compute.operator;
 
 import org.apache.lucene.util.ArrayUtil;
-$if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
+$if(BytesRef)$
 import org.elasticsearch.common.util.BytesRefHash;
 $else$
 import org.elasticsearch.common.util.LongHash;
@@ -18,18 +18,19 @@ import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-$if(int)$
-import org.elasticsearch.compute.data.IntBlock;
-
-$elseif(long)$
+import org.elasticsearch.compute.data.BytesRefBlock;
+$if(long)$
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 
-$else$
-import org.elasticsearch.compute.data.$Type$Block;
+$elseif(double)$
+import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 
+$else$
+import org.elasticsearch.compute.data.IntBlock;
 $endif$
+
 import java.util.Arrays;
 
 /**
@@ -173,6 +174,33 @@ $endif$
                     default -> {
                         copyMissing(first, count);
                         writeUniquedWork(builder);
+                    }
+                }
+            }
+            return builder.build();
+        }
+    }
+
+    /**
+     * Sort values from each position and write the results to a {@link Block}.
+     */
+    public $Type$Block sortToBlock(BlockFactory blockFactory, BytesRefBlock orderVal) {
+        try ($Type$Block.Builder builder = blockFactory.new$Type$BlockBuilder(block.getPositionCount())) {
+            for (int p = 0; p < block.getPositionCount(); p++) {
+                int count = block.getValueCount(p);
+                int first = block.getFirstValueIndex(p);
+                switch (count) {
+                    case 0 -> builder.appendNull();
+    $if(BytesRef)$
+                    case 1 -> builder.appendBytesRef(block.getBytesRef(first, work[0]));
+    $else$
+                    case 1 -> builder.append$Type$(block.get$Type$(first));
+    $endif$
+                    default -> {
+                        copyAndSort(first, count);
+                        BytesRef orderScratch = new BytesRef();
+                        BytesRef order = orderVal.getBytesRef(orderVal.getFirstValueIndex(p), orderScratch);
+                        writeWork(builder, order.utf8ToString().equalsIgnoreCase("DESC") ? false : true);
                     }
                 }
             }
@@ -389,6 +417,25 @@ $else$
 $endif$
                 prev = work[i];
                 builder.append$Type$(prev);
+            }
+        }
+        builder.endPositionEntry();
+    }
+
+    /**
+     * Writes a {@link #work} to a {@link $Type$Block.Builder}.
+     */
+    private void writeWork($Type$Block.Builder builder, boolean ascending) {
+        if (w == 1) {
+            builder.append$Type$(work[0]);
+            return;
+        }
+        builder.beginPositionEntry();
+        for (int i = 0; i < w; i++) {
+            if (ascending) {
+                builder.append$Type$(work[i]);
+            } else {
+                builder.append$Type$(work[w - i - 1]);
             }
         }
         builder.endPositionEntry();

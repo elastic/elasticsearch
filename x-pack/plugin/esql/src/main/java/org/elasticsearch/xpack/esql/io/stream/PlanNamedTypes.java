@@ -97,6 +97,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLast
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMax;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMedian;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMin;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSort;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StX;
@@ -419,6 +420,7 @@ public final class PlanNamedTypes {
             of(ScalarFunction.class, MvMax.class, PlanNamedTypes::writeMvFunction, PlanNamedTypes::readMvFunction),
             of(ScalarFunction.class, MvMedian.class, PlanNamedTypes::writeMvFunction, PlanNamedTypes::readMvFunction),
             of(ScalarFunction.class, MvMin.class, PlanNamedTypes::writeMvFunction, PlanNamedTypes::readMvFunction),
+            of(ScalarFunction.class, MvSort.class, PlanNamedTypes::writeMvSort, PlanNamedTypes::readMvSort),
             of(ScalarFunction.class, MvSum.class, PlanNamedTypes::writeMvFunction, PlanNamedTypes::readMvFunction),
             // Expressions (other)
             of(Expression.class, Literal.class, PlanNamedTypes::writeLiteral, PlanNamedTypes::readLiteral),
@@ -1827,6 +1829,18 @@ public final class PlanNamedTypes {
     static void writeLog(PlanStreamOutput out, Log log) throws IOException {
         out.writeSource(log.source());
         List<Expression> fields = log.children();
+        assert fields.size() == 1 || fields.size() == 2;
+        out.writeExpression(fields.get(0));
+        out.writeOptionalWriteable(fields.size() == 2 ? o -> out.writeExpression(fields.get(1)) : null);
+    }
+
+    static MvSort readMvSort(PlanStreamInput in) throws IOException {
+        return new MvSort(in.readSource(), in.readExpression(), in.readOptionalNamed(Expression.class));
+    }
+
+    static void writeMvSort(PlanStreamOutput out, MvSort mvSort) throws IOException {
+        out.writeSource(mvSort.source());
+        List<Expression> fields = mvSort.children();
         assert fields.size() == 1 || fields.size() == 2;
         out.writeExpression(fields.get(0));
         out.writeOptionalWriteable(fields.size() == 2 ? o -> out.writeExpression(fields.get(1)) : null);

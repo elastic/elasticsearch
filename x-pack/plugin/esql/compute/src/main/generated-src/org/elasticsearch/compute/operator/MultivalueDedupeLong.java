@@ -8,11 +8,13 @@
 package org.elasticsearch.compute.operator;
 
 import org.apache.lucene.util.ArrayUtil;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 
@@ -137,6 +139,29 @@ public class MultivalueDedupeLong {
                     default -> {
                         copyMissing(first, count);
                         writeUniquedWork(builder);
+                    }
+                }
+            }
+            return builder.build();
+        }
+    }
+
+    /**
+     * Sort values from each position and write the results to a {@link Block}.
+     */
+    public LongBlock sortToBlock(BlockFactory blockFactory, BytesRefBlock orderVal) {
+        try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(block.getPositionCount())) {
+            for (int p = 0; p < block.getPositionCount(); p++) {
+                int count = block.getValueCount(p);
+                int first = block.getFirstValueIndex(p);
+                switch (count) {
+                    case 0 -> builder.appendNull();
+                    case 1 -> builder.appendLong(block.getLong(first));
+                    default -> {
+                        copyAndSort(first, count);
+                        BytesRef orderScratch = new BytesRef();
+                        BytesRef order = orderVal.getBytesRef(orderVal.getFirstValueIndex(p), orderScratch);
+                        writeWork(builder, order.utf8ToString().equalsIgnoreCase("DESC") ? false : true);
                     }
                 }
             }
@@ -302,6 +327,25 @@ public class MultivalueDedupeLong {
             if (prev != work[i]) {
                 prev = work[i];
                 builder.appendLong(prev);
+            }
+        }
+        builder.endPositionEntry();
+    }
+
+    /**
+     * Writes a {@link #work} to a {@link LongBlock.Builder}.
+     */
+    private void writeWork(LongBlock.Builder builder, boolean ascending) {
+        if (w == 1) {
+            builder.appendLong(work[0]);
+            return;
+        }
+        builder.beginPositionEntry();
+        for (int i = 0; i < w; i++) {
+            if (ascending) {
+                builder.appendLong(work[i]);
+            } else {
+                builder.appendLong(work[w - i - 1]);
             }
         }
         builder.endPositionEntry();

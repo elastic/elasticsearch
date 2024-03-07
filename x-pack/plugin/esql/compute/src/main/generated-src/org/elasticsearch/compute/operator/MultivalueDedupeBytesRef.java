@@ -147,6 +147,29 @@ public class MultivalueDedupeBytesRef {
     }
 
     /**
+     * Sort values from each position and write the results to a {@link Block}.
+     */
+    public BytesRefBlock sortToBlock(BlockFactory blockFactory, BytesRefBlock orderVal) {
+        try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(block.getPositionCount())) {
+            for (int p = 0; p < block.getPositionCount(); p++) {
+                int count = block.getValueCount(p);
+                int first = block.getFirstValueIndex(p);
+                switch (count) {
+                    case 0 -> builder.appendNull();
+                    case 1 -> builder.appendBytesRef(block.getBytesRef(first, work[0]));
+                    default -> {
+                        copyAndSort(first, count);
+                        BytesRef orderScratch = new BytesRef();
+                        BytesRef order = orderVal.getBytesRef(orderVal.getFirstValueIndex(p), orderScratch);
+                        writeWork(builder, order.utf8ToString().equalsIgnoreCase("DESC") ? false : true);
+                    }
+                }
+            }
+            return builder.build();
+        }
+    }
+
+    /**
      * Dedupe values and build a {@link IntBlock} suitable for passing
      * as the grouping block to a {@link GroupingAggregatorFunction}.
      */
@@ -312,6 +335,25 @@ public class MultivalueDedupeBytesRef {
             if (false == prev.equals(work[i])) {
                 prev = work[i];
                 builder.appendBytesRef(prev);
+            }
+        }
+        builder.endPositionEntry();
+    }
+
+    /**
+     * Writes a {@link #work} to a {@link BytesRefBlock.Builder}.
+     */
+    private void writeWork(BytesRefBlock.Builder builder, boolean ascending) {
+        if (w == 1) {
+            builder.appendBytesRef(work[0]);
+            return;
+        }
+        builder.beginPositionEntry();
+        for (int i = 0; i < w; i++) {
+            if (ascending) {
+                builder.appendBytesRef(work[i]);
+            } else {
+                builder.appendBytesRef(work[w - i - 1]);
             }
         }
         builder.endPositionEntry();

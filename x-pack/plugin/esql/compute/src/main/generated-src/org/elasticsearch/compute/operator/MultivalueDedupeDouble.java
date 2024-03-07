@@ -8,11 +8,13 @@
 package org.elasticsearch.compute.operator;
 
 import org.apache.lucene.util.ArrayUtil;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 
@@ -136,6 +138,29 @@ public class MultivalueDedupeDouble {
                     default -> {
                         copyMissing(first, count);
                         writeUniquedWork(builder);
+                    }
+                }
+            }
+            return builder.build();
+        }
+    }
+
+    /**
+     * Sort values from each position and write the results to a {@link Block}.
+     */
+    public DoubleBlock sortToBlock(BlockFactory blockFactory, BytesRefBlock orderVal) {
+        try (DoubleBlock.Builder builder = blockFactory.newDoubleBlockBuilder(block.getPositionCount())) {
+            for (int p = 0; p < block.getPositionCount(); p++) {
+                int count = block.getValueCount(p);
+                int first = block.getFirstValueIndex(p);
+                switch (count) {
+                    case 0 -> builder.appendNull();
+                    case 1 -> builder.appendDouble(block.getDouble(first));
+                    default -> {
+                        copyAndSort(first, count);
+                        BytesRef orderScratch = new BytesRef();
+                        BytesRef order = orderVal.getBytesRef(orderVal.getFirstValueIndex(p), orderScratch);
+                        writeWork(builder, order.utf8ToString().equalsIgnoreCase("DESC") ? false : true);
                     }
                 }
             }
@@ -301,6 +326,25 @@ public class MultivalueDedupeDouble {
             if (prev != work[i]) {
                 prev = work[i];
                 builder.appendDouble(prev);
+            }
+        }
+        builder.endPositionEntry();
+    }
+
+    /**
+     * Writes a {@link #work} to a {@link DoubleBlock.Builder}.
+     */
+    private void writeWork(DoubleBlock.Builder builder, boolean ascending) {
+        if (w == 1) {
+            builder.appendDouble(work[0]);
+            return;
+        }
+        builder.beginPositionEntry();
+        for (int i = 0; i < w; i++) {
+            if (ascending) {
+                builder.appendDouble(work[i]);
+            } else {
+                builder.appendDouble(work[w - i - 1]);
             }
         }
         builder.endPositionEntry();

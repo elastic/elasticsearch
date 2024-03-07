@@ -172,7 +172,7 @@ FROM my-index-000001,cluster_one:my-index-000001,cluster_two:my-index-000001
 | LIMIT 10
 ----
 
-A `_remote` enrich command can't be executed after after a `_coordinator` enrich
+A `_remote` enrich command can't be executed after a `_coordinator` enrich
 command. The following example would result in an error.
 
 [source,esql]

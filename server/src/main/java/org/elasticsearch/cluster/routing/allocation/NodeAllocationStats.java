@@ -16,18 +16,19 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-public record NodeAllocationStats(int shards, double forecastedIngestLoad, long forecastedDiskUsage)
+public record NodeAllocationStats(int shards, int undesiredShards, double forecastedIngestLoad, long forecastedDiskUsage)
     implements
         Writeable,
         ToXContentFragment {
 
     public NodeAllocationStats(StreamInput in) throws IOException {
-        this(in.readVInt(), in.readDouble(), in.readVLong());
+        this(in.readVInt(), in.readVInt(), in.readDouble(), in.readVLong());
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(shards);
+        out.writeVInt(undesiredShards);
         out.writeDouble(forecastedIngestLoad);
         out.writeVLong(forecastedDiskUsage);
     }

@@ -10,6 +10,7 @@ package org.elasticsearch.test;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -126,7 +127,7 @@ public abstract class AbstractSerializationTestCase<T extends Writeable> extends
      * Returns a predicate that given the field name indicates whether the field has to be excluded from random fields insertion or not
      */
     protected Predicate<String> getRandomFieldsExcludeFilter() {
-        return field -> false;
+        return Predicates.never();
     }
 
     /**

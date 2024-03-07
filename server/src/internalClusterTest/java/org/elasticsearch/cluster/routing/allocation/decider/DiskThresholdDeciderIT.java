@@ -162,7 +162,8 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
     }
 
     @TestIssueLogging(
-        value = "org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceReconciler:DEBUG,"
+        value = "org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceComputer:TRACE,"
+            + "org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceReconciler:DEBUG,"
             + "org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator:TRACE",
         issueUrl = "https://github.com/elastic/elasticsearch/issues/105331"
     )

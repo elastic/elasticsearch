@@ -20,6 +20,7 @@ package co.elastic.elasticsearch.stateless.commits;
 import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
 import co.elastic.elasticsearch.stateless.IndexingDiskController;
 import co.elastic.elasticsearch.stateless.Stateless;
+import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 import co.elastic.elasticsearch.stateless.engine.SearchEngine;
@@ -92,7 +93,7 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
         }
 
         @Override
-        protected SearchDirectory createSearchDirectory(SharedBlobCacheService<FileCacheKey> cacheService, ShardId shardId) {
+        protected SearchDirectory createSearchDirectory(StatelessSharedBlobCacheService cacheService, ShardId shardId) {
             return new TrackingSearchDirectory(cacheService, shardId, inputs);
         }
 
@@ -100,7 +101,7 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
 
             private final Set<IndexInput> inputs;
 
-            TrackingSearchDirectory(SharedBlobCacheService<FileCacheKey> cacheService, ShardId shardId, Set<IndexInput> inputs) {
+            TrackingSearchDirectory(StatelessSharedBlobCacheService cacheService, ShardId shardId, Set<IndexInput> inputs) {
                 super(cacheService, shardId);
                 this.inputs = Objects.requireNonNull(inputs);
             }

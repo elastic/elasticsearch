@@ -40,6 +40,7 @@ import co.elastic.elasticsearch.stateless.autoscaling.search.ShardSizesPublisher
 import co.elastic.elasticsearch.stateless.autoscaling.search.TransportPublishShardSizes;
 import co.elastic.elasticsearch.stateless.cache.ClearBlobCacheRestHandler;
 import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
+import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
 import co.elastic.elasticsearch.stateless.cache.action.ClearBlobCacheNodesResponse;
 import co.elastic.elasticsearch.stateless.cache.action.TransportClearBlobCacheAction;
 import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessClusterConsistencyService;
@@ -55,7 +56,6 @@ import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 import co.elastic.elasticsearch.stateless.engine.RefreshThrottlingService;
 import co.elastic.elasticsearch.stateless.engine.SearchEngine;
 import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicator;
-import co.elastic.elasticsearch.stateless.lucene.FileCacheKey;
 import co.elastic.elasticsearch.stateless.lucene.IndexDirectory;
 import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
 import co.elastic.elasticsearch.stateless.lucene.StatelessCommitRef;
@@ -234,7 +234,7 @@ public class Stateless extends Plugin
     private final SetOnce<StatelessCommitService> commitService = new SetOnce<>();
     private final SetOnce<ClosedShardService> closedShardService = new SetOnce<>();
     private final SetOnce<ObjectStoreService> objectStoreService = new SetOnce<>();
-    private final SetOnce<SharedBlobCacheService<FileCacheKey>> sharedBlobCacheService = new SetOnce<>();
+    private final SetOnce<StatelessSharedBlobCacheService> sharedBlobCacheService = new SetOnce<>();
     private final SetOnce<SharedBlobCacheWarmingService> sharedBlobCacheWarmingService = new SetOnce<>();
     private final SetOnce<BlobStoreHealthIndicator> blobStoreHealthIndicator = new SetOnce<>();
     private final SetOnce<TranslogReplicator> translogReplicator = new SetOnce<>();
@@ -503,13 +503,13 @@ public class Stateless extends Plugin
         return new ObjectStoreService(settings, repositoriesServiceSupplier, threadPool, clusterService);
     }
 
-    protected SharedBlobCacheService<FileCacheKey> createSharedBlobCacheService(
+    protected StatelessSharedBlobCacheService createSharedBlobCacheService(
         PluginServices services,
         NodeEnvironment nodeEnvironment,
         Settings settings,
         ThreadPool threadPool
     ) {
-        return new SharedBlobCacheService<>(
+        return new StatelessSharedBlobCacheService(
             nodeEnvironment,
             settings,
             threadPool,
@@ -524,7 +524,7 @@ public class Stateless extends Plugin
 
     // Can be overridden by tests
     protected SharedBlobCacheWarmingService createSharedBlobCacheWarmingService(
-        SharedBlobCacheService<FileCacheKey> cacheService,
+        StatelessSharedBlobCacheService cacheService,
         ThreadPool threadPool
     ) {
         return new SharedBlobCacheWarmingService(cacheService, threadPool);
@@ -610,18 +610,18 @@ public class Stateless extends Plugin
 
     /**
      * This class wraps the {@code sharedBlobCacheService} for use in dependency injection, as the sharedBlobCacheService's parameterized
-     * type of {@code SharedBlobCacheService<FileCacheKey>} is erased.
+     * type of {@code StatelessSharedBlobCacheService} is erased.
      */
-    public static final class SharedBlobCacheServiceSupplier implements Supplier<SharedBlobCacheService<FileCacheKey>> {
+    public static final class SharedBlobCacheServiceSupplier implements Supplier<StatelessSharedBlobCacheService> {
 
-        private final SharedBlobCacheService<FileCacheKey> sharedBlobCacheService;
+        private final StatelessSharedBlobCacheService sharedBlobCacheService;
 
-        SharedBlobCacheServiceSupplier(SharedBlobCacheService<FileCacheKey> sharedBlobCacheService) {
+        SharedBlobCacheServiceSupplier(StatelessSharedBlobCacheService sharedBlobCacheService) {
             this.sharedBlobCacheService = Objects.requireNonNull(sharedBlobCacheService);
         }
 
         @Override
-        public SharedBlobCacheService<FileCacheKey> get() {
+        public StatelessSharedBlobCacheService get() {
             return sharedBlobCacheService;
         }
     }
@@ -904,7 +904,7 @@ public class Stateless extends Plugin
     }
 
     // protected to allow tests to override
-    protected SearchDirectory createSearchDirectory(SharedBlobCacheService<FileCacheKey> cacheService, ShardId shardId) {
+    protected SearchDirectory createSearchDirectory(StatelessSharedBlobCacheService cacheService, ShardId shardId) {
         return new SearchDirectory(cacheService, shardId);
     }
 

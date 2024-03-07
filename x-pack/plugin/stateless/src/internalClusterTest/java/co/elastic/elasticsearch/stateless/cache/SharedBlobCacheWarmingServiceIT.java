@@ -22,7 +22,6 @@ import co.elastic.elasticsearch.stateless.Stateless;
 import co.elastic.elasticsearch.stateless.commits.BlobLocation;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
-import co.elastic.elasticsearch.stateless.lucene.FileCacheKey;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 
 import org.elasticsearch.action.ActionListener;
@@ -144,7 +143,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
 
         @Override
         protected SharedBlobCacheWarmingService createSharedBlobCacheWarmingService(
-            SharedBlobCacheService<FileCacheKey> cacheService,
+            StatelessSharedBlobCacheService cacheService,
             ThreadPool threadPool
         ) {
             return new BlockingSharedBlobCacheWarmingService(cacheService, threadPool);
@@ -155,7 +154,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
 
         private final CopyOnWriteArrayList<ActionListener<Void>> listeners = new CopyOnWriteArrayList<>();
 
-        BlockingSharedBlobCacheWarmingService(SharedBlobCacheService<FileCacheKey> cacheService, ThreadPool threadPool) {
+        BlockingSharedBlobCacheWarmingService(StatelessSharedBlobCacheService cacheService, ThreadPool threadPool) {
             super(cacheService, threadPool);
         }
 

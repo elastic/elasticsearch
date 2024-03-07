@@ -32,7 +32,6 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.blobcache.common.ByteRange;
-import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
@@ -60,11 +59,11 @@ public class SharedBlobCacheWarmingService {
 
     private static final Logger logger = LogManager.getLogger(SharedBlobCacheWarmingService.class);
 
-    private final SharedBlobCacheService<FileCacheKey> cacheService;
+    private final StatelessSharedBlobCacheService cacheService;
     private final ThreadPool threadPool;
     private final ThrottledTaskRunner throttledTaskRunner;
 
-    public SharedBlobCacheWarmingService(SharedBlobCacheService<FileCacheKey> cacheService, ThreadPool threadPool) {
+    public SharedBlobCacheWarmingService(StatelessSharedBlobCacheService cacheService, ThreadPool threadPool) {
         this.cacheService = cacheService;
         this.threadPool = threadPool;
         this.throttledTaskRunner = new ThrottledTaskRunner(

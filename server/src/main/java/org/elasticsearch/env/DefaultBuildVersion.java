@@ -12,6 +12,17 @@ import org.elasticsearch.Version;
 
 import java.util.Objects;
 
+/**
+ * A {@link BuildVersion} that uses the same identifiers and compatibility constraints
+ * as {@link Version}.
+ *
+ * <p>This default implementation of BuildVersion delegates to the {@link Version} class.
+ * It's intended to let us check wither a version identifier is "too old" or "too new."
+ * "Too old" is determined by {@code Version.CURRENT.minimumCompatibilityVersion()},
+ * and "too new" is anything that comes after {@code Version.CURRENT}. This lets us
+ * give users simple rules in terms of public-facing release versions for Elasticsearch
+ * compatibility when upgrading nodes and prevents downgrades in place.</p>
+ */
 // TODO[wrb]: make package-private once default implementations are removed in BuildExtension
 public final class DefaultBuildVersion extends BuildVersion {
 

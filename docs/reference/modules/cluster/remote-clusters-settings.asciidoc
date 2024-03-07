@@ -28,9 +28,14 @@ mode are described separately.
 
   Per cluster boolean setting that allows to skip specific clusters when no
   nodes belonging to them are available and they are the target of a remote
-  cluster request. Default is `false`, meaning that all clusters are mandatory
-  by default, but they can selectively be made optional by setting this setting
-  to `true`.
+  cluster request.
+
+IMPORTANT: In Elasticsearch 8.14, the default value for `skip_unavailable` was
+changed from `false` to `true`. Before Elasticsearch 8.14, if you want a cluster
+to be treated as optional for a {ccs}, then you need to set that configuration.
+From Elasticsearch 8.14 forward, you need to set the configuration in order to
+make a cluster required for the {ccs}.
+
 
 `cluster.remote.<cluster_alias>.transport.ping_schedule`::
 

@@ -1178,7 +1178,13 @@ gathered from all 3 clusters and the total shard count on each cluster is listed
 By default, a {ccs} fails if a remote cluster in the request is unavailable
 or returns an error where the search on all shards failed. Use the
 `skip_unavailable` cluster setting to mark a specific remote cluster as
-optional for {ccs}.
+either optional or required for {ccs}.
+
+IMPORTANT: In Elasticsearch 8.14, the default value for `skip_unavailable` was
+changed from `false` to `true`. Before Elasticsearch 8.14, if you want a cluster
+to be treated as optional for a {ccs}, then you need to set that configuration.
+From Elasticsearch 8.14 forward, you need to set the configuration in order to
+make a cluster required for the {ccs}.
 
 If `skip_unavailable` is `true`, a {ccs}:
 
@@ -1196,25 +1202,33 @@ parameter and the related `search.default_allow_partial_results` cluster setting
 when searching the remote cluster. This means searches on the remote cluster may
 return partial results.
 
-The following <<cluster-update-settings,cluster update settings>>
-API request changes `skip_unavailable` setting to `true` for `cluster_two`.
+You can modify the `skip_unavailable` setting by editing the `cluster.remote.<cluster_alias>`
+settings in the elasticsearch.yml config file. For example:
 
-[source,console]
---------------------------------
-PUT _cluster/settings
-{
-  "persistent": {
-    "cluster.remote.cluster_two.skip_unavailable": true
-  }
-}
---------------------------------
-// TEST[continued]
+```
+cluster:
+    remote:
+        cluster_one:
+            seeds: 35.238.149.1:9300
+            skip_unavailable: false
+        cluster_two:
+            seeds: 35.238.149.2:9300
+            skip_unavailable: true
+```
 
-If `cluster_two` is disconnected or unavailable during a {ccs}, {es} won't
-include matching documents from that cluster in the final results. If at
-least one shard provides results, those results will be used and the
-search will return partial data. (If doing {ccs} using async search,
-the `is_partial` field will be set to `true` to indicate partial results.)
+Or you can set the cluster.remote settings via the
+<<cluster-update-settings,cluster update settings>> API as shown
+<<ccs-remote-cluster-setup, here>>.
+
+When a remote cluster configured with `skip_unavailable: true` (such as
+`cluster_two` above) is disconnected or unavailable during a {ccs}, {es} won't
+include matching documents from that cluster in the final results and the
+search will be considered successful (HTTP status 200 OK).
+
+If at least one shard from a cluster provides search results, those results will
+be used and the search will return partial data. This is true regardless of
+the `skip_unavailable` setting of the remote cluster. (If doing {ccs} using async
+search, the `is_partial` field will be set to `true` to indicate partial results.)
 
 [discrete]
 [[ccs-network-delays]]

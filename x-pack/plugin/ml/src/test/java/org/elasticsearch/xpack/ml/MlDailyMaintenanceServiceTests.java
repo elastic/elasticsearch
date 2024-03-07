@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.DeleteExpiredDataAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteJobAction;
 import org.elasticsearch.xpack.core.ml.action.GetJobsAction;
+import org.elasticsearch.xpack.core.ml.action.ResetJobAction;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.junit.After;
 import org.junit.Before;
@@ -38,6 +39,7 @@ import org.mockito.Mockito;
 import org.mockito.stubbing.Answer;
 
 import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -87,7 +89,7 @@ public class MlDailyMaintenanceServiceTests extends ESTestCase {
         }
 
         verify(client, times(triggerCount - 1)).execute(same(DeleteExpiredDataAction.INSTANCE), any(), any());
-        verify(client, times(triggerCount - 1)).execute(same(GetJobsAction.INSTANCE), any(), any());
+        verify(client, times(2 * (triggerCount - 1))).execute(same(GetJobsAction.INSTANCE), any(), any());
         verify(mlAssignmentNotifier, times(triggerCount - 1)).auditUnassignedMlTasks(any(), any());
     }
 
@@ -166,9 +168,9 @@ public class MlDailyMaintenanceServiceTests extends ESTestCase {
             latch.await(5, TimeUnit.SECONDS);
         }
 
-        verify(client, Mockito.atLeast(2)).threadPool();
-        verify(client, Mockito.atLeast(1)).execute(same(DeleteExpiredDataAction.INSTANCE), any(), any());
-        verify(client, Mockito.atLeast(1)).execute(same(GetJobsAction.INSTANCE), any(), any());
+        verify(client, times(3)).threadPool();
+        verify(client, times(1)).execute(same(DeleteExpiredDataAction.INSTANCE), any(), any());
+        verify(client, times(2)).execute(same(GetJobsAction.INSTANCE), any(), any());
         verify(mlAssignmentNotifier, Mockito.atLeast(1)).auditUnassignedMlTasks(any(), any());
     }
 
@@ -208,8 +210,8 @@ public class MlDailyMaintenanceServiceTests extends ESTestCase {
             latch.await(5, TimeUnit.SECONDS);
         }
 
-        verify(client, times(3)).threadPool();
-        verify(client).execute(same(GetJobsAction.INSTANCE), any(), any());
+        verify(client, times(4)).threadPool();
+        verify(client, times(2)).execute(same(GetJobsAction.INSTANCE), any(), any());
         verify(client).execute(same(TransportListTasksAction.TYPE), any(), any());
         verify(client).execute(same(DeleteExpiredDataAction.INSTANCE), any(), any());
         verify(mlAssignmentNotifier).auditUnassignedMlTasks(any(), any());
@@ -246,10 +248,68 @@ public class MlDailyMaintenanceServiceTests extends ESTestCase {
             latch.await(5, TimeUnit.SECONDS);
         }
 
-        verify(client, times(4)).threadPool();
-        verify(client).execute(same(GetJobsAction.INSTANCE), any(), any());
+        verify(client, times(5)).threadPool();
+        verify(client, times(2)).execute(same(GetJobsAction.INSTANCE), any(), any());
         verify(client).execute(same(TransportListTasksAction.TYPE), any(), any());
         verify(client).execute(same(DeleteJobAction.INSTANCE), any(), any());
+        verify(client).execute(same(DeleteExpiredDataAction.INSTANCE), any(), any());
+        verify(mlAssignmentNotifier).auditUnassignedMlTasks(any(), any());
+        verifyNoMoreInteractions(client, mlAssignmentNotifier);
+    }
+
+    public void testJobInResettingState_doesNotHaveResetTask() throws InterruptedException {
+        testJobInResettingState(false);
+    }
+
+    public void testJobInResettingState_hasResetTask() throws InterruptedException {
+        testJobInResettingState(true);
+    }
+
+    private void testJobInResettingState(boolean hasResetTask) throws InterruptedException {
+        String jobId = "job-in-state-resetting";
+        when(clusterService.state()).thenReturn(createClusterState(false));
+        doAnswer(withResponse(new DeleteExpiredDataAction.Response(true))).when(client)
+            .execute(same(DeleteExpiredDataAction.INSTANCE), any(), any());
+        Job job = mock(Job.class);
+        when(job.getId()).thenReturn(jobId);
+        when(job.isDeleting()).thenReturn(false);
+        when(job.isResetting()).thenReturn(true);
+        doAnswer(withResponse(new GetJobsAction.Response(new QueryPage<>(List.of(job), 1, new ParseField(""))))).when(client)
+            .execute(same(GetJobsAction.INSTANCE), any(), any());
+        List<TaskInfo> tasks = hasResetTask
+            ? List.of(
+                new TaskInfo(
+                    new TaskId("test", 123),
+                    "test",
+                    "test",
+                    ResetJobAction.NAME,
+                    "job-" + jobId,
+                    null,
+                    0,
+                    0,
+                    true,
+                    false,
+                    new TaskId("test", 456),
+                    Collections.emptyMap()
+                )
+            )
+            : List.of();
+        doAnswer(withResponse(new ListTasksResponse(tasks, List.of(), List.of()))).when(client)
+            .execute(same(TransportListTasksAction.TYPE), any(), any());
+        doAnswer(withResponse(AcknowledgedResponse.of(true))).when(client).execute(same(ResetJobAction.INSTANCE), any(), any());
+
+        CountDownLatch latch = new CountDownLatch(2);
+        try (MlDailyMaintenanceService service = createService(latch, client)) {
+            service.start();
+            latch.await(5, TimeUnit.SECONDS);
+        }
+
+        verify(client, times(hasResetTask ? 4 : 5)).threadPool();
+        verify(client, times(2)).execute(same(GetJobsAction.INSTANCE), any(), any());
+        verify(client).execute(same(TransportListTasksAction.TYPE), any(), any());
+        if (hasResetTask == false) {
+            verify(client).execute(same(ResetJobAction.INSTANCE), any(), any());
+        }
         verify(client).execute(same(DeleteExpiredDataAction.INSTANCE), any(), any());
         verify(mlAssignmentNotifier).auditUnassignedMlTasks(any(), any());
         verifyNoMoreInteractions(client, mlAssignmentNotifier);

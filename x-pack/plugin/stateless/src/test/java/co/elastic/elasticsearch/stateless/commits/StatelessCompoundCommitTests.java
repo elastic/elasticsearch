@@ -26,20 +26,17 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.PositionTrackingOutputStreamStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.in;
 
 public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCase<StatelessCompoundCommit> {
 
@@ -118,83 +115,21 @@ public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCas
         return StatelessCompoundCommit::readFromTransport;
     }
 
-    public void testStoreSerialization() throws IOException {
-        StatelessCompoundCommit instance = createTestInstance();
-
-        try (BytesStreamOutput output = new BytesStreamOutput()) {
-            StatelessCompoundCommit.Writer writer = new StatelessCompoundCommit.Writer(
-                instance.shardId(),
-                instance.generation(),
-                instance.primaryTerm(),
-                instance.translogRecoveryStartFile(),
-                instance.nodeEphemeralId()
-            );
-            for (Map.Entry<String, BlobLocation> entry : instance.commitFiles().entrySet()) {
-                writer.addReferencedBlobFile(entry.getKey(), entry.getValue());
-            }
-
-            int internalFilesCount = randomInt(5);
-
-            ArrayList<Tuple<String, Long>> internalFiles = new ArrayList<>();
-            for (int i = 0; i < internalFilesCount; ++i) {
-                Tuple<String, Long> tuple = new Tuple<>(randomAlphaOfLength(10), randomLongBetween(10, 100));
-                internalFiles.add(tuple);
-                writer.addInternalFile(tuple.v1(), tuple.v2());
-            }
-            PositionTrackingOutputStreamStreamOutput positionTracking = new PositionTrackingOutputStreamStreamOutput(output);
-            writer.writeHeaderToStore(positionTracking, StatelessCompoundCommit.CURRENT_VERSION);
-            long headerSize = positionTracking.position();
-
-            long commitFileLength = internalFiles.stream().mapToLong(Tuple::v2).sum() + headerSize;
-            Map<String, BlobLocation> commitFilesToModify = new HashMap<>(instance.commitFiles());
-            long offset = headerSize;
-            for (Tuple<String, Long> internalFile : internalFiles) {
-                BlobLocation blobLocation = new BlobLocation(
-                    instance.primaryTerm(),
-                    StatelessCompoundCommit.blobNameFromGeneration(instance.generation()),
-                    commitFileLength,
-                    offset,
-                    internalFile.v2()
-                );
-                offset += internalFile.v2();
-                commitFilesToModify.put(internalFile.v1(), blobLocation);
-            }
-
-            StatelessCompoundCommit withInternalFiles = new StatelessCompoundCommit(
-                instance.shardId(),
-                instance.primaryTermAndGeneration(),
-                instance.translogRecoveryStartFile(),
-                instance.nodeEphemeralId(),
-                commitFilesToModify,
-                commitFileLength
-            );
-
-            try (StreamInput in = output.bytes().streamInput()) {
-                StatelessCompoundCommit compoundCommit = StatelessCompoundCommit.readFromStore(in);
-                assertEqualInstances(withInternalFiles, compoundCommit);
-            }
-        }
-    }
-
     public void testStoreVersionCompatibility() throws Exception {
         StatelessCompoundCommit testInstance = createTestInstance();
         Map<String, BlobLocation> commitFilesWithoutBlobLengths = randomCommitFiles(false);
 
         try (BytesStreamOutput output = new BytesStreamOutput()) {
-            StatelessCompoundCommit.Writer writer = new StatelessCompoundCommit.Writer(
+            PositionTrackingOutputStreamStreamOutput positionTracking = new PositionTrackingOutputStreamStreamOutput(output);
+            StatelessCompoundCommit.writeHeader(
+                positionTracking,
                 testInstance.shardId(),
                 testInstance.generation(),
                 testInstance.primaryTerm(),
+                testInstance.nodeEphemeralId(),
                 0,
-                testInstance.nodeEphemeralId()
-            );
-            for (Map.Entry<String, BlobLocation> entry : commitFilesWithoutBlobLengths.entrySet()) {
-                writer.addReferencedBlobFile(entry.getKey(), entry.getValue());
-            }
-
-            PositionTrackingOutputStreamStreamOutput positionTracking = new PositionTrackingOutputStreamStreamOutput(output);
-            writer.writeHeaderToStore(
-                positionTracking,
+                commitFilesWithoutBlobLengths,
+                List.of(),
                 randomFrom(StatelessCompoundCommit.VERSION_WITH_COMMIT_FILES, StatelessCompoundCommit.VERSION_WITH_BLOB_LENGTH)
             );
 
@@ -221,17 +156,19 @@ public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCas
         StatelessCompoundCommit testInstance = createTestInstance();
 
         try (BytesStreamOutput output = new BytesStreamOutput()) {
-            StatelessCompoundCommit.Writer writer = new StatelessCompoundCommit.Writer(
+            Map<String, BlobLocation> commitFiles = testInstance.commitFiles();
+
+            StatelessCompoundCommit.writeHeader(
+                new PositionTrackingOutputStreamStreamOutput(output),
                 testInstance.shardId(),
                 testInstance.generation(),
                 testInstance.primaryTerm(),
-                testInstance.translogRecoveryStartFile(),
-                testInstance.nodeEphemeralId()
+                testInstance.nodeEphemeralId(),
+                0,
+                commitFiles,
+                List.of(),
+                StatelessCompoundCommit.CURRENT_VERSION
             );
-            for (Map.Entry<String, BlobLocation> entry : testInstance.commitFiles().entrySet()) {
-                writer.addReferencedBlobFile(entry.getKey(), entry.getValue());
-            }
-            writer.writeHeaderToStore(new PositionTrackingOutputStreamStreamOutput(output), StatelessCompoundCommit.CURRENT_VERSION);
             // flip one byte anywhere
             byte[] bytes = BytesReference.toBytes(output.bytes());
             int i = randomIntBetween(0, bytes.length - 1);

@@ -82,7 +82,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongConsumer;
-import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -488,38 +487,27 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         }
 
         private void uploadStatelessCommitFile(ActionListener<StatelessCompoundCommit> listener) {
-            String commitFileName = StatelessCompoundCommit.blobNameFromGeneration(generation);
-            Set<String> internalFiles = reference.getAdditionalFiles();
-            Set<String> referencedGenerationalFiles = reference.getCommitFiles()
-                .stream()
-                .filter(StatelessCommitService::isGenerationalFile)
-                .filter(Predicate.not(internalFiles::contains))
-                .collect(Collectors.toSet());
-            if (referencedGenerationalFiles.isEmpty() == false) {
-                internalFiles = Sets.union(internalFiles, referencedGenerationalFiles);
-            }
-            StatelessCompoundCommit.Writer pendingCommit = shardCommitState.returnPendingCompoundCommit(
+            VirtualBatchedCompoundCommit virtualBatchedCompoundCommit = new VirtualBatchedCompoundCommit(
                 shardId,
-                generation,
+                ephemeralNodeIdSupplier.get(),
                 reference.getPrimaryTerm(),
-                internalFiles,
-                commitFilesToLength.get(),
-                reference.getTranslogRecoveryStartFile()
+                reference.getGeneration(),
+                fileName -> getBlobLocation(shardId, fileName)
             );
+            virtualBatchedCompoundCommit.appendCommit(reference);
+            // TODO: freeze virtualBatchedCompoundCommit
 
-            objectStoreService.uploadStatelessCommitFile(
-                shardId,
+            objectStoreService.uploadBatchedCompoundCommitFile(
                 reference.getPrimaryTerm(),
-                generation,
                 reference.getDirectory(),
-                commitFileName,
                 startNanos,
-                pendingCommit,
+                virtualBatchedCompoundCommit,
                 listener.delegateFailure((l, commit) -> {
-                    for (String internalFile : pendingCommit.getInternalFiles()) {
+                    for (String internalFile : virtualBatchedCompoundCommit.getInternalFiles()) {
                         uploadedFileCount.getAndIncrement();
                         uploadedFileBytes.getAndAdd(commitFilesToLength.get().get(internalFile));
-                        shardCommitState.markFileUploaded(internalFile, commit.commitFiles().get(internalFile));
+                        // TODO: Adapt to BCC reference handling
+                        shardCommitState.markFileUploaded(internalFile, virtualBatchedCompoundCommit.getBlobLocation(internalFile));
                     }
                     shardCommitState.markCommitUploaded(commit);
                     final long end = threadPool.relativeTimeInNanos();
@@ -691,36 +679,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             assert current.blobReference().getPrimaryTermAndGeneration().generation() == uploaded.compoundFileGeneration()
                 : fileName + ':' + current + " vs " + uploaded;
             return true;
-        }
-
-        public StatelessCompoundCommit.Writer returnPendingCompoundCommit(
-            ShardId shardId,
-            long generation,
-            long primaryTerm,
-            Set<String> internalFiles,
-            Map<String, Long> commitFiles,
-            long translogRecoveryStartFile
-        ) {
-            assert isDeleted == false : "shard " + shardId + " is deleted when trying to return pending compound commit";
-            StatelessCompoundCommit.Writer writer = new StatelessCompoundCommit.Writer(
-                shardId,
-                generation,
-                primaryTerm,
-                translogRecoveryStartFile,
-                ephemeralNodeIdSupplier.get()
-            );
-            for (Map.Entry<String, Long> commitFile : commitFiles.entrySet()) {
-                String fileName = commitFile.getKey();
-                if (internalFiles.contains(fileName) == false) {
-                    var location = blobLocations.get(fileName);
-                    assert location != null : fileName;
-                    assert location.blobLocation() != null : fileName + ':' + location;
-                    writer.addReferencedBlobFile(fileName, location.blobLocation());
-                } else {
-                    writer.addInternalFile(fileName, commitFile.getValue());
-                }
-            }
-            return writer;
         }
 
         private void markCommitRecovered(StatelessCompoundCommit recoveredCommit, Set<BlobFile> nonRecoveredBlobs) {

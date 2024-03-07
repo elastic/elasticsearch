@@ -18,6 +18,7 @@
 package co.elastic.elasticsearch.stateless;
 
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
+import co.elastic.elasticsearch.stateless.commits.VirtualBatchedCompoundCommit;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 
 import org.apache.lucene.store.Directory;
@@ -42,7 +43,6 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.PluginComponentBinding;
@@ -383,17 +383,13 @@ public class IndexingDiskControllerIT extends AbstractStatelessIntegTestCase {
         }
 
         @Override
-        public void uploadStatelessCommitFile(
-            ShardId shardId,
+        public void uploadBatchedCompoundCommitFile(
             long primaryTerm,
-            long generation,
             Directory directory,
-            String commitFileName,
             long commitStartNanos,
-            StatelessCompoundCommit.Writer pendingCommit,
+            VirtualBatchedCompoundCommit pendingCommit,
             ActionListener<StatelessCompoundCommit> listener
         ) {
-
             synchronized (this) {
                 if (blocked) {
                     var wrappedListener = new BlockedListener<>(listener);
@@ -401,16 +397,8 @@ public class IndexingDiskControllerIT extends AbstractStatelessIntegTestCase {
                     listener = wrappedListener;
                 }
             }
-            super.uploadStatelessCommitFile(
-                shardId,
-                primaryTerm,
-                generation,
-                directory,
-                commitFileName,
-                commitStartNanos,
-                pendingCommit,
-                listener
-            );
+
+            super.uploadBatchedCompoundCommitFile(primaryTerm, directory, commitStartNanos, pendingCommit, listener);
         }
     }
 

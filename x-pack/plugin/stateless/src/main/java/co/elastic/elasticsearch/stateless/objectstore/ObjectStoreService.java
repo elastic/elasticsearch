@@ -22,6 +22,7 @@ import co.elastic.elasticsearch.stateless.commits.BatchedCompoundCommit;
 import co.elastic.elasticsearch.stateless.commits.BlobFile;
 import co.elastic.elasticsearch.stateless.commits.StaleCompoundCommit;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
+import co.elastic.elasticsearch.stateless.commits.VirtualBatchedCompoundCommit;
 import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
 
 import org.apache.lucene.store.Directory;
@@ -70,7 +71,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Semaphore;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -380,25 +381,18 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
         enqueueTask(listener, uploadTranslogTaskRunner, l -> new TranslogFileUploadTask(fileName, reference, l));
     }
 
-    public void uploadStatelessCommitFile(
-        ShardId shardId,
+    public void uploadBatchedCompoundCommitFile(
         long primaryTerm,
-        long generation,
         Directory directory,
-        String commitFileName,
         long commitStartNanos,
-        StatelessCompoundCommit.Writer pendingCommit,
+        VirtualBatchedCompoundCommit pendingCommit,
         ActionListener<StatelessCompoundCommit> listener
     ) {
         enqueueTask(
             listener,
             uploadTaskRunner,
-            l -> new CommitFileUploadTask(
-                shardId,
-                generation,
+            l -> new BatchedCommitFileUploadTask(
                 commitStartNanos,
-                commitFileName,
-                directory,
                 pendingCommit,
                 SearchDirectory.unwrapDirectory(directory).getBlobContainer(primaryTerm),
                 l
@@ -654,31 +648,19 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
         }
     }
 
-    /**
-     * {@link CommitFileUploadTask} uploads a blob to the object store
-     */
-    private class CommitFileUploadTask extends ObjectStoreTask {
-
-        private final String commitFileName;
-        private final Directory directory;
-        private final StatelessCompoundCommit.Writer pendingCommit;
+    private class BatchedCommitFileUploadTask extends ObjectStoreTask {
+        private final VirtualBatchedCompoundCommit virtualBatchedCompoundCommit;
         private final BlobContainer blobContainer;
         private final ActionListener<StatelessCompoundCommit> listener;
 
-        CommitFileUploadTask(
-            ShardId shardId,
-            long generation,
+        BatchedCommitFileUploadTask(
             long timeInNanos,
-            String commitFileName,
-            Directory directory,
-            StatelessCompoundCommit.Writer pendingCommit,
+            VirtualBatchedCompoundCommit virtualBatchedCompoundCommit,
             BlobContainer blobContainer,
             ActionListener<StatelessCompoundCommit> listener
         ) {
-            super(shardId, generation, timeInNanos);
-            this.commitFileName = Objects.requireNonNull(commitFileName);
-            this.directory = Objects.requireNonNull(directory);
-            this.pendingCommit = Objects.requireNonNull(pendingCommit);
+            super(virtualBatchedCompoundCommit.getShardId(), virtualBatchedCompoundCommit.getGeneration(), timeInNanos);
+            this.virtualBatchedCompoundCommit = Objects.requireNonNull(virtualBatchedCompoundCommit);
             this.blobContainer = Objects.requireNonNull(blobContainer);
             this.listener = Objects.requireNonNull(listener);
         }
@@ -693,26 +675,28 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
             StatelessCompoundCommit compoundCommit = null;
             try {
                 var before = threadPool.relativeTimeInMillis();
-                AtomicLong bytesWritten = new AtomicLong();
                 // TODO: Ensure that out usage of this method for writing files is appropriate. The javadoc is a bit concerning. "This
                 // method is only used for streaming serialization of repository metadata that is known to be of limited size at any point
                 // in time and across all concurrent invocations of this method."
-                blobContainer.writeMetadataBlob(OperationPurpose.INDICES, commitFileName, false, true, out -> {
-                    long written = pendingCommit.writeToStore(out, directory);
-                    bytesWritten.set(written);
+                AtomicReference<BatchedCompoundCommit> batchedCompoundCommitRef = new AtomicReference<>();
+                blobContainer.writeMetadataBlob(OperationPurpose.INDICES, virtualBatchedCompoundCommit.getBlobName(), false, true, out -> {
+                    var batchedCommit = virtualBatchedCompoundCommit.writeToStore(out);
+                    batchedCompoundCommitRef.set(batchedCommit);
                 });
                 var after = threadPool.relativeTimeInMillis();
                 logger.debug(
                     () -> format(
-                        "%s file %s of size [%s] bytes from commit [%s] uploaded in [%s] ms",
+                        "%s file %s of size [%s] bytes from batched compound commit [%s] uploaded in [%s] ms",
                         shardId,
-                        blobContainer.path().add(commitFileName),
-                        bytesWritten.get(),
+                        blobContainer.path().add(virtualBatchedCompoundCommit.getBlobName()),
+                        virtualBatchedCompoundCommit.getTotalSizeInBytes(),
                         generation,
                         TimeValue.timeValueNanos(after - before).millis()
                     )
                 );
-                compoundCommit = pendingCommit.finish(commitFileName);
+                assert batchedCompoundCommitRef.get() != null;
+                assert batchedCompoundCommitRef.get().getLast() != null;
+                compoundCommit = batchedCompoundCommitRef.get().getLast();
             } catch (IOException e) {
                 // TODO GoogleCloudStorageBlobStore should throw IOException too (https://github.com/elastic/elasticsearch/issues/92357)
                 onFailure(e);

@@ -6,11 +6,11 @@
  */
 package org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison;
 
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.function.scalar.BinaryScalarFunction;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.qlcore.expression.Expression;
+import org.elasticsearch.xpack.qlcore.expression.function.scalar.BinaryScalarFunction;
+import org.elasticsearch.xpack.qlcore.tree.Source;
+import org.elasticsearch.xpack.qlcore.type.DataType;
+import org.elasticsearch.xpack.qlcore.type.DataTypes;
 
 public abstract class InsensitiveBinaryComparison extends BinaryScalarFunction {
 

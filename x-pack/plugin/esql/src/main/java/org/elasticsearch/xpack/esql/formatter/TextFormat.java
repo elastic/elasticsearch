@@ -13,7 +13,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.xcontent.MediaType;
 import org.elasticsearch.xpack.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
-import org.elasticsearch.xpack.ql.util.StringUtils;
+import org.elasticsearch.xpack.qlcore.util.StringUtils;
 
 import java.io.IOException;
 import java.io.Writer;

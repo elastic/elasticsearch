@@ -30,11 +30,11 @@ import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
-import org.elasticsearch.xpack.ql.index.EsIndex;
-import org.elasticsearch.xpack.ql.index.IndexResolution;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.EsField;
-import org.elasticsearch.xpack.ql.util.Queries;
+import org.elasticsearch.xpack.qlcore.index.EsIndex;
+import org.elasticsearch.xpack.qlcore.index.IndexResolution;
+import org.elasticsearch.xpack.qlcore.tree.Source;
+import org.elasticsearch.xpack.qlcore.type.EsField;
+import org.elasticsearch.xpack.qlcore.util.Queries;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -49,10 +49,10 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerialization;
-import static org.elasticsearch.xpack.ql.util.Queries.Clause.FILTER;
-import static org.elasticsearch.xpack.ql.util.Queries.Clause.MUST;
-import static org.elasticsearch.xpack.ql.util.Queries.Clause.SHOULD;
-import static org.elasticsearch.xpack.ql.util.SourceUtils.writeSource;
+import static org.elasticsearch.xpack.qlcore.util.Queries.Clause.FILTER;
+import static org.elasticsearch.xpack.qlcore.util.Queries.Clause.MUST;
+import static org.elasticsearch.xpack.qlcore.util.Queries.Clause.SHOULD;
+import static org.elasticsearch.xpack.qlcore.util.SourceUtils.writeSource;
 import static org.hamcrest.Matchers.nullValue;
 
 public class FilterTests extends ESTestCase {

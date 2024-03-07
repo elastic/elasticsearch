@@ -7,11 +7,11 @@
 
 package org.elasticsearch.xpack.esql.plan.logical;
 
-import org.elasticsearch.xpack.ql.expression.Attribute;
-import org.elasticsearch.xpack.ql.plan.TableIdentifier;
-import org.elasticsearch.xpack.ql.plan.logical.UnresolvedRelation;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.qlcore.expression.Attribute;
+import org.elasticsearch.xpack.qlcore.plan.TableIdentifier;
+import org.elasticsearch.xpack.qlcore.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.qlcore.tree.NodeInfo;
+import org.elasticsearch.xpack.qlcore.tree.Source;
 
 import java.util.List;
 

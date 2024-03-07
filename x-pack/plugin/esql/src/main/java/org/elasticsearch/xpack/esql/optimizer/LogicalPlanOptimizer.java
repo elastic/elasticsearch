@@ -27,46 +27,46 @@ import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.common.Failures;
-import org.elasticsearch.xpack.ql.expression.Alias;
-import org.elasticsearch.xpack.ql.expression.Attribute;
-import org.elasticsearch.xpack.ql.expression.AttributeMap;
-import org.elasticsearch.xpack.ql.expression.AttributeSet;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.ExpressionSet;
-import org.elasticsearch.xpack.ql.expression.Expressions;
-import org.elasticsearch.xpack.ql.expression.Literal;
-import org.elasticsearch.xpack.ql.expression.NamedExpression;
-import org.elasticsearch.xpack.ql.expression.Order;
-import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
-import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
-import org.elasticsearch.xpack.ql.expression.predicate.Predicates;
-import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
-import org.elasticsearch.xpack.ql.expression.predicate.regex.RegexMatch;
-import org.elasticsearch.xpack.ql.optimizer.OptimizerRules;
-import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BinaryComparisonSimplification;
-import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanFunctionEqualsElimination;
-import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.ConstantFolding;
-import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.LiteralsOnTheRight;
-import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PruneLiteralsInOrderBy;
-import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.SetAsOptimized;
-import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.SimplifyComparisonsArithmetics;
-import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
-import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
-import org.elasticsearch.xpack.ql.plan.logical.Filter;
-import org.elasticsearch.xpack.ql.plan.logical.Limit;
-import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
-import org.elasticsearch.xpack.ql.plan.logical.Project;
-import org.elasticsearch.xpack.ql.plan.logical.UnaryPlan;
-import org.elasticsearch.xpack.ql.rule.ParameterizedRule;
-import org.elasticsearch.xpack.ql.rule.ParameterizedRuleExecutor;
-import org.elasticsearch.xpack.ql.rule.Rule;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.elasticsearch.xpack.ql.util.CollectionUtils;
-import org.elasticsearch.xpack.ql.util.Holder;
-import org.elasticsearch.xpack.ql.util.StringUtils;
+import org.elasticsearch.xpack.qlcore.common.Failures;
+import org.elasticsearch.xpack.qlcore.expression.Alias;
+import org.elasticsearch.xpack.qlcore.expression.Attribute;
+import org.elasticsearch.xpack.qlcore.expression.AttributeMap;
+import org.elasticsearch.xpack.qlcore.expression.AttributeSet;
+import org.elasticsearch.xpack.qlcore.expression.Expression;
+import org.elasticsearch.xpack.qlcore.expression.ExpressionSet;
+import org.elasticsearch.xpack.qlcore.expression.Expressions;
+import org.elasticsearch.xpack.qlcore.expression.Literal;
+import org.elasticsearch.xpack.qlcore.expression.NamedExpression;
+import org.elasticsearch.xpack.qlcore.expression.Order;
+import org.elasticsearch.xpack.qlcore.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.qlcore.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.qlcore.expression.predicate.Predicates;
+import org.elasticsearch.xpack.qlcore.expression.predicate.logical.Or;
+import org.elasticsearch.xpack.qlcore.expression.predicate.regex.RegexMatch;
+import org.elasticsearch.xpack.qlcore.optimizer.OptimizerRules;
+import org.elasticsearch.xpack.qlcore.optimizer.OptimizerRules.BinaryComparisonSimplification;
+import org.elasticsearch.xpack.qlcore.optimizer.OptimizerRules.BooleanFunctionEqualsElimination;
+import org.elasticsearch.xpack.qlcore.optimizer.OptimizerRules.ConstantFolding;
+import org.elasticsearch.xpack.qlcore.optimizer.OptimizerRules.LiteralsOnTheRight;
+import org.elasticsearch.xpack.qlcore.optimizer.OptimizerRules.PruneLiteralsInOrderBy;
+import org.elasticsearch.xpack.qlcore.optimizer.OptimizerRules.SetAsOptimized;
+import org.elasticsearch.xpack.qlcore.optimizer.OptimizerRules.SimplifyComparisonsArithmetics;
+import org.elasticsearch.xpack.qlcore.plan.logical.Aggregate;
+import org.elasticsearch.xpack.qlcore.plan.logical.EsRelation;
+import org.elasticsearch.xpack.qlcore.plan.logical.Filter;
+import org.elasticsearch.xpack.qlcore.plan.logical.Limit;
+import org.elasticsearch.xpack.qlcore.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.qlcore.plan.logical.OrderBy;
+import org.elasticsearch.xpack.qlcore.plan.logical.Project;
+import org.elasticsearch.xpack.qlcore.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.qlcore.rule.ParameterizedRule;
+import org.elasticsearch.xpack.qlcore.rule.ParameterizedRuleExecutor;
+import org.elasticsearch.xpack.qlcore.rule.Rule;
+import org.elasticsearch.xpack.qlcore.tree.Source;
+import org.elasticsearch.xpack.qlcore.type.DataTypes;
+import org.elasticsearch.xpack.qlcore.util.CollectionUtils;
+import org.elasticsearch.xpack.qlcore.util.Holder;
+import org.elasticsearch.xpack.qlcore.util.StringUtils;
 
 import java.time.ZoneId;
 import java.util.ArrayList;
@@ -81,11 +81,11 @@ import java.util.function.Predicate;
 import static java.util.Arrays.asList;
 import static java.util.Collections.singleton;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputExpressions;
-import static org.elasticsearch.xpack.ql.expression.Expressions.asAttributes;
-import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.FoldNull;
-import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PropagateEquals;
-import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PropagateNullable;
-import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.TransformDirection;
+import static org.elasticsearch.xpack.qlcore.expression.Expressions.asAttributes;
+import static org.elasticsearch.xpack.qlcore.optimizer.OptimizerRules.FoldNull;
+import static org.elasticsearch.xpack.qlcore.optimizer.OptimizerRules.PropagateEquals;
+import static org.elasticsearch.xpack.qlcore.optimizer.OptimizerRules.PropagateNullable;
+import static org.elasticsearch.xpack.qlcore.optimizer.OptimizerRules.TransformDirection;
 
 public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan, LogicalOptimizerContext> {
 
@@ -683,7 +683,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         }
     }
 
-    private static class BooleanSimplification extends org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanSimplification {
+    private static class BooleanSimplification extends org.elasticsearch.xpack.qlcore.optimizer.OptimizerRules.BooleanSimplification {
 
         BooleanSimplification() {
             super();

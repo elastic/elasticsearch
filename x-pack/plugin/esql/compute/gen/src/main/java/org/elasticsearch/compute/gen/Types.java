@@ -120,7 +120,7 @@ public class Types {
 
     static final ClassName WARNINGS = ClassName.get("org.elasticsearch.xpack.esql.expression.function", "Warnings");
 
-    static final ClassName SOURCE = ClassName.get("org.elasticsearch.xpack.ql.tree", "Source");
+    static final ClassName SOURCE = ClassName.get("org.elasticsearch.xpack.qlcore.tree", "Source");
 
     static final ClassName BYTES_REF = ClassName.get("org.apache.lucene.util", "BytesRef");
 

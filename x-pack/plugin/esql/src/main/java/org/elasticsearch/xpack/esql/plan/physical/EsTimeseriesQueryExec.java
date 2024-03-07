@@ -8,14 +8,14 @@
 package org.elasticsearch.xpack.esql.plan.physical;
 
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.xpack.ql.expression.Attribute;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.FieldAttribute;
-import org.elasticsearch.xpack.ql.index.EsIndex;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.elasticsearch.xpack.ql.type.EsField;
+import org.elasticsearch.xpack.qlcore.expression.Attribute;
+import org.elasticsearch.xpack.qlcore.expression.Expression;
+import org.elasticsearch.xpack.qlcore.expression.FieldAttribute;
+import org.elasticsearch.xpack.qlcore.index.EsIndex;
+import org.elasticsearch.xpack.qlcore.tree.NodeInfo;
+import org.elasticsearch.xpack.qlcore.tree.Source;
+import org.elasticsearch.xpack.qlcore.type.DataTypes;
+import org.elasticsearch.xpack.qlcore.type.EsField;
 
 import java.util.List;
 import java.util.Map;

@@ -152,46 +152,46 @@ import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.RowExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
-import org.elasticsearch.xpack.ql.expression.Alias;
-import org.elasticsearch.xpack.ql.expression.Attribute;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.FieldAttribute;
-import org.elasticsearch.xpack.ql.expression.Literal;
-import org.elasticsearch.xpack.ql.expression.MetadataAttribute;
-import org.elasticsearch.xpack.ql.expression.NamedExpression;
-import org.elasticsearch.xpack.ql.expression.Nullability;
-import org.elasticsearch.xpack.ql.expression.Order;
-import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
-import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
-import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
-import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
-import org.elasticsearch.xpack.ql.expression.predicate.logical.BinaryLogic;
-import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
-import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
-import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNotNull;
-import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNull;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.ArithmeticOperation;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparisonProcessor;
-import org.elasticsearch.xpack.ql.expression.predicate.regex.RLikePattern;
-import org.elasticsearch.xpack.ql.expression.predicate.regex.RegexMatch;
-import org.elasticsearch.xpack.ql.expression.predicate.regex.WildcardPattern;
-import org.elasticsearch.xpack.ql.index.EsIndex;
-import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
-import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
-import org.elasticsearch.xpack.ql.plan.logical.Filter;
-import org.elasticsearch.xpack.ql.plan.logical.Limit;
-import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
-import org.elasticsearch.xpack.ql.plan.logical.Project;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DateEsField;
-import org.elasticsearch.xpack.ql.type.EsField;
-import org.elasticsearch.xpack.ql.type.InvalidMappedField;
-import org.elasticsearch.xpack.ql.type.KeywordEsField;
-import org.elasticsearch.xpack.ql.type.TextEsField;
-import org.elasticsearch.xpack.ql.type.UnsupportedEsField;
+import org.elasticsearch.xpack.qlcore.expression.Alias;
+import org.elasticsearch.xpack.qlcore.expression.Attribute;
+import org.elasticsearch.xpack.qlcore.expression.Expression;
+import org.elasticsearch.xpack.qlcore.expression.FieldAttribute;
+import org.elasticsearch.xpack.qlcore.expression.Literal;
+import org.elasticsearch.xpack.qlcore.expression.MetadataAttribute;
+import org.elasticsearch.xpack.qlcore.expression.NamedExpression;
+import org.elasticsearch.xpack.qlcore.expression.Nullability;
+import org.elasticsearch.xpack.qlcore.expression.Order;
+import org.elasticsearch.xpack.qlcore.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.qlcore.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.qlcore.expression.function.scalar.ScalarFunction;
+import org.elasticsearch.xpack.qlcore.expression.predicate.logical.And;
+import org.elasticsearch.xpack.qlcore.expression.predicate.logical.BinaryLogic;
+import org.elasticsearch.xpack.qlcore.expression.predicate.logical.Not;
+import org.elasticsearch.xpack.qlcore.expression.predicate.logical.Or;
+import org.elasticsearch.xpack.qlcore.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.qlcore.expression.predicate.nulls.IsNull;
+import org.elasticsearch.xpack.qlcore.expression.predicate.operator.arithmetic.ArithmeticOperation;
+import org.elasticsearch.xpack.qlcore.expression.predicate.operator.comparison.BinaryComparison;
+import org.elasticsearch.xpack.qlcore.expression.predicate.operator.comparison.BinaryComparisonProcessor;
+import org.elasticsearch.xpack.qlcore.expression.predicate.regex.RLikePattern;
+import org.elasticsearch.xpack.qlcore.expression.predicate.regex.RegexMatch;
+import org.elasticsearch.xpack.qlcore.expression.predicate.regex.WildcardPattern;
+import org.elasticsearch.xpack.qlcore.index.EsIndex;
+import org.elasticsearch.xpack.qlcore.plan.logical.Aggregate;
+import org.elasticsearch.xpack.qlcore.plan.logical.EsRelation;
+import org.elasticsearch.xpack.qlcore.plan.logical.Filter;
+import org.elasticsearch.xpack.qlcore.plan.logical.Limit;
+import org.elasticsearch.xpack.qlcore.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.qlcore.plan.logical.OrderBy;
+import org.elasticsearch.xpack.qlcore.plan.logical.Project;
+import org.elasticsearch.xpack.qlcore.tree.Source;
+import org.elasticsearch.xpack.qlcore.type.DataType;
+import org.elasticsearch.xpack.qlcore.type.DateEsField;
+import org.elasticsearch.xpack.qlcore.type.EsField;
+import org.elasticsearch.xpack.qlcore.type.InvalidMappedField;
+import org.elasticsearch.xpack.qlcore.type.KeywordEsField;
+import org.elasticsearch.xpack.qlcore.type.TextEsField;
+import org.elasticsearch.xpack.qlcore.type.UnsupportedEsField;
 
 import java.io.IOException;
 import java.util.List;
@@ -206,8 +206,8 @@ import static org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanReader
 import static org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanWriter.writerFromPlanWriter;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.CARTESIAN_POINT;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_POINT;
-import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.CARTESIAN;
-import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.GEO;
+import static org.elasticsearch.xpack.qlcore.util.SpatialCoordinateTypes.CARTESIAN;
+import static org.elasticsearch.xpack.qlcore.util.SpatialCoordinateTypes.GEO;
 
 /**
  * A utility class that consists solely of static methods that describe how to serialize and
@@ -234,8 +234,8 @@ public final class PlanNamedTypes {
         return cls.getSimpleName();
     }
 
-    static final Class<org.elasticsearch.xpack.ql.expression.function.scalar.UnaryScalarFunction> QL_UNARY_SCLR_CLS =
-        org.elasticsearch.xpack.ql.expression.function.scalar.UnaryScalarFunction.class;
+    static final Class<org.elasticsearch.xpack.qlcore.expression.function.scalar.UnaryScalarFunction> QL_UNARY_SCLR_CLS =
+        org.elasticsearch.xpack.qlcore.expression.function.scalar.UnaryScalarFunction.class;
 
     static final Class<UnaryScalarFunction> ESQL_UNARY_SCLR_CLS = UnaryScalarFunction.class;
 
@@ -1307,14 +1307,16 @@ public final class PlanNamedTypes {
 
     static final Map<
         String,
-        BiFunction<Source, Expression, org.elasticsearch.xpack.ql.expression.function.scalar.UnaryScalarFunction>> QL_UNARY_SCALAR_CTRS =
-            Map.ofEntries(
+        BiFunction<
+            Source,
+            Expression,
+            org.elasticsearch.xpack.qlcore.expression.function.scalar.UnaryScalarFunction>> QL_UNARY_SCALAR_CTRS = Map.ofEntries(
                 entry(name(IsNotNull.class), IsNotNull::new),
                 entry(name(IsNull.class), IsNull::new),
                 entry(name(Not.class), Not::new)
             );
 
-    static org.elasticsearch.xpack.ql.expression.function.scalar.UnaryScalarFunction readQLUnaryScalar(PlanStreamInput in, String name)
+    static org.elasticsearch.xpack.qlcore.expression.function.scalar.UnaryScalarFunction readQLUnaryScalar(PlanStreamInput in, String name)
         throws IOException {
         var ctr = QL_UNARY_SCALAR_CTRS.get(name);
         if (ctr == null) {
@@ -1323,8 +1325,10 @@ public final class PlanNamedTypes {
         return ctr.apply(in.readSource(), in.readExpression());
     }
 
-    static void writeQLUnaryScalar(PlanStreamOutput out, org.elasticsearch.xpack.ql.expression.function.scalar.UnaryScalarFunction function)
-        throws IOException {
+    static void writeQLUnaryScalar(
+        PlanStreamOutput out,
+        org.elasticsearch.xpack.qlcore.expression.function.scalar.UnaryScalarFunction function
+    ) throws IOException {
         out.writeSource(function.source());
         out.writeExpression(function.field());
     }

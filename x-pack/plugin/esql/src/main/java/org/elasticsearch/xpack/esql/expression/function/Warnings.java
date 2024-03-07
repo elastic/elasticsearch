@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function;
 
-import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.qlcore.tree.Source;
 
 import static org.elasticsearch.common.logging.HeaderWarning.addWarning;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;

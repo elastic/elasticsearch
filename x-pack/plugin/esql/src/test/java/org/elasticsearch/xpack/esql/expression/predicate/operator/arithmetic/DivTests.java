@@ -12,19 +12,19 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.qlcore.expression.Expression;
+import org.elasticsearch.xpack.qlcore.tree.Source;
+import org.elasticsearch.xpack.qlcore.type.DataType;
+import org.elasticsearch.xpack.qlcore.type.DataTypes;
 
 import java.math.BigInteger;
 import java.util.List;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
-import static org.elasticsearch.xpack.ql.util.NumericUtils.ZERO_AS_UNSIGNED_LONG;
-import static org.elasticsearch.xpack.ql.util.NumericUtils.asLongUnsigned;
-import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsBigInteger;
+import static org.elasticsearch.xpack.qlcore.util.NumericUtils.ZERO_AS_UNSIGNED_LONG;
+import static org.elasticsearch.xpack.qlcore.util.NumericUtils.asLongUnsigned;
+import static org.elasticsearch.xpack.qlcore.util.NumericUtils.unsignedLongAsBigInteger;
 import static org.hamcrest.Matchers.equalTo;
 
 public class DivTests extends AbstractArithmeticTestCase {

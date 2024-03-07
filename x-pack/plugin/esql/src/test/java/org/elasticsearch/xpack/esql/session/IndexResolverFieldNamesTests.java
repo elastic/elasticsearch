@@ -13,8 +13,8 @@ import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import java.util.Collections;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.ql.index.IndexResolver.ALL_FIELDS;
-import static org.elasticsearch.xpack.ql.index.IndexResolver.INDEX_METADATA_FIELD;
+import static org.elasticsearch.xpack.qlcore.index.IndexResolver.ALL_FIELDS;
+import static org.elasticsearch.xpack.qlcore.index.IndexResolver.INDEX_METADATA_FIELD;
 import static org.hamcrest.Matchers.equalTo;
 
 public class IndexResolverFieldNamesTests extends ESTestCase {

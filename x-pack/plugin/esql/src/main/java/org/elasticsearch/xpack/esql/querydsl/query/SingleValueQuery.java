@@ -42,14 +42,14 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.sort.NestedSortBuilder;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.esql.expression.function.Warnings;
-import org.elasticsearch.xpack.ql.querydsl.query.Query;
-import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.qlcore.querydsl.query.Query;
+import org.elasticsearch.xpack.qlcore.tree.Source;
 
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.ql.util.SourceUtils.readSource;
-import static org.elasticsearch.xpack.ql.util.SourceUtils.writeSource;
+import static org.elasticsearch.xpack.qlcore.util.SourceUtils.readSource;
+import static org.elasticsearch.xpack.qlcore.util.SourceUtils.writeSource;
 
 /**
  * Lucene query that wraps another query and only selects documents that match

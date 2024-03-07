@@ -8,8 +8,8 @@
 package org.elasticsearch.xpack.esql.plan.physical;
 
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.qlcore.tree.NodeInfo;
+import org.elasticsearch.xpack.qlcore.tree.Source;
 
 import java.util.function.Consumer;
 

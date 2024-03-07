@@ -11,11 +11,11 @@ import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.AbstractBinaryOperatorTestCase;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.common.Failure;
-import org.elasticsearch.xpack.ql.expression.predicate.BinaryOperator;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.qlcore.common.Failure;
+import org.elasticsearch.xpack.qlcore.expression.predicate.BinaryOperator;
+import org.elasticsearch.xpack.qlcore.expression.predicate.operator.comparison.BinaryComparison;
+import org.elasticsearch.xpack.qlcore.type.DataType;
+import org.elasticsearch.xpack.qlcore.type.DataTypes;
 import org.hamcrest.Matcher;
 
 import java.util.List;

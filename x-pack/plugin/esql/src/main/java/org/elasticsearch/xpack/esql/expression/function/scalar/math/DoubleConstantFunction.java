@@ -7,13 +7,13 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
-import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.qlcore.expression.Expression;
+import org.elasticsearch.xpack.qlcore.expression.function.scalar.ScalarFunction;
+import org.elasticsearch.xpack.qlcore.expression.gen.script.ScriptTemplate;
+import org.elasticsearch.xpack.qlcore.tree.NodeInfo;
+import org.elasticsearch.xpack.qlcore.tree.Source;
+import org.elasticsearch.xpack.qlcore.type.DataType;
+import org.elasticsearch.xpack.qlcore.type.DataTypes;
 
 /**
  * Function that emits constants, like Euler's number.

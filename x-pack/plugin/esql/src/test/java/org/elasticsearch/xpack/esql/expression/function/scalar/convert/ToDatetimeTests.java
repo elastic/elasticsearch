@@ -14,9 +14,9 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateParse;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.qlcore.expression.Expression;
+import org.elasticsearch.xpack.qlcore.tree.Source;
+import org.elasticsearch.xpack.qlcore.type.DataTypes;
 
 import java.math.BigInteger;
 import java.time.Instant;
@@ -66,7 +66,7 @@ public class ToDatetimeTests extends AbstractFunctionTestCase {
             UNSIGNED_LONG_MAX,
             bi -> List.of(
                 "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: org.elasticsearch.xpack.ql.InvalidArgumentException: [" + bi + "] out of [long] range"
+                "Line -1:-1: org.elasticsearch.xpack.qlcore.InvalidArgumentException: [" + bi + "] out of [long] range"
             )
         );
         TestCaseSupplier.forUnaryDouble(
@@ -78,7 +78,7 @@ public class ToDatetimeTests extends AbstractFunctionTestCase {
             -9.223372036854777E18, // a "convenient" value smaller than `(double) Long.MIN_VALUE` (== ...776E18)
             d -> List.of(
                 "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: org.elasticsearch.xpack.ql.InvalidArgumentException: [" + d + "] out of [long] range"
+                "Line -1:-1: org.elasticsearch.xpack.qlcore.InvalidArgumentException: [" + d + "] out of [long] range"
             )
         );
         TestCaseSupplier.forUnaryDouble(
@@ -90,7 +90,7 @@ public class ToDatetimeTests extends AbstractFunctionTestCase {
             Double.POSITIVE_INFINITY,
             d -> List.of(
                 "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: org.elasticsearch.xpack.ql.InvalidArgumentException: [" + d + "] out of [long] range"
+                "Line -1:-1: org.elasticsearch.xpack.qlcore.InvalidArgumentException: [" + d + "] out of [long] range"
             )
         );
         TestCaseSupplier.forUnaryStrings(

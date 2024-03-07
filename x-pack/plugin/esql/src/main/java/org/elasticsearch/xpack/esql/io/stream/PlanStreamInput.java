@@ -17,15 +17,15 @@ import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.expression.Attribute;
-import org.elasticsearch.xpack.ql.expression.AttributeSet;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.NameId;
-import org.elasticsearch.xpack.ql.expression.NamedExpression;
-import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.EsField;
+import org.elasticsearch.xpack.qlcore.expression.Attribute;
+import org.elasticsearch.xpack.qlcore.expression.AttributeSet;
+import org.elasticsearch.xpack.qlcore.expression.Expression;
+import org.elasticsearch.xpack.qlcore.expression.NameId;
+import org.elasticsearch.xpack.qlcore.expression.NamedExpression;
+import org.elasticsearch.xpack.qlcore.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.qlcore.tree.Source;
+import org.elasticsearch.xpack.qlcore.type.DataType;
+import org.elasticsearch.xpack.qlcore.type.EsField;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -35,7 +35,7 @@ import java.util.Map;
 import java.util.function.LongFunction;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.xpack.ql.util.SourceUtils.readSourceWithText;
+import static org.elasticsearch.xpack.qlcore.util.SourceUtils.readSourceWithText;
 
 /**
  * A customized stream input used to deserialize ESQL physical plan fragments. Complements stream

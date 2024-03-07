@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
-import org.elasticsearch.xpack.ql.plan.QueryPlan;
-import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.qlcore.plan.QueryPlan;
+import org.elasticsearch.xpack.qlcore.tree.Source;
 
 import java.util.List;
 

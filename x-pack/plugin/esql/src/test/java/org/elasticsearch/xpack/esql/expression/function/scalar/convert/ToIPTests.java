@@ -15,16 +15,16 @@ import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.qlcore.expression.Expression;
+import org.elasticsearch.xpack.qlcore.tree.Source;
+import org.elasticsearch.xpack.qlcore.type.DataTypes;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
-import static org.elasticsearch.xpack.ql.util.StringUtils.parseIP;
+import static org.elasticsearch.xpack.qlcore.util.StringUtils.parseIP;
 
 public class ToIPTests extends AbstractFunctionTestCase {
     public ToIPTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {

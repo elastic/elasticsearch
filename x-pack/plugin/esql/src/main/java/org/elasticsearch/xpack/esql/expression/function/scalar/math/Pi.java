@@ -8,8 +8,8 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.qlcore.expression.Expression;
+import org.elasticsearch.xpack.qlcore.tree.Source;
 
 import java.util.List;
 

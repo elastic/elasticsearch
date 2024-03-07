@@ -8,12 +8,12 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.qlcore.expression.Expression;
+import org.elasticsearch.xpack.qlcore.tree.Source;
+import org.elasticsearch.xpack.qlcore.type.DataType;
+import org.elasticsearch.xpack.qlcore.type.DataTypes;
 
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.qlcore.expression.TypeResolutions.isType;
 
 public abstract class RationalUnaryPredicate extends UnaryScalarFunction {
     public RationalUnaryPredicate(Source source, Expression field) {

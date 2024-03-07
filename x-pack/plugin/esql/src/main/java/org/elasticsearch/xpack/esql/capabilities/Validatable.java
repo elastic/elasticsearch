@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.esql.capabilities;
 
-import org.elasticsearch.xpack.ql.common.Failures;
+import org.elasticsearch.xpack.qlcore.common.Failures;
 
 /**
  * Interface implemented by expressions that require validation post logical optimization,

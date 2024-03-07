@@ -15,17 +15,17 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.ql.index.EsIndex;
-import org.elasticsearch.xpack.ql.index.IndexResolution;
-import org.elasticsearch.xpack.ql.index.IndexResolver;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypeRegistry;
-import org.elasticsearch.xpack.ql.type.DateEsField;
-import org.elasticsearch.xpack.ql.type.EsField;
-import org.elasticsearch.xpack.ql.type.InvalidMappedField;
-import org.elasticsearch.xpack.ql.type.KeywordEsField;
-import org.elasticsearch.xpack.ql.type.TextEsField;
-import org.elasticsearch.xpack.ql.type.UnsupportedEsField;
+import org.elasticsearch.xpack.qlcore.index.EsIndex;
+import org.elasticsearch.xpack.qlcore.index.IndexResolution;
+import org.elasticsearch.xpack.qlcore.index.IndexResolver;
+import org.elasticsearch.xpack.qlcore.type.DataType;
+import org.elasticsearch.xpack.qlcore.type.DataTypeRegistry;
+import org.elasticsearch.xpack.qlcore.type.DateEsField;
+import org.elasticsearch.xpack.qlcore.type.EsField;
+import org.elasticsearch.xpack.qlcore.type.InvalidMappedField;
+import org.elasticsearch.xpack.qlcore.type.KeywordEsField;
+import org.elasticsearch.xpack.qlcore.type.TextEsField;
+import org.elasticsearch.xpack.qlcore.type.UnsupportedEsField;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -37,11 +37,11 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 
-import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
-import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
-import static org.elasticsearch.xpack.ql.type.DataTypes.OBJECT;
-import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
-import static org.elasticsearch.xpack.ql.type.DataTypes.UNSUPPORTED;
+import static org.elasticsearch.xpack.qlcore.type.DataTypes.DATETIME;
+import static org.elasticsearch.xpack.qlcore.type.DataTypes.KEYWORD;
+import static org.elasticsearch.xpack.qlcore.type.DataTypes.OBJECT;
+import static org.elasticsearch.xpack.qlcore.type.DataTypes.TEXT;
+import static org.elasticsearch.xpack.qlcore.type.DataTypes.UNSUPPORTED;
 
 public class EsqlIndexResolver {
     private final Client client;

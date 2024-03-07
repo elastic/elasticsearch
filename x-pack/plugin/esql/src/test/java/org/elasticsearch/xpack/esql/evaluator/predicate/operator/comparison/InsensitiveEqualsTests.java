@@ -9,11 +9,11 @@ package org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison;
 
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ql.TestUtils;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Literal;
+import org.elasticsearch.xpack.qlcore.TestUtils;
+import org.elasticsearch.xpack.qlcore.expression.Expression;
+import org.elasticsearch.xpack.qlcore.expression.Literal;
 
-import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
+import static org.elasticsearch.xpack.qlcore.tree.Source.EMPTY;
 
 public class InsensitiveEqualsTests extends ESTestCase {
 

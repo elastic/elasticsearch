@@ -22,22 +22,22 @@ import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec.StatsType;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.capabilities.UnresolvedException;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.FieldAttribute;
-import org.elasticsearch.xpack.ql.expression.Literal;
-import org.elasticsearch.xpack.ql.expression.Order;
-import org.elasticsearch.xpack.ql.expression.UnresolvedAlias;
-import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
-import org.elasticsearch.xpack.ql.expression.UnresolvedNamedExpression;
-import org.elasticsearch.xpack.ql.expression.UnresolvedStar;
-import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
-import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.ql.tree.Node;
-import org.elasticsearch.xpack.ql.tree.NodeSubclassTests;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.EsField;
+import org.elasticsearch.xpack.qlcore.capabilities.UnresolvedException;
+import org.elasticsearch.xpack.qlcore.expression.Expression;
+import org.elasticsearch.xpack.qlcore.expression.FieldAttribute;
+import org.elasticsearch.xpack.qlcore.expression.Literal;
+import org.elasticsearch.xpack.qlcore.expression.Order;
+import org.elasticsearch.xpack.qlcore.expression.UnresolvedAlias;
+import org.elasticsearch.xpack.qlcore.expression.UnresolvedAttribute;
+import org.elasticsearch.xpack.qlcore.expression.UnresolvedNamedExpression;
+import org.elasticsearch.xpack.qlcore.expression.UnresolvedStar;
+import org.elasticsearch.xpack.qlcore.expression.function.UnresolvedFunction;
+import org.elasticsearch.xpack.qlcore.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.qlcore.tree.Node;
+import org.elasticsearch.xpack.qlcore.tree.NodeSubclassTests;
+import org.elasticsearch.xpack.qlcore.tree.Source;
+import org.elasticsearch.xpack.qlcore.type.DataType;
+import org.elasticsearch.xpack.qlcore.type.EsField;
 
 import java.io.IOException;
 import java.lang.reflect.Modifier;
@@ -114,7 +114,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         return CLASSES_WITH_MIN_TWO_CHILDREN.stream().anyMatch(toBuildClass::equals);
     }
 
-    static final Predicate<String> CLASSNAME_FILTER = className -> (className.startsWith("org.elasticsearch.xpack.ql") != false
+    static final Predicate<String> CLASSNAME_FILTER = className -> (className.startsWith("org.elasticsearch.xpack.qlcore.") != false
         || className.startsWith("org.elasticsearch.xpack.esql") != false);
 
     @Override

@@ -10,13 +10,13 @@ package org.elasticsearch.xpack.esql.plan.logical.show;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
-import org.elasticsearch.xpack.ql.expression.Attribute;
-import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
-import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
-import org.elasticsearch.xpack.ql.plan.logical.LeafPlan;
-import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.qlcore.expression.Attribute;
+import org.elasticsearch.xpack.qlcore.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.qlcore.expression.function.FunctionRegistry;
+import org.elasticsearch.xpack.qlcore.plan.logical.LeafPlan;
+import org.elasticsearch.xpack.qlcore.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.qlcore.tree.NodeInfo;
+import org.elasticsearch.xpack.qlcore.tree.Source;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -25,8 +25,8 @@ import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
-import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
+import static org.elasticsearch.xpack.qlcore.type.DataTypes.BOOLEAN;
+import static org.elasticsearch.xpack.qlcore.type.DataTypes.KEYWORD;
 
 public class ShowFunctions extends LeafPlan {
 

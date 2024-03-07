@@ -20,7 +20,7 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.esql.TestBlockFactory;
 import org.elasticsearch.xpack.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
-import org.elasticsearch.xpack.ql.util.StringUtils;
+import org.elasticsearch.xpack.qlcore.util.StringUtils;
 
 import java.io.IOException;
 import java.io.StringWriter;
@@ -37,8 +37,8 @@ import static org.elasticsearch.rest.RestResponseUtils.getTextBodyContent;
 import static org.elasticsearch.xpack.esql.formatter.TextFormat.CSV;
 import static org.elasticsearch.xpack.esql.formatter.TextFormat.PLAIN_TEXT;
 import static org.elasticsearch.xpack.esql.formatter.TextFormat.TSV;
-import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.CARTESIAN;
-import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.GEO;
+import static org.elasticsearch.xpack.qlcore.util.SpatialCoordinateTypes.CARTESIAN;
+import static org.elasticsearch.xpack.qlcore.util.SpatialCoordinateTypes.GEO;
 
 public class TextFormatTests extends ESTestCase {
 

@@ -27,14 +27,14 @@ import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.InMa
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.InsensitiveEqualsMapper;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.regex.RegexMapper;
 import org.elasticsearch.xpack.esql.planner.Layout;
-import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
-import org.elasticsearch.xpack.ql.expression.Attribute;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Literal;
-import org.elasticsearch.xpack.ql.expression.predicate.logical.BinaryLogic;
-import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
-import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNotNull;
-import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNull;
+import org.elasticsearch.xpack.qlcore.QlIllegalArgumentException;
+import org.elasticsearch.xpack.qlcore.expression.Attribute;
+import org.elasticsearch.xpack.qlcore.expression.Expression;
+import org.elasticsearch.xpack.qlcore.expression.Literal;
+import org.elasticsearch.xpack.qlcore.expression.predicate.logical.BinaryLogic;
+import org.elasticsearch.xpack.qlcore.expression.predicate.logical.Not;
+import org.elasticsearch.xpack.qlcore.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.qlcore.expression.predicate.nulls.IsNull;
 
 import java.util.List;
 

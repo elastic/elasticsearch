@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.esql.evaluator.mapper;
 
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.planner.Layout;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.util.ReflectionUtils;
+import org.elasticsearch.xpack.qlcore.expression.Expression;
+import org.elasticsearch.xpack.qlcore.util.ReflectionUtils;
 
 public abstract class ExpressionMapper<E extends Expression> {
     public final Class<E> typeToken;

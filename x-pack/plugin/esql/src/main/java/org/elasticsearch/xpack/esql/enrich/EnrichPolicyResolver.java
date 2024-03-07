@@ -40,10 +40,10 @@ import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.session.EsqlSession;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.index.EsIndex;
-import org.elasticsearch.xpack.ql.index.IndexResolver;
-import org.elasticsearch.xpack.ql.type.EsField;
-import org.elasticsearch.xpack.ql.util.StringUtils;
+import org.elasticsearch.xpack.qlcore.index.EsIndex;
+import org.elasticsearch.xpack.qlcore.index.IndexResolver;
+import org.elasticsearch.xpack.qlcore.type.EsField;
+import org.elasticsearch.xpack.qlcore.util.StringUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;

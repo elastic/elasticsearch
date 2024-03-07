@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.esql.planner;
 
-import org.elasticsearch.xpack.ql.expression.NameId;
+import org.elasticsearch.xpack.qlcore.expression.NameId;
 
 import java.util.HashMap;
 import java.util.List;

@@ -8,9 +8,9 @@
 package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.expression.predicate.BinaryOperator;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.qlcore.expression.predicate.BinaryOperator;
+import org.elasticsearch.xpack.qlcore.type.DataType;
+import org.elasticsearch.xpack.qlcore.type.DataTypes;
 import org.hamcrest.Matcher;
 
 import java.time.Duration;
@@ -21,8 +21,8 @@ import java.util.Locale;
 
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isNullOrTemporalAmount;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isTemporalAmount;
-import static org.elasticsearch.xpack.ql.type.DataTypes.isDateTime;
-import static org.elasticsearch.xpack.ql.type.DataTypes.isNull;
+import static org.elasticsearch.xpack.qlcore.type.DataTypes.isDateTime;
+import static org.elasticsearch.xpack.qlcore.type.DataTypes.isNull;
 import static org.hamcrest.Matchers.equalTo;
 
 public abstract class AbstractDateTimeArithmeticTestCase extends AbstractArithmeticTestCase {

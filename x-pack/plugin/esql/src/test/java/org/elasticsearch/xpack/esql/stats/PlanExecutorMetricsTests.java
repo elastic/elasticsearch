@@ -25,7 +25,7 @@ import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.session.EsqlIndexResolver;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
-import org.elasticsearch.xpack.ql.index.IndexResolver;
+import org.elasticsearch.xpack.qlcore.index.IndexResolver;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.stubbing.Answer;

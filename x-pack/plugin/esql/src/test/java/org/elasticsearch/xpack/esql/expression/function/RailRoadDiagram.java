@@ -20,7 +20,7 @@ import net.nextencia.rrdiagram.grammar.rrdiagram.RRElement;
 import net.nextencia.rrdiagram.grammar.rrdiagram.RRText;
 
 import org.elasticsearch.common.util.LazyInitializable;
-import org.elasticsearch.xpack.ql.expression.function.FunctionDefinition;
+import org.elasticsearch.xpack.qlcore.expression.function.FunctionDefinition;
 
 import java.awt.Font;
 import java.awt.FontFormatException;

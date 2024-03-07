@@ -13,9 +13,9 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.qlcore.expression.Expression;
+import org.elasticsearch.xpack.qlcore.tree.Source;
+import org.elasticsearch.xpack.qlcore.type.DataTypes;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -24,8 +24,8 @@ import java.util.List;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.xpack.ql.type.DataTypeConverter.safeToUnsignedLong;
-import static org.elasticsearch.xpack.ql.util.NumericUtils.UNSIGNED_LONG_MAX_AS_DOUBLE;
+import static org.elasticsearch.xpack.qlcore.type.DataTypeConverter.safeToUnsignedLong;
+import static org.elasticsearch.xpack.qlcore.util.NumericUtils.UNSIGNED_LONG_MAX_AS_DOUBLE;
 
 public class ToUnsignedLongTests extends AbstractFunctionTestCase {
     public ToUnsignedLongTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
@@ -96,7 +96,7 @@ public class ToUnsignedLongTests extends AbstractFunctionTestCase {
             -1d,
             d -> List.of(
                 "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: org.elasticsearch.xpack.ql.InvalidArgumentException: [" + d + "] out of [unsigned_long] range"
+                "Line -1:-1: org.elasticsearch.xpack.qlcore.InvalidArgumentException: [" + d + "] out of [unsigned_long] range"
             )
         );
         // from doubles outside Long's range, positive
@@ -109,7 +109,7 @@ public class ToUnsignedLongTests extends AbstractFunctionTestCase {
             Double.POSITIVE_INFINITY,
             d -> List.of(
                 "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: org.elasticsearch.xpack.ql.InvalidArgumentException: [" + d + "] out of [unsigned_long] range"
+                "Line -1:-1: org.elasticsearch.xpack.qlcore.InvalidArgumentException: [" + d + "] out of [unsigned_long] range"
             )
         );
 
@@ -133,7 +133,7 @@ public class ToUnsignedLongTests extends AbstractFunctionTestCase {
             -1L,
             l -> List.of(
                 "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: org.elasticsearch.xpack.ql.InvalidArgumentException: [" + l + "] out of [unsigned_long] range"
+                "Line -1:-1: org.elasticsearch.xpack.qlcore.InvalidArgumentException: [" + l + "] out of [unsigned_long] range"
             )
         );
 
@@ -157,7 +157,7 @@ public class ToUnsignedLongTests extends AbstractFunctionTestCase {
             -1,
             l -> List.of(
                 "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: org.elasticsearch.xpack.ql.InvalidArgumentException: [" + l + "] out of [unsigned_long] range"
+                "Line -1:-1: org.elasticsearch.xpack.qlcore.InvalidArgumentException: [" + l + "] out of [unsigned_long] range"
             )
         );
 
@@ -215,7 +215,7 @@ public class ToUnsignedLongTests extends AbstractFunctionTestCase {
             bytesRef -> null,
             bytesRef -> List.of(
                 "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: org.elasticsearch.xpack.ql.InvalidArgumentException: ["
+                "Line -1:-1: org.elasticsearch.xpack.qlcore.InvalidArgumentException: ["
                     + ((BytesRef) bytesRef).utf8ToString()
                     + "] out of [unsigned_long] range"
             )
@@ -238,7 +238,7 @@ public class ToUnsignedLongTests extends AbstractFunctionTestCase {
             bytesRef -> null,
             bytesRef -> List.of(
                 "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: org.elasticsearch.xpack.ql.InvalidArgumentException: ["
+                "Line -1:-1: org.elasticsearch.xpack.qlcore.InvalidArgumentException: ["
                     + ((BytesRef) bytesRef).utf8ToString()
                     + "] out of [unsigned_long] range"
             )

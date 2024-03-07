@@ -8,17 +8,17 @@
 package org.elasticsearch.xpack.esql.expression;
 
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.FieldAttribute;
-import org.elasticsearch.xpack.ql.expression.TypeResolutions;
-import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.elasticsearch.xpack.ql.type.EsField;
+import org.elasticsearch.xpack.qlcore.expression.Expression;
+import org.elasticsearch.xpack.qlcore.expression.FieldAttribute;
+import org.elasticsearch.xpack.qlcore.expression.TypeResolutions;
+import org.elasticsearch.xpack.qlcore.type.DataTypes;
+import org.elasticsearch.xpack.qlcore.type.EsField;
 
 import java.util.Locale;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.DEFAULT;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.qlcore.expression.TypeResolutions.ParamOrdinal.DEFAULT;
+import static org.elasticsearch.xpack.qlcore.expression.TypeResolutions.isType;
 
 public class EsqlTypeResolutions {
 

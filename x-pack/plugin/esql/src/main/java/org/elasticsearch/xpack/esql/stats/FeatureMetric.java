@@ -18,11 +18,11 @@ import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowFunctions;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
-import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
-import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
-import org.elasticsearch.xpack.ql.plan.logical.Filter;
-import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
+import org.elasticsearch.xpack.qlcore.plan.logical.Aggregate;
+import org.elasticsearch.xpack.qlcore.plan.logical.EsRelation;
+import org.elasticsearch.xpack.qlcore.plan.logical.Filter;
+import org.elasticsearch.xpack.qlcore.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.qlcore.plan.logical.OrderBy;
 
 import java.util.BitSet;
 import java.util.Locale;

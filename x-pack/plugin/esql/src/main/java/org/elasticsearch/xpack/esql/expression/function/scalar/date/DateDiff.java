@@ -14,13 +14,13 @@ import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
-import org.elasticsearch.xpack.ql.InvalidArgumentException;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.function.OptionalArgument;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.qlcore.InvalidArgumentException;
+import org.elasticsearch.xpack.qlcore.expression.Expression;
+import org.elasticsearch.xpack.qlcore.expression.function.OptionalArgument;
+import org.elasticsearch.xpack.qlcore.tree.NodeInfo;
+import org.elasticsearch.xpack.qlcore.tree.Source;
+import org.elasticsearch.xpack.qlcore.type.DataType;
+import org.elasticsearch.xpack.qlcore.type.DataTypes;
 
 import java.time.Instant;
 import java.time.ZoneId;
@@ -35,12 +35,12 @@ import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.THIRD;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isDate;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
-import static org.elasticsearch.xpack.ql.type.DataTypeConverter.safeToInt;
+import static org.elasticsearch.xpack.qlcore.expression.TypeResolutions.ParamOrdinal.FIRST;
+import static org.elasticsearch.xpack.qlcore.expression.TypeResolutions.ParamOrdinal.SECOND;
+import static org.elasticsearch.xpack.qlcore.expression.TypeResolutions.ParamOrdinal.THIRD;
+import static org.elasticsearch.xpack.qlcore.expression.TypeResolutions.isDate;
+import static org.elasticsearch.xpack.qlcore.expression.TypeResolutions.isString;
+import static org.elasticsearch.xpack.qlcore.type.DataTypeConverter.safeToInt;
 
 /**
  * Subtract the second argument from the third argument and return their difference

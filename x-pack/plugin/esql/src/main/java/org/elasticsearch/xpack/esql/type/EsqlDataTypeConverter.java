@@ -10,12 +10,12 @@ package org.elasticsearch.xpack.esql.type;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
-import org.elasticsearch.xpack.ql.InvalidArgumentException;
-import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.Converter;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypeConverter;
+import org.elasticsearch.xpack.qlcore.InvalidArgumentException;
+import org.elasticsearch.xpack.qlcore.QlIllegalArgumentException;
+import org.elasticsearch.xpack.qlcore.tree.Source;
+import org.elasticsearch.xpack.qlcore.type.Converter;
+import org.elasticsearch.xpack.qlcore.type.DataType;
+import org.elasticsearch.xpack.qlcore.type.DataTypeConverter;
 
 import java.io.IOException;
 import java.time.Duration;
@@ -23,11 +23,11 @@ import java.time.Period;
 import java.time.temporal.TemporalAmount;
 import java.util.function.Function;
 
-import static org.elasticsearch.xpack.ql.type.DataTypeConverter.safeToInt;
-import static org.elasticsearch.xpack.ql.type.DataTypeConverter.safeToLong;
-import static org.elasticsearch.xpack.ql.type.DataTypes.NULL;
-import static org.elasticsearch.xpack.ql.type.DataTypes.isPrimitive;
-import static org.elasticsearch.xpack.ql.type.DataTypes.isString;
+import static org.elasticsearch.xpack.qlcore.type.DataTypeConverter.safeToInt;
+import static org.elasticsearch.xpack.qlcore.type.DataTypeConverter.safeToLong;
+import static org.elasticsearch.xpack.qlcore.type.DataTypes.NULL;
+import static org.elasticsearch.xpack.qlcore.type.DataTypes.isPrimitive;
+import static org.elasticsearch.xpack.qlcore.type.DataTypes.isString;
 
 public class EsqlDataTypeConverter {
 

@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsqlUnresolvedRelation;
-import org.elasticsearch.xpack.ql.analyzer.TableInfo;
-import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.qlcore.analyzer.TableInfo;
+import org.elasticsearch.xpack.qlcore.plan.logical.LogicalPlan;
 
 import java.util.ArrayList;
 import java.util.List;

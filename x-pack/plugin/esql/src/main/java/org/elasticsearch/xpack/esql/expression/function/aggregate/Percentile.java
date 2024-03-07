@@ -13,18 +13,18 @@ import org.elasticsearch.compute.aggregation.PercentileIntAggregatorFunctionSupp
 import org.elasticsearch.compute.aggregation.PercentileLongAggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.qlcore.expression.Expression;
+import org.elasticsearch.xpack.qlcore.tree.NodeInfo;
+import org.elasticsearch.xpack.qlcore.tree.Source;
+import org.elasticsearch.xpack.qlcore.type.DataTypes;
 
 import java.util.List;
 
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isFoldable;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.qlcore.expression.TypeResolutions.ParamOrdinal.FIRST;
+import static org.elasticsearch.xpack.qlcore.expression.TypeResolutions.ParamOrdinal.SECOND;
+import static org.elasticsearch.xpack.qlcore.expression.TypeResolutions.isFoldable;
+import static org.elasticsearch.xpack.qlcore.expression.TypeResolutions.isNumeric;
+import static org.elasticsearch.xpack.qlcore.expression.TypeResolutions.isType;
 
 public class Percentile extends NumericAggregate {
     private final Expression percentile;

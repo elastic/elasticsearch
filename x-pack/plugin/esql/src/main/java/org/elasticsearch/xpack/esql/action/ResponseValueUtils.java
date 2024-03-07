@@ -38,12 +38,12 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.ql.util.DateUtils.UTC_DATE_TIME_FORMATTER;
-import static org.elasticsearch.xpack.ql.util.NumericUtils.asLongUnsigned;
-import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsNumber;
-import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.CARTESIAN;
-import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.GEO;
-import static org.elasticsearch.xpack.ql.util.StringUtils.parseIP;
+import static org.elasticsearch.xpack.qlcore.util.DateUtils.UTC_DATE_TIME_FORMATTER;
+import static org.elasticsearch.xpack.qlcore.util.NumericUtils.asLongUnsigned;
+import static org.elasticsearch.xpack.qlcore.util.NumericUtils.unsignedLongAsNumber;
+import static org.elasticsearch.xpack.qlcore.util.SpatialCoordinateTypes.CARTESIAN;
+import static org.elasticsearch.xpack.qlcore.util.SpatialCoordinateTypes.GEO;
+import static org.elasticsearch.xpack.qlcore.util.StringUtils.parseIP;
 
 /**
  * Collection of static utility methods for helping transform response data between pages and values.

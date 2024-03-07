@@ -92,9 +92,9 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToLower;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToUpper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Trim;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowFunctions;
-import org.elasticsearch.xpack.ql.expression.function.FunctionDefinition;
-import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
-import org.elasticsearch.xpack.ql.session.Configuration;
+import org.elasticsearch.xpack.qlcore.expression.function.FunctionDefinition;
+import org.elasticsearch.xpack.qlcore.expression.function.FunctionRegistry;
+import org.elasticsearch.xpack.qlcore.session.Configuration;
 
 import java.lang.reflect.Constructor;
 import java.util.ArrayList;

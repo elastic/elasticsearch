@@ -23,9 +23,9 @@ import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestResponseUtils.getTextBodyContent;
-import static org.elasticsearch.xpack.ql.util.DateUtils.UTC_DATE_TIME_FORMATTER;
-import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.CARTESIAN;
-import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.GEO;
+import static org.elasticsearch.xpack.qlcore.util.DateUtils.UTC_DATE_TIME_FORMATTER;
+import static org.elasticsearch.xpack.qlcore.util.SpatialCoordinateTypes.CARTESIAN;
+import static org.elasticsearch.xpack.qlcore.util.SpatialCoordinateTypes.GEO;
 import static org.hamcrest.Matchers.arrayWithSize;
 
 public class TextFormatterTests extends ESTestCase {

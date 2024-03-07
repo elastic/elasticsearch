@@ -32,17 +32,17 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.expression.AttributeSet;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.FieldAttribute;
-import org.elasticsearch.xpack.ql.expression.predicate.Predicates;
-import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
-import org.elasticsearch.xpack.ql.plan.logical.Filter;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.elasticsearch.xpack.ql.util.Holder;
-import org.elasticsearch.xpack.ql.util.Queries;
+import org.elasticsearch.xpack.qlcore.expression.AttributeSet;
+import org.elasticsearch.xpack.qlcore.expression.Expression;
+import org.elasticsearch.xpack.qlcore.expression.FieldAttribute;
+import org.elasticsearch.xpack.qlcore.expression.predicate.Predicates;
+import org.elasticsearch.xpack.qlcore.plan.logical.EsRelation;
+import org.elasticsearch.xpack.qlcore.plan.logical.Filter;
+import org.elasticsearch.xpack.qlcore.tree.Source;
+import org.elasticsearch.xpack.qlcore.type.DataType;
+import org.elasticsearch.xpack.qlcore.type.DataTypes;
+import org.elasticsearch.xpack.qlcore.util.Holder;
+import org.elasticsearch.xpack.qlcore.util.Queries;
 
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -54,7 +54,7 @@ import static java.util.Arrays.asList;
 import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.DOC_VALUES;
 import static org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizer.PushFiltersToSource.canPushToSource;
 import static org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizer.TRANSLATOR_HANDLER;
-import static org.elasticsearch.xpack.ql.util.Queries.Clause.FILTER;
+import static org.elasticsearch.xpack.qlcore.util.Queries.Clause.FILTER;
 
 public class PlannerUtils {
 

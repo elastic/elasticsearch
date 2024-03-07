@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.esql;
 
-import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
-import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.qlcore.QlIllegalArgumentException;
+import org.elasticsearch.xpack.qlcore.type.DataType;
 
 public class EsqlIllegalArgumentException extends QlIllegalArgumentException {
     public EsqlIllegalArgumentException(String message, Throwable cause, boolean enableSuppression, boolean writableStackTrace) {

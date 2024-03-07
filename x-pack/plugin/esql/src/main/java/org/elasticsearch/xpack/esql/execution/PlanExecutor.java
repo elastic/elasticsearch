@@ -22,8 +22,8 @@ import org.elasticsearch.xpack.esql.session.EsqlIndexResolver;
 import org.elasticsearch.xpack.esql.session.EsqlSession;
 import org.elasticsearch.xpack.esql.stats.Metrics;
 import org.elasticsearch.xpack.esql.stats.QueryMetric;
-import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
-import org.elasticsearch.xpack.ql.index.IndexResolver;
+import org.elasticsearch.xpack.qlcore.expression.function.FunctionRegistry;
+import org.elasticsearch.xpack.qlcore.index.IndexResolver;
 
 import static org.elasticsearch.action.ActionListener.wrap;
 

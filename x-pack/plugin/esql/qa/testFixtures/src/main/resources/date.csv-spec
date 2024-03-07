@@ -185,7 +185,7 @@ string:keyword                                          |datetime:date
 convertFromUnsignedLong#[skip:-8.11.99, reason:ql exceptions were updated in 8.12]
 row ul = [9223372036854775808, 520128000000] | eval dt = to_datetime(ul);
 warning:Line 1:58: evaluation of [to_datetime(ul)] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:58: org.elasticsearch.xpack.ql.InvalidArgumentException: [9223372036854775808] out of [long] range
+warning:Line 1:58: org.elasticsearch.xpack.qlcore.InvalidArgumentException: [9223372036854775808] out of [long] range
 
                 ul:ul              |           dt:date
 [9223372036854775808, 520128000000]|1986-06-26T00:00:00.000Z
@@ -456,7 +456,7 @@ ROW date1=to_datetime("2023-12-02T11:00:00.000Z"), date2=to_datetime("2023-12-23
 | keep dd_oo
 ;
 warning: Line 2:14: evaluation of [date_diff(\"nanoseconds\", date1, date2)] failed, treating result as null. Only first 20 failures recorded.
-warning: Line 2:14: org.elasticsearch.xpack.ql.InvalidArgumentException: [1814400000000000] out of [integer] range
+warning: Line 2:14: org.elasticsearch.xpack.qlcore.InvalidArgumentException: [1814400000000000] out of [integer] range
 
 dd_oo:integer
 null

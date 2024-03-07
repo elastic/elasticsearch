@@ -8,13 +8,13 @@
 package org.elasticsearch.xpack.esql.expression;
 
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
-import org.elasticsearch.xpack.ql.capabilities.UnresolvedException;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Nullability;
-import org.elasticsearch.xpack.ql.expression.UnresolvedNamedExpression;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.util.CollectionUtils;
+import org.elasticsearch.xpack.qlcore.capabilities.UnresolvedException;
+import org.elasticsearch.xpack.qlcore.expression.Expression;
+import org.elasticsearch.xpack.qlcore.expression.Nullability;
+import org.elasticsearch.xpack.qlcore.expression.UnresolvedNamedExpression;
+import org.elasticsearch.xpack.qlcore.tree.NodeInfo;
+import org.elasticsearch.xpack.qlcore.tree.Source;
+import org.elasticsearch.xpack.qlcore.util.CollectionUtils;
 
 import java.util.List;
 import java.util.Objects;

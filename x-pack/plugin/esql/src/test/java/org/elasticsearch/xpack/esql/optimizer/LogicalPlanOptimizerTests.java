@@ -57,35 +57,35 @@ import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
-import org.elasticsearch.xpack.ql.expression.Alias;
-import org.elasticsearch.xpack.ql.expression.Attribute;
-import org.elasticsearch.xpack.ql.expression.AttributeSet;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Expressions;
-import org.elasticsearch.xpack.ql.expression.FieldAttribute;
-import org.elasticsearch.xpack.ql.expression.Literal;
-import org.elasticsearch.xpack.ql.expression.NamedExpression;
-import org.elasticsearch.xpack.ql.expression.Nullability;
-import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
-import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
-import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
-import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
-import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNotNull;
-import org.elasticsearch.xpack.ql.expression.predicate.regex.RLikePattern;
-import org.elasticsearch.xpack.ql.expression.predicate.regex.WildcardPattern;
-import org.elasticsearch.xpack.ql.index.EsIndex;
-import org.elasticsearch.xpack.ql.index.IndexResolution;
-import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
-import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
-import org.elasticsearch.xpack.ql.plan.logical.Filter;
-import org.elasticsearch.xpack.ql.plan.logical.Limit;
-import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
-import org.elasticsearch.xpack.ql.plan.logical.Project;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.elasticsearch.xpack.ql.type.EsField;
+import org.elasticsearch.xpack.qlcore.expression.Alias;
+import org.elasticsearch.xpack.qlcore.expression.Attribute;
+import org.elasticsearch.xpack.qlcore.expression.AttributeSet;
+import org.elasticsearch.xpack.qlcore.expression.Expression;
+import org.elasticsearch.xpack.qlcore.expression.Expressions;
+import org.elasticsearch.xpack.qlcore.expression.FieldAttribute;
+import org.elasticsearch.xpack.qlcore.expression.Literal;
+import org.elasticsearch.xpack.qlcore.expression.NamedExpression;
+import org.elasticsearch.xpack.qlcore.expression.Nullability;
+import org.elasticsearch.xpack.qlcore.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.qlcore.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.qlcore.expression.predicate.logical.And;
+import org.elasticsearch.xpack.qlcore.expression.predicate.logical.Or;
+import org.elasticsearch.xpack.qlcore.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.qlcore.expression.predicate.regex.RLikePattern;
+import org.elasticsearch.xpack.qlcore.expression.predicate.regex.WildcardPattern;
+import org.elasticsearch.xpack.qlcore.index.EsIndex;
+import org.elasticsearch.xpack.qlcore.index.IndexResolution;
+import org.elasticsearch.xpack.qlcore.plan.logical.Aggregate;
+import org.elasticsearch.xpack.qlcore.plan.logical.EsRelation;
+import org.elasticsearch.xpack.qlcore.plan.logical.Filter;
+import org.elasticsearch.xpack.qlcore.plan.logical.Limit;
+import org.elasticsearch.xpack.qlcore.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.qlcore.plan.logical.OrderBy;
+import org.elasticsearch.xpack.qlcore.plan.logical.Project;
+import org.elasticsearch.xpack.qlcore.tree.Source;
+import org.elasticsearch.xpack.qlcore.type.DataType;
+import org.elasticsearch.xpack.qlcore.type.DataTypes;
+import org.elasticsearch.xpack.qlcore.type.EsField;
 import org.junit.BeforeClass;
 
 import java.util.List;
@@ -106,9 +106,9 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.localSource;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.NO_FIELDS;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_POINT;
-import static org.elasticsearch.xpack.ql.TestUtils.relation;
-import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
-import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
+import static org.elasticsearch.xpack.qlcore.TestUtils.relation;
+import static org.elasticsearch.xpack.qlcore.tree.Source.EMPTY;
+import static org.elasticsearch.xpack.qlcore.type.DataTypes.INTEGER;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -463,7 +463,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
     public void testPushDownLikeRlikeFilter() {
         EsRelation relation = relation();
-        org.elasticsearch.xpack.ql.expression.predicate.regex.RLike conditionA = rlike(getFieldAttribute("a"), "foo");
+        org.elasticsearch.xpack.qlcore.expression.predicate.regex.RLike conditionA = rlike(getFieldAttribute("a"), "foo");
         WildcardLike conditionB = wildcardLike(getFieldAttribute("b"), "bar");
 
         Filter fa = new Filter(EMPTY, relation, conditionA);
@@ -3258,8 +3258,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
                 new Order(
                     limit.source(),
                     salary,
-                    org.elasticsearch.xpack.ql.expression.Order.OrderDirection.ASC,
-                    org.elasticsearch.xpack.ql.expression.Order.NullsPosition.FIRST
+                    org.elasticsearch.xpack.qlcore.expression.Order.OrderDirection.ASC,
+                    org.elasticsearch.xpack.qlcore.expression.Order.NullsPosition.FIRST
                 )
             )
         );
@@ -3387,7 +3387,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertNull(expression.fold());
     }
 
-    // TODO: move these from org.elasticsearch.xpack.ql.optimizer.OptimizerRulesTests to org.elasticsearch.xpack.ql.TestUtils
+    // TODO: move these from org.elasticsearch.xpack.qlcore.optimizer.OptimizerRulesTests to org.elasticsearch.xpack.qlcore.TestUtils
     private static FieldAttribute getFieldAttribute(String name) {
         return getFieldAttribute(name, INTEGER);
     }

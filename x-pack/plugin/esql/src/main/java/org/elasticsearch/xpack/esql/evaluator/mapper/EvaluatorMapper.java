@@ -15,7 +15,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
-import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.qlcore.expression.Expression;
 
 import java.util.function.Function;
 

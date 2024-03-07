@@ -10,15 +10,15 @@ package org.elasticsearch.xpack.esql.optimizer;
 import org.elasticsearch.xpack.esql.optimizer.OptimizerRules.PhysicalPlanDependencyCheck;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
-import org.elasticsearch.xpack.ql.common.Failure;
-import org.elasticsearch.xpack.ql.expression.Attribute;
-import org.elasticsearch.xpack.ql.expression.Expressions;
+import org.elasticsearch.xpack.qlcore.common.Failure;
+import org.elasticsearch.xpack.qlcore.expression.Attribute;
+import org.elasticsearch.xpack.qlcore.expression.Expressions;
 
 import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.ql.common.Failure.fail;
+import static org.elasticsearch.xpack.qlcore.common.Failure.fail;
 
 /** Physical plan verifier. */
 public final class PhysicalVerifier {

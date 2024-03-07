@@ -7,13 +7,13 @@
 
 package org.elasticsearch.xpack.esql.plan.logical;
 
-import org.elasticsearch.xpack.ql.capabilities.Resolvables;
-import org.elasticsearch.xpack.ql.expression.Alias;
-import org.elasticsearch.xpack.ql.expression.Attribute;
-import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.ql.plan.logical.UnaryPlan;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.qlcore.capabilities.Resolvables;
+import org.elasticsearch.xpack.qlcore.expression.Alias;
+import org.elasticsearch.xpack.qlcore.expression.Attribute;
+import org.elasticsearch.xpack.qlcore.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.qlcore.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.qlcore.tree.NodeInfo;
+import org.elasticsearch.xpack.qlcore.tree.Source;
 
 import java.util.List;
 import java.util.Objects;

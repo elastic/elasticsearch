@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.esql.expression;
 
-import org.elasticsearch.xpack.ql.common.Failure;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Expression.TypeResolution;
-import org.elasticsearch.xpack.ql.expression.TypeResolutions;
+import org.elasticsearch.xpack.qlcore.common.Failure;
+import org.elasticsearch.xpack.qlcore.expression.Expression;
+import org.elasticsearch.xpack.qlcore.expression.Expression.TypeResolution;
+import org.elasticsearch.xpack.qlcore.expression.TypeResolutions;
 
 public final class Validations {
 

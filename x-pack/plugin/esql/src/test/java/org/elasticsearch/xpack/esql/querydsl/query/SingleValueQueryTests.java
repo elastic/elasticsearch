@@ -29,9 +29,9 @@ import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.ql.querydsl.query.MatchAll;
-import org.elasticsearch.xpack.ql.querydsl.query.RangeQuery;
-import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.qlcore.querydsl.query.MatchAll;
+import org.elasticsearch.xpack.qlcore.querydsl.query.RangeQuery;
+import org.elasticsearch.xpack.qlcore.tree.Source;
 
 import java.io.IOException;
 import java.util.ArrayList;

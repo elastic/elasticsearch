@@ -8,28 +8,28 @@
 package org.elasticsearch.xpack.esql.expression.predicate.operator.comparison;
 
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Expressions;
-import org.elasticsearch.xpack.ql.expression.TypeResolutions;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.InProcessor;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.qlcore.expression.Expression;
+import org.elasticsearch.xpack.qlcore.expression.Expressions;
+import org.elasticsearch.xpack.qlcore.expression.TypeResolutions;
+import org.elasticsearch.xpack.qlcore.expression.predicate.operator.comparison.InProcessor;
+import org.elasticsearch.xpack.qlcore.tree.NodeInfo;
+import org.elasticsearch.xpack.qlcore.tree.Source;
+import org.elasticsearch.xpack.qlcore.type.DataType;
+import org.elasticsearch.xpack.qlcore.type.DataTypes;
 
 import java.util.List;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.DEFAULT;
-import static org.elasticsearch.xpack.ql.util.StringUtils.ordinal;
+import static org.elasticsearch.xpack.qlcore.expression.TypeResolutions.ParamOrdinal.DEFAULT;
+import static org.elasticsearch.xpack.qlcore.util.StringUtils.ordinal;
 
-public class In extends org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.In {
+public class In extends org.elasticsearch.xpack.qlcore.expression.predicate.operator.comparison.In {
     public In(Source source, Expression value, List<Expression> list) {
         super(source, value, list);
     }
 
     @Override
-    protected NodeInfo<org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.In> info() {
+    protected NodeInfo<org.elasticsearch.xpack.qlcore.expression.predicate.operator.comparison.In> info() {
         return NodeInfo.create(this, In::new, value(), list());
     }
 

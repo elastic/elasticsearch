@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.esql.stats;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.qlcore.type.DataType;
 
 import static java.util.Collections.emptyList;
 

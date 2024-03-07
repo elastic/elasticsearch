@@ -7,15 +7,15 @@
 
 package org.elasticsearch.xpack.esql.evaluator.predicate.operator.regex;
 
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.predicate.regex.RLikePattern;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.qlcore.expression.Expression;
+import org.elasticsearch.xpack.qlcore.expression.predicate.regex.RLikePattern;
+import org.elasticsearch.xpack.qlcore.tree.NodeInfo;
+import org.elasticsearch.xpack.qlcore.tree.Source;
 
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.DEFAULT;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
+import static org.elasticsearch.xpack.qlcore.expression.TypeResolutions.ParamOrdinal.DEFAULT;
+import static org.elasticsearch.xpack.qlcore.expression.TypeResolutions.isString;
 
-public class RLike extends org.elasticsearch.xpack.ql.expression.predicate.regex.RLike {
+public class RLike extends org.elasticsearch.xpack.qlcore.expression.predicate.regex.RLike {
     public RLike(Source source, Expression value, RLikePattern pattern) {
         super(source, value, pattern);
     }
@@ -25,7 +25,7 @@ public class RLike extends org.elasticsearch.xpack.ql.expression.predicate.regex
     }
 
     @Override
-    protected NodeInfo<org.elasticsearch.xpack.ql.expression.predicate.regex.RLike> info() {
+    protected NodeInfo<org.elasticsearch.xpack.qlcore.expression.predicate.regex.RLike> info() {
         return NodeInfo.create(this, RLike::new, field(), pattern(), caseInsensitive());
     }
 

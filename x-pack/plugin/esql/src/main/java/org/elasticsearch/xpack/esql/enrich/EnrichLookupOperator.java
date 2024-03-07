@@ -18,7 +18,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.ql.expression.NamedExpression;
+import org.elasticsearch.xpack.qlcore.expression.NamedExpression;
 
 import java.io.IOException;
 import java.util.List;

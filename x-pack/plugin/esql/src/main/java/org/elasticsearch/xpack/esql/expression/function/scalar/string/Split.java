@@ -15,20 +15,20 @@ import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
-import org.elasticsearch.xpack.ql.InvalidArgumentException;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.function.scalar.BinaryScalarFunction;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.qlcore.InvalidArgumentException;
+import org.elasticsearch.xpack.qlcore.expression.Expression;
+import org.elasticsearch.xpack.qlcore.expression.function.scalar.BinaryScalarFunction;
+import org.elasticsearch.xpack.qlcore.tree.NodeInfo;
+import org.elasticsearch.xpack.qlcore.tree.Source;
+import org.elasticsearch.xpack.qlcore.type.DataType;
+import org.elasticsearch.xpack.qlcore.type.DataTypes;
 
 import java.util.function.Function;
 
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isStringAndExact;
+import static org.elasticsearch.xpack.qlcore.expression.TypeResolutions.ParamOrdinal.FIRST;
+import static org.elasticsearch.xpack.qlcore.expression.TypeResolutions.ParamOrdinal.SECOND;
+import static org.elasticsearch.xpack.qlcore.expression.TypeResolutions.isString;
+import static org.elasticsearch.xpack.qlcore.expression.TypeResolutions.isStringAndExact;
 
 /**
  * Splits a string on some delimiter into a multivalued string field.

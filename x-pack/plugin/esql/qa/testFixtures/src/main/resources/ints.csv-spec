@@ -68,7 +68,7 @@ long:long                    |ul:ul
 convertDoubleToUL#[skip:-8.11.99, reason:ql exceptions updated in 8.12]
 row d = 123.4 | eval ul = to_ul(d), overflow = to_ul(1e20);
 warning:Line 1:48: evaluation of [to_ul(1e20)] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:48: org.elasticsearch.xpack.ql.InvalidArgumentException: [1.0E20] out of [unsigned_long] range
+warning:Line 1:48: org.elasticsearch.xpack.qlcore.InvalidArgumentException: [1.0E20] out of [unsigned_long] range
 
 d:double       |ul:ul      |overflow:ul
 123.4          |123        |null
@@ -125,7 +125,7 @@ int:integer       |long:long
 convertULToLong#[skip:-8.11.99, reason:ql exceptions were updated in 8.12]
 row ul = [9223372036854775807, 9223372036854775808] | eval long = to_long(ul);
 warning:Line 1:67: evaluation of [to_long(ul)] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:67: org.elasticsearch.xpack.ql.InvalidArgumentException: [9223372036854775808] out of [long] range
+warning:Line 1:67: org.elasticsearch.xpack.qlcore.InvalidArgumentException: [9223372036854775808] out of [long] range
 
                     ul:ul                 |       long:long
 [9223372036854775807, 9223372036854775808]|9223372036854775807
@@ -166,7 +166,7 @@ str1:keyword |str2:keyword |str3:keyword |long1:long  |long2:long |long3:long
 convertDoubleToLong#[skip:-8.11.99, reason:ql exceptions were updated in 8.12]
 row d = 123.4 | eval d2l = to_long(d), overflow = to_long(1e19);
 warning:Line 1:51: evaluation of [to_long(1e19)] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:51: org.elasticsearch.xpack.ql.InvalidArgumentException: [1.0E19] out of [long] range
+warning:Line 1:51: org.elasticsearch.xpack.qlcore.InvalidArgumentException: [1.0E19] out of [long] range
 
 d:double       |d2l:long      |overflow:long     
 123.4          |123           |null    
@@ -188,7 +188,7 @@ ROW long = [5013792, 2147483647, 501379200000]
 // end::to_int-long[]
 ;
 warning:Line 2:14: evaluation of [TO_INTEGER(long)] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 2:14: org.elasticsearch.xpack.ql.InvalidArgumentException: [501379200000] out of [integer] range
+warning:Line 2:14: org.elasticsearch.xpack.qlcore.InvalidArgumentException: [501379200000] out of [integer] range
 
 // tag::to_int-long-result[]
 long:long                           |int:integer
@@ -199,7 +199,7 @@ long:long                           |int:integer
 convertULToInt#[skip:-8.11.99, reason:ql exceptions were updated in 8.12]
 row ul = [2147483647, 9223372036854775808] | eval int = to_int(ul);
 warning:Line 1:57: evaluation of [to_int(ul)] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:57: org.elasticsearch.xpack.ql.InvalidArgumentException: [9223372036854775808] out of [integer] range
+warning:Line 1:57: org.elasticsearch.xpack.qlcore.InvalidArgumentException: [9223372036854775808] out of [integer] range
 
                     ul:ul        |int:integer
 [2147483647, 9223372036854775808]|2147483647
@@ -242,7 +242,7 @@ str1:keyword   |str2:keyword   |non:keyword    |i1:integer     |i2:integer     |
 convertDoubleToInt#[skip:-8.11.99, reason:ql exceptions were updated in 8.12]
 row d = 123.4 | eval d2i = to_integer(d), overflow = to_integer(1e19);
 warning:Line 1:54: evaluation of [to_integer(1e19)] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:54: org.elasticsearch.xpack.ql.InvalidArgumentException: [1.0E19] out of [integer] range
+warning:Line 1:54: org.elasticsearch.xpack.qlcore.InvalidArgumentException: [1.0E19] out of [integer] range
 
 d:double       |d2i:integer   |overflow:integer
 123.4          |123           |null    
@@ -526,7 +526,7 @@ ROW deg = [90, 180, 270]
 warningWithFromSource-Ignore
 from employees | sort emp_no | limit 1 | eval x = to_long(emp_no) * 10000000 | eval y = to_int(x) > 1 | keep y;
 warning:Line 1:89: evaluation of [to_int(x)] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:89: org.elasticsearch.xpack.ql.InvalidArgumentException: [100010000000] out of [integer] range
+warning:Line 1:89: org.elasticsearch.xpack.qlcore.InvalidArgumentException: [100010000000] out of [integer] range
 
 y:boolean
 null
@@ -536,26 +536,26 @@ null
 multipleWarnings-Ignore
 from employees | sort emp_no | eval x = to_long(emp_no) * 10000000 | where to_int(x) > 1 | keep x | limit 1;
 warning:Line 1:76: evaluation of [to_int(x)] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:76: org.elasticsearch.xpack.ql.InvalidArgumentException: [100010000000] out of [integer] range
-warning:Line 1:76: org.elasticsearch.xpack.ql.InvalidArgumentException: [100020000000] out of [integer] range
-warning:Line 1:76: org.elasticsearch.xpack.ql.InvalidArgumentException: [100030000000] out of [integer] range
-warning:Line 1:76: org.elasticsearch.xpack.ql.InvalidArgumentException: [100040000000] out of [integer] range
-warning:Line 1:76: org.elasticsearch.xpack.ql.InvalidArgumentException: [100050000000] out of [integer] range
-warning:Line 1:76: org.elasticsearch.xpack.ql.InvalidArgumentException: [100060000000] out of [integer] range
-warning:Line 1:76: org.elasticsearch.xpack.ql.InvalidArgumentException: [100070000000] out of [integer] range
-warning:Line 1:76: org.elasticsearch.xpack.ql.InvalidArgumentException: [100080000000] out of [integer] range
-warning:Line 1:76: org.elasticsearch.xpack.ql.InvalidArgumentException: [100090000000] out of [integer] range
-warning:Line 1:76: org.elasticsearch.xpack.ql.InvalidArgumentException: [100100000000] out of [integer] range
-warning:Line 1:76: org.elasticsearch.xpack.ql.InvalidArgumentException: [100110000000] out of [integer] range
-warning:Line 1:76: org.elasticsearch.xpack.ql.InvalidArgumentException: [100120000000] out of [integer] range
-warning:Line 1:76: org.elasticsearch.xpack.ql.InvalidArgumentException: [100130000000] out of [integer] range
-warning:Line 1:76: org.elasticsearch.xpack.ql.InvalidArgumentException: [100140000000] out of [integer] range
-warning:Line 1:76: org.elasticsearch.xpack.ql.InvalidArgumentException: [100150000000] out of [integer] range
-warning:Line 1:76: org.elasticsearch.xpack.ql.InvalidArgumentException: [100160000000] out of [integer] range
-warning:Line 1:76: org.elasticsearch.xpack.ql.InvalidArgumentException: [100170000000] out of [integer] range
-warning:Line 1:76: org.elasticsearch.xpack.ql.InvalidArgumentException: [100180000000] out of [integer] range
-warning:Line 1:76: org.elasticsearch.xpack.ql.InvalidArgumentException: [100190000000] out of [integer] range
-warning:Line 1:76: org.elasticsearch.xpack.ql.InvalidArgumentException: [100200000000] out of [integer] range
+warning:Line 1:76: org.elasticsearch.xpack.qlcore.InvalidArgumentException: [100010000000] out of [integer] range
+warning:Line 1:76: org.elasticsearch.xpack.qlcore.InvalidArgumentException: [100020000000] out of [integer] range
+warning:Line 1:76: org.elasticsearch.xpack.qlcore.InvalidArgumentException: [100030000000] out of [integer] range
+warning:Line 1:76: org.elasticsearch.xpack.qlcore.InvalidArgumentException: [100040000000] out of [integer] range
+warning:Line 1:76: org.elasticsearch.xpack.qlcore.InvalidArgumentException: [100050000000] out of [integer] range
+warning:Line 1:76: org.elasticsearch.xpack.qlcore.InvalidArgumentException: [100060000000] out of [integer] range
+warning:Line 1:76: org.elasticsearch.xpack.qlcore.InvalidArgumentException: [100070000000] out of [integer] range
+warning:Line 1:76: org.elasticsearch.xpack.qlcore.InvalidArgumentException: [100080000000] out of [integer] range
+warning:Line 1:76: org.elasticsearch.xpack.qlcore.InvalidArgumentException: [100090000000] out of [integer] range
+warning:Line 1:76: org.elasticsearch.xpack.qlcore.InvalidArgumentException: [100100000000] out of [integer] range
+warning:Line 1:76: org.elasticsearch.xpack.qlcore.InvalidArgumentException: [100110000000] out of [integer] range
+warning:Line 1:76: org.elasticsearch.xpack.qlcore.InvalidArgumentException: [100120000000] out of [integer] range
+warning:Line 1:76: org.elasticsearch.xpack.qlcore.InvalidArgumentException: [100130000000] out of [integer] range
+warning:Line 1:76: org.elasticsearch.xpack.qlcore.InvalidArgumentException: [100140000000] out of [integer] range
+warning:Line 1:76: org.elasticsearch.xpack.qlcore.InvalidArgumentException: [100150000000] out of [integer] range
+warning:Line 1:76: org.elasticsearch.xpack.qlcore.InvalidArgumentException: [100160000000] out of [integer] range
+warning:Line 1:76: org.elasticsearch.xpack.qlcore.InvalidArgumentException: [100170000000] out of [integer] range
+warning:Line 1:76: org.elasticsearch.xpack.qlcore.InvalidArgumentException: [100180000000] out of [integer] range
+warning:Line 1:76: org.elasticsearch.xpack.qlcore.InvalidArgumentException: [100190000000] out of [integer] range
+warning:Line 1:76: org.elasticsearch.xpack.qlcore.InvalidArgumentException: [100200000000] out of [integer] range
 
 x:long
 ;

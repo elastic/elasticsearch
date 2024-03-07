@@ -12,8 +12,8 @@ import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.evaluator.mapper.ExpressionMapper;
 import org.elasticsearch.xpack.esql.planner.Layout;
-import org.elasticsearch.xpack.ql.expression.predicate.regex.AbstractStringPattern;
-import org.elasticsearch.xpack.ql.expression.predicate.regex.RegexMatch;
+import org.elasticsearch.xpack.qlcore.expression.predicate.regex.AbstractStringPattern;
+import org.elasticsearch.xpack.qlcore.expression.predicate.regex.RegexMatch;
 
 public abstract class RegexMapper extends ExpressionMapper<RegexMatch<?>> {
 

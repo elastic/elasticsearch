@@ -13,9 +13,9 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.qlcore.expression.Expression;
+import org.elasticsearch.xpack.qlcore.tree.Source;
+import org.elasticsearch.xpack.qlcore.type.DataTypes;
 
 import java.time.Duration;
 import java.time.Period;
@@ -23,9 +23,9 @@ import java.util.List;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.AbstractArithmeticTestCase.arithmeticExceptionOverflowCase;
-import static org.elasticsearch.xpack.ql.type.DateUtils.asDateTime;
-import static org.elasticsearch.xpack.ql.type.DateUtils.asMillis;
-import static org.elasticsearch.xpack.ql.util.NumericUtils.ZERO_AS_UNSIGNED_LONG;
+import static org.elasticsearch.xpack.qlcore.type.DateUtils.asDateTime;
+import static org.elasticsearch.xpack.qlcore.type.DateUtils.asMillis;
+import static org.elasticsearch.xpack.qlcore.util.NumericUtils.ZERO_AS_UNSIGNED_LONG;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;

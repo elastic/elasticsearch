@@ -58,7 +58,7 @@ import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.session.EsqlIndexResolver;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
-import org.elasticsearch.xpack.ql.index.IndexResolver;
+import org.elasticsearch.xpack.qlcore.index.IndexResolver;
 
 import java.util.Collection;
 import java.util.List;

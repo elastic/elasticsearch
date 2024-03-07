@@ -14,7 +14,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
-import org.elasticsearch.xpack.ql.session.Configuration;
+import org.elasticsearch.xpack.qlcore.session.Configuration;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;

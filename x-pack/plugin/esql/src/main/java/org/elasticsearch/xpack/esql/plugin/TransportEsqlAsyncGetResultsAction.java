@@ -20,7 +20,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.action.EsqlAsyncGetResultAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.action.EsqlQueryTask;
-import org.elasticsearch.xpack.ql.plugin.AbstractTransportQlAsyncGetResultsAction;
+import org.elasticsearch.xpack.qlcore.plugin.AbstractTransportQlAsyncGetResultsAction;
 
 public class TransportEsqlAsyncGetResultsAction extends AbstractTransportQlAsyncGetResultsAction<EsqlQueryResponse, EsqlQueryTask> {
 

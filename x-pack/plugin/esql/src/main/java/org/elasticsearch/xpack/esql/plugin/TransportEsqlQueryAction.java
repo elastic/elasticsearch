@@ -38,7 +38,7 @@ import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.async.AsyncTaskManagementService;
+import org.elasticsearch.xpack.qlcore.async.AsyncTaskManagementService;
 
 import java.io.IOException;
 import java.time.ZoneOffset;

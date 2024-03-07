@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.esql;
 
-import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.qlcore.tree.Source;
 
 public class ExceptionUtils {
     /**

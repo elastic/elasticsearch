@@ -8,22 +8,22 @@
 package org.elasticsearch.xpack.esql.expression.function;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ql.ParsingException;
-import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.function.FunctionDefinition;
-import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
-import org.elasticsearch.xpack.ql.expression.function.FunctionRegistryTests;
-import org.elasticsearch.xpack.ql.expression.function.FunctionResolutionStrategy;
-import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.tree.SourceTests;
+import org.elasticsearch.xpack.qlcore.ParsingException;
+import org.elasticsearch.xpack.qlcore.QlIllegalArgumentException;
+import org.elasticsearch.xpack.qlcore.expression.Expression;
+import org.elasticsearch.xpack.qlcore.expression.function.FunctionDefinition;
+import org.elasticsearch.xpack.qlcore.expression.function.FunctionRegistry;
+import org.elasticsearch.xpack.qlcore.expression.function.FunctionRegistryTests;
+import org.elasticsearch.xpack.qlcore.expression.function.FunctionResolutionStrategy;
+import org.elasticsearch.xpack.qlcore.expression.function.UnresolvedFunction;
+import org.elasticsearch.xpack.qlcore.tree.Source;
+import org.elasticsearch.xpack.qlcore.tree.SourceTests;
 
 import java.util.Arrays;
 
-import static org.elasticsearch.xpack.ql.TestUtils.randomConfiguration;
-import static org.elasticsearch.xpack.ql.expression.function.FunctionRegistry.def;
-import static org.elasticsearch.xpack.ql.expression.function.FunctionResolutionStrategy.DEFAULT;
+import static org.elasticsearch.xpack.qlcore.TestUtils.randomConfiguration;
+import static org.elasticsearch.xpack.qlcore.expression.function.FunctionRegistry.def;
+import static org.elasticsearch.xpack.qlcore.expression.function.FunctionResolutionStrategy.DEFAULT;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;

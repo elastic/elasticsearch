@@ -9,17 +9,17 @@ package org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.TypeResolutions;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.qlcore.expression.Expression;
+import org.elasticsearch.xpack.qlcore.expression.TypeResolutions;
+import org.elasticsearch.xpack.qlcore.expression.predicate.operator.comparison.BinaryComparison;
+import org.elasticsearch.xpack.qlcore.tree.NodeInfo;
+import org.elasticsearch.xpack.qlcore.tree.Source;
 
 import java.time.ZoneId;
 
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.DEFAULT;
+import static org.elasticsearch.xpack.qlcore.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 
-public class NotEquals extends org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NotEquals {
+public class NotEquals extends org.elasticsearch.xpack.qlcore.expression.predicate.operator.comparison.NotEquals {
     public NotEquals(Source source, Expression left, Expression right, ZoneId zoneId) {
         super(source, left, right, zoneId);
     }
@@ -30,7 +30,7 @@ public class NotEquals extends org.elasticsearch.xpack.ql.expression.predicate.o
     }
 
     @Override
-    protected NodeInfo<org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NotEquals> info() {
+    protected NodeInfo<org.elasticsearch.xpack.qlcore.expression.predicate.operator.comparison.NotEquals> info() {
         return NodeInfo.create(this, NotEquals::new, left(), right(), zoneId());
     }
 

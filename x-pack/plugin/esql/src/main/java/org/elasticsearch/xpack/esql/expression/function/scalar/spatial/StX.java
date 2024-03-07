@@ -13,18 +13,18 @@ import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.TypeResolutions;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.qlcore.expression.Expression;
+import org.elasticsearch.xpack.qlcore.expression.TypeResolutions;
+import org.elasticsearch.xpack.qlcore.tree.NodeInfo;
+import org.elasticsearch.xpack.qlcore.tree.Source;
+import org.elasticsearch.xpack.qlcore.type.DataType;
 
 import java.util.List;
 import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isSpatialPoint;
-import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
-import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.UNSPECIFIED;
+import static org.elasticsearch.xpack.qlcore.type.DataTypes.DOUBLE;
+import static org.elasticsearch.xpack.qlcore.util.SpatialCoordinateTypes.UNSPECIFIED;
 
 /**
  * Extracts the x-coordinate from a point geometry.

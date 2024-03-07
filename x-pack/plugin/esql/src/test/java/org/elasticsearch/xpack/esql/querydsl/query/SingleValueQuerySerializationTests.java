@@ -12,7 +12,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.qlcore.tree.Source;
 
 import java.util.List;
 

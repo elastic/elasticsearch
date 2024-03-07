@@ -7,15 +7,15 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar;
 
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.TypeResolutions;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.qlcore.expression.Expression;
+import org.elasticsearch.xpack.qlcore.expression.TypeResolutions;
+import org.elasticsearch.xpack.qlcore.tree.Source;
+import org.elasticsearch.xpack.qlcore.type.DataType;
 
 import java.util.Arrays;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
+import static org.elasticsearch.xpack.qlcore.expression.TypeResolutions.isNumeric;
 
 public abstract class UnaryScalarFunction extends EsqlScalarFunction {
     protected final Expression field;

@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
-import org.elasticsearch.xpack.ql.expression.Order;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.qlcore.expression.Order;
+import org.elasticsearch.xpack.qlcore.tree.NodeInfo;
+import org.elasticsearch.xpack.qlcore.tree.Source;
 
 import java.util.List;
 import java.util.Objects;

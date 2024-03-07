@@ -77,8 +77,8 @@ import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.expression.Alias;
-import org.elasticsearch.xpack.ql.expression.NamedExpression;
+import org.elasticsearch.xpack.qlcore.expression.Alias;
+import org.elasticsearch.xpack.qlcore.expression.NamedExpression;
 
 import java.io.IOException;
 import java.util.ArrayList;

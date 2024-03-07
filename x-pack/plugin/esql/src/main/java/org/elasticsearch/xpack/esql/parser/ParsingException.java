@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.esql.parser;
 
 import org.elasticsearch.xpack.esql.EsqlClientException;
-import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.qlcore.tree.Source;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 

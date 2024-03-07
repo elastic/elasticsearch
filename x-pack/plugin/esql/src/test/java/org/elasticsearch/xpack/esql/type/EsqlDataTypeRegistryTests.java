@@ -12,10 +12,10 @@ import org.elasticsearch.action.fieldcaps.IndexFieldCapabilities;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.session.EsqlIndexResolver;
-import org.elasticsearch.xpack.ql.index.IndexResolution;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.elasticsearch.xpack.ql.type.EsField;
+import org.elasticsearch.xpack.qlcore.index.IndexResolution;
+import org.elasticsearch.xpack.qlcore.type.DataType;
+import org.elasticsearch.xpack.qlcore.type.DataTypes;
+import org.elasticsearch.xpack.qlcore.type.EsField;
 
 import java.util.List;
 import java.util.Map;

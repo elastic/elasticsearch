@@ -14,9 +14,9 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.qlcore.expression.Expression;
+import org.elasticsearch.xpack.qlcore.tree.Source;
+import org.elasticsearch.xpack.qlcore.type.DataTypes;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
@@ -24,7 +24,7 @@ import java.util.List;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.xpack.ql.type.DataTypeConverter.safeToInt;
+import static org.elasticsearch.xpack.qlcore.type.DataTypeConverter.safeToInt;
 
 public class ToIntegerTests extends AbstractFunctionTestCase {
     public ToIntegerTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
@@ -60,7 +60,7 @@ public class ToIntegerTests extends AbstractFunctionTestCase {
             l -> null,
             l -> List.of(
                 "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: org.elasticsearch.xpack.ql.InvalidArgumentException: [" + l + "] out of [integer] range"
+                "Line -1:-1: org.elasticsearch.xpack.qlcore.InvalidArgumentException: [" + l + "] out of [integer] range"
             )
         );
         // random strings that don't look like an Integer
@@ -94,7 +94,7 @@ public class ToIntegerTests extends AbstractFunctionTestCase {
             Integer.MIN_VALUE - 1d,
             d -> List.of(
                 "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: org.elasticsearch.xpack.ql.InvalidArgumentException: [" + d + "] out of [integer] range"
+                "Line -1:-1: org.elasticsearch.xpack.qlcore.InvalidArgumentException: [" + d + "] out of [integer] range"
             )
         );
         // from doubles outside Integer's range, positive
@@ -107,7 +107,7 @@ public class ToIntegerTests extends AbstractFunctionTestCase {
             Double.POSITIVE_INFINITY,
             d -> List.of(
                 "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: org.elasticsearch.xpack.ql.InvalidArgumentException: [" + d + "] out of [integer] range"
+                "Line -1:-1: org.elasticsearch.xpack.qlcore.InvalidArgumentException: [" + d + "] out of [integer] range"
             )
         );
 
@@ -131,7 +131,7 @@ public class ToIntegerTests extends AbstractFunctionTestCase {
             UNSIGNED_LONG_MAX,
             ul -> List.of(
                 "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: org.elasticsearch.xpack.ql.InvalidArgumentException: [" + ul + "] out of [integer] range"
+                "Line -1:-1: org.elasticsearch.xpack.qlcore.InvalidArgumentException: [" + ul + "] out of [integer] range"
 
             )
         );
@@ -156,7 +156,7 @@ public class ToIntegerTests extends AbstractFunctionTestCase {
             Integer.MIN_VALUE - 1L,
             l -> List.of(
                 "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: org.elasticsearch.xpack.ql.InvalidArgumentException: [" + l + "] out of [integer] range"
+                "Line -1:-1: org.elasticsearch.xpack.qlcore.InvalidArgumentException: [" + l + "] out of [integer] range"
 
             )
         );
@@ -170,7 +170,7 @@ public class ToIntegerTests extends AbstractFunctionTestCase {
             Long.MAX_VALUE,
             l -> List.of(
                 "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: org.elasticsearch.xpack.ql.InvalidArgumentException: [" + l + "] out of [integer] range"
+                "Line -1:-1: org.elasticsearch.xpack.qlcore.InvalidArgumentException: [" + l + "] out of [integer] range"
             )
         );
 

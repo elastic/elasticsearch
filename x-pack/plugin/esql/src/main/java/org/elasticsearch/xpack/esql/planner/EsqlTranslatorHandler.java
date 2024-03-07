@@ -10,16 +10,16 @@ package org.elasticsearch.xpack.esql.planner;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.FieldAttribute;
-import org.elasticsearch.xpack.ql.expression.MetadataAttribute;
-import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
-import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNotNull;
-import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNull;
-import org.elasticsearch.xpack.ql.planner.ExpressionTranslator;
-import org.elasticsearch.xpack.ql.planner.QlTranslatorHandler;
-import org.elasticsearch.xpack.ql.querydsl.query.Query;
-import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.qlcore.expression.Expression;
+import org.elasticsearch.xpack.qlcore.expression.FieldAttribute;
+import org.elasticsearch.xpack.qlcore.expression.MetadataAttribute;
+import org.elasticsearch.xpack.qlcore.expression.function.scalar.ScalarFunction;
+import org.elasticsearch.xpack.qlcore.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.qlcore.expression.predicate.nulls.IsNull;
+import org.elasticsearch.xpack.qlcore.planner.ExpressionTranslator;
+import org.elasticsearch.xpack.qlcore.planner.QlTranslatorHandler;
+import org.elasticsearch.xpack.qlcore.querydsl.query.Query;
+import org.elasticsearch.xpack.qlcore.type.DataType;
 
 import java.util.function.Supplier;
 

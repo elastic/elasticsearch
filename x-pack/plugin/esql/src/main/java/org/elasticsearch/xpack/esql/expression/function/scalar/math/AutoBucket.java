@@ -20,28 +20,28 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunctio
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
-import org.elasticsearch.xpack.ql.common.Failures;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Foldables;
-import org.elasticsearch.xpack.ql.expression.Literal;
-import org.elasticsearch.xpack.ql.expression.TypeResolutions;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.qlcore.common.Failures;
+import org.elasticsearch.xpack.qlcore.expression.Expression;
+import org.elasticsearch.xpack.qlcore.expression.Foldables;
+import org.elasticsearch.xpack.qlcore.expression.Literal;
+import org.elasticsearch.xpack.qlcore.expression.TypeResolutions;
+import org.elasticsearch.xpack.qlcore.tree.NodeInfo;
+import org.elasticsearch.xpack.qlcore.tree.Source;
+import org.elasticsearch.xpack.qlcore.type.DataType;
+import org.elasticsearch.xpack.qlcore.type.DataTypes;
 
 import java.util.List;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.expression.Validations.isFoldable;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FOURTH;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.THIRD;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isInteger;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.qlcore.expression.TypeResolutions.ParamOrdinal.FIRST;
+import static org.elasticsearch.xpack.qlcore.expression.TypeResolutions.ParamOrdinal.FOURTH;
+import static org.elasticsearch.xpack.qlcore.expression.TypeResolutions.ParamOrdinal.SECOND;
+import static org.elasticsearch.xpack.qlcore.expression.TypeResolutions.ParamOrdinal.THIRD;
+import static org.elasticsearch.xpack.qlcore.expression.TypeResolutions.isInteger;
+import static org.elasticsearch.xpack.qlcore.expression.TypeResolutions.isNumeric;
+import static org.elasticsearch.xpack.qlcore.expression.TypeResolutions.isType;
 
 /**
  * Buckets dates into a given number of buckets.

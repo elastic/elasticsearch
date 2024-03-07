@@ -8,7 +8,7 @@ dependencies {
     implementation project(':client:rest')
     implementation project(':libs:elasticsearch-logging')
     implementation project(':test:framework')
-    api(testArtifact(project(xpackModule('ql'))))
+    api(testArtifact(project(xpackModule('qlcore'))))
     implementation project(':server')
     api "net.sf.supercsv:super-csv:${versions.supercsv}"
 }

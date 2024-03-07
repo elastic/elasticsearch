@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.expression.function.scalar.date;
 
-import org.elasticsearch.xpack.ql.util.StringUtils;
+import org.elasticsearch.xpack.qlcore.util.StringUtils;
 
 import java.util.Arrays;
 import java.util.Collections;

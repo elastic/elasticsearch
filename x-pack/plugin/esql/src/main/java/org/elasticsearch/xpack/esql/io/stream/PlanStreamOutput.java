@@ -11,16 +11,16 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanWriter;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
-import org.elasticsearch.xpack.ql.expression.Attribute;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.NamedExpression;
-import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.qlcore.expression.Attribute;
+import org.elasticsearch.xpack.qlcore.expression.Expression;
+import org.elasticsearch.xpack.qlcore.expression.NamedExpression;
+import org.elasticsearch.xpack.qlcore.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.qlcore.tree.Source;
 
 import java.io.IOException;
 import java.util.function.Function;
 
-import static org.elasticsearch.xpack.ql.util.SourceUtils.writeSourceNoText;
+import static org.elasticsearch.xpack.qlcore.util.SourceUtils.writeSourceNoText;
 
 /**
  * A customized stream output used to serialize ESQL physical plan fragments. Complements stream

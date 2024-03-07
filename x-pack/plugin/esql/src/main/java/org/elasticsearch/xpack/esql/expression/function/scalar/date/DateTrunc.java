@@ -16,10 +16,10 @@ import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.function.scalar.BinaryScalarFunction;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.qlcore.expression.Expression;
+import org.elasticsearch.xpack.qlcore.expression.function.scalar.BinaryScalarFunction;
+import org.elasticsearch.xpack.qlcore.tree.NodeInfo;
+import org.elasticsearch.xpack.qlcore.tree.Source;
 
 import java.time.Duration;
 import java.time.Period;
@@ -27,10 +27,10 @@ import java.time.ZoneId;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isDate;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.qlcore.expression.TypeResolutions.ParamOrdinal.FIRST;
+import static org.elasticsearch.xpack.qlcore.expression.TypeResolutions.ParamOrdinal.SECOND;
+import static org.elasticsearch.xpack.qlcore.expression.TypeResolutions.isDate;
+import static org.elasticsearch.xpack.qlcore.expression.TypeResolutions.isType;
 
 public class DateTrunc extends BinaryDateTimeFunction implements EvaluatorMapper {
 

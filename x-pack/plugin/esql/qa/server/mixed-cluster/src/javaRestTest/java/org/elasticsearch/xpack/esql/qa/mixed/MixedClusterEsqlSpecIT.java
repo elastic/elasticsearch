@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.esql.qa.mixed;
 import org.elasticsearch.Version;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
-import org.elasticsearch.xpack.ql.CsvSpecReader.CsvTestCase;
+import org.elasticsearch.xpack.qlcore.CsvSpecReader.CsvTestCase;
 import org.junit.ClassRule;
 
 import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;

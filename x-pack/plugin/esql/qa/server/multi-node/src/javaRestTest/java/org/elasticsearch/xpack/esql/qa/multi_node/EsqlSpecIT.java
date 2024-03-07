@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.esql.qa.multi_node;
 
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
-import org.elasticsearch.xpack.ql.CsvSpecReader.CsvTestCase;
+import org.elasticsearch.xpack.qlcore.CsvSpecReader.CsvTestCase;
 import org.junit.ClassRule;
 
 public class EsqlSpecIT extends EsqlSpecTestCase {

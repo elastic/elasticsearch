@@ -19,8 +19,8 @@ import org.antlr.v4.runtime.TokenSource;
 import org.antlr.v4.runtime.atn.PredictionMode;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.xpack.ql.parser.CaseChangingCharStream;
-import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.qlcore.parser.CaseChangingCharStream;
+import org.elasticsearch.xpack.qlcore.plan.logical.LogicalPlan;
 
 import java.util.HashMap;
 import java.util.List;
@@ -28,7 +28,7 @@ import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
-import static org.elasticsearch.xpack.ql.parser.ParserUtils.source;
+import static org.elasticsearch.xpack.qlcore.parser.ParserUtils.source;
 
 public class EsqlParser {
 

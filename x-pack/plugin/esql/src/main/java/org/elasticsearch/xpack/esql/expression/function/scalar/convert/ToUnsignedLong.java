@@ -11,27 +11,27 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.ann.ConvertEvaluator;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
-import org.elasticsearch.xpack.ql.InvalidArgumentException;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.qlcore.InvalidArgumentException;
+import org.elasticsearch.xpack.qlcore.expression.Expression;
+import org.elasticsearch.xpack.qlcore.tree.NodeInfo;
+import org.elasticsearch.xpack.qlcore.tree.Source;
+import org.elasticsearch.xpack.qlcore.type.DataType;
 
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.ql.type.DataTypeConverter.safeToUnsignedLong;
-import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
-import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
-import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
-import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
-import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
-import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
-import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
-import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
-import static org.elasticsearch.xpack.ql.util.NumericUtils.ONE_AS_UNSIGNED_LONG;
-import static org.elasticsearch.xpack.ql.util.NumericUtils.ZERO_AS_UNSIGNED_LONG;
-import static org.elasticsearch.xpack.ql.util.NumericUtils.asLongUnsigned;
+import static org.elasticsearch.xpack.qlcore.type.DataTypeConverter.safeToUnsignedLong;
+import static org.elasticsearch.xpack.qlcore.type.DataTypes.BOOLEAN;
+import static org.elasticsearch.xpack.qlcore.type.DataTypes.DATETIME;
+import static org.elasticsearch.xpack.qlcore.type.DataTypes.DOUBLE;
+import static org.elasticsearch.xpack.qlcore.type.DataTypes.INTEGER;
+import static org.elasticsearch.xpack.qlcore.type.DataTypes.KEYWORD;
+import static org.elasticsearch.xpack.qlcore.type.DataTypes.LONG;
+import static org.elasticsearch.xpack.qlcore.type.DataTypes.TEXT;
+import static org.elasticsearch.xpack.qlcore.type.DataTypes.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.qlcore.util.NumericUtils.ONE_AS_UNSIGNED_LONG;
+import static org.elasticsearch.xpack.qlcore.util.NumericUtils.ZERO_AS_UNSIGNED_LONG;
+import static org.elasticsearch.xpack.qlcore.util.NumericUtils.asLongUnsigned;
 
 public class ToUnsignedLong extends AbstractConvertFunction {
 

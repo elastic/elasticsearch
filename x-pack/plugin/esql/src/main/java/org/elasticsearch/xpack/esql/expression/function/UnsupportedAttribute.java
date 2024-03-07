@@ -7,15 +7,15 @@
 
 package org.elasticsearch.xpack.esql.expression.function;
 
-import org.elasticsearch.xpack.ql.capabilities.Unresolvable;
-import org.elasticsearch.xpack.ql.expression.Attribute;
-import org.elasticsearch.xpack.ql.expression.FieldAttribute;
-import org.elasticsearch.xpack.ql.expression.NameId;
-import org.elasticsearch.xpack.ql.expression.Nullability;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.UnsupportedEsField;
+import org.elasticsearch.xpack.qlcore.capabilities.Unresolvable;
+import org.elasticsearch.xpack.qlcore.expression.Attribute;
+import org.elasticsearch.xpack.qlcore.expression.FieldAttribute;
+import org.elasticsearch.xpack.qlcore.expression.NameId;
+import org.elasticsearch.xpack.qlcore.expression.Nullability;
+import org.elasticsearch.xpack.qlcore.tree.NodeInfo;
+import org.elasticsearch.xpack.qlcore.tree.Source;
+import org.elasticsearch.xpack.qlcore.type.DataType;
+import org.elasticsearch.xpack.qlcore.type.UnsupportedEsField;
 
 import java.util.Objects;
 

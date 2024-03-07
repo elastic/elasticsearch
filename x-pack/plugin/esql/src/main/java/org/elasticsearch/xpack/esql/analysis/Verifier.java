@@ -18,24 +18,24 @@ import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.stats.FeatureMetric;
 import org.elasticsearch.xpack.esql.stats.Metrics;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.capabilities.Unresolvable;
-import org.elasticsearch.xpack.ql.common.Failure;
-import org.elasticsearch.xpack.ql.expression.Alias;
-import org.elasticsearch.xpack.ql.expression.AttributeMap;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.NamedExpression;
-import org.elasticsearch.xpack.ql.expression.TypeResolutions;
-import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
-import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
-import org.elasticsearch.xpack.ql.expression.predicate.BinaryOperator;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
-import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
-import org.elasticsearch.xpack.ql.plan.logical.Limit;
-import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.ql.plan.logical.Project;
-import org.elasticsearch.xpack.ql.plan.logical.UnaryPlan;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.qlcore.capabilities.Unresolvable;
+import org.elasticsearch.xpack.qlcore.common.Failure;
+import org.elasticsearch.xpack.qlcore.expression.Alias;
+import org.elasticsearch.xpack.qlcore.expression.AttributeMap;
+import org.elasticsearch.xpack.qlcore.expression.Expression;
+import org.elasticsearch.xpack.qlcore.expression.NamedExpression;
+import org.elasticsearch.xpack.qlcore.expression.TypeResolutions;
+import org.elasticsearch.xpack.qlcore.expression.UnresolvedAttribute;
+import org.elasticsearch.xpack.qlcore.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.qlcore.expression.predicate.BinaryOperator;
+import org.elasticsearch.xpack.qlcore.expression.predicate.operator.comparison.BinaryComparison;
+import org.elasticsearch.xpack.qlcore.plan.logical.Aggregate;
+import org.elasticsearch.xpack.qlcore.plan.logical.Limit;
+import org.elasticsearch.xpack.qlcore.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.qlcore.plan.logical.Project;
+import org.elasticsearch.xpack.qlcore.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.qlcore.type.DataType;
+import org.elasticsearch.xpack.qlcore.type.DataTypes;
 
 import java.util.ArrayList;
 import java.util.BitSet;
@@ -45,9 +45,9 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.xpack.ql.analyzer.VerifierChecks.checkFilterConditionType;
-import static org.elasticsearch.xpack.ql.common.Failure.fail;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
+import static org.elasticsearch.xpack.qlcore.analyzer.VerifierChecks.checkFilterConditionType;
+import static org.elasticsearch.xpack.qlcore.common.Failure.fail;
+import static org.elasticsearch.xpack.qlcore.expression.TypeResolutions.ParamOrdinal.FIRST;
 
 public class Verifier {
 

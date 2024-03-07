@@ -9,17 +9,17 @@ package org.elasticsearch.xpack.esql.plan.logical.show;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Build;
-import org.elasticsearch.xpack.ql.expression.Attribute;
-import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
-import org.elasticsearch.xpack.ql.plan.logical.LeafPlan;
-import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.qlcore.expression.Attribute;
+import org.elasticsearch.xpack.qlcore.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.qlcore.plan.logical.LeafPlan;
+import org.elasticsearch.xpack.qlcore.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.qlcore.tree.NodeInfo;
+import org.elasticsearch.xpack.qlcore.tree.Source;
 
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
+import static org.elasticsearch.xpack.qlcore.type.DataTypes.KEYWORD;
 
 public class ShowInfo extends LeafPlan {
 

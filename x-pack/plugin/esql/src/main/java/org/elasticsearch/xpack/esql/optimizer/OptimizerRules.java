@@ -28,15 +28,15 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.RegexExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.RowExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
-import org.elasticsearch.xpack.ql.common.Failures;
-import org.elasticsearch.xpack.ql.expression.AttributeSet;
-import org.elasticsearch.xpack.ql.expression.Expressions;
-import org.elasticsearch.xpack.ql.plan.QueryPlan;
-import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
-import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
-import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.qlcore.common.Failures;
+import org.elasticsearch.xpack.qlcore.expression.AttributeSet;
+import org.elasticsearch.xpack.qlcore.expression.Expressions;
+import org.elasticsearch.xpack.qlcore.plan.QueryPlan;
+import org.elasticsearch.xpack.qlcore.plan.logical.Aggregate;
+import org.elasticsearch.xpack.qlcore.plan.logical.EsRelation;
+import org.elasticsearch.xpack.qlcore.plan.logical.LogicalPlan;
 
-import static org.elasticsearch.xpack.ql.common.Failure.fail;
+import static org.elasticsearch.xpack.qlcore.common.Failure.fail;
 
 class OptimizerRules {
 

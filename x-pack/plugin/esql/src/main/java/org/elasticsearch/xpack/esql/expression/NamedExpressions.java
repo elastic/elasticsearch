@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.esql.expression;
 
-import org.elasticsearch.xpack.ql.expression.Attribute;
-import org.elasticsearch.xpack.ql.expression.Expressions;
-import org.elasticsearch.xpack.ql.expression.NamedExpression;
+import org.elasticsearch.xpack.qlcore.expression.Attribute;
+import org.elasticsearch.xpack.qlcore.expression.Expressions;
+import org.elasticsearch.xpack.qlcore.expression.NamedExpression;
 
 import java.util.ArrayList;
 import java.util.List;

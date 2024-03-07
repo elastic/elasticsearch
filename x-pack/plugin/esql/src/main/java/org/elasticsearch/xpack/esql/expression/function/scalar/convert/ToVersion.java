@@ -11,18 +11,18 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.ann.ConvertEvaluator;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.qlcore.expression.Expression;
+import org.elasticsearch.xpack.qlcore.tree.NodeInfo;
+import org.elasticsearch.xpack.qlcore.tree.Source;
+import org.elasticsearch.xpack.qlcore.type.DataType;
 import org.elasticsearch.xpack.versionfield.Version;
 
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
-import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
-import static org.elasticsearch.xpack.ql.type.DataTypes.VERSION;
+import static org.elasticsearch.xpack.qlcore.type.DataTypes.KEYWORD;
+import static org.elasticsearch.xpack.qlcore.type.DataTypes.TEXT;
+import static org.elasticsearch.xpack.qlcore.type.DataTypes.VERSION;
 
 public class ToVersion extends AbstractConvertFunction {
 

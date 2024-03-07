@@ -23,15 +23,15 @@ import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.esql.stats.Metrics;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
-import org.elasticsearch.xpack.ql.expression.Attribute;
-import org.elasticsearch.xpack.ql.expression.Literal;
-import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DateUtils;
-import org.elasticsearch.xpack.ql.type.EsField;
-import org.elasticsearch.xpack.ql.type.TypesTests;
-import org.elasticsearch.xpack.ql.util.StringUtils;
+import org.elasticsearch.xpack.qlcore.expression.Attribute;
+import org.elasticsearch.xpack.qlcore.expression.Literal;
+import org.elasticsearch.xpack.qlcore.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.qlcore.tree.Source;
+import org.elasticsearch.xpack.qlcore.type.DataType;
+import org.elasticsearch.xpack.qlcore.type.DateUtils;
+import org.elasticsearch.xpack.qlcore.type.EsField;
+import org.elasticsearch.xpack.qlcore.type.TypesTests;
+import org.elasticsearch.xpack.qlcore.util.StringUtils;
 import org.junit.Assert;
 
 import java.util.ArrayList;
@@ -43,7 +43,7 @@ import java.util.Set;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
-import static org.elasticsearch.xpack.ql.TestUtils.of;
+import static org.elasticsearch.xpack.qlcore.TestUtils.of;
 import static org.hamcrest.Matchers.instanceOf;
 
 public final class EsqlTestUtils {

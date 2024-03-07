@@ -10,11 +10,11 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.ExceptionUtils;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.TypeResolutions;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.qlcore.expression.Expression;
+import org.elasticsearch.xpack.qlcore.expression.TypeResolutions;
+import org.elasticsearch.xpack.qlcore.tree.Source;
+import org.elasticsearch.xpack.qlcore.type.DataType;
+import org.elasticsearch.xpack.qlcore.type.DataTypes;
 
 import java.time.Duration;
 import java.time.Period;
@@ -26,9 +26,9 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.DATE_PERIOD;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.TIME_DURATION;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isDateTimeOrTemporal;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isTemporalAmount;
-import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
-import static org.elasticsearch.xpack.ql.type.DataTypes.isDateTime;
-import static org.elasticsearch.xpack.ql.type.DataTypes.isNull;
+import static org.elasticsearch.xpack.qlcore.type.DataTypes.DATETIME;
+import static org.elasticsearch.xpack.qlcore.type.DataTypes.isDateTime;
+import static org.elasticsearch.xpack.qlcore.type.DataTypes.isNull;
 
 abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperation {
     /** Arithmetic (quad) function. */

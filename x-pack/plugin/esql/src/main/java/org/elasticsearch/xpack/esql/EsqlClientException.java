@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.esql;
 
-import org.elasticsearch.xpack.ql.QlClientException;
+import org.elasticsearch.xpack.qlcore.QlClientException;
 
 public class EsqlClientException extends QlClientException {
 

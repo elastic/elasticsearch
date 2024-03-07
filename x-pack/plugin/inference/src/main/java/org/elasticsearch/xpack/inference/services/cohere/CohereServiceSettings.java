@@ -200,4 +200,14 @@ public class CohereServiceSettings implements ServiceSettings {
     public int hashCode() {
         return Objects.hash(uri, similarity, dimensions, maxInputTokens, modelId);
     }
+
+    @Override
+    public SimilarityMeasure similarity() {
+        return similarity;
+    }
+
+    @Override
+    public Integer dimensions() {
+        return dimensions;
+    }
 }

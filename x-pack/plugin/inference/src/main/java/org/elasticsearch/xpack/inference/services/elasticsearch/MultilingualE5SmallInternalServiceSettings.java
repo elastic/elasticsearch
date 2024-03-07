@@ -11,6 +11,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.settings.InternalServiceSettings;
@@ -105,5 +106,10 @@ public class MultilingualE5SmallInternalServiceSettings extends ElasticsearchInt
     @Override
     public Integer dimensions() {
         return 384;
+    }
+
+    @Override
+    public SimilarityMeasure similarity() {
+        return SimilarityMeasure.COSINE;
     }
 }

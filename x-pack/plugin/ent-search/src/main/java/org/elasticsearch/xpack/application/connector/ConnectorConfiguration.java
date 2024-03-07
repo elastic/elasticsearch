@@ -323,8 +323,7 @@ public class ConnectorConfiguration implements Writeable, ToXContentObject {
 
     public Map<String, Object> toMap() {
         try {
-            BytesReference bytesReference = XContentHelper.toXContent(this
-            , XContentType.JSON, null, false);
+            BytesReference bytesReference = XContentHelper.toXContent(this, XContentType.JSON, null, false);
             return XContentHelper.convertToMap(bytesReference, true, XContentType.JSON).v2();
         } catch (IOException e) {
             throw new RuntimeException(e);

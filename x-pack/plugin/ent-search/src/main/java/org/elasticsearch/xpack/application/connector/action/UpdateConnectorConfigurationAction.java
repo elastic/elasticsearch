@@ -72,11 +72,7 @@ public class UpdateConnectorConfigurationAction {
         }
 
         public Map<String, Map<String, Object>> getConfigurationAsMap() {
-            return configuration.entrySet().stream()
-                .collect(Collectors.toMap(
-                    Map.Entry::getKey,
-                    entry -> entry.getValue().toMap()
-                ));
+            return configuration.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().toMap()));
         }
 
         public Map<String, Object> getConfigurationValues() {

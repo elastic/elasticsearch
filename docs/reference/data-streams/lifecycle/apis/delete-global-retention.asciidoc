@@ -6,7 +6,7 @@
 
 preview::[]
 
-Deletes the global retention settings that apply on every data stream managed by data stream lifecycle.
+Deletes the global retention settings that apply on every data stream managed by <<data-stream-lifecycle,data stream lifecycle>>.
 
 [[delete-global-retention-api-prereqs]]
 ==== {api-prereq-title}

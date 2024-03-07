@@ -6,7 +6,7 @@
 
 preview::[]
 
-Updates the global retention settings that apply on every data stream managed by data stream lifecycle.
+Updates the global retention settings that apply on every data stream managed by <<data-stream-lifecycle,data stream lifecycle>>.
 
 [[put-global-retention-api-prereqs]]
 ==== {api-prereq-title}
@@ -67,10 +67,10 @@ Contains information about the data streams affected by the change.
 Name of the data stream.
 `previous_effective_retention`::
 (string)
-The retention that was effective before the change of this request. `Infinite` if there was no retention applicable.
+The retention that was effective before the change of this request. `infinite` if there was no retention applicable.
 `new_effective_retention`::
 (string)
-The retention that is or would be effective after this request. `Infinite` if there is no retention applicable.
+The retention that is or would be effective after this request. `infinite` if there is no retention applicable.
 ====
 
 [[data-streams-put-global-retention-example]]

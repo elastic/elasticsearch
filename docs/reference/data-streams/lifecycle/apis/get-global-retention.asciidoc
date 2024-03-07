@@ -6,7 +6,7 @@
 
 preview::[]
 
-Gets the global retention settings that apply on every data streams managed by data stream lifecycle.
+Gets the global retention settings that apply on every data streams managed by <<data-stream-lifecycle,data stream lifecycle>>.
 
 [[get-global-retention-api-prereqs]]
 ==== {api-prereq-title}
@@ -43,7 +43,7 @@ defined on the data stream level.
 `max_retention`::
 (Optional, string)
 The max retention that will apply to all data stream managed by data stream lifecycle. The max retention will override the
-retention of a data stream which retention exceeds the max retention.
+retention of a data stream whose retention exceeds the max retention.
 
 
 [[data-streams-get-global-retention-example]]
@@ -85,5 +85,5 @@ The response will look like the following:
   "max_retention": "90d"        <2>
 }
 --------------------------------------------------
-<1> 7 days retention will be applied to any data stream does not have retention set in their lifecycle.
+<1> 7 days retention will be applied to any data stream that does not have retention set in its lifecycle.
 <2> 90 days retention will be applied to all data streams that have retention that exceeds the 90 days.

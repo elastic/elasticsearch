@@ -41,7 +41,9 @@ import java.util.Map;
 import java.util.OptionalDouble;
 import java.util.OptionalLong;
 
-public class TransportGetDesiredBalanceStatsAction extends TransportMasterNodeReadAction<DesiredBalanceRequest, DesiredBalanceStatsResponse> {
+public class TransportGetDesiredBalanceStatsAction extends TransportMasterNodeReadAction<
+    DesiredBalanceRequest,
+    DesiredBalanceStatsResponse> {
 
     public static final ActionType<DesiredBalanceStatsResponse> TYPE = new ActionType<>("cluster:admin/desired_balance/get");
     @Nullable

@@ -34,8 +34,7 @@ public record NodeAllocationStats(int shards, double forecastedIngestLoad, long 
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder
-            .field("shards", shards)
+        return builder.field("shards", shards)
             .field("forecasted_ingest_load", forecastedIngestLoad)
             .field("forecasted_disk_usage", forecastedDiskUsage);
     }

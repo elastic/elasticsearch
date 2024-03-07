@@ -87,7 +87,8 @@ public class TransportGetDesiredBalanceStatsActionTests extends ESAllocationTest
         );
     }
 
-    private static DesiredBalanceStatsResponse execute(TransportGetDesiredBalanceStatsAction action, ClusterState clusterState) throws Exception {
+    private static DesiredBalanceStatsResponse execute(TransportGetDesiredBalanceStatsAction action, ClusterState clusterState)
+        throws Exception {
         return PlainActionFuture.get(
             future -> action.masterOperation(
                 new Task(1, "test", TransportGetDesiredBalanceStatsAction.TYPE.name(), "", TaskId.EMPTY_TASK_ID, Map.of()),

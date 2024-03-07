@@ -1237,7 +1237,7 @@ steps:
           setup:
             ES_RUNTIME_JAVA:
               - openjdk17
-            BWC_VERSION: ["7.17.19", "8.12.3", "8.13.0", "8.14.0"]
+            BWC_VERSION: ["7.17.19", "8.12.3", "8.13.0"]
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -1282,7 +1282,7 @@ steps:
               - openjdk17
               - openjdk21
               - openjdk22
-            BWC_VERSION: ["7.17.19", "8.12.3", "8.13.0", "8.14.0"]
+            BWC_VERSION: ["7.17.19", "8.12.3", "8.13.0"]
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004

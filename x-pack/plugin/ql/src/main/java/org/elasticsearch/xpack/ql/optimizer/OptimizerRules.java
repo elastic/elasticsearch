@@ -1693,7 +1693,7 @@ public final class OptimizerRules {
             return e;
         }
 
-        protected Expression tryReplaceIsNullIsNotNull(Expression e){
+        protected Expression tryReplaceIsNullIsNotNull(Expression e) {
             if (e instanceof IsNotNull isnn) {
                 if (isnn.field().nullable() == Nullability.FALSE) {
                     return new Literal(e.source(), Boolean.TRUE, DataTypes.BOOLEAN);

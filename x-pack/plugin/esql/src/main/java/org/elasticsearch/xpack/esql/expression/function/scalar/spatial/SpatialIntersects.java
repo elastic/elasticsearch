@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
@@ -30,6 +31,7 @@ import org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.asGeometryDocValueReader;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.asLuceneComponent2D;
@@ -66,11 +68,11 @@ public class SpatialIntersects extends SpatialRelatesFunction {
             description = "Geometry column name or variable of geometry type"
         ) Expression right
     ) {
-        this(source, left, right, false);
+        this(source, left, right, false, false);
     }
 
-    private SpatialIntersects(Source source, Expression left, Expression right, boolean useDocValues) {
-        super(source, left, right, useDocValues);
+    private SpatialIntersects(Source source, Expression left, Expression right, boolean leftDocValues, boolean rightDocValues) {
+        super(source, left, right, leftDocValues, rightDocValues);
     }
 
     @Override
@@ -79,13 +81,16 @@ public class SpatialIntersects extends SpatialRelatesFunction {
     }
 
     @Override
-    public SpatialIntersects withDocValues() {
-        return new SpatialIntersects(source(), left(), right(), true);
+    public SpatialIntersects withDocValues(Set<FieldAttribute> attributes) {
+        // Only update the docValues flags if the field is found in the attributes
+        boolean leftDV = leftDocValues || foundField(left(), attributes);
+        boolean rightDV = rightDocValues || foundField(right(), attributes);
+        return new SpatialIntersects(source(), left(), right(), leftDV, rightDV);
     }
 
     @Override
     protected SpatialIntersects replaceChildren(Expression newLeft, Expression newRight) {
-        return new SpatialIntersects(source(), newLeft, newRight, useDocValues);
+        return new SpatialIntersects(source(), newLeft, newRight, leftDocValues, rightDocValues);
     }
 
     @Override
@@ -129,25 +134,17 @@ public class SpatialIntersects extends SpatialRelatesFunction {
                 );
                 if (EsqlDataTypes.isSpatialPoint(spatialType)) {
                     evaluatorMap.put(
-                        SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSources(spatialType, otherType).withDocValues(),
+                        SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSources(spatialType, otherType).withLeftDocValues(),
                         new SpatialEvaluatorFactory.SpatialEvaluatorFactoryWithFields(
                             SpatialIntersectsGeoPointDocValuesAndSourceEvaluator.Factory::new
                         )
                     );
                     evaluatorMap.put(
-                        SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSourceAndConstant(spatialType, otherType).withDocValues(),
+                        SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSourceAndConstant(spatialType, otherType).withLeftDocValues(),
                         new SpatialEvaluatorFactory.SpatialEvaluatorWithConstantFactory(
                             SpatialIntersectsGeoPointDocValuesAndConstantEvaluator.Factory::new
                         )
                     );
-                    if (EsqlDataTypes.isSpatialPoint(otherType)) {
-                        evaluatorMap.put(
-                            SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSources(spatialType, otherType).withDocValues(),
-                            new SpatialEvaluatorFactory.SpatialEvaluatorFactoryWithFields(
-                                SpatialIntersectsGeoPointDocValuesAndDocValuesEvaluator.Factory::new
-                            )
-                        );
-                    }
                 }
             }
         }
@@ -169,25 +166,17 @@ public class SpatialIntersects extends SpatialRelatesFunction {
                 );
                 if (EsqlDataTypes.isSpatialPoint(spatialType)) {
                     evaluatorMap.put(
-                        SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSources(spatialType, otherType).withDocValues(),
+                        SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSources(spatialType, otherType).withLeftDocValues(),
                         new SpatialEvaluatorFactory.SpatialEvaluatorFactoryWithFields(
                             SpatialIntersectsCartesianPointDocValuesAndSourceEvaluator.Factory::new
                         )
                     );
                     evaluatorMap.put(
-                        SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSourceAndConstant(spatialType, otherType).withDocValues(),
+                        SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSourceAndConstant(spatialType, otherType).withLeftDocValues(),
                         new SpatialEvaluatorFactory.SpatialEvaluatorWithConstantFactory(
                             SpatialIntersectsCartesianPointDocValuesAndConstantEvaluator.Factory::new
                         )
                     );
-                    if (EsqlDataTypes.isSpatialPoint(otherType)) {
-                        evaluatorMap.put(
-                            SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSources(spatialType, otherType).withDocValues(),
-                            new SpatialEvaluatorFactory.SpatialEvaluatorFactoryWithFields(
-                                SpatialIntersectsCartesianPointDocValuesAndDocValuesEvaluator.Factory::new
-                            )
-                        );
-                    }
                 }
             }
         }
@@ -214,11 +203,6 @@ public class SpatialIntersects extends SpatialRelatesFunction {
         return GEO.pointRelatesGeometry(leftValue, geometry);
     }
 
-    @Evaluator(extraName = "GeoPointDocValuesAndDocValues", warnExceptions = { IllegalArgumentException.class })
-    static boolean processGeoPointDocValuesAndDocValues(long leftValue, long rightValue) {
-        return GEO.pointRelatesPoint(leftValue, rightValue);
-    }
-
     @Evaluator(extraName = "CartesianSourceAndConstant", warnExceptions = { IllegalArgumentException.class, IOException.class })
     static boolean processCartesianSourceAndConstant(BytesRef leftValue, @Fixed Component2D rightValue) throws IOException {
         return CARTESIAN.geometryRelatesGeometry(leftValue, rightValue);
@@ -238,10 +222,5 @@ public class SpatialIntersects extends SpatialRelatesFunction {
     static boolean processCartesianPointDocValuesAndSource(long leftValue, BytesRef rightValue) {
         Geometry geometry = SpatialCoordinateTypes.UNSPECIFIED.wkbToGeometry(rightValue);
         return CARTESIAN.pointRelatesGeometry(leftValue, geometry);
-    }
-
-    @Evaluator(extraName = "CartesianPointDocValuesAndDocValues")
-    static boolean processCartesianPointDocValuesAndDocValues(long leftValue, long rightValue) {
-        return CARTESIAN.pointRelatesPoint(leftValue, rightValue);
     }
 }

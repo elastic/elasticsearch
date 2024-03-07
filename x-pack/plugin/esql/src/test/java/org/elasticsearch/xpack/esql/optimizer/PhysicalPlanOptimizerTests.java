@@ -100,6 +100,7 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.EsField;
 import org.junit.Before;
 
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -3151,7 +3152,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      *         \_FieldExtractExec[location{f}#16, city_location{f}#19][city_location{f}#19, location{f}#16]
      *           \_EsQueryExec[airports], query[][_doc{f}#55], limit[], sort[] estimatedRowSize[104]
      */
-    public void testIntersectsOnTwoPointFieldAndCentroidUsesDocValues() {
+    public void testIntersectsOnTwoPointFieldAndBothCentroidUsesDocValues() {
         String query = """
             FROM airports
             | WHERE ST_INTERSECTS(location, city_location)
@@ -3187,14 +3188,57 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         // below the exchange (in data node) the aggregation is using doc-values
         assertAggregation(agg, "count", Count.class);
         assertAggregation(agg, "location", SpatialCentroid.class, GEO_POINT, true);
-        assertAggregation(agg, "city_location", SpatialCentroid.class, GEO_POINT, true);
+        assertAggregation(agg, "city_location", SpatialCentroid.class, GEO_POINT, false);
         var filterExec = as(agg.child(), FilterExec.class);
         var extract = as(filterExec.child(), FieldExtractExec.class);
-        assertTrue(
-            "Expect field attribute to be extracted as doc-values",
-            extract.attributesToExtract().stream().allMatch(attr -> extract.hasDocValuesAttribute(attr) && attr.dataType() == GEO_POINT)
-        );
+        assertOnlyOneFieldExtractionWithDocValues(extract, GEO_POINT, "location");
         source(extract.child());
+    }
+
+    public void testIntersectsOnTwoPointFieldAndOneCentroidUsesDocValues() {
+        for (String query : new String[] { """
+            FROM airports
+            | WHERE ST_INTERSECTS(location, city_location)
+            | STATS location=ST_CENTROID(location), count=COUNT()
+            """, """
+            FROM airports
+            | WHERE ST_INTERSECTS(location, city_location)
+            | STATS city_location=ST_CENTROID(city_location), count=COUNT()
+            """ }) {
+
+            var plan = this.physicalPlan(query, airports);
+            var limit = as(plan, LimitExec.class);
+            var agg = as(limit.child(), AggregateExec.class);
+            assertThat("No groupings in aggregation", agg.groupings().size(), equalTo(0));
+            // Before optimization the aggregation does not use doc-values
+            assertAggregation(agg, "count", Count.class);
+            var aggFieldName = findSingleAggregation(agg, "location", "city_location");
+            assertAggregation(agg, aggFieldName, SpatialCentroid.class, GEO_POINT, false);
+
+            var exchange = as(agg.child(), ExchangeExec.class);
+            var fragment = as(exchange.child(), FragmentExec.class);
+            var fAgg = as(fragment.fragment(), Aggregate.class);
+            var filter = as(fAgg.child(), Filter.class);
+            assertThat("filter contains ST_INTERSECTS", filter.condition(), instanceOf(SpatialIntersects.class));
+
+            // Now verify that optimization re-writes the ExchangeExec and pushed down the filter into the Lucene query
+            var optimized = optimizedPlan(plan);
+            limit = as(optimized, LimitExec.class);
+            agg = as(limit.child(), AggregateExec.class);
+            // Above the exchange (in coordinator) the aggregation is not using doc-values
+            assertAggregation(agg, "count", Count.class);
+            assertAggregation(agg, aggFieldName, SpatialCentroid.class, GEO_POINT, false);
+            exchange = as(agg.child(), ExchangeExec.class);
+            agg = as(exchange.child(), AggregateExec.class);
+            assertThat("Aggregation is PARTIAL", agg.getMode(), equalTo(PARTIAL));
+            // below the exchange (in data node) the aggregation is using doc-values
+            assertAggregation(agg, "count", Count.class);
+            assertAggregation(agg, aggFieldName, SpatialCentroid.class, GEO_POINT, true);
+            var filterExec = as(agg.child(), FilterExec.class);
+            var extract = as(filterExec.child(), FieldExtractExec.class);
+            assertOnlyOneFieldExtractionWithDocValues(extract, GEO_POINT, aggFieldName);
+            source(extract.child());
+        }
     }
 
     public void testPushSpatialIntersectsShapeToSource() {
@@ -3775,6 +3819,34 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var aggFunc = as(alias.child(), AggregateFunction.class);
         assertThat(aggFunc, instanceOf(aggClass));
         return aggFunc;
+    }
+
+    private static String findSingleAggregation(PhysicalPlan plan, String... aliasNames) {
+        var agg = as(plan, AggregateExec.class);
+        var aggExps = agg.aggregates().stream().filter(a -> {
+            var alias = as(a, Alias.class);
+            return Arrays.stream(aliasNames).anyMatch(name -> name.equals(alias.name()));
+        }).toList();
+        if (aggExps.size() != 1) {
+            throw new AssertionError(
+                "Expected single aggregation from " + Arrays.toString(aliasNames) + " but found " + aggExps.size() + " aggregations"
+            );
+        }
+        var aggExp = aggExps.get(0);
+        var alias = as(aggExp, Alias.class);
+        return alias.name();
+    }
+
+    private void assertOnlyOneFieldExtractionWithDocValues(FieldExtractExec extract, DataType dataType, String fieldName) {
+        extract.attributesToExtract().stream().forEach(attr -> {
+            String name = attr.qualifiedName();
+            if (name.equals(fieldName)) {
+                assertThat("Expected field '" + name + "' to use doc-values", extract.hasDocValuesAttribute(attr), equalTo(true));
+                assertThat("Expected field '" + name + "' to have data type " + dataType, attr.dataType(), equalTo(dataType));
+            } else {
+                assertThat("Expected field '" + name + "' to NOT use doc-values", extract.hasDocValuesAttribute(attr), equalTo(false));
+            }
+        });
     }
 
     private static EsQueryExec source(PhysicalPlan plan) {

@@ -43,7 +43,13 @@ abstract class SpatialEvaluatorFactory<V, T> {
         Map<SpatialEvaluatorKey, SpatialEvaluatorFactory<?, ?>> evaluatorRules,
         Function<Expression, EvalOperator.ExpressionEvaluator.Factory> toEvaluator
     ) {
-        var evaluatorKey = new SpatialEvaluatorKey(s.crsType(), s.useDocValues(), fieldKey(s.left()), fieldKey(s.right()));
+        var evaluatorKey = new SpatialEvaluatorKey(
+            s.crsType(),
+            s.leftDocValues(),
+            s.rightDocValues(),
+            fieldKey(s.left()),
+            fieldKey(s.right())
+        );
         SpatialEvaluatorFactory<?, ?> factory = evaluatorRules.get(evaluatorKey);
         if (factory == null) {
             evaluatorKey = evaluatorKey.swapSides();
@@ -74,7 +80,9 @@ abstract class SpatialEvaluatorFactory<V, T> {
 
         SpatialRelatesFunction.SpatialCrsType crsType();
 
-        boolean useDocValues();
+        boolean leftDocValues();
+
+        boolean rightDocValues();
     }
 
     protected static class SwappedSpatialSourceSupplier implements SpatialSourceSupplier {
@@ -95,8 +103,13 @@ abstract class SpatialEvaluatorFactory<V, T> {
         }
 
         @Override
-        public boolean useDocValues() {
-            return delegate.useDocValues();
+        public boolean leftDocValues() {
+            return delegate.leftDocValues();
+        }
+
+        @Override
+        public boolean rightDocValues() {
+            return delegate.rightDocValues();
         }
 
         @Override
@@ -159,31 +172,26 @@ abstract class SpatialEvaluatorFactory<V, T> {
 
     protected record SpatialEvaluatorKey(
         SpatialRelatesFunction.SpatialCrsType crsType,
-        boolean useDocValues,
+        boolean leftDocValues,
+        boolean rightDocValues,
         SpatialEvaluatorFieldKey left,
         SpatialEvaluatorFieldKey right
     ) {
-        SpatialEvaluatorKey withDocValues() {
-            return new SpatialEvaluatorKey(crsType, true, left, right);
+        SpatialEvaluatorKey(SpatialRelatesFunction.SpatialCrsType crsType, SpatialEvaluatorFieldKey left, SpatialEvaluatorFieldKey right) {
+            this(crsType, false, false, left, right);
+        }
+
+        SpatialEvaluatorKey withLeftDocValues() {
+            return new SpatialEvaluatorKey(crsType, true, false, left, right);
         }
 
         SpatialEvaluatorKey swapSides() {
-            return new SpatialEvaluatorKey(crsType, useDocValues, right, left);
-        }
-
-        SpatialEvaluatorKey withConstants(boolean leftConstant, boolean rightConstant) {
-            return new SpatialEvaluatorKey(
-                crsType,
-                useDocValues,
-                new SpatialEvaluatorFieldKey(left.dataType, leftConstant),
-                new SpatialEvaluatorFieldKey(right.dataType, rightConstant)
-            );
+            return new SpatialEvaluatorKey(crsType, rightDocValues, leftDocValues, right, left);
         }
 
         static SpatialEvaluatorKey fromSourceAndConstant(DataType left, DataType right) {
             return new SpatialEvaluatorKey(
                 SpatialRelatesFunction.SpatialCrsType.fromDataType(left),
-                false,
                 new SpatialEvaluatorFieldKey(left, false),
                 new SpatialEvaluatorFieldKey(right, true)
             );
@@ -192,18 +200,8 @@ abstract class SpatialEvaluatorFactory<V, T> {
         static SpatialEvaluatorKey fromSources(DataType left, DataType right) {
             return new SpatialEvaluatorKey(
                 SpatialRelatesFunction.SpatialCrsType.fromDataType(left),
-                false,
                 new SpatialEvaluatorFieldKey(left, false),
                 new SpatialEvaluatorFieldKey(right, false)
-            );
-        }
-
-        static SpatialEvaluatorKey fromConstants(DataType left, DataType right) {
-            return new SpatialEvaluatorKey(
-                SpatialRelatesFunction.SpatialCrsType.fromDataType(left),
-                false,
-                new SpatialEvaluatorFieldKey(left, true),
-                new SpatialEvaluatorFieldKey(right, true)
             );
         }
 

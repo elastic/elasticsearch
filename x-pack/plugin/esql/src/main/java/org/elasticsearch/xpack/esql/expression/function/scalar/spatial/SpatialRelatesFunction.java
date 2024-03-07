@@ -19,7 +19,6 @@ import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 import org.elasticsearch.lucene.spatial.GeometryDocValueReader;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.TypeResolutions;
@@ -50,11 +49,13 @@ public abstract class SpatialRelatesFunction extends BinaryScalarFunction
         EvaluatorMapper,
         SpatialEvaluatorFactory.SpatialSourceSupplier {
     protected SpatialCrsType crsType;
-    protected final boolean useDocValues;
+    protected final boolean leftDocValues;
+    protected final boolean rightDocValues;
 
-    protected SpatialRelatesFunction(Source source, Expression left, Expression right, boolean useDocValues) {
+    protected SpatialRelatesFunction(Source source, Expression left, Expression right, boolean leftDocValues, boolean rightDocValues) {
         super(source, left, right);
-        this.useDocValues = useDocValues;
+        this.leftDocValues = leftDocValues;
+        this.rightDocValues = rightDocValues;
     }
 
     public abstract ShapeField.QueryRelation queryRelation();
@@ -146,7 +147,10 @@ public abstract class SpatialRelatesFunction extends BinaryScalarFunction
         return left().foldable() && right().foldable();
     }
 
-    public abstract SpatialRelatesFunction withDocValues();
+    /**
+     * Mark the function as expecting the specified fields to arrive as doc-values.
+     */
+    public abstract SpatialRelatesFunction withDocValues(Set<FieldAttribute> attributes);
 
     /**
      * Push-down to Lucene is only possible if one field is an indexed spatial field, and the other is a constant spatial or string column.
@@ -170,20 +174,26 @@ public abstract class SpatialRelatesFunction extends BinaryScalarFunction
     public int hashCode() {
         // NB: the hashcode is currently used for key generation so
         // to avoid clashes between aggs with the same arguments, add the class name as variation
-        return Objects.hash(getClass(), children(), useDocValues);
+        return Objects.hash(getClass(), children(), leftDocValues, rightDocValues);
     }
 
     @Override
     public boolean equals(Object obj) {
         if (super.equals(obj)) {
             SpatialRelatesFunction other = (SpatialRelatesFunction) obj;
-            return Objects.equals(other.children(), children()) && Objects.equals(other.useDocValues, useDocValues);
+            return Objects.equals(other.children(), children())
+                && Objects.equals(other.leftDocValues, leftDocValues)
+                && Objects.equals(other.rightDocValues, rightDocValues);
         }
         return false;
     }
 
-    public boolean useDocValues() {
-        return useDocValues;
+    public boolean leftDocValues() {
+        return leftDocValues;
+    }
+
+    public boolean rightDocValues() {
+        return rightDocValues;
     }
 
     /**
@@ -203,9 +213,12 @@ public abstract class SpatialRelatesFunction extends BinaryScalarFunction
      * This is because the planner might push down a spatial aggregation to lucene, which results in the field being provided
      * as doc-values instead of source values, and this function needs to know if it should use doc-values or not.
      */
-    public boolean hasFieldAttribute(Set<Attribute> foundAttributes) {
-        return left() instanceof FieldAttribute leftField && foundAttributes.contains(leftField)
-            || right() instanceof FieldAttribute rightField && foundAttributes.contains(rightField);
+    public boolean hasFieldAttribute(Set<FieldAttribute> foundAttributes) {
+        return foundField(left(), foundAttributes) || foundField(right(), foundAttributes);
+    }
+
+    protected boolean foundField(Expression expression, Set<FieldAttribute> foundAttributes) {
+        return expression instanceof FieldAttribute field && foundAttributes.contains(field);
     }
 
     protected enum SpatialCrsType {
@@ -259,10 +272,6 @@ public abstract class SpatialRelatesFunction extends BinaryScalarFunction
             var visitor = Component2DVisitor.getVisitor(rightComponent2D, queryRelation, coordinateEncoder);
             reader.visit(visitor);
             return visitor.matches();
-        }
-
-        protected boolean pointRelatesPoint(long leftEncoded, long rightEncoded) {
-            return (queryRelation == DISJOINT) == (leftEncoded != rightEncoded);
         }
 
         protected boolean pointRelatesGeometry(long encoded, Geometry geometry) {

@@ -456,7 +456,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
     private static class SpatialDocValuesExtraction extends OptimizerRule<AggregateExec> {
         @Override
         protected PhysicalPlan rule(AggregateExec aggregate) {
-            var foundAttributes = new HashSet<Attribute>();
+            var foundAttributes = new HashSet<FieldAttribute>();
 
             PhysicalPlan plan = aggregate.transformDown(UnaryExec.class, exec -> {
                 if (exec instanceof AggregateExec agg) {
@@ -464,7 +464,8 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
                     var changedAggregates = false;
                     for (NamedExpression aggExpr : agg.aggregates()) {
                         if (aggExpr instanceof Alias as && as.child() instanceof SpatialAggregateFunction af) {
-                            if (af.field() instanceof FieldAttribute fieldAttribute) {
+                            if (af.field() instanceof FieldAttribute fieldAttribute
+                                && allowedForDocValues(fieldAttribute, agg, foundAttributes)) {
                                 // We need to both mark the field to load differently, and change the spatial function to know to use it
                                 foundAttributes.add(fieldAttribute);
                                 changedAggregates = true;
@@ -494,7 +495,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
                         .transformDown(
                             SpatialRelatesFunction.class,
                             spatialRelatesFunction -> (spatialRelatesFunction.hasFieldAttribute(foundAttributes))
-                                ? spatialRelatesFunction.withDocValues()
+                                ? spatialRelatesFunction.withDocValues(foundAttributes)
                                 : spatialRelatesFunction
                         );
                     if (filterExec.condition().equals(condition) == false) {
@@ -517,6 +518,25 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
                 return exec;
             });
             return plan;
+        }
+
+        /**
+         * This function disallows the use of more than one field for doc-values extraction in the same spatial relation function.
+         * This is because comparing two doc-values fields is not supported in the current implementation.
+         */
+        private boolean allowedForDocValues(FieldAttribute fieldAttribute, AggregateExec agg, Set<FieldAttribute> foundAttributes) {
+            var candidateDocValuesAttributes = new HashSet<>(foundAttributes);
+            candidateDocValuesAttributes.add(fieldAttribute);
+            var spatialRelatesAttributes = new HashSet<FieldAttribute>();
+            agg.forEachExpressionDown(SpatialRelatesFunction.class, relatesFunction -> {
+                candidateDocValuesAttributes.forEach(candidate -> {
+                    if (relatesFunction.hasFieldAttribute(Set.of(candidate))) {
+                        spatialRelatesAttributes.add(candidate);
+                    }
+                });
+            });
+            // Disallow more than one spatial field to be extracted using doc-values (for now)
+            return spatialRelatesAttributes.size() < 2;
         }
     }
 }

@@ -1,0 +1,7 @@
+pr: 106077
+summary: Fix merging component templates with a mix of dotted and nested object mapper
+  definitions
+area: Mapping
+type: bug
+issues:
+ - 105482

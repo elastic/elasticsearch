@@ -19,7 +19,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.lucene.LuceneOperator;
@@ -40,8 +39,7 @@ import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
-import org.elasticsearch.threadpool.ExecutorBuilder;
-import org.elasticsearch.threadpool.FixedExecutorBuilder;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.esql.EsqlInfoTransportAction;
@@ -68,8 +66,6 @@ import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 public class EsqlPlugin extends Plugin implements ActionPlugin {
-
-    public static final String ESQL_THREAD_POOL_NAME = "esql";
 
     public static final Setting<Integer> QUERY_RESULT_TRUNCATION_MAX_SIZE = Setting.intSetting(
         "esql.query.result_truncation_max_size",
@@ -110,12 +106,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
                 ),
                 new EsqlIndexResolver(services.client(), EsqlDataTypeRegistry.INSTANCE)
             ),
-            new ExchangeService(
-                services.clusterService().getSettings(),
-                services.threadPool(),
-                EsqlPlugin.ESQL_THREAD_POOL_NAME,
-                blockFactory
-            ),
+            new ExchangeService(services.clusterService().getSettings(), services.threadPool(), ThreadPool.Names.SEARCH, blockFactory),
             blockFactory
         );
     }
@@ -182,20 +173,5 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
             ).stream(),
             Block.getNamedWriteables().stream()
         ).toList();
-    }
-
-    @Override
-    public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
-        final int allocatedProcessors = EsExecutors.allocatedProcessors(settings);
-        return List.of(
-            new FixedExecutorBuilder(
-                settings,
-                ESQL_THREAD_POOL_NAME,
-                allocatedProcessors,
-                1000,
-                ESQL_THREAD_POOL_NAME,
-                EsExecutors.TaskTrackingConfig.DEFAULT
-            )
-        );
     }
 }

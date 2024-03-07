@@ -117,7 +117,7 @@ FROM my-index-000001,cluster_one:my-index-000001
 [discrete]
 [IMPORTANT]
 ====
-Enrich with the `_coordinator` mode usually increase inter-cluster data transfer and
+Enrich with the `_coordinator` mode usually increases inter-cluster data transfer and
 workload on the querying cluster.
 ====
 

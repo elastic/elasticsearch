@@ -70,6 +70,17 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
             assert context.getDynamicMappers().isEmpty() == false
                 || context.getDynamicRuntimeFields().isEmpty() == false
                 || id.equals(indexRouting.createId(context.sourceToParse().getXContentType(), context.sourceToParse().source(), suffix));
+            if (context.sourceToParse().id() != null && false == context.sourceToParse().id().equals(id)) {
+                throw new IllegalArgumentException(
+                    String.format(
+                        Locale.ROOT,
+                        "_id must be unset or set to [%s] but was [%s] because [%s] is in time_series mode",
+                        id,
+                        context.sourceToParse().id(),
+                        context.indexSettings().getIndexMetadata().getIndex().getName()
+                    )
+                );
+            }
         } else if (context.sourceToParse().routing() != null) {
             int routingHash = TimeSeriesRoutingHashFieldMapper.decode(context.sourceToParse().routing());
             id = createId(routingHash, tsid, timestamp);
@@ -81,18 +92,8 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
                         + "] is in time_series mode"
                 );
             }
+            // In Translog operations, the id has already been generated based on the routing hash while the latter is no longer.
             id = context.sourceToParse().id();
-        }
-        if (context.sourceToParse().id() != null && false == context.sourceToParse().id().equals(id)) {
-            throw new IllegalArgumentException(
-                String.format(
-                    Locale.ROOT,
-                    "_id must be unset or set to [%s] but was [%s] because [%s] is in time_series mode",
-                    id,
-                    context.sourceToParse().id(),
-                    context.indexSettings().getIndexMetadata().getIndex().getName()
-                )
-            );
         }
         context.id(id);
 

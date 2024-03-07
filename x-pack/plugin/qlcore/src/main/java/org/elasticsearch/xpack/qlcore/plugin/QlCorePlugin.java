@@ -10,6 +10,6 @@ package org.elasticsearch.xpack.qlcore.plugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
 
-public class QlPlugin extends Plugin implements ExtensiblePlugin {
+public class QlCorePlugin extends Plugin implements ExtensiblePlugin {
 
 }

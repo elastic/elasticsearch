@@ -4,7 +4,7 @@ apply plugin: 'elasticsearch.internal-test-artifact'
 esplugin {
   name 'x-pack-qlcore'
   description 'Elasticsearch infrastructure plugin for ESQL for Elasticsearch'
-  classname 'org.elasticsearch.xpack.qlcore.plugin.QlPlugin'
+  classname 'org.elasticsearch.xpack.qlcore.plugin.QlCorePlugin'
   extendedPlugins = ['x-pack-core']
 }
 

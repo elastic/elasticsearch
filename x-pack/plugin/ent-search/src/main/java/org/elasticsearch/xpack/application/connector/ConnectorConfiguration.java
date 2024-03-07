@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.application.connector.configuration.Configuration
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
@@ -318,6 +319,16 @@ public class ConnectorConfiguration implements Writeable, ToXContentObject {
         out.writeOptionalStringCollection(uiRestrictions);
         out.writeOptionalCollection(validations);
         out.writeGenericValue(value);
+    }
+
+    public Map<String, Object> toMap() {
+        try {
+            BytesReference bytesReference = XContentHelper.toXContent(this
+            , XContentType.JSON, null, false);
+            return XContentHelper.convertToMap(bytesReference, true, XContentType.JSON).v2();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     @Override

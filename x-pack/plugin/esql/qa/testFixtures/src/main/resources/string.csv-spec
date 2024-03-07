@@ -1017,20 +1017,39 @@ values#[skip:-8.13.99, reason:Added in 8.14]
 ;
 
 valuesGrouped#[skip:-8.13.99, reason:Added in 8.14]
+// tag::values-grouped[]
   FROM employees
-| WHERE emp_no <= 10009
 | EVAL first_letter = SUBSTRING(first_name, 0, 1)
 | STATS first_name=VALUES(first_name) BY first_letter
 | SORT first_letter
+// end::values-grouped[]
 ;
 
-first_name:keyword | first_letter:keyword
-            Anneke | A
-           Bezalel | B
-         Chirstian | C
-            Georgi | G
-           Kyoichi | K
-             Parto | P
-  [Saniya, Sumant] | S
-           Tzvetan | T
+// tag::values-grouped-result[]
+                                                                               first_name:keyword | first_letter:keyword
+                                                   [Anneke, Alejandro, Anoosh, Amabile, Arumugam] | A
+                                       [Bezalel, Berni, Bojan, Basil, Brendon, Berhard, Breannda] | B
+                                                         [Chirstian, Cristinel, Claudi, Charlene] | C
+                                                             [Duangkaew, Divier, Domenick, Danel] | D
+                                                                          [Eberhardt, Ebbe, Erez] | E
+                                                                                          Florian | F
+                                                            [Georgi, Guoxiang, Georgy, Gino, Gao] | G
+                                            [Hidefumi, Heping, Hisao, Hironoby, Hilari, Hironobu] | H
+                                                                               [Jungsoon, Jayson] | J
+                                    [Kyoichi, Kazuhito, Kazuhide, Kwee, Kshitij, Kenroku, Kendra] | K
+                                                                                [Lillian, Lucien] | L
+                            [Mary, Mayuko, Magy, Mingsen, Moss, Mayumi, Margareta, Mokhtar, Mona] | M
+                                                                                            Otmar | O
+                                                     [Parto, Patricio, Prasadram, Premal, Parviz] | P
+                                                                           [Ramzi, Reuven, Remzi] | R
+[Saniya, Sumant, Shahaf, Suzette, Sanjiv, Satosi, Shir, Somnath, Sudharsan, Sailaja, Sreekrishna] | S
+                                                                            [Tzvetan, Tse, Tuval] | T
+                                                                                       [Uri, Udi] | U
+                                                                       [Vishv, Valdiodio, Valter] | V
+                                                                                            Weiyi | W
+                                                                                          Xinglin | X
+                                                                      [Yongqiao, Yishay, Yinghua] | Y
+                                                                               [Zvonko, Zhongwei] | Z
+                                                                                             null | null
+// end::values-grouped-result[]
 ;

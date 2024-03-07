@@ -145,15 +145,15 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
 
     private SafeCommitInfo getNewSafeCommitInfo(IndexCommit newSafeCommit) {
         final var currentSafeCommitInfo = this.safeCommitInfo;
-        final long safeCommitLocalCheckpoint;
+        final long newSafeCommitLocalCheckpoint;
         try {
-            safeCommitLocalCheckpoint = Long.parseLong(newSafeCommit.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
+            newSafeCommitLocalCheckpoint = Long.parseLong(newSafeCommit.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
         } catch (Exception ex) {
             logger.info("failed to get the local checkpoint from the safe commit; use the info from the previous safe commit", ex);
             return currentSafeCommitInfo;
         }
 
-        if (currentSafeCommitInfo.localCheckpoint == safeCommitLocalCheckpoint) {
+        if (currentSafeCommitInfo.localCheckpoint == newSafeCommitLocalCheckpoint) {
             // the new commit could in principle have the same LCP but a different doc count due to extra operations between its LCP and
             // MSN, but that is a transient state since we'll eventually advance the LCP. The doc count is only used for heuristics around
             // expiring excessively-lagging retention leases, so a little inaccuracy is tolerable here.
@@ -161,10 +161,10 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
         }
 
         try {
-            return new SafeCommitInfo(safeCommitLocalCheckpoint, getDocCountOfCommit(newSafeCommit));
+            return new SafeCommitInfo(newSafeCommitLocalCheckpoint, getDocCountOfCommit(newSafeCommit));
         } catch (IOException ex) {
             logger.info("failed to get the total docs from the safe commit; use the total docs from the previous safe commit", ex);
-            return new SafeCommitInfo(safeCommitLocalCheckpoint, currentSafeCommitInfo.docCount);
+            return new SafeCommitInfo(newSafeCommitLocalCheckpoint, currentSafeCommitInfo.docCount);
         }
     }
 

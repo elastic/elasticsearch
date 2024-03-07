@@ -21,7 +21,7 @@ def versions = [
   'tika'  : '2.7.0',
   'pdfbox': '2.0.27',
   'poi'   : '5.2.3',
-  'mime4j': '0.8.9'
+  'mime4j': '0.8.10'
 ]
 
 // exclude commons-logging from test dependencies to avoid jar-hell, we use jcl-over-slf4j here

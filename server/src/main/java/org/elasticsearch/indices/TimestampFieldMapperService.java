@@ -146,8 +146,6 @@ public class TimestampFieldMapperService extends AbstractLifecycleComponent impl
             return true;
         }
 
-        // indexMetadata.getTimestampRange()
-
         final IndexLongFieldRange timestampRange = indexMetadata.getTimestampRange();
         return timestampRange.isComplete() && timestampRange != IndexLongFieldRange.UNKNOWN;
     }

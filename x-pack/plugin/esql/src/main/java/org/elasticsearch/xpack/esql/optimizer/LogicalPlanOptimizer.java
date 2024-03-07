@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -86,6 +87,7 @@ import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.FoldNull;
 import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PropagateEquals;
 import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PropagateNullable;
 import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.TransformDirection;
+import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.TransformDirection.UP;
 
 public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan, LogicalOptimizerContext> {
 
@@ -144,7 +146,8 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new PushDownEnrich(),
             new PushDownAndCombineOrderBy(),
             new PruneOrderByBeforeStats(),
-            new PruneRedundantSortClauses()
+            new PruneRedundantSortClauses(),
+            new PartiallyFoldCase()
         );
     }
 
@@ -1585,6 +1588,27 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
                 newAggs.add(newAgg);
             }
             return changed.get() ? new Aggregate(aggregate.source(), aggregate.child(), aggregate.groupings(), newAggs) : aggregate;
+        }
+    }
+
+    /**
+     * Fold the arms of {@code CASE} statements.
+     * <pre>{@code
+     * EVAL c=CASE(true, foo, bar)
+     * }</pre>
+     * becomes
+     * <pre>{@code
+     * EVAL c=foo
+     * }</pre>
+     */
+    static class PartiallyFoldCase extends OptimizerRules.OptimizerRule<Eval> {
+        PartiallyFoldCase() {
+            super(UP);
+        }
+
+        @Override
+        protected LogicalPlan rule(Eval plan) {
+            return plan.transformExpressionsOnly(Case.class, Case::partiallyFold);
         }
     }
 }

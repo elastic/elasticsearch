@@ -175,7 +175,6 @@ public final class Case extends EsqlScalarFunction {
 
     @Override
     public Object fold() {
-        // TODO can we partially fold? like CASE(false, foo, bar) -> bar
         for (Condition condition : conditions) {
             Boolean b = (Boolean) condition.condition.fold();
             if (b != null && b) {
@@ -183,6 +182,29 @@ public final class Case extends EsqlScalarFunction {
             }
         }
         return elseValue.fold();
+    }
+
+    /**
+     * Fold the arms of {@code CASE} statements.
+     * <pre>{@code
+     * EVAL c=CASE(true, foo, bar)
+     * }</pre>
+     * becomes
+     * <pre>{@code
+     * EVAL c=foo
+     * }</pre>
+     */
+    public Expression partiallyFold() {
+        for (Condition condition : conditions) {
+            if (condition.condition.foldable() == false) {
+                return this;
+            }
+            Boolean b = (Boolean) condition.condition.fold();
+            if (b != null && b) {
+                return condition.value;
+            }
+        }
+        return elseValue;
     }
 
     @Override

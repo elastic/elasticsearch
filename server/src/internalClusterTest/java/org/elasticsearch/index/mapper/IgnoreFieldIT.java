@@ -18,7 +18,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.metrics.InternalAvg;
-import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.junit.Before;
@@ -26,12 +26,13 @@ import org.junit.Before;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.avg;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
+import static org.elasticsearch.test.ESIntegTestCase.prepareSearch;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.hasSize;
 
 @SuppressWarnings("resource")
-public class IgnoreFieldIT extends ESIntegTestCase {
+public class IgnoreFieldIT extends ESSingleNodeTestCase {
 
     public static final String NUMERIC_FIELD_NAME = "numeric_field";
     public static final String DATE_FIELD_NAME = "date_field";
@@ -157,7 +158,7 @@ public class IgnoreFieldIT extends ESIntegTestCase {
         }
     }
 
-    private static void indexTestDoc(String testField, String docId, String testValue) {
+    private void indexTestDoc(String testField, String docId, String testValue) {
         DocWriteResponse docWriteResponse = null;
         try {
             docWriteResponse = client().prepareIndex(TEST_INDEX)

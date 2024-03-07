@@ -8,6 +8,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.settings.Setting;
@@ -18,6 +19,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.cluster.metadata.MetadataIndexStateService.isIndexVerifiedBeforeClosed;
@@ -105,7 +107,17 @@ public record AutoExpandReplicas(int minReplicas, int maxReplicas, boolean enabl
                 numMatchingDataNodes++;
             }
         }
-        return calculateDesiredNumberOfReplicas(numMatchingDataNodes);
+        int replicas = calculateDesiredNumberOfReplicas(numMatchingDataNodes);
+        // Make sure in stateless auto-expand indices always have at least 1 replica, this is necessary for example in cases where
+        // we have only one search node and it is marked for shutdown.
+        if (replicas == 0
+            && Objects.equals(
+                indexMetadata.getSettings().get(ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.getKey()),
+                "stateless"
+            )) {
+            replicas = 1;
+        }
+        return replicas;
     }
 
     // package private for testing

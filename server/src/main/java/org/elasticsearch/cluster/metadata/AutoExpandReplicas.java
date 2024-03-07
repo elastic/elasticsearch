@@ -100,6 +100,13 @@ public record AutoExpandReplicas(int minReplicas, int maxReplicas, boolean enabl
 
     public int getDesiredNumberOfReplicas(IndexMetadata indexMetadata, RoutingAllocation allocation) {
         assert enabled : "should only be called when enabled";
+        // Make sure in stateless auto-expand indices always have 1 replica to ensure all shard roles are always present
+        if (Objects.equals(
+            indexMetadata.getSettings().get(ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.getKey()),
+            "stateless"
+        )) {
+            return 1;
+        }
         int numMatchingDataNodes = 0;
         for (DiscoveryNode discoveryNode : allocation.nodes().getDataNodes().values()) {
             Decision decision = allocation.deciders().shouldAutoExpandToNode(indexMetadata, discoveryNode, allocation);
@@ -107,16 +114,7 @@ public record AutoExpandReplicas(int minReplicas, int maxReplicas, boolean enabl
                 numMatchingDataNodes++;
             }
         }
-        int replicas = calculateDesiredNumberOfReplicas(numMatchingDataNodes);
-        // Make sure in stateless auto-expand indices always have at least 1 replica to ensure all shard roles are always present
-        if (replicas == 0
-            && Objects.equals(
-                indexMetadata.getSettings().get(ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.getKey()),
-                "stateless"
-            )) {
-            replicas = 1;
-        }
-        return replicas;
+        return calculateDesiredNumberOfReplicas(numMatchingDataNodes);
     }
 
     // package private for testing

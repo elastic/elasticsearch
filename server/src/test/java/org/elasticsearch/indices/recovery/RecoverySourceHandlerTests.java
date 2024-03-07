@@ -73,7 +73,6 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.recovery.plan.PeerOnlyRecoveryPlannerService;
 import org.elasticsearch.indices.recovery.plan.RecoveryPlannerService;
 import org.elasticsearch.indices.recovery.plan.ShardRecoveryPlan;
-import org.elasticsearch.plugins.internal.DocumentSizeObserver;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.test.CorruptionUtils;
 import org.elasticsearch.test.DummyShardLock;
@@ -519,19 +518,11 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
 
         @Override
         public Engine.Index createIndexOp(int docIdent) {
-            SourceToParse source = new SourceToParse(
-                null,
-                new BytesArray(Strings.format("""
-                    {
-                        "@timestamp": %s,
-                        "dim": "dim"
-                    }""", docIdent)),
-                XContentType.JSON,
-                TimeSeriesRoutingHashFieldMapper.encode(0),
-                Map.of(),
-                DocumentSizeObserver.EMPTY_INSTANCE
-
-            );
+            SourceToParse source = new SourceToParse(null, new BytesArray(Strings.format("""
+                {
+                    "@timestamp": %s,
+                    "dim": "dim"
+                }""", docIdent)), XContentType.JSON, TimeSeriesRoutingHashFieldMapper.encode(0));
             return IndexShard.prepareIndex(
                 mapper,
                 source,

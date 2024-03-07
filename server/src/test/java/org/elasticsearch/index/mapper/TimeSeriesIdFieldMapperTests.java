@@ -22,13 +22,11 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.plugins.internal.DocumentSizeObserver;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
-import java.util.Map;
 
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.hamcrest.Matchers.containsString;
@@ -674,7 +672,7 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
                 "@timestamp": 1609459200000,
                 "dim": "6a841a21",
                 "value": 100
-            }"""), XContentType.JSON, TimeSeriesRoutingHashFieldMapper.encode(0), Map.of(), DocumentSizeObserver.EMPTY_INSTANCE);
+            }"""), XContentType.JSON, TimeSeriesRoutingHashFieldMapper.encode(0));
         Engine.Index index = IndexShard.prepareIndex(
             mapper,
             source,
@@ -703,7 +701,7 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
                 "@timestamp": 1609459200000,
                 "dim": "6a841a21",
                 "value": 100
-            }"""), XContentType.JSON, "no such routing hash", Map.of(), DocumentSizeObserver.EMPTY_INSTANCE);
+            }"""), XContentType.JSON, "no such routing hash");
         var failure = expectThrows(DocumentParsingException.class, () -> {
             IndexShard.prepareIndex(
                 mapper,

@@ -19,7 +19,6 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.plugins.internal.DocumentSizeObserver;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
@@ -28,7 +27,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -734,9 +732,7 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
                 id,
                 BytesReference.bytes(builder),
                 builder.contentType(),
-                TimeSeriesRoutingHashFieldMapper.encode(ROUTING_HASH),
-                Map.of(),
-                DocumentSizeObserver.EMPTY_INSTANCE
+                TimeSeriesRoutingHashFieldMapper.encode(ROUTING_HASH)
             );
             return mapperService.documentParser().parseDocument(sourceToParse, mapperService.mappingLookup());
         }

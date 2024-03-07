@@ -115,7 +115,7 @@ public final class PerFieldMapperCodec extends Lucene99Codec {
 
     private boolean excludeFields(String fieldName) {
         // Avoid using tsdb codec for fields like _seq_no, _primary_term.
-        // But _tsid and _routing_path should always use the tsdb codec.
+        // But _tsid and _ts_routing_hash should always use the tsdb codec.
         return fieldName.startsWith("_") && fieldName.equals("_tsid") == false && fieldName.equals("_ts_routing_hash") == false;
     }
 

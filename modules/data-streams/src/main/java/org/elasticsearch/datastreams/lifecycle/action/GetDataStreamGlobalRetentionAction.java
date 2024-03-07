@@ -84,10 +84,6 @@ public class GetDataStreamGlobalRetentionAction {
             globalRetention = DataStreamGlobalRetention.read(in);
         }
 
-        public DataStreamGlobalRetention getGlobalRetention() {
-            return globalRetention;
-        }
-
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             globalRetention.writeTo(out);

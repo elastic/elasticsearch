@@ -14,7 +14,6 @@ import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.allocation.AllocationStatsService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
@@ -45,7 +44,6 @@ public class TransportNodesStatsAction extends TransportNodesAction<
 
     public static final ActionType<NodesStatsResponse> TYPE = new ActionType<>("cluster:monitor/nodes/stats");
     private final NodeService nodeService;
-    private final AllocationStatsService allocationStatsService;
 
     @Inject
     public TransportNodesStatsAction(
@@ -53,8 +51,7 @@ public class TransportNodesStatsAction extends TransportNodesAction<
         ClusterService clusterService,
         TransportService transportService,
         NodeService nodeService,
-        ActionFilters actionFilters,
-        AllocationStatsService allocationStatsService
+        ActionFilters actionFilters
     ) {
         super(
             TYPE.name(),
@@ -65,7 +62,6 @@ public class TransportNodesStatsAction extends TransportNodesAction<
             threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.nodeService = nodeService;
-        this.allocationStatsService = allocationStatsService;
     }
 
     @Override
@@ -83,6 +79,9 @@ public class TransportNodesStatsAction extends TransportNodesAction<
     ) {
         Set<String> metrics = request.getNodesStatsRequestParameters().requestedMetrics();
         if (NodesStatsRequestParameters.Metric.ALLOCATIONS.containedIn(metrics)) {
+
+
+
             // TODO add allocations metrics to each response
         } else {
             ActionListener.run(listener, l -> ActionListener.respondAndRelease(l, newResponse(request, responses, failures)));

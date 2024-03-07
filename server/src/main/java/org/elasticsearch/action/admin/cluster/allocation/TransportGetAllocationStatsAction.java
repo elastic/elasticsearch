@@ -95,7 +95,7 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            this.stats = in.readImmutableMap(StreamInput::readString, NodeAllocationStats::readFrom);
+            this.stats = in.readImmutableMap(StreamInput::readString, NodeAllocationStats::new);
         }
 
         @Override

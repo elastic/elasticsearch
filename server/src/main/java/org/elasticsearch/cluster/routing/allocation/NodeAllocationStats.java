@@ -21,8 +21,8 @@ public record NodeAllocationStats(int shards, int undesiredShards, double foreca
         Writeable,
         ToXContentFragment {
 
-    public static NodeAllocationStats readFrom(StreamInput in) throws IOException {
-        return new NodeAllocationStats(in.readVInt(), in.readVInt(), in.readDouble(), in.readVLong());
+    public NodeAllocationStats(StreamInput in) throws IOException {
+        this(in.readVInt(), in.readVInt(), in.readDouble(), in.readVLong());
     }
 
     @Override

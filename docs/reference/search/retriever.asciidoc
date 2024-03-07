@@ -28,7 +28,7 @@ A <<rrf-retriever, retriever>> that produces top documents from <<rrf, reciproca
 
 A standard retriever returns top documents from a traditional <<query-dsl, query>>.
 
-===== Elements:
+===== Parameters:
 
 `query`::
 (Optional, <<query-dsl, query object>>)
@@ -64,10 +64,75 @@ lower `_score` are not included in the top documents.
 +
 Collapses the top documents by a specified key into a single top document per key.
 
-===== Restrictions:
+===== Restrictions
 
 When a retriever tree contains a compound retriever (a retriever with two or more child
 retrievers) *only* the query element is allowed.
+
+===== Example
+
+[source,js]
+----
+GET /index/_search
+{
+    "retriever": {
+        "standard": {
+            "query" { ... },
+            "filter" { ... },
+            "min_score": ...
+        }
+    },
+    "size": ...
+}
+----
+// NOTCONSOLE
+
+[[knn-retriever]]
+==== kNN Retriever
+
+A kNN retriever returns top documents from a <<knn-search, k-nearest neighbor search (kNN)>>.
+
+===== Parameters
+
+`field`::
+(Required, string)
++
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=knn-field]
+
+`query_vector`::
+(Required if `query_vector_builder` is not defined, array of `float`)
++
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=knn-query-vector]
+
+`query_vector_builder`::
+(Required if `query_vector` is not defined, query vector builder object)
++
+Defines a <<knn-semantic-search, model>> to build a query vector.
+
+`k`::
+(Required, integer)
++
+Number of nearest neighbors to return as top hits. This value must be fewer than
+`num_candidates`.
+
+`num_candidates`::
+(Required, integer)
++
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=knn-num-candidates]
+
+`filter`::
+(Optional, <<query-dsl, query object or list of query objects>>)
++
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=knn-filter]
+
+`similarity`::
+(Optional, float)
++
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=knn-similarity]
+
+===== Restrictions
+
+The parameters `query_vector` and `query_vector_builder` cannot be used together.
 
 ===== Example:
 
@@ -76,33 +141,87 @@ retrievers) *only* the query element is allowed.
 GET /index/_search
 {
     "retriever": {
-        "standard": {
-            "query" {
-                ...
-            },
-            "filter" {
-                ...
-            },
-            "min_score": 0.5
+        "knn": {
+            "field": ...,
+            "query_vector": ...,
+            "k": ...,
+            "num_candidates": ...
         }
     }
 }
 ----
 // NOTCONSOLE
 
-[[knn-retriever]]
-==== kNN Retriever
-
-kNN
-
 [[rrf-retriever]]
 ==== RRF Retriever
 
-RRF
+An <<rrf, RRF>> retriever returns top documents based on the RRF formula
+equally weighting two or more child retrievers.
+
+===== Parameters
+
+`retrievers`::
+(Required, array of retriever objects)
++
+A list of child retrievers to specify which sets of returned top documents
+will have the RRF formula applied to them. Each child retriever carries an
+equal weight as part of the RRF formula. Two or more child retrievers are
+required.
+
+`rank_constant`::
+(Optional, integer)
++
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=rrf-rank-constant]
+
+`rank_constant`::
+(Optional, integer)
++
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=rrf-window-size]
+
+===== Restrictions
+
+An RRF retriever is a compound retriever. Child retrievers may not use
+elements that are restricted by having a compound retriever as part of
+the retriever tree.
+
+===== Example
+
+[source,js]
+----
+GET /index/_search
+{
+    "retriever": {
+        "rrf": {
+            "retrievers": [
+                {
+                    "standard" { ... }
+                },
+                {
+                    "knn": { ... }
+                }
+            ],
+            "rank_constant": ...
+            "window_size": ...
+        }
+    }
+}
+----
+// NOTCONSOLE
 
 ==== Using `from` and `size` with a retriever tree
 
-from and size
+The <<search-from-param, `from`>> and <<request-body-search-size, `size`>>
+parameters are provided globally as part of the general
+<<search-search, search API>>. They are applied to all retrievers in a
+retriever tree unless a specific retriever overrides the `size` parameter
+using a different parameter such as `window_size`. Though, the final
+search hits are always limited to `size`.
+
+==== Using aggregations with a retriever tree
+
+<<search-aggregations, Aggregations>> are globally specified as part of a search request.
+The query used for an aggregation is the combination of all leaf retrievers as `should`
+clauses in a <<query-dsl-bool-query, boolean query>>.
 
 ==== Restrictions on search parameters when specifying a retriever
 

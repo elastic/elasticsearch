@@ -670,6 +670,7 @@ POST _search?size=1&filter_path=hits.hits
 (Optional, Boolean) If `true`, returns sequence number and primary term of the
 last modification of each hit. See <<optimistic-concurrency-control>>.
 
+[[request-body-search-size]]
 `size`::
 (Optional, integer) The number of hits to return. Needs to be non-negative and defaults to `10`.
 +

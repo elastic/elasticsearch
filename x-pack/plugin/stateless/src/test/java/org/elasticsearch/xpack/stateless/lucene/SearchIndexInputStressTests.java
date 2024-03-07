@@ -18,10 +18,10 @@
 package co.elastic.elasticsearch.stateless.lucene;
 
 import co.elastic.elasticsearch.stateless.Stateless;
+import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 
 import org.apache.lucene.codecs.CodecUtil;
-import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.common.lucene.store.ESIndexInputTestCase;
@@ -49,6 +49,7 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
 
+import static co.elastic.elasticsearch.stateless.TestUtils.newCacheService;
 import static org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTestCase.randomChecksumBytes;
 import static org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTestCase.randomIOContext;
 import static org.hamcrest.Matchers.equalTo;
@@ -77,13 +78,7 @@ public class SearchIndexInputStressTests extends ESIndexInputTestCase {
 
         try (
             NodeEnvironment nodeEnvironment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
-            SharedBlobCacheService<FileCacheKey> sharedBlobCacheService = new SharedBlobCacheService<>(
-                nodeEnvironment,
-                settings,
-                threadPool,
-                Stateless.SHARD_READ_THREAD_POOL,
-                BlobCacheMetrics.NOOP
-            )
+            StatelessSharedBlobCacheService sharedBlobCacheService = newCacheService(nodeEnvironment, settings, threadPool)
         ) {
             final Map<SearchIndexInput, String> searchIndexInputs = new HashMap<>();
             final int numberOfCompoundFiles = between(10, 15);
@@ -131,7 +126,7 @@ public class SearchIndexInputStressTests extends ESIndexInputTestCase {
     }
 
     private Map<SearchIndexInput, String> generateSearchIndexInputsForOneCompoundFile(
-        SharedBlobCacheService<FileCacheKey> sharedBlobCacheService,
+        StatelessSharedBlobCacheService sharedBlobCacheService,
         int regionSize
     ) throws IOException {
         byte[] allBytes = null;

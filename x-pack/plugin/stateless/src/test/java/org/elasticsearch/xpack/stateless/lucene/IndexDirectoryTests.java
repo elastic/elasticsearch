@@ -18,6 +18,7 @@
 package co.elastic.elasticsearch.stateless.lucene;
 
 import co.elastic.elasticsearch.stateless.Stateless;
+import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
 import co.elastic.elasticsearch.stateless.commits.BlobLocation;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 
@@ -30,7 +31,6 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.tests.mockfile.FilterFileChannel;
 import org.apache.lucene.tests.mockfile.FilterFileSystemProvider;
-import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.common.BlobCacheBufferedIndexInput;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -65,6 +65,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static co.elastic.elasticsearch.stateless.TestUtils.newCacheService;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
@@ -109,13 +110,7 @@ public class IndexDirectoryTests extends ESTestCase {
         final Path blobStorePath = PathUtils.get(createTempDir().toString());
         try (
             NodeEnvironment nodeEnvironment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
-            SharedBlobCacheService<FileCacheKey> sharedBlobCacheService = new SharedBlobCacheService<>(
-                nodeEnvironment,
-                settings,
-                threadPool,
-                Stateless.SHARD_READ_THREAD_POOL,
-                BlobCacheMetrics.NOOP
-            );
+            StatelessSharedBlobCacheService sharedBlobCacheService = newCacheService(nodeEnvironment, settings, threadPool);
             FsBlobStore blobStore = new FsBlobStore(randomIntBetween(1, 8) * 1024, blobStorePath, false);
             IndexDirectory directory = new IndexDirectory(
                 newFSDirectory(indexDataPath),
@@ -241,13 +236,7 @@ public class IndexDirectoryTests extends ESTestCase {
         final Path blobStorePath = PathUtils.get(createTempDir().toString());
         try (
             NodeEnvironment nodeEnvironment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
-            SharedBlobCacheService<FileCacheKey> sharedBlobCacheService = new SharedBlobCacheService<>(
-                nodeEnvironment,
-                settings,
-                threadPool,
-                Stateless.SHARD_READ_THREAD_POOL,
-                BlobCacheMetrics.NOOP
-            );
+            StatelessSharedBlobCacheService sharedBlobCacheService = newCacheService(nodeEnvironment, settings, threadPool);
             FsBlobStore blobStore = new FsBlobStore(randomIntBetween(1, 8) * 1024, blobStorePath, false);
             IndexDirectory directory = new IndexDirectory(
                 newFSDirectory(indexDataPath),
@@ -323,13 +312,7 @@ public class IndexDirectoryTests extends ESTestCase {
         final Path blobStorePath = PathUtils.get(createTempDir().toString());
         try (
             NodeEnvironment nodeEnvironment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
-            SharedBlobCacheService<FileCacheKey> sharedBlobCacheService = new SharedBlobCacheService<>(
-                nodeEnvironment,
-                settings,
-                threadPool,
-                Stateless.SHARD_READ_THREAD_POOL,
-                BlobCacheMetrics.NOOP
-            );
+            StatelessSharedBlobCacheService sharedBlobCacheService = newCacheService(nodeEnvironment, settings, threadPool);
             FsBlobStore blobStore = new FsBlobStore(randomIntBetween(1, 8) * 1024, blobStorePath, false);
             IndexDirectory directory = new IndexDirectory(
                 newFSDirectory(indexDataPath),

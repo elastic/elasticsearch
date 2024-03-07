@@ -19,12 +19,12 @@ package co.elastic.elasticsearch.stateless.engine;
 
 import co.elastic.elasticsearch.stateless.Stateless;
 import co.elastic.elasticsearch.stateless.action.NewCommitNotificationRequest;
+import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
 import co.elastic.elasticsearch.stateless.commits.BlobLocation;
 import co.elastic.elasticsearch.stateless.commits.ClosedShardService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicator;
-import co.elastic.elasticsearch.stateless.lucene.FileCacheKey;
 import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
 import co.elastic.elasticsearch.stateless.lucene.SearchDirectoryTestUtils;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
@@ -41,7 +41,6 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
-import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -115,7 +114,7 @@ import static org.mockito.Mockito.when;
 public abstract class AbstractEngineTestCase extends ESTestCase {
 
     private Map<String, ThreadPool> threadPools;
-    protected SharedBlobCacheService<FileCacheKey> sharedBlobCacheService;
+    protected StatelessSharedBlobCacheService sharedBlobCacheService;
 
     @SuppressWarnings("unchecked")
     @Override
@@ -123,7 +122,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         threadPools = ConcurrentCollections.newConcurrentMap();
-        sharedBlobCacheService = mock(SharedBlobCacheService.class);
+        sharedBlobCacheService = mock(StatelessSharedBlobCacheService.class);
     }
 
     @Override
@@ -295,7 +294,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
         var indexSettings = indexEngine.getEngineConfig().getIndexSettings();
         var threadPool = deterministicTaskQueue.getThreadPool();
         var nodeEnvironment = newNodeEnvironment();
-        var cache = new SharedBlobCacheService<FileCacheKey>(
+        var cache = new StatelessSharedBlobCacheService(
             nodeEnvironment,
             indexSettings.getSettings(),
             threadPool,

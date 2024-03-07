@@ -25,7 +25,6 @@ import org.junit.Before;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.avg;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
-import static org.elasticsearch.test.ESIntegTestCase.prepareSearch;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.hasSize;
@@ -73,7 +72,8 @@ public class IgnoreFieldIT extends ESSingleNodeTestCase {
         SearchResponse searchResponse1 = null;
         SearchResponse searchResponse2 = null;
         try {
-            searchResponse1 = prepareSearch().setQuery(new IdsQueryBuilder().addIds(CORRECT_FIELD_TYPE_DOC_ID))
+            searchResponse1 = client().prepareSearch()
+                .setQuery(new IdsQueryBuilder().addIds(CORRECT_FIELD_TYPE_DOC_ID))
                 .addFetchField(NUMERIC_FIELD_NAME)
                 .get();
             assertHitCount(searchResponse1, 1);
@@ -84,7 +84,8 @@ public class IgnoreFieldIT extends ESSingleNodeTestCase {
             DocumentField ignoredField = hit.field(IgnoredFieldMapper.NAME);
             assertNull(ignoredField);
 
-            searchResponse2 = prepareSearch().setQuery(new IdsQueryBuilder().addIds(WRONG_FIELD_TYPE_DOC_ID))
+            searchResponse2 = client().prepareSearch()
+                .setQuery(new IdsQueryBuilder().addIds(WRONG_FIELD_TYPE_DOC_ID))
                 .addFetchField(NUMERIC_FIELD_NAME)
                 .get();
             assertHitCount(searchResponse2, 1);
@@ -110,7 +111,10 @@ public class IgnoreFieldIT extends ESSingleNodeTestCase {
         SearchResponse termsSearch = null;
         try {
             indexTestDoc(NUMERIC_FIELD_NAME, "correct-44", "44");
-            avgSearch = prepareSearch(TEST_INDEX).setSize(0).addAggregation(avg("numeric-field-aggs").field(NUMERIC_FIELD_NAME)).get();
+            avgSearch = client().prepareSearch(TEST_INDEX)
+                .setSize(0)
+                .addAggregation(avg("numeric-field-aggs").field(NUMERIC_FIELD_NAME))
+                .get();
             assertTrue(avgSearch.hasAggregations());
             InternalAvg avg = avgSearch.getAggregations().get("numeric-field-aggs");
             assertNotNull(avg);
@@ -118,7 +122,8 @@ public class IgnoreFieldIT extends ESSingleNodeTestCase {
 
             indexTestDoc(NUMERIC_FIELD_NAME, "wrong-44", "forty-four");
             indexTestDoc(DATE_FIELD_NAME, "wrong-date", "today");
-            termsSearch = prepareSearch(TEST_INDEX).setSize(0)
+            termsSearch = client().prepareSearch(TEST_INDEX)
+                .setSize(0)
                 .addAggregation(terms("ignored-field-aggs").field(IgnoredFieldMapper.NAME))
                 .get();
             assertTrue(termsSearch.hasAggregations());

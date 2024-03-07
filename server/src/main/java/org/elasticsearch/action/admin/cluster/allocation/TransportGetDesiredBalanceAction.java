@@ -61,7 +61,9 @@ public class TransportGetDesiredBalanceAction extends TransportMasterNodeReadAct
         ClusterState state,
         ActionListener<DesiredBalanceResponse> listener
     ) throws Exception {
-        listener.onResponse(new DesiredBalanceResponse(desiredBalanceShardsAllocator != null? desiredBalanceShardsAllocator.getDesiredBalance() : null));
+        listener.onResponse(
+            new DesiredBalanceResponse(desiredBalanceShardsAllocator != null ? desiredBalanceShardsAllocator.getDesiredBalance() : null)
+        );
     }
 
     @Override

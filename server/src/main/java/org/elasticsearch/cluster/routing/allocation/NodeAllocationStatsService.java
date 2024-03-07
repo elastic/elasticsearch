@@ -8,22 +8,30 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
+import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 
-public class NodeAllocationService {
+public class NodeAllocationStatsService {
 
     private final ClusterService clusterService;
+    private final ClusterInfoService clusterInfoService;
     private final WriteLoadForecaster writeLoadForecaster;
 
-    public NodeAllocationService(ClusterService clusterService, WriteLoadForecaster writeLoadForecaster) {
+    public NodeAllocationStatsService(
+        ClusterService clusterService,
+        ClusterInfoService clusterInfoService,
+        WriteLoadForecaster writeLoadForecaster
+    ) {
         this.clusterService = clusterService;
+        this.clusterInfoService = clusterInfoService;
         this.writeLoadForecaster = writeLoadForecaster;
     }
 
     public NodeAllocationStats stats(String localNodeId) {
         var state = clusterService.state();
+        var info = clusterInfoService.getClusterInfo();
         var node = state.getRoutingNodes().node(localNodeId);
 
         double forecastedWriteLoad = 0.0;
@@ -31,7 +39,10 @@ public class NodeAllocationService {
         for (ShardRouting shardRouting : node) {
             IndexMetadata indexMetadata = state.metadata().getIndexSafe(shardRouting.index());
             forecastedWriteLoad += writeLoadForecaster.getForecastedWriteLoad(indexMetadata).orElse(0.0);
-            forecastedDiskUsage += indexMetadata.getForecastedShardSizeInBytes().orElse(0);// TODO fallback?
+            forecastedDiskUsage += Math.max(
+                indexMetadata.getForecastedShardSizeInBytes().orElse(0),
+                info.getShardSize(shardRouting.shardId(), shardRouting.primary(), 0)
+            );
         }
 
         return new NodeAllocationStats(node.size(), forecastedWriteLoad, forecastedDiskUsage);

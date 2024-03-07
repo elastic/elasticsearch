@@ -24,9 +24,7 @@ public class DesiredBalanceResponse extends ActionResponse {
     }
 
     public static DesiredBalanceResponse readFrom(StreamInput in) throws IOException {
-        return new DesiredBalanceResponse(
-            DesiredBalance.readFrom(in)
-        );
+        return new DesiredBalanceResponse(DesiredBalance.readFrom(in));
     }
 
     @Override

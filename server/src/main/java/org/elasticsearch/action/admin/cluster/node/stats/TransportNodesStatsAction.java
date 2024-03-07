@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.cluster.node.stats;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
@@ -69,6 +70,22 @@ public class TransportNodesStatsAction extends TransportNodesAction<
     }
 
     @Override
+    protected void newResponseAsync(
+        Task task,
+        NodesStatsRequest request,
+        List<NodeStats> responses,
+        List<FailedNodeException> failures,
+        ActionListener<NodesStatsResponse> listener
+    ) {
+        Set<String> metrics = request.getNodesStatsRequestParameters().requestedMetrics();
+        if (NodesStatsRequestParameters.Metric.ALLOCATIONS.containedIn(metrics)) {
+            // TODO add allocations metrics to each response
+        } else {
+            ActionListener.run(listener, l -> ActionListener.respondAndRelease(l, newResponse(request, responses, failures)));
+        }
+    }
+
+    @Override
     protected NodeStatsRequest newNodeRequest(NodesStatsRequest request) {
         return new NodeStatsRequest(request);
     }
@@ -80,10 +97,10 @@ public class TransportNodesStatsAction extends TransportNodesAction<
     }
 
     @Override
-    protected NodeStats nodeOperation(NodeStatsRequest nodeStatsRequest, Task task) {
+    protected NodeStats nodeOperation(NodeStatsRequest request, Task task) {
         assert task instanceof CancellableTask;
 
-        final NodesStatsRequestParameters nodesStatsRequestParameters = nodeStatsRequest.getNodesStatsRequestParameters();
+        final NodesStatsRequestParameters nodesStatsRequestParameters = request.getNodesStatsRequestParameters();
         Set<String> metrics = nodesStatsRequestParameters.requestedMetrics();
         return nodeService.stats(
             nodesStatsRequestParameters.indices(),
@@ -102,8 +119,7 @@ public class TransportNodesStatsAction extends TransportNodesAction<
             NodesStatsRequestParameters.Metric.ADAPTIVE_SELECTION.containedIn(metrics),
             NodesStatsRequestParameters.Metric.SCRIPT_CACHE.containedIn(metrics),
             NodesStatsRequestParameters.Metric.INDEXING_PRESSURE.containedIn(metrics),
-            NodesStatsRequestParameters.Metric.REPOSITORIES.containedIn(metrics),
-            NodesStatsRequestParameters.Metric.ALLOCATIONS.containedIn(metrics)
+            NodesStatsRequestParameters.Metric.REPOSITORIES.containedIn(metrics)
         );
     }
 

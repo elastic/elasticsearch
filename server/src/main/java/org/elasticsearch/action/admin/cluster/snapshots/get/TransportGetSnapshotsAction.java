@@ -208,23 +208,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             }
         }
 
-        /**
-         * Filters the list of repositories that a request will fetch snapshots from in the special case of sorting by repository
-         * name and having a non-null value for {@link GetSnapshotsRequest#fromSortValue()} on the request to exclude repositories outside
-         * the sort value range if possible.
-         */
-        private List<RepositoryMetadata> maybeFilterRepositories() {
-            if (sortBy != SnapshotSortKey.REPOSITORY || fromSortValue == null) {
-                return repositories;
-            }
-            final Predicate<RepositoryMetadata> predicate = order == SortOrder.ASC
-                ? repositoryMetadata -> fromSortValue.compareTo(repositoryMetadata.name()) <= 0
-                : repositoryMetadata -> fromSortValue.compareTo(repositoryMetadata.name()) >= 0;
-            return repositories.stream().filter(predicate).toList();
-        }
-
         void getMultipleReposSnapshotInfo(ActionListener<GetSnapshotsResponse> listener) {
-            List<RepositoryMetadata> filteredRepositories = maybeFilterRepositories();
             try (var listeners = new RefCountingListener(listener.map(ignored -> {
                 cancellableTask.ensureNotCancelled();
                 final var sortedSnapshotsInRepos = sortSnapshots(
@@ -246,8 +230,13 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                     finalRemaining
                 );
             }))) {
-                for (final RepositoryMetadata repository : filteredRepositories) {
+                for (final RepositoryMetadata repository : repositories) {
                     final String repoName = repository.name();
+                    if (skipRepository(repoName)) {
+                        // TODO we should still count the matching snapshots in totalCount
+                        continue;
+                    }
+
                     getSingleRepoSnapshotInfo(repoName, listeners.acquire((SnapshotsInRepo snapshotsInRepo) -> {
                         allSnapshotInfos.add(snapshotsInRepo.snapshotInfos());
                         remaining.addAndGet(snapshotsInRepo.remaining());
@@ -261,6 +250,15 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                         }
                     }));
                 }
+            }
+        }
+
+        private boolean skipRepository(String repositoryName) {
+            if (sortBy == SnapshotSortKey.REPOSITORY && fromSortValue != null) {
+                // If we are sorting by repository name with an offset given by fromSortValue, skip earlier repositories
+                return order == SortOrder.ASC ? fromSortValue.compareTo(repositoryName) > 0 : fromSortValue.compareTo(repositoryName) < 0;
+            } else {
+                return false;
             }
         }
 

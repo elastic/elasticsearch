@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
@@ -109,7 +110,8 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
     @Override
     public void preParse(DocumentParserContext context) {
         String routing = context.sourceToParse().routing();
-        if (routing != null) {
+        // TSDB uses field _ts_routing_hash instead.
+        if (routing != null && context.indexSettings().getMode() != IndexMode.TIME_SERIES) {
             context.doc().add(new StringField(fieldType().name(), routing, Field.Store.YES));
             context.addToFieldNames(fieldType().name());
         }

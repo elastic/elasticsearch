@@ -69,10 +69,7 @@ public final class FetchFieldsPhase implements FetchSubPhase {
 
             @Override
             public StoredFieldsSpec storedFieldsSpec() {
-                if (finalMetadataFetcher != null) {
-                    return finalFieldFetcher.storedFieldsSpec();
-                }
-                return StoredFieldsSpec.NO_REQUIREMENTS;
+                return finalFieldFetcher.storedFieldsSpec();
             }
 
             @Override

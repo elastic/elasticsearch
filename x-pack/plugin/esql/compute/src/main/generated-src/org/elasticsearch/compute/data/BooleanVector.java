@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.data;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -74,30 +75,47 @@ public sealed interface BooleanVector extends Vector permits ConstantBooleanVect
     /** Deserializes a Vector from the given stream input. */
     static BooleanVector readFrom(BlockFactory blockFactory, StreamInput in) throws IOException {
         final int positions = in.readVInt();
-        final boolean constant = in.readBoolean();
-        if (constant && positions > 0) {
-            return blockFactory.newConstantBooleanVector(in.readBoolean(), positions);
-        } else {
-            try (var builder = blockFactory.newBooleanVectorFixedBuilder(positions)) {
-                for (int i = 0; i < positions; i++) {
-                    builder.appendBoolean(in.readBoolean());
-                }
-                return builder.build();
+        final byte serializationType = in.readByte();
+        return switch (serializationType) {
+            case SERIALIZE_VECTOR_VALUES -> readValues(positions, in, blockFactory);
+            case SERIALIZE_VECTOR_CONSTANT -> blockFactory.newConstantBooleanVector(in.readBoolean(), positions);
+            case SERIALIZE_VECTOR_ARRAY -> BooleanArrayVector.readArrayVector(positions, in, blockFactory);
+            default -> {
+                assert false : "invalid vector serialization type [" + serializationType + "]";
+                throw new IllegalStateException("invalid vector serialization type [" + serializationType + "]");
             }
-        }
+        };
     }
 
     /** Serializes this Vector to the given stream output. */
     default void writeTo(StreamOutput out) throws IOException {
         final int positions = getPositionCount();
+        final var version = out.getTransportVersion();
         out.writeVInt(positions);
-        out.writeBoolean(isConstant());
         if (isConstant() && positions > 0) {
+            out.writeByte(SERIALIZE_VECTOR_CONSTANT);
             out.writeBoolean(getBoolean(0));
+        } else if (version.onOrAfter(TransportVersions.ESQL_SERIALIZE_ARRAY_VECTOR) && this instanceof BooleanArrayVector v) {
+            out.writeByte(SERIALIZE_VECTOR_ARRAY);
+            v.writeArrayVector(positions, out);
         } else {
+            out.writeByte(SERIALIZE_VECTOR_VALUES);
+            writeValues(this, positions, out);
+        }
+    }
+
+    private static BooleanVector readValues(int positions, StreamInput in, BlockFactory blockFactory) throws IOException {
+        try (var builder = blockFactory.newBooleanVectorFixedBuilder(positions)) {
             for (int i = 0; i < positions; i++) {
-                out.writeBoolean(getBoolean(i));
+                builder.appendBoolean(in.readBoolean());
             }
+            return builder.build();
+        }
+    }
+
+    private static void writeValues(BooleanVector v, int positions, StreamOutput out) throws IOException {
+        for (int i = 0; i < positions; i++) {
+            out.writeBoolean(v.getBoolean(i));
         }
     }
 

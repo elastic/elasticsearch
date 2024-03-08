@@ -144,7 +144,7 @@ xpack.security.http.ssl.keystore.path: http.p12
 ==== Encrypt HTTP client communications for {kib}
 
 Browsers send traffic to {kib} and {kib} sends traffic to {es}.
-These communication channels are configured separately to use TLS. You encrypt
+These communication channels are configured separately to use TLS.Firstly, You encrypt
 traffic between {kib} and {es}, and then encrypt traffic between your browser
 and {kib}.
 

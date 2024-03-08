@@ -23,6 +23,7 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.function.BiConsumer;
+import java.util.function.BinaryOperator;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.regex.Matcher;
@@ -30,6 +31,8 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableList;
+import static java.util.stream.Collectors.groupingBy;
+import static java.util.stream.Collectors.reducing;
 
 /**
  * A container for elasticsearch supported version information used in BWC testing.
@@ -85,10 +88,10 @@ public class BwcVersions {
 
         // Filter out all intermediate patch releases, so we only consider the latest patch for any given minor
         this.versions = allVersions.stream()
-            .collect(Collectors.groupingBy(v -> v.getMajor() + "." + v.getMinor()))
+            .collect(groupingBy(v -> v.getMajor() + "." + v.getMinor(), reducing(BinaryOperator.maxBy(Version::compareTo))))
             .values()
             .stream()
-            .map(versionList -> versionList.stream().max(Version::compareTo).orElseThrow())
+            .map(Optional::orElseThrow)
             .sorted()
             .toList();
 

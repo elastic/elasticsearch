@@ -43,7 +43,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -552,22 +551,6 @@ public class JobTests extends AbstractXContentSerializingTestCase<Job> {
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, jobBuilder::build);
         assertThat(e.getMessage(), equalTo(Messages.getMessage(Messages.JOB_CONFIG_TIME_FIELD_NOT_ALLOWED_IN_ANALYSIS_CONFIG)));
-    }
-
-    public void testInvalidCreateTimeSettings() {
-        Job.Builder builder = new Job.Builder("invalid-settings");
-        builder.setModelSnapshotId("snapshot-foo");
-        assertEquals(Collections.singletonList(Job.MODEL_SNAPSHOT_ID.getPreferredName()), builder.invalidCreateTimeSettings());
-
-        builder.setCreateTime(new Date());
-        builder.setFinishedTime(new Date());
-
-        Set<String> expected = new HashSet<>();
-        expected.add(Job.CREATE_TIME.getPreferredName());
-        expected.add(Job.FINISHED_TIME.getPreferredName());
-        expected.add(Job.MODEL_SNAPSHOT_ID.getPreferredName());
-
-        assertEquals(expected, new HashSet<>(builder.invalidCreateTimeSettings()));
     }
 
     public void testEmptyGroup() {

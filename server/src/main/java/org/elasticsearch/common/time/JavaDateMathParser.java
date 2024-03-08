@@ -35,14 +35,14 @@ import java.util.function.LongSupplier;
  */
 public class JavaDateMathParser implements DateMathParser {
 
-    private final JavaDateFormatter formatter;
     private final String format;
+    private final Function<String, TemporalAccessor> parser;
     private final Function<String, TemporalAccessor> roundupParser;
 
-    JavaDateMathParser(String format, JavaDateFormatter formatter, Function<String, TemporalAccessor> roundupParser) {
+    JavaDateMathParser(String format, Function<String, TemporalAccessor> parser, Function<String, TemporalAccessor> roundupParser) {
         this.format = format;
+        this.parser = Objects.requireNonNull(parser);
         this.roundupParser = roundupParser;
-        this.formatter = Objects.requireNonNull(formatter);
     }
 
     @Override
@@ -204,7 +204,7 @@ public class JavaDateMathParser implements DateMathParser {
             throw new ElasticsearchParseException("cannot parse empty date");
         }
 
-        Function<String, TemporalAccessor> formatter = roundUpIfNoTime ? roundupParser : this.formatter::parse;
+        Function<String, TemporalAccessor> formatter = roundUpIfNoTime ? roundupParser : this.parser;
         try {
             if (timeZone == null) {
                 return DateFormatters.from(formatter.apply(value)).toInstant();

@@ -16,6 +16,7 @@ import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
+import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.usage.SearchUsageHolder;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
 import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchAction;
@@ -76,7 +77,8 @@ public final class RestSubmitAsyncSearchAction extends BaseRestHandler {
                 parser,
                 clusterSupportsFeature,
                 setSize,
-                searchUsageHolder
+                searchUsageHolder,
+                RestSearchAction.SearchRequestType.SEARCH
             )
         );
 

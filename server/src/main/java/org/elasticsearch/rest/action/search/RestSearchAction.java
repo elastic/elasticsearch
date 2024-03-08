@@ -133,7 +133,8 @@ public class RestSearchAction extends BaseRestHandler {
                 parser,
                 clusterSupportsFeature,
                 setSize,
-                searchUsageHolder
+                searchUsageHolder,
+                SearchRequestType.SEARCH
             )
         );
 
@@ -162,35 +163,6 @@ public class RestSearchAction extends BaseRestHandler {
         Predicate<NodeFeature> clusterSupportsFeature,
         IntConsumer setSize
     ) throws IOException {
-        parseSearchRequest(searchRequest, restApiVersion, params, requestContentParser, clusterSupportsFeature, setSize, null);
-    }
-
-    public enum SearchRequestType {
-        SEARCH,
-        MULTI_SEARCH
-    }
-
-    /**
-     * Parses the rest request on top of the SearchRequest, preserving values that are not overridden by the rest request.
-     *
-     * @param searchRequest the search request that will hold what gets parsed
-     * @param restApiVersion REST API version for the request
-     * @param params request parameters
-     * @param requestContentParser body of the request to read. This method does not attempt to read the body from the {@code request}
-     *        parameter, will be null when there is no request body to parse
-     @param clusterSupportsFeature used to check if certain features are available in this cluster
-      * @param setSize how the size url parameter is handled. {@code udpate_by_query} and regular search differ here.
-     * @param searchUsageHolder the holder of search usage stats
-     */
-    public static void parseSearchRequest(
-        SearchRequest searchRequest,
-        RestApiVersion restApiVersion,
-        RequestParams params,
-        @Nullable XContentParser requestContentParser,
-        Predicate<NodeFeature> clusterSupportsFeature,
-        IntConsumer setSize,
-        @Nullable SearchUsageHolder searchUsageHolder
-    ) throws IOException {
         parseSearchRequest(
             searchRequest,
             restApiVersion,
@@ -198,9 +170,14 @@ public class RestSearchAction extends BaseRestHandler {
             requestContentParser,
             clusterSupportsFeature,
             setSize,
-            searchUsageHolder,
+            null,
             SearchRequestType.SEARCH
         );
+    }
+
+    public enum SearchRequestType {
+        SEARCH,
+        MULTI_SEARCH
     }
 
     /**

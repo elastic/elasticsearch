@@ -86,7 +86,8 @@ public class RestFleetSearchAction extends BaseRestHandler {
                 parser,
                 clusterSupportsFeature,
                 setSize,
-                searchUsageHolder
+                searchUsageHolder,
+                RestSearchAction.SearchRequestType.SEARCH
             );
             String[] stringWaitForCheckpoints = request.paramAsStringArray("wait_for_checkpoints", Strings.EMPTY_ARRAY);
             final long[] waitForCheckpoints = new long[stringWaitForCheckpoints.length];

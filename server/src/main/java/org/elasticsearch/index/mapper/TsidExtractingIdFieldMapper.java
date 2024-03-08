@@ -21,7 +21,6 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 
 import java.util.Base64;
 import java.util.Locale;
-import java.util.Objects;
 
 /**
  * A mapper for the {@code _id} field that builds the {@code _id} from the
@@ -74,9 +73,6 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
         } else if (context.sourceToParse().routing() != null) {
             int routingHash = TimeSeriesRoutingHashFieldMapper.decode(context.sourceToParse().routing());
             id = createId(routingHash, tsid, timestamp);
-            if (Objects.equals(id.substring(0, 6), routingHash) == false) {
-                System.out.println(routingHash + " " + id);
-            }
         } else {
             throw new IllegalArgumentException(
                 "_ts_routing_hash was null but must be set because index ["

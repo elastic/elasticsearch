@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.elasticsearch.index.mapper.vectors.codec;
+package org.elasticsearch.index.codec.vectors;
 
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.FlatFieldVectorsWriter;
@@ -38,12 +38,13 @@ import org.apache.lucene.index.Sorter;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FSDirectory;
+import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
-import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.InfoStream;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.apache.lucene.util.SuppressForbidden;
 import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.CloseableRandomVectorScorerSupplier;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
@@ -52,6 +53,11 @@ import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
 import org.apache.lucene.util.quantization.QuantizedVectorsReader;
 import org.apache.lucene.util.quantization.ScalarQuantizedRandomVectorScorerSupplier;
 import org.apache.lucene.util.quantization.ScalarQuantizer;
+import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.index.mapper.vectors.VectorScorerSupplierAdapter;
+import org.elasticsearch.index.mapper.vectors.VectorSimilarityTypeConverter;
+import org.elasticsearch.vec.VectorScorerProvider;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -69,12 +75,11 @@ import static org.apache.lucene.util.RamUsageEstimator.shallowSizeOfInstance;
  * Writes quantized vector values and metadata to index segments.
  * Amended copy of Lucene99ScalarQuantizedVectorsWriter
  */
-@SuppressForbidden(reason = "copy from Lucene")
-public final class ESLucene99ScalarQuantizedVectorsWriter extends FlatVectorsWriter {
+public final class ES814ScalarQuantizedVectorsWriter extends FlatVectorsWriter {
 
     static final int DIRECT_MONOTONIC_BLOCK_SHIFT = 16;
 
-    private static final long SHALLOW_RAM_BYTES_USED = shallowSizeOfInstance(ESLucene99ScalarQuantizedVectorsWriter.class);
+    private static final long SHALLOW_RAM_BYTES_USED = shallowSizeOfInstance(ES814ScalarQuantizedVectorsWriter.class);
 
     // Used for determining when merged quantiles shifted too far from individual segment quantiles.
     // When merging quantiles from various segments, we need to ensure that the new quantiles
@@ -102,20 +107,20 @@ public final class ESLucene99ScalarQuantizedVectorsWriter extends FlatVectorsWri
     private final FlatVectorsWriter rawVectorDelegate;
     private boolean finished;
 
-    ESLucene99ScalarQuantizedVectorsWriter(SegmentWriteState state, Float confidenceInterval, FlatVectorsWriter rawVectorDelegate)
+    ES814ScalarQuantizedVectorsWriter(SegmentWriteState state, Float confidenceInterval, FlatVectorsWriter rawVectorDelegate)
         throws IOException {
         this.confidenceInterval = confidenceInterval;
         segmentWriteState = state;
         String metaFileName = IndexFileNames.segmentFileName(
             state.segmentInfo.name,
             state.segmentSuffix,
-            ESLucene99ScalarQuantizedVectorsFormat.META_EXTENSION
+            ES814ScalarQuantizedVectorsFormat.META_EXTENSION
         );
 
         String quantizedVectorDataFileName = IndexFileNames.segmentFileName(
             state.segmentInfo.name,
             state.segmentSuffix,
-            ESLucene99ScalarQuantizedVectorsFormat.VECTOR_DATA_EXTENSION
+            ES814ScalarQuantizedVectorsFormat.VECTOR_DATA_EXTENSION
         );
         this.rawVectorDelegate = rawVectorDelegate;
         boolean success = false;
@@ -125,15 +130,15 @@ public final class ESLucene99ScalarQuantizedVectorsWriter extends FlatVectorsWri
 
             CodecUtil.writeIndexHeader(
                 meta,
-                ESLucene99ScalarQuantizedVectorsFormat.META_CODEC_NAME,
-                ESLucene99ScalarQuantizedVectorsFormat.VERSION_CURRENT,
+                ES814ScalarQuantizedVectorsFormat.META_CODEC_NAME,
+                ES814ScalarQuantizedVectorsFormat.VERSION_CURRENT,
                 state.segmentInfo.getId(),
                 state.segmentSuffix
             );
             CodecUtil.writeIndexHeader(
                 quantizedVectorData,
-                ESLucene99ScalarQuantizedVectorsFormat.VECTOR_DATA_CODEC_NAME,
-                ESLucene99ScalarQuantizedVectorsFormat.VERSION_CURRENT,
+                ES814ScalarQuantizedVectorsFormat.VECTOR_DATA_CODEC_NAME,
+                ES814ScalarQuantizedVectorsFormat.VERSION_CURRENT,
                 state.segmentInfo.getId(),
                 state.segmentSuffix
             );
@@ -427,12 +432,33 @@ public final class ESLucene99ScalarQuantizedVectorsWriter extends FlatVectorsWri
             );
             success = true;
             final IndexInput finalQuantizationDataInput = quantizationDataInput;
-            return new ScalarQuantizedCloseableRandomVectorScorerSupplier(() -> {
-                IOUtils.close(finalQuantizationDataInput);
-                segmentWriteState.directory.deleteFile(tempQuantizedVectorData.getName());
-            },
-                docsWithField.cardinality(),
-                new ScalarQuantizedRandomVectorScorerSupplier(
+
+            // -- chegar here --
+            RandomVectorScorerSupplier scorerSupplier;
+            VectorScorerProvider provider = VectorScorerProvider.getInstanceOrNull();
+            var unwrappedDir = FilterDirectory.unwrap(segmentWriteState.directory);
+            // assert unwrappedDir instanceof FSDirectory : "Expected FSDirectory, got: " + unwrappedDir ;
+            if (provider != null && unwrappedDir instanceof FSDirectory dir) {
+                var similarity = VectorSimilarityTypeConverter.of(fieldInfo.getVectorSimilarityFunction());
+                var path = dir.getDirectory().resolve(tempQuantizedVectorData.getName());
+                var sc = mergedQuantizationState.getConstantMultiplier();
+                var dim = byteVectorValues.dimension();
+                var maxOrd = docsWithField.cardinality();
+                var scorer = provider.getScalarQuantizedVectorScorer(dim, maxOrd, sc, similarity, path);
+                scorerSupplier = new VectorScorerSupplierAdapter(scorer);
+                // System.out.println("HEGO using new impl, " + unwrappedDir);
+                // var x = scorerSupplier.scorer(0);
+                // x.score(0);
+
+                // } else {
+                // // var msg = "unexpected dir type: " + unwrappedDir.getClass() + ", [" + unwrappedDir + "]";
+                // // throw new UnsupportedOperationException(msg);
+                // }
+            } else {
+                // var x = unwrappedDir instanceof FSDirectory;
+                // System.out.println("HEGO using old impl, FSDirectory=" + x + ", " + unwrappedDir);
+                // throw new UnsupportedOperationException("expected provider, but was none");
+                scorerSupplier = new ScalarQuantizedRandomVectorScorerSupplier(
                     fieldInfo.getVectorSimilarityFunction(),
                     mergedQuantizationState,
                     new OffHeapQuantizedByteVectorValues.DenseOffHeapVectorValues(
@@ -440,14 +466,24 @@ public final class ESLucene99ScalarQuantizedVectorsWriter extends FlatVectorsWri
                         docsWithField.cardinality(),
                         quantizationDataInput
                     )
-                )
-            );
+                );
+            }
+
+            return new ScalarQuantizedCloseableRandomVectorScorerSupplier(() -> {
+                IOUtils.close(finalQuantizationDataInput);
+                segmentWriteState.directory.deleteFile(tempQuantizedVectorData.getName());
+            }, docsWithField.cardinality(), scorerSupplier);
         } finally {
             if (success == false) {
                 IOUtils.closeWhileHandlingException(tempQuantizedVectorData, quantizationDataInput);
-                IOUtils.deleteFilesIgnoringExceptions(segmentWriteState.directory, tempQuantizedVectorData.getName());
+                deleteFilesIgnoringExceptions(segmentWriteState.directory, tempQuantizedVectorData.getName());
             }
         }
+    }
+
+    @SuppressForbidden(reason = "closing using Lucene's variant")
+    private static void deleteFilesIgnoringExceptions(Directory dir, String... files) {
+        org.apache.lucene.util.IOUtils.deleteFilesIgnoringExceptions(dir, files);
     }
 
     static ScalarQuantizer mergeQuantiles(List<ScalarQuantizer> quantizationStates, List<Integer> segmentSizes, float confidenceInterval) {
@@ -938,15 +974,11 @@ public final class ESLucene99ScalarQuantizedVectorsWriter extends FlatVectorsWri
 
     static final class ScalarQuantizedCloseableRandomVectorScorerSupplier implements CloseableRandomVectorScorerSupplier {
 
-        private final ScalarQuantizedRandomVectorScorerSupplier supplier;
+        private final RandomVectorScorerSupplier supplier;
         private final Closeable onClose;
         private final int numVectors;
 
-        ScalarQuantizedCloseableRandomVectorScorerSupplier(
-            Closeable onClose,
-            int numVectors,
-            ScalarQuantizedRandomVectorScorerSupplier supplier
-        ) {
+        ScalarQuantizedCloseableRandomVectorScorerSupplier(Closeable onClose, int numVectors, RandomVectorScorerSupplier supplier) {
             this.onClose = onClose;
             this.supplier = supplier;
             this.numVectors = numVectors;

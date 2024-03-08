@@ -431,7 +431,8 @@ module org.elasticsearch.server {
     provides org.apache.lucene.codecs.KnnVectorsFormat
         with
             org.elasticsearch.index.codec.vectors.ES813FlatVectorFormat,
-            org.elasticsearch.index.codec.vectors.ES813Int8FlatVectorFormat;
+            org.elasticsearch.index.codec.vectors.ES813Int8FlatVectorFormat,
+            org.elasticsearch.index.codec.vectors.ES814HnswScalarQuantizedVectorsFormat;
 
     exports org.elasticsearch.cluster.routing.allocation.shards
         to

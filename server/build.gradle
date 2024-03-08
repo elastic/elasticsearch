@@ -156,6 +156,17 @@ tasks.named("test").configure {
   systemProperty 'es.insecure_network_trace_enabled', 'true'
 }
 
+// TODO: Remove once Ryan's native support is merged
+tasks.withType(Test) {
+  var os = org.gradle.internal.os.OperatingSystem.current()
+  if (os.toString().contains("aarch64")) {
+    var nativePrefix = os.getNativePrefix()
+    if (nativePrefix == "darwin")
+      nativePrefix = "darwin-aarch64"
+    systemProperty "java.library.path", file("/Users/chegar/git/elasticsearch/libs/vec/platform/${nativePrefix}")
+  }
+}
+
 tasks.named("thirdPartyAudit").configure {
     ignoreMissingClasses(
             // from com.fasterxml.jackson.dataformat.yaml.YAMLMapper (jackson-dataformat-yaml)

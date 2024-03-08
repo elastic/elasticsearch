@@ -273,8 +273,10 @@ class Elasticsearch {
 
         // TODO remove - hack just for testing. Ensures that the native lib can be loaded
         var scorerProvider = VectorScorerProvider.getInstanceOrNull();
-        var scorer = scorerProvider.getScalarQuantizedVectorScorer(1, 2, 1, VectorSimilarityType.DOT_PRODUCT, getPath());
-        scorer.score(0, 1);
+        if (scorerProvider != null) {
+            var scorer = scorerProvider.getScalarQuantizedVectorScorer(1, 2, 1, VectorSimilarityType.DOT_PRODUCT, getPath());
+            scorer.score(0, 1);
+        }
     }
 
     @SuppressForbidden(reason = "ignore")

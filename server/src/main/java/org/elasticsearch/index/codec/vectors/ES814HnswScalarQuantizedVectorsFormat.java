@@ -6,54 +6,53 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.index.mapper.vectors.codec;
+package org.elasticsearch.index.codec.vectors;
 
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.KnnVectorsWriter;
-import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsWriter;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.search.TaskExecutor;
-import org.apache.lucene.util.hnsw.HnswGraph;
 
 import java.io.IOException;
 import java.util.concurrent.ExecutorService;
 
-public final class ESLucene99HnswScalarQuantizedVectorsFormat extends KnnVectorsFormat {
+import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
+import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN;
+import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAULT_NUM_MERGE_WORKER;
+
+public final class ES814HnswScalarQuantizedVectorsFormat extends KnnVectorsFormat {
+
+    static final String NAME = "ES814HnswScalarQuantizedVectorsFormat";
 
     static final int MAXIMUM_MAX_CONN = 512;
     static final int MAXIMUM_BEAM_WIDTH = 3200;
 
-    /**
-     * Controls how many of the nearest neighbor candidates are connected to the new node. Defaults to
-     * {@link Lucene99HnswVectorsFormat#DEFAULT_MAX_CONN}. See {@link HnswGraph} for more details.
-     */
     private final int maxConn;
 
-    /**
-     * The number of candidate neighbors to track while searching the graph for each newly inserted
-     * node. Defaults to {@link Lucene99HnswVectorsFormat#DEFAULT_BEAM_WIDTH}. See {@link HnswGraph}
-     * for details.
-     */
     private final int beamWidth;
 
     /** The format for storing, reading, merging vectors on disk */
-    private final ESLucene99ScalarQuantizedVectorsFormat flatVectorsFormat;
+    private final ES814ScalarQuantizedVectorsFormat flatVectorsFormat;
 
     private final int numMergeWorkers;
     private final TaskExecutor mergeExec;
 
-    public ESLucene99HnswScalarQuantizedVectorsFormat(
+    public ES814HnswScalarQuantizedVectorsFormat() {
+        this(DEFAULT_MAX_CONN, DEFAULT_BEAM_WIDTH, DEFAULT_NUM_MERGE_WORKER, null, null);
+    }
+
+    public ES814HnswScalarQuantizedVectorsFormat(
         int maxConn,
         int beamWidth,
         int numMergeWorkers,
         Float confidenceInterval,
         ExecutorService mergeExec
     ) {
-        super("Lucene99HnswScalarQuantizedVectorsFormat");  // TODO: rename to ESXXXXX
+        super(NAME);
         if (maxConn <= 0 || maxConn > MAXIMUM_MAX_CONN) {
             throw new IllegalArgumentException(
                 "maxConn must be positive and less than or equal to " + MAXIMUM_MAX_CONN + "; maxConn=" + maxConn
@@ -78,7 +77,7 @@ public final class ESLucene99HnswScalarQuantizedVectorsFormat extends KnnVectors
         } else {
             this.mergeExec = null;
         }
-        this.flatVectorsFormat = new ESLucene99ScalarQuantizedVectorsFormat(confidenceInterval);
+        this.flatVectorsFormat = new ES814ScalarQuantizedVectorsFormat(confidenceInterval);
     }
 
     @Override
@@ -98,7 +97,7 @@ public final class ESLucene99HnswScalarQuantizedVectorsFormat extends KnnVectors
 
     @Override
     public String toString() {
-        return "Lucene99HnswScalarQuantizedVectorsFormat(name=Lucene99HnswScalarQuantizedVectorsFormat, maxConn="
+        return "ES814HnswScalarQuantizedVectorsFormat(name=ES814HnswScalarQuantizedVectorsFormat, maxConn="
             + maxConn
             + ", beamWidth="
             + beamWidth

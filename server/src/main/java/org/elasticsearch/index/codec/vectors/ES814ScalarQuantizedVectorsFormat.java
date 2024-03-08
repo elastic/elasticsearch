@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.index.mapper.vectors.codec;
+package org.elasticsearch.index.codec.vectors;
 
 import org.apache.lucene.codecs.FlatVectorsFormat;
 import org.apache.lucene.codecs.FlatVectorsReader;
@@ -18,10 +18,10 @@ import org.apache.lucene.index.SegmentWriteState;
 
 import java.io.IOException;
 
-public class ESLucene99ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
+public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
     public static final String QUANTIZED_VECTOR_COMPONENT = "QVEC";
 
-    static final String NAME = "Lucene99ScalarQuantizedVectorsFormat";
+    static final String NAME = "ES814ScalarQuantizedVectorsFormat";
 
     static final int VERSION_START = 0;
     static final int VERSION_CURRENT = VERSION_START;
@@ -44,7 +44,7 @@ public class ESLucene99ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
      */
     public final Float confidenceInterval;
 
-    public ESLucene99ScalarQuantizedVectorsFormat(Float confidenceInterval) {
+    public ES814ScalarQuantizedVectorsFormat(Float confidenceInterval) {
         if (confidenceInterval != null
             && (confidenceInterval < MINIMUM_CONFIDENCE_INTERVAL || confidenceInterval > MAXIMUM_CONFIDENCE_INTERVAL)) {
             throw new IllegalArgumentException(
@@ -66,7 +66,7 @@ public class ESLucene99ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
 
     @Override
     public FlatVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
-        return new ESLucene99ScalarQuantizedVectorsWriter(state, confidenceInterval, rawVectorFormat.fieldsWriter(state));
+        return new ES814ScalarQuantizedVectorsWriter(state, confidenceInterval, rawVectorFormat.fieldsWriter(state));
     }
 
     @Override

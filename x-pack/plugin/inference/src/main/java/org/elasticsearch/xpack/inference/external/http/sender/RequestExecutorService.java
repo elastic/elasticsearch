@@ -11,6 +11,7 @@ import org.apache.http.client.protocol.HttpClientContext;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
@@ -269,7 +270,15 @@ class RequestExecutorService implements RequestExecutor {
         @Nullable TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
-        var task = new RequestTask(requestCreator, input, timeout, threadPool, listener);
+        var task = new RequestTask(
+            requestCreator,
+            input,
+            timeout,
+            threadPool,
+            // TODO when multi-tenancy (as well as batching) is implemented we need to be very careful that we preserve
+            // the thread contexts correctly to avoid accidentally retrieving the credentials for the wrong user
+            ContextPreservingActionListener.wrapPreservingContext(listener, threadPool.getThreadContext())
+        );
 
         if (isShutdown()) {
             EsRejectedExecutionException rejected = new EsRejectedExecutionException(

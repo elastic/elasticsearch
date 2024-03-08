@@ -1,0 +1,224 @@
+[[esql-cross-clusters]]
+=== Using {esql} across clusters
+
+++++
+<titleabbrev>Using {esql} across clusters</titleabbrev>
+++++
+
+[partintro]
+
+preview::["{ccs-cap} for {esql} is in technical preview and may be changed or removed in a future release. Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features."]
+
+With {esql}, you can execute a single query across multiple clusters.
+
+==== Prerequisites
+
+include::{es-repo-dir}/search/search-your-data/search-across-clusters.asciidoc[tag=ccs-prereqs]
+
+include::{es-repo-dir}/search/search-your-data/search-across-clusters.asciidoc[tag=ccs-gateway-seed-nodes]
+
+include::{es-repo-dir}/search/search-your-data/search-across-clusters.asciidoc[tag=ccs-proxy-mode]
+
+[discrete]
+[[ccq-remote-cluster-setup]]
+==== Remote cluster setup
+include::{es-repo-dir}/search/search-your-data/search-across-clusters.asciidoc[tag=ccs-remote-cluster-setup]
+
+<1> Since `skip_unavailable` was not set on `cluster_three`, it uses
+the default of `false`. See the <<ccq-skip-unavailable-clusters>>
+section for details.
+
+[discrete]
+[[ccq-from]]
+==== Query across multiple clusters
+
+In the `FROM` command, specify data streams and indices on remote clusters
+using the format `<remote_cluster_name>:<target>`. For instance, the following
+{esql} request queries the `my-index-000001` index on a single remote cluster
+named `cluster_one`:
+
+[source,esql]
+----
+FROM cluster_one:my-index-000001
+| LIMIT 10
+----
+
+Similarly, this {esql} request queries the `my-index-000001` index from
+three clusters:
+
+* The local ("querying") cluster
+* Two remote clusters, `cluster_one` and `cluster_two`
+
+[source,esql]
+----
+FROM my-index-000001,cluster_one:my-index-000001,cluster_two:my-index-000001
+| LIMIT 10
+----
+
+Likewise, this {esql} request queries the `my-index-000001` index from all
+remote clusters (`cluster_one`, `cluster_two`, and `cluster_three`):
+
+[source,esql]
+----
+FROM *:my-index-000001
+| LIMIT 10
+----
+
+[discrete]
+[[ccq-enrich]]
+==== Enrich across clusters
+
+Enrich in {esql} across clusters operates similarly to <<esql-enrich,local enrich>>.
+If the enrich policy and its enrich indices are consistent across all clusters, simply
+write the enrich command as you would without remote clusters. In this default mode,
+{esql} can execute the enrich command on either the querying cluster or the fulfilling
+clusters, aiming to minimize computation or inter-cluster data transfer. Ensuring that
+the policy exists with consistent data on both the querying cluster and the fulfilling
+clusters is critical for ES|QL to produce a consistent query result.
+
+In the following example, the enrich with `hosts` policy can be executed on
+either the querying cluster or the remote cluster `cluster_one`.
+
+[source,esql]
+----
+FROM my-index-000001,cluster_one:my-index-000001
+| ENRICH hosts ON ip
+| LIMIT 10
+----
+
+Enrich with an {esql} query against remote clusters only can also happen on
+the querying cluster. This means the below query requires the `hosts` enrich
+policy to exist on the querying cluster as well.
+
+[source,esql]
+----
+FROM cluster_one:my-index-000001,cluster_two:my-index-000001
+| LIMIT 10
+| ENRICH hosts ON ip
+----
+
+[discrete]
+[[esql-enrich-coordinator]]
+==== Enrich with coordinator mode
+
+{esql} provides the enrich `_coordinator` mode to force {esql} to execute the enrich
+command on the querying cluster. This mode should be used when the enrich policy is
+not available on the remote clusters or maintaining consistency of enrich indices
+across clusters is challenging.
+
+[source,esql]
+----
+FROM my-index-000001,cluster_one:my-index-000001
+| ENRICH _coordinator:hosts ON ip
+| SORT host_name
+| LIMIT 10
+----
+
+[discrete]
+[IMPORTANT]
+====
+Enrich with the `_coordinator` mode usually increases inter-cluster data transfer and
+workload on the querying cluster.
+====
+
+[discrete]
+[[esql-enrich-remote]]
+==== Enrich with remote mode
+
+{esql} also provides the enrich `_remote` mode to force {esql} to execute the enrich
+command independently on each fulfilling cluster where the target indices reside.
+This mode is useful for managing different enrich data on each cluster, such as detailed
+information of hosts for each region where the target (main) indices contain
+log events from these hosts.
+
+In the below example, the `hosts` enrich policy is required to exist on all
+fulfilling clusters: the `querying` cluster (as local indices are included),
+the remote cluster `cluster_one`, and `cluster_two`.
+
+[source,esql]
+----
+FROM my-index-000001,cluster_one:my-index-000001,cluster_two:my-index-000001
+| ENRICH _remote:hosts ON ip
+| SORT host_name
+| LIMIT 10
+----
+
+A `_remote` enrich cannot be executed after a <<esql-stats-by,stats>>
+command. The following example would result in an error:
+
+[source,esql]
+----
+FROM my-index-000001,cluster_one:my-index-000001,cluster_two:my-index-000001
+| STATS COUNT(*) BY ip
+| ENRICH _remote:hosts ON ip
+| SORT host_name
+| LIMIT 10
+----
+
+[discrete]
+[[esql-multi-enrich]]
+==== Multiple enrich commands
+
+You can include multiple enrich commands in the same query with different
+modes. {esql} will attempt to execute them accordingly. For example, this
+query performs two enriches, first with the `hosts` policy on any cluster
+and then with the `vendors` policy on the querying cluster.
+
+[source,esql]
+----
+FROM my-index-000001,cluster_one:my-index-000001,cluster_two:my-index-000001
+| ENRICH hosts ON ip
+| ENRICH _coordinator:vendors ON os
+| LIMIT 10
+----
+
+A `_remote` enrich command can't be executed after a `_coordinator` enrich
+command. The following example would result in an error.
+
+[source,esql]
+----
+FROM my-index-000001,cluster_one:my-index-000001,cluster_two:my-index-000001
+| ENRICH _coordinator:hosts ON ip
+| ENRICH _remote:vendors ON os
+| LIMIT 10
+----
+
+[discrete]
+[[ccq-exclude]]
+==== Excluding clusters or indices from {esql} query
+
+To exclude an entire cluster, prefix the cluster alias with a minus sign in
+the `FROM` command, for example: `-my_cluster:*`:
+
+[source,esql]
+----
+FROM my-index-000001,cluster*:my-index-000001,-cluster_three:*
+| LIMIT 10
+----
+
+To exclude a specific remote index, prefix the index with a minus sign in
+the `FROM` command, such as `my_cluster:-my_index`:
+
+[source,esql]
+----
+FROM my-index-000001,cluster*:my-index-*,cluster_three:-my-index-000001
+| LIMIT 10
+----
+
+[discrete]
+[[ccq-skip-unavailable-clusters]]
+==== Optional remote clusters
+
+{ccs-cap} for {esql} currently does not respect the `skip_unavailable`
+setting. As a result, if a remote cluster specified in the request is
+unavailable or failed, {ccs} for {esql} queries will fail regardless of the setting.
+
+We are actively working to align the behavior of {ccs} for {esql} with other
+{ccs} APIs. This includes providing detailed execution information for each cluster
+in the response, such as execution time, selected target indices, and shards.
+
+[discrete]
+[[ccq-during-upgrade]]
+==== Query across clusters during an upgrade
+
+include::{es-repo-dir}/search/search-your-data/search-across-clusters.asciidoc[tag=ccs-during-upgrade]

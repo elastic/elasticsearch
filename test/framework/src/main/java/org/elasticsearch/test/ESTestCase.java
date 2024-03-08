@@ -2089,7 +2089,7 @@ public abstract class ESTestCase extends LuceneTestCase {
             assertTrue("safeAcquire: Semaphore did not acquire permit within the timeout", semaphore.tryAcquire(10, TimeUnit.SECONDS));
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            fail(e, "safeAcquire: interrupted waiting for Semaphore to acquire");
+            fail(e, "safeAcquire: interrupted waiting for Semaphore to acquire permit");
         }
     }
 

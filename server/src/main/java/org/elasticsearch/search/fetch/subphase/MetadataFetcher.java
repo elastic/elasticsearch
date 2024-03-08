@@ -47,8 +47,7 @@ public class MetadataFetcher {
         for (FieldAndFormat fieldAndFormat : Stream.concat(METADATA_FIELDS.stream(), additionalFields.stream()).toList()) {
             for (final String field : context.getMatchingFieldNames(fieldAndFormat.field)) {
                 if (context.getFieldType(field) != null) {
-                    final MappedFieldType ft = context.getFieldType(field);
-                    metadataFields.add(new MetadataFetcher.MetadataField(field, ft, fieldAndFormat.format));
+                    metadataFields.add(new MetadataFetcher.MetadataField(field, context.getFieldType(field), fieldAndFormat.format));
                 }
             }
         }

@@ -21,6 +21,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import static org.hamcrest.Matchers.equalTo;
+
 /**
  * Parent test class for Watcher (not-YAML) based REST tests
  */
@@ -90,6 +92,19 @@ public abstract class WatcherRestTestCase extends ESRestTestCase {
                 var deleteWatchRequest = new Request("DELETE", "/_watcher/watch/" + id);
                 assertOK(ESRestTestCase.adminClient().performRequest(deleteWatchRequest));
             }
+        }
+
+        {
+            var queryWatchesRequest = new Request("GET", "/_watcher/_query/watches");
+            var response = ObjectPath.createFromResponse(ESRestTestCase.adminClient().performRequest(queryWatchesRequest));
+            assertThat(response.evaluate("count"), equalTo(0));
+        }
+
+        {
+            var xpackUsageRequest = new Request("GET", "/_xpack/usage");
+            var response = ObjectPath.createFromResponse(ESRestTestCase.adminClient().performRequest(xpackUsageRequest));
+            assertThat(response.evaluate("watcher.count.active"), equalTo(0));
+            assertThat(response.evaluate("watcher.count.total"), equalTo(0));
         }
 
         {

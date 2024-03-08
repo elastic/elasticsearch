@@ -263,6 +263,10 @@ public final class DataStreamTestHelper {
             + "    }";
     }
 
+    /**
+     * @return a list of random indices. NOTE: the list can be empty, if you do not want an empty list use
+     * {@link DataStreamTestHelper#randomNonEmptyIndexInstances()}
+     */
     public static List<Index> randomIndexInstances() {
         return randomIndexInstances(0, 128);
     }

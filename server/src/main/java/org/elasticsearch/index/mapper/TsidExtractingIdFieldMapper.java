@@ -21,6 +21,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 
 import java.util.Base64;
 import java.util.Locale;
+import java.util.Objects;
 
 /**
  * A mapper for the {@code _id} field that builds the {@code _id} from the
@@ -70,30 +71,29 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
             assert context.getDynamicMappers().isEmpty() == false
                 || context.getDynamicRuntimeFields().isEmpty() == false
                 || id.equals(indexRouting.createId(context.sourceToParse().getXContentType(), context.sourceToParse().source(), suffix));
-            if (context.sourceToParse().id() != null && false == context.sourceToParse().id().equals(id)) {
-                throw new IllegalArgumentException(
-                    String.format(
-                        Locale.ROOT,
-                        "_id must be unset or set to [%s] but was [%s] because [%s] is in time_series mode",
-                        id,
-                        context.sourceToParse().id(),
-                        context.indexSettings().getIndexMetadata().getIndex().getName()
-                    )
-                );
-            }
         } else if (context.sourceToParse().routing() != null) {
             int routingHash = TimeSeriesRoutingHashFieldMapper.decode(context.sourceToParse().routing());
             id = createId(routingHash, tsid, timestamp);
-        } else {
-            if (context.sourceToParse().id() == null) {
-                throw new IllegalArgumentException(
-                    "_ts_routing_hash was null but must be set because index ["
-                        + context.indexSettings().getIndexMetadata().getIndex().getName()
-                        + "] is in time_series mode"
-                );
+            if (Objects.equals(id.substring(0, 6), routingHash) == false) {
+                System.out.println(routingHash + " " + id);
             }
-            // In Translog operations, the id has already been generated based on the routing hash while the latter is no longer.
-            id = context.sourceToParse().id();
+        } else {
+            throw new IllegalArgumentException(
+                "_ts_routing_hash was null but must be set because index ["
+                    + context.indexSettings().getIndexMetadata().getIndex().getName()
+                    + "] is in time_series mode"
+            );
+        }
+        if (context.sourceToParse().id() != null && false == context.sourceToParse().id().equals(id)) {
+            throw new IllegalArgumentException(
+                String.format(
+                    Locale.ROOT,
+                    "_id must be unset or set to [%s] but was [%s] because [%s] is in time_series mode",
+                    id,
+                    context.sourceToParse().id(),
+                    context.indexSettings().getIndexMetadata().getIndex().getName()
+                )
+            );
         }
         context.id(id);
 

@@ -3108,7 +3108,8 @@ public class InternalEngine extends Engine {
                 requiredFullRange,
                 singleConsumer,
                 accessStats,
-                config().getIndexSettings().getIndexVersionCreated()
+                config().getIndexSettings().getIndexVersionCreated(),
+                config().getIndexSettings().getMode()
             );
             searcher = null;
             return snapshot;

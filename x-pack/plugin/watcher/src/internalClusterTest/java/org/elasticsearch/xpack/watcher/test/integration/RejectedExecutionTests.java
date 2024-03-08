@@ -15,6 +15,8 @@ import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateReque
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.trigger.schedule.IntervalSchedule;
 
+import java.util.Arrays;
+
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
@@ -24,6 +26,7 @@ import static org.elasticsearch.xpack.watcher.input.InputBuilders.searchInput;
 import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.templateRequest;
 import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interval;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class RejectedExecutionTests extends AbstractWatcherIntegrationTestCase {
@@ -39,6 +42,7 @@ public class RejectedExecutionTests extends AbstractWatcherIntegrationTestCase {
         prepareIndex("idx").setSource("field", "a").get();
         refresh();
         WatcherSearchTemplateRequest request = templateRequest(searchSource().query(termQuery("field", "a")), "idx");
+        // The following watch will get rejected because we have configured the watcher thread pool queue size to be 0:
         new PutWatchRequestBuilder(client()).setId(randomAlphaOfLength(5))
             .setSource(
                 watchBuilder().trigger(schedule(interval(1, IntervalSchedule.Interval.Unit.SECONDS)))
@@ -47,13 +51,22 @@ public class RejectedExecutionTests extends AbstractWatcherIntegrationTestCase {
                     .addAction("_logger", loggingAction("_logging").setCategory("_category"))
             )
             .get();
-
+        // Now we make sure that we get a watcher history record for the failed watch (it is written on a different thread pool)
         assertBusy(() -> {
             flushAndRefresh(".watcher-history-*");
-            assertResponse(
-                prepareSearch(".watcher-history-*"),
-                searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value, greaterThanOrEqualTo(2L))
-            );
+            assertResponse(prepareSearch(".watcher-history-*"), searchResponse -> {
+                assertThat("Watcher history not found", searchResponse.getHits().getTotalHits().value, greaterThanOrEqualTo(2L));
+                assertThat(
+                    "Did not find watcher history for rejected watch",
+                    Arrays.stream(searchResponse.getHits().getHits())
+                        .anyMatch(
+                            hit -> hit.getSourceAsMap() != null
+                                && hit.getSourceAsMap().get("messages") != null
+                                && hit.getSourceAsMap().get("messages").toString().contains("due to thread pool capacity")
+                        ),
+                    equalTo(true)
+                );
+            });
         });
     }
 
@@ -64,9 +77,6 @@ public class RejectedExecutionTests extends AbstractWatcherIntegrationTestCase {
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(XPackSettings.SECURITY_ENABLED.getKey(), false)
             .put(LicenseSettings.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial")
-            .put("thread_pool.write.size", 1)
-            .put("thread_pool.write.queue_size", 1)
-            .put("xpack.watcher.thread_pool.size", 1)
             .put("xpack.watcher.thread_pool.queue_size", 0)
             .build();
     }

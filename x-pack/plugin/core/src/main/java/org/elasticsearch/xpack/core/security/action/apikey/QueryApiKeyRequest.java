@@ -38,13 +38,14 @@ public final class QueryApiKeyRequest extends ActionRequest {
     private final SearchAfterBuilder searchAfterBuilder;
     private final boolean withLimitedBy;
     private boolean filterForCurrentUser;
+    private final boolean withProfileUid;
 
     public QueryApiKeyRequest() {
         this((QueryBuilder) null);
     }
 
     public QueryApiKeyRequest(QueryBuilder queryBuilder) {
-        this(queryBuilder, null, null, null, null, null, false);
+        this(queryBuilder, null, null, null, null, null, false, false);
     }
 
     public QueryApiKeyRequest(
@@ -54,7 +55,8 @@ public final class QueryApiKeyRequest extends ActionRequest {
         @Nullable Integer size,
         @Nullable List<FieldSortBuilder> fieldSortBuilders,
         @Nullable SearchAfterBuilder searchAfterBuilder,
-        boolean withLimitedBy
+        boolean withLimitedBy,
+        boolean withProfileUid
     ) {
         this.queryBuilder = queryBuilder;
         this.aggsBuilder = aggsBuilder;
@@ -63,6 +65,7 @@ public final class QueryApiKeyRequest extends ActionRequest {
         this.fieldSortBuilders = fieldSortBuilders;
         this.searchAfterBuilder = searchAfterBuilder;
         this.withLimitedBy = withLimitedBy;
+        this.withProfileUid = withProfileUid;
     }
 
     public QueryBuilder getQueryBuilder() {

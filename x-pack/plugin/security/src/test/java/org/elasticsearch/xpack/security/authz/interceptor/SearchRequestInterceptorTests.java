@@ -55,7 +55,7 @@ public class SearchRequestInterceptorTests extends ESTestCase {
     public void testForceExcludeDeletedDocs() {
         SearchRequest searchRequest = new SearchRequest();
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
-        TermsAggregationBuilder termsAggregationBuilder =  AggregationBuilders.terms("myterms");
+        TermsAggregationBuilder termsAggregationBuilder = AggregationBuilders.terms("myterms");
         termsAggregationBuilder.minDocCount(0);
         searchSourceBuilder.aggregation(termsAggregationBuilder);
         searchRequest.source(searchSourceBuilder);
@@ -70,7 +70,7 @@ public class SearchRequestInterceptorTests extends ESTestCase {
             Map.of(index, new IndicesAccessControl.IndexAccessControl(FieldPermissions.DEFAULT, documentPermissions)),
             listener
         );
-        assertTrue(termsAggregationBuilder.excludeDeletedDocs()); //changed value
+        assertTrue(termsAggregationBuilder.excludeDeletedDocs()); // changed value
     }
 
     public void testNoForceExcludeDeletedDocs() {
@@ -91,15 +91,15 @@ public class SearchRequestInterceptorTests extends ESTestCase {
             Map.of(index, new IndicesAccessControl.IndexAccessControl(FieldPermissions.DEFAULT, documentPermissions)),
             listener
         );
-        assertFalse(termsAggregationBuilder.excludeDeletedDocs()); //did not change value
+        assertFalse(termsAggregationBuilder.excludeDeletedDocs()); // did not change value
 
         termsAggregationBuilder.minDocCount(0);
         interceptor.disableFeatures(
             searchRequest,
-            Map.of(), //no DLS
+            Map.of(), // no DLS
             listener
         );
-        assertFalse(termsAggregationBuilder.excludeDeletedDocs()); //did not change value
+        assertFalse(termsAggregationBuilder.excludeDeletedDocs()); // did not change value
     }
 
 }

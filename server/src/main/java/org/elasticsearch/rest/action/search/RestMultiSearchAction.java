@@ -15,7 +15,6 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
@@ -23,6 +22,7 @@ import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.RequestParams;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
@@ -37,6 +37,7 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.util.List;
 import java.util.Set;
+import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -118,7 +119,7 @@ public class RestMultiSearchAction extends BaseRestHandler {
             allowExplicitIndex,
             searchUsageHolder,
             clusterSupportsFeature,
-            (k, v, r) -> false
+            (p, r) -> {}
         );
     }
 
@@ -132,7 +133,7 @@ public class RestMultiSearchAction extends BaseRestHandler {
         boolean allowExplicitIndex,
         SearchUsageHolder searchUsageHolder,
         Predicate<NodeFeature> clusterSupportsFeature,
-        TriFunction<String, Object, SearchRequest, Boolean> extraParamParser
+        BiConsumer<RequestParams, SearchRequest> extraParamConsumer
     ) throws IOException {
         if (restRequest.getRestApiVersion() == RestApiVersion.V_7 && restRequest.hasParam("type")) {
             restRequest.param("type");
@@ -170,7 +171,7 @@ public class RestMultiSearchAction extends BaseRestHandler {
                 );
             }
             multiRequest.add(searchRequest);
-        }, extraParamParser);
+        }, extraParamConsumer);
         List<SearchRequest> requests = multiRequest.requests();
         for (SearchRequest request : requests) {
             // preserve if it's set on the request
@@ -193,7 +194,7 @@ public class RestMultiSearchAction extends BaseRestHandler {
         boolean allowExplicitIndex,
         CheckedBiConsumer<SearchRequest, XContentParser, IOException> consumer
     ) throws IOException {
-        parseMultiLineRequest(request, indicesOptions, allowExplicitIndex, consumer, (k, v, r) -> false);
+        parseMultiLineRequest(request, indicesOptions, allowExplicitIndex, consumer, (p, r) -> {});
     }
 
     /**
@@ -205,7 +206,7 @@ public class RestMultiSearchAction extends BaseRestHandler {
         IndicesOptions indicesOptions,
         boolean allowExplicitIndex,
         CheckedBiConsumer<SearchRequest, XContentParser, IOException> consumer,
-        TriFunction<String, Object, SearchRequest, Boolean> extraParamParser
+        BiConsumer<RequestParams, SearchRequest> extraParamConsumer
     ) throws IOException {
 
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
@@ -219,6 +220,7 @@ public class RestMultiSearchAction extends BaseRestHandler {
         MultiSearchRequest.readMultiLineFormat(
             xContent,
             request.contentParserConfig(),
+            request.getRestApiVersion(),
             data,
             consumer,
             indices,
@@ -227,7 +229,7 @@ public class RestMultiSearchAction extends BaseRestHandler {
             searchType,
             ccsMinimizeRoundtrips,
             allowExplicitIndex,
-            extraParamParser
+            extraParamConsumer
         );
     }
 

@@ -81,9 +81,10 @@ public class RestFleetMultiSearchAction extends BaseRestHandler {
             allowExplicitIndex,
             searchUsageHolder,
             clusterSupportsFeature,
-            (key, value, searchRequest) -> {
-                if ("wait_for_checkpoints".equals(key)) {
-                    String[] stringWaitForCheckpoints = nodeStringArrayValue(value);
+            (params, searchRequest) -> {
+                String waitForCheckpointsParam = params.param("wait_for_checkpoints");
+                if (waitForCheckpointsParam != null) {
+                    String[] stringWaitForCheckpoints = nodeStringArrayValue(waitForCheckpointsParam);
                     final long[] waitForCheckpoints = new long[stringWaitForCheckpoints.length];
                     for (int i = 0; i < stringWaitForCheckpoints.length; ++i) {
                         waitForCheckpoints[i] = Long.parseLong(stringWaitForCheckpoints[i]);
@@ -91,13 +92,14 @@ public class RestFleetMultiSearchAction extends BaseRestHandler {
                     if (waitForCheckpoints.length != 0) {
                         searchRequest.setWaitForCheckpoints(Collections.singletonMap("*", waitForCheckpoints));
                     }
-                    return true;
-                } else if ("wait_for_checkpoints_timeout".equals(key)) {
-                    final TimeValue waitForCheckpointsTimeout = nodeTimeValue(value, TimeValue.timeValueSeconds(30));
+                }
+                String waitForCheckpointsTimeoutParam = params.param("wait_for_checkpoints_timeout");
+                if (waitForCheckpointsTimeoutParam != null) {
+                    final TimeValue waitForCheckpointsTimeout = nodeTimeValue(
+                        waitForCheckpointsTimeoutParam,
+                        TimeValue.timeValueSeconds(30)
+                    );
                     searchRequest.setWaitForCheckpointsTimeout(waitForCheckpointsTimeout);
-                    return true;
-                } else {
-                    return false;
                 }
             }
         );

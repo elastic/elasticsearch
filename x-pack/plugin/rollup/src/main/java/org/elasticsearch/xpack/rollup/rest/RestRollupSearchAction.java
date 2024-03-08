@@ -52,9 +52,9 @@ public class RestRollupSearchAction extends BaseRestHandler {
         restRequest.withContentOrSourceParamParserOrNull(
             parser -> RestSearchAction.parseSearchRequest(
                 searchRequest,
-                restRequest,
+                restRequest.getRestApiVersion(),
+                restRequest.requestParams(),
                 parser,
-                namedWriteableRegistry,
                 clusterSupportsFeature,
                 size -> searchRequest.source().size(size)
             )

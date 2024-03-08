@@ -13,7 +13,6 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.CheckedBiConsumer;
-import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -21,7 +20,6 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.RequestParams;
-import org.elasticsearch.rest.action.search.RestMultiSearchAction;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -40,12 +38,11 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.BiConsumer;
+import java.util.function.IntConsumer;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeStringArrayValue;
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeStringValue;
 
 /**
  * A multi search API request.
@@ -180,6 +177,7 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
         readMultiLineFormat(
             xContent,
             parserConfig,
+            null,
             data,
             consumer,
             indices,
@@ -188,7 +186,7 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
             searchType,
             ccsMinimizeRoundtrips,
             allowExplicitIndex,
-            (s, o, r) -> false
+            (s, p) -> {}
         );
 
     }
@@ -196,6 +194,7 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
     public static void readMultiLineFormat(
         XContent xContent,
         XContentParserConfiguration parserConfig,
+        RestApiVersion restApiVersion,
         BytesReference data,
         CheckedBiConsumer<SearchRequest, XContentParser, IOException> consumer,
         String[] indices,
@@ -204,7 +203,7 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
         String searchType,
         Boolean ccsMinimizeRoundtrips,
         boolean allowExplicitIndex,
-        TriFunction<String, Object, SearchRequest, Boolean> extraParamParser
+        BiConsumer<RequestParams, SearchRequest> extraParamConsumer
     ) throws IOException {
         int from = 0;
         byte marker = xContent.streamSeparator();
@@ -237,7 +236,7 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
                 searchRequest.setCcsMinimizeRoundtrips(ccsMinimizeRoundtrips);
             }
             IndicesOptions defaultOptions = searchRequest.indicesOptions();
-            // now parse the action
+            // now parse the headers with search options
             if (nextMarker - from > 0) {
                 try (
                     XContentParser parser = XContentHelper.createParserNotCompressed(
@@ -246,63 +245,40 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
                         xContent.type()
                     )
                 ) {
-                    // HEAD
                     Map<String, Object> source = parser.map();
                     if (parser.nextToken() != null) {
                         throw new XContentParseException(parser.getTokenLocation(), "Unexpected token after end of object");
                     }
-                    RequestParams params = new RequestParams(parser.mapStrings());
-                    // HERE need to work on how to invoke RestSearchAction.parseSearchRequest, and handle extraParamParser
-                    RestSearchAction.parseSearchRequest();
-                    Map<String, Object> source = parser.mapStrings();
-                    Object expandWildcards = null;
-                    Object ignoreUnavailable = null;
-                    Object ignoreThrottled = null;
-                    Object allowNoIndices = null;
-                    for (Map.Entry<String, Object> entry : source.entrySet()) {
-                        Object value = entry.getValue();
-                        if ("index".equals(entry.getKey()) || "indices".equals(entry.getKey())) {
-                            if (allowExplicitIndex == false) {
-                                throw new IllegalArgumentException("explicit index in multi search is not allowed");
-                            }
-                            searchRequest.indices(nodeStringArrayValue(value));
-                        } else if ("search_type".equals(entry.getKey()) || "searchType".equals(entry.getKey())) {
-                            searchRequest.searchType(nodeStringValue(value, null));
-                        } else if ("ccs_minimize_roundtrips".equals(entry.getKey()) || "ccsMinimizeRoundtrips".equals(entry.getKey())) {
-                            searchRequest.setCcsMinimizeRoundtrips(nodeBooleanValue(value));
-                        } else if ("request_cache".equals(entry.getKey()) || "requestCache".equals(entry.getKey())) {
-                            searchRequest.requestCache(nodeBooleanValue(value, entry.getKey()));
-                        } else if ("preference".equals(entry.getKey())) {
-                            searchRequest.preference(nodeStringValue(value, null));
-                        } else if ("routing".equals(entry.getKey())) {
-                            searchRequest.routing(nodeStringValue(value, null));
-                        } else if ("allow_partial_search_results".equals(entry.getKey())) {
-                            searchRequest.allowPartialSearchResults(nodeBooleanValue(value, null));
-                        } else if ("expand_wildcards".equals(entry.getKey()) || "expandWildcards".equals(entry.getKey())) {
-                            expandWildcards = value;
-                        } else if ("ignore_unavailable".equals(entry.getKey()) || "ignoreUnavailable".equals(entry.getKey())) {
-                            ignoreUnavailable = value;
-                        } else if ("allow_no_indices".equals(entry.getKey()) || "allowNoIndices".equals(entry.getKey())) {
-                            allowNoIndices = value;
-                        } else if ("ignore_throttled".equals(entry.getKey()) || "ignoreThrottled".equals(entry.getKey())) {
-                            ignoreThrottled = value;
-                        } else if (parserConfig.restApiVersion() == RestApiVersion.V_7
-                            && ("type".equals(entry.getKey()) || "types".equals(entry.getKey()))) {
-                                deprecationLogger.compatibleCritical("msearch_with_types", RestMultiSearchAction.TYPES_DEPRECATION_MESSAGE);
-                            } else if (extraParamParser.apply(entry.getKey(), value, searchRequest)) {
-                                // Skip, the parser handled the key/value
-                            } else {
-                                throw new IllegalArgumentException("key [" + entry.getKey() + "] is not supported in the metadata section");
-                            }
+                    RequestParams params = RequestParams.fromObjectMap(source);
+                    if (params.hasParam("index") || params.hasParam("indices")) {
+                        if (allowExplicitIndex == false) {
+                            throw new IllegalArgumentException("explicit index in multi search is not allowed");
+                        }
                     }
-                    defaultOptions = IndicesOptions.fromParameters(
-                        expandWildcards,
-                        ignoreUnavailable,
-                        allowNoIndices,
-                        ignoreThrottled,
-                        defaultOptions
+
+                    defaultOptions = IndicesOptions.fromRequestParams(params, defaultOptions);
+                    // Parses search request options from the request parameters and add to the search request. Request body will be parsed
+                    // later.
+                    IntConsumer setSize = size -> searchRequest.source().size(size);
+                    RestSearchAction.parseSearchRequest(
+                        searchRequest,
+                        restApiVersion,
+                        params,
+                        null,
+                        null,
+                        setSize,
+                        null,
+                        RestSearchAction.SearchRequestType.MULTI_SEARCH
                     );
+                    extraParamConsumer.accept(params, searchRequest);
+                    List<String> unconsumedParams = params.unconsumedParams();
+                    if (unconsumedParams.isEmpty() == false) {
+                        throw new IllegalArgumentException(
+                            "key [" + unconsumedParams.get(0) + "] is not supported in the metadata section"
+                        );
+                    }
                 }
+
             }
             searchRequest.indicesOptions(defaultOptions);
 
@@ -320,6 +296,7 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
                     xContent.type()
                 )
             ) {
+                // Parse search request body
                 consumer.accept(searchRequest, parser);
                 if (parser.nextToken() != null) {
                     throw new XContentParseException(parser.getTokenLocation(), "Unexpected token after end of object");

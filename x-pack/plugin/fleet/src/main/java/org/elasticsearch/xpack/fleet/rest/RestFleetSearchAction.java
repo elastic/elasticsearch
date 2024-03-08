@@ -81,9 +81,9 @@ public class RestFleetSearchAction extends BaseRestHandler {
         request.withContentOrSourceParamParserOrNull(parser -> {
             RestSearchAction.parseSearchRequest(
                 searchRequest,
-                request,
+                request.getRestApiVersion(),
+                request.requestParams(),
                 parser,
-                namedWriteableRegistry,
                 clusterSupportsFeature,
                 setSize,
                 searchUsageHolder

@@ -60,9 +60,9 @@ public abstract class AbstractBulkByQueryRestHandler<
                 : size -> failOnSizeSpecified();
             RestSearchAction.parseSearchRequest(
                 searchRequest,
-                restRequest,
+                restRequest.getRestApiVersion(),
+                restRequest.requestParams(),
                 parser,
-                namedWriteableRegistry,
                 clusterSupportsFeature,
                 sizeConsumer
             );

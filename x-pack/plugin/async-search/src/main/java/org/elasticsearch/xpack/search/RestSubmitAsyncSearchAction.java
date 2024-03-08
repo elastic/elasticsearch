@@ -71,9 +71,9 @@ public final class RestSubmitAsyncSearchAction extends BaseRestHandler {
         request.withContentOrSourceParamParserOrNull(
             parser -> parseSearchRequest(
                 submit.getSearchRequest(),
-                request,
+                request.getRestApiVersion(),
+                request.requestParams(),
                 parser,
-                namedWriteableRegistry,
                 clusterSupportsFeature,
                 setSize,
                 searchUsageHolder

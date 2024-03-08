@@ -15,10 +15,12 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ToXContent;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Manages request parameters with utility methods for type conversion and checking parameters that were consumed
@@ -29,6 +31,23 @@ public class RequestParams implements ToXContent.Params {
 
     public RequestParams(Map<String, String> params) {
         this.params = params;
+    }
+
+    @SuppressWarnings("unchecked")
+    public static RequestParams fromObjectMap(Map<String, Object> params) {
+        Map<String, String> stringMap = new HashMap<>();
+        for (Map.Entry<String, Object> entry : params.entrySet()) {
+            String valueStr;
+            Object value = entry.getValue();
+            String key = entry.getKey();
+            if (value instanceof List<?> valueList) {
+                valueStr = valueList.stream().map(Object::toString).collect(Collectors.joining(","));
+            } else {
+                valueStr = value.toString();
+            }
+            stringMap.put(key, valueStr);
+        }
+        return new RequestParams(stringMap);
     }
 
     @Override
@@ -67,7 +86,7 @@ public class RequestParams implements ToXContent.Params {
      *
      * @return the list of currently unconsumed parameters.
      */
-    List<String> unconsumedParams() {
+    public List<String> unconsumedParams() {
         return params.keySet().stream().filter(p -> consumedParams.contains(p) == false).toList();
     }
 

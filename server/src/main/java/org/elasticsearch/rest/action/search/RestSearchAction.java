@@ -25,7 +25,6 @@ import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RequestParams;
-import org.elasticsearch.rest.RequestParams;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
@@ -132,7 +131,6 @@ public class RestSearchAction extends BaseRestHandler {
                 request.getRestApiVersion(),
                 request.requestParams(),
                 parser,
-                namedWriteableRegistry,
                 clusterSupportsFeature,
                 setSize,
                 searchUsageHolder
@@ -153,7 +151,6 @@ public class RestSearchAction extends BaseRestHandler {
      * @param params request parameters
      * @param requestContentParser body of the request to read. This method does not attempt to read the body from the {@code request}
      *        parameter
-     * @param namedWriteableRegistry the registry of named writeables
      * @param clusterSupportsFeature used to check if certain features are available in this cluster
      * @param setSize how the size url parameter is handled. {@code udpate_by_query} and regular search differ here.
      */
@@ -162,11 +159,15 @@ public class RestSearchAction extends BaseRestHandler {
         RestApiVersion restApiVersion,
         RequestParams params,
         XContentParser requestContentParser,
-        NamedWriteableRegistry namedWriteableRegistry,
         Predicate<NodeFeature> clusterSupportsFeature,
         IntConsumer setSize
     ) throws IOException {
-        parseSearchRequest(searchRequest, restApiVersion, params, requestContentParser, namedWriteableRegistry, clusterSupportsFeature, setSize, null);
+        parseSearchRequest(searchRequest, restApiVersion, params, requestContentParser, clusterSupportsFeature, setSize, null);
+    }
+
+    public enum SearchRequestType {
+        SEARCH,
+        MULTI_SEARCH
     }
 
     /**
@@ -177,9 +178,8 @@ public class RestSearchAction extends BaseRestHandler {
      * @param params request parameters
      * @param requestContentParser body of the request to read. This method does not attempt to read the body from the {@code request}
      *        parameter, will be null when there is no request body to parse
-     * @param namedWriteableRegistry the registry of named writeables
-      @param clusterSupportsFeature used to check if certain features are available in this cluster
-     * @param setSize how the size url parameter is handled. {@code udpate_by_query} and regular search differ here.
+     @param clusterSupportsFeature used to check if certain features are available in this cluster
+      * @param setSize how the size url parameter is handled. {@code udpate_by_query} and regular search differ here.
      * @param searchUsageHolder the holder of search usage stats
      */
     public static void parseSearchRequest(
@@ -187,14 +187,53 @@ public class RestSearchAction extends BaseRestHandler {
         RestApiVersion restApiVersion,
         RequestParams params,
         @Nullable XContentParser requestContentParser,
-        NamedWriteableRegistry namedWriteableRegistry,
         Predicate<NodeFeature> clusterSupportsFeature,
         IntConsumer setSize,
         @Nullable SearchUsageHolder searchUsageHolder
     ) throws IOException {
+        parseSearchRequest(
+            searchRequest,
+            restApiVersion,
+            params,
+            requestContentParser,
+            clusterSupportsFeature,
+            setSize,
+            searchUsageHolder,
+            SearchRequestType.SEARCH
+        );
+    }
+
+    /**
+     * Parses the rest request on top of the SearchRequest, preserving values that are not overridden by the rest request.
+     *
+     * @param searchRequest the search request that will hold what gets parsed
+     * @param restApiVersion REST API version for the request
+     * @param params request parameters
+     * @param requestContentParser body of the request to read. This method does not attempt to read the body from the {@code request}
+     *        parameter, will be null when there is no request body to parse
+      @param clusterSupportsFeature used to check if certain features are available in this cluster
+     * @param setSize how the size url parameter is handled. {@code udpate_by_query} and regular search differ here.
+     * @param searchUsageHolder the holder of search usage stats
+     * @param searchRequestType the type of search request
+     */
+    public static void parseSearchRequest(
+        SearchRequest searchRequest,
+        RestApiVersion restApiVersion,
+        RequestParams params,
+        @Nullable XContentParser requestContentParser,
+        Predicate<NodeFeature> clusterSupportsFeature,
+        IntConsumer setSize,
+        @Nullable SearchUsageHolder searchUsageHolder,
+        SearchRequestType searchRequestType
+
+    ) throws IOException {
         if (restApiVersion == RestApiVersion.V_7 && params.hasParam("type")) {
             params.param("type");
-            deprecationLogger.compatibleCritical("search_with_types", TYPES_DEPRECATION_MESSAGE);
+            if (searchRequestType == SearchRequestType.SEARCH) {
+                deprecationLogger.compatibleCritical("search_with_type", TYPES_DEPRECATION_MESSAGE);
+            } else {
+                deprecationLogger.compatibleCritical("msearch_with_type", RestMultiSearchAction.TYPES_DEPRECATION_MESSAGE);
+            }
         }
 
         if (searchRequest.source() == null) {

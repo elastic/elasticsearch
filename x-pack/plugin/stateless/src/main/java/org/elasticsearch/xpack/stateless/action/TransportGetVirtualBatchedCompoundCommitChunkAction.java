@@ -50,10 +50,13 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardNotStartedException;
 import org.elasticsearch.index.shard.IndexShardState;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.NodeClosedException;
@@ -65,15 +68,16 @@ import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.nio.file.NoSuchFileException;
 
 public class TransportGetVirtualBatchedCompoundCommitChunkAction extends TransportAction<
     GetVirtualBatchedCompoundCommitChunkRequest,
     GetVirtualBatchedCompoundCommitChunkResponse> {
-    private static final Logger logger = LogManager.getLogger(TransportGetVirtualBatchedCompoundCommitChunkAction.class);
     public static final String NAME = "internal:admin/" + Stateless.NAME + "/vbcc/get/chunk";
     public static final ActionType<GetVirtualBatchedCompoundCommitChunkResponse> TYPE = new ActionType<>(NAME);
-
+    private static final Logger logger = LogManager.getLogger(TransportGetVirtualBatchedCompoundCommitChunkAction.class);
     protected final String transportPrimaryAction;
     private final BigArrays bigArrays;
     private final IndicesService indicesService;
@@ -141,10 +145,12 @@ public class TransportGetVirtualBatchedCompoundCommitChunkAction extends Transpo
 
                 @Override
                 public boolean shouldRetry(Exception e) {
-                    // TODO handle more errors and exceptions (either before or after sending the request to the indexing node), e.g.,:
-                    // * IndexClosedException or see if shard was unassigned (which also affects the search node) --> fail the request.
-                    // * FileNotFound -> assertion failure, fail shard in production (with proper error logging).
-                    // * if index is deleted at any point (e.g., also in the ClusterStateObserver) -> fail the request.
+                    if (ExceptionsHelper.unwrap(e, IndexNotFoundException.class, ShardNotFoundException.class) != null) {
+                        // If the index shard is still available (meaning it relocated), retry.
+                        var indexRoutingTable = clusterService.state().routingTable().index(request.getShardId().getIndex());
+                        return indexRoutingTable != null && indexRoutingTable.shard(request.getShardId().id()) != null;
+                        // TODO do a RoutingTable#hasShard method and reuse it here and in isPrimaryShardStartedOrDeleted() function.
+                    }
                     return ExceptionsHelper.unwrap(
                         e,
                         ConnectTransportException.class,
@@ -167,9 +173,9 @@ public class TransportGetVirtualBatchedCompoundCommitChunkAction extends Transpo
         GetVirtualBatchedCompoundCommitChunkRequest request,
         ActionListener<GetVirtualBatchedCompoundCommitChunkResponse> listener
     ) {
-        final DiscoveryNode readyPrimaryDiscoveryNode = getReadyPrimaryNodeFromClusterState(clusterState, request);
-        if (readyPrimaryDiscoveryNode != null) {
-            sendRequestToPrimaryNode(readyPrimaryDiscoveryNode, request, listener);
+        if (isPrimaryShardStartedOrDeleted(clusterState, request.getShardId())) {
+            ShardRouting primaryShardRouting = clusterState.routingTable().shardRoutingTable(request.getShardId()).primaryShard();
+            sendRequestToPrimaryNode(primaryShardRouting, clusterState, request, listener);
         } else {
             TimeValue timeout = TimeValue.timeValueSeconds(60);
             ClusterStateObserver observer = new ClusterStateObserver(
@@ -183,8 +189,8 @@ public class TransportGetVirtualBatchedCompoundCommitChunkAction extends Transpo
                 @Override
                 public void onNewClusterState(ClusterState state) {
                     ActionListener.run(listener, l -> {
-                        final DiscoveryNode readyPrimaryDiscoveryNode = getReadyPrimaryNodeFromClusterState(clusterState, request);
-                        sendRequestToPrimaryNode(readyPrimaryDiscoveryNode, request, listener);
+                        ShardRouting primaryShardRouting = state.routingTable().shardRoutingTable(request.getShardId()).primaryShard();
+                        sendRequestToPrimaryNode(primaryShardRouting, state, request, listener);
                     });
                 }
 
@@ -205,34 +211,37 @@ public class TransportGetVirtualBatchedCompoundCommitChunkAction extends Transpo
                         )
                     );
                 }
-            }, newState -> getReadyPrimaryNodeFromClusterState(newState, request) != null);
+            }, newState -> isPrimaryShardStartedOrDeleted(newState, request.getShardId()));
         }
     }
 
     /**
-     * Gets the {@link DiscoveryNode} of the primary shard from the cluster state if shard has started, or null otherwise.
+     * Returns true if the primary shard is found and is started, or if the primary shard is not found in the cluster state.
+     * Returns false if the primary shard is found and is not started.
      */
-    private DiscoveryNode getReadyPrimaryNodeFromClusterState(
-        ClusterState clusterState,
-        GetVirtualBatchedCompoundCommitChunkRequest request
-    ) {
-        ShardRouting primaryShardRouting = clusterState.routingTable().shardRoutingTable(request.getShardId()).primaryShard();
-        if (primaryShardRouting != null && primaryShardRouting.started()) {
-            String primaryNode = primaryShardRouting.currentNodeId();
-            final DiscoveryNode primaryDiscoveryNode = clusterState.nodes().get(primaryNode);
-            assert primaryDiscoveryNode != null;
-            return primaryDiscoveryNode;
+    private boolean isPrimaryShardStartedOrDeleted(ClusterState clusterState, ShardId shardId) {
+        var indexRoutingTable = clusterState.routingTable().index(shardId.getIndex());
+        if (indexRoutingTable == null) {
+            return true; // index is not in the cluster state, return true, so that an IndexNotFoundException is thrown downstream.
         }
-        return null;
+        var shardRoutingTable = indexRoutingTable.shard(shardId.id());
+        if (shardRoutingTable == null) {
+            return true; // shard is not in the cluster state, so that an ShardNotFoundException is thrown downstream.
+        }
+        return shardRoutingTable.primaryShard().started();
     }
 
     private void sendRequestToPrimaryNode(
-        DiscoveryNode primaryNode,
+        ShardRouting shardRouting,
+        ClusterState clusterState,
         GetVirtualBatchedCompoundCommitChunkRequest request,
         ActionListener<GetVirtualBatchedCompoundCommitChunkResponse> listener
     ) {
+        String primaryNode = shardRouting.currentNodeId();
+        final DiscoveryNode primaryDiscoveryNode = clusterState.nodes().get(primaryNode);
+        assert primaryDiscoveryNode != null;
         transportService.sendRequest(
-            primaryNode,
+            primaryDiscoveryNode,
             transportPrimaryAction,
             request,
             TransportRequestOptions.EMPTY,
@@ -277,13 +286,25 @@ public class TransportGetVirtualBatchedCompoundCommitChunkAction extends Transpo
         }
         IndexEngine indexEngine = (IndexEngine) engine;
 
-        // TODO: should we limit the amount we have outstanding to some number, like 5% of heap or so?
-        // TODO: could the request length be much bigger than the actual length? If yes, we could allocate a smaller amount here.
-        ByteArray array = bigArrays.newByteArray(request.getLength(), false);
-        BytesReference bytesReference = BytesReference.fromByteArray(array, request.getLength());
-        try (ReleasableBytesReference reference = new ReleasableBytesReference(bytesReference, array)) {
-            indexEngine.readVirtualBatchedCompoundCommitChunk(request, reference);
-            ActionListener.respondAndRelease(listener, new GetVirtualBatchedCompoundCommitChunkResponse(reference));
+        try {
+            // TODO: could the request length be much bigger than the actual length? If yes, we could allocate a smaller amount here.
+            // TODO: should we limit the amount we have outstanding to some number, like 5% of heap or so? By outstanding we mean the amount
+            // of bytes we have allocated but not released yet. Since the release happens async after sending over the wire, we could
+            // exhaust
+            // the heap here and limiting that would be good. It could be blocking, though an async mechanism could be preferable.
+            ByteArray array = bigArrays.newByteArray(request.getLength(), false);
+            BytesReference bytesReference = BytesReference.fromByteArray(array, request.getLength());
+            try (ReleasableBytesReference reference = new ReleasableBytesReference(bytesReference, array)) {
+                indexEngine.readVirtualBatchedCompoundCommitChunk(request, reference);
+                ActionListener.respondAndRelease(listener, new GetVirtualBatchedCompoundCommitChunkResponse(reference));
+            }
+        } catch (Exception e) {
+            if (ExceptionsHelper.unwrap(e, FileNotFoundException.class, NoSuchFileException.class) != null) {
+                shard.failShard("failed to get a virtual batched compound commit chunk", e);
+                listener.onFailure(e);
+            } else {
+                throw e;
+            }
         }
     }
 }

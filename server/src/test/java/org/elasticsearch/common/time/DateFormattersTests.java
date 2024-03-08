@@ -602,7 +602,7 @@ public class DateFormattersTests extends ESTestCase {
         );
         JavaDateFormatter formatter = (JavaDateFormatter) DateFormatter.forPattern(format).withZone(zoneId);
         assertThat(formatter.zone(), is(zoneId));
-        assertThat(List.of(formatter.getRoundupParsers()), transformedItemsMatch(DateTimeParser::getZone, everyItem(is(zoneId))));
+        assertThat(List.of(formatter.roundupParsers), transformedItemsMatch(DateTimeParser::getZone, everyItem(is(zoneId))));
     }
 
     public void testRoundupFormatterLocale() {
@@ -616,7 +616,7 @@ public class DateFormattersTests extends ESTestCase {
         );
         JavaDateFormatter formatter = (JavaDateFormatter) DateFormatter.forPattern(format).withLocale(locale);
         assertThat(formatter.locale(), is(locale));
-        assertThat(List.of(formatter.getRoundupParsers()), transformedItemsMatch(DateTimeParser::getLocale, everyItem(is(locale))));
+        assertThat(List.of(formatter.roundupParsers), transformedItemsMatch(DateTimeParser::getLocale, everyItem(is(locale))));
     }
 
     public void test0MillisAreFormatted() {

@@ -70,7 +70,7 @@ class JavaDateFormatter implements DateFormatter {
     private final String format;
     private final DateTimePrinter printer;
     private final DateTimeParser[] parsers;
-    private final DateTimeParser[] roundupParsers;
+    final DateTimeParser[] roundupParsers;
 
     JavaDateFormatter(String format, DateTimeFormatter formatter) {
         this(format, new JavaTimeDateTimePrinter(formatter), new JavaTimeDateTimeParser(formatter));
@@ -136,15 +136,13 @@ class JavaDateFormatter implements DateFormatter {
         Locale locale,
         DateTimeParser[] parsers
     ) {
-        if (format.contains("||") == false) {
-            return mapObjects(parser -> {
-                DateTimeFormatterBuilder builder = new DateTimeFormatterBuilder();
-                parser.applyToBuilder(builder);
-                roundupParserConsumer.accept(builder, parser);
-                return new JavaTimeDateTimeParser(builder.toFormatter(locale));
-            }, parsers);
-        }
-        return null;
+        assert format.contains("||") == false;
+        return mapObjects(parser -> {
+            DateTimeFormatterBuilder builder = new DateTimeFormatterBuilder();
+            parser.applyToBuilder(builder);
+            roundupParserConsumer.accept(builder, parser);
+            return new JavaTimeDateTimeParser(builder.toFormatter(locale));
+        }, parsers);
     }
 
     public static DateFormatter combined(String input, List<DateFormatter> formatters) {
@@ -172,10 +170,6 @@ class JavaDateFormatter implements DateFormatter {
         this.printer = printer;
         this.roundupParsers = roundupParsers;
         this.parsers = parsers;
-    }
-
-    DateTimeParser[] getRoundupParsers() {
-        return roundupParsers;
     }
 
     Function<String, TemporalAccessor> getRoundupParser() {

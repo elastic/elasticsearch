@@ -6,7 +6,7 @@ esplugin {
   name 'x-pack-esql'
   description 'The plugin that powers ESQL for Elasticsearch'
   classname 'org.elasticsearch.xpack.esql.plugin.EsqlPlugin'
-  extendedPlugins = ['x-pack-ql', 'lang-painless']
+  extendedPlugins = ['x-pack-qlcore', 'lang-painless']
 }
 
 base {

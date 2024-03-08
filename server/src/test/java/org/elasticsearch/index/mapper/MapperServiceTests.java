@@ -1744,6 +1744,21 @@ public class MapperServiceTests extends MapperServiceTestCase {
                 }
               }
             }""");
+
+        assertMergeEquals(List.of(mapping2, mapping1), """
+            {
+              "_doc" : {
+                "properties" : {
+                  "parent" : {
+                    "properties" : {
+                      "child" : {
+                        "type" : "keyword"
+                      }
+                    }
+                  }
+                }
+              }
+            }""");
     }
 
     public void testDottedAndNestedNotationInSameMapping() throws IOException {

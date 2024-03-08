@@ -35,6 +35,7 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.hamcrest.Matchers.greaterThan;
 
 public class AsyncSearchSingleNodeTests extends ESSingleNodeTestCase {
 
@@ -106,12 +107,17 @@ public class AsyncSearchSingleNodeTests extends ESSingleNodeTestCase {
             assertEquals(10, searchResponse.getTotalShards());
             assertEquals(5, searchResponse.getSuccessfulShards());
             assertEquals(5, searchResponse.getFailedShards());
+
+            // since shard failures array can be truncated, the exact size may not match the total number of failed shards
+            // but there should be at least one entry since we expect 5 total failed shards in this test
+            assertThat(searchResponse.getShardFailures().length, greaterThan(0));
+
             assertEquals(10, searchResponse.getHits().getTotalHits().value);
             assertEquals(5, searchResponse.getHits().getHits().length);
             StringTerms terms = searchResponse.getAggregations().get("text");
             assertEquals(1, terms.getBuckets().size());
             assertEquals(10, terms.getBucketByKey("value").getDocCount());
-            assertEquals(5, searchResponse.getShardFailures().length);
+            assertEquals(5, searchResponse.getFailedShards());
             for (ShardSearchFailure shardFailure : searchResponse.getShardFailures()) {
                 assertEquals("boom", shardFailure.getCause().getMessage());
             }

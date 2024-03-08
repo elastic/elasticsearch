@@ -90,36 +90,48 @@ public final class TransportGetApiKeyAction extends TransportAction<GetApiKeyReq
                     resolveProfileUids(
                         apiKeyInfos,
                         ActionListener.wrap(
-                            profileUidLookup -> listener.onResponse(new GetApiKeyResponse(apiKeyInfos, profileUidLookup)),
+                            apiKeyInfosWithProfileUid -> listener.onResponse(new GetApiKeyResponse(apiKeyInfosWithProfileUid)),
                             listener::onFailure
                         )
                     );
                 } else {
-                    listener.onResponse(new GetApiKeyResponse(apiKeyInfos));
+                    listener.onResponse(
+                        new GetApiKeyResponse(apiKeyInfos.stream().map(apiKeyInfo -> new ApiKey.WithProfileUid(apiKeyInfo, null)).toList())
+                    );
                 }
             }, listener::onFailure)
         );
     }
 
-    private void resolveProfileUids(Collection<ApiKey> apiKeyInfos, ActionListener<Map<String, String>> listener) {
+    private void resolveProfileUids(Collection<ApiKey> apiKeyInfos, ActionListener<Collection<ApiKey.WithProfileUid>> listener) {
         List<Subject> subjects = apiKeyInfos.stream()
             .map(this::getApiKeyCreatorSubject)
             .filter(Objects::nonNull)
             .distinct()
             .collect(Collectors.toList());
-
         profileService.searchProfilesForSubjects(subjects, ActionListener.wrap(resultsAndErrors -> {
             if (resultsAndErrors == null) {
                 // profile index does not exist
-                listener.onResponse(null);
+                listener.onResponse(apiKeyInfos.stream().map(apiKeyInfo -> new ApiKey.WithProfileUid(apiKeyInfo, null)).toList());
             } else if (resultsAndErrors.errors().isEmpty()) {
                 assert subjects.size() == resultsAndErrors.results().size();
-                final Map<String, String> profileUidLookup = resultsAndErrors.results()
+                Map<Subject, String> profileUidLookup = resultsAndErrors.results()
                     .stream()
                     .filter(t -> Objects.nonNull(t.v2()))
-                    .map(t -> new Tuple<>(t.v1().getUser().principal(), t.v2().uid()))
+                    .map(t -> new Tuple<>(t.v1(), t.v2().uid()))
                     .collect(Collectors.toUnmodifiableMap(Tuple::v1, Tuple::v2));
-                listener.onResponse(profileUidLookup);
+                listener.onResponse(
+                    apiKeyInfos.stream()
+                        .map(
+                            apiKeyInfo -> new ApiKey.WithProfileUid(
+                                apiKeyInfo,
+                                getApiKeyCreatorSubject(apiKeyInfo) == null
+                                    ? null
+                                    : profileUidLookup.get(getApiKeyCreatorSubject(apiKeyInfo))
+                            )
+                        )
+                        .toList()
+                );
             } else {
                 final ElasticsearchStatusException exception = new ElasticsearchStatusException(
                     "failed to retrieve profile for users. please retry without fetching profile uid (with_profile_uid=false)",

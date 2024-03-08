@@ -49,50 +49,59 @@ public class GetApiKeyResponseTests extends ESTestCase {
             )
         );
 
-        ApiKey apiKeyInfo1 = createApiKeyInfo(
-            "name1",
-            "id-1",
-            ApiKey.Type.REST,
-            Instant.ofEpochMilli(100000L),
-            Instant.ofEpochMilli(10000000L),
-            false,
-            null,
-            "user-a",
-            "realm-x",
-            null,
-            null,
-            null,
-            List.of() // empty limited-by role descriptor to simulate derived keys
+        ApiKey.WithProfileUid apiKeyInfo1 = new ApiKey.WithProfileUid(
+            createApiKeyInfo(
+                "name1",
+                "id-1",
+                ApiKey.Type.REST,
+                Instant.ofEpochMilli(100000L),
+                Instant.ofEpochMilli(10000000L),
+                false,
+                null,
+                "user-a",
+                "realm-x",
+                null,
+                null,
+                null,
+                List.of() // empty limited-by role descriptor to simulate derived keys
+            ),
+            "profileUid1"
         );
-        ApiKey apiKeyInfo2 = createApiKeyInfo(
-            "name2",
-            "id-2",
-            ApiKey.Type.REST,
-            Instant.ofEpochMilli(100000L),
-            Instant.ofEpochMilli(10000000L),
-            true,
-            Instant.ofEpochMilli(100000000L),
-            "user-b",
-            "realm-y",
-            "realm-type-y",
-            Map.of(),
-            List.of(),
-            limitedByRoleDescriptors
+        ApiKey.WithProfileUid apiKeyInfo2 = new ApiKey.WithProfileUid(
+            createApiKeyInfo(
+                "name2",
+                "id-2",
+                ApiKey.Type.REST,
+                Instant.ofEpochMilli(100000L),
+                Instant.ofEpochMilli(10000000L),
+                true,
+                Instant.ofEpochMilli(100000000L),
+                "user-b",
+                "realm-y",
+                "realm-type-y",
+                Map.of(),
+                List.of(),
+                limitedByRoleDescriptors
+            ),
+            null
         );
-        ApiKey apiKeyInfo3 = createApiKeyInfo(
-            null,
-            "id-3",
-            ApiKey.Type.REST,
-            Instant.ofEpochMilli(100000L),
-            null,
-            true,
-            Instant.ofEpochMilli(100000000L),
-            "user-c",
-            "realm-z",
-            "realm-type-z",
-            Map.of("foo", "bar"),
-            roleDescriptors,
-            limitedByRoleDescriptors
+        ApiKey.WithProfileUid apiKeyInfo3 = new ApiKey.WithProfileUid(
+            createApiKeyInfo(
+                null,
+                "id-3",
+                ApiKey.Type.REST,
+                Instant.ofEpochMilli(100000L),
+                null,
+                true,
+                Instant.ofEpochMilli(100000000L),
+                "user-c",
+                "realm-z",
+                "realm-type-z",
+                Map.of("foo", "bar"),
+                roleDescriptors,
+                limitedByRoleDescriptors
+            ),
+            ""
         );
         final List<RoleDescriptor> crossClusterAccessRoleDescriptors = List.of(
             new RoleDescriptor(
@@ -104,20 +113,23 @@ public class GetApiKeyResponseTests extends ESTestCase {
                 null
             )
         );
-        ApiKey apiKeyInfo4 = createApiKeyInfo(
-            "name4",
-            "id-4",
-            ApiKey.Type.CROSS_CLUSTER,
-            Instant.ofEpochMilli(100000L),
-            null,
-            true,
-            Instant.ofEpochMilli(100000000L),
-            "user-c",
-            "realm-z",
-            "realm-type-z",
-            Map.of("foo", "bar"),
-            crossClusterAccessRoleDescriptors,
-            null
+        ApiKey.WithProfileUid apiKeyInfo4 = new ApiKey.WithProfileUid(
+            createApiKeyInfo(
+                "name4",
+                "id-4",
+                ApiKey.Type.CROSS_CLUSTER,
+                Instant.ofEpochMilli(100000L),
+                null,
+                true,
+                Instant.ofEpochMilli(100000000L),
+                "user-c",
+                "realm-z",
+                "realm-type-z",
+                Map.of("foo", "bar"),
+                crossClusterAccessRoleDescriptors,
+                null
+            ),
+            "profileUid4"
         );
         GetApiKeyResponse response = new GetApiKeyResponse(Arrays.asList(apiKeyInfo1, apiKeyInfo2, apiKeyInfo3, apiKeyInfo4));
         XContentBuilder builder = XContentFactory.jsonBuilder();
@@ -137,7 +149,8 @@ public class GetApiKeyResponseTests extends ESTestCase {
                   "metadata": {},
                   "limited_by": [
                     { }
-                  ]
+                  ],
+                  "profile_uid": "profileUid1"
                 },
                 {
                   "id": "id-2",
@@ -247,7 +260,8 @@ public class GetApiKeyResponseTests extends ESTestCase {
                         }
                       }
                     }
-                  ]
+                  ],
+                  "profile_uid": ""
                 },
                 {
                   "id": "id-4",
@@ -312,7 +326,8 @@ public class GetApiKeyResponseTests extends ESTestCase {
                         "allow_restricted_indices": false
                       }
                     ]
-                  }
+                  },
+                  "profile_uid": "profileUid4"
                 }
               ]
             }""", getType("rest"), getType("rest"), getType("rest"), getType("cross_cluster")))));

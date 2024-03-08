@@ -93,18 +93,10 @@ public final class QueryApiKeyResponse extends ActionResponse implements ToXCont
         return "QueryApiKeyResponse{total=" + total + ", items=" + Arrays.toString(items) + ", aggs=" + aggregations + "}";
     }
 
-    public static class Item implements ToXContentObject {
-        private final ApiKey apiKey;
-        @Nullable
-        private final Object[] sortValues;
-
-        public Item(ApiKey apiKey, @Nullable Object[] sortValues) {
-            this.apiKey = apiKey;
-            this.sortValues = sortValues;
-        }
+    public record Item(ApiKey.WithProfileUid apiKeyInfo, @Nullable Object[] sortValues) implements ToXContentObject {
 
         public ApiKey getApiKey() {
-            return apiKey;
+            return apiKeyInfo.apiKey();
         }
 
         public Object[] getSortValues() {
@@ -114,7 +106,7 @@ public final class QueryApiKeyResponse extends ActionResponse implements ToXCont
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            apiKey.innerToXContent(builder, params);
+            apiKeyInfo.innerToXContent(builder, params);
             if (sortValues != null && sortValues.length > 0) {
                 builder.array("_sort", sortValues);
             }
@@ -123,23 +115,8 @@ public final class QueryApiKeyResponse extends ActionResponse implements ToXCont
         }
 
         @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Item item = (Item) o;
-            return Objects.equals(apiKey, item.apiKey) && Arrays.equals(sortValues, item.sortValues);
-        }
-
-        @Override
-        public int hashCode() {
-            int result = Objects.hash(apiKey);
-            result = 31 * result + Arrays.hashCode(sortValues);
-            return result;
-        }
-
-        @Override
         public String toString() {
-            return "Item{" + "apiKey=" + apiKey + ", sortValues=" + Arrays.toString(sortValues) + '}';
+            return "Item [apiKeyInfo=" + apiKeyInfo + ", sortValues=" + Arrays.toString(sortValues) + "}";
         }
     }
 }

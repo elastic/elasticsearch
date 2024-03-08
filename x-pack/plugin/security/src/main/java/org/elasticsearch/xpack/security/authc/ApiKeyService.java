@@ -1966,7 +1966,10 @@ public class ApiKeyService {
     }
 
     private QueryApiKeyResponse.Item convertSearchHitToQueryItem(SearchHit hit, boolean withLimitedBy) {
-        return new QueryApiKeyResponse.Item(convertSearchHitToApiKeyInfo(hit, withLimitedBy), hit.getSortValues());
+        return new QueryApiKeyResponse.Item(
+            new ApiKey.WithProfileUid(convertSearchHitToApiKeyInfo(hit, withLimitedBy), null),
+            hit.getSortValues()
+        );
     }
 
     private ApiKey convertSearchHitToApiKeyInfo(SearchHit hit) {

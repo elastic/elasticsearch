@@ -19,7 +19,6 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -30,31 +29,27 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  */
 public final class GetApiKeyResponse extends ActionResponse implements ToXContentObject {
 
-    private final Collection<ApiKey> foundApiKeysInfo;
-    private final Map<String, String> profileUidLookup;
+    public static final GetApiKeyResponse EMPTY = new GetApiKeyResponse(List.of());
 
-    public GetApiKeyResponse(Collection<ApiKey> foundApiKeysInfo) {
-        this(foundApiKeysInfo, Map.of());
-    }
+    private final Collection<ApiKey.WithProfileUid> foundApiKeysInfo;
 
-    public GetApiKeyResponse(Collection<ApiKey> foundApiKeysInfo, Map<String, String> profileUidLookup) {
+    public GetApiKeyResponse(Collection<ApiKey.WithProfileUid> foundApiKeysInfo) {
         Objects.requireNonNull(foundApiKeysInfo, "found_api_keys_info must be provided");
         this.foundApiKeysInfo = foundApiKeysInfo;
-        this.profileUidLookup = profileUidLookup;
     }
 
-    public static GetApiKeyResponse emptyResponse() {
-        return new GetApiKeyResponse(List.of(), Map.of());
+    public boolean isEmpty() {
+        return foundApiKeysInfo.isEmpty();
     }
 
-    public ApiKey[] getApiKeyInfos() {
-        return foundApiKeysInfo.toArray(new ApiKey[0]);
+    public Collection<ApiKey.WithProfileUid> getApiKeyInfos() {
+        return foundApiKeysInfo;
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject().field("api_keys", foundApiKeysInfo);
-        return builder.endObject();
+        builder.startObject().field("api_keys", foundApiKeysInfo).endObject();
+        return builder;
     }
 
     @Override
@@ -63,11 +58,12 @@ public final class GetApiKeyResponse extends ActionResponse implements ToXConten
     }
 
     @SuppressWarnings("unchecked")
-    static final ConstructingObjectParser<GetApiKeyResponse, Void> PARSER = new ConstructingObjectParser<>("get_api_key_response", args -> {
-        return (args[0] == null) ? GetApiKeyResponse.emptyResponse() : new GetApiKeyResponse((List<ApiKey>) args[0], Map.of());
-    });
+    static final ConstructingObjectParser<GetApiKeyResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "get_api_key_response",
+        args -> (args[0] == null) ? EMPTY : new GetApiKeyResponse((List<ApiKey.WithProfileUid>) args[0])
+    );
     static {
-        PARSER.declareObjectArray(optionalConstructorArg(), (p, c) -> ApiKey.fromXContent(p), new ParseField("api_keys"));
+        PARSER.declareObjectArray(optionalConstructorArg(), ApiKey.PARSER, new ParseField("api_keys"));
     }
 
     public static GetApiKeyResponse fromXContent(XContentParser parser) throws IOException {
@@ -78,5 +74,4 @@ public final class GetApiKeyResponse extends ActionResponse implements ToXConten
     public String toString() {
         return "GetApiKeyResponse [foundApiKeysInfo=" + foundApiKeysInfo + "]";
     }
-
 }

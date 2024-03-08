@@ -335,6 +335,21 @@ public final class Authentication implements ToXContentObject {
             );
     }
 
+    public Authentication enrichUserMetadata(final Object newMetadata) {
+        Objects.requireNonNull(newMetadata);
+
+        Subject subject = this.getEffectiveSubject();
+        User user = subject.getUser();
+        Map<String, Object> enrichedMetadata = new HashMap<>(user.metadata());
+        enrichedMetadata.put("access_control", newMetadata);
+        User newUser = new User(user.principal(), user.roles(), user.fullName(), user.email(), enrichedMetadata, user.enabled());
+        Subject enrichedSubject = new Subject(newUser, subject.getRealm(), subject.getTransportVersion(), subject.getMetadata());
+
+        return isRunAs()
+            ? new Authentication(enrichedSubject, this.getAuthenticatingSubject(), this.getAuthenticationType())
+            : new Authentication(enrichedSubject, enrichedSubject, this.getAuthenticationType());
+    }
+
     /**
      * Returns a new {@code Authentication} that reflects a "run as another user" action under the current {@code Authentication}.
      * The security {@code RealmRef#Domain} of the resulting {@code Authentication} is that of the run-as user's realm.

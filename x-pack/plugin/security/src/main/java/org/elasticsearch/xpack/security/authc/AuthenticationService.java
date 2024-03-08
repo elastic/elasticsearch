@@ -10,6 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.settings.Setting;
@@ -90,7 +91,8 @@ public class AuthenticationService {
         ApiKeyService apiKeyService,
         ServiceAccountService serviceAccountService,
         OperatorPrivilegesService operatorPrivilegesService,
-        MeterRegistry meterRegistry
+        MeterRegistry meterRegistry,
+        Client client
     ) {
         this.realms = realms;
         this.auditTrailService = auditTrailService;
@@ -114,7 +116,8 @@ public class AuthenticationService {
             new ServiceAccountAuthenticator(serviceAccountService, nodeName, meterRegistry),
             new OAuth2TokenAuthenticator(tokenService, meterRegistry),
             new ApiKeyAuthenticator(apiKeyService, nodeName, meterRegistry),
-            new RealmsAuthenticator(numInvalidation, lastSuccessfulAuthCache, meterRegistry)
+            new RealmsAuthenticator(numInvalidation, lastSuccessfulAuthCache, meterRegistry),
+            new AuthenticationEnrichmentService(client)
         );
     }
 

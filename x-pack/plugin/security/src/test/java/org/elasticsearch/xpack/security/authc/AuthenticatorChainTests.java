@@ -72,6 +72,8 @@ public class AuthenticatorChainTests extends ESTestCase {
     private User fallbackUser;
     private AuthenticatorChain authenticatorChain;
 
+    private AuthenticationEnrichmentService authenticationEnrichmentService;
+
     @Before
     public void init() {
         final Settings settings = Settings.builder()
@@ -96,6 +98,7 @@ public class AuthenticatorChainTests extends ESTestCase {
         final User user = new User(randomAlphaOfLength(8));
         authentication = AuthenticationTestHelper.builder().user(user).build(false);
         fallbackUser = AuthenticationTestHelper.randomInternalUser();
+        authenticationEnrichmentService = mock(AuthenticationEnrichmentService.class);
         authenticatorChain = new AuthenticatorChain(
             settings,
             operatorPrivilegesService,
@@ -104,7 +107,8 @@ public class AuthenticatorChainTests extends ESTestCase {
             serviceAccountAuthenticator,
             oAuth2TokenAuthenticator,
             apiKeyAuthenticator,
-            realmsAuthenticator
+            realmsAuthenticator,
+            authenticationEnrichmentService
         );
     }
 

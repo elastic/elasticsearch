@@ -47,6 +47,8 @@ class AuthenticatorChain {
     private final RealmsAuthenticator realmsAuthenticator;
     private final List<Authenticator> allAuthenticators;
 
+    private final AuthenticationEnrichmentService authenticationEnrichmentService;
+
     AuthenticatorChain(
         Settings settings,
         OperatorPrivilegesService operatorPrivilegesService,
@@ -55,7 +57,8 @@ class AuthenticatorChain {
         ServiceAccountAuthenticator serviceAccountAuthenticator,
         OAuth2TokenAuthenticator oAuth2TokenAuthenticator,
         ApiKeyAuthenticator apiKeyAuthenticator,
-        RealmsAuthenticator realmsAuthenticator
+        RealmsAuthenticator realmsAuthenticator,
+        AuthenticationEnrichmentService authenticationEnrichmentService
     ) {
         this.nodeName = Node.NODE_NAME_SETTING.get(settings);
         this.runAsEnabled = AuthenticationServiceField.RUN_AS_ENABLED.get(settings);
@@ -65,6 +68,7 @@ class AuthenticatorChain {
         this.authenticationSerializer = authenticationSerializer;
         this.realmsAuthenticator = realmsAuthenticator;
         this.allAuthenticators = List.of(serviceAccountAuthenticator, oAuth2TokenAuthenticator, apiKeyAuthenticator, realmsAuthenticator);
+        this.authenticationEnrichmentService = authenticationEnrichmentService;
     }
 
     void authenticate(Authenticator.Context context, ActionListener<Authentication> originalListener) {
@@ -106,7 +110,11 @@ class AuthenticatorChain {
                 assert result.getStatus() != AuthenticationResult.Status.TERMINATE
                     : "terminate should already be handled by each individual authenticator";
                 if (result.getStatus() == AuthenticationResult.Status.SUCCESS) {
-                    maybeLookupRunAsUser(context, result.getValue(), l);
+                    maybeLookupRunAsUser(
+                        context,
+                        result.getValue(),
+                        ActionListener.wrap(response -> authenticationEnrichmentService.enrichAuthentication(response, l), l::onFailure)
+                    );
                 } else {
                     assert result.getStatus() == AuthenticationResult.Status.CONTINUE;
                     if (context.shouldHandleNullToken()) {

@@ -367,7 +367,9 @@ public class AuthenticationServiceTests extends ESTestCase {
             apiKeyService,
             serviceAccountService,
             operatorPrivilegesService,
-            MeterRegistry.NOOP
+            MeterRegistry.NOOP,
+            mock(Client.class)
+
         );
     }
 
@@ -667,7 +669,8 @@ public class AuthenticationServiceTests extends ESTestCase {
             apiKeyService,
             serviceAccountService,
             operatorPrivilegesService,
-            MeterRegistry.NOOP
+            MeterRegistry.NOOP,
+            mock(Client.class)
         );
         User user = new User("_username", "r1");
         when(firstRealm.supports(token)).thenReturn(true);
@@ -1051,7 +1054,8 @@ public class AuthenticationServiceTests extends ESTestCase {
                 apiKeyService,
                 serviceAccountService,
                 operatorPrivilegesService,
-                MeterRegistry.NOOP
+                MeterRegistry.NOOP,
+                mock(Client.class)
             );
             boolean requestIdAlreadyPresent = randomBoolean();
             SetOnce<String> reqId = new SetOnce<>();
@@ -1102,7 +1106,8 @@ public class AuthenticationServiceTests extends ESTestCase {
                     apiKeyService,
                     serviceAccountService,
                     operatorPrivilegesService,
-                    MeterRegistry.NOOP
+                    MeterRegistry.NOOP,
+                    mock(Client.class)
                 );
                 threadContext2.putHeader(AuthenticationField.AUTHENTICATION_KEY, authHeaderRef.get());
 
@@ -1126,7 +1131,8 @@ public class AuthenticationServiceTests extends ESTestCase {
                 apiKeyService,
                 serviceAccountService,
                 operatorPrivilegesService,
-                MeterRegistry.NOOP
+                MeterRegistry.NOOP,
+                mock(Client.class)
             );
             service.authenticate("_action", new InternalRequest(), InternalUsers.SYSTEM_USER, ActionListener.wrap(result -> {
                 if (requestIdAlreadyPresent) {
@@ -1189,7 +1195,8 @@ public class AuthenticationServiceTests extends ESTestCase {
             apiKeyService,
             serviceAccountService,
             operatorPrivilegesService,
-            MeterRegistry.NOOP
+            MeterRegistry.NOOP,
+            mock(Client.class)
         );
 
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
@@ -1234,7 +1241,8 @@ public class AuthenticationServiceTests extends ESTestCase {
             apiKeyService,
             serviceAccountService,
             operatorPrivilegesService,
-            MeterRegistry.NOOP
+            MeterRegistry.NOOP,
+            mock(Client.class)
         );
         doAnswer(invocationOnMock -> {
             final GetRequest request = (GetRequest) invocationOnMock.getArguments()[0];
@@ -1299,7 +1307,8 @@ public class AuthenticationServiceTests extends ESTestCase {
             apiKeyService,
             serviceAccountService,
             operatorPrivilegesService,
-            MeterRegistry.NOOP
+            MeterRegistry.NOOP,
+            mock(Client.class)
         );
         RestRequest request = new FakeRestRequest();
 
@@ -1336,7 +1345,8 @@ public class AuthenticationServiceTests extends ESTestCase {
             apiKeyService,
             serviceAccountService,
             operatorPrivilegesService,
-            MeterRegistry.NOOP
+            MeterRegistry.NOOP,
+            mock(Client.class)
         );
         RestRequest request = new FakeRestRequest();
 
@@ -1368,7 +1378,8 @@ public class AuthenticationServiceTests extends ESTestCase {
             apiKeyService,
             serviceAccountService,
             operatorPrivilegesService,
-            MeterRegistry.NOOP
+            MeterRegistry.NOOP,
+            mock(Client.class)
         );
         InternalRequest message = new InternalRequest();
         boolean requestIdAlreadyPresent = randomBoolean();
@@ -1404,7 +1415,8 @@ public class AuthenticationServiceTests extends ESTestCase {
             apiKeyService,
             serviceAccountService,
             operatorPrivilegesService,
-            MeterRegistry.NOOP
+            MeterRegistry.NOOP,
+            mock(Client.class)
         );
 
         InternalRequest message = new InternalRequest();

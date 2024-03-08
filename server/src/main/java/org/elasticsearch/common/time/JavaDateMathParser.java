@@ -23,6 +23,7 @@ import java.time.temporal.TemporalAccessor;
 import java.time.temporal.TemporalAdjusters;
 import java.time.temporal.TemporalQueries;
 import java.util.Objects;
+import java.util.function.Function;
 import java.util.function.LongSupplier;
 
 /**
@@ -36,13 +37,12 @@ public class JavaDateMathParser implements DateMathParser {
 
     private final JavaDateFormatter formatter;
     private final String format;
-    private final JavaDateFormatter roundupParser;
+    private final Function<String, TemporalAccessor> roundupParser;
 
-    JavaDateMathParser(String format, JavaDateFormatter formatter, JavaDateFormatter roundupParser) {
+    JavaDateMathParser(String format, JavaDateFormatter formatter, Function<String, TemporalAccessor> roundupParser) {
         this.format = format;
         this.roundupParser = roundupParser;
-        Objects.requireNonNull(formatter);
-        this.formatter = formatter;
+        this.formatter = Objects.requireNonNull(formatter);
     }
 
     @Override
@@ -204,12 +204,12 @@ public class JavaDateMathParser implements DateMathParser {
             throw new ElasticsearchParseException("cannot parse empty date");
         }
 
-        DateFormatter formatter = roundUpIfNoTime ? this.roundupParser : this.formatter;
+        Function<String, TemporalAccessor> formatter = roundUpIfNoTime ? roundupParser : this.formatter::parse;
         try {
             if (timeZone == null) {
-                return DateFormatters.from(formatter.parse(value)).toInstant();
+                return DateFormatters.from(formatter.apply(value)).toInstant();
             } else {
-                TemporalAccessor accessor = formatter.parse(value);
+                TemporalAccessor accessor = formatter.apply(value);
                 // Use the offset if provided, otherwise fall back to the zone, or null.
                 ZoneOffset offset = TemporalQueries.offset().queryFrom(accessor);
                 ZoneId zoneId = offset == null ? TemporalQueries.zoneId().queryFrom(accessor) : ZoneId.ofOffset("", offset);

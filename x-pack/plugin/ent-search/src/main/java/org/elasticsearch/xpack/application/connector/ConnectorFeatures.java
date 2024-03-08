@@ -62,7 +62,6 @@ public class ConnectorFeatures implements Writeable, ToXContentObject {
         FeatureEnabled incrementalSyncEnabled,
         FeatureEnabled nativeConnectorAPIKeysEnabled,
         SyncRulesFeatures syncRulesFeatures
-
     ) {
         this.documentLevelSecurityEnabled = documentLevelSecurityEnabled;
         this.filteringAdvancedConfigEnabled = filteringAdvancedConfig;

@@ -343,57 +343,8 @@ public final class ApiKey implements ToXContentObject {
             && Objects.equals(limitedBy, other.limitedBy);
     }
 
-    @SuppressWarnings("unchecked")
-    static final ConstructingObjectParser<ApiKey.WithProfileUid, Void> PARSER = new ConstructingObjectParser<>(
-        "api_key",
-        true,
-        args -> new ApiKey.WithProfileUid(
-            new ApiKey(
-                (String) args[0],
-                (String) args[1],
-                (Type) args[2],
-                Instant.ofEpochMilli((Long) args[3]),
-                (args[4] == null) ? null : Instant.ofEpochMilli((Long) args[4]),
-                (Boolean) args[5],
-                (args[6] == null) ? null : Instant.ofEpochMilli((Long) args[6]),
-                (String) args[7],
-                (String) args[8],
-                (String) args[9],
-                (args[10] == null) ? null : (Map<String, Object>) args[10],
-                (List<RoleDescriptor>) args[11],
-                (RoleDescriptorsIntersection) args[12]
-            ),
-            (String) args[13]
-        )
-    );
-
-    static {
-        PARSER.declareString(constructorArg(), new ParseField("name"));
-        PARSER.declareString(constructorArg(), new ParseField("id"));
-        PARSER.declareField(constructorArg(), Type::fromXContent, new ParseField("type"), ObjectParser.ValueType.STRING);
-        PARSER.declareLong(constructorArg(), new ParseField("creation"));
-        PARSER.declareLong(optionalConstructorArg(), new ParseField("expiration"));
-        PARSER.declareBoolean(constructorArg(), new ParseField("invalidated"));
-        PARSER.declareLong(optionalConstructorArg(), new ParseField("invalidation"));
-        PARSER.declareString(constructorArg(), new ParseField("username"));
-        PARSER.declareString(constructorArg(), new ParseField("realm"));
-        PARSER.declareStringOrNull(optionalConstructorArg(), new ParseField("realm_type"));
-        PARSER.declareObject(optionalConstructorArg(), (p, c) -> p.map(), new ParseField("metadata"));
-        PARSER.declareNamedObjects(optionalConstructorArg(), (p, c, n) -> {
-            p.nextToken();
-            return RoleDescriptor.parse(n, p, false);
-        }, new ParseField("role_descriptors"));
-        PARSER.declareField(
-            optionalConstructorArg(),
-            (p, c) -> RoleDescriptorsIntersection.fromXContent(p),
-            new ParseField("limited_by"),
-            ObjectParser.ValueType.OBJECT_ARRAY
-        );
-        PARSER.declareStringOrNull(optionalConstructorArg(), new ParseField("profile_uid"));
-    }
-
     public static ApiKey fromXContent(XContentParser parser) throws IOException {
-        return PARSER.parse(parser, null).apiKey();
+        return WithProfileUid.PARSER.parse(parser, null).apiKey();
     }
 
     @Override
@@ -428,6 +379,55 @@ public final class ApiKey implements ToXContentObject {
     }
 
     public record WithProfileUid(ApiKey apiKey, @Nullable String profileUid) implements ToXContentObject {
+
+        @SuppressWarnings("unchecked")
+        static final ConstructingObjectParser<ApiKey.WithProfileUid, Void> PARSER = new ConstructingObjectParser<>(
+            "api_key",
+            true,
+            args -> new ApiKey.WithProfileUid(
+                new ApiKey(
+                    (String) args[0],
+                    (String) args[1],
+                    (Type) args[2],
+                    Instant.ofEpochMilli((Long) args[3]),
+                    (args[4] == null) ? null : Instant.ofEpochMilli((Long) args[4]),
+                    (Boolean) args[5],
+                    (args[6] == null) ? null : Instant.ofEpochMilli((Long) args[6]),
+                    (String) args[7],
+                    (String) args[8],
+                    (String) args[9],
+                    (args[10] == null) ? null : (Map<String, Object>) args[10],
+                    (List<RoleDescriptor>) args[11],
+                    (RoleDescriptorsIntersection) args[12]
+                ),
+                (String) args[13]
+            )
+        );
+
+        static {
+            PARSER.declareString(constructorArg(), new ParseField("name"));
+            PARSER.declareString(constructorArg(), new ParseField("id"));
+            PARSER.declareField(constructorArg(), Type::fromXContent, new ParseField("type"), ObjectParser.ValueType.STRING);
+            PARSER.declareLong(constructorArg(), new ParseField("creation"));
+            PARSER.declareLong(optionalConstructorArg(), new ParseField("expiration"));
+            PARSER.declareBoolean(constructorArg(), new ParseField("invalidated"));
+            PARSER.declareLong(optionalConstructorArg(), new ParseField("invalidation"));
+            PARSER.declareString(constructorArg(), new ParseField("username"));
+            PARSER.declareString(constructorArg(), new ParseField("realm"));
+            PARSER.declareStringOrNull(optionalConstructorArg(), new ParseField("realm_type"));
+            PARSER.declareObject(optionalConstructorArg(), (p, c) -> p.map(), new ParseField("metadata"));
+            PARSER.declareNamedObjects(optionalConstructorArg(), (p, c, n) -> {
+                p.nextToken();
+                return RoleDescriptor.parse(n, p, false);
+            }, new ParseField("role_descriptors"));
+            PARSER.declareField(
+                optionalConstructorArg(),
+                (p, c) -> RoleDescriptorsIntersection.fromXContent(p),
+                new ParseField("limited_by"),
+                ObjectParser.ValueType.OBJECT_ARRAY
+            );
+            PARSER.declareStringOrNull(optionalConstructorArg(), new ParseField("profile_uid"));
+        }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {

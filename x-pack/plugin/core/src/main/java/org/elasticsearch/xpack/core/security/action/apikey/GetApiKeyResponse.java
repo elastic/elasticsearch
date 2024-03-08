@@ -38,10 +38,6 @@ public final class GetApiKeyResponse extends ActionResponse implements ToXConten
         this.foundApiKeysInfo = foundApiKeysInfo;
     }
 
-    public boolean isEmpty() {
-        return foundApiKeysInfo.isEmpty();
-    }
-
     public Collection<ApiKey.WithProfileUid> getApiKeyInfos() {
         return foundApiKeysInfo;
     }
@@ -63,7 +59,7 @@ public final class GetApiKeyResponse extends ActionResponse implements ToXConten
         args -> (args[0] == null) ? EMPTY : new GetApiKeyResponse((List<ApiKey.WithProfileUid>) args[0])
     );
     static {
-        PARSER.declareObjectArray(optionalConstructorArg(), ApiKey.PARSER, new ParseField("api_keys"));
+        PARSER.declareObjectArray(optionalConstructorArg(), ApiKey.WithProfileUid.PARSER, new ParseField("api_keys"));
     }
 
     public static GetApiKeyResponse fromXContent(XContentParser parser) throws IOException {

@@ -38,7 +38,7 @@ import java.util.function.Predicate;
  * Loads the mappings for an index and computes all {@link IndexFieldCapabilities}. This
  * helper class performs the core shard operation for the field capabilities action.
  */
-class FieldCapabilitiesFetcher {
+public class FieldCapabilitiesFetcher {
     private final IndicesService indicesService;
     private final boolean includeEmptyFields;
     private final Map<String, Map<String, IndexFieldCapabilities>> indexMappingHashToResponses = new HashMap<>();
@@ -146,7 +146,7 @@ class FieldCapabilitiesFetcher {
         return new FieldCapabilitiesIndexResponse(shardId.getIndexName(), indexMappingHash, responseMap, true);
     }
 
-    static Map<String, IndexFieldCapabilities> retrieveFieldCaps(
+    public static Map<String, IndexFieldCapabilities> retrieveFieldCaps(
         SearchExecutionContext context,
         Predicate<String> fieldNameFilter,
         String[] filters,
@@ -161,6 +161,10 @@ class FieldCapabilitiesFetcher {
         boolean isTimeSeriesIndex = context.getIndexSettings().getTimestampBounds() != null;
         var fieldInfos = indexShard.getFieldInfos();
         includeEmptyFields = includeEmptyFields || enableFieldHasValue == false;
+        var fieldCaps = indexShard.getFieldCaps();
+        if (includeEmptyFields == false && fieldInfos.size() > 0 && fieldCaps.isEmpty() == false) {
+            return fieldCaps;
+        }
         Map<String, IndexFieldCapabilities> responseMap = new HashMap<>();
         for (Map.Entry<String, MappedFieldType> entry : context.getAllFields()) {
             final String field = entry.getKey();

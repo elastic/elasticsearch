@@ -166,6 +166,9 @@ teardown:
 
 ---
 "Test flamegraph from profiling-events":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/issues/106103"
+      version: "all"
   - do:
       profiling.flamegraph:
         body: >
@@ -192,6 +195,9 @@ teardown:
 
 ---
 "Test flamegraph from test-events":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/issues/106103"
+      version: "all"
   - do:
       profiling.flamegraph:
         body: >

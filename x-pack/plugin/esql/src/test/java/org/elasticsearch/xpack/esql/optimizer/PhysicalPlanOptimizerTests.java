@@ -3191,7 +3191,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertAggregation(agg, "city_location", SpatialCentroid.class, GEO_POINT, false);
         var filterExec = as(agg.child(), FilterExec.class);
         var extract = as(filterExec.child(), FieldExtractExec.class);
-        assertOnlyOneFieldExtractionWithDocValues(extract, GEO_POINT, "location");
+        assertFieldExtractionWithDocValues(extract, GEO_POINT, "location");
         source(extract.child());
     }
 
@@ -3236,8 +3236,67 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             assertAggregation(agg, aggFieldName, SpatialCentroid.class, GEO_POINT, true);
             var filterExec = as(agg.child(), FilterExec.class);
             var extract = as(filterExec.child(), FieldExtractExec.class);
-            assertOnlyOneFieldExtractionWithDocValues(extract, GEO_POINT, aggFieldName);
+            assertFieldExtractionWithDocValues(extract, GEO_POINT, aggFieldName);
             source(extract.child());
+        }
+    }
+
+    public void testTwoIntersectsWithTwoCentroidsUsesDocValues() {
+        String query = """
+            FROM airports
+            | WHERE ST_INTERSECTS(location, TO_GEOSHAPE("POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))"))
+                AND ST_INTERSECTS(city_location, TO_GEOSHAPE("POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))"))
+            | STATS location=ST_CENTROID(location), city_location=ST_CENTROID(city_location), count=COUNT()
+            """;
+
+        var plan = this.physicalPlan(query, airports);
+        var limit = as(plan, LimitExec.class);
+        var agg = as(limit.child(), AggregateExec.class);
+        assertThat("No groupings in aggregation", agg.groupings().size(), equalTo(0));
+        // Before optimization the aggregation does not use doc-values
+        assertAggregation(agg, "count", Count.class);
+        assertAggregation(agg, "location", SpatialCentroid.class, GEO_POINT, false);
+        assertAggregation(agg, "city_location", SpatialCentroid.class, GEO_POINT, false);
+
+        var exchange = as(agg.child(), ExchangeExec.class);
+        var fragment = as(exchange.child(), FragmentExec.class);
+        var fAgg = as(fragment.fragment(), Aggregate.class);
+        var filter = as(fAgg.child(), Filter.class);
+        var and = as(filter.condition(), And.class);
+        assertThat("filter contains ST_INTERSECTS", and.left(), instanceOf(SpatialIntersects.class));
+        assertThat("filter contains ST_INTERSECTS", and.right(), instanceOf(SpatialIntersects.class));
+
+        // Now verify that optimization re-writes the ExchangeExec and pushed down the filter into the Lucene query
+        var optimized = optimizedPlan(plan);
+        limit = as(optimized, LimitExec.class);
+        agg = as(limit.child(), AggregateExec.class);
+        // Above the exchange (in coordinator) the aggregation is not using doc-values
+        assertAggregation(agg, "count", Count.class);
+        assertAggregation(agg, "location", SpatialCentroid.class, GEO_POINT, false);
+        assertAggregation(agg, "city_location", SpatialCentroid.class, GEO_POINT, false);
+        exchange = as(agg.child(), ExchangeExec.class);
+        agg = as(exchange.child(), AggregateExec.class);
+        assertThat("Aggregation is PARTIAL", agg.getMode(), equalTo(PARTIAL));
+        // below the exchange (in data node) the aggregation is using doc-values
+        assertAggregation(agg, "count", Count.class);
+        assertAggregation(agg, "location", SpatialCentroid.class, GEO_POINT, true);
+        assertAggregation(agg, "city_location", SpatialCentroid.class, GEO_POINT, true);
+        var extract = as(agg.child(), FieldExtractExec.class);
+        assertFieldExtractionWithDocValues(extract, GEO_POINT, "location", "city_location");
+        var source = source(extract.child());
+        // TODO: bring back SingleValueQuery once it can handle LeafShapeFieldData
+        // var condition = as(sv(source.query(), "location"), AbstractGeometryQueryBuilder.class);
+        var booleanQuery = as(source.query(), BoolQueryBuilder.class);
+        assertThat("Expected boolean query of two predicates", booleanQuery.must().size(), equalTo(2));
+        String[] fieldNames = new String[] { "location", "city_location" };
+        for (String fieldName : fieldNames) {
+            var condition = as(findQueryBuilder(booleanQuery, fieldName), SpatialRelatesQuery.ShapeQueryBuilder.class);
+            assertThat("Geometry field name", condition.fieldName(), equalTo(fieldName));
+            assertThat("Spatial relationship", condition.relation(), equalTo(ShapeRelation.INTERSECTS));
+            assertThat("Geometry is Polygon", condition.shape().type(), equalTo(ShapeType.POLYGON));
+            var polygon = as(condition.shape(), Polygon.class);
+            assertThat("Polygon shell length", polygon.getPolygon().length(), equalTo(5));
+            assertThat("Polygon holes", polygon.getNumberOfHoles(), equalTo(0));
         }
     }
 
@@ -3837,10 +3896,18 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         return alias.name();
     }
 
-    private void assertOnlyOneFieldExtractionWithDocValues(FieldExtractExec extract, DataType dataType, String fieldName) {
-        extract.attributesToExtract().stream().forEach(attr -> {
+    private static QueryBuilder findQueryBuilder(BoolQueryBuilder booleanQuery, String fieldName) {
+        return booleanQuery.must()
+            .stream()
+            .filter(b -> ((SpatialRelatesQuery.ShapeQueryBuilder) b).fieldName().equals(fieldName))
+            .findFirst()
+            .get();
+    }
+
+    private void assertFieldExtractionWithDocValues(FieldExtractExec extract, DataType dataType, String... fieldNames) {
+        extract.attributesToExtract().forEach(attr -> {
             String name = attr.qualifiedName();
-            if (name.equals(fieldName)) {
+            if (asList(fieldNames).contains(name)) {
                 assertThat("Expected field '" + name + "' to use doc-values", extract.hasDocValuesAttribute(attr), equalTo(true));
                 assertThat("Expected field '" + name + "' to have data type " + dataType, attr.dataType(), equalTo(dataType));
             } else {

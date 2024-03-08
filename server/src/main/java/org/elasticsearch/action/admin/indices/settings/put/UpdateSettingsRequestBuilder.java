@@ -26,7 +26,7 @@ public class UpdateSettingsRequestBuilder extends AcknowledgedRequestBuilder<
     UpdateSettingsRequestBuilder> {
 
     public UpdateSettingsRequestBuilder(ElasticsearchClient client, String... indices) {
-        super(client, UpdateSettingsAction.INSTANCE, new UpdateSettingsRequest(indices));
+        super(client, TransportUpdateSettingsAction.TYPE, new UpdateSettingsRequest(indices));
     }
 
     /**

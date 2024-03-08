@@ -46,7 +46,7 @@ public class MultivalueDedupeBoolean {
             block.incRef();
             return block;
         }
-        try (BooleanBlock.Builder builder = BooleanBlock.newBlockBuilder(block.getPositionCount(), blockFactory)) {
+        try (BooleanBlock.Builder builder = blockFactory.newBooleanBlockBuilder(block.getPositionCount())) {
             for (int p = 0; p < block.getPositionCount(); p++) {
                 int count = block.getValueCount(p);
                 int first = block.getFirstValueIndex(p);

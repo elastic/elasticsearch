@@ -18,6 +18,7 @@ import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
@@ -57,6 +58,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -158,6 +160,40 @@ public class NativeUsersStore {
                     });
                 }
             });
+        }
+    }
+
+    public void queryUsers(SearchRequest searchRequest, ActionListener<QueryUserResults> listener) {
+        final SecurityIndexManager frozenSecurityIndex = securityIndex.defensiveCopy();
+        if (frozenSecurityIndex.indexExists() == false) {
+            logger.debug("security index does not exist");
+            listener.onResponse(QueryUserResults.EMPTY);
+        } else if (frozenSecurityIndex.isAvailable(SEARCH_SHARDS) == false) {
+            listener.onFailure(frozenSecurityIndex.getUnavailableReason(SEARCH_SHARDS));
+        } else {
+            securityIndex.checkIndexVersionThenExecute(
+                listener::onFailure,
+                () -> executeAsyncWithOrigin(
+                    client,
+                    SECURITY_ORIGIN,
+                    TransportSearchAction.TYPE,
+                    searchRequest,
+                    ActionListener.wrap(searchResponse -> {
+                        final long total = searchResponse.getHits().getTotalHits().value;
+                        if (total == 0) {
+                            logger.debug("No users found for query [{}]", searchRequest.source().query());
+                            listener.onResponse(QueryUserResults.EMPTY);
+                            return;
+                        }
+
+                        final List<QueryUserResult> userItems = Arrays.stream(searchResponse.getHits().getHits()).map(hit -> {
+                            UserAndPassword userAndPassword = transformUser(hit.getId(), hit.getSourceAsMap());
+                            return userAndPassword != null ? new QueryUserResult(userAndPassword.user(), hit.getSortValues()) : null;
+                        }).filter(Objects::nonNull).toList();
+                        listener.onResponse(new QueryUserResults(userItems, total));
+                    }, listener::onFailure)
+                )
+            );
         }
     }
 
@@ -801,5 +837,17 @@ public class NativeUsersStore {
         static ReservedUserInfo defaultDisabledUserInfo() {
             return new ReservedUserInfo(new char[0], false);
         }
+    }
+
+    /**
+     * Result record for every document matching a user
+     */
+    public record QueryUserResult(User user, Object[] sortValues) {}
+
+    /**
+     * Total result for a Query User query
+     */
+    public record QueryUserResults(List<QueryUserResult> userQueryResult, long total) {
+        public static final QueryUserResults EMPTY = new QueryUserResults(List.of(), 0);
     }
 }

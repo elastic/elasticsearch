@@ -111,7 +111,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         // we can bypass this by forcing soft deletes to be used. TODO this restriction can be lifted when #55142 is resolved.
         final Settings.Builder originalIndexSettings = Settings.builder().put(INDEX_SOFT_DELETES_SETTING.getKey(), true);
         if (randomBoolean()) {
-            originalIndexSettings.put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), randomFrom("false", "true", "checksum"));
+            originalIndexSettings.put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), "false");
         }
         assertAcked(prepareCreate(indexName, originalIndexSettings));
         assertAcked(indicesAdmin().prepareAliases().addAlias(indexName, aliasName));
@@ -498,7 +498,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         IndexStats indexStats = indicesStats.getIndex(indexName);
         Map<String, Long> maxShardSizeByNode = new HashMap<>();
         for (ShardStats shard : indexStats.getShards()) {
-            long sizeInBytes = shard.getStats().getStore().getSizeInBytes();
+            long sizeInBytes = shard.getStats().getStore().sizeInBytes();
             if (sizeInBytes > 0) {
                 maxShardSizeByNode.compute(
                     shard.getShardRouting().currentNodeId(),

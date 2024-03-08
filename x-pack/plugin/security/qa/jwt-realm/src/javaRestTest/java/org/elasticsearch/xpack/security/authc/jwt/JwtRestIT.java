@@ -89,32 +89,39 @@ public class JwtRestIT extends ESRestTestCase {
             put("xpack.security.authc.realms.jwt.jwt2.client_authentication.shared_secret", VALID_SHARED_SECRET);
         }
     };
+    private static final String KEYSTORE_PASSWORD = "keystore-password";
 
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .nodes(2)
         .distribution(DistributionType.DEFAULT)
+        .keystorePassword(KEYSTORE_PASSWORD)
         .configFile("http.key", Resource.fromClasspath("ssl/http.key"))
         .configFile("http.crt", Resource.fromClasspath("ssl/http.crt"))
         .configFile("ca.crt", Resource.fromClasspath("ssl/ca.crt"))
+        .configFile("ca-transport.crt", Resource.fromClasspath("ssl/ca-transport.crt"))
+        .configFile("transport.key", Resource.fromClasspath("ssl/transport.key"))
+        .configFile("transport.crt", Resource.fromClasspath("ssl/transport.crt"))
         .configFile("rsa.jwkset", Resource.fromClasspath("jwk/rsa-public-jwkset.json"))
         .setting("xpack.ml.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
         .setting("xpack.security.enabled", "true")
-        .setting("xpack.security.http.ssl.enabled", "true")
-        .setting("xpack.security.transport.ssl.enabled", "false")
+        .setting("xpack.security.transport.ssl.enabled", "true")
+        .setting("xpack.security.transport.ssl.certificate", "transport.crt")
+        .setting("xpack.security.transport.ssl.key", "transport.key")
+        .setting("xpack.security.transport.ssl.certificate_authorities", "ca-transport.crt")
         .setting("xpack.security.authc.token.enabled", "true")
         .setting("xpack.security.authc.api_key.enabled", "true")
-
         .setting("xpack.security.http.ssl.enabled", "true")
         .setting("xpack.security.http.ssl.certificate", "http.crt")
         .setting("xpack.security.http.ssl.key", "http.key")
-        .setting("xpack.security.http.ssl.key_passphrase", "http-password")
         .setting("xpack.security.http.ssl.certificate_authorities", "ca.crt")
         .setting("xpack.security.http.ssl.client_authentication", "optional")
         .settings(JwtRestIT::realmSettings)
         .keystore("xpack.security.authc.realms.jwt.jwt2.hmac_key", HMAC_PASSPHRASE)
         .keystore("xpack.security.authc.realms.jwt.jwt3.hmac_jwkset", HMAC_JWKSET)
+        .keystore("xpack.security.http.ssl.secure_key_passphrase", "http-password")
+        .keystore("xpack.security.transport.ssl.secure_key_passphrase", "transport-password")
         .keystore("xpack.security.authc.realms.jwt.jwt3.client_authentication.shared_secret", VALID_SHARED_SECRET)
         .keystore(keystoreSettings)
         .user("admin_user", "admin-password")
@@ -535,15 +542,12 @@ public class JwtRestIT extends ESRestTestCase {
             // secret updated, so authentication succeeds
             getSecurityClient(buildAndSignJwtForRealm2(principal), Optional.of(newValidSharedSecret)).authenticate();
 
-            // removing setting also works and leads to authentication failure
+            // removing setting should not work since it can
+            // lead to inconsistency in realm's configuration
+            // and eventual authentication failures
             writeSettingToKeystoreThenReload("xpack.security.authc.realms.jwt.jwt2.client_authentication.shared_secret", null);
-            assertThat(
-                expectThrows(
-                    ResponseException.class,
-                    () -> getSecurityClient(buildAndSignJwtForRealm2(principal), Optional.of(newValidSharedSecret)).authenticate()
-                ).getResponse(),
-                hasStatusCode(RestStatus.UNAUTHORIZED)
-            );
+            getSecurityClient(buildAndSignJwtForRealm2(principal), Optional.of(newValidSharedSecret)).authenticate();
+
         } finally {
             // Restore setting for other tests
             writeSettingToKeystoreThenReload(
@@ -561,7 +565,9 @@ public class JwtRestIT extends ESRestTestCase {
             keystoreSettings.put(setting, value);
         }
         cluster.updateStoredSecureSettings();
-        assertOK(adminClient().performRequest(new Request("POST", "/_nodes/reload_secure_settings")));
+        final var reloadRequest = new Request("POST", "/_nodes/reload_secure_settings");
+        reloadRequest.setJsonEntity("{\"secure_settings_password\":\"" + KEYSTORE_PASSWORD + "\"}");
+        assertOK(adminClient().performRequest(reloadRequest));
     }
 
     public void testFailureOnInvalidClientAuthentication() throws Exception {

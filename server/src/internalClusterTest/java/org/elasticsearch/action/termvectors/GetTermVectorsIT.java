@@ -43,7 +43,6 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertRequestBuilderThrows;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -420,7 +419,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
             for (TestConfig test : testConfigs) {
                 TermVectorsRequestBuilder request = getRequestForConfig(test);
                 if (test.expectedException != null) {
-                    assertRequestBuilderThrows(request, test.expectedException);
+                    expectThrows(test.expectedException, request);
                     continue;
                 }
 
@@ -985,7 +984,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
         List<String> tags = new ArrayList<>();
         for (int i = 0; i < numDocs; i++) {
             tags.add("tag_" + i);
-            builders.add(prepareIndex("test").setId(i + "").setSource("tags", tags));
+            builders.add(prepareIndex("test").setId(i + "").setSource("tags", List.copyOf(tags)));
         }
         indexRandom(true, builders);
 

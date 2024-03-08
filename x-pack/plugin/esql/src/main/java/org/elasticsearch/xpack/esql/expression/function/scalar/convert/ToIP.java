@@ -32,7 +32,7 @@ public class ToIP extends AbstractConvertFunction {
         Map.entry(TEXT, ToIPFromStringEvaluator.Factory::new)
     );
 
-    @FunctionInfo(returnType = "ip")
+    @FunctionInfo(returnType = "ip", description = "Converts an input string to an IP value.")
     public ToIP(Source source, @Param(name = "v", type = { "ip", "keyword", "text" }) Expression field) {
         super(source, field);
     }

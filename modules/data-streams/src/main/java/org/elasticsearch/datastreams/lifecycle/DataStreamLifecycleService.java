@@ -19,7 +19,6 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeAction;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
-import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockAction;
 import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockRequest;
 import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockResponse;
@@ -27,12 +26,13 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
-import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsAction;
+import org.elasticsearch.action.admin.indices.settings.put.TransportUpdateSettingsAction;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.datastreams.lifecycle.ErrorEntry;
 import org.elasticsearch.action.downsample.DownsampleAction;
 import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -822,38 +822,40 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
      * @return The set of indices that delete requests have been sent for
      */
     private Set<Index> maybeExecuteRetention(ClusterState state, DataStream dataStream, Set<Index> indicesToExcludeForRemainingRun) {
-        TimeValue retention = getRetentionConfiguration(dataStream);
+        Metadata metadata = state.metadata();
+        List<Index> backingIndicesOlderThanRetention = dataStream.getIndicesPastRetention(metadata::index, nowSupplier);
+        if (backingIndicesOlderThanRetention.isEmpty()) {
+            return Set.of();
+        }
         Set<Index> indicesToBeRemoved = new HashSet<>();
-        if (retention != null) {
-            Metadata metadata = state.metadata();
-            List<Index> backingIndicesOlderThanRetention = dataStream.getIndicesPastRetention(metadata::index, nowSupplier);
+        // We know that there is lifecycle and retention because there are indices to be deleted
+        assert dataStream.getLifecycle() != null;
+        TimeValue effectiveDataRetention = dataStream.getLifecycle().getEffectiveDataRetention();
+        for (Index index : backingIndicesOlderThanRetention) {
+            if (indicesToExcludeForRemainingRun.contains(index) == false) {
+                IndexMetadata backingIndex = metadata.index(index);
+                assert backingIndex != null : "the data stream backing indices must exist";
 
-            for (Index index : backingIndicesOlderThanRetention) {
-                if (indicesToExcludeForRemainingRun.contains(index) == false) {
-                    IndexMetadata backingIndex = metadata.index(index);
-                    assert backingIndex != null : "the data stream backing indices must exist";
+                IndexMetadata.DownsampleTaskStatus downsampleStatus = INDEX_DOWNSAMPLE_STATUS.get(backingIndex.getSettings());
+                // we don't want to delete the source index if they have an in-progress downsampling operation because the
+                // target downsample index will remain in the system as a standalone index
+                if (downsampleStatus.equals(UNKNOWN)) {
+                    indicesToBeRemoved.add(index);
 
-                    IndexMetadata.DownsampleTaskStatus downsampleStatus = INDEX_DOWNSAMPLE_STATUS.get(backingIndex.getSettings());
-                    // we don't want to delete the source index if they have an in-progress downsampling operation because the
-                    // target downsample index will remain in the system as a standalone index
-                    if (downsampleStatus.equals(UNKNOWN)) {
-                        indicesToBeRemoved.add(index);
-
-                        // there's an opportunity here to batch the delete requests (i.e. delete 100 indices / request)
-                        // let's start simple and reevaluate
-                        String indexName = backingIndex.getIndex().getName();
-                        deleteIndexOnce(indexName, "the lapsed [" + retention + "] retention period");
-                    } else {
-                        // there's an opportunity here to cancel downsampling and delete the source index now
-                        logger.trace(
-                            "Data stream lifecycle skips deleting index [{}] even though its retention period [{}] has lapsed "
-                                + "because there's a downsampling operation currently in progress for this index. Current downsampling "
-                                + "status is [{}]. When downsampling completes, DSL will delete this index.",
-                            index.getName(),
-                            retention,
-                            downsampleStatus
-                        );
-                    }
+                    // there's an opportunity here to batch the delete requests (i.e. delete 100 indices / request)
+                    // let's start simple and reevaluate
+                    String indexName = backingIndex.getIndex().getName();
+                    deleteIndexOnce(indexName, "the lapsed [" + effectiveDataRetention + "] retention period");
+                } else {
+                    // there's an opportunity here to cancel downsampling and delete the source index now
+                    logger.trace(
+                        "Data stream lifecycle skips deleting index [{}] even though its retention period [{}] has lapsed "
+                            + "because there's a downsampling operation currently in progress for this index. Current downsampling "
+                            + "status is [{}]. When downsampling completes, DSL will delete this index.",
+                        index.getName(),
+                        effectiveDataRetention,
+                        downsampleStatus
+                    );
                 }
             }
         }
@@ -895,7 +897,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 transportActionsDeduplicator.executeOnce(
                     updateMergePolicySettingsRequest,
                     new ErrorRecordingActionListener(
-                        UpdateSettingsAction.NAME,
+                        TransportUpdateSettingsAction.TYPE.name(),
                         indexName,
                         errorStore,
                         Strings.format(
@@ -1168,7 +1170,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         logger.info("Data stream lifecycle is issuing a request to force merge index [{}]", targetIndex);
         client.admin().indices().forceMerge(forceMergeRequest, new ActionListener<>() {
             @Override
-            public void onResponse(ForceMergeResponse forceMergeResponse) {
+            public void onResponse(BroadcastResponse forceMergeResponse) {
                 if (forceMergeResponse.getFailedShards() > 0) {
                     DefaultShardOperationFailedException[] failures = forceMergeResponse.getShardFailures();
                     String message = Strings.format(
@@ -1220,14 +1222,6 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     private static boolean isForceMergeComplete(IndexMetadata backingIndex) {
         Map<String, String> customMetadata = backingIndex.getCustomData(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY);
         return customMetadata != null && customMetadata.containsKey(FORCE_MERGE_COMPLETED_TIMESTAMP_METADATA_KEY);
-    }
-
-    @Nullable
-    static TimeValue getRetentionConfiguration(DataStream dataStream) {
-        if (dataStream.getLifecycle() == null) {
-            return null;
-        }
-        return dataStream.getLifecycle().getEffectiveDataRetention();
     }
 
     /**

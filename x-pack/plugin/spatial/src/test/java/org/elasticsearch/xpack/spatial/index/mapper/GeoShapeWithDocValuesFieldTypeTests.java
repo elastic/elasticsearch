@@ -25,16 +25,18 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.xpack.vectortile.SpatialGeometryFormatterExtension;
 import org.elasticsearch.xpack.vectortile.feature.FeatureFactory;
-import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.nio.ByteOrder;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+
 public class GeoShapeWithDocValuesFieldTypeTests extends FieldTypeTestCase {
 
-    public void testFetchSourceValue() throws IOException {
+    public void testFetchSourceValue() throws Exception {
         final GeoFormatterFactory<Geometry> geoFormatterFactory = new GeoFormatterFactory<>(
             new SpatialGeometryFormatterExtension().getGeometryFormatterFactories()
         );
@@ -53,26 +55,43 @@ public class GeoShapeWithDocValuesFieldTypeTests extends FieldTypeTestCase {
         String wktLineString = "LINESTRING (42.0 27.1, 30.0 50.0)";
         String wktPoint = "POINT (14.0 15.0)";
         String wktMalformed = "POINT foo";
+        byte[] wkbLine = WellKnownBinary.toWKB(
+            WellKnownText.fromWKT(StandardValidator.NOOP, false, wktLineString),
+            ByteOrder.LITTLE_ENDIAN
+        );
+        byte[] wkbPoint = WellKnownBinary.toWKB(WellKnownText.fromWKT(StandardValidator.NOOP, false, wktPoint), ByteOrder.LITTLE_ENDIAN);
 
         // Test a single shape in geojson format.
         Object sourceValue = jsonLineString;
         assertEquals(List.of(jsonLineString), fetchSourceValue(mapper, sourceValue, null));
         assertEquals(List.of(wktLineString), fetchSourceValue(mapper, sourceValue, "wkt"));
+        List<?> wkb = fetchSourceValue(mapper, sourceValue, "wkb");
+        assertThat(wkb.size(), equalTo(1));
+        assertThat(wkb.get(0), equalTo(wkbLine));
 
         // Test a malformed single shape in geojson format
         sourceValue = jsonMalformed;
         assertEquals(List.of(), fetchSourceValue(mapper, sourceValue, null));
         assertEquals(List.of(), fetchSourceValue(mapper, sourceValue, "wkt"));
+        assertEquals(List.of(), fetchSourceValue(mapper, sourceValue, "wkb"));
 
         // Test a list of shapes in geojson format.
         sourceValue = List.of(jsonLineString, jsonPoint);
         assertEquals(List.of(jsonLineString, jsonPoint), fetchSourceValue(mapper, sourceValue, null));
         assertEquals(List.of(wktLineString, wktPoint), fetchSourceValue(mapper, sourceValue, "wkt"));
+        wkb = fetchSourceValue(mapper, sourceValue, "wkb");
+        assertThat(wkb.size(), equalTo(2));
+        assertThat(wkb.get(0), equalTo(wkbLine));
+        assertThat(wkb.get(1), equalTo(wkbPoint));
 
         // Test a list of shapes including one malformed in geojson format
         sourceValue = List.of(jsonLineString, jsonMalformed, jsonPoint);
         assertEquals(List.of(jsonLineString, jsonPoint), fetchSourceValue(mapper, sourceValue, null));
         assertEquals(List.of(wktLineString, wktPoint), fetchSourceValue(mapper, sourceValue, "wkt"));
+        wkb = fetchSourceValue(mapper, sourceValue, "wkb");
+        assertThat(wkb.size(), equalTo(2));
+        assertThat(wkb.get(0), equalTo(wkbLine));
+        assertThat(wkb.get(1), equalTo(wkbPoint));
 
         // Test a single shape in wkt format.
         sourceValue = wktLineString;
@@ -109,26 +128,31 @@ public class GeoShapeWithDocValuesFieldTypeTests extends FieldTypeTestCase {
             geoFormatterFactory
         ).setStored(true).build(MapperBuilderContext.root(randomBoolean(), false)).fieldType();
 
-        ByteOrder byteOrder = randomBoolean() ? ByteOrder.BIG_ENDIAN : ByteOrder.LITTLE_ENDIAN;
-
         Map<String, Object> jsonLineString = Map.of("type", "LineString", "coordinates", List.of(List.of(42.0, 27.1), List.of(30.0, 50.0)));
         Map<String, Object> jsonPoint = Map.of("type", "Point", "coordinates", List.of(14.0, 15.0));
         String wktLineString = "LINESTRING (42.0 27.1, 30.0 50.0)";
         String wktPoint = "POINT (14.0 15.0)";
 
         BytesRef wkbLineString = new BytesRef(
-            WellKnownBinary.toWKB(new Line(new double[] { 42.0, 30.0 }, new double[] { 27.1, 50.0 }), byteOrder)
+            WellKnownBinary.toWKB(new Line(new double[] { 42.0, 30.0 }, new double[] { 27.1, 50.0 }), ByteOrder.LITTLE_ENDIAN)
         );
-        BytesRef wkbPoint = new BytesRef(WellKnownBinary.toWKB(new Point(14.0, 15.0), byteOrder));
+        BytesRef wkbPoint = new BytesRef(WellKnownBinary.toWKB(new Point(14.0, 15.0), ByteOrder.LITTLE_ENDIAN));
         // Test a single shape in wkb format.
         List<Object> storedValues = List.of(wkbLineString);
         assertEquals(List.of(jsonLineString), fetchStoredValue(mapper, storedValues, null));
         assertEquals(List.of(wktLineString), fetchStoredValue(mapper, storedValues, "wkt"));
+        List<?> wkb = fetchStoredValue(mapper, storedValues, "wkb");
+        assertThat(wkb.size(), equalTo(1));
+        assertThat(wkb.get(0), equalTo(wkbLineString.bytes));
 
         // Test a list of shapes in wkb format.
         storedValues = List.of(wkbLineString, wkbPoint);
         assertEquals(List.of(jsonLineString, jsonPoint), fetchStoredValue(mapper, storedValues, null));
         assertEquals(List.of(wktLineString, wktPoint), fetchStoredValue(mapper, storedValues, "wkt"));
+        wkb = fetchStoredValue(mapper, storedValues, "wkb");
+        assertThat(wkb.size(), equalTo(2));
+        assertThat(wkb.get(0), equalTo(wkbLineString.bytes));
+        assertThat(wkb.get(1), equalTo(wkbPoint.bytes));
     }
 
     public void testFetchVectorTile() throws IOException {
@@ -180,9 +204,9 @@ public class GeoShapeWithDocValuesFieldTypeTests extends FieldTypeTestCase {
             // happen that the geometry is out of range (close to the poles).
             features = List.of();
         }
-        assertThat(features.size(), Matchers.equalTo(sourceValue.size()));
+        assertThat(features.size(), equalTo(sourceValue.size()));
         for (int i = 0; i < features.size(); i++) {
-            assertThat(sourceValue.get(i), Matchers.equalTo(features.get(i)));
+            assertThat(sourceValue.get(i), equalTo(features.get(i)));
         }
     }
 
@@ -308,10 +332,10 @@ public class GeoShapeWithDocValuesFieldTypeTests extends FieldTypeTestCase {
         final int extent = randomIntBetween(256, 4096);
         List<?> mvtExpected = fetchSourceValue(mapper, mvtEquivalentAsWKT, "mvt(0/0/0@" + extent + ")");
         List<?> mvt = fetchSourceValue(mapper, sourceValue, "mvt(0/0/0@" + extent + ")");
-        assertThat(mvt.size(), Matchers.equalTo(1));
-        assertThat(mvt.size(), Matchers.equalTo(mvtExpected.size()));
-        assertThat(mvtExpected.get(0), Matchers.instanceOf(byte[].class));
-        assertThat(mvt.get(0), Matchers.instanceOf(byte[].class));
-        assertThat((byte[]) mvt.get(0), Matchers.equalTo((byte[]) mvtExpected.get(0)));
+        assertThat(mvt.size(), equalTo(1));
+        assertThat(mvt.size(), equalTo(mvtExpected.size()));
+        assertThat(mvtExpected.get(0), instanceOf(byte[].class));
+        assertThat(mvt.get(0), instanceOf(byte[].class));
+        assertThat((byte[]) mvt.get(0), equalTo((byte[]) mvtExpected.get(0)));
     }
 }

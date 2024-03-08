@@ -74,7 +74,7 @@ public class PowTests extends AbstractScalarFunctionTestCase {
                 Double.POSITIVE_INFINITY,
                 List.of(
                     "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                    "Line -1:-1: java.lang.ArithmeticException: invalid result when computing pow"
+                    "Line -1:-1: java.lang.ArithmeticException: not a finite double number: Infinity"
                 )
             )
         );

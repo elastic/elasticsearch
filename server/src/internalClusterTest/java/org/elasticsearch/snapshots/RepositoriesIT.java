@@ -9,6 +9,7 @@ package org.elasticsearch.snapshots;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesResponse;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.TransportDeleteSnapshotAction;
@@ -48,7 +49,6 @@ import java.util.function.ToLongFunction;
 
 import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.READONLY_SETTING_KEY;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertRequestBuilderThrows;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -204,22 +204,27 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
         Settings settings = Settings.builder().put("location", randomRepoPath()).put("random_control_io_exception_rate", 1.0).build();
         Settings readonlySettings = Settings.builder().put(settings).put(READONLY_SETTING_KEY, true).build();
         logger.info("-->  creating repository that cannot write any files - should fail");
-        assertRequestBuilderThrows(
-            client.admin().cluster().preparePutRepository("test-repo-1").setType("mock").setSettings(settings),
-            RepositoryVerificationException.class
-        );
+        ActionRequestBuilder<?, ?> builder3 = client.admin()
+            .cluster()
+            .preparePutRepository("test-repo-1")
+            .setType("mock")
+            .setSettings(settings);
+        expectThrows(RepositoryVerificationException.class, builder3);
 
         logger.info("-->  creating read-only repository that cannot read any files - should fail");
-        assertRequestBuilderThrows(
-            client.admin().cluster().preparePutRepository("test-repo-2").setType("mock").setSettings(readonlySettings),
-            RepositoryVerificationException.class
-        );
+        ActionRequestBuilder<?, ?> builder2 = client.admin()
+            .cluster()
+            .preparePutRepository("test-repo-2")
+            .setType("mock")
+            .setSettings(readonlySettings);
+        expectThrows(RepositoryVerificationException.class, builder2);
 
         logger.info("-->  creating repository that cannot write any files, but suppress verification - should be acked");
         assertAcked(client.admin().cluster().preparePutRepository("test-repo-1").setType("mock").setSettings(settings).setVerify(false));
 
         logger.info("-->  verifying repository");
-        assertRequestBuilderThrows(client.admin().cluster().prepareVerifyRepository("test-repo-1"), RepositoryVerificationException.class);
+        ActionRequestBuilder<?, ?> builder1 = client.admin().cluster().prepareVerifyRepository("test-repo-1");
+        expectThrows(RepositoryVerificationException.class, builder1);
 
         logger.info("-->  creating read-only repository that cannot read any files, but suppress verification - should be acked");
         assertAcked(
@@ -227,7 +232,8 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
         );
 
         logger.info("-->  verifying repository");
-        assertRequestBuilderThrows(client.admin().cluster().prepareVerifyRepository("test-repo-2"), RepositoryVerificationException.class);
+        ActionRequestBuilder<?, ?> builder = client.admin().cluster().prepareVerifyRepository("test-repo-2");
+        expectThrows(RepositoryVerificationException.class, builder);
 
         Path location = randomRepoPath();
 
@@ -286,20 +292,14 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
         );
 
         logger.info("--> try deleting the repository, should fail because the deletion of the snapshot is in progress");
-        RepositoryConflictException e1 = expectThrows(
-            RepositoryConflictException.class,
-            () -> clusterAdmin().prepareDeleteRepository(repo).get()
-        );
+        RepositoryConflictException e1 = expectThrows(RepositoryConflictException.class, clusterAdmin().prepareDeleteRepository(repo));
         assertThat(e1.status(), equalTo(RestStatus.CONFLICT));
         assertThat(e1.getMessage(), containsString("trying to modify or unregister repository that is currently used"));
 
         logger.info("--> try updating the repository, should fail because the deletion of the snapshot is in progress");
         RepositoryConflictException e2 = expectThrows(
             RepositoryConflictException.class,
-            () -> clusterAdmin().preparePutRepository(repo)
-                .setType("mock")
-                .setSettings(Settings.builder().put("location", randomRepoPath()))
-                .get()
+            clusterAdmin().preparePutRepository(repo).setType("mock").setSettings(Settings.builder().put("location", randomRepoPath()))
         );
         assertThat(e2.status(), equalTo(RestStatus.CONFLICT));
         assertThat(e2.getMessage(), containsString("trying to modify or unregister repository that is currently used"));

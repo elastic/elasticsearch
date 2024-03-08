@@ -13,8 +13,8 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAction;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsAction;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
@@ -134,9 +134,11 @@ public final class DestinationIndex {
         AtomicReference<Settings> settingsHolder = new AtomicReference<>();
         AtomicReference<MappingMetadata> mappingsHolder = new AtomicReference<>();
 
-        ActionListener<FieldCapabilitiesResponse> fieldCapabilitiesListener = ActionListener.wrap(fieldCapabilitiesResponse -> {
-            listener.onResponse(createIndexRequest(clock, config, settingsHolder.get(), mappingsHolder.get(), fieldCapabilitiesResponse));
-        }, listener::onFailure);
+        ActionListener<FieldCapabilitiesResponse> fieldCapabilitiesListener = listener.delegateFailureAndWrap(
+            (l, fieldCapabilitiesResponse) -> l.onResponse(
+                createIndexRequest(clock, config, settingsHolder.get(), mappingsHolder.get(), fieldCapabilitiesResponse)
+            )
+        );
 
         ActionListener<MappingMetadata> mappingsListener = ActionListener.wrap(mappings -> {
             mappingsHolder.set(mappings);
@@ -370,7 +372,7 @@ public final class DestinationIndex {
                 config.getHeaders(),
                 ML_ORIGIN,
                 client,
-                PutMappingAction.INSTANCE,
+                TransportPutMappingAction.TYPE,
                 putMappingRequest,
                 listener
             );

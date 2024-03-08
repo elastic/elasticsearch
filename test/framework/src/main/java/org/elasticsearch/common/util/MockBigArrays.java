@@ -17,9 +17,11 @@ import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.Accountables;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -399,6 +401,16 @@ public class MockBigArrays extends BigArrays {
         }
 
         @Override
+        public BytesRefIterator iterator() {
+            return in.iterator();
+        }
+
+        @Override
+        public void fillWith(StreamInput streamInput) throws IOException {
+            in.fillWith(streamInput);
+        }
+
+        @Override
         public boolean hasArray() {
             return in.hasArray();
         }
@@ -701,6 +713,12 @@ public class MockBigArrays extends BigArrays {
         @Override
         public long getUsed() {
             return used.get();
+        }
+
+        @Override
+        public String toString() {
+            long u = used.get();
+            return "LimitedBreaker[" + u + "/" + max.getBytes() + "][" + ByteSizeValue.ofBytes(u) + "/" + max + "]";
         }
     }
 }

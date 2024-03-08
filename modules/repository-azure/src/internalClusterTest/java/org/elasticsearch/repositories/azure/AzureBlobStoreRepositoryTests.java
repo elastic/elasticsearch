@@ -26,6 +26,7 @@ import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.blobstore.ESMockAPIBasedRepositoryIntegTestCase;
@@ -41,6 +42,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
 
@@ -196,12 +198,21 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
         private static final Predicate<String> LIST_PATTERN = Pattern.compile("GET /[a-zA-Z0-9]+/[a-zA-Z0-9]+\\?.+").asMatchPredicate();
         private static final Predicate<String> GET_BLOB_PATTERN = Pattern.compile("GET /[a-zA-Z0-9]+/[a-zA-Z0-9]+/.+").asMatchPredicate();
 
+        private final Set<String> seenRequestIds = ConcurrentCollections.newConcurrentSet();
+
         private AzureHTTPStatsCollectorHandler(HttpHandler delegate) {
             super(delegate);
         }
 
         @Override
         protected void maybeTrack(String request, Headers headers) {
+            // Same request id is a retry
+            // https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-ncnbi/817da997-30d2-4cd3-972f-a0073e4e98f7
+            // Do not count retries since the client side request stats do not track them yet.
+            // See https://github.com/elastic/elasticsearch/issues/104443
+            if (false == seenRequestIds.add(headers.getFirst("X-ms-client-request-id"))) {
+                return;
+            }
             if (GET_BLOB_PATTERN.test(request)) {
                 trackRequest("GetBlob");
             } else if (Regex.simpleMatch("HEAD /*/*/*", request)) {

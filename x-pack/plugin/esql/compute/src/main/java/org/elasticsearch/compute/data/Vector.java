@@ -8,15 +8,16 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.Accountable;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 
 /**
  * A dense Vector of single values.
  */
-public interface Vector extends Accountable, Releasable {
+public interface Vector extends Accountable, RefCounted, Releasable {
 
     /**
-     * {@return Returns a Block view over this vector.}
+     * {@return Returns a new Block containing this vector.}
      */
     Block asBlock();
 
@@ -74,4 +75,11 @@ public interface Vector extends Accountable, Releasable {
      * Whether this vector was released
      */
     boolean isReleased();
+
+    /**
+     * The serialization type of vectors: 0 and 1 replaces the boolean false/true in pre-8.14.
+     */
+    byte SERIALIZE_VECTOR_VALUES = 0;
+    byte SERIALIZE_VECTOR_CONSTANT = 1;
+    byte SERIALIZE_VECTOR_ARRAY = 2;
 }

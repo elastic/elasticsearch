@@ -26,14 +26,26 @@ import org.gradle.api.tasks.compile.AbstractCompile;
 import org.gradle.api.tasks.compile.CompileOptions;
 import org.gradle.api.tasks.compile.GroovyCompile;
 import org.gradle.api.tasks.compile.JavaCompile;
+import org.gradle.jvm.toolchain.JavaLanguageVersion;
+import org.gradle.jvm.toolchain.JavaToolchainService;
 
 import java.util.List;
+
+import javax.inject.Inject;
 
 /**
  * A wrapper around Gradle's Java Base plugin that applies our
  * common configuration for production code.
  */
 public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
+
+    private final JavaToolchainService javaToolchains;
+
+    @Inject
+    ElasticsearchJavaBasePlugin(JavaToolchainService javaToolchains) {
+        this.javaToolchains = javaToolchains;
+    }
+
     @Override
     public void apply(Project project) {
         // make sure the global build info plugin is applied to the root project
@@ -103,7 +115,7 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
     /**
      * Adds compiler settings to the project
      */
-    public static void configureCompile(Project project) {
+    public void configureCompile(Project project) {
         project.getExtensions().getExtraProperties().set("compactProfile", "full");
         JavaPluginExtension java = project.getExtensions().getByType(JavaPluginExtension.class);
         if (BuildParams.getJavaToolChainSpec().isPresent()) {
@@ -112,6 +124,10 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
         java.setSourceCompatibility(BuildParams.getMinimumRuntimeVersion());
         java.setTargetCompatibility(BuildParams.getMinimumRuntimeVersion());
         project.getTasks().withType(JavaCompile.class).configureEach(compileTask -> {
+            compileTask.getJavaCompiler().set(javaToolchains.compilerFor(spec -> {
+                spec.getLanguageVersion().set(JavaLanguageVersion.of(BuildParams.getMinimumRuntimeVersion().getMajorVersion()));
+            }));
+
             CompileOptions compileOptions = compileTask.getOptions();
             /*
              * -path because gradle will send in paths that don't always exist.
@@ -132,6 +148,7 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
             compileTask.getConventionMapping().map("sourceCompatibility", () -> java.getSourceCompatibility().toString());
             compileTask.getConventionMapping().map("targetCompatibility", () -> java.getTargetCompatibility().toString());
             compileOptions.getRelease().set(releaseVersionProviderFromCompileTask(project, compileTask));
+            compileOptions.setIncremental(BuildParams.isCi() == false);
         });
         // also apply release flag to groovy, which is used in build-tools
         project.getTasks().withType(GroovyCompile.class).configureEach(compileTask -> {

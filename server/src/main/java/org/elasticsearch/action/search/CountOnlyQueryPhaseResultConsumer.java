@@ -104,20 +104,5 @@ class CountOnlyQueryPhaseResultConsumer extends SearchPhaseResults<SearchPhaseRe
     }
 
     @Override
-    public void incRef() {}
-
-    @Override
-    public boolean tryIncRef() {
-        return true;
-    }
-
-    @Override
-    public boolean decRef() {
-        return true;
-    }
-
-    @Override
-    public boolean hasReferences() {
-        return false;
-    }
+    public void close() {}
 }

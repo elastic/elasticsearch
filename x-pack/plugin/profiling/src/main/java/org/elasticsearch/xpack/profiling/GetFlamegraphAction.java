@@ -13,6 +13,6 @@ public final class GetFlamegraphAction extends ActionType<GetFlamegraphResponse>
     public static final String NAME = "indices:data/read/profiling/flamegraph";
 
     private GetFlamegraphAction() {
-        super(NAME, GetFlamegraphResponse::new);
+        super(NAME);
     }
 }

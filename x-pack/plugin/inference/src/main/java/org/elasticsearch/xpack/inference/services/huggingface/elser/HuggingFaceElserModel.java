@@ -21,14 +21,14 @@ import java.util.Map;
 
 public class HuggingFaceElserModel extends HuggingFaceModel {
     public HuggingFaceElserModel(
-        String modelId,
+        String inferenceEntityId,
         TaskType taskType,
         String service,
         Map<String, Object> serviceSettings,
         @Nullable Map<String, Object> secrets
     ) {
         this(
-            modelId,
+            inferenceEntityId,
             taskType,
             service,
             HuggingFaceElserServiceSettings.fromMap(serviceSettings),
@@ -37,13 +37,13 @@ public class HuggingFaceElserModel extends HuggingFaceModel {
     }
 
     HuggingFaceElserModel(
-        String modelId,
+        String inferenceEntityId,
         TaskType taskType,
         String service,
         HuggingFaceElserServiceSettings serviceSettings,
         @Nullable HuggingFaceElserSecretSettings secretSettings
     ) {
-        super(new ModelConfigurations(modelId, taskType, service, serviceSettings), new ModelSecrets(secretSettings));
+        super(new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings), new ModelSecrets(secretSettings));
     }
 
     @Override
@@ -69,5 +69,10 @@ public class HuggingFaceElserModel extends HuggingFaceModel {
     @Override
     public SecureString getApiKey() {
         return getSecretSettings().apiKey();
+    }
+
+    @Override
+    public Integer getTokenLimit() {
+        return getServiceSettings().maxInputTokens();
     }
 }

@@ -18,9 +18,6 @@ public class CO2CalculatorTests extends ESTestCase {
     private static final String HOST_ID_D = "4440256254710195394";
 
     public void testCreateFromRegularSource() {
-        InstanceTypeService instanceTypeService = new InstanceTypeService();
-        instanceTypeService.load();
-
         // tag::noformat
         Map<String, HostMetadata> hostsTable = Map.ofEntries(
             Map.entry(HOST_ID_A,
@@ -31,7 +28,8 @@ public class CO2CalculatorTests extends ESTestCase {
                         "eu-west-1",
                         "c5n.xlarge"
                     ),
-                    "" // Doesn't matter if datacenter is known.
+                    "", // Doesn't matter if datacenter is known.
+                    null
                 )
             ),
             Map.entry(HOST_ID_B,
@@ -40,9 +38,10 @@ public class CO2CalculatorTests extends ESTestCase {
                     new InstanceType(
                         "gcp",
                         "europe-west1",
-                        "" // Doesn't matter for unknown datacenters.
+                        null // Doesn't matter for unknown datacenters.
                     ),
-                    "x86_64"
+                    "x86_64",
+                    null
                 )
             ),
             Map.entry(HOST_ID_C,
@@ -51,9 +50,10 @@ public class CO2CalculatorTests extends ESTestCase {
                     new InstanceType(
                         "azure",
                         "northcentralus",
-                        "" // Doesn't matter for unknown datacenters.
+                        null // Doesn't matter for unknown datacenters.
                     ),
-                    "aarch64"
+                    "aarch64",
+                    null
                 )
             ),
             Map.entry(HOST_ID_D,
@@ -62,9 +62,10 @@ public class CO2CalculatorTests extends ESTestCase {
                     new InstanceType(
                         "on-prem-provider",
                         "on-prem-region",
-                        "" // Doesn't matter for unknown datacenters.
+                        null // Doesn't matter for unknown datacenters.
                     ),
-                    "aarch64"
+                    "aarch64",
+                    null
                 )
             )
         );
@@ -73,17 +74,12 @@ public class CO2CalculatorTests extends ESTestCase {
         double samplingDurationInSeconds = 1_800.0d; // 30 minutes
         long samples = 100_000L; // 100k samples
         double annualCoreHours = CostCalculator.annualCoreHours(samplingDurationInSeconds, samples, 20.0d);
-        CO2Calculator co2Calculator = new CO2Calculator(instanceTypeService, hostsTable, samplingDurationInSeconds, null, null, null, null);
+        CO2Calculator co2Calculator = new CO2Calculator(hostsTable, samplingDurationInSeconds, null, null, null, null);
 
-        checkCO2Calculation(co2Calculator.getAnnualCO2Tons(HOST_ID_A, samples), annualCoreHours, 0.000002213477d);
-        checkCO2Calculation(co2Calculator.getAnnualCO2Tons(HOST_ID_B, samples), annualCoreHours, 1.1d, 0.00004452d, 7.0d);
+        checkCO2Calculation(co2Calculator.getAnnualCO2Tons(HOST_ID_A, samples), annualCoreHours, 1.135d, 0.0002786d, 7.0d);
+        checkCO2Calculation(co2Calculator.getAnnualCO2Tons(HOST_ID_B, samples), annualCoreHours, 1.1d, 0.0000198d, 7.0d);
         checkCO2Calculation(co2Calculator.getAnnualCO2Tons(HOST_ID_C, samples), annualCoreHours, 1.185d, 0.000410608d, 2.8d);
         checkCO2Calculation(co2Calculator.getAnnualCO2Tons(HOST_ID_D, samples), annualCoreHours, 1.7d, 0.000379069d, 2.8d);
-    }
-
-    private void checkCO2Calculation(double calculatedAnnualCO2Tons, double annualCoreHours, double co2Factor) {
-        double expectedAnnualCO2Tons = annualCoreHours * co2Factor;
-        assertEquals(expectedAnnualCO2Tons, calculatedAnnualCO2Tons, 0.000000000001d);
     }
 
     private void checkCO2Calculation(

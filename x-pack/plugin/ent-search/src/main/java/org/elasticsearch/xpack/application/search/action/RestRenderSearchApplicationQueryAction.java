@@ -42,7 +42,9 @@ public class RestRenderSearchApplicationQueryAction extends EnterpriseSearchBase
         final String searchAppName = restRequest.param("name");
         SearchApplicationSearchRequest request;
         if (restRequest.hasContent()) {
-            request = SearchApplicationSearchRequest.fromXContent(searchAppName, restRequest.contentParser());
+            try (var parser = restRequest.contentParser()) {
+                request = SearchApplicationSearchRequest.fromXContent(searchAppName, parser);
+            }
         } else {
             request = new SearchApplicationSearchRequest(searchAppName);
         }

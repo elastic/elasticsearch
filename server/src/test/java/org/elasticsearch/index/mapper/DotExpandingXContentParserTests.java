@@ -22,24 +22,32 @@ import java.util.Map;
 public class DotExpandingXContentParserTests extends ESTestCase {
 
     private void assertXContentMatches(String dotsExpanded, String withDots) throws IOException {
-        XContentParser inputParser = createParser(JsonXContent.jsonXContent, withDots);
         final ContentPath contentPath = new ContentPath();
-        XContentParser expandedParser = DotExpandingXContentParser.expandDots(inputParser, contentPath);
-        expandedParser.allowDuplicateKeys(true);
+        try (
+            XContentParser inputParser = createParser(JsonXContent.jsonXContent, withDots);
+            XContentParser expandedParser = DotExpandingXContentParser.expandDots(inputParser, contentPath)
+        ) {
+            expandedParser.allowDuplicateKeys(true);
 
-        XContentBuilder actualOutput = XContentBuilder.builder(JsonXContent.jsonXContent).copyCurrentStructure(expandedParser);
-        assertEquals(dotsExpanded, Strings.toString(actualOutput));
+            XContentBuilder actualOutput = XContentBuilder.builder(JsonXContent.jsonXContent).copyCurrentStructure(expandedParser);
+            assertEquals(dotsExpanded, Strings.toString(actualOutput));
 
-        XContentParser expectedParser = createParser(JsonXContent.jsonXContent, dotsExpanded);
-        expectedParser.allowDuplicateKeys(true);
-        XContentParser actualParser = DotExpandingXContentParser.expandDots(createParser(JsonXContent.jsonXContent, withDots), contentPath);
-        XContentParser.Token currentToken;
-        while ((currentToken = actualParser.nextToken()) != null) {
-            assertEquals(currentToken, expectedParser.nextToken());
-            assertEquals(expectedParser.currentToken(), actualParser.currentToken());
-            assertEquals(actualParser.currentToken().name(), expectedParser.currentName(), actualParser.currentName());
+            try (XContentParser expectedParser = createParser(JsonXContent.jsonXContent, dotsExpanded)) {
+                expectedParser.allowDuplicateKeys(true);
+                try (
+                    var p = createParser(JsonXContent.jsonXContent, withDots);
+                    XContentParser actualParser = DotExpandingXContentParser.expandDots(p, contentPath)
+                ) {
+                    XContentParser.Token currentToken;
+                    while ((currentToken = actualParser.nextToken()) != null) {
+                        assertEquals(currentToken, expectedParser.nextToken());
+                        assertEquals(expectedParser.currentToken(), actualParser.currentToken());
+                        assertEquals(actualParser.currentToken().name(), expectedParser.currentName(), actualParser.currentName());
+                    }
+                    assertNull(expectedParser.nextToken());
+                }
+            }
         }
-        assertNull(expectedParser.nextToken());
     }
 
     public void testEmbeddedObject() throws IOException {

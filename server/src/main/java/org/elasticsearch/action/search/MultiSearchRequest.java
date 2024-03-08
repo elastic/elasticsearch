@@ -12,13 +12,13 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.IndicesOptions.WildcardStates;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.RequestParams;
 import org.elasticsearch.rest.action.search.RestMultiSearchAction;
@@ -29,12 +29,12 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -240,9 +240,17 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
             // now parse the action
             if (nextMarker - from > 0) {
                 try (
-                    InputStream stream = data.slice(from, nextMarker - from).streamInput();
-                    XContentParser parser = xContent.createParser(parserConfig, stream)
+                    XContentParser parser = XContentHelper.createParserNotCompressed(
+                        parserConfig,
+                        data.slice(from, nextMarker - from),
+                        xContent.type()
+                    )
                 ) {
+                    // HEAD
+                    Map<String, Object> source = parser.map();
+                    if (parser.nextToken() != null) {
+                        throw new XContentParseException(parser.getTokenLocation(), "Unexpected token after end of object");
+                    }
                     RequestParams params = new RequestParams(parser.mapStrings());
                     // HERE need to work on how to invoke RestSearchAction.parseSearchRequest, and handle extraParamParser
                     RestSearchAction.parseSearchRequest();
@@ -305,9 +313,17 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
             if (nextMarker == -1) {
                 break;
             }
-            BytesReference bytes = data.slice(from, nextMarker - from);
-            try (InputStream stream = bytes.streamInput(); XContentParser parser = xContent.createParser(parserConfig, stream)) {
+            try (
+                XContentParser parser = XContentHelper.createParserNotCompressed(
+                    parserConfig,
+                    data.slice(from, nextMarker - from),
+                    xContent.type()
+                )
+            ) {
                 consumer.accept(searchRequest, parser);
+                if (parser.nextToken() != null) {
+                    throw new XContentParseException(parser.getTokenLocation(), "Unexpected token after end of object");
+                }
             }
             // move pointers
             from = nextMarker + 1;
@@ -354,9 +370,8 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
             xContentBuilder.field("index", request.indices());
         }
         if (request.indicesOptions().equals(SearchRequest.DEFAULT_INDICES_OPTIONS) == false) {
-            WildcardStates.toXContent(request.indicesOptions().expandWildcards(), xContentBuilder);
-            xContentBuilder.field("ignore_unavailable", request.indicesOptions().ignoreUnavailable());
-            xContentBuilder.field("allow_no_indices", request.indicesOptions().allowNoIndices());
+            request.indicesOptions().wildcardOptions().toXContent(xContentBuilder, true);
+            request.indicesOptions().concreteTargetOptions().toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
         }
         if (request.searchType() != null) {
             xContentBuilder.field("search_type", request.searchType().name().toLowerCase(Locale.ROOT));

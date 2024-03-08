@@ -27,7 +27,10 @@ import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -47,6 +50,7 @@ import org.elasticsearch.xpack.core.transform.action.ValidateTransformAction;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformEffectiveSettings;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPosition;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
@@ -54,9 +58,11 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformStoredDoc;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
 import org.elasticsearch.xpack.core.transform.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.transform.TransformExtension;
 import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.checkpoint.CheckpointProvider;
 import org.elasticsearch.xpack.transform.persistence.SeqNoPrimaryTermAndIndex;
+import org.elasticsearch.xpack.transform.persistence.TransformIndex;
 import org.elasticsearch.xpack.transform.transforms.pivot.SchemaUtil;
 import org.elasticsearch.xpack.transform.utils.ExceptionRootCauseFinder;
 
@@ -75,6 +81,9 @@ class ClientTransformIndexer extends TransformIndexer {
     private static final Logger logger = LogManager.getLogger(ClientTransformIndexer.class);
 
     private final ParentTaskAssigningClient client;
+    private final ClusterService clusterService;
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
+    private final Settings destIndexSettings;
     private final AtomicBoolean oldStatsCleanedUp = new AtomicBoolean(false);
 
     private final AtomicReference<SeqNoPrimaryTermAndIndex> seqNoPrimaryTermAndIndexHolder;
@@ -84,6 +93,9 @@ class ClientTransformIndexer extends TransformIndexer {
 
     ClientTransformIndexer(
         ThreadPool threadPool,
+        ClusterService clusterService,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        TransformExtension transformExtension,
         TransformServices transformServices,
         CheckpointProvider checkpointProvider,
         AtomicReference<IndexerState> initialState,
@@ -112,22 +124,20 @@ class ClientTransformIndexer extends TransformIndexer {
             context
         );
         this.client = ExceptionsHelper.requireNonNull(client, "client");
+        this.clusterService = clusterService;
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
+        this.destIndexSettings = transformExtension.getTransformDestinationIndexSettings();
         this.seqNoPrimaryTermAndIndexHolder = new AtomicReference<>(seqNoPrimaryTermAndIndex);
 
         // TODO: move into context constructor
         context.setShouldStopAtCheckpoint(shouldStopAtCheckpoint);
 
-        if (transformConfig.getSettings().getUsePit() != null) {
-            disablePit = transformConfig.getSettings().getUsePit() == false;
-        }
+        disablePit = TransformEffectiveSettings.isPitDisabled(transformConfig.getSettings());
     }
 
     @Override
     public void applyNewSettings(SettingsConfig newSettings) {
-        if (newSettings.getUsePit() != null) {
-            disablePit = newSettings.getUsePit() == false;
-        }
-
+        disablePit = TransformEffectiveSettings.isPitDisabled(newSettings);
         super.applyNewSettings(newSettings);
     }
 
@@ -288,13 +298,27 @@ class ClientTransformIndexer extends TransformIndexer {
         SchemaUtil.getDestinationFieldMappings(client, getConfig().getDestination().getIndex(), fieldMappingsListener);
     }
 
-    void validate(ActionListener<Void> listener) {
+    @Override
+    void doMaybeCreateDestIndex(Map<String, String> deducedDestIndexMappings, ActionListener<Boolean> listener) {
+        TransformIndex.createDestinationIndex(
+            client,
+            auditor,
+            indexNameExpressionResolver,
+            clusterService.state(),
+            transformConfig,
+            destIndexSettings,
+            deducedDestIndexMappings,
+            listener
+        );
+    }
+
+    void validate(ActionListener<ValidateTransformAction.Response> listener) {
         ClientHelper.executeAsyncWithOrigin(
             client,
             ClientHelper.TRANSFORM_ORIGIN,
             ValidateTransformAction.INSTANCE,
             new ValidateTransformAction.Request(transformConfig, false, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT),
-            ActionListener.wrap(response -> listener.onResponse(null), listener::onFailure)
+            listener
         );
     }
 
@@ -449,8 +473,7 @@ class ClientTransformIndexer extends TransformIndexer {
         ActionListener<Tuple<String, SearchRequest>> listener
     ) {
         SearchRequest searchRequest = namedSearchRequest.v2();
-        // We explicitly disable PIT in the presence of remote clusters in the source due to huge PIT handles causing performance problems.
-        if (disablePit || searchRequest.indices().length == 0 || transformConfig.getSource().requiresRemoteCluster()) {
+        if (disablePit || searchRequest.indices().length == 0) {
             listener.onResponse(namedSearchRequest);
             return;
         }
@@ -519,16 +542,23 @@ class ClientTransformIndexer extends TransformIndexer {
 
     void doSearch(Tuple<String, SearchRequest> namedSearchRequest, ActionListener<SearchResponse> listener) {
         String name = namedSearchRequest.v1();
-        SearchRequest searchRequest = namedSearchRequest.v2();
+        SearchRequest originalRequest = namedSearchRequest.v2();
         // We want to treat a request to search 0 indices as a request to do nothing, not a request to search all indices
-        if (searchRequest.indices().length == 0) {
-            logger.debug("[{}] Search request [{}] optimized to noop; searchRequest [{}]", getJobId(), name, searchRequest);
+        if (originalRequest.indices().length == 0) {
+            logger.debug("[{}] Search request [{}] optimized to noop; searchRequest [{}]", getJobId(), name, originalRequest);
             listener.onResponse(null);
             return;
         }
-        logger.trace("searchRequest: [{}]", searchRequest);
 
-        PointInTimeBuilder pit = searchRequest.pointInTimeBuilder();
+        final SearchRequest searchRequest;
+        PointInTimeBuilder pit = originalRequest.pointInTimeBuilder();
+        if (pit != null) {
+            // remove the indices from the request, they will be derived from the provided pit
+            searchRequest = new SearchRequest(originalRequest).indices(new String[0]).indicesOptions(SearchRequest.DEFAULT_INDICES_OPTIONS);
+        } else {
+            searchRequest = originalRequest;
+        }
+        logger.trace("searchRequest: [{}]", searchRequest);
 
         ClientHelper.executeWithHeadersAsync(
             transformConfig.getHeaders(),
@@ -555,13 +585,13 @@ class ClientTransformIndexer extends TransformIndexer {
                         e
                     );
                     namedPits.remove(name);
-                    searchRequest.source().pointInTimeBuilder(null);
+                    originalRequest.source().pointInTimeBuilder(null);
                     ClientHelper.executeWithHeadersAsync(
                         transformConfig.getHeaders(),
                         ClientHelper.TRANSFORM_ORIGIN,
                         client,
                         TransportSearchAction.TYPE,
-                        searchRequest,
+                        originalRequest,
                         listener
                     );
                     return;
@@ -574,13 +604,13 @@ class ClientTransformIndexer extends TransformIndexer {
                      * Note: Due to BWC this needs to be kept until CCS support for < 8.1 is dropped
                      */
                     namedPits.remove(name);
-                    searchRequest.source().pointInTimeBuilder(null);
+                    originalRequest.source().pointInTimeBuilder(null);
                     ClientHelper.executeWithHeadersAsync(
                         transformConfig.getHeaders(),
                         ClientHelper.TRANSFORM_ORIGIN,
                         client,
                         TransportSearchAction.TYPE,
-                        searchRequest,
+                        originalRequest,
                         listener
                     );
                     return;

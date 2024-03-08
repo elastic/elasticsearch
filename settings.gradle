@@ -14,7 +14,7 @@ pluginManagement {
 }
 
 plugins {
-  id "com.gradle.enterprise" version "3.14.1"
+  id "com.gradle.enterprise" version "3.16.2"
   id 'elasticsearch.java-toolchain'
 }
 
@@ -48,7 +48,6 @@ List projects = [
   'rest-api-spec',
   'docs',
   'client:rest',
-  'client:rest-high-level',
   'client:sniffer',
   'client:test',
   'client:client-benchmark-noop-api-plugin',
@@ -97,9 +96,9 @@ List projects = [
   'test:fixtures:minio-fixture',
   'test:fixtures:old-elasticsearch',
   'test:fixtures:s3-fixture',
+  'test:fixtures:testcontainer-utils',
   'test:fixtures:geoip-fixture',
   'test:fixtures:url-fixture',
-  'test:fixtures:nginx-fixture',
   'test:logger-usage',
   'test:test-clusters',
   'test:x-content',

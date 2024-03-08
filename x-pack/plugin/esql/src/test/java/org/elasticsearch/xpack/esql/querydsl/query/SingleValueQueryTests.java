@@ -50,7 +50,7 @@ public class SingleValueQueryTests extends MapperServiceTestCase {
 
         List<List<Object>> build(RandomIndexWriter iw) throws IOException;
 
-        void assertStats(SingleValueQuery.Builder builder, boolean subHasTwoPhase);
+        void assertStats(SingleValueQuery.Builder builder, YesNoSometimes subHasTwoPhase);
     }
 
     @ParametersFactory
@@ -74,17 +74,16 @@ public class SingleValueQueryTests extends MapperServiceTestCase {
     }
 
     public void testMatchAll() throws IOException {
-        testCase(new SingleValueQuery(new MatchAll(Source.EMPTY), "foo").asBuilder(), false, false, this::runCase);
+        testCase(new SingleValueQuery(new MatchAll(Source.EMPTY), "foo").asBuilder(), YesNoSometimes.NO, YesNoSometimes.NO, this::runCase);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/102997")
     public void testMatchSome() throws IOException {
         int max = between(1, 100);
         testCase(
             new SingleValueQuery.Builder(new RangeQueryBuilder("i").lt(max), "foo", new SingleValueQuery.Stats(), Source.EMPTY),
-            false,
-            false,
-            (fieldValues, count) -> runCase(fieldValues, count, null, max)
+            YesNoSometimes.SOMETIMES,
+            YesNoSometimes.NO,
+            (fieldValues, count) -> runCase(fieldValues, count, null, max, false)
         );
     }
 
@@ -96,8 +95,8 @@ public class SingleValueQueryTests extends MapperServiceTestCase {
                 new SingleValueQuery.Stats(),
                 Source.EMPTY
             ),
-            false,
-            true,
+            YesNoSometimes.NO,
+            YesNoSometimes.YES,
             this::runCase
         );
     }
@@ -105,8 +104,8 @@ public class SingleValueQueryTests extends MapperServiceTestCase {
     public void testMatchNone() throws IOException {
         testCase(
             new SingleValueQuery.Builder(new MatchNoneQueryBuilder(), "foo", new SingleValueQuery.Stats(), Source.EMPTY),
-            true,
-            false,
+            YesNoSometimes.YES,
+            YesNoSometimes.NO,
             (fieldValues, count) -> assertThat(count, equalTo(0))
         );
     }
@@ -114,8 +113,8 @@ public class SingleValueQueryTests extends MapperServiceTestCase {
     public void testRewritesToMatchNone() throws IOException {
         testCase(
             new SingleValueQuery.Builder(new TermQueryBuilder("missing", 0), "foo", new SingleValueQuery.Stats(), Source.EMPTY),
-            true,
-            false,
+            YesNoSometimes.YES,
+            YesNoSometimes.NO,
             (fieldValues, count) -> assertThat(count, equalTo(0))
         );
     }
@@ -123,8 +122,8 @@ public class SingleValueQueryTests extends MapperServiceTestCase {
     public void testNotMatchAll() throws IOException {
         testCase(
             new SingleValueQuery(new MatchAll(Source.EMPTY), "foo").negate(Source.EMPTY).asBuilder(),
-            true,
-            false,
+            YesNoSometimes.YES,
+            YesNoSometimes.NO,
             (fieldValues, count) -> assertThat(count, equalTo(0))
         );
     }
@@ -132,20 +131,19 @@ public class SingleValueQueryTests extends MapperServiceTestCase {
     public void testNotMatchNone() throws IOException {
         testCase(
             new SingleValueQuery(new MatchAll(Source.EMPTY).negate(Source.EMPTY), "foo").negate(Source.EMPTY).asBuilder(),
-            false,
-            false,
+            YesNoSometimes.NO,
+            YesNoSometimes.NO,
             this::runCase
         );
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/102997")
     public void testNotMatchSome() throws IOException {
         int max = between(1, 100);
         testCase(
             new SingleValueQuery(new RangeQuery(Source.EMPTY, "i", null, false, max, false, null), "foo").negate(Source.EMPTY).asBuilder(),
-            false,
-            true,
-            (fieldValues, count) -> runCase(fieldValues, count, max, 100)
+            YesNoSometimes.SOMETIMES,
+            YesNoSometimes.SOMETIMES,
+            (fieldValues, count) -> runCase(fieldValues, count, max, 100, true)
         );
     }
 
@@ -154,22 +152,34 @@ public class SingleValueQueryTests extends MapperServiceTestCase {
         void run(List<List<Object>> fieldValues, int count) throws IOException;
     }
 
-    private void runCase(List<List<Object>> fieldValues, int count, Integer docsStart, Integer docsStop) {
+    /**
+     * Helper to run the checks of some of the test cases. This will perform two verifications: one about the count of the values the query
+     * is supposed to match and one on the Warnings that are supposed to be raised.
+     * @param fieldValues The indexed values of the field the query runs against.
+     * @param count The count of the docs the query matched.
+     * @param docsStart The start of the slice in fieldValues we want to consider. If `null`, the start will be 0.
+     * @param docsStop The end of the slice in fieldValues we want to consider. If `null`, the end will be the fieldValues size.
+     * @param scanForMVs Should the check for Warnings scan the entire fieldValues? This will override the docsStart:docsStop interval,
+     *                   which is needed for some cases.
+     */
+    private void runCase(List<List<Object>> fieldValues, int count, Integer docsStart, Integer docsStop, boolean scanForMVs) {
         int expected = 0;
         int min = docsStart != null ? docsStart : 0;
         int max = docsStop != null ? docsStop : fieldValues.size();
-        int valuesCount = 0;
+        int mvCountInRange = 0;
         for (int i = min; i < max; i++) {
-            int mvCount = fieldValues.get(i).size();
-            if (mvCount == 1) {
+            int valuesCount = fieldValues.get(i).size();
+            if (valuesCount == 1) {
                 expected++;
+            } else if (valuesCount > 1) {
+                mvCountInRange++;
             }
-            valuesCount += mvCount;
         }
         assertThat(count, equalTo(expected));
 
-        // query's count runs against the full set, not just min-to-max
-        if (valuesCount > 0 && fieldValues.stream().anyMatch(x -> x.size() > 1)) {
+        // the SingleValueQuery.TwoPhaseIteratorForSortedNumericsAndTwoPhaseQueries can scan all docs - and generate warnings - even if
+        // inner query matches none, so warn if MVs have been encountered within given range, OR if a full scan is required
+        if (mvCountInRange > 0 || (scanForMVs && fieldValues.stream().anyMatch(x -> x.size() > 1))) {
             assertWarnings(
                 "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
                 "Line -1:-1: java.lang.IllegalArgumentException: single-value function encountered multi-value"
@@ -178,11 +188,21 @@ public class SingleValueQueryTests extends MapperServiceTestCase {
     }
 
     private void runCase(List<List<Object>> fieldValues, int count) {
-        runCase(fieldValues, count, null, null);
+        runCase(fieldValues, count, null, null, false);
     }
 
-    private void testCase(SingleValueQuery.Builder builder, boolean rewritesToMatchNone, boolean subHasTwoPhase, TestCase testCase)
-        throws IOException {
+    enum YesNoSometimes {
+        YES,
+        NO,
+        SOMETIMES;
+    }
+
+    private void testCase(
+        SingleValueQuery.Builder builder,
+        YesNoSometimes rewritesToMatchNone,
+        YesNoSometimes subHasTwoPhase,
+        TestCase testCase
+    ) throws IOException {
         MapperService mapper = createMapperService(mapping(setup::mapping));
         try (Directory d = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), d)) {
             List<List<Object>> fieldValues = setup.build(iw);
@@ -191,7 +211,7 @@ public class SingleValueQueryTests extends MapperServiceTestCase {
                 QueryBuilder rewritten = builder.rewrite(ctx);
                 Query query = rewritten.toQuery(ctx);
                 testCase.run(fieldValues, ctx.searcher().count(query));
-                if (rewritesToMatchNone) {
+                if (rewritesToMatchNone == YesNoSometimes.YES) {
                     assertThat(rewritten, instanceOf(MatchNoneQueryBuilder.class));
                     assertThat(builder.stats().missingField(), equalTo(0));
                     assertThat(builder.stats().rewrittenToMatchNone(), equalTo(1));
@@ -207,7 +227,9 @@ public class SingleValueQueryTests extends MapperServiceTestCase {
                     assertThat(builder.stats().rewrittenToMatchNone(), equalTo(0));
                     setup.assertStats(builder, subHasTwoPhase);
                 }
-                assertThat(builder.stats().noNextScorer(), equalTo(0));
+                if (rewritesToMatchNone != YesNoSometimes.SOMETIMES) {
+                    assertThat(builder.stats().noNextScorer(), equalTo(0));
+                }
             }
         }
     }
@@ -290,7 +312,7 @@ public class SingleValueQueryTests extends MapperServiceTestCase {
         }
 
         @Override
-        public void assertStats(SingleValueQuery.Builder builder, boolean subHasTwoPhase) {
+        public void assertStats(SingleValueQuery.Builder builder, YesNoSometimes subHasTwoPhase) {
             assertThat(builder.stats().missingField(), equalTo(0));
             switch (fieldType) {
                 case "long", "integer", "short", "byte", "double", "float" -> {
@@ -302,12 +324,20 @@ public class SingleValueQueryTests extends MapperServiceTestCase {
 
                     if (multivaluedField || empty) {
                         assertThat(builder.stats().numericSingle(), greaterThanOrEqualTo(0));
-                        if (subHasTwoPhase) {
-                            assertThat(builder.stats().numericMultiNoApprox(), equalTo(0));
-                            assertThat(builder.stats().numericMultiApprox(), greaterThan(0));
-                        } else {
-                            assertThat(builder.stats().numericMultiNoApprox(), greaterThan(0));
-                            assertThat(builder.stats().numericMultiApprox(), equalTo(0));
+                        switch (subHasTwoPhase) {
+                            case YES -> {
+                                assertThat(builder.stats().numericMultiNoApprox(), equalTo(0));
+                                assertThat(builder.stats().numericMultiApprox(), greaterThan(0));
+                            }
+                            case NO -> {
+                                assertThat(builder.stats().numericMultiNoApprox(), greaterThan(0));
+                                assertThat(builder.stats().numericMultiApprox(), equalTo(0));
+                            }
+                            case SOMETIMES -> {
+                                assertThat(builder.stats().numericMultiNoApprox() + builder.stats().numericMultiApprox(), greaterThan(0));
+                                assertThat(builder.stats().numericMultiNoApprox(), greaterThanOrEqualTo(0));
+                                assertThat(builder.stats().numericMultiApprox(), greaterThanOrEqualTo(0));
+                            }
                         }
                     } else {
                         assertThat(builder.stats().numericSingle(), greaterThan(0));
@@ -323,12 +353,20 @@ public class SingleValueQueryTests extends MapperServiceTestCase {
                     assertThat(builder.stats().bytesNoApprox(), equalTo(0));
                     if (multivaluedField || empty) {
                         assertThat(builder.stats().ordinalsSingle(), greaterThanOrEqualTo(0));
-                        if (subHasTwoPhase) {
-                            assertThat(builder.stats().ordinalsMultiNoApprox(), equalTo(0));
-                            assertThat(builder.stats().ordinalsMultiApprox(), greaterThan(0));
-                        } else {
-                            assertThat(builder.stats().ordinalsMultiNoApprox(), greaterThan(0));
-                            assertThat(builder.stats().ordinalsMultiApprox(), equalTo(0));
+                        switch (subHasTwoPhase) {
+                            case YES -> {
+                                assertThat(builder.stats().ordinalsMultiNoApprox(), equalTo(0));
+                                assertThat(builder.stats().ordinalsMultiApprox(), greaterThan(0));
+                            }
+                            case NO -> {
+                                assertThat(builder.stats().ordinalsMultiNoApprox(), greaterThan(0));
+                                assertThat(builder.stats().ordinalsMultiApprox(), equalTo(0));
+                            }
+                            case SOMETIMES -> {
+                                assertThat(builder.stats().ordinalsMultiNoApprox() + builder.stats().ordinalsMultiApprox(), greaterThan(0));
+                                assertThat(builder.stats().ordinalsMultiNoApprox(), greaterThanOrEqualTo(0));
+                                assertThat(builder.stats().ordinalsMultiApprox(), greaterThanOrEqualTo(0));
+                            }
                         }
                     } else {
                         assertThat(builder.stats().ordinalsSingle(), greaterThan(0));
@@ -361,7 +399,7 @@ public class SingleValueQueryTests extends MapperServiceTestCase {
         }
 
         @Override
-        public void assertStats(SingleValueQuery.Builder builder, boolean subHasTwoPhase) {
+        public void assertStats(SingleValueQuery.Builder builder, YesNoSometimes subHasTwoPhase) {
             assertThat(builder.stats().missingField(), equalTo(1));
             assertThat(builder.stats().numericSingle(), equalTo(0));
             assertThat(builder.stats().numericMultiNoApprox(), equalTo(0));

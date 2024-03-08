@@ -216,11 +216,13 @@ public class AsyncTaskServiceTests extends ESSingleNodeTestCase {
         // To begin with, the results index should be auto-created.
         AsyncExecutionId id = new AsyncExecutionId("0", new TaskId("N/A", 0));
         AsyncSearchResponse resp = new AsyncSearchResponse(id.getEncoded(), true, true, 0L, 0L);
-        {
+        try {
             PlainActionFuture<DocWriteResponse> future = new PlainActionFuture<>();
             indexService.createResponse(id.getDocId(), Collections.emptyMap(), resp, future);
             future.get();
             assertSettings();
+        } finally {
+            resp.decRef();
         }
 
         // Delete the index, so we can test subsequent auto-create behaviour

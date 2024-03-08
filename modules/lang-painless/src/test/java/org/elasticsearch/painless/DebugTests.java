@@ -16,6 +16,7 @@ import org.elasticsearch.painless.lookup.PainlessLookupBuilder;
 import org.elasticsearch.script.ScriptException;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 
 import static java.util.Collections.singletonList;
@@ -26,7 +27,11 @@ import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.not;
 
 public class DebugTests extends ScriptTestCase {
-    private final PainlessLookup painlessLookup = PainlessLookupBuilder.buildFromWhitelists(PainlessPlugin.BASE_WHITELISTS);
+    private final PainlessLookup painlessLookup = PainlessLookupBuilder.buildFromWhitelists(
+        PainlessPlugin.BASE_WHITELISTS,
+        new HashMap<>(),
+        new HashMap<>()
+    );
 
     public void testExplain() {
         // Debug.explain can explain an object

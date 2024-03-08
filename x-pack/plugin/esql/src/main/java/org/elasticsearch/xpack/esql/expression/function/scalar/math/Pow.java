@@ -9,16 +9,16 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
-import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.function.OptionalArgument;
-import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
-import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.ql.util.NumericUtils;
 
 import java.util.Arrays;
 import java.util.List;
@@ -29,15 +29,16 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
 
-public class Pow extends ScalarFunction implements OptionalArgument, EvaluatorMapper {
+public class Pow extends EsqlScalarFunction implements OptionalArgument {
 
     private final Expression base, exponent;
     private final DataType dataType;
 
+    @FunctionInfo(returnType = "double", description = "Returns the value of a base raised to the power of an exponent.")
     public Pow(
         Source source,
-        @Param(name = "base", type = { "integer", "unsigned_long", "long", "double" }) Expression base,
-        @Param(name = "exponent", type = { "integer", "unsigned_long", "long", "double" }) Expression exponent
+        @Param(name = "base", type = { "double", "integer", "long", "unsigned_long" }) Expression base,
+        @Param(name = "exponent", type = { "double", "integer", "long", "unsigned_long" }) Expression exponent
     ) {
         super(source, Arrays.asList(base, exponent));
         this.base = base;
@@ -64,22 +65,9 @@ public class Pow extends ScalarFunction implements OptionalArgument, EvaluatorMa
         return base.foldable() && exponent.foldable();
     }
 
-    @Override
-    public Object fold() {
-        return EvaluatorMapper.super.fold();
-    }
-
     @Evaluator(warnExceptions = { ArithmeticException.class })
     static double process(double base, double exponent) {
-        return validateAsDouble(base, exponent);
-    }
-
-    private static double validateAsDouble(double base, double exponent) {
-        double result = Math.pow(base, exponent);
-        if (Double.isNaN(result) || Double.isInfinite(result)) {
-            throw new ArithmeticException("invalid result when computing pow");
-        }
-        return result;
+        return NumericUtils.asFiniteNumber(Math.pow(base, exponent));
     }
 
     @Override
@@ -103,11 +91,6 @@ public class Pow extends ScalarFunction implements OptionalArgument, EvaluatorMa
     @Override
     public DataType dataType() {
         return dataType;
-    }
-
-    @Override
-    public ScriptTemplate asScript() {
-        throw new UnsupportedOperationException("functions do not support scripting");
     }
 
     @Override

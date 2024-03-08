@@ -18,7 +18,6 @@ import org.elasticsearch.action.search.OpenPointInTimeResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchResponse.Clusters;
-import org.elasticsearch.action.search.SearchResponseSections;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -30,7 +29,8 @@ import org.elasticsearch.indices.breaker.CircuitBreakerMetrics;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.composite.InternalComposite;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
@@ -172,8 +172,8 @@ public class CircuitBreakerTests extends ESTestCase {
 
     private Sample mockSample() {
         List<SearchHit> searchHits = new ArrayList<>();
-        searchHits.add(new SearchHit(1, String.valueOf(1)));
-        searchHits.add(new SearchHit(2, String.valueOf(2)));
+        searchHits.add(SearchHit.unpooled(1, String.valueOf(1)));
+        searchHits.add(SearchHit.unpooled(2, String.valueOf(2)));
         return new Sample(new SequenceKey(randomAlphaOfLength(10)), searchHits);
     }
 
@@ -221,13 +221,17 @@ public class CircuitBreakerTests extends ESTestCase {
 
         @SuppressWarnings("unchecked")
         <Response extends ActionResponse> void handleSearchRequest(ActionListener<Response> listener, SearchRequest searchRequest) {
-            Aggregations aggs = new Aggregations(List.of(newInternalComposite()));
-
-            SearchResponseSections internal = new SearchResponseSections(null, aggs, null, false, false, null, 0);
+            InternalAggregations aggs = InternalAggregations.from(List.of(newInternalComposite()));
             ActionListener.respondAndRelease(
                 listener,
                 (Response) new SearchResponse(
-                    internal,
+                    SearchHits.EMPTY_WITH_TOTAL_HITS,
+                    aggs,
+                    null,
+                    false,
+                    false,
+                    null,
+                    0,
                     null,
                     2,
                     0,
@@ -290,7 +294,7 @@ public class CircuitBreakerTests extends ESTestCase {
                     }
 
                     @Override
-                    public Map<String, Object> readMap() throws IOException {
+                    public Map<String, Object> readGenericMap() throws IOException {
                         return emptyMap();
                     }
                 });

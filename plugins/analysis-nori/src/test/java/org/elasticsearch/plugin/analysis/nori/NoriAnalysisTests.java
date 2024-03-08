@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.AnalysisTestsHelper;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -115,6 +116,31 @@ public class NoriAnalysisTests extends ESTokenStreamTestCase {
             exc.getMessage(),
             containsString("It is not allowed to use [user_dictionary] in conjunction " + "with [user_dictionary_rules]")
         );
+    }
+
+    public void testNoriAnalyzerDuplicateUserDictRule() throws Exception {
+        Settings settings = Settings.builder()
+            .put("index.analysis.analyzer.my_analyzer.type", "nori")
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersions.NORI_DUPLICATES)
+            .putList("index.analysis.analyzer.my_analyzer.user_dictionary_rules", "c++", "C쁠쁠", "세종", "세종", "세종시 세종 시")
+            .build();
+
+        final IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> createTestAnalysis(settings));
+        assertThat(exc.getMessage(), containsString("[세종] in user dictionary at line [3]"));
+    }
+
+    public void testNoriAnalyzerDuplicateUserDictRuleWithLegacyVersion() throws IOException {
+        Settings settings = Settings.builder()
+            .put("index.analysis.analyzer.my_analyzer.type", "nori")
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersions.V_8_10_0)
+            .putList("index.analysis.analyzer.my_analyzer.user_dictionary_rules", "c++", "C쁠쁠", "세종", "세종", "세종시 세종 시")
+            .build();
+
+        final TestAnalysis analysis = createTestAnalysis(settings);
+        Analyzer analyzer = analysis.indexAnalyzers.get("my_analyzer");
+        try (TokenStream stream = analyzer.tokenStream("", "세종")) {
+            assertTokenStreamContents(stream, new String[] { "세종" });
+        }
     }
 
     public void testNoriTokenizer() throws Exception {

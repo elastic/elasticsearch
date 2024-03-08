@@ -16,6 +16,6 @@ public class PostSecretAction extends ActionType<PostSecretResponse> {
     public static final PostSecretAction INSTANCE = new PostSecretAction();
 
     private PostSecretAction() {
-        super(NAME, PostSecretResponse::new);
+        super(NAME);
     }
 }

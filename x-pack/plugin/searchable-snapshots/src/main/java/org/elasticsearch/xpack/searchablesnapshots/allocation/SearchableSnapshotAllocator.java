@@ -58,6 +58,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
+import java.util.function.Predicate;
 
 import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.cluster.routing.ExpectedShardSizeEstimator.getExpectedShardSize;
@@ -125,7 +126,7 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
     }
 
     @Override
-    public void afterPrimariesBeforeReplicas(RoutingAllocation allocation) {}
+    public void afterPrimariesBeforeReplicas(RoutingAllocation allocation, Predicate<ShardRouting> isRelevantShardPredicate) {}
 
     @Override
     public void allocateUnassigned(

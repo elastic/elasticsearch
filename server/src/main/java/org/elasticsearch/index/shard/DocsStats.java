@@ -63,7 +63,7 @@ public class DocsStats implements Writeable, ToXContentFragment {
 
     /**
      * Returns the total size in bytes of all documents in this stats.
-     * This value may be more reliable than {@link StoreStats#getSizeInBytes()} in estimating the index size.
+     * This value may be more reliable than {@link StoreStats#sizeInBytes()} in estimating the index size.
      */
     public long getTotalSizeInBytes() {
         return totalSizeInBytes;

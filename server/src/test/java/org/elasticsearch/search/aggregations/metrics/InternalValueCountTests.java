@@ -9,7 +9,6 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.test.InternalAggregationTestCase;
 
@@ -39,12 +38,6 @@ public class InternalValueCountTests extends InternalAggregationTestCase<Interna
     @Override
     protected void assertSampled(InternalValueCount sampled, InternalValueCount reduced, SamplingContext samplingContext) {
         assertThat(sampled.getValue(), equalTo(samplingContext.scaleUp(reduced.getValue())));
-    }
-
-    @Override
-    protected void assertFromXContent(InternalValueCount valueCount, ParsedAggregation parsedAggregation) {
-        assertEquals(valueCount.getValue(), ((ParsedValueCount) parsedAggregation).getValue(), 0);
-        assertEquals(valueCount.getValueAsString(), ((ParsedValueCount) parsedAggregation).getValueAsString());
     }
 
     @Override

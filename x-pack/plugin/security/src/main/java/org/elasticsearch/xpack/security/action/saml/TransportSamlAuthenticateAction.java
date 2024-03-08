@@ -7,10 +7,10 @@
 package org.elasticsearch.xpack.security.action.saml;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.Task;
@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.security.authc.saml.SamlRealm;
 import org.elasticsearch.xpack.security.authc.saml.SamlToken;
 
 import java.util.Map;
+import java.util.concurrent.Executor;
 
 /**
  * Transport action responsible for taking saml content and turning it into a token.
@@ -39,6 +40,7 @@ public final class TransportSamlAuthenticateAction extends HandledTransportActio
     private final AuthenticationService authenticationService;
     private final TokenService tokenService;
     private final SecurityContext securityContext;
+    private final Executor genericExecutor;
 
     @Inject
     public TransportSamlAuthenticateAction(
@@ -49,21 +51,29 @@ public final class TransportSamlAuthenticateAction extends HandledTransportActio
         TokenService tokenService,
         SecurityContext securityContext
     ) {
+        // TODO replace SAME when removing workaround for https://github.com/elastic/elasticsearch/issues/97916
         super(
             SamlAuthenticateAction.NAME,
             transportService,
             actionFilters,
             SamlAuthenticateRequest::new,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            threadPool.executor(ThreadPool.Names.SAME)
         );
         this.threadPool = threadPool;
         this.authenticationService = authenticationService;
         this.tokenService = tokenService;
         this.securityContext = securityContext;
+        this.genericExecutor = threadPool.generic();
     }
 
     @Override
     protected void doExecute(Task task, SamlAuthenticateRequest request, ActionListener<SamlAuthenticateResponse> listener) {
+        // workaround for https://github.com/elastic/elasticsearch/issues/97916 - TODO remove this when we can
+        genericExecutor.execute(ActionRunnable.wrap(listener, l -> doExecuteForked(task, request, l)));
+    }
+
+    private void doExecuteForked(Task task, SamlAuthenticateRequest request, ActionListener<SamlAuthenticateResponse> listener) {
+        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
         final SamlToken saml = new SamlToken(request.getSaml(), request.getValidRequestIds(), request.getRealm());
         logger.trace("Attempting to authenticate SamlToken [{}]", saml);
         final ThreadContext threadContext = threadPool.getThreadContext();

@@ -38,7 +38,7 @@ public class MasterHistoryAction extends ActionType<MasterHistoryAction.Response
     public static final String NAME = "internal:cluster/master_history/get";
 
     private MasterHistoryAction() {
-        super(NAME, MasterHistoryAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends ActionRequest {

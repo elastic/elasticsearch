@@ -784,10 +784,8 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
 
         };
         PlainActionFuture<RecoveryResponse> future = new PlainActionFuture<>();
-        expectThrows(IndexShardRelocatedException.class, () -> {
-            handler.recoverToTarget(future);
-            future.actionGet();
-        });
+        handler.recoverToTarget(future);
+        expectThrows(IndexShardRelocatedException.class, future);
         assertFalse(phase1Called.get());
         assertFalse(prepareTargetForTranslogCalled.get());
         assertFalse(phase2Called.get());

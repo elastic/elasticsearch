@@ -15,6 +15,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RestApiVersion;
@@ -22,15 +24,15 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpRequest;
+import org.elasticsearch.telemetry.tracing.Traceable;
 import org.elasticsearch.xcontent.ParsedMediaType;
 import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
-import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -40,9 +42,12 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.regex.Pattern;
 
-public class RestRequest implements ToXContent.Params {
+import static org.elasticsearch.common.unit.ByteSizeValue.parseBytesSizeValue;
+import static org.elasticsearch.core.TimeValue.parseTimeValue;
 
-    public static final String RESPONSE_RESTRICTED = "responseRestricted";
+public class RestRequest implements ToXContent.Params, Traceable {
+
+    public static final String PATH_RESTRICTED = "pathRestricted";
     // tchar pattern as defined by RFC7230 section 3.2.6
     private static final Pattern TCHAR_PATTERN = Pattern.compile("[a-zA-Z0-9!#$%&'*+\\-.\\^_`|~]+");
 
@@ -445,8 +450,7 @@ public class RestRequest implements ToXContent.Params {
      */
     public final XContentParser contentParser() throws IOException {
         BytesReference content = requiredContent(); // will throw exception if body or content type missing
-        XContent xContent = xContentType.get().xContent();
-        return xContent.createParser(parserConfig, content.streamInput());
+        return XContentHelper.createParserNotCompressed(parserConfig, content, xContentType.get());
 
     }
 
@@ -476,7 +480,7 @@ public class RestRequest implements ToXContent.Params {
      */
     public final XContentParser contentOrSourceParamParser() throws IOException {
         Tuple<XContentType, BytesReference> tuple = contentOrSourceParam();
-        return tuple.v1().xContent().createParser(parserConfig, tuple.v2().streamInput());
+        return XContentHelper.createParserNotCompressed(parserConfig, tuple.v2(), tuple.v1().xContent().type());
     }
 
     /**
@@ -487,12 +491,7 @@ public class RestRequest implements ToXContent.Params {
     public final void withContentOrSourceParamParserOrNull(CheckedConsumer<XContentParser, IOException> withParser) throws IOException {
         if (hasContentOrSourceParam()) {
             Tuple<XContentType, BytesReference> tuple = contentOrSourceParam();
-            BytesReference content = tuple.v2();
-            XContentType xContentType = tuple.v1();
-            try (
-                InputStream stream = content.streamInput();
-                XContentParser parser = xContentType.xContent().createParser(parserConfig, stream)
-            ) {
+            try (XContentParser parser = XContentHelper.createParserNotCompressed(parserConfig, tuple.v2(), tuple.v1())) {
                 withParser.accept(parser);
             }
         } else {
@@ -568,13 +567,18 @@ public class RestRequest implements ToXContent.Params {
         return restApiVersion.isPresent();
     }
 
-    public void markResponseRestricted(String restriction) {
-        if (requestParams.params.containsKey(RESPONSE_RESTRICTED)) {
-            throw new IllegalArgumentException("The parameter [" + RESPONSE_RESTRICTED + "] is already defined.");
+    public void markPathRestricted(String restriction) {
+        if (requestParams.params.containsKey(PATH_RESTRICTED)) {
+            throw new IllegalArgumentException("The parameter [" + PATH_RESTRICTED + "] is already defined.");
         }
-        requestParams.params.put(RESPONSE_RESTRICTED, restriction);
+        requestParams.params.put(PATH_RESTRICTED, restriction);
         // this parameter is intended be consumed via ToXContent.Params.param(..), not this.params(..) so don't require it is consumed here
-        requestParams.consumedParams.add(RESPONSE_RESTRICTED);
+        requestParams.consumedParams.add(PATH_RESTRICTED);
+    }
+
+    @Override
+    public String getSpanId() {
+        return "rest-" + getRequestId();
     }
 
     public static class MediaTypeHeaderException extends RuntimeException {

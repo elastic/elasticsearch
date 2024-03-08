@@ -65,11 +65,6 @@ public class SignificantLongTermsTests extends InternalSignificantTermsTestCase 
     }
 
     @Override
-    protected Class<ParsedSignificantLongTerms> implementationClass() {
-        return ParsedSignificantLongTerms.class;
-    }
-
-    @Override
     protected InternalSignificantTerms<?, ?> mutateInstance(InternalSignificantTerms<?, ?> instance) {
         if (instance instanceof SignificantLongTerms longTerms) {
             String name = longTerms.getName();

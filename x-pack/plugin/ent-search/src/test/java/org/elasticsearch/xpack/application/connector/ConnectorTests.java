@@ -50,7 +50,8 @@ public class ConnectorTests extends ESTestCase {
         String connectorId = "test-connector";
         String content = XContentHelper.stripWhitespace("""
             {
-               "api_key_id":"test",
+               "api_key_id":"test-aki",
+               "api_key_secret_id":"test-aksi",
                "custom_scheduling":{
                   "schedule-key":{
                      "configuration_overrides":{
@@ -98,6 +99,31 @@ public class ConnectorTests extends ESTestCase {
                         }
                      ],
                      "value":""
+                  },
+                   "field_with_null_tooltip":{
+                     "default_value":null,
+                     "depends_on":[
+                        {
+                           "field":"some_field",
+                           "value":true
+                        }
+                     ],
+                     "display":"textbox",
+                     "label":"Very important field",
+                     "options":[],
+                     "order":4,
+                     "required":true,
+                     "sensitive":false,
+                     "tooltip":null,
+                     "type":"str",
+                     "ui_restrictions":[],
+                     "validations":[
+                        {
+                           "constraint":0,
+                           "type":"greater_than"
+                        }
+                     ],
+                     "value":""
                   }
                },
                "description":"test-connector",
@@ -121,7 +147,14 @@ public class ConnectorTests extends ESTestCase {
                         "advanced_snippet":{
                            "created_at":"2023-11-09T15:13:08.231Z",
                            "updated_at":"2023-11-09T15:13:08.231Z",
-                           "value":{}
+                           "value":[
+                             {
+                                 "tables": [
+                                     "some_table"
+                                 ],
+                                 "query": "SELECT id, st_geohash(coordinates) FROM my_db.some_table;"
+                             }
+                           ]
                         },
                         "rules":[
                            {
@@ -145,7 +178,14 @@ public class ConnectorTests extends ESTestCase {
                         "advanced_snippet":{
                            "created_at":"2023-11-09T15:13:08.231Z",
                            "updated_at":"2023-11-09T15:13:08.231Z",
-                           "value":{}
+                           "value":[
+                             {
+                                 "tables": [
+                                     "some_table"
+                                 ],
+                                 "query": "SELECT id, st_geohash(coordinates) FROM my_db.some_table;"
+                             }
+                           ]
                         },
                         "rules":[
                            {
@@ -221,6 +261,7 @@ public class ConnectorTests extends ESTestCase {
         String content = XContentHelper.stripWhitespace("""
             {
                "api_key_id": null,
+               "api_key_secret_id": null,
                "custom_scheduling":{},
                "configuration":{},
                "description": null,
@@ -272,6 +313,71 @@ public class ConnectorTests extends ESTestCase {
             parsed = Connector.fromXContent(parser, connectorId);
         }
         assertToXContentEquivalent(originalBytes, toXContent(parsed, XContentType.JSON, humanReadable), XContentType.JSON);
+    }
+
+    public void testToXContent_withOptionalFieldsMissing() throws IOException {
+        // This test is to ensure the doc can serialize without fields that have been added since 8.12.
+        // This is to avoid breaking serverless, which has a regular BC built
+        // that can be broken if we haven't made migrations yet.
+        String connectorId = "test-connector";
+
+        // Missing from doc:
+        // api_key_secret_id
+        String content = XContentHelper.stripWhitespace("""
+            {
+               "api_key_id": null,
+               "custom_scheduling":{},
+               "configuration":{},
+               "description": null,
+               "features": null,
+               "filtering":[],
+               "index_name": "search-test",
+               "is_native": false,
+               "language": null,
+               "last_access_control_sync_error": null,
+               "last_access_control_sync_scheduled_at": null,
+               "last_access_control_sync_status": null,
+               "last_incremental_sync_scheduled_at": null,
+               "last_seen": null,
+               "last_sync_error": null,
+               "last_sync_scheduled_at": null,
+               "last_sync_status": null,
+               "last_synced": null,
+               "name": null,
+               "pipeline":{
+                  "extract_binary_content":true,
+                  "name":"ent-search-generic-ingestion",
+                  "reduce_whitespace":true,
+                  "run_ml_inference":false
+               },
+               "scheduling":{
+                  "access_control":{
+                     "enabled":false,
+                     "interval":"0 0 0 * * ?"
+                  },
+                  "full":{
+                     "enabled":false,
+                     "interval":"0 0 0 * * ?"
+                  },
+                  "incremental":{
+                     "enabled":false,
+                     "interval":"0 0 0 * * ?"
+                  }
+               },
+               "service_type": null,
+               "status": "needs_configuration",
+               "sync_now":false
+            }""");
+
+        Connector connector = Connector.fromXContentBytes(new BytesArray(content), connectorId, XContentType.JSON);
+        boolean humanReadable = true;
+        BytesReference originalBytes = toShuffledXContent(connector, XContentType.JSON, ToXContent.EMPTY_PARAMS, humanReadable);
+        Connector parsed;
+        try (XContentParser parser = createParser(XContentType.JSON.xContent(), originalBytes)) {
+            parsed = Connector.fromXContent(parser, connectorId);
+        }
+        assertToXContentEquivalent(originalBytes, toXContent(parsed, XContentType.JSON, humanReadable), XContentType.JSON);
+        assertThat(parsed.getApiKeySecretId(), equalTo(null));
     }
 
     private void assertTransportSerialization(Connector testInstance) throws IOException {

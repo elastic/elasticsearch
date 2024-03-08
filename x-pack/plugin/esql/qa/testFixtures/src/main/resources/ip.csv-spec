@@ -178,14 +178,21 @@ eth2           |epsilon        |[fe81::cae2:65ff:fece:feb9, fe82::cae2:65ff:fece
 ;
 
 cdirMatchMultipleArgs#[skip:-8.11.99, reason:Lucene multivalue warning introduced in 8.12 only]
-from hosts | where cidr_match(ip1, "127.0.0.2/32", "127.0.0.3/32") | keep card, host, ip0, ip1;
+//tag::cdirMatchMultipleArgs[]
+FROM hosts 
+| WHERE CIDR_MATCH(ip1, "127.0.0.2/32", "127.0.0.3/32") 
+| KEEP card, host, ip0, ip1
+//end::cdirMatchMultipleArgs[]
+;
 ignoreOrder:true
-warning:Line 1:20: evaluation of [cidr_match(ip1, \"127.0.0.2/32\", \"127.0.0.3/32\")] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:20: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warning:Line 2:9: evaluation of [CIDR_MATCH(ip1, \"127.0.0.2/32\", \"127.0.0.3/32\")] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
+//tag::cdirMatchMultipleArgs-result[]
 card:keyword   |host:keyword   |ip0:ip                   |ip1:ip
 eth1           |beta           |127.0.0.1                |127.0.0.2
 eth0           |gamma          |fe80::cae2:65ff:fece:feb9|127.0.0.3
+//end::cdirMatchMultipleArgs-result[]
 ;
 
 cidrMatchFunctionArg#[skip:-8.11.99, reason:Lucene multivalue warning introduced in 8.12 only]

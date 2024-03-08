@@ -17,10 +17,10 @@ import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 
-import java.lang.ref.ReferenceQueue;
-import java.lang.ref.WeakReference;
+import java.lang.ref.Cleaner;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 
@@ -32,14 +32,15 @@ public final class LeakTracker {
 
     private static final Logger logger = LogManager.getLogger(LeakTracker.class);
 
+    private static final Cleaner cleaner = Cleaner.create();
+
     private static final int TARGET_RECORDS = 25;
 
-    private final Set<Leak<?>> allLeaks = ConcurrentCollections.newConcurrentSet();
-
-    private final ReferenceQueue<Object> refQueue = new ReferenceQueue<>();
     private final ConcurrentMap<String, Boolean> reportedLeaks = ConcurrentCollections.newConcurrentMap();
 
     public static final LeakTracker INSTANCE = new LeakTracker();
+
+    private static volatile String contextHint = "";
 
     private LeakTracker() {}
 
@@ -47,29 +48,19 @@ public final class LeakTracker {
      * Track the given object.
      *
      * @param obj object to track
-     * @return leak object that must be released by a call to {@link Leak#close(Object)} before {@code obj} goes out of scope
+     * @return leak object that must be released by a call to {@link LeakTracker.Leak#close()} before {@code obj} goes out of scope
      */
-    public <T> Leak<T> track(T obj) {
-        reportLeak();
-        return new Leak<>(obj, refQueue, allLeaks);
+    public Leak track(Object obj) {
+        return new Leak(obj);
     }
 
-    public void reportLeak() {
-        while (true) {
-            Leak<?> ref = (Leak<?>) refQueue.poll();
-            if (ref == null) {
-                break;
-            }
-
-            if (ref.dispose() == false || logger.isErrorEnabled() == false) {
-                continue;
-            }
-
-            String records = ref.toString();
-            if (reportedLeaks.putIfAbsent(records, Boolean.TRUE) == null) {
-                logger.error("LEAK: resource was not cleaned up before it was garbage-collected.{}", records);
-            }
-        }
+    /**
+     * Set a hint string that will be recorded with every leak that is recorded. Used by unit tests to allow identifying the exact test
+     * that caused a leak by setting the test name here.
+     * @param hint hint value
+     */
+    public static void setContextHint(String hint) {
+        contextHint = hint;
     }
 
     public static Releasable wrap(Releasable releasable) {
@@ -77,11 +68,28 @@ public final class LeakTracker {
             return releasable;
         }
         var leak = INSTANCE.track(releasable);
-        return () -> {
-            try {
-                releasable.close();
-            } finally {
-                leak.close(releasable);
+        return new Releasable() {
+            @Override
+            public void close() {
+                try {
+                    releasable.close();
+                } finally {
+                    leak.close();
+                }
+            }
+
+            @Override
+            public int hashCode() {
+                // It's legitimate to wrap the resource twice, with two different wrap() calls, which would yield different objects
+                // if and only if assertions are enabled. So we'd better not ever use these things as map keys etc.
+                throw new AssertionError("almost certainly a mistake to need the hashCode() of a leak-tracking Releasable");
+            }
+
+            @Override
+            public boolean equals(Object obj) {
+                // It's legitimate to wrap the resource twice, with two different wrap() calls, which would yield different objects
+                // if and only if assertions are enabled. So we'd better not ever use these things as map keys etc.
+                throw new AssertionError("almost certainly a mistake to compare a leak-tracking Releasable for equality");
             }
         };
     }
@@ -107,7 +115,7 @@ public final class LeakTracker {
             @Override
             public boolean decRef() {
                 if (refCounted.decRef()) {
-                    leak.close(refCounted);
+                    leak.close();
                     return true;
                 }
                 leak.record();
@@ -118,36 +126,60 @@ public final class LeakTracker {
             public boolean hasReferences() {
                 return refCounted.hasReferences();
             }
+
+            @Override
+            public int hashCode() {
+                // It's legitimate to wrap the resource twice, with two different wrap() calls, which would yield different objects
+                // if and only if assertions are enabled. So we'd better not ever use these things as map keys etc.
+                throw new AssertionError("almost certainly a mistake to need the hashCode() of a leak-tracking RefCounted");
+            }
+
+            @Override
+            public boolean equals(Object obj) {
+                // It's legitimate to wrap the resource twice, with two different wrap() calls, which would yield different objects
+                // if and only if assertions are enabled. So we'd better not ever use these things as map keys etc.
+                throw new AssertionError("almost certainly a mistake to compare a leak-tracking RefCounted for equality");
+            }
         };
     }
 
-    public static final class Leak<T> extends WeakReference<Object> {
+    public final class Leak implements Runnable {
 
-        @SuppressWarnings({ "unchecked", "rawtypes" })
-        private static final AtomicReferenceFieldUpdater<Leak<?>, Record> headUpdater =
-            (AtomicReferenceFieldUpdater) AtomicReferenceFieldUpdater.newUpdater(Leak.class, Record.class, "head");
+        private static final AtomicReferenceFieldUpdater<Leak, Record> headUpdater = AtomicReferenceFieldUpdater.newUpdater(
+            Leak.class,
+            Record.class,
+            "head"
+        );
 
-        @SuppressWarnings({ "unchecked", "rawtypes" })
-        private static final AtomicIntegerFieldUpdater<Leak<?>> droppedRecordsUpdater =
-            (AtomicIntegerFieldUpdater) AtomicIntegerFieldUpdater.newUpdater(Leak.class, "droppedRecords");
+        private static final AtomicIntegerFieldUpdater<Leak> droppedRecordsUpdater = AtomicIntegerFieldUpdater.newUpdater(
+            Leak.class,
+            "droppedRecords"
+        );
 
         @SuppressWarnings("unused")
         private volatile Record head;
         @SuppressWarnings("unused")
         private volatile int droppedRecords;
 
-        private final Set<Leak<?>> allLeaks;
-        private final int trackedHash;
+        private final AtomicBoolean closed = new AtomicBoolean(false);
 
-        private Leak(Object referent, ReferenceQueue<Object> refQueue, Set<Leak<?>> allLeaks) {
-            super(referent, refQueue);
+        private final Cleaner.Cleanable cleanable;
 
-            assert referent != null;
-
-            trackedHash = System.identityHashCode(referent);
-            allLeaks.add(this);
+        @SuppressWarnings("this-escape")
+        private Leak(Object referent) {
+            this.cleanable = cleaner.register(referent, this);
             headUpdater.set(this, new Record(Record.BOTTOM));
-            this.allLeaks = allLeaks;
+        }
+
+        @Override
+        public void run() {
+            if (closed.compareAndSet(false, true) == false || logger.isErrorEnabled() == false) {
+                return;
+            }
+            String records = toString();
+            if (reportedLeaks.putIfAbsent(records, Boolean.TRUE) == null) {
+                logger.error("LEAK: resource was not cleaned up before it was garbage-collected.{}", records);
+            }
         }
 
         /**
@@ -179,38 +211,18 @@ public final class LeakTracker {
             }
         }
 
-        private boolean dispose() {
-            clear();
-            return allLeaks.remove(this);
-        }
-
         /**
          * Stop tracking the object that this leak was created for.
          *
-         * @param trackedObject the object that this leak was originally created for
          * @return true if the leak was released by this call, false if the leak had already been released
          */
-        public boolean close(T trackedObject) {
-            assert trackedHash == System.identityHashCode(trackedObject);
-            try {
-                if (allLeaks.remove(this)) {
-                    // Call clear so the reference is not even enqueued.
-                    clear();
-                    headUpdater.set(this, null);
-                    return true;
-                }
-                return false;
-            } finally {
-                reachabilityFence0(trackedObject);
+        public boolean close() {
+            if (closed.compareAndSet(false, true)) {
+                cleanable.clean();
+                headUpdater.set(this, null);
+                return true;
             }
-        }
-
-        private static void reachabilityFence0(Object ref) {
-            if (ref != null) {
-                synchronized (ref) {
-                    // empty on purpose
-                }
-            }
+            return false;
         }
 
         @Override
@@ -268,19 +280,25 @@ public final class LeakTracker {
         private final Record next;
         private final int pos;
 
+        private final String threadName;
+
+        private final String contextHint = LeakTracker.contextHint;
+
         Record(Record next) {
             this.next = next;
             this.pos = next.pos + 1;
+            threadName = Thread.currentThread().getName();
         }
 
         private Record() {
             next = null;
             pos = -1;
+            threadName = Thread.currentThread().getName();
         }
 
         @Override
         public String toString() {
-            StringBuilder buf = new StringBuilder();
+            StringBuilder buf = new StringBuilder("\tin [").append(threadName).append("][").append(contextHint).append("]\n");
             StackTraceElement[] array = getStackTrace();
             // Skip the first three elements since those are just related to the leak tracker.
             for (int i = 3; i < array.length; i++) {

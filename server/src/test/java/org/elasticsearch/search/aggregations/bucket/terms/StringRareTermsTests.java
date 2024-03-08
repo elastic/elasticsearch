@@ -47,11 +47,6 @@ public class StringRareTermsTests extends InternalRareTermsTestCase {
     }
 
     @Override
-    protected Class<ParsedStringRareTerms> implementationClass() {
-        return ParsedStringRareTerms.class;
-    }
-
-    @Override
     protected InternalRareTerms<?, ?> mutateInstance(InternalRareTerms<?, ?> instance) {
         if (instance instanceof StringRareTerms stringRareTerms) {
             String name = stringRareTerms.getName();

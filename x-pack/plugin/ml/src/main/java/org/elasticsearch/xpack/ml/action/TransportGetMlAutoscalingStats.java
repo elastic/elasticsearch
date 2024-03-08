@@ -78,7 +78,7 @@ public class TransportGetMlAutoscalingStats extends TransportMasterNodeAction<Re
             clusterService.getClusterSettings(),
             mlMemoryTracker,
             settings,
-            ActionListener.wrap(autoscalingResources -> listener.onResponse(new Response(autoscalingResources)), listener::onFailure)
+            listener.delegateFailureAndWrap((l, autoscalingResources) -> l.onResponse(new Response(autoscalingResources)))
         );
     }
 

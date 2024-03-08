@@ -102,7 +102,10 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
         // we can bypass this by forcing soft deletes to be used. TODO this restriction can be lifted when #55142 is resolved.
         final Settings.Builder originalIndexSettings = Settings.builder().put(INDEX_SOFT_DELETES_SETTING.getKey(), true);
         if (randomBoolean()) {
-            originalIndexSettings.put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), randomFrom("false", "true", "checksum"));
+            // INDEX_CHECK_ON_STARTUP requires expensive processing due to verification the integrity of many important files during
+            // a shard recovery or relocation. Therefore, it takes lots of time for the files to clean up and the assertShardFolder
+            // check may not complete in 30s.
+            originalIndexSettings.put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), "false");
         }
         assertAcked(prepareCreate(indexName, originalIndexSettings));
         assertAcked(indicesAdmin().prepareAliases().addAlias(indexName, aliasName));
@@ -208,12 +211,12 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
 
                 for (ShardStats shardStats : indicesStatsResponse.getShards()) {
                     StoreStats store = shardStats.getStats().getStore();
-                    assertThat(shardStats.getShardRouting().toString(), store.getReservedSize().getBytes(), equalTo(0L));
-                    assertThat(shardStats.getShardRouting().toString(), store.getSize().getBytes(), equalTo(0L));
+                    assertThat(shardStats.getShardRouting().toString(), store.reservedSizeInBytes(), equalTo(0L));
+                    assertThat(shardStats.getShardRouting().toString(), store.sizeInBytes(), equalTo(0L));
                 }
                 if (indicesStatsResponse.getShards().length > 0) {
-                    assertThat(indicesStatsResponse.getTotal().getStore().getReservedSize().getBytes(), equalTo(0L));
-                    assertThat(indicesStatsResponse.getTotal().getStore().getSize().getBytes(), equalTo(0L));
+                    assertThat(indicesStatsResponse.getTotal().getStore().reservedSizeInBytes(), equalTo(0L));
+                    assertThat(indicesStatsResponse.getTotal().getStore().sizeInBytes(), equalTo(0L));
                 }
             }
         }, "test-stats-watcher");
@@ -251,8 +254,8 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
             StoreStats store = shardStats.getStats().getStore();
 
             final ShardRouting shardRouting = shardStats.getShardRouting();
-            assertThat(shardRouting.toString(), store.getReservedSize().getBytes(), equalTo(0L));
-            assertThat(shardRouting.toString(), store.getSize().getBytes(), equalTo(0L));
+            assertThat(shardRouting.toString(), store.reservedSizeInBytes(), equalTo(0L));
+            assertThat(shardRouting.toString(), store.sizeInBytes(), equalTo(0L));
 
             // the original shard size from the snapshot
             final long originalSize = snapshotShards.get(shardRouting.getId()).getStats().getTotalSize();
@@ -273,11 +276,11 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
             final ByteBuffersDirectory inMemoryDir = (ByteBuffersDirectory) unwrappedDir;
             assertThat(inMemoryDir.listAll(), arrayWithSize(1));
 
-            assertThat(shardRouting.toString(), store.getTotalDataSetSize().getBytes(), equalTo(originalSize));
+            assertThat(shardRouting.toString(), store.totalDataSetSizeInBytes(), equalTo(originalSize));
         }
 
         final StoreStats store = indicesStatsResponse.getTotal().getStore();
-        assertThat(store.getTotalDataSetSize().getBytes(), equalTo(totalExpectedSize));
+        assertThat(store.totalDataSetSizeInBytes(), equalTo(totalExpectedSize));
 
         statsWatcherRunning.set(false);
         statsWatcher.join();

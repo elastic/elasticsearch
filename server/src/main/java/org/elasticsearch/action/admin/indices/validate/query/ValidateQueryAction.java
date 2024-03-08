@@ -16,6 +16,6 @@ public class ValidateQueryAction extends ActionType<ValidateQueryResponse> {
     public static final String NAME = "indices:admin/validate/query";
 
     private ValidateQueryAction() {
-        super(NAME, ValidateQueryResponse::new);
+        super(NAME);
     }
 }

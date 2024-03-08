@@ -94,7 +94,7 @@ public class IncorrectSetupStablePluginsTests extends ESTestCase {
                 Map.of("noInjectCharFilter", new PluginInfo("noInjectCharFilter", NoInjectCharFilter.class.getName(), classLoader))
             )
         );
-        assertThat(e.getMessage(), equalTo("Missing @Inject annotation for constructor with settings."));
+        assertThat(e.getMessage(), equalTo("Missing @org.elasticsearch.plugin.Inject annotation for constructor with settings."));
     }
 
     @NamedComponent("multipleConstructors")

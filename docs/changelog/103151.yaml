@@ -1,6 +1,0 @@
-pr: 103151
-summary: Wrap painless explain error
-area: Infra/Scripting
-type: bug
-issues:
- - 103018

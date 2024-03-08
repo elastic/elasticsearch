@@ -25,10 +25,7 @@ import java.util.Map;
 
 public class TransportGetFeatureUsageAction extends HandledTransportAction<GetFeatureUsageRequest, GetFeatureUsageResponse> {
 
-    public static final ActionType<GetFeatureUsageResponse> TYPE = new ActionType<>(
-        "cluster:admin/xpack/license/feature_usage",
-        GetFeatureUsageResponse::new
-    );
+    public static final ActionType<GetFeatureUsageResponse> TYPE = new ActionType<>("cluster:admin/xpack/license/feature_usage");
 
     private final XPackLicenseState licenseState;
 

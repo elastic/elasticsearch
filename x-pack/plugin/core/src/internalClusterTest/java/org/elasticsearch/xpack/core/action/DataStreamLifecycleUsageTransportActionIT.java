@@ -134,7 +134,8 @@ public class DataStreamLifecycleUsageTransportActionIT extends ESIntegTestCase {
                     IndexMode.STANDARD,
                     lifecycle,
                     false,
-                    List.of()
+                    List.of(),
+                    null
                 );
                 dataStreamMap.put(dataStream.getName(), dataStream);
             }

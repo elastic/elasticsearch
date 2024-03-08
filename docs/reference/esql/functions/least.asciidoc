@@ -1,11 +1,34 @@
 [discrete]
 [[esql-least]]
 === `LEAST`
+
+*Syntax*
+
 [.text-center]
 image::esql/functions/signature/least.svg[Embedded,opts=inline]
 
-Returns the minimum value from many columns. This is similar to <<esql-mv_min>>
-except it's intended to run on multiple columns at once.
+*Parameters*
+
+`first`::
+First of the columns to evaluate.
+
+`rest`::
+The rest of the columns to evaluate.
+
+*Description*
+
+Returns the minimum value from multiple columns. This is similar to
+<<esql-mv_min>> except it is intended to run on multiple columns at once.
+
+NOTE: When run on `keyword` or `text` fields, this returns the first string
+      in alphabetical order. When run on `boolean` columns this will return
+      `false` if any values are `false`.
+
+*Supported types*
+
+include::types/least.asciidoc[]
+
+*Example*
 
 [source.merge.styled,esql]
 ----
@@ -15,11 +38,3 @@ include::{esql-specs}/math.csv-spec[tag=least]
 |===
 include::{esql-specs}/math.csv-spec[tag=least-result]
 |===
-
-NOTE: When run on `keyword` or `text` fields, this'll return the first string
-      in alphabetical order. When run on `boolean` columns this will return
-      `false` if any values are `false`.
-
-Supported types:
-
-include::types/least.asciidoc[]

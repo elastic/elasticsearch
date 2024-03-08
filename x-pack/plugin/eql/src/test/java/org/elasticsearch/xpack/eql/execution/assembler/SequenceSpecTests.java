@@ -14,7 +14,6 @@ import org.apache.lucene.search.TotalHits.Relation;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchResponse.Clusters;
-import org.elasticsearch.action.search.SearchResponseSections;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.document.DocumentField;
@@ -189,7 +188,7 @@ public class SequenceSpecTests extends ESTestCase {
                 Map<String, DocumentField> documentFields = new HashMap<>();
                 documentFields.put(KEY_FIELD_NAME, new DocumentField(KEY_FIELD_NAME, Collections.singletonList(value.v1())));
                 // save the timestamp both as docId (int) and as id (string)
-                SearchHit searchHit = new SearchHit(entry.getKey(), entry.getKey().toString());
+                SearchHit searchHit = SearchHit.unpooled(entry.getKey(), entry.getKey().toString());
                 searchHit.addDocumentFields(documentFields, Map.of());
                 hits.add(searchHit);
             }
@@ -216,13 +215,15 @@ public class SequenceSpecTests extends ESTestCase {
             Map<Integer, Tuple<String, String>> evs = ordinal != Integer.MAX_VALUE ? events.get(ordinal) : emptyMap();
 
             EventsAsHits eah = new EventsAsHits(evs);
-            SearchHits searchHits = new SearchHits(
-                eah.hits.toArray(new SearchHit[0]),
+            SearchHits searchHits = SearchHits.unpooled(
+                eah.hits.toArray(SearchHits.EMPTY),
                 new TotalHits(eah.hits.size(), Relation.EQUAL_TO),
                 0.0f
             );
-            SearchResponseSections internal = new SearchResponseSections(searchHits, null, null, false, false, null, 0);
-            ActionListener.respondAndRelease(l, new SearchResponse(internal, null, 0, 1, 0, 0, null, Clusters.EMPTY));
+            ActionListener.respondAndRelease(
+                l,
+                new SearchResponse(searchHits, null, null, false, false, null, 0, null, 0, 1, 0, 0, null, Clusters.EMPTY)
+            );
         }
 
         @Override
@@ -231,7 +232,7 @@ public class SequenceSpecTests extends ESTestCase {
             for (List<HitReference> ref : refs) {
                 List<SearchHit> hits = new ArrayList<>(ref.size());
                 for (HitReference hitRef : ref) {
-                    hits.add(new SearchHit(-1, hitRef.id()));
+                    hits.add(SearchHit.unpooled(-1, hitRef.id()));
                 }
                 searchHits.add(hits);
             }

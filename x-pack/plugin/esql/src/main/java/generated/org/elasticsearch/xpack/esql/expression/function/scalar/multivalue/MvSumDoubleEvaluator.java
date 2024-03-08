@@ -18,11 +18,8 @@ import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
  * This class is generated. Do not edit it.
  */
 public final class MvSumDoubleEvaluator extends AbstractMultivalueFunction.AbstractEvaluator {
-  private final DriverContext driverContext;
-
   public MvSumDoubleEvaluator(EvalOperator.ExpressionEvaluator field, DriverContext driverContext) {
-    super(field);
-    this.driverContext = driverContext;
+    super(driverContext, field);
   }
 
   @Override

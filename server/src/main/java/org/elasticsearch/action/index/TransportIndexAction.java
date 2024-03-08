@@ -32,10 +32,7 @@ import org.elasticsearch.transport.TransportService;
 public class TransportIndexAction extends TransportSingleItemBulkWriteAction<IndexRequest, DocWriteResponse> {
 
     public static final String NAME = "indices:data/write/index";
-    public static final ActionType<DocWriteResponse> TYPE = new ActionType<>(NAME, in -> {
-        assert false : "Might not be an IndexResponse!";
-        return new IndexResponse(in);
-    });
+    public static final ActionType<DocWriteResponse> TYPE = new ActionType<>(NAME);
 
     @Inject
     public TransportIndexAction(ActionFilters actionFilters, TransportService transportService, TransportBulkAction bulkAction) {

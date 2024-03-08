@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.upgrades;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -36,6 +37,15 @@ public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
 
     protected static boolean isOriginalCluster(String clusterVersion) {
         return UPGRADE_FROM_VERSION.equals(clusterVersion);
+    }
+
+    /**
+     * Upgrade tests by design are also executed with the same version. We might want to skip some checks if that's the case, see
+     * for example gh#39102.
+     * @return true if the cluster version is the current version.
+     */
+    protected static boolean isOriginalClusterCurrent() {
+        return UPGRADE_FROM_VERSION.equals(Build.current().version());
     }
 
     @Deprecated(forRemoval = true)

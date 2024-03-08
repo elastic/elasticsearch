@@ -1,0 +1,5 @@
+pr: 104993
+summary: Support enrich remote mode
+area: ES|QL
+type: enhancement
+issues: []

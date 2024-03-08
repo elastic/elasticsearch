@@ -12,6 +12,7 @@ import org.elasticsearch.index.seqno.RetentionLeaseBackgroundSyncAction;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncAction;
 import org.elasticsearch.persistent.CompletionPersistentTaskAction;
 import org.elasticsearch.transport.TransportActionProxy;
+import org.elasticsearch.xpack.core.security.action.ActionTypes;
 import org.elasticsearch.xpack.core.security.support.StringMatcher;
 
 import java.util.Collections;
@@ -43,7 +44,8 @@ public final class SystemPrivilege extends Privilege {
         "indices:data/read/*", // needed for SystemIndexMigrator
         "indices:admin/refresh", // needed for SystemIndexMigrator
         "indices:admin/aliases", // needed for SystemIndexMigrator
-        TransportSearchShardsAction.TYPE.name() // added so this API can be called with the system user by other APIs
+        TransportSearchShardsAction.TYPE.name(), // added so this API can be called with the system user by other APIs
+        ActionTypes.RELOAD_REMOTE_CLUSTER_CREDENTIALS_ACTION.name() // needed for Security plugin reload of remote cluster credentials
     );
 
     private static final Predicate<String> PREDICATE = (action) -> {

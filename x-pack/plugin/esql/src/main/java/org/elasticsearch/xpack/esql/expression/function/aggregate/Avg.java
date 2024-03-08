@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
@@ -19,17 +21,24 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 import java.util.List;
 
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.DEFAULT;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
 
 public class Avg extends AggregateFunction implements SurrogateExpression {
 
-    public Avg(Source source, Expression field) {
+    @FunctionInfo(returnType = "double", description = "The average of a numeric field.", isAggregation = true)
+    public Avg(Source source, @Param(name = "field", type = { "double", "integer", "long" }) Expression field) {
         super(source, field);
     }
 
     @Override
     protected Expression.TypeResolution resolveType() {
-        return isNumeric(field(), sourceText(), DEFAULT);
+        return isType(
+            field(),
+            dt -> dt.isNumeric() && dt != DataTypes.UNSIGNED_LONG,
+            sourceText(),
+            DEFAULT,
+            "numeric except unsigned_long"
+        );
     }
 
     @Override

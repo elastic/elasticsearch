@@ -11,12 +11,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
@@ -27,7 +26,7 @@ import java.util.Map;
 import java.util.SortedMap;
 import java.util.TreeMap;
 
-public class TransportGetFlamegraphAction extends HandledTransportAction<GetStackTracesRequest, GetFlamegraphResponse> {
+public class TransportGetFlamegraphAction extends TransportAction<GetStackTracesRequest, GetFlamegraphResponse> {
     private static final Logger log = LogManager.getLogger(TransportGetFlamegraphAction.class);
     private static final StackFrame EMPTY_STACKFRAME = new StackFrame("", "", 0, 0);
 
@@ -36,7 +35,7 @@ public class TransportGetFlamegraphAction extends HandledTransportAction<GetStac
 
     @Inject
     public TransportGetFlamegraphAction(NodeClient nodeClient, TransportService transportService, ActionFilters actionFilters) {
-        super(GetFlamegraphAction.NAME, transportService, actionFilters, GetStackTracesRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        super(GetFlamegraphAction.NAME, actionFilters, transportService.getTaskManager());
         this.nodeClient = nodeClient;
         this.transportService = transportService;
     }
@@ -92,12 +91,12 @@ public class TransportGetFlamegraphAction extends HandledTransportAction<GetStac
             builder.addAnnualCostsUSDInclusive(0, annualCostsUSD);
             builder.addAnnualCostsUSDExclusive(0, 0.0d);
 
-            int frameCount = stackTrace.frameIds.size();
+            int frameCount = stackTrace.frameIds.length;
             for (int i = 0; i < frameCount; i++) {
-                String frameId = stackTrace.frameIds.get(i);
-                String fileId = stackTrace.fileIds.get(i);
-                Integer frameType = stackTrace.typeIds.get(i);
-                Integer addressOrLine = stackTrace.addressOrLines.get(i);
+                String frameId = stackTrace.frameIds[i];
+                String fileId = stackTrace.fileIds[i];
+                int frameType = stackTrace.typeIds[i];
+                int addressOrLine = stackTrace.addressOrLines[i];
                 StackFrame stackFrame = response.getStackFrames().getOrDefault(frameId, EMPTY_STACKFRAME);
                 String executable = response.getExecutables().getOrDefault(fileId, "");
                 final boolean isLeafFrame = i == frameCount - 1;
@@ -200,7 +199,7 @@ public class TransportGetFlamegraphAction extends HandledTransportAction<GetStac
             int frameType,
             boolean inline,
             String fileName,
-            Integer addressOrLine,
+            int addressOrLine,
             String functionName,
             int functionOffset,
             String sourceFileName,

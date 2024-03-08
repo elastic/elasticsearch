@@ -1,6 +1,0 @@
-pr: 102741
-summary: "[ILM] More resilient when a policy is added to searchable snapshot"
-area: ILM+SLM
-type: bug
-issues:
- - 101958

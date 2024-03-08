@@ -309,27 +309,39 @@ public class ConvertProcessorTests extends ESTestCase {
     }
 
     public void testConvertIpV4() throws Exception {
-        // valid ipv4 address
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
-        String fieldName = RandomDocumentPicks.randomFieldName(random());
-        String targetField = randomValueOtherThan(fieldName, () -> RandomDocumentPicks.randomFieldName(random()));
-        String validIpV4 = "192.168.1.1";
-        ingestDocument.setFieldValue(fieldName, validIpV4);
+        {
+            // valid ipv4 address
+            IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
+            String fieldName = RandomDocumentPicks.randomFieldName(random());
+            // We can't have targetField be a nested field under fieldName since we're going to set a top-level value for fieldName:
+            String targetField = randomValueOtherThanMany(
+                targetFieldName -> fieldName.equals(targetFieldName) || targetFieldName.startsWith(fieldName + "."),
+                () -> RandomDocumentPicks.randomFieldName(random())
+            );
+            String validIpV4 = "192.168.1.1";
+            ingestDocument.setFieldValue(fieldName, validIpV4);
 
-        Processor processor = new ConvertProcessor(randomAlphaOfLength(10), null, fieldName, targetField, Type.IP, false);
-        processor.execute(ingestDocument);
-        assertThat(ingestDocument.getFieldValue(targetField, String.class), equalTo(validIpV4));
+            Processor processor = new ConvertProcessor(randomAlphaOfLength(10), null, fieldName, targetField, Type.IP, false);
+            processor.execute(ingestDocument);
+            assertThat(ingestDocument.getFieldValue(targetField, String.class), equalTo(validIpV4));
+        }
 
-        // invalid ipv4 address
-        IngestDocument ingestDocument2 = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
-        fieldName = RandomDocumentPicks.randomFieldName(random());
-        targetField = randomValueOtherThan(fieldName, () -> RandomDocumentPicks.randomFieldName(random()));
-        String invalidIpV4 = "192.168.1.256";
-        ingestDocument2.setFieldValue(fieldName, invalidIpV4);
+        {
+            // invalid ipv4 address
+            IngestDocument ingestDocument2 = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
+            String fieldName = RandomDocumentPicks.randomFieldName(random());
+            // We can't have targetField be a nested field under fieldName since we're going to set a top-level value for fieldName:
+            String targetField = randomValueOtherThanMany(
+                targetFieldName -> fieldName.equals(targetFieldName) || targetFieldName.startsWith(fieldName + "."),
+                () -> RandomDocumentPicks.randomFieldName(random())
+            );
+            String invalidIpV4 = "192.168.1.256";
+            ingestDocument2.setFieldValue(fieldName, invalidIpV4);
 
-        Processor processor2 = new ConvertProcessor(randomAlphaOfLength(10), null, fieldName, targetField, Type.IP, false);
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> processor2.execute(ingestDocument2));
-        assertThat(e.getMessage(), containsString("'" + invalidIpV4 + "' is not an IP string literal."));
+            Processor processor2 = new ConvertProcessor(randomAlphaOfLength(10), null, fieldName, targetField, Type.IP, false);
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> processor2.execute(ingestDocument2));
+            assertThat(e.getMessage(), containsString("'" + invalidIpV4 + "' is not an IP string literal."));
+        }
     }
 
     public void testConvertIpV6() throws Exception {

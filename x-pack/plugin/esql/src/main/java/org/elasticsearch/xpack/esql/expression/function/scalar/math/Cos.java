@@ -24,7 +24,7 @@ public class Cos extends AbstractTrigonometricFunction {
     @FunctionInfo(returnType = "double", description = "Returns the trigonometric cosine of an angle")
     public Cos(
         Source source,
-        @Param(name = "n", type = { "integer", "long", "double", "unsigned_long" }, description = "An angle, in radians") Expression n
+        @Param(name = "n", type = { "double", "integer", "long", "unsigned_long" }, description = "An angle, in radians") Expression n
     ) {
         super(source, n);
     }

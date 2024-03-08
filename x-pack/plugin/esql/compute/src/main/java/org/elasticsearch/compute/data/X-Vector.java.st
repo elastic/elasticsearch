@@ -10,6 +10,7 @@ package org.elasticsearch.compute.data;
 $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
 $endif$
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -108,80 +109,60 @@ $endif$
     /** Deserializes a Vector from the given stream input. */
     static $Type$Vector readFrom(BlockFactory blockFactory, StreamInput in) throws IOException {
         final int positions = in.readVInt();
-        final boolean constant = in.readBoolean();
-        if (constant && positions > 0) {
-            return blockFactory.newConstant$Type$Vector(in.read$Type$(), positions);
-        } else {
-            try (var builder = blockFactory.new$Type$Vector$if(BytesRef)$$else$Fixed$endif$Builder(positions)) {
-                for (int i = 0; i < positions; i++) {
-                    builder.append$Type$(in.read$Type$());
-                }
-                return builder.build();
+        final byte serializationType = in.readByte();
+        return switch (serializationType) {
+            case SERIALIZE_VECTOR_VALUES -> readValues(positions, in, blockFactory);
+            case SERIALIZE_VECTOR_CONSTANT -> blockFactory.newConstant$Type$Vector(in.read$Type$(), positions);
+            case SERIALIZE_VECTOR_ARRAY -> $Type$ArrayVector.readArrayVector(positions, in, blockFactory);
+            default -> {
+                assert false : "invalid vector serialization type [" + serializationType + "]";
+                throw new IllegalStateException("invalid vector serialization type [" + serializationType + "]");
             }
-        }
+        };
     }
 
     /** Serializes this Vector to the given stream output. */
     default void writeTo(StreamOutput out) throws IOException {
         final int positions = getPositionCount();
+        final var version = out.getTransportVersion();
         out.writeVInt(positions);
-        out.writeBoolean(isConstant());
         if (isConstant() && positions > 0) {
+            out.writeByte(SERIALIZE_VECTOR_CONSTANT);
 $if(BytesRef)$
             out.write$Type$(get$Type$(0, new BytesRef()));
 $else$
             out.write$Type$(get$Type$(0));
 $endif$
+        } else if (version.onOrAfter(TransportVersions.ESQL_SERIALIZE_ARRAY_VECTOR) && this instanceof $Type$ArrayVector v) {
+            out.writeByte(SERIALIZE_VECTOR_ARRAY);
+            v.writeArrayVector(positions, out);
         } else {
-            for (int i = 0; i < positions; i++) {
-$if(BytesRef)$
-                out.write$Type$(get$Type$(i, new BytesRef()));
-$else$
-                out.write$Type$(get$Type$(i));
-$endif$
-            }
+            out.writeByte(SERIALIZE_VECTOR_VALUES);
+            writeValues(this, positions, out);
         }
     }
 
-    /**
-     * Returns a builder using the {@link BlockFactory#getNonBreakingInstance nonbreaking block factory}.
-     * @deprecated use {@link BlockFactory#new$Type$VectorBuilder}
-     */
-    // Eventually, we want to remove this entirely, always passing an explicit BlockFactory
-    @Deprecated
-    static Builder newVectorBuilder(int estimatedSize) {
-        return newVectorBuilder(estimatedSize, BlockFactory.getNonBreakingInstance());
+    private static $Type$Vector readValues(int positions, StreamInput in, BlockFactory blockFactory) throws IOException {
+        try (var builder = blockFactory.new$Type$Vector$if(BytesRef)$$else$Fixed$endif$Builder(positions)) {
+            for (int i = 0; i < positions; i++) {
+                builder.append$Type$(in.read$Type$());
+            }
+            return builder.build();
+        }
     }
 
+    private static void writeValues($Type$Vector v, int positions, StreamOutput out) throws IOException {
 $if(BytesRef)$
-    /**
-     * Creates a builder that grows as needed.
-     * @deprecated use {@link BlockFactory#new$Type$VectorBuilder}
-     */
-$else$
-    /**
-     * Creates a builder that grows as needed. Prefer {@link #newVectorFixedBuilder}
-     * if you know the size up front because it's faster.
-     * @deprecated use {@link BlockFactory#new$Type$VectorBuilder}
-     */
+        var scratch = new BytesRef();
 $endif$
-    @Deprecated
-    static Builder newVectorBuilder(int estimatedSize, BlockFactory blockFactory) {
-        return blockFactory.new$Type$VectorBuilder(estimatedSize);
-    }
-
+        for (int i = 0; i < positions; i++) {
 $if(BytesRef)$
+            out.write$Type$(v.get$Type$(i, scratch));
 $else$
-    /**
-     * Creates a builder that never grows. Prefer this over {@link #newVectorBuilder}
-     * if you know the size up front because it's faster.
-     * @deprecated use {@link BlockFactory#new$Type$VectorFixedBuilder}
-     */
-    @Deprecated
-    static FixedBuilder newVectorFixedBuilder(int size, BlockFactory blockFactory) {
-        return blockFactory.new$Type$VectorFixedBuilder(size);
-    }
+            out.write$Type$(v.get$Type$(i));
 $endif$
+        }
+    }
 
 $if(int)$
     /** Create a vector for a range of ints. */
@@ -197,7 +178,11 @@ $endif$
     /**
      * A builder that grows as needed.
      */
+$if(BytesRef)$
     sealed interface Builder extends Vector.Builder permits $Type$VectorBuilder {
+$else$
+    sealed interface Builder extends Vector.Builder permits $Type$VectorBuilder, FixedBuilder {
+$endif$
         /**
          * Appends a $type$ to the current entry.
          */
@@ -212,14 +197,12 @@ $else$
     /**
      * A builder that never grows.
      */
-    sealed interface FixedBuilder extends Vector.Builder permits $Type$VectorFixedBuilder {
+    sealed interface FixedBuilder extends Builder permits $Type$VectorFixedBuilder {
         /**
          * Appends a $type$ to the current entry.
          */
-        FixedBuilder append$Type$($type$ value);
-
         @Override
-        $Type$Vector build();
+        FixedBuilder append$Type$($type$ value);
     }
 $endif$
 }

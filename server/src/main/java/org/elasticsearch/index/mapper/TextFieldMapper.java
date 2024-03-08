@@ -355,18 +355,18 @@ public final class TextFieldMapper extends FieldMapper {
             if (analyzers.positionIncrementGap.isConfigured()) {
                 if (fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) < 0) {
                     throw new IllegalArgumentException(
-                        "Cannot set position_increment_gap on field [" + name + "] without positions enabled"
+                        "Cannot set position_increment_gap on field [" + name() + "] without positions enabled"
                     );
                 }
             }
             TextSearchInfo tsi = new TextSearchInfo(fieldType, similarity.getValue(), searchAnalyzer, searchQuoteAnalyzer);
             TextFieldType ft;
             if (indexCreatedVersion.isLegacyIndexVersion()) {
-                ft = new LegacyTextFieldType(context.buildFullName(name), index.getValue(), store.getValue(), tsi, meta.getValue());
+                ft = new LegacyTextFieldType(context.buildFullName(name()), index.getValue(), store.getValue(), tsi, meta.getValue());
                 // ignore fieldData and eagerGlobalOrdinals
             } else {
                 ft = new TextFieldType(
-                    context.buildFullName(name),
+                    context.buildFullName(name()),
                     index.getValue(),
                     store.getValue(),
                     tsi,
@@ -412,7 +412,7 @@ public final class TextFieldMapper extends FieldMapper {
              * or a multi-field). This way search will continue to work on old indices and new indices
              * will use the expected full name.
              */
-            String fullName = indexCreatedVersion.before(IndexVersions.V_7_2_1) ? name() : context.buildFullName(name);
+            String fullName = indexCreatedVersion.before(IndexVersions.V_7_2_1) ? name() : context.buildFullName(name());
             // Copy the index options of the main field to allow phrase queries on
             // the prefix field.
             FieldType pft = new FieldType(fieldType);
@@ -476,7 +476,7 @@ public final class TextFieldMapper extends FieldMapper {
                     throw new MapperParsingException("Cannot use reserved field name [" + mapper.name() + "]");
                 }
             }
-            return new TextFieldMapper(name, fieldType, tft, prefixFieldInfo, phraseFieldInfo, multiFields, copyTo, this);
+            return new TextFieldMapper(name(), fieldType, tft, prefixFieldInfo, phraseFieldInfo, multiFields, copyTo, this);
         }
     }
 
@@ -937,9 +937,15 @@ public final class TextFieldMapper extends FieldMapper {
             return fielddata;
         }
 
+        public boolean canUseSyntheticSourceDelegateForQuerying() {
+            return syntheticSourceDelegate != null
+                && syntheticSourceDelegate.ignoreAbove() == Integer.MAX_VALUE
+                && (syntheticSourceDelegate.isIndexed() || syntheticSourceDelegate.isStored());
+        }
+
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
-            if (syntheticSourceDelegate != null) {
+            if (canUseSyntheticSourceDelegateForQuerying()) {
                 return new BlockLoader.Delegating(syntheticSourceDelegate.blockLoader(blContext)) {
                     @Override
                     protected String delegatingTo() {
@@ -979,7 +985,23 @@ public final class TextFieldMapper extends FieldMapper {
                  */
                 return null;
             }
-            return new BlockSourceReader.BytesRefsBlockLoader(SourceValueFetcher.toString(blContext.sourcePaths(name())));
+            SourceValueFetcher fetcher = SourceValueFetcher.toString(blContext.sourcePaths(name()));
+            return new BlockSourceReader.BytesRefsBlockLoader(fetcher, blockReaderDisiLookup(blContext));
+        }
+
+        /**
+         * Build an iterator of documents that have the field. This mirrors parseCreateField,
+         * using whatever
+         */
+        private BlockSourceReader.LeafIteratorLookup blockReaderDisiLookup(BlockLoaderContext blContext) {
+            if (isIndexed()) {
+                if (getTextSearchInfo().hasNorms()) {
+                    return BlockSourceReader.lookupFromNorms(name());
+                }
+            } else if (isStored() == false) {
+                return BlockSourceReader.lookupMatchingAll();
+            }
+            return BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name());
         }
 
         @Override

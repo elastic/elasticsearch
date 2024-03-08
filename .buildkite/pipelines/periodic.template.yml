@@ -2,7 +2,7 @@ steps:
   - group: bwc
     steps: $BWC_STEPS
   - label: concurrent-search-tests
-    command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dtests.jvm.argline=-Des.concurrent_search=true -Des.concurrent_search=true check
+    command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dtests.jvm.argline=-Des.concurrent_search=true -Des.concurrent_search=true functionalTests
     timeout_in_minutes: 420
     agents:
       provider: gcp
@@ -49,7 +49,6 @@ steps:
               - checkPart1
               - checkPart2
               - checkPart3
-              - bwcTestSnapshots
               - checkRestCompat
         agents:
           provider: gcp
@@ -59,6 +58,22 @@ steps:
         env:
           ES_RUNTIME_JAVA: "{{matrix.ES_RUNTIME_JAVA}}"
           GRADLE_TASK: "{{matrix.GRADLE_TASK}}"
+      - label: "{{matrix.ES_RUNTIME_JAVA}} / {{matrix.BWC_VERSION}} / java-fips-matrix-bwc"
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dtests.fips.enabled=true v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 300
+        matrix:
+          setup:
+            ES_RUNTIME_JAVA:
+              - openjdk17
+            BWC_VERSION: $BWC_LIST
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          ES_RUNTIME_JAVA: "{{matrix.ES_RUNTIME_JAVA}}"
+          BWC_VERSION: "{{matrix.BWC_VERSION}}"
   - group: java-matrix
     steps:
       - label: "{{matrix.ES_RUNTIME_JAVA}} / {{matrix.GRADLE_TASK}} / java-matrix"
@@ -69,10 +84,8 @@ steps:
             ES_RUNTIME_JAVA:
               - graalvm-ce17
               - openjdk17
-              - openjdk18
-              - openjdk19
-              - openjdk20
               - openjdk21
+              - openjdk22
             GRADLE_TASK:
               - checkPart1
               - checkPart2
@@ -87,6 +100,25 @@ steps:
         env:
           ES_RUNTIME_JAVA: "{{matrix.ES_RUNTIME_JAVA}}"
           GRADLE_TASK: "{{matrix.GRADLE_TASK}}"
+      - label: "{{matrix.ES_RUNTIME_JAVA}} / {{matrix.BWC_VERSION}} / java-matrix-bwc"
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 300
+        matrix:
+          setup:
+            ES_RUNTIME_JAVA:
+              - graalvm-ce17
+              - openjdk17
+              - openjdk21
+              - openjdk22
+            BWC_VERSION: $BWC_LIST
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          ES_RUNTIME_JAVA: "{{matrix.ES_RUNTIME_JAVA}}"
+          BWC_VERSION: "{{matrix.BWC_VERSION}}"
   - label: release-tests
     command: .buildkite/scripts/release-tests.sh
     timeout_in_minutes: 360
@@ -96,7 +128,7 @@ steps:
       diskSizeGb: 350
       machineType: custom-32-98304
   - label: single-processor-node-tests
-    command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dtests.configure_test_clusters_with_one_processor=true check
+    command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dtests.configure_test_clusters_with_one_processor=true functionalTests
     timeout_in_minutes: 420
     agents:
       provider: gcp
@@ -180,14 +212,14 @@ steps:
       image: family/elasticsearch-ubuntu-2004
       machineType: n2-standard-8
       buildDirectory: /dev/shm/bk
-    if: build.branch == "main" || build.branch =~ /^[0-9]+\.[0-9]+\$/
-  - label: Check branch consistency
+    if: build.branch == "main" || build.branch == "7.17"
+  - label: check-branch-consistency
     command: .ci/scripts/run-gradle.sh branchConsistency
     timeout_in_minutes: 15
     agents:
       provider: gcp
       image: family/elasticsearch-ubuntu-2004
       machineType: n2-standard-2
-  - label: Check branch protection rules
+  - label: check-branch-protection-rules
     command: .buildkite/scripts/branch-protection.sh
     timeout_in_minutes: 5

@@ -22,6 +22,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -288,8 +289,8 @@ public class MlDailyMaintenanceService implements Releasable {
             }
             TypedChainTaskExecutor<Tuple<DeleteJobAction.Request, AcknowledgedResponse>> chainTaskExecutor = new TypedChainTaskExecutor<>(
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                unused -> true,
-                unused -> true
+                Predicates.always(),
+                Predicates.always()
             );
             for (String jobId : jobsInStateDeletingWithoutDeletionTask) {
                 DeleteJobAction.Request request = new DeleteJobAction.Request(jobId);

@@ -7,25 +7,20 @@
 
 package org.elasticsearch.compute.operator;
 
-import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.indices.breaker.CircuitBreakerService;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class ProjectOperatorTests extends OperatorTestCase {
     public void testProjectionOnEmptyPage() {
@@ -69,7 +64,7 @@ public class ProjectOperatorTests extends OperatorTestCase {
     }
 
     @Override
-    protected Operator.OperatorFactory simple(BigArrays bigArrays) {
+    protected Operator.OperatorFactory simple() {
         return new ProjectOperator.ProjectOperatorFactory(Arrays.asList(1));
     }
 
@@ -99,16 +94,13 @@ public class ProjectOperatorTests extends OperatorTestCase {
         assertThat(total, equalTo(input.stream().mapToInt(Page::getPositionCount).sum()));
     }
 
-    @Override
-    protected ByteSizeValue smallEnoughToCircuitBreak() {
-        assumeTrue("doesn't use big arrays so can't break", false);
-        return null;
-    }
-
-    // A breaker service that always returns the given breaker for getBreaker(CircuitBreaker.REQUEST)
-    static CircuitBreakerService mockBreakerService(CircuitBreaker breaker) {
-        CircuitBreakerService breakerService = mock(CircuitBreakerService.class);
-        when(breakerService.getBreaker(CircuitBreaker.REQUEST)).thenReturn(breaker);
-        return breakerService;
+    public void testDescriptionOfMany() {
+        ProjectOperator.ProjectOperatorFactory factory = new ProjectOperator.ProjectOperatorFactory(
+            IntStream.range(0, 100).boxed().toList()
+        );
+        assertThat(factory.describe(), equalTo("ProjectOperator[projection = [100 fields]]"));
+        try (Operator op = factory.get(driverContext())) {
+            assertThat(op.toString(), equalTo("ProjectOperator[projection = [100 fields]]"));
+        }
     }
 }

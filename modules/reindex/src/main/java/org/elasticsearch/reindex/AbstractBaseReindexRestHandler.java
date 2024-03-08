@@ -39,10 +39,15 @@ public abstract class AbstractBaseReindexRestHandler<
         this.action = action;
     }
 
-    protected RestChannelConsumer doPrepareRequest(RestRequest request, NodeClient client, boolean includeCreated, boolean includeUpdated)
-        throws IOException {
+    protected RestChannelConsumer doPrepareRequest(
+        RestRequest request,
+        NamedWriteableRegistry namedWriteableRegistry,
+        NodeClient client,
+        boolean includeCreated,
+        boolean includeUpdated
+    ) throws IOException {
         // Build the internal request
-        Request internal = setCommonOptions(request, buildRequest(request, client.getNamedWriteableRegistry()));
+        Request internal = setCommonOptions(request, buildRequest(request, namedWriteableRegistry));
 
         // Executes the request and waits for completion
         if (request.paramAsBoolean("wait_for_completion", true)) {

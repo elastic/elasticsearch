@@ -14,6 +14,7 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.plugins.Plugin;
@@ -112,19 +113,26 @@ public abstract class ProfilingTestCase extends ESIntegTestCase {
 
     @Before
     public void setupData() throws Exception {
-        if (requiresDataSetup() == false) {
-            return;
+        if (requiresDataSetup()) {
+            doSetupData();
         }
+    }
+
+    protected final void doSetupData() throws Exception {
         final String apmTestIndex = "apm-test-001";
+        final String apmLegacyIndex = "apm-legacy-test-001";
         // only enable index management while setting up indices to avoid interfering with the rest of the test infrastructure
         updateProfilingTemplatesEnabled(true);
         createIndex(apmTestIndex, "indices/apm-test.json");
+        createIndex(apmLegacyIndex, "indices/apm-legacy-test.json");
         List<String> allIndices = new ArrayList<>(
             ProfilingIndexManager.PROFILING_INDICES.stream().map(ProfilingIndexManager.ProfilingIndex::toString).toList()
         );
         allIndices.add(apmTestIndex);
+        allIndices.add(apmLegacyIndex);
         waitForIndices(allIndices);
-        ensureGreen(allIndices.toArray(new String[0]));
+        // higher timeout since we have more shards than usual
+        ensureGreen(TimeValue.timeValueSeconds(120), allIndices.toArray(new String[0]));
 
         bulkIndex("data/profiling-events-all.ndjson");
         bulkIndex("data/profiling-stacktraces.ndjson");
@@ -132,6 +140,7 @@ public abstract class ProfilingTestCase extends ESIntegTestCase {
         bulkIndex("data/profiling-executables.ndjson");
         bulkIndex("data/profiling-hosts.ndjson");
         bulkIndex("data/apm-test.ndjson");
+        bulkIndex("data/apm-legacy-test.ndjson");
 
         refresh();
     }

@@ -10,8 +10,8 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.tasks.CancellableTask;
@@ -21,7 +21,10 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -32,13 +35,14 @@ import static org.elasticsearch.index.query.AbstractQueryBuilder.parseTopLevelQu
 /**
  * A request to get profiling details
  */
-public class GetStackTracesRequest extends ActionRequest implements IndicesRequest {
+public class GetStackTracesRequest extends ActionRequest implements IndicesRequest.Replaceable {
     public static final ParseField QUERY_FIELD = new ParseField("query");
     public static final ParseField SAMPLE_SIZE_FIELD = new ParseField("sample_size");
     public static final ParseField INDICES_FIELD = new ParseField("indices");
-    public static final ParseField STACKTRACE_IDS_FIELD = new ParseField("stacktrace_ids");
+    public static final ParseField STACKTRACE_IDS_FIELD = new ParseField("stacktrace_ids_field");
     public static final ParseField REQUESTED_DURATION_FIELD = new ParseField("requested_duration");
     public static final ParseField AWS_COST_FACTOR_FIELD = new ParseField("aws_cost_factor");
+    public static final ParseField AZURE_COST_FACTOR_FIELD = new ParseField("azure_cost_factor");
     public static final ParseField CUSTOM_CO2_PER_KWH = new ParseField("co2_per_kwh");
     public static final ParseField CUSTOM_DATACENTER_PUE = new ParseField("datacenter_pue");
     public static final ParseField CUSTOM_PER_CORE_WATT_X86 = new ParseField("per_core_watt_x86");
@@ -47,11 +51,13 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
     private static final int DEFAULT_SAMPLE_SIZE = 20_000;
 
     private QueryBuilder query;
-    private Integer sampleSize;
-    private String indices;
-    private String stackTraceIds;
+    private int sampleSize;
+    private String[] indices;
+    private boolean userProvidedIndices;
+    private String stackTraceIdsField;
     private Double requestedDuration;
     private Double awsCostFactor;
+    private Double azureCostFactor;
     private Double customCO2PerKWH;
     private Double customDatacenterPUE;
     private Double customPerCoreWattX86;
@@ -63,29 +69,35 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
     // sample counts by default and remove this flag.
     private Boolean adjustSampleCount;
 
+    // This is only meant for testing and is intentionally not exposed in the REST API.
+    private Integer shardSeed;
+
     public GetStackTracesRequest() {
-        this(null, null, null, null, null, null, null, null, null, null, null);
+        this(null, null, null, null, null, null, null, null, null, null, null, null);
     }
 
     public GetStackTracesRequest(
         Integer sampleSize,
         Double requestedDuration,
         Double awsCostFactor,
+        Double azureCostFactor,
         QueryBuilder query,
-        String indices,
-        String stackTraceIds,
+        String[] indices,
+        String stackTraceIdsField,
         Double customCO2PerKWH,
         Double customDatacenterPUE,
         Double customPerCoreWattX86,
         Double customPerCoreWattARM64,
         Double customCostPerCoreHour
     ) {
-        this.sampleSize = sampleSize;
+        this.sampleSize = sampleSize != null ? sampleSize : DEFAULT_SAMPLE_SIZE;
         this.requestedDuration = requestedDuration;
         this.awsCostFactor = awsCostFactor;
+        this.azureCostFactor = azureCostFactor;
         this.query = query;
         this.indices = indices;
-        this.stackTraceIds = stackTraceIds;
+        this.userProvidedIndices = indices != null && indices.length > 0;
+        this.stackTraceIdsField = stackTraceIdsField;
         this.customCO2PerKWH = customCO2PerKWH;
         this.customDatacenterPUE = customDatacenterPUE;
         this.customPerCoreWattX86 = customPerCoreWattX86;
@@ -93,39 +105,13 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
         this.customCostPerCoreHour = customCostPerCoreHour;
     }
 
-    public GetStackTracesRequest(StreamInput in) throws IOException {
-        this.query = in.readOptionalNamedWriteable(QueryBuilder.class);
-        this.sampleSize = in.readOptionalInt();
-        this.requestedDuration = in.readOptionalDouble();
-        this.awsCostFactor = in.readOptionalDouble();
-        this.adjustSampleCount = in.readOptionalBoolean();
-        this.indices = in.readOptionalString();
-        this.stackTraceIds = in.readOptionalString();
-        this.customCO2PerKWH = in.readOptionalDouble();
-        this.customDatacenterPUE = in.readOptionalDouble();
-        this.customPerCoreWattX86 = in.readOptionalDouble();
-        this.customPerCoreWattARM64 = in.readOptionalDouble();
-        this.customCostPerCoreHour = in.readOptionalDouble();
-    }
-
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeOptionalNamedWriteable(query);
-        out.writeOptionalInt(sampleSize);
-        out.writeOptionalDouble(requestedDuration);
-        out.writeOptionalDouble(awsCostFactor);
-        out.writeOptionalBoolean(adjustSampleCount);
-        out.writeOptionalString(indices);
-        out.writeOptionalString(stackTraceIds);
-        out.writeOptionalDouble(customCO2PerKWH);
-        out.writeOptionalDouble(customDatacenterPUE);
-        out.writeOptionalDouble(customPerCoreWattX86);
-        out.writeOptionalDouble(customPerCoreWattARM64);
-        out.writeOptionalDouble(customCostPerCoreHour);
+    public void writeTo(StreamOutput out) {
+        TransportAction.localOnly();
     }
 
-    public Integer getSampleSize() {
-        return sampleSize != null ? sampleSize : DEFAULT_SAMPLE_SIZE;
+    public int getSampleSize() {
+        return sampleSize;
     }
 
     public Double getRequestedDuration() {
@@ -134,6 +120,10 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
 
     public Double getAwsCostFactor() {
         return awsCostFactor;
+    }
+
+    public Double getAzureCostFactor() {
+        return azureCostFactor;
     }
 
     public Double getCustomCO2PerKWH() {
@@ -160,12 +150,16 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
         return query;
     }
 
-    public String getIndices() {
+    public String[] getIndices() {
         return indices;
     }
 
-    public String getStackTraceIds() {
-        return stackTraceIds;
+    public boolean isUserProvidedIndices() {
+        return userProvidedIndices;
+    }
+
+    public String getStackTraceIdsField() {
+        return stackTraceIdsField;
     }
 
     public boolean isAdjustSampleCount() {
@@ -176,14 +170,21 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
         this.adjustSampleCount = adjustSampleCount;
     }
 
+    public Integer getShardSeed() {
+        return shardSeed;
+    }
+
+    public void setShardSeed(Integer shardSeed) {
+        this.shardSeed = shardSeed;
+    }
+
     public void parseXContent(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.currentToken();
         String currentFieldName = null;
         if (token != XContentParser.Token.START_OBJECT && (token = parser.nextToken()) != XContentParser.Token.START_OBJECT) {
             throw new ParsingException(
                 parser.getTokenLocation(),
-                "Expected [" + XContentParser.Token.START_OBJECT + "] but found [" + token + "]",
-                parser.getTokenLocation()
+                "Expected [" + XContentParser.Token.START_OBJECT + "] but found [" + token + "]."
             );
         }
 
@@ -193,14 +194,14 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
             } else if (token.isValue()) {
                 if (SAMPLE_SIZE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     this.sampleSize = parser.intValue();
-                } else if (INDICES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    this.indices = parser.text();
                 } else if (STACKTRACE_IDS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    this.stackTraceIds = parser.text();
+                    this.stackTraceIdsField = parser.text();
                 } else if (REQUESTED_DURATION_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     this.requestedDuration = parser.doubleValue();
                 } else if (AWS_COST_FACTOR_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     this.awsCostFactor = parser.doubleValue();
+                } else if (AZURE_COST_FACTOR_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                    this.azureCostFactor = parser.doubleValue();
                 } else if (CUSTOM_CO2_PER_KWH.match(currentFieldName, parser.getDeprecationHandler())) {
                     this.customCO2PerKWH = parser.doubleValue();
                 } else if (CUSTOM_DATACENTER_PUE.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -212,22 +213,21 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
                 } else if (CUSTOM_COST_PER_CORE_HOUR.match(currentFieldName, parser.getDeprecationHandler())) {
                     this.customCostPerCoreHour = parser.doubleValue();
                 } else {
-                    throw new ParsingException(
-                        parser.getTokenLocation(),
-                        "Unknown key for a " + token + " in [" + currentFieldName + "].",
-                        parser.getTokenLocation()
-                    );
+                    throw new ParsingException(parser.getTokenLocation(), "Unknown key for a " + token + " in [" + currentFieldName + "].");
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (QUERY_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     this.query = parseTopLevelQuery(parser);
                 }
+            } else if (token == XContentParser.Token.START_ARRAY) {
+                if (INDICES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                    this.indices = parseIndices(parser);
+                    this.userProvidedIndices = true;
+                } else {
+                    throw new ParsingException(parser.getTokenLocation(), "Unexpected token " + token + " in [" + currentFieldName + "].");
+                }
             } else {
-                throw new ParsingException(
-                    parser.getTokenLocation(),
-                    "Unknown key for a " + token + " in [" + currentFieldName + "].",
-                    parser.getTokenLocation()
-                );
+                throw new ParsingException(parser.getTokenLocation(), "Unknown key for a " + token + " in [" + currentFieldName + "].");
             }
         }
 
@@ -237,18 +237,40 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
         }
     }
 
+    private String[] parseIndices(XContentParser parser) throws IOException {
+        XContentParser.Token token;
+        List<String> indices = new ArrayList<>();
+        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+            if (token == XContentParser.Token.VALUE_STRING) {
+                indices.add(parser.text());
+            } else {
+                throw new ParsingException(
+                    parser.getTokenLocation(),
+                    "Expected ["
+                        + XContentParser.Token.VALUE_STRING
+                        + "] but found ["
+                        + token
+                        + "] in ["
+                        + INDICES_FIELD.getPreferredName()
+                        + "]."
+                );
+            }
+        }
+        return indices.toArray(new String[0]);
+    }
+
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (indices != null) {
-            if (stackTraceIds == null || stackTraceIds.isEmpty()) {
+        if (userProvidedIndices) {
+            if (stackTraceIdsField == null || stackTraceIdsField.isEmpty()) {
                 validationException = addValidationError(
                     "[" + STACKTRACE_IDS_FIELD.getPreferredName() + "] is mandatory",
                     validationException
                 );
             }
         } else {
-            if (stackTraceIds != null) {
+            if (stackTraceIdsField != null) {
                 validationException = addValidationError(
                     "[" + STACKTRACE_IDS_FIELD.getPreferredName() + "] must not be set",
                     validationException
@@ -258,6 +280,7 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
         validationException = requirePositive(SAMPLE_SIZE_FIELD, sampleSize, validationException);
         validationException = requirePositive(REQUESTED_DURATION_FIELD, requestedDuration, validationException);
         validationException = requirePositive(AWS_COST_FACTOR_FIELD, awsCostFactor, validationException);
+        validationException = requirePositive(AZURE_COST_FACTOR_FIELD, azureCostFactor, validationException);
         validationException = requirePositive(CUSTOM_CO2_PER_KWH, customCO2PerKWH, validationException);
         validationException = requirePositive(CUSTOM_DATACENTER_PUE, customDatacenterPUE, validationException);
         validationException = requirePositive(CUSTOM_PER_CORE_WATT_X86, customPerCoreWattX86, validationException);
@@ -283,10 +306,11 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
                 // generating description lazily since the query could be large
                 StringBuilder sb = new StringBuilder();
                 appendField(sb, "indices", indices);
-                appendField(sb, "stacktrace_ids", stackTraceIds);
+                appendField(sb, "stacktrace_ids_field", stackTraceIdsField);
                 appendField(sb, "sample_size", sampleSize);
                 appendField(sb, "requested_duration", requestedDuration);
                 appendField(sb, "aws_cost_factor", awsCostFactor);
+                appendField(sb, "azure_cost_factor", azureCostFactor);
                 appendField(sb, "co2_per_kwh", customCO2PerKWH);
                 appendField(sb, "datacenter_pue", customDatacenterPUE);
                 appendField(sb, "per_core_watt_x86", customPerCoreWattX86);
@@ -320,8 +344,8 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
         GetStackTracesRequest that = (GetStackTracesRequest) o;
         return Objects.equals(query, that.query)
             && Objects.equals(sampleSize, that.sampleSize)
-            && Objects.equals(indices, that.indices)
-            && Objects.equals(stackTraceIds, that.stackTraceIds);
+            && Arrays.equals(indices, that.indices)
+            && Objects.equals(stackTraceIdsField, that.stackTraceIdsField);
     }
 
     @Override
@@ -332,7 +356,7 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
         // Resampler to produce a consistent downsampling results, relying on the default hashCode implementation of `query` will
         // produce consistent results per node but not across the cluster. To avoid this, we produce the hashCode based on the
         // string representation instead, which will produce consistent results for the entire cluster and across node restarts.
-        return Objects.hash(Objects.toString(query, "null"), sampleSize, indices, stackTraceIds);
+        return Objects.hash(Objects.toString(query, "null"), sampleSize, Arrays.hashCode(indices), stackTraceIdsField);
     }
 
     @Override
@@ -341,10 +365,10 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
         indices.add("profiling-stacktraces");
         indices.add("profiling-stackframes");
         indices.add("profiling-executables");
-        if (this.indices == null) {
-            indices.addAll(EventsIndex.indexNames());
+        if (userProvidedIndices) {
+            indices.addAll(List.of(this.indices));
         } else {
-            indices.add(this.indices);
+            indices.addAll(EventsIndex.indexNames());
         }
         return indices.toArray(new String[0]);
     }
@@ -357,5 +381,19 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
     @Override
     public boolean includeDataStreams() {
         return true;
+    }
+
+    @Override
+    public IndicesRequest indices(String... indices) {
+        validateIndices(indices);
+        this.indices = indices;
+        return null;
+    }
+
+    private static void validateIndices(String... indices) {
+        Objects.requireNonNull(indices, "indices must not be null");
+        for (String index : indices) {
+            Objects.requireNonNull(index, "index must not be null");
+        }
     }
 }

@@ -61,8 +61,9 @@ public final class IpRangeAggregationBuilder extends ValuesSourceAggregationBuil
         PARSER.declareBoolean(IpRangeAggregationBuilder::keyed, RangeAggregator.KEYED_FIELD);
 
         PARSER.declareObjectArray((agg, ranges) -> {
-            for (Range range : ranges)
+            for (Range range : ranges) {
                 agg.addRange(range);
+            }
         }, (p, c) -> IpRangeAggregationBuilder.parseRange(p), RangeAggregator.RANGES_FIELD);
     }
 

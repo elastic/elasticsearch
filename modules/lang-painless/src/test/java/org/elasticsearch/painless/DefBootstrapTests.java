@@ -22,7 +22,11 @@ import java.util.Collections;
 import java.util.HashMap;
 
 public class DefBootstrapTests extends ESTestCase {
-    private final PainlessLookup painlessLookup = PainlessLookupBuilder.buildFromWhitelists(PainlessPlugin.BASE_WHITELISTS);
+    private final PainlessLookup painlessLookup = PainlessLookupBuilder.buildFromWhitelists(
+        PainlessPlugin.BASE_WHITELISTS,
+        new HashMap<>(),
+        new HashMap<>()
+    );
 
     /** calls toString() on integers, twice */
     public void testOneType() throws Throwable {

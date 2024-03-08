@@ -10,6 +10,8 @@ package org.elasticsearch.telemetry.apm;
 
 import io.opentelemetry.api.metrics.Meter;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.telemetry.apm.internal.metrics.DoubleAsyncCounterAdapter;
@@ -47,6 +49,7 @@ import java.util.function.Supplier;
  * {@link #setProvider(Meter)} is used to change the provider for all existing meterRegistrar.
  */
 public class APMMeterRegistry implements MeterRegistry {
+    private static final Logger logger = LogManager.getLogger(APMMeterRegistry.class);
     private final Registrar<DoubleCounterAdapter> doubleCounters = new Registrar<>();
     private final Registrar<DoubleAsyncCounterAdapter> doubleAsynchronousCounters = new Registrar<>();
     private final Registrar<DoubleUpDownCounterAdapter> doubleUpDownCounters = new Registrar<>();
@@ -207,6 +210,7 @@ public class APMMeterRegistry implements MeterRegistry {
 
     private <T extends AbstractInstrument<?>> T register(Registrar<T> registrar, T adapter) {
         assert registrars.contains(registrar) : "usage of unknown registrar";
+        logger.debug("Registering an instrument with name: " + adapter.getName());
         return registrar.register(adapter);
     }
 

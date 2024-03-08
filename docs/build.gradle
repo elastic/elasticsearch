@@ -111,9 +111,11 @@ testClusters.matching { it.name == "yamlRestTest"}.configureEach {
   systemProperty 'es.transport.cname_in_publish_address', 'true'
 
   requiresFeature 'es.index_mode_feature_flag_registered', Version.fromString("8.0.0")
+  requiresFeature 'es.failure_store_feature_flag_enabled', Version.fromString("8.12.0")
 
-  extraConfigFile 'op-jwks.json', project(':x-pack:test:idp-fixture').file("oidc/op-jwks.json")
-  extraConfigFile 'idp-docs-metadata.xml', project(':x-pack:test:idp-fixture').file("idp/shibboleth-idp/metadata/idp-docs-metadata.xml")
+  // TODO Rene: clean up this kind of cross project file references
+  extraConfigFile 'op-jwks.json', project(':x-pack:test:idp-fixture').file("src/main/resources/oidc/op-jwks.json")
+  extraConfigFile 'idp-docs-metadata.xml', project(':x-pack:test:idp-fixture').file("src/main/resources/idp/shibboleth-idp/metadata/idp-docs-metadata.xml")
   extraConfigFile 'testClient.crt', project(':x-pack:plugin:security').file("src/test/resources/org/elasticsearch/xpack/security/action/pki_delegation/testClient.crt")
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.security.authc.api_key.enabled', 'true'
@@ -1785,6 +1787,28 @@ setups['setup-snapshots'] = setups['setup-repository'] + '''
             "username": "jacknich",
             "password" : "l0ng-r4nd0m-p@ssw0rd"
           }
+'''
+  setups['sandrakn_user'] = '''
+  - do:
+      security.put_user:
+        username: "sandrakn"
+        body:  >
+          {
+            "password" : "l0ng-r4nd0m-p@ssw0rd",
+            "roles" : [ "admin", "other_role1" ],
+            "full_name" : "Sandra Knight",
+            "email" : "sandrakn@example.com",
+            "metadata" : { "intelligence" : 7 }
+          }
+  - do:
+      security.activate_user_profile:
+        body: >
+          {
+            "grant_type": "password",
+            "username": "sandrakn",
+            "password" : "l0ng-r4nd0m-p@ssw0rd"
+          }
+
 '''
   setups['app0102_privileges'] = '''
   - do:

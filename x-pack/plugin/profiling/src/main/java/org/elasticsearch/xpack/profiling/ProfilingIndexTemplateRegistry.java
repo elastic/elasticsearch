@@ -44,10 +44,11 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
     // version 1: initial
     // version 2: Added 'profiling.host.machine' keyword mapping to profiling-hosts
     // version 3: Add optional component template 'profiling-ilm@custom' to all ILM-managed index templates
-    public static final int INDEX_TEMPLATE_VERSION = 3;
+    // version 4: Added 'service.name' keyword mapping to profiling-events
+    public static final int INDEX_TEMPLATE_VERSION = 4;
 
     // history for individual indices / index templates. Only bump these for breaking changes that require to create a new index
-    public static final int PROFILING_EVENTS_VERSION = 1;
+    public static final int PROFILING_EVENTS_VERSION = 2;
     public static final int PROFILING_EXECUTABLES_VERSION = 1;
     public static final int PROFILING_METRICS_VERSION = 1;
     public static final int PROFILING_HOSTS_VERSION = 1;
@@ -174,11 +175,8 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
                 indexVersion("symbols", PROFILING_SYMBOLS_VERSION)
             )
         )) {
-            try {
-                componentTemplates.put(
-                    config.getTemplateName(),
-                    ComponentTemplate.parse(JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, config.loadBytes()))
-                );
+            try (var parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, config.loadBytes())) {
+                componentTemplates.put(config.getTemplateName(), ComponentTemplate.parse(parser));
             } catch (IOException e) {
                 throw new AssertionError(e);
             }

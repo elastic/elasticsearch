@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
@@ -36,6 +37,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskParams;
 import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
+import org.elasticsearch.xpack.transform.DefaultTransformExtension;
 import org.elasticsearch.xpack.transform.Transform;
 import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.checkpoint.TransformCheckpointService;
@@ -164,7 +166,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
             equalTo(
                 "Not starting transform [new-task-id], reasons ["
                     + "current-data-node-with-0-tasks-transform-remote-disabled:"
-                    + "transform requires a remote connection but remote is disabled"
+                    + "transform requires a remote connection but the node does not have the remote_cluster_client role"
                     + "]"
             )
         );
@@ -193,7 +195,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
             equalTo(
                 "Not starting transform [new-task-id], reasons ["
                     + "current-data-node-with-0-tasks-transform-remote-disabled:"
-                    + "transform requires a remote connection but remote is disabled"
+                    + "transform requires a remote connection but the node does not have the remote_cluster_client role"
                     + "|"
                     + "current-data-node-with-transform-disabled:not a transform node"
                     + "]"
@@ -444,7 +446,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
             transformsConfigManager,
             transformCheckpointService,
             mockAuditor,
-            new TransformScheduler(Clock.systemUTC(), threadPool, Settings.EMPTY)
+            new TransformScheduler(Clock.systemUTC(), threadPool, Settings.EMPTY, TimeValue.ZERO)
         );
 
         ClusterSettings cSettings = new ClusterSettings(Settings.EMPTY, Collections.singleton(Transform.NUM_FAILURE_RETRIES_SETTING));
@@ -457,7 +459,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
             threadPool,
             clusterService,
             Settings.EMPTY,
-            Settings.EMPTY,
+            new DefaultTransformExtension(),
             TestIndexNameExpressionResolver.newInstance()
         );
     }

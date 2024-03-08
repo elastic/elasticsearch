@@ -9,7 +9,6 @@ package org.elasticsearch.percolator;
 
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.ScoreMode;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -50,6 +49,7 @@ import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
 import static org.elasticsearch.index.query.QueryBuilders.scriptQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHitsWithoutFailures;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
@@ -407,25 +407,26 @@ public class PercolatorQuerySearchTests extends ESSingleNodeTestCase {
             """);
 
         QueryBuilder query = new PercolateQueryBuilder("my_query", List.of(house1_doc, house2_doc), XContentType.JSON);
-        SearchResponse response = client().prepareSearch("houses").setQuery(query).get();
-        assertEquals(2, response.getHits().getTotalHits().value);
+        assertResponse(client().prepareSearch("houses").setQuery(query), response -> {
+            assertEquals(2, response.getHits().getTotalHits().value);
 
-        SearchHit[] hits = response.getHits().getHits();
-        assertThat(hits[0].getFields().get("_percolator_document_slot").getValues(), equalTo(Arrays.asList(0, 1)));
-        assertThat(
-            hits[0].getFields().get("_percolator_document_slot_0_matched_queries").getValues(),
-            equalTo(Arrays.asList("fireplace_query", "detached_query", "3_bedrooms_query"))
-        );
-        assertThat(
-            hits[0].getFields().get("_percolator_document_slot_1_matched_queries").getValues(),
-            equalTo(Arrays.asList("fireplace_query", "3_bedrooms_query"))
-        );
+            SearchHit[] hits = response.getHits().getHits();
+            assertThat(hits[0].getFields().get("_percolator_document_slot").getValues(), equalTo(Arrays.asList(0, 1)));
+            assertThat(
+                hits[0].getFields().get("_percolator_document_slot_0_matched_queries").getValues(),
+                equalTo(Arrays.asList("fireplace_query", "detached_query", "3_bedrooms_query"))
+            );
+            assertThat(
+                hits[0].getFields().get("_percolator_document_slot_1_matched_queries").getValues(),
+                equalTo(Arrays.asList("fireplace_query", "3_bedrooms_query"))
+            );
 
-        assertThat(hits[1].getFields().get("_percolator_document_slot").getValues(), equalTo(Arrays.asList(0)));
-        assertThat(
-            hits[1].getFields().get("_percolator_document_slot_0_matched_queries").getValues(),
-            equalTo(Arrays.asList("swimming_pool_query", "3_bedrooms_query"))
-        );
+            assertThat(hits[1].getFields().get("_percolator_document_slot").getValues(), equalTo(Arrays.asList(0)));
+            assertThat(
+                hits[1].getFields().get("_percolator_document_slot_0_matched_queries").getValues(),
+                equalTo(Arrays.asList("swimming_pool_query", "3_bedrooms_query"))
+            );
+        });
     }
 
 }

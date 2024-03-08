@@ -13,7 +13,7 @@ image::esql/functions/signature/mv_sort.svg[Embedded,opts=inline]
 Multivalue expression. If `null`, the function returns `null`.
 
 `order`::
-Sort order. The valid options are ASC and DESC. If `null`, the multivalue expression is sorted in ascending order.
+Sort order. The valid options are ASC and DESC, the default is ASC.
 
 *Description*
 

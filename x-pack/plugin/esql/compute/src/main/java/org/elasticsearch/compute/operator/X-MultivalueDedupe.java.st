@@ -8,8 +8,8 @@
 package org.elasticsearch.compute.operator;
 
 import org.apache.lucene.util.ArrayUtil;
-import org.apache.lucene.util.BytesRef;
 $if(BytesRef)$
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.BytesRefHash;
 $else$
 import org.elasticsearch.common.util.LongHash;
@@ -18,19 +18,18 @@ import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.BytesRefBlock;
-$if(long)$
+$if(int)$
+import org.elasticsearch.compute.data.IntBlock;
+
+$elseif(long)$
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 
-$elseif(double)$
-import org.elasticsearch.compute.data.DoubleBlock;
-import org.elasticsearch.compute.data.IntBlock;
-
 $else$
+import org.elasticsearch.compute.data.$Type$Block;
 import org.elasticsearch.compute.data.IntBlock;
-$endif$
 
+$endif$
 import java.util.Arrays;
 
 /**
@@ -106,7 +105,7 @@ $endif$
                             writeUniquedWork(builder);
                         } else {
                             copyAndSort(first, count);
-                            writeSortedWork(builder);
+                            deduplicatedSortedWork(builder);
                         }
                     }
                 }
@@ -139,7 +138,7 @@ $endif$
     $endif$
                     default -> {
                         copyAndSort(first, count);
-                        writeSortedWork(builder);
+                        deduplicatedSortedWork(builder);
                     }
                 }
             }
@@ -184,7 +183,7 @@ $endif$
     /**
      * Sort values from each position and write the results to a {@link Block}.
      */
-    public $Type$Block sortToBlock(BlockFactory blockFactory, BytesRefBlock orderVal) {
+    public $Type$Block sortToBlock(BlockFactory blockFactory, boolean ascending) {
         try ($Type$Block.Builder builder = blockFactory.new$Type$BlockBuilder(block.getPositionCount())) {
             for (int p = 0; p < block.getPositionCount(); p++) {
                 int count = block.getValueCount(p);
@@ -198,9 +197,7 @@ $endif$
     $endif$
                     default -> {
                         copyAndSort(first, count);
-                        BytesRef orderScratch = new BytesRef();
-                        BytesRef order = orderVal.getBytesRef(orderVal.getFirstValueIndex(p), orderScratch);
-                        writeWork(builder, order.utf8ToString().equalsIgnoreCase("DESC") ? false : true);
+                        writeSortedWork(builder, ascending);
                     }
                 }
             }
@@ -401,11 +398,7 @@ $endif$
     /**
      * Writes a sorted {@link #work} to a {@link $Type$Block.Builder}, skipping duplicates.
      */
-    private void writeSortedWork($Type$Block.Builder builder) {
-        if (w == 1) {
-            builder.append$Type$(work[0]);
-            return;
-        }
+    private void deduplicatedSortedWork($Type$Block.Builder builder) {
         builder.beginPositionEntry();
         $type$ prev = work[0];
         builder.append$Type$(prev);
@@ -425,11 +418,7 @@ $endif$
     /**
      * Writes a {@link #work} to a {@link $Type$Block.Builder}.
      */
-    private void writeWork($Type$Block.Builder builder, boolean ascending) {
-        if (w == 1) {
-            builder.append$Type$(work[0]);
-            return;
-        }
+    private void writeSortedWork($Type$Block.Builder builder, boolean ascending) {
         builder.beginPositionEntry();
         for (int i = 0; i < w; i++) {
             if (ascending) {

@@ -79,7 +79,7 @@ public class MultivalueDedupeBytesRef {
                             writeUniquedWork(builder);
                         } else {
                             copyAndSort(first, count);
-                            writeSortedWork(builder);
+                            deduplicatedSortedWork(builder);
                         }
                     }
                 }
@@ -108,7 +108,7 @@ public class MultivalueDedupeBytesRef {
                     case 1 -> builder.appendBytesRef(block.getBytesRef(first, work[0]));
                     default -> {
                         copyAndSort(first, count);
-                        writeSortedWork(builder);
+                        deduplicatedSortedWork(builder);
                     }
                 }
             }
@@ -149,7 +149,7 @@ public class MultivalueDedupeBytesRef {
     /**
      * Sort values from each position and write the results to a {@link Block}.
      */
-    public BytesRefBlock sortToBlock(BlockFactory blockFactory, BytesRefBlock orderVal) {
+    public BytesRefBlock sortToBlock(BlockFactory blockFactory, boolean ascending) {
         try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(block.getPositionCount())) {
             for (int p = 0; p < block.getPositionCount(); p++) {
                 int count = block.getValueCount(p);
@@ -159,9 +159,7 @@ public class MultivalueDedupeBytesRef {
                     case 1 -> builder.appendBytesRef(block.getBytesRef(first, work[0]));
                     default -> {
                         copyAndSort(first, count);
-                        BytesRef orderScratch = new BytesRef();
-                        BytesRef order = orderVal.getBytesRef(orderVal.getFirstValueIndex(p), orderScratch);
-                        writeWork(builder, order.utf8ToString().equalsIgnoreCase("DESC") ? false : true);
+                        writeSortedWork(builder, ascending);
                     }
                 }
             }
@@ -323,11 +321,7 @@ public class MultivalueDedupeBytesRef {
     /**
      * Writes a sorted {@link #work} to a {@link BytesRefBlock.Builder}, skipping duplicates.
      */
-    private void writeSortedWork(BytesRefBlock.Builder builder) {
-        if (w == 1) {
-            builder.appendBytesRef(work[0]);
-            return;
-        }
+    private void deduplicatedSortedWork(BytesRefBlock.Builder builder) {
         builder.beginPositionEntry();
         BytesRef prev = work[0];
         builder.appendBytesRef(prev);
@@ -343,11 +337,7 @@ public class MultivalueDedupeBytesRef {
     /**
      * Writes a {@link #work} to a {@link BytesRefBlock.Builder}.
      */
-    private void writeWork(BytesRefBlock.Builder builder, boolean ascending) {
-        if (w == 1) {
-            builder.appendBytesRef(work[0]);
-            return;
-        }
+    private void writeSortedWork(BytesRefBlock.Builder builder, boolean ascending) {
         builder.beginPositionEntry();
         for (int i = 0; i < w; i++) {
             if (ascending) {

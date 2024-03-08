@@ -8,13 +8,11 @@
 package org.elasticsearch.compute.operator;
 
 import org.apache.lucene.util.ArrayUtil;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.IntBlock;
 
 import java.util.Arrays;
@@ -78,7 +76,7 @@ public class MultivalueDedupeInt {
                             writeUniquedWork(builder);
                         } else {
                             copyAndSort(first, count);
-                            writeSortedWork(builder);
+                            deduplicatedSortedWork(builder);
                         }
                     }
                 }
@@ -107,7 +105,7 @@ public class MultivalueDedupeInt {
                     case 1 -> builder.appendInt(block.getInt(first));
                     default -> {
                         copyAndSort(first, count);
-                        writeSortedWork(builder);
+                        deduplicatedSortedWork(builder);
                     }
                 }
             }
@@ -148,7 +146,7 @@ public class MultivalueDedupeInt {
     /**
      * Sort values from each position and write the results to a {@link Block}.
      */
-    public IntBlock sortToBlock(BlockFactory blockFactory, BytesRefBlock orderVal) {
+    public IntBlock sortToBlock(BlockFactory blockFactory, boolean ascending) {
         try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(block.getPositionCount())) {
             for (int p = 0; p < block.getPositionCount(); p++) {
                 int count = block.getValueCount(p);
@@ -158,9 +156,7 @@ public class MultivalueDedupeInt {
                     case 1 -> builder.appendInt(block.getInt(first));
                     default -> {
                         copyAndSort(first, count);
-                        BytesRef orderScratch = new BytesRef();
-                        BytesRef order = orderVal.getBytesRef(orderVal.getFirstValueIndex(p), orderScratch);
-                        writeWork(builder, order.utf8ToString().equalsIgnoreCase("DESC") ? false : true);
+                        writeSortedWork(builder, ascending);
                     }
                 }
             }
@@ -314,11 +310,7 @@ public class MultivalueDedupeInt {
     /**
      * Writes a sorted {@link #work} to a {@link IntBlock.Builder}, skipping duplicates.
      */
-    private void writeSortedWork(IntBlock.Builder builder) {
-        if (w == 1) {
-            builder.appendInt(work[0]);
-            return;
-        }
+    private void deduplicatedSortedWork(IntBlock.Builder builder) {
         builder.beginPositionEntry();
         int prev = work[0];
         builder.appendInt(prev);
@@ -334,11 +326,7 @@ public class MultivalueDedupeInt {
     /**
      * Writes a {@link #work} to a {@link IntBlock.Builder}.
      */
-    private void writeWork(IntBlock.Builder builder, boolean ascending) {
-        if (w == 1) {
-            builder.appendInt(work[0]);
-            return;
-        }
+    private void writeSortedWork(IntBlock.Builder builder, boolean ascending) {
         builder.beginPositionEntry();
         for (int i = 0; i < w; i++) {
             if (ascending) {

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -23,11 +24,13 @@ import org.elasticsearch.compute.operator.MultivalueDedupeBytesRef;
 import org.elasticsearch.compute.operator.MultivalueDedupeDouble;
 import org.elasticsearch.compute.operator.MultivalueDedupeInt;
 import org.elasticsearch.compute.operator.MultivalueDedupeLong;
+import org.elasticsearch.xpack.esql.capabilities.Validatable;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
+import org.elasticsearch.xpack.ql.common.Failures;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.function.OptionalArgument;
@@ -43,6 +46,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.Function;
 
+import static org.elasticsearch.xpack.esql.expression.Validations.isFoldable;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
@@ -51,12 +55,10 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
 /**
  * Sorts a multivalued field in lexicographical order.
  */
-public class MvSort extends ScalarFunction implements OptionalArgument, EvaluatorMapper {
+public class MvSort extends ScalarFunction implements OptionalArgument, EvaluatorMapper, Validatable {
     private final Expression field, order;
 
     private static final Literal ASC = new Literal(Source.EMPTY, "ASC", DataTypes.TEXT);
-
-    private static final Literal DESC = new Literal(Source.EMPTY, "DESC", DataTypes.TEXT);
 
     @FunctionInfo(
         returnType = { "boolean", "date", "double", "integer", "ip", "keyword", "long", "text", "version" },
@@ -111,41 +113,38 @@ public class MvSort extends ScalarFunction implements OptionalArgument, Evaluato
             case BOOLEAN -> new MvSort.EvaluatorFactory(
                 toEvaluator.apply(field),
                 toEvaluator.apply(order),
-                (blockFactory, fieldBlock, orderBlock) -> new MultivalueDedupeBoolean((BooleanBlock) fieldBlock).sortToBlock(
+                (blockFactory, fieldBlock, ascending) -> new MultivalueDedupeBoolean((BooleanBlock) fieldBlock).sortToBlock(
                     blockFactory,
-                    orderBlock
+                    ascending
                 )
             );
             case BYTES_REF -> new MvSort.EvaluatorFactory(
                 toEvaluator.apply(field),
                 toEvaluator.apply(order),
-                (blockFactory, fieldBlock, orderBlock) -> new MultivalueDedupeBytesRef((BytesRefBlock) fieldBlock).sortToBlock(
+                (blockFactory, fieldBlock, ascending) -> new MultivalueDedupeBytesRef((BytesRefBlock) fieldBlock).sortToBlock(
                     blockFactory,
-                    orderBlock
+                    ascending
                 )
             );
             case INT -> new MvSort.EvaluatorFactory(
                 toEvaluator.apply(field),
                 toEvaluator.apply(order),
-                (blockFactory, fieldBlock, orderBlock) -> new MultivalueDedupeInt((IntBlock) fieldBlock).sortToBlock(
-                    blockFactory,
-                    orderBlock
-                )
+                (blockFactory, fieldBlock, ascending) -> new MultivalueDedupeInt((IntBlock) fieldBlock).sortToBlock(blockFactory, ascending)
             );
             case LONG -> new MvSort.EvaluatorFactory(
                 toEvaluator.apply(field),
                 toEvaluator.apply(order),
-                (blockFactory, fieldBlock, orderBlock) -> new MultivalueDedupeLong((LongBlock) fieldBlock).sortToBlock(
+                (blockFactory, fieldBlock, ascending) -> new MultivalueDedupeLong((LongBlock) fieldBlock).sortToBlock(
                     blockFactory,
-                    orderBlock
+                    ascending
                 )
             );
             case DOUBLE -> new MvSort.EvaluatorFactory(
                 toEvaluator.apply(field),
                 toEvaluator.apply(order),
-                (blockFactory, fieldBlock, orderBlock) -> new MultivalueDedupeDouble((DoubleBlock) fieldBlock).sortToBlock(
+                (blockFactory, fieldBlock, ascending) -> new MultivalueDedupeDouble((DoubleBlock) fieldBlock).sortToBlock(
                     blockFactory,
-                    orderBlock
+                    ascending
                 )
             );
             case NULL -> EvalOperator.CONSTANT_NULL_FACTORY;
@@ -156,7 +155,7 @@ public class MvSort extends ScalarFunction implements OptionalArgument, Evaluato
     private record EvaluatorFactory(
         EvalOperator.ExpressionEvaluator.Factory field,
         EvalOperator.ExpressionEvaluator.Factory order,
-        TriFunction<BlockFactory, Block, BytesRefBlock, Block> sort
+        TriFunction<BlockFactory, Block, Boolean, Block> sort
     ) implements EvalOperator.ExpressionEvaluator.Factory {
         @Override
         public EvalOperator.ExpressionEvaluator get(DriverContext context) {
@@ -173,13 +172,13 @@ public class MvSort extends ScalarFunction implements OptionalArgument, Evaluato
         private final BlockFactory blockFactory;
         private final EvalOperator.ExpressionEvaluator field;
         private final EvalOperator.ExpressionEvaluator order;
-        private final TriFunction<BlockFactory, Block, BytesRefBlock, Block> sort;
+        private final TriFunction<BlockFactory, Block, Boolean, Block> sort;
 
         protected Evaluator(
             BlockFactory blockFactory,
             EvalOperator.ExpressionEvaluator field,
             EvalOperator.ExpressionEvaluator order,
-            TriFunction<BlockFactory, Block, BytesRefBlock, Block> sort
+            TriFunction<BlockFactory, Block, Boolean, Block> sort
         ) {
             this.blockFactory = blockFactory;
             this.field = field;
@@ -191,7 +190,19 @@ public class MvSort extends ScalarFunction implements OptionalArgument, Evaluato
         public Block eval(Page page) {
             try (Block fieldBlock = field.eval(page)) {
                 try (BytesRefBlock orderBlock = (BytesRefBlock) order.eval(page)) {
-                    return sort.apply(blockFactory, fieldBlock, orderBlock);
+                    boolean ascending = orderBlock.areAllValuesNull();  // if all are nulls, default is ascending
+                    if (ascending == false) { // the first not null value decides the order
+                        for (int p = 0; p < orderBlock.getPositionCount(); p++) {
+                            int count = orderBlock.getValueCount(p);
+                            if (count > 0) {
+                                BytesRef orderScratch = new BytesRef();
+                                BytesRef sortOrder = orderBlock.getBytesRef(orderBlock.getFirstValueIndex(p), orderScratch);
+                                ascending = sortOrder.utf8ToString().equalsIgnoreCase("DESC") == false;
+                                break;
+                            }
+                        }
+                    }
+                    return sort.apply(blockFactory, fieldBlock, ascending);
                 }
             }
         }
@@ -244,4 +255,9 @@ public class MvSort extends ScalarFunction implements OptionalArgument, Evaluato
         return Objects.equals(other.field, field) && Objects.equals(other.order, order);
     }
 
+    @Override
+    public void validate(Failures failures) {
+        String operation = sourceText();
+        failures.add(isFoldable(order, operation, SECOND));
+    }
 }

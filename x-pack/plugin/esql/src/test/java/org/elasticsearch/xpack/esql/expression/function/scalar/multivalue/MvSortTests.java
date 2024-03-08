@@ -10,11 +10,11 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.ArrayList;
@@ -24,7 +24,7 @@ import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class MvSortTests extends AbstractScalarFunctionTestCase {
+public class MvSortTests extends AbstractFunctionTestCase {
     public MvSortTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -41,22 +41,11 @@ public class MvSortTests extends AbstractScalarFunctionTestCase {
     }
 
     @Override
-    protected DataType expectedType(List<DataType> argTypes) {
-        return argTypes.get(0);
-    }
-
-    @Override
-    protected List<ArgumentSpec> argSpec() {
-        return List.of(required(representableTypes()), optional(strings()));
-    }
-
-    @Override
     protected Expression build(Source source, List<Expression> args) {
         return new MvSort(source, args.get(0), args.size() > 1 ? args.get(1) : null);
     }
 
     private static void booleans(List<TestCaseSupplier> suppliers) {
-        // Positive
         suppliers.add(new TestCaseSupplier(List.of(DataTypes.BOOLEAN, DataTypes.KEYWORD), () -> {
             List<Boolean> field = randomList(1, 10, () -> randomBoolean());
             String order = "ASC";
@@ -110,7 +99,7 @@ public class MvSortTests extends AbstractScalarFunctionTestCase {
             return new TestCaseSupplier.TestCase(
                 List.of(
                     new TestCaseSupplier.TypedData(field, DataTypes.DATETIME, "field"),
-                    new TestCaseSupplier.TypedData(order, DataTypes.KEYWORD, "order")
+                    new TestCaseSupplier.TypedData(new BytesRef(order), DataTypes.KEYWORD, "order")
                 ),
                 "MvSort[field=Attribute[channel=0], order=Attribute[channel=1]]",
                 DataTypes.DATETIME,

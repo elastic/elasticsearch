@@ -7,11 +7,9 @@
 
 package org.elasticsearch.compute.operator;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
-import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 
@@ -65,7 +63,7 @@ public class MultivalueDedupeBoolean {
         }
     }
 
-    public BooleanBlock sortToBlock(BlockFactory blockFactory, BytesRefBlock orderVal) {
+    public BooleanBlock sortToBlock(BlockFactory blockFactory, boolean ascending) {
         try (BooleanBlock.Builder builder = blockFactory.newBooleanBlockBuilder(block.getPositionCount())) {
             for (int p = 0; p < block.getPositionCount(); p++) {
                 int totalCount = block.getValueCount(p);
@@ -76,9 +74,6 @@ public class MultivalueDedupeBoolean {
                     default -> {
                         int trueCount = countTrue(first, totalCount);
                         builder.beginPositionEntry();
-                        BytesRef orderScratch = new BytesRef();
-                        BytesRef order = orderVal.getBytesRef(orderVal.getFirstValueIndex(p), orderScratch);
-                        boolean ascending = order.utf8ToString().equalsIgnoreCase("DESC") ? false : true;
                         if (ascending) {
                             writeValues(builder, false, 1, totalCount - trueCount);
                             writeValues(builder, true, totalCount - trueCount + 1, totalCount);

@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.cohere.rerank.CohereRerankModel;
 
 import java.util.Map;
 import java.util.Objects;
@@ -33,5 +34,12 @@ public class CohereActionCreator implements CohereActionVisitor {
         var overriddenModel = CohereEmbeddingsModel.of(model, taskSettings, inputType);
 
         return new CohereEmbeddingsAction(sender, overriddenModel);
+    }
+
+    @Override
+    public ExecutableAction create(CohereRerankModel model, Map<String, Object> taskSettings, InputType inputType) {
+        var overriddenModel = CohereRerankModel.of(model, taskSettings, inputType);
+
+        return new CohereRerankAction(sender, overriddenModel);
     }
 }

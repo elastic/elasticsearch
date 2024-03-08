@@ -182,7 +182,7 @@ string:keyword                                          |datetime:date
 // end::to_datetime-str-result[]
 ;
 
-convertFromUnsignedLong#[skip:-8.11.99, reason:ql exceptions were updated in 8.12]
+convertFromUnsignedLong#[skip:-8.13.99, reason:warning messages changed in 8.14]
 row ul = [9223372036854775808, 520128000000] | eval dt = to_datetime(ul);
 warning:Line 1:58: evaluation of [to_datetime(ul)] failed, treating result as null. Only first 20 failures recorded.
 warning:Line 1:58: org.elasticsearch.xpack.qlcore.InvalidArgumentException: [9223372036854775808] out of [long] range
@@ -450,7 +450,7 @@ dd_m1:integer   | dd_m2:integer | dd_m3:integer | dd_q1:integer | dd_q2:integer 
 12              | 12            | 12            | 4             | 4             | 4             | 1             | 1             | 1                                     
 ;
 
-evalDateDiffErrorOutOfIntegerRange#[skip:-8.12.99, reason:date_diff added in 8.13]
+evalDateDiffErrorOutOfIntegerRange#[skip:-8.13.99, reason:warning messages changed in 8.14]
 ROW date1=to_datetime("2023-12-02T11:00:00.000Z"), date2=to_datetime("2023-12-23T11:00:00.000Z") 
 | EVAL dd_oo=date_diff("nanoseconds", date1, date2)
 | keep dd_oo

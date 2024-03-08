@@ -313,6 +313,7 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
             .checkDatafeedTaskCanBeCreated();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/106107")
     public void testIndexDoesntExist() {
         Job job = createScheduledJob("job_id").build(new Date());
         DatafeedConfig df = createDatafeed("datafeed_id", job.getId(), Collections.singletonList("not_foo"));
@@ -497,6 +498,7 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
             .checkDatafeedTaskCanBeCreated();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/106108")
     public void testSelectNode_GivenJobOpeningAndIndexDoesNotExist() {
         // Here we test that when there are 2 problems, the most critical gets reported first.
         // In this case job is Opening (non-critical) and the index does not exist (critical)

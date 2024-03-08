@@ -322,20 +322,22 @@ public class LocalHealthMonitor implements ClusterStateListener {
             if (cancelled) {
                 return;
             }
-            boolean nextRunScheduled = false;
-            Runnable scheduleNextRun = new RunOnce(this::scheduleNextRunIfNecessary);
             // Before we do anything, we're first going to make sure there is no in-flight request at this moment.
             // If that's the case, we'll acquire the "lock", which prevents any other thread/instance from sending any requests.
             if (inFlightRequest.compareAndSet(false, true) == false) {
                 logger.debug("Not allowed to send health info update request due to in-flight request, will try again.");
-                scheduleNextRun.run();
+                scheduleNextRunIfNecessary();
                 return;
             }
+            boolean nextRunScheduled = false;
+            Runnable releaseAndScheduleNextRun = new RunOnce(() -> {
+                inFlightRequest.set(false);
+                scheduleNextRunIfNecessary();
+            });
             try {
                 List<HealthTracker.HealthProgress<?>> healthProgresses = getHealthProgresses();
                 if (healthProgresses.isEmpty()) {
                     // Next run will still be scheduled in the `finally` block.
-                    inFlightRequest.set(false);
                     return;
                 }
                 // Create builder and add the current value of each (changed) health tracker to the request.
@@ -349,25 +351,26 @@ public class LocalHealthMonitor implements ClusterStateListener {
                     if (cancelled == false) {
                         healthProgresses.forEach(HealthTracker.HealthProgress::recordProgressIfRelevant);
                     }
-                    inFlightRequest.set(false);
                 }, e -> {
                     if (e.getCause() instanceof NodeNotConnectedException || e.getCause() instanceof HealthNodeNotDiscoveredException) {
                         logger.debug("Failed to connect to the health node [{}], will try again.", e.getCause().getMessage());
                     } else {
                         logger.debug(() -> format("Failed to send health info to health node, will try again."), e);
                     }
-                    inFlightRequest.set(false);
                 });
-                client.execute(UpdateHealthInfoCacheAction.INSTANCE, builder.build(), ActionListener.runAfter(listener, scheduleNextRun));
+                client.execute(
+                    UpdateHealthInfoCacheAction.INSTANCE,
+                    builder.build(),
+                    ActionListener.runAfter(listener, releaseAndScheduleNextRun)
+                );
                 nextRunScheduled = true;
             } catch (Exception e) {
                 logger.warn(() -> format("Failed to run scheduled health monitoring on thread pool [%s]", executor), e);
                 // Make sure to release the "lock" in case something goes wrong, so we can try again in the next iteration.
-                inFlightRequest.set(false);
             } finally {
                 // If the next run isn't scheduled because for example the health info hasn't changed, we schedule it here.
                 if (nextRunScheduled == false) {
-                    scheduleNextRun.run();
+                    releaseAndScheduleNextRun.run();
                 }
             }
         }

@@ -1760,7 +1760,7 @@ public final class OptimizerRules {
          * If a match is found, the matching expression will be replaced by the replacer result
          * or removed if null is returned.
          */
-        protected static boolean replace(
+        private static boolean replace(
             Iterable<Expression> pattern,
             List<Expression> target,
             List<Expression> originalExpressions,
@@ -1856,7 +1856,7 @@ public final class OptimizerRules {
             return changed ? resolvedExpressions : emptySet();
         }
 
-        protected boolean doResolve(Expression exp, AttributeMap<Expression> aliases, Set<Expression> resolvedExpressions) {
+        private boolean doResolve(Expression exp, AttributeMap<Expression> aliases, Set<Expression> resolvedExpressions) {
             boolean changed = false;
             // check if the expression can be skipped or is not nullabe
             if (skipExpression(exp)) {

@@ -171,7 +171,7 @@ public class FieldsVisitor extends FieldNamesProvidingStoredFieldsVisitor {
             // In time-series indexes, the routing hash is stored in the first 4 bytes of the id.
             // To retrieve it as routing param, we first need to decode the id, then encode these first 4 bytes.
             byte[] idBytes = Base64.getUrlDecoder().decode(id);
-            return Base64.getUrlEncoder().encodeToString(Arrays.copyOf(idBytes, 4));
+            return Base64.getUrlEncoder().withoutPadding().encodeToString(Arrays.copyOf(idBytes, 4));
         }
         if (fieldsValues == null) {
             return null;

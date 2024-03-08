@@ -1849,6 +1849,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         assertThat(failureStoreDataStream.getFailureStoreWriteIndex(), is(writeFailureIndex));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/106123")
     public void testIsFailureIndex() {
         boolean hidden = randomBoolean();
         boolean system = hidden && randomBoolean();

@@ -263,7 +263,7 @@ final class IndexShardOperationPermits implements Closeable {
                 if (isBlocked()) {
                     logger.info(
                         Strings.format(
-                            "[{}] releasing operation permit while block is pending, [{}] permits held",
+                            "[%s] releasing operation permit while block is pending, [%d] permits held",
                             shardId,
                             TOTAL_PERMITS - semaphore.availablePermits()
                         ),

@@ -1,5 +1,4 @@
 apply plugin: 'elasticsearch.legacy-java-rest-test'
-apply plugin: 'elasticsearch.bwc-test'
 
 dependencies {
   javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
@@ -16,7 +15,6 @@ dependencies {
   javaRestTestImplementation project(path: xpackModule('monitoring'))
   javaRestTestImplementation project(path: xpackModule('transform'))
   javaRestTestImplementation project(path: xpackModule('rank-rrf'))
-  javaRestTestImplementation(testArtifact(project(":qa:full-cluster-restart"), "javaRestTest"))
 }
 
 // location for keys and certificates

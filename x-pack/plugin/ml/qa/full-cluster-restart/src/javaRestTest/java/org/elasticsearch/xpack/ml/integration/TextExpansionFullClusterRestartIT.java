@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.ml.integration;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.gradle.testclusters.ElasticsearchCluster;
 import org.junit.ClassRule;
 
 import static org.apache.lucene.tests.util.LuceneTestCase.assumeTrue;

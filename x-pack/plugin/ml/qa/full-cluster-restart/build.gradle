@@ -1,0 +1,18 @@
+apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.bwc-test'
+
+dependencies {
+  javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
+  javaRestTestImplementation(testArtifact(project(xpackModule('ml'))))
+  javaRestTestImplementation(testArtifact(project(":qa:full-cluster-restart"), "javaRestTest"))
+}
+
+assert Version.fromString(VersionProperties.getVersions().get("elasticsearch")).getMajor() == 8:
+  "If we are targeting a branch other than 8, we should enable migration tests"
+
+BuildParams.bwcVersions.withWireCompatible(v -> v.after("8.8.0")) { bwcVersion, baseName ->
+  tasks.register(bwcTaskName(bwcVersion), StandaloneRestIntegTestTask) {
+    usesBwcDistribution(bwcVersion)
+    systemProperty("tests.old_cluster_version", bwcVersion)
+  }
+}

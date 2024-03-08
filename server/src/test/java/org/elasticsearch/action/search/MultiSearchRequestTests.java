@@ -336,9 +336,7 @@ public class MultiSearchRequestTests extends ESTestCase {
                     new UsageService().getSearchUsageHolder(),
                     nf -> false
                 );
-                if (searchSourceBuilder.equals(new SearchSourceBuilder()) == false) {
-                    r.source(searchSourceBuilder);
-                }
+                r.source(searchSourceBuilder);
                 parsedRequest.add(r);
             };
             MultiSearchRequest.readMultiLineFormat(
@@ -628,6 +626,11 @@ public class MultiSearchRequestTests extends ESTestCase {
         MultiSearchRequest request = new MultiSearchRequest();
         for (int j = 0; j < numSearchRequest; j++) {
             SearchRequest searchRequest = createSimpleSearchRequest();
+            // TODO Check this is OK
+            // SearchSourceBuilder is always created when parsing a search request
+            if (searchRequest.source() == null) {
+                searchRequest.source(new SearchSourceBuilder());
+            }
 
             if (randomBoolean()) {
                 searchRequest.allowPartialSearchResults(true);

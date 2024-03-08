@@ -53,6 +53,7 @@ import co.elastic.elasticsearch.stateless.commits.ClosedShardService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitCleaner;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
+import co.elastic.elasticsearch.stateless.engine.RefreshThrottler;
 import co.elastic.elasticsearch.stateless.engine.RefreshThrottlingService;
 import co.elastic.elasticsearch.stateless.engine.SearchEngine;
 import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicator;
@@ -112,6 +113,7 @@ import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -180,6 +182,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
+import java.util.function.LongConsumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -801,6 +805,24 @@ public class Stateless extends Plugin
         );
     }
 
+    protected IndexEngine newIndexEngine(
+        EngineConfig engineConfig,
+        TranslogReplicator translogReplicator,
+        Function<String, BlobContainer> translogBlobContainer,
+        StatelessCommitService statelessCommitService,
+        RefreshThrottler.Factory refreshThrottlerFactory,
+        LongConsumer closedReadersForGenerationConsumer
+    ) {
+        return new IndexEngine(
+            engineConfig,
+            translogReplicator,
+            translogBlobContainer,
+            statelessCommitService,
+            refreshThrottlerFactory,
+            closedReadersForGenerationConsumer
+        );
+    }
+
     @Override
     public Optional<EngineFactory> getEngineFactory(IndexSettings indexSettings) {
         return Optional.of(config -> {
@@ -845,7 +867,7 @@ public class Stateless extends Plugin
                     config.getIndexCommitListener(),
                     config.isPromotableToPrimary()
                 );
-                return new IndexEngine(
+                return newIndexEngine(
                     newConfig,
                     translogReplicator.get(),
                     getObjectStoreService()::getTranslogBlobContainer,

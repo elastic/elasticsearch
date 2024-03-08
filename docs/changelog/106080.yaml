@@ -1,5 +1,0 @@
-pr: 106080
-summary: Introduce `TimeSeriesRoutingIdFieldMapper` and use it to create TSDB ids
-area: TSDB
-type: enhancement
-issues: []

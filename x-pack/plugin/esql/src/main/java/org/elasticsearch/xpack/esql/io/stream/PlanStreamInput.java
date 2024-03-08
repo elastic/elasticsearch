@@ -104,6 +104,10 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput {
         return readNamed(PhysicalPlan.class);
     }
 
+    public PhysicalPlan readOptionalPhysicalPlanNode() throws IOException {
+        return readOptionalNamed(PhysicalPlan.class);
+    }
+
     public Source readSource() throws IOException {
         boolean hasSource = readBoolean();
         return hasSource ? readSourceWithText(this, configuration.query()) : Source.EMPTY;

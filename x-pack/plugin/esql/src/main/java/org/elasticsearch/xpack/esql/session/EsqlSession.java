@@ -132,7 +132,7 @@ public class EsqlSession {
                     // TODO: filter integration testing
                     filter = fragmentFilter != null ? boolQuery().filter(fragmentFilter).must(filter) : filter;
                     LOGGER.debug("Fold filter {} to EsQueryExec", filter);
-                    f = new FragmentExec(f.source(), f.fragment(), filter, f.estimatedRowSize());
+                    f = f.withFilter(filter);
                 }
                 return f;
             })))

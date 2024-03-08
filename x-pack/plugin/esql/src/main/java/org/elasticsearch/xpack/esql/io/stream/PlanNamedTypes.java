@@ -623,7 +623,8 @@ public final class PlanNamedTypes {
             in.readSource(),
             in.readLogicalPlanNode(),
             in.readOptionalNamedWriteable(QueryBuilder.class),
-            in.readOptionalVInt()
+            in.readOptionalVInt(),
+            in.readOptionalPhysicalPlanNode()
         );
     }
 
@@ -632,6 +633,7 @@ public final class PlanNamedTypes {
         out.writeLogicalPlanNode(fragmentExec.fragment());
         out.writeOptionalNamedWriteable(fragmentExec.esFilter());
         out.writeOptionalVInt(fragmentExec.estimatedRowSize());
+        out.writeOptionalPhysicalPlanNode(fragmentExec.reducer());
     }
 
     static GrokExec readGrokExec(PlanStreamInput in) throws IOException {

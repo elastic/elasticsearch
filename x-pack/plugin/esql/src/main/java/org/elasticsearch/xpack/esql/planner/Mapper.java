@@ -116,7 +116,7 @@ public class Mapper {
         throw new EsqlIllegalArgumentException("unsupported logical plan node [" + p.nodeName() + "]");
     }
 
-    private static boolean isPipelineBreaker(LogicalPlan p) {
+    public static boolean isPipelineBreaker(LogicalPlan p) {
         return p instanceof Aggregate || p instanceof TopN || p instanceof Limit || p instanceof OrderBy;
     }
 

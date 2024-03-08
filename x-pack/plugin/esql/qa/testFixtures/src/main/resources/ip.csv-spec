@@ -62,9 +62,9 @@ eth2           |epsilon        |[fe81::cae2:65ff:fece:feb9, fe82::cae2:65ff:fece
 lessThan
 required_feature: esql.mv_warn
 
-from hosts | sort host, card | where ip0 < ip1 | keep card, host, ip0, ip1;
-warning:Line 1:38: evaluation of [ip0 < ip1] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:38: java.lang.IllegalArgumentException: single-value function encountered multi-value
+from hosts | sort host, card, ip1 | where ip0 < ip1 | keep card, host, ip0, ip1;
+warning:Line 1:43: evaluation of [ip0 < ip1] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:43: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 card:keyword   |host:keyword   |ip0:ip                   |ip1:ip
 eth1           |beta           |127.0.0.1                |127.0.0.2

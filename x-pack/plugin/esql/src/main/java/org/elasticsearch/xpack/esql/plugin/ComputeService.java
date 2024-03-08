@@ -64,6 +64,7 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
+import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
@@ -288,11 +289,16 @@ public class ComputeService {
         ActionListener<Void> parentListener,
         Supplier<ActionListener<ComputeResponse>> dataNodeListenerSupplier
     ) {
+        var planWithReducer = dataNodePlan.transformUp(FragmentExec.class, f -> {
+            PhysicalPlan reductionNode = PlannerUtils.dataNodeReductionPlan(f.fragment(), dataNodePlan);
+            return reductionNode == null ? f : f.withReducer(reductionNode);
+        });
+
         // The lambda is to say if a TEXT field has an identical exact subfield
         // We cannot use SearchContext because we don't have it yet.
         // Since it's used only for @timestamp, it is relatively safe to assume it's not needed
         // but it would be better to have a proper impl.
-        QueryBuilder requestFilter = PlannerUtils.requestFilter(dataNodePlan, x -> true);
+        QueryBuilder requestFilter = PlannerUtils.requestFilter(planWithReducer, x -> true);
         lookupDataNodes(parentTask, clusterAlias, requestFilter, concreteIndices, originalIndices, ActionListener.wrap(dataNodes -> {
             try (RefCountingRunnable refs = new RefCountingRunnable(() -> parentListener.onResponse(null))) {
                 // For each target node, first open a remote exchange on the remote node, then link the exchange source to
@@ -312,7 +318,14 @@ public class ComputeService {
                             transportService.sendChildRequest(
                                 node.connection,
                                 DATA_ACTION_NAME,
-                                new DataNodeRequest(sessionId, configuration, clusterAlias, node.shardIds, node.aliasFilters, dataNodePlan),
+                                new DataNodeRequest(
+                                    sessionId,
+                                    configuration,
+                                    clusterAlias,
+                                    node.shardIds,
+                                    node.aliasFilters,
+                                    planWithReducer
+                                ),
                                 parentTask,
                                 TransportRequestOptions.EMPTY,
                                 new ActionListenerResponseHandler<>(delegate, ComputeResponse::new, esqlExecutor)
@@ -409,6 +422,9 @@ public class ComputeService {
 
             LOGGER.debug("Received physical plan:\n{}", plan);
             plan = PlannerUtils.localPlan(context.searchContexts, context.configuration, plan);
+            // the planner will also set the driver parallelism in LocalExecutionPlanner.LocalExecutionPlan (used down below)
+            // it's doing this in the planning of EsQueryExec (the source of the data)
+            // see also EsPhysicalOperationProviders.sourcePhysicalOperation
             LocalExecutionPlanner.LocalExecutionPlan localExecutionPlan = planner.plan(plan);
 
             if (LOGGER.isDebugEnabled()) {
@@ -732,11 +748,19 @@ public class ComputeService {
             final ActionListener<ComputeResponse> listener = new ChannelActionListener<>(channel);
             final ExchangeSinkExec reducePlan;
             if (request.plan() instanceof ExchangeSinkExec plan) {
+                var fragments = plan.collectFirstChildren(FragmentExec.class::isInstance);
+                if (fragments.isEmpty()) {
+                    listener.onFailure(new IllegalStateException("expected a fragment plan for a remote compute; got " + request.plan()));
+                    return;
+                }
+
+                var localExchangeSource = new ExchangeSourceExec(plan.source(), plan.output(), plan.isIntermediateAgg());
+                FragmentExec fragment = (FragmentExec) fragments.get(0);
                 reducePlan = new ExchangeSinkExec(
                     plan.source(),
                     plan.output(),
                     plan.isIntermediateAgg(),
-                    new ExchangeSourceExec(plan.source(), plan.output(), plan.isIntermediateAgg())
+                    fragment.reducer() != null ? fragment.reducer().replaceChildren(List.of(localExchangeSource)) : localExchangeSource
                 );
             } else {
                 listener.onFailure(new IllegalStateException("expected exchange sink for a remote compute; got " + request.plan()));

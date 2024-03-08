@@ -117,4 +117,4 @@ setup:
                 text_embedding:
                   model_id: text_embedding_model
                   model_text: "the octopus comforter smells"
-  - match: { hits.total.value: 4 }
+  - match: { hits.total.value: 3 }

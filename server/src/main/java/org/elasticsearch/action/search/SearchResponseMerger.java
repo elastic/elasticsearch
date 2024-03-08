@@ -124,9 +124,11 @@ public final class SearchResponseMerger implements Releasable {
         int totalShards = 0;
         int skippedShards = 0;
         int successfulShards = 0;
+        int failedShards = 0;
         // the current reduce phase counts as one
         int numReducePhases = 1;
         List<ShardSearchFailure> failures = new ArrayList<>();
+        // List<ShardSearchFailure> failures = new ArrayList<>(AbstractSearchAsyncAction.MAX_FAILURES_IN_RESPONSE);
         Map<String, SearchProfileShardResult> profileResults = new HashMap<>();
         List<InternalAggregations> aggs = new ArrayList<>();
         Map<ShardIdAndClusterAlias, Integer> shards = new TreeMap<>();

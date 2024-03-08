@@ -175,7 +175,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         ActionListener<SearchResponse> listener = ActionListener.wrap(response -> fail("onResponse should not be called"), exception::set);
         Set<ShardSearchContextId> requestIds = new HashSet<>();
         List<Tuple<String, String>> nodeLookups = new ArrayList<>();
-        int numFailures = randomIntBetween(1, 5);
+        int numFailures = randomIntBetween(1, 12);
         ArraySearchPhaseResults<SearchPhaseResult> phaseResults = phaseResults(requestIds, nodeLookups, numFailures);
         AbstractSearchAsyncAction<SearchPhaseResult> action = createAction(searchRequest, phaseResults, listener, false, new AtomicLong());
         for (int i = 0; i < numFailures; i++) {
@@ -192,7 +192,13 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         assertThat(exception.get(), instanceOf(SearchPhaseExecutionException.class));
         SearchPhaseExecutionException searchPhaseExecutionException = (SearchPhaseExecutionException) exception.get();
         assertEquals(0, searchPhaseExecutionException.getSuppressed().length);
-        assertEquals(numFailures, searchPhaseExecutionException.shardFailures().length);
+        if (numFailures > AbstractSearchAsyncAction.MAX_FAILURES_IN_RESPONSE) {
+            // the num exceptions reduce to 1 in this test because of aggressive deduplication
+            assertEquals(1, searchPhaseExecutionException.shardFailures().length);
+        } else {
+            assertEquals(numFailures, searchPhaseExecutionException.shardFailures().length);
+        }
+        // assertEquals(numFailures, searchPhaseExecutionException.shardFailures().length); -> restore if add getTotalNumFailures method
         for (ShardSearchFailure shardSearchFailure : searchPhaseExecutionException.shardFailures()) {
             assertThat(shardSearchFailure.getCause(), instanceOf(IllegalArgumentException.class));
         }

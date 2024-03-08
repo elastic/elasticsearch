@@ -124,8 +124,8 @@ public class IndexResolver {
                 .allowEmptyExpressions(true)
                 .resolveAliases(false)
         )
-        .generalOptions(
-            IndicesOptions.GeneralOptions.builder().ignoreThrottled(true).allowClosedIndices(true).allowAliasToMultipleIndices(true)
+        .gatekeeperOptions(
+            IndicesOptions.GatekeeperOptions.builder().ignoreThrottled(true).allowClosedIndices(true).allowAliasToMultipleIndices(true)
         )
         .build();
     private static final IndicesOptions FROZEN_INDICES_OPTIONS = IndicesOptions.builder()
@@ -138,8 +138,8 @@ public class IndexResolver {
                 .allowEmptyExpressions(true)
                 .resolveAliases(false)
         )
-        .generalOptions(
-            IndicesOptions.GeneralOptions.builder().ignoreThrottled(false).allowClosedIndices(true).allowAliasToMultipleIndices(true)
+        .gatekeeperOptions(
+            IndicesOptions.GatekeeperOptions.builder().ignoreThrottled(false).allowClosedIndices(true).allowAliasToMultipleIndices(true)
         )
         .build();
 
@@ -153,8 +153,8 @@ public class IndexResolver {
                 .allowEmptyExpressions(true)
                 .resolveAliases(true)
         )
-        .generalOptions(
-            IndicesOptions.GeneralOptions.builder().ignoreThrottled(true).allowClosedIndices(true).allowAliasToMultipleIndices(true)
+        .gatekeeperOptions(
+            IndicesOptions.GatekeeperOptions.builder().ignoreThrottled(true).allowClosedIndices(true).allowAliasToMultipleIndices(true)
         )
         .build();
     public static final IndicesOptions FIELD_CAPS_FROZEN_INDICES_OPTIONS = IndicesOptions.builder()
@@ -167,8 +167,8 @@ public class IndexResolver {
                 .allowEmptyExpressions(true)
                 .resolveAliases(true)
         )
-        .generalOptions(
-            IndicesOptions.GeneralOptions.builder().ignoreThrottled(false).allowClosedIndices(true).allowAliasToMultipleIndices(true)
+        .gatekeeperOptions(
+            IndicesOptions.GatekeeperOptions.builder().ignoreThrottled(false).allowClosedIndices(true).allowAliasToMultipleIndices(true)
         )
         .build();
 

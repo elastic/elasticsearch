@@ -122,7 +122,7 @@ public class GetSnapshotsRequestBuilder extends MasterNodeOperationRequestBuilde
         return this;
     }
 
-    public GetSnapshotsRequestBuilder setSort(GetSnapshotsRequest.SortBy sort) {
+    public GetSnapshotsRequestBuilder setSort(SnapshotSortKey sort) {
         request.sort(sort);
         return this;
     }

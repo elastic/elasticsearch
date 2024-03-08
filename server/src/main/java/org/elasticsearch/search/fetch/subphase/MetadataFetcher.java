@@ -10,7 +10,6 @@ package org.elasticsearch.search.fetch.subphase;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.document.DocumentField;
-import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.index.mapper.LegacyTypeFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -43,27 +42,13 @@ public class MetadataFetcher {
 
     private record FieldContext(String fieldName, ValueFetcher valueFetcher) {}
 
-    public static MetadataFetcher create(
-        SearchExecutionContext context,
-        boolean fetchStoredFields,
-        final List<FieldAndFormat> additionalFields
-    ) {
+    public static MetadataFetcher create(final SearchExecutionContext context, final List<FieldAndFormat> additionalFields) {
         final List<MetadataField> metadataFields = new ArrayList<>(3);
         for (FieldAndFormat fieldAndFormat : Stream.concat(METADATA_FIELDS.stream(), additionalFields.stream()).toList()) {
             for (final String field : context.getMatchingFieldNames(fieldAndFormat.field)) {
                 if (context.getFieldType(field) != null) {
-                    MappedFieldType mappedFieldType = context.getFieldType(field);
-                    // NOTE: some metadata fields are stored and we should not load them if `stored_fields = _none_`
-                    if (mappedFieldType.isStored()
-                        && context.getIndexSettings().getIndexVersionCreated().before(IndexVersions.DOC_VALUES_FOR_IGNORED_META_FIELD)) {
-                        metadataFields.add(new MetadataFetcher.MetadataField(field, mappedFieldType, fieldAndFormat.format));
-                    }
-                    if (mappedFieldType.isStored()
-                        && fetchStoredFields == false
-                        && context.getIndexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.DOC_VALUES_FOR_IGNORED_META_FIELD)) {
-                        continue;
-                    }
-                    metadataFields.add(new MetadataFetcher.MetadataField(field, mappedFieldType, fieldAndFormat.format));
+                    final MappedFieldType ft = context.getFieldType(field);
+                    metadataFields.add(new MetadataFetcher.MetadataField(field, ft, fieldAndFormat.format));
                 }
             }
         }

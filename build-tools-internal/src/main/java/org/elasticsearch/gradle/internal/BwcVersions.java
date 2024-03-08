@@ -83,7 +83,15 @@ public class BwcVersions {
             throw new IllegalArgumentException("Could not parse any versions");
         }
 
-        this.versions = allVersions;
+        // Filter out all intermediate patch releases, so we only consider the latest patch for any given minor
+        this.versions = allVersions.stream()
+            .collect(Collectors.groupingBy(v -> v.getMajor() + "." + v.getMinor()))
+            .values()
+            .stream()
+            .map(versionList -> versionList.stream().max(Version::compareTo).orElseThrow())
+            .sorted()
+            .toList();
+
         this.currentVersion = allVersions.get(allVersions.size() - 1);
         assertCurrentVersionMatchesParsed(currentVersionProperty);
 

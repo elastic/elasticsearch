@@ -13,6 +13,7 @@ apply plugin: 'base'
 configurations {
   libs {
     attributes.attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE)
+    canBeConsumed = false
   }
 }
 

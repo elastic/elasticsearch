@@ -25,8 +25,6 @@ import java.util.Arrays;
 /**
  * @deprecated We wanna get rid from this and custom jdk downloads via this plugin and
  * make leverage the gradle toolchain resolver capabilities.
- *
- * @See @org.elasticsearch.gradle.internal.toolchain.JavaToolChainResolverPlugin
  * */
 @Deprecated
 public class JdkDownloadPlugin implements Plugin<Project> {

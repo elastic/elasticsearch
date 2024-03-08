@@ -952,54 +952,21 @@ public class NodeJoinExecutorTests extends ESTestCase {
     }
 
     public void testInconsistentSystemIndexVersionRejected() throws Exception {
-        // boilerplate setup
-        final AllocationService allocationService = createAllocationService();
-        final RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
-
-        final NodeJoinExecutor executor = new NodeJoinExecutor(allocationService, rerouteService, createFeatureService());
-
-        final DiscoveryNode masterNode = DiscoveryNodeUtils.create(UUIDs.base64UUID());
-
-        final DiscoveryNode joiningNode = DiscoveryNodeUtils.create(UUIDs.base64UUID());
-
-        final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .nodes(DiscoveryNodes.builder().add(masterNode).localNodeId(masterNode.getId()).masterNodeId(masterNode.getId()))
-            .nodeIdsToCompatibilityVersions(
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> NodeJoinExecutor.ensureSystemIndexVersionsConsistent(
+                Map.of(".my-system-index", new SystemIndexDescriptor.MappingsVersion(1, 2)),
                 Map.of(
-                    masterNode.getId(),
+                    "node1",
                     new CompatibilityVersions(
                         TransportVersion.current(),
                         Map.of(".my-system-index", new SystemIndexDescriptor.MappingsVersion(1, 1))
                     )
                 )
             )
-            .build();
-
-        assertThat(clusterState.clusterFeatures().clusterHasFeature(new NodeFeature("f1")), is(false));
-        assertThat(clusterState.clusterFeatures().clusterHasFeature(new NodeFeature("f2")), is(false));
-
-        AssertionError e = expectThrows(
-            AssertionError.class,
-            () -> ClusterStateTaskExecutorUtils.executeAndThrowFirstFailure(
-                clusterState,
-                executor,
-                List.of(
-                    JoinTask.singleNode(
-                        joiningNode,
-                        new CompatibilityVersions(
-                            TransportVersion.current(),
-                            Map.of(".my-system-index", new SystemIndexDescriptor.MappingsVersion(1, 2))
-                        ),
-                        Set.of(),
-                        TEST_REASON,
-                        NO_FAILURE_LISTENER,
-                        0L
-                    )
-                )
-            )
         );
 
-        assertThat(e.getMessage(), equalTo("System index hash mismatch"));
+        assertThat(e.getMessage(), equalTo("System indices [.my-system-index] have equal mapping versions but different mapping hashes"));
     }
 
     private DesiredNodeWithStatus createActualizedDesiredNode() {

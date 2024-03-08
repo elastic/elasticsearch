@@ -159,8 +159,6 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
                 } else {
                     try {
                         CompatibilityVersions compatibilityVersions = nodeJoinTask.compatibilityVersions();
-                        assert systemIndexVersionConsistent(compatibilityVersions.systemIndexMappingsVersion(), compatibilityVersionsMap)
-                            : "System index hash mismatch";
                         Set<String> features = nodeJoinTask.features();
                         if (enforceVersionBarrier) {
                             ensureVersionBarrier(node.getVersion(), minClusterNodeVersion);
@@ -172,6 +170,7 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
                         // we do this validation quite late to prevent race conditions between nodes joining and importing dangling indices
                         // we have to reject nodes that don't support all indices we have in this cluster
                         ensureIndexCompatibility(node.getMinIndexVersion(), node.getMaxIndexVersion(), initialState.getMetadata());
+                        ensureSystemIndexVersionsConsistent(compatibilityVersions.systemIndexMappingsVersion(), compatibilityVersionsMap);
                         nodesBuilder.add(node);
                         compatibilityVersionsMap.put(node.getId(), compatibilityVersions);
                         nodeFeatures.put(node.getId(), features);
@@ -430,6 +429,36 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
                     + "The cluster contains nodes with version ["
                     + minClusterNodeVersion
                     + "], which is incompatible."
+            );
+        }
+    }
+
+    // visible for testing
+    static void ensureSystemIndexVersionsConsistent(
+        Map<String, SystemIndexDescriptor.MappingsVersion> newMappingsVersions,
+        Map<String, CompatibilityVersions> existingCompatibilityVersions
+    ) {
+        // TODO[wrb]: we could speed this up by iterating by system index name...
+        List<String> systemIndexNames = new ArrayList<>();
+        // iterate through each node's compatibility versions...
+        for (Map.Entry<String, CompatibilityVersions> nodeCompatibility : existingCompatibilityVersions.entrySet()) {
+            Map<String, SystemIndexDescriptor.MappingsVersion> existingVersions = nodeCompatibility.getValue().systemIndexMappingsVersion();
+            // ...and iterate through each system index version for that node...
+            for (Map.Entry<String, SystemIndexDescriptor.MappingsVersion> existingMappingVersion : existingVersions.entrySet()) {
+                String indexName = existingMappingVersion.getKey();
+                // ...and compare with the new node's mappings
+                if (newMappingsVersions.containsKey(indexName)
+                    && existingMappingVersion.getValue().version() == newMappingsVersions.get(indexName).version()
+                    && existingMappingVersion.getValue().hash() != newMappingsVersions.get(indexName).hash()) {
+                    systemIndexNames.add(indexName);
+                }
+            }
+        }
+
+        // TODO[wrb]: we should return the conflicting nodes?
+        if (systemIndexNames.isEmpty() == false) {
+            throw new IllegalStateException(
+                "System indices [" + String.join(", ", systemIndexNames) + "] have equal mapping versions but different mapping hashes"
             );
         }
     }

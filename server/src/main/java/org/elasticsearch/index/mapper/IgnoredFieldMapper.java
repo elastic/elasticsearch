@@ -11,6 +11,10 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StringField;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.FieldExistsQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -94,6 +98,14 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
                 return new StoredValueFetcher(context.lookup(), NAME);
             }
             return new DocValueFetcher(docValueFormat(format, null), context.getForField(this, FielddataOperation.SEARCH));
+        }
+
+        public Query existsQuery(SearchExecutionContext context) {
+            if (hasDocValues() || getTextSearchInfo().hasNorms()) {
+                return new FieldExistsQuery(name());
+            } else {
+                return new TermQuery(new Term(IgnoredFieldMapper.NAME, name()));
+            }
         }
 
         @Override

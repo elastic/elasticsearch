@@ -74,11 +74,12 @@ public class MrjarPlugin implements Plugin<Project> {
         }
 
         Collections.sort(mainVersions);
-        String parentSourceSetName = SourceSet.MAIN_SOURCE_SET_NAME;
+        List<String> parentSourceSets = new ArrayList<>();
+        parentSourceSets.add(SourceSet.MAIN_SOURCE_SET_NAME);
         for (int javaVersion : mainVersions) {
             String sourcesetName = "main" + javaVersion;
-            addMrjarSourceset(project, javaExtension, sourcesetName, parentSourceSetName, javaVersion);
-            parentSourceSetName = sourcesetName; // the next source set will extend this one
+            addMrjarSourceset(project, javaExtension, sourcesetName, parentSourceSets, javaVersion);
+            parentSourceSets.add(sourcesetName);
         }
     }
 
@@ -86,11 +87,13 @@ public class MrjarPlugin implements Plugin<Project> {
         Project project,
         JavaPluginExtension javaExtension,
         String sourcesetName,
-        String parentSourceSetName,
+        List<String> parentSourceSets,
         int javaVersion
     ) {
         SourceSet sourceSet = javaExtension.getSourceSets().maybeCreate(sourcesetName);
-        GradleUtils.extendSourceSet(project, parentSourceSetName, sourcesetName);
+        for (String parentSourceSetName : parentSourceSets) {
+            GradleUtils.extendSourceSet(project, parentSourceSetName, sourcesetName);
+        }
 
         var jarTask = project.getTasks().withType(Jar.class).named(JavaPlugin.JAR_TASK_NAME);
         jarTask.configure(task -> {

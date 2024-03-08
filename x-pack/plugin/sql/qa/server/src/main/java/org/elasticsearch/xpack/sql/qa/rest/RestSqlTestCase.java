@@ -77,6 +77,7 @@ import static org.elasticsearch.xpack.sql.proto.CoreProtocol.URL_PARAM_DELIMITER
 import static org.elasticsearch.xpack.sql.proto.CoreProtocol.URL_PARAM_FORMAT;
 import static org.elasticsearch.xpack.sql.proto.CoreProtocol.WAIT_FOR_COMPLETION_TIMEOUT_NAME;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
@@ -1848,7 +1849,6 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         final int extraBadShards = randomIntBetween(1, 5);
         final int okShards = randomIntBetween(1, 5);
 
-        final String suppressMessage = " remaining shard failure" + (extraBadShards > 1 ? "s" : "") + " suppressed";
         final String reason = "Cannot search on field [bool] since it is not indexed nor has doc values";
         final String warnMessage = "org.elasticsearch.index.query.QueryShardException: failed to create query: " + reason;
 
@@ -1875,19 +1875,16 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         assertOK(response);
 
         int failedShards = 0;
-        boolean hasSupressMessage = false;
         for (Header header : response.getHeaders()) {
             if (header.getName().toLowerCase(Locale.ROOT).equals("warning")) {
                 String headerVal = header.getValue();
+                assertThat(headerVal, containsString(reason));
                 if (headerVal.contains(warnMessage)) {
                     failedShards++;
-                } else if (headerVal.contains(extraBadShards + suppressMessage)) {
-                    hasSupressMessage = true;
                 }
             }
         }
-        assertEquals(maxWarningHeaders - 1, failedShards);
-        assertTrue(hasSupressMessage);
+        assertThat(failedShards, greaterThan(0));
     }
 
     static Map<String, Object> runSql(RequestObjectBuilder builder, String mode) throws IOException {

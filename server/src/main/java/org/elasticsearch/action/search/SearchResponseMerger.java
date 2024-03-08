@@ -35,7 +35,6 @@ import org.elasticsearch.transport.LeakTracker;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -144,15 +143,14 @@ public final class SearchResponseMerger implements Releasable {
             failedShards += searchResponse.getFailedShards();
             numReducePhases += searchResponse.getNumReducePhases();
 
-            Collections.addAll(failures, searchResponse.getShardFailures());
-//            if (failures.size() < AbstractSearchAsyncAction.MAX_FAILURES_IN_RESPONSE) {
-//                for (ShardSearchFailure shardFailure : searchResponse.getShardFailures()) {
-//                    failures.add(shardFailure);
-//                    if (failures.size() >= AbstractSearchAsyncAction.MAX_FAILURES_IN_RESPONSE) {
-//                        break;
-//                    }
-//                }
-//            }
+            if (failures.size() < AbstractSearchAsyncAction.MAX_FAILURES_IN_RESPONSE) {
+                for (ShardSearchFailure shardFailure : searchResponse.getShardFailures()) {
+                    failures.add(shardFailure);
+                    if (failures.size() >= AbstractSearchAsyncAction.MAX_FAILURES_IN_RESPONSE) {
+                        break;
+                    }
+                }
+            }
 
             profileResults.putAll(searchResponse.getProfileResults());
 

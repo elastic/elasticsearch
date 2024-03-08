@@ -193,13 +193,19 @@ public class SearchResponseMergerTests extends ESTestCase {
                 assertEquals(numResponses, mergedResponse.getTotalShards());
                 assertEquals(numResponses, mergedResponse.getSuccessfulShards());
                 assertEquals(0, mergedResponse.getSkippedShards());
+                int numExpectedFailures = priorityQueue.size();
+                assertEquals(numExpectedFailures, mergedResponse.getFailedShards());
                 assertEquals(priorityQueue.size(), mergedResponse.getFailedShards());
                 ShardSearchFailure[] shardFailures = mergedResponse.getShardFailures();
-                assertEquals(priorityQueue.size(), shardFailures.length);
-                for (ShardSearchFailure shardFailure : shardFailures) {
-                    ShardSearchFailure expected = priorityQueue.poll().v2();
-                    assertSame(expected, shardFailure);
+                if (numExpectedFailures > AbstractSearchAsyncAction.MAX_FAILURES_IN_RESPONSE) {
+                    numExpectedFailures = AbstractSearchAsyncAction.MAX_FAILURES_IN_RESPONSE;
+                } else {
+                    for (ShardSearchFailure shardFailure : shardFailures) {
+                        ShardSearchFailure expected = priorityQueue.poll().v2();
+                        assertSame(expected, shardFailure);
+                    }
                 }
+                assertEquals(numExpectedFailures, shardFailures.length);
             } finally {
                 mergedResponse.decRef();
             }
@@ -254,12 +260,17 @@ public class SearchResponseMergerTests extends ESTestCase {
                 assertEquals(numResponses, mergedResponse.getTotalShards());
                 assertEquals(numResponses, mergedResponse.getSuccessfulShards());
                 assertEquals(0, mergedResponse.getSkippedShards());
-                assertEquals(priorityQueue.size(), mergedResponse.getFailedShards());
+                int numExpectedFailures = priorityQueue.size();
+                assertEquals(numExpectedFailures, mergedResponse.getFailedShards());
                 ShardSearchFailure[] shardFailures = mergedResponse.getShardFailures();
-                assertEquals(priorityQueue.size(), shardFailures.length);
-                for (ShardSearchFailure shardFailure : shardFailures) {
-                    ShardSearchFailure expected = priorityQueue.poll().v2();
-                    assertSame(expected, shardFailure);
+                if (numExpectedFailures > AbstractSearchAsyncAction.MAX_FAILURES_IN_RESPONSE) {
+                    assertEquals(AbstractSearchAsyncAction.MAX_FAILURES_IN_RESPONSE, shardFailures.length);
+                } else {
+                    assertEquals(priorityQueue.size(), shardFailures.length);
+                    for (ShardSearchFailure shardFailure : shardFailures) {
+                        ShardSearchFailure expected = priorityQueue.poll().v2();
+                        assertSame(expected, shardFailure);
+                    }
                 }
             } finally {
                 mergedResponse.decRef();
@@ -308,8 +319,13 @@ public class SearchResponseMergerTests extends ESTestCase {
             assertEquals(numResponses, merger.numResponses());
             var mergedResponse = merger.getMergedResponse(SearchResponse.Clusters.EMPTY);
             try {
+                assertEquals(expectedFailures.size(), mergedResponse.getFailedShards());
                 ShardSearchFailure[] shardFailures = mergedResponse.getShardFailures();
-                assertThat(Arrays.asList(shardFailures), containsInAnyOrder(expectedFailures.toArray(ShardSearchFailure.EMPTY_ARRAY)));
+                if (expectedFailures.size() > AbstractSearchAsyncAction.MAX_FAILURES_IN_RESPONSE) {
+                    assertEquals(AbstractSearchAsyncAction.MAX_FAILURES_IN_RESPONSE, shardFailures.length);
+                } else {
+                    assertThat(Arrays.asList(shardFailures), containsInAnyOrder(expectedFailures.toArray(ShardSearchFailure.EMPTY_ARRAY)));
+                }
             } finally {
                 mergedResponse.decRef();
             }

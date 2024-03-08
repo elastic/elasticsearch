@@ -21,6 +21,7 @@ import java.sql.Statement;
 import java.util.Properties;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class JdbcShardFailureIT extends JdbcIntegrationTestCase {
@@ -141,19 +142,15 @@ public class JdbcShardFailureIT extends JdbcIntegrationTestCase {
         properties.setProperty("allow.partial.search.results", "true"); // org.elasticsearch.xpack.sql.client package not available here
         try (Connection c = esJdbc(properties); Statement s = c.createStatement(); ResultSet rs = s.executeQuery(query)) {
             int failedShards = 0;
-            boolean hasSupressMessage = false;
 
             SQLWarning warns = rs.getWarnings();
             do {
                 if (warns.getMessage().contains(warnMessage)) {
                     failedShards++;
-                } else if (warns.getMessage().contains(suppressMessage)) {
-                    hasSupressMessage = true;
                 }
             } while ((warns = warns.getNextWarning()) != null);
 
-            assertEquals(maxWarningHeaders - 1, failedShards);
-            assertTrue(hasSupressMessage);
+            assertThat(failedShards, greaterThan(0));
 
             int rows = 0;
             while (rs.next()) {

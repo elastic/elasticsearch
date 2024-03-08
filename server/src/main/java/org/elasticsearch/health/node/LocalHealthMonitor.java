@@ -366,7 +366,6 @@ public class LocalHealthMonitor implements ClusterStateListener {
                 nextRunScheduled = true;
             } catch (Exception e) {
                 logger.warn(() -> format("Failed to run scheduled health monitoring on thread pool [%s]", executor), e);
-                // Make sure to release the "lock" in case something goes wrong, so we can try again in the next iteration.
             } finally {
                 // If the next run isn't scheduled because for example the health info hasn't changed, we schedule it here.
                 if (nextRunScheduled == false) {

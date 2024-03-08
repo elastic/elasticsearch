@@ -16,13 +16,14 @@ import org.elasticsearch.plugins.ExtensionLoader;
 import java.util.ServiceLoader;
 
 /**
- * A pluggable version class with a minimal comparison API.
+ * A version representing the code of Elasticsearch
  *
  * <p>This class allows us to check whether an Elasticsearch release
- * is "too old" or "too new." The static {@link #current()} method returns
- * the current release version, and {@link #fromVersionId(int)} returns
- * a version based on some identifier. By default, this identifier matches
- * what the {@link Version} class uses, but the implementation is pluggable.
+ * is "too old" or "too new," using an intentionally minimal API for
+ * comparisons. The static {@link #current()} method returns the current
+ * release version, and {@link #fromVersionId(int)} returns a version
+ * based on some identifier. By default, this identifier matches what the
+ * {@link Version} class uses, but the implementation is pluggable.
  * If a module provides a {@link BuildExtension} service via Java SPI, this
  * class's static methods will return a different implementation of {@link BuildVersion},
  * potentially with different behavior. This allows downstream projects to

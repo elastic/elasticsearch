@@ -10,7 +10,6 @@ package org.elasticsearch.search.fetch.subphase;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.document.DocumentField;
-import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
@@ -32,56 +31,39 @@ public final class FetchFieldsPhase implements FetchSubPhase {
 
     @Override
     public FetchSubPhaseProcessor getProcessor(FetchContext fetchContext) {
-        FieldFetcher fieldFetcher = null;
-        MetadataFetcher metadataFetcher = null;
-        if (fetchContext.getSearchExecutionContext()
-            .getIndexSettings()
-            .getIndexVersionCreated()
-            .before(IndexVersions.DOC_VALUES_FOR_IGNORED_META_FIELD)) {
-            FetchFieldsContext fetchFieldsContext = fetchContext.fetchFieldsContext();
-            if (fetchFieldsContext == null) {
-                return null;
-            }
+        final FetchFieldsContext fetchFieldsContext = fetchContext.fetchFieldsContext();
+        final StoredFieldsContext storedFieldsContext = fetchContext.storedFieldsContext();
+        final List<FieldAndFormat> fieldAndFormatList = fetchFieldsContext == null ? Collections.emptyList() : fetchFieldsContext.fields();
+        final FieldFetcher fieldFetcher = FieldFetcher.create(fetchContext.getSearchExecutionContext(), fieldAndFormatList);
+        boolean fetchStoredFields = storedFieldsContext != null && storedFieldsContext.fetchFields();
+        final List<FieldAndFormat> additionalFields = getAdditionalFields(storedFieldsContext);
+        final MetadataFetcher metadataFetcher = MetadataFetcher.create(
+            fetchContext.getSearchExecutionContext(),
+            fetchStoredFields,
+            additionalFields
+        );
 
-            fieldFetcher = FieldFetcher.create(fetchContext.getSearchExecutionContext(), fetchFieldsContext.fields());
-        } else {
-            final FetchFieldsContext fetchFieldsContext = fetchContext.fetchFieldsContext();
-            final StoredFieldsContext storedFieldsContext = fetchContext.storedFieldsContext();
-            final List<FieldAndFormat> fieldAndFormatList = fetchFieldsContext == null
-                ? Collections.emptyList()
-                : fetchFieldsContext.fields();
-            fieldFetcher = FieldFetcher.create(fetchContext.getSearchExecutionContext(), fieldAndFormatList);
-            boolean fetchStoredFields = storedFieldsContext != null && storedFieldsContext.fetchFields();
-            final List<FieldAndFormat> additionalFields = getAdditionalFields(storedFieldsContext);
-            metadataFetcher = MetadataFetcher.create(fetchContext.getSearchExecutionContext(), fetchStoredFields, additionalFields);
-        }
-
-        final FieldFetcher finalFieldFetcher = fieldFetcher;
-        final MetadataFetcher finalMetadataFetcher = metadataFetcher;
         return new FetchSubPhaseProcessor() {
             @Override
             public void setNextReader(LeafReaderContext readerContext) {
-                finalFieldFetcher.setNextReader(readerContext);
-                if (finalMetadataFetcher != null) {
-                    finalMetadataFetcher.setNextReader(readerContext);
-                }
+                fieldFetcher.setNextReader(readerContext);
+                metadataFetcher.setNextReader(readerContext);
+
             }
 
             @Override
             public StoredFieldsSpec storedFieldsSpec() {
-                return finalFieldFetcher.storedFieldsSpec();
+                return fieldFetcher.storedFieldsSpec();
             }
 
             @Override
             public void process(HitContext hitContext) throws IOException {
                 SearchHit hit = hitContext.hit();
-                Map<String, DocumentField> documentFields = finalFieldFetcher.fetch(hitContext.source(), hitContext.docId());
+                Map<String, DocumentField> documentFields = fieldFetcher.fetch(hitContext.source(), hitContext.docId());
                 for (Map.Entry<String, DocumentField> entry : documentFields.entrySet()) {
                     hit.setDocumentField(entry.getKey(), entry.getValue());
                 }
-                if (finalMetadataFetcher != null) {
-                    hit.addDocumentFields(Collections.emptyMap(), finalMetadataFetcher.fetch(hitContext.source(), hitContext.docId()));
-                }
+                hit.addDocumentFields(Collections.emptyMap(), metadataFetcher.fetch(hitContext.source(), hitContext.docId()));
             }
         };
     }

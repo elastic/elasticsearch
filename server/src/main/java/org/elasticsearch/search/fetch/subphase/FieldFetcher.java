@@ -11,7 +11,6 @@ package org.elasticsearch.search.fetch.subphase;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NestedValueFetcher;
 import org.elasticsearch.index.mapper.ValueFetcher;
@@ -23,7 +22,6 @@ import org.elasticsearch.search.lookup.Source;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -43,11 +41,6 @@ public class FieldFetcher {
      * Build a FieldFetcher for a given search context and collection of fields and formats
      */
     public static FieldFetcher create(SearchExecutionContext context, Collection<FieldAndFormat> fieldAndFormats) {
-        if (context.getIndexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.DOC_VALUES_FOR_IGNORED_META_FIELD)
-            && (fieldAndFormats == null || fieldAndFormats.isEmpty())) {
-            return new FieldFetcher(Collections.emptyMap(), UnmappedFieldFetcher.EMPTY);
-        }
-
         List<String> unmappedFetchPattern = new ArrayList<>();
         List<ResolvedField> resolvedFields = new ArrayList<>();
 

@@ -323,15 +323,6 @@ dynamic templates:
   - match: { aggregations.filterA.tsids.buckets.0.key: "MD2HE8yse1ZklY-p0-bRcC8gYpiK8yYWLhfZ18WLDvTuBX1YJX1Ll7UMNJqYNES5Eg" }
   - match: { aggregations.filterA.tsids.buckets.0.doc_count: 2 }
 
-  - do:
-      indices.delete_data_stream:
-        name: k9s
-  - is_true: acknowledged
-
-  - do:
-      indices.delete_index_template:
-        name: my-dynamic-template
-
 ---
 dynamic templates - conflicting aliases:
   - skip:
@@ -428,15 +419,6 @@ dynamic templates - conflicting aliases:
   - length: { aggregations.filterA.tsids.buckets: 1 }
   - match: { aggregations.filterA.tsids.buckets.0.key: "KGejYryCnrIkXYZdIF_Q8F8X2dfFIGKYisFh7t1RGGWOWgWU7C0RiFE" }
   - match: { aggregations.filterA.tsids.buckets.0.doc_count: 2 }
-
-  - do:
-      indices.delete_data_stream:
-        name: k9s
-  - is_true: acknowledged
-
-  - do:
-      indices.delete_index_template:
-        name: my-dynamic-template
 
 ---
 dynamic templates with nesting:
@@ -576,15 +558,6 @@ dynamic templates with nesting:
   - match: { aggregations.filterA.tsids.buckets.0.key: "MK0AtuFZowY4QPzoYEAZNK7zJhYuIGKYiosO9O4X2dfFtp-JEbk39FSSMEq_vwX7uw" }
   - match: { aggregations.filterA.tsids.buckets.0.doc_count: 2 }
 
-  - do:
-      indices.delete_data_stream:
-        name: k9s
-  - is_true: acknowledged
-
-  - do:
-      indices.delete_index_template:
-        name: my-dynamic-template
-
 ---
 subobject in passthrough object auto flatten:
   - skip:
@@ -629,15 +602,6 @@ subobject in passthrough object auto flatten:
         index: $idx0name
         expand_wildcards: hidden
   - match: { .$idx0name.mappings.properties.attributes.properties.subcategory\.dim.type: 'keyword' }
-
-  - do:
-      indices.delete_data_stream:
-        name: k9s
-  - is_true: acknowledged
-
-  - do:
-      indices.delete_index_template:
-        name: my-passthrough-template
 
 ---
 enable subobjects in passthrough object:

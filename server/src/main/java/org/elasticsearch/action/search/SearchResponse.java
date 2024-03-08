@@ -81,11 +81,125 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     private final int skippedShards;
     private int failedShards; // MP TODO: make this final
     private final ShardSearchFailure[] shardFailures;
+    private ShardSearchFailures shardSearchFailures;  // MP TODO: make final
     private final Clusters clusters;
     private final long tookInMillis;
 
+    /**
+     * Builder class to simplify creation of SearchResponse, since there are many ways to construct
+     * a SearchResponse.
+     * Constraints:
+     * You should not pass in both ShardSearchFailure[] (deprecated) and ShardSearchFailures.
+     */
     public static class Builder {
+        private SearchHits hits;
+        private InternalAggregations aggregations;
+        private Suggest suggest;
+        private SearchProfileResults profileResults;
+        private boolean timedOut;
+        private Boolean terminatedEarly;
+        private int numReducePhases;
+        private String scrollId;
+        private String pointInTimeId;
+        private int totalShards;
+        private int successfulShards;
+        private int skippedShards;
+        private int failedShards = -1;
+        private ShardSearchFailure[] shardFailures;
+        private ShardSearchFailures shardSearchFailures;
+        private Clusters clusters;
+        private long tookInMillis;
 
+        public Builder() {
+        }
+
+        public void setHits(SearchHits hits) {
+            this.hits = hits;
+        }
+
+        public void setAggregations(InternalAggregations aggregations) {
+            this.aggregations = aggregations;
+        }
+
+        public void setSuggest(Suggest suggest) {
+            this.suggest = suggest;
+        }
+
+        public void setProfileResults(SearchProfileResults profileResults) {
+            this.profileResults = profileResults;
+        }
+
+        public void setTimedOut(boolean timedOut) {
+            this.timedOut = timedOut;
+        }
+
+        public void setTerminatedEarly(Boolean terminatedEarly) {
+            this.terminatedEarly = terminatedEarly;
+        }
+
+        public void setNumReducePhases(int numReducePhases) {
+            this.numReducePhases = numReducePhases;
+        }
+
+        public void setScrollId(String scrollId) {
+            this.scrollId = scrollId;
+        }
+
+        public void setPointInTimeId(String pointInTimeId) {
+            this.pointInTimeId = pointInTimeId;
+        }
+
+        public void setTotalShards(int totalShards) {
+            this.totalShards = totalShards;
+        }
+
+        public void setSuccessfulShards(int successfulShards) {
+            this.successfulShards = successfulShards;
+        }
+
+        public void setSkippedShards(int skippedShards) {
+            this.skippedShards = skippedShards;
+        }
+
+        public void setFailedShards(int failedShards) {
+            this.failedShards = failedShards;
+        }
+
+        public void setShardFailures(ShardSearchFailure[] shardFailures) {
+            this.shardFailures = shardFailures;
+        }
+
+        public void setShardSearchFailures(ShardSearchFailures shardSearchFailures) {
+            this.shardSearchFailures = shardSearchFailures;
+        }
+
+        public void setClusters(Clusters clusters) {
+            this.clusters = clusters;
+        }
+
+        public void setTookInMillis(long tookInMillis) {
+            this.tookInMillis = tookInMillis;
+        }
+
+        /**
+         * @return new SearchResponse object using the new values passed in via setters
+         */
+        public SearchResponse build() {
+            assert (shardSearchFailures == null && shardFailures != null) || (shardSearchFailures != null && shardFailures == null) :
+                "Only 'shardSearchFailures' or 'shardFailures' should be set, but not both";
+            if (failedShards < 0) {
+                if (shardSearchFailures != null) {
+                    failedShards = shardSearchFailures.getNumFailures();
+                } else if (shardFailures != null) {
+                    failedShards = shardFailures.length;
+                } else {
+                    failedShards = 0;
+                }
+            }
+            return new SearchResponse(hits, aggregations, suggest, timedOut, terminatedEarly, profileResults, numReducePhases, scrollId,
+                totalShards, successfulShards, skippedShards, failedShards, tookInMillis, shardFailures, null,
+                clusters, pointInTimeId);
+        }
     }
 
     private final RefCounted refCounted = LeakTracker.wrap(new SimpleRefCounted());
@@ -115,11 +229,11 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         tookInMillis = in.readVLong();
         skippedShards = in.readVInt();
         pointInTimeId = in.readOptionalString();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.SEARCH_RESPONSE_FAILED_SHARD_COUNT_TRACKING)) {
-            this.failedShards = in.readVInt();
-        } else {
-            this.failedShards = shardFailures.length;
-        }
+//        if (in.getTransportVersion().onOrAfter(TransportVersions.SEARCH_RESPONSE_FAILED_SHARD_COUNT_TRACKING)) {
+//            this.failedShards = in.readVInt();
+//        } else {
+//            this.failedShards = shardFailures.length;
+//        }
     }
 
     public SearchResponse(
@@ -204,6 +318,49 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         Clusters clusters,
         String pointInTimeId
     ) {
+        this(hits, aggregations, suggest, timedOut, terminatedEarly, profileResults, numReducePhases, scrollId, totalShards,
+            successfulShards, skippedShards, shardFailures == null ? 0 : shardFailures.length, tookInMillis, shardFailures,
+            null, clusters, pointInTimeId);
+//        this.hits = hits;
+//        hits.incRef();
+//        this.aggregations = aggregations;
+//        this.suggest = suggest;
+//        this.profileResults = profileResults;
+//        this.timedOut = timedOut;
+//        this.terminatedEarly = terminatedEarly;
+//        this.numReducePhases = numReducePhases;
+//        this.scrollId = scrollId;
+//        this.pointInTimeId = pointInTimeId;
+//        this.clusters = clusters;
+//        this.totalShards = totalShards;
+//        this.successfulShards = successfulShards;
+//        this.skippedShards = skippedShards;
+//        this.tookInMillis = tookInMillis;
+//        this.shardFailures = shardFailures;
+//        assert skippedShards <= totalShards : "skipped: " + skippedShards + " total: " + totalShards;
+//        assert scrollId == null || pointInTimeId == null
+//            : "SearchResponse can't have both scrollId [" + scrollId + "] and searchContextId [" + pointInTimeId + "]";
+    }
+
+    private SearchResponse(
+        SearchHits hits,
+        InternalAggregations aggregations,
+        Suggest suggest,
+        boolean timedOut,
+        Boolean terminatedEarly,
+        SearchProfileResults profileResults,
+        int numReducePhases,
+        String scrollId,
+        int totalShards,
+        int successfulShards,
+        int skippedShards,
+        int failedShards,
+        long tookInMillis,
+        ShardSearchFailure[] shardFailures,
+        ShardSearchFailures shardSearchFailures,
+        Clusters clusters,
+        String pointInTimeId
+    ) {
         this.hits = hits;
         hits.incRef();
         this.aggregations = aggregations;
@@ -218,12 +375,15 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         this.totalShards = totalShards;
         this.successfulShards = successfulShards;
         this.skippedShards = skippedShards;
+        this.failedShards = failedShards;
         this.tookInMillis = tookInMillis;
         this.shardFailures = shardFailures;
+        this.shardSearchFailures = shardSearchFailures;
         assert skippedShards <= totalShards : "skipped: " + skippedShards + " total: " + totalShards;
         assert scrollId == null || pointInTimeId == null
             : "SearchResponse can't have both scrollId [" + scrollId + "] and searchContextId [" + pointInTimeId + "]";
     }
+
 
     @Override
     public void incRef() {

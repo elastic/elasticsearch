@@ -263,6 +263,42 @@ public final class ExceptionsHelper {
     }
 
     /**
+     * Deduplicate failures, returning the first 'max' number of deduplicated failures.
+     * If aggressive=false, failures will be deduplicated by message, index and cause.
+     * If aggressive=true, failures will be deduplicated only by message.
+     *
+     * @param failures array to deduplicate
+     * @param max limit on size of array returned (beyond that failures are discarded)
+     * @param aggressive how aggressively to deduplicate
+     * @return deduplicated array; if failures is null or empty, it will be returned without modification
+     */
+    public static ShardOperationFailedException[] groupBy(ShardOperationFailedException[] failures, int max, boolean aggressive) {
+        if (failures == null || failures.length == 0) {
+            return failures;
+        }
+
+        assert max > 0 : "max must be greater than zero";
+        if (failures.length >= max && aggressive == false) {
+            return groupBy(failures);
+        }
+
+        // MP TODO: IDEA: this could also add a final Exception (at the n-1 slot) that summarizes all exceptions truncated (not included)
+        List<ShardOperationFailedException> uniqueFailures = new ArrayList<>();
+        Set<GroupBy> reasons = new HashSet<>();
+        for (ShardOperationFailedException failure : failures) {
+            GroupBy reason = new GroupBy(failure, aggressive == false);
+            if (reasons.contains(reason) == false) {
+                reasons.add(reason);
+                uniqueFailures.add(failure);
+            }
+            if (uniqueFailures.size() >= max) {
+                break;
+            }
+        }
+        return uniqueFailures.toArray(new ShardOperationFailedException[0]);
+    }
+
+    /**
      * Deduplicate the failures by exception message and index.
      * @param failures array to deduplicate
      * @return deduplicated array; if failures is null or empty, it will be returned without modification
@@ -274,7 +310,7 @@ public final class ExceptionsHelper {
         List<ShardOperationFailedException> uniqueFailures = new ArrayList<>();
         Set<GroupBy> reasons = new HashSet<>();
         for (ShardOperationFailedException failure : failures) {
-            GroupBy reason = new GroupBy(failure);
+            GroupBy reason = new GroupBy(failure, true);
             if (reasons.contains(reason) == false) {
                 reasons.add(reason);
                 uniqueFailures.add(failure);
@@ -306,8 +342,10 @@ public final class ExceptionsHelper {
         final String reason;
         final String index;
         final Class<? extends Throwable> causeType;
+        private final boolean groupByIndex;
 
-        GroupBy(ShardOperationFailedException failure) {
+        GroupBy(ShardOperationFailedException failure, boolean groupByIndex) {
+            this.groupByIndex = groupByIndex;
             Throwable cause = failure.getCause();
             // the index name from the failure contains the cluster alias when using CCS. Ideally failures should be grouped by
             // index name and cluster alias. That's why the failure index name has the precedence over the one coming from the cause,
@@ -335,14 +373,22 @@ public final class ExceptionsHelper {
                 return false;
             }
             GroupBy groupBy = (GroupBy) o;
-            return Objects.equals(reason, groupBy.reason)
-                && Objects.equals(index, groupBy.index)
-                && Objects.equals(causeType, groupBy.causeType);
+            if (groupByIndex) {
+                return Objects.equals(reason, groupBy.reason)
+                    && Objects.equals(index, groupBy.index)
+                    && Objects.equals(causeType, groupBy.causeType);
+            } else {
+                return Objects.equals(reason, groupBy.reason) && Objects.equals(causeType, groupBy.causeType);
+            }
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(reason, index, causeType);
+            if (groupByIndex) {
+                return Objects.hash(reason, index, causeType);
+            } else {
+                return Objects.hash(reason, causeType);
+            }
         }
     }
 }

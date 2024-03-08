@@ -65,6 +65,7 @@ import static org.elasticsearch.core.Strings.format;
  * distributed frequencies
  */
 abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> extends SearchPhase implements SearchPhaseContext {
+    public static final int MAX_FAILURES_IN_RESPONSE = 3;  // TODO: make this configurable?
     private static final float DEFAULT_INDEX_BOOST = 1.0f;
     private final Logger logger;
     private final NamedWriteableRegistry namedWriteableRegistry;
@@ -394,6 +395,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
          * failed or if there was a failure and partial results are not allowed, then we immediately
          * fail. Otherwise we continue to the next phase.
          */
+        // MP TODO: I think this one can use the SearchShardFailures class?
         ShardOperationFailedException[] shardSearchFailures = buildShardFailures();
         if (shardSearchFailures.length == getNumShards()) {
             shardSearchFailures = ExceptionsHelper.groupBy(shardSearchFailures);
@@ -460,6 +462,28 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         }
     }
 
+    private ShardSearchFailures buildShardSearchFailures() {
+        AtomicArray<ShardSearchFailure> shardFailures = this.shardFailures.get();
+        if (shardFailures == null) {
+            return new ShardSearchFailures(0, ShardSearchFailure.EMPTY_ARRAY);
+        }
+        List<ShardSearchFailure> entries = shardFailures.asList();
+        ShardOperationFailedException[] grouped = ExceptionsHelper.groupBy(
+            entries.toArray(new ShardSearchFailure[0]),
+            MAX_FAILURES_IN_RESPONSE,
+            true
+        );
+
+        int size = Math.min(MAX_FAILURES_IN_RESPONSE, grouped.length);
+        ShardSearchFailure[] retained = new ShardSearchFailure[size];
+        for (int i = 0; i < size; i++) {
+            retained[i] = (ShardSearchFailure) grouped[i];
+        }
+
+        return new ShardSearchFailures(entries.size(), retained);
+    }
+
+    /// MP: TODO: try to reduce the usage of this method AMAP
     private ShardSearchFailure[] buildShardFailures() {
         AtomicArray<ShardSearchFailure> shardFailures = this.shardFailures.get();
         if (shardFailures == null) {

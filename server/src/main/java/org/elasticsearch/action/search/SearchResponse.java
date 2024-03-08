@@ -79,9 +79,14 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     private final int totalShards;
     private final int successfulShards;
     private final int skippedShards;
+    private int failedShards; // MP TODO: make this final
     private final ShardSearchFailure[] shardFailures;
     private final Clusters clusters;
     private final long tookInMillis;
+
+    public static class Builder {
+
+    }
 
     private final RefCounted refCounted = LeakTracker.wrap(new SimpleRefCounted());
 
@@ -110,6 +115,11 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         tookInMillis = in.readVLong();
         skippedShards = in.readVInt();
         pointInTimeId = in.readOptionalString();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.SEARCH_RESPONSE_FAILED_SHARD_COUNT_TRACKING)) {
+            this.failedShards = in.readVInt();
+        } else {
+            this.failedShards = shardFailures.length;
+        }
     }
 
     public SearchResponse(
@@ -154,7 +164,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         int successfulShards,
         int skippedShards,
         long tookInMillis,
-        ShardSearchFailure[] shardFailures,
+        ShardSearchFailure[] shardFailures,    // TODO: change to SearchShardFailures?
         Clusters clusters,
         String pointInTimeId
     ) {

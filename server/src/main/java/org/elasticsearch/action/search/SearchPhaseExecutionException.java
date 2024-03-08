@@ -65,6 +65,8 @@ public class SearchPhaseExecutionException extends ElasticsearchException {
         return cause;
     }
 
+    /// MP TODO: IDEA add status to the SearchShardFailures class and change this class to accept that class
+    /// MP TODO the logic below can go into that class
     @Override
     public RestStatus status() {
         if (shardFailures.length == 0) {

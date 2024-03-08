@@ -14,7 +14,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.utils.MlConfigVersionUtils;
 
@@ -47,7 +46,7 @@ public class JobUpdateTests extends AbstractXContentSerializingTestCase<JobUpdat
 
     /**
      * Creates a completely random update when the job is null
-     * or a random update that is is valid for the given job
+     * or a random update that is valid for the given job
      */
     public JobUpdate createRandom(String jobId, @Nullable Job job) {
         JobUpdate.Builder update = new JobUpdate.Builder(jobId);
@@ -124,23 +123,8 @@ public class JobUpdateTests extends AbstractXContentSerializingTestCase<JobUpdat
         if (randomBoolean()) {
             update.setCustomSettings(Collections.singletonMap(randomAlphaOfLength(10), randomAlphaOfLength(10)));
         }
-        if (useInternalParser && randomBoolean()) {
-            update.setModelSnapshotId(randomAlphaOfLength(10));
-        }
-        if (useInternalParser && randomBoolean()) {
-            update.setModelSnapshotMinVersion(MlConfigVersion.CURRENT);
-        }
-        if (useInternalParser && randomBoolean()) {
-            update.setJobVersion(MlConfigVersionUtils.randomCompatibleVersion(random()));
-        }
-        if (useInternalParser) {
-            update.setClearFinishTime(randomBoolean());
-        }
         if (randomBoolean()) {
             update.setAllowLazyOpen(randomBoolean());
-        }
-        if (useInternalParser && randomBoolean() && (job == null || job.isDeleting() == false)) {
-            update.setBlocked(BlockedTests.createRandom());
         }
         if (randomBoolean() && job != null) {
             update.setModelPruneWindow(

@@ -77,6 +77,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.shutdown.GetShutdownStatusAction;
 import org.elasticsearch.xpack.shutdown.PutShutdownNodeAction;
 import org.elasticsearch.xpack.shutdown.ShutdownPlugin;
 
@@ -107,10 +108,12 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItems;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.oneOf;
 
 // Disabling WindowsFS because it prevents file deletions and ExtrasFS because it adds unnecessary files in Lucene index and tests in this
 // class verify the content of Lucene directories
@@ -738,8 +741,8 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
     public void testAutoExpandReplicasSettingsAreIgnored() throws Exception {
         startMasterOnlyNode();
         var indexNodes = startIndexNodes(2);
-        var searchNodes = startSearchNodes(2);
-        ensureStableCluster(5);
+        var searchNodes = startSearchNodes(randomFrom(1, 2));
+        ensureStableCluster(3 + searchNodes.size());
 
         final String indexName = randomIdentifier();
         var autoExpandConfiguration = randomFrom("0-all", "0-20", "0-3", "0-1");
@@ -767,6 +770,20 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
                     TimeValue.timeValueMinutes(randomIntBetween(1, 5))
                 )
             ).get();
+            var shutdownStatus = client().execute(GetShutdownStatusAction.INSTANCE, new GetShutdownStatusAction.Request())
+                .actionGet(10, TimeUnit.SECONDS);
+            assertThat(shutdownStatus.getShutdownStatuses(), hasSize(1));
+            if (searchNodes.equals(List.of(shutdownNode))) {
+                assertThat(
+                    shutdownStatus.getShutdownStatuses().get(0).migrationStatus().getStatus(),
+                    equalTo(SingleNodeShutdownMetadata.Status.STALLED)
+                );
+            } else {
+                assertThat(
+                    shutdownStatus.getShutdownStatuses().get(0).migrationStatus().getStatus(),
+                    oneOf(SingleNodeShutdownMetadata.Status.COMPLETE, SingleNodeShutdownMetadata.Status.IN_PROGRESS)
+                );
+            }
         }
 
         assertThat(
@@ -777,6 +794,7 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
             is(equalTo("1"))
         );
         ensureGreen(indexName);
+        assertEquals(clusterService().state().routingTable().index(indexName).shard(0).replicaShards().size(), 1);
     }
 
     protected static TimeValue getRefreshIntervalSetting(String index, boolean includeDefaults) throws Exception {

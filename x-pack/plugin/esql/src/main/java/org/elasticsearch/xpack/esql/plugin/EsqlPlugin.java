@@ -26,6 +26,7 @@ import org.elasticsearch.compute.lucene.LuceneOperator;
 import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.AbstractPageMappingOperator;
 import org.elasticsearch.compute.operator.AggregationOperator;
+import org.elasticsearch.compute.operator.AsyncOperator;
 import org.elasticsearch.compute.operator.DriverStatus;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.LimitOperator;
@@ -52,6 +53,7 @@ import org.elasticsearch.xpack.esql.action.RestEsqlAsyncQueryAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlDeleteAsyncResultAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlGetAsyncResultAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlQueryAction;
+import org.elasticsearch.xpack.esql.enrich.EnrichLookupOperator;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.session.EsqlIndexResolver;
@@ -176,7 +178,9 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
                 TopNOperatorStatus.ENTRY,
                 MvExpandOperator.Status.ENTRY,
                 ValuesSourceReaderOperator.Status.ENTRY,
-                SingleValueQuery.ENTRY
+                SingleValueQuery.ENTRY,
+                AsyncOperator.Status.ENTRY,
+                EnrichLookupOperator.Status.ENTRY
             ).stream(),
             Block.getNamedWriteables().stream()
         ).toList();

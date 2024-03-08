@@ -51,6 +51,7 @@ import java.util.function.Predicate;
 import static org.elasticsearch.cluster.metadata.DataStream.getDefaultBackingIndexName;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.randomIndexInstances;
+import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.randomNonEmptyIndexInstances;
 import static org.elasticsearch.index.IndexSettings.LIFECYCLE_ORIGINATION_DATE;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -97,7 +98,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         var autoShardingEvent = instance.getAutoShardingEvent();
         switch (between(0, 11)) {
             case 0 -> name = randomAlphaOfLength(10);
-            case 1 -> indices = randomValueOtherThan(List.of(), DataStreamTestHelper::randomIndexInstances);
+            case 1 -> indices = randomNonEmptyIndexInstances();
             case 2 -> generation = instance.getGeneration() + randomIntBetween(1, 10);
             case 3 -> metadata = randomBoolean() && metadata != null ? null : Map.of("key", randomAlphaOfLength(10));
             case 4 -> {
@@ -125,12 +126,8 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 ? null
                 : DataStreamLifecycle.newBuilder().dataRetention(randomMillisUpToYear9999()).build();
             case 10 -> {
-                failureIndices = randomValueOtherThan(List.of(), DataStreamTestHelper::randomIndexInstances);
-                if (failureIndices.isEmpty()) {
-                    failureStore = false;
-                } else {
-                    failureStore = true;
-                }
+                failureIndices = randomValueOtherThan(failureIndices, DataStreamTestHelper::randomIndexInstances);
+                failureStore = failureIndices.isEmpty() == false;
             }
             case 11 -> {
                 autoShardingEvent = randomBoolean() && autoShardingEvent != null
@@ -631,11 +628,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
 
     public void testSnapshotWithAllBackingIndicesRemoved() {
         var preSnapshotDataStream = DataStreamTestHelper.randomInstance();
-        var indicesToAdd = new ArrayList<Index>();
-        while (indicesToAdd.isEmpty()) {
-            // ensure at least one index
-            indicesToAdd.addAll(randomIndexInstances());
-        }
+        var indicesToAdd = randomNonEmptyIndexInstances();
 
         var postSnapshotDataStream = new DataStream(
             preSnapshotDataStream.getName(),
@@ -1652,7 +1645,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         boolean failureStore = randomBoolean();
         List<Index> failureIndices = List.of();
         if (failureStore) {
-            failureIndices = randomIndexInstances();
+            failureIndices = randomNonEmptyIndexInstances();
         }
 
         DataStreamLifecycle lifecycle = DataStreamLifecycle.newBuilder().dataRetention(randomMillisUpToYear9999()).build();
@@ -1786,7 +1779,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         boolean system = hidden && randomBoolean();
         DataStream noFailureStoreDataStream = new DataStream(
             randomAlphaOfLength(10),
-            randomIndexInstances(),
+            randomNonEmptyIndexInstances(),
             randomNonNegativeInt(),
             null,
             hidden,
@@ -1805,7 +1798,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
 
         DataStream failureStoreDataStreamWithEmptyFailureIndices = new DataStream(
             randomAlphaOfLength(10),
-            randomIndexInstances(),
+            randomNonEmptyIndexInstances(),
             randomNonNegativeInt(),
             null,
             hidden,
@@ -1831,7 +1824,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         failureIndices.add(writeFailureIndex);
         DataStream failureStoreDataStream = new DataStream(
             dataStreamName,
-            randomIndexInstances(),
+            randomNonEmptyIndexInstances(),
             randomNonNegativeInt(),
             null,
             hidden,
@@ -1852,7 +1845,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
     public void testIsFailureIndex() {
         boolean hidden = randomBoolean();
         boolean system = hidden && randomBoolean();
-        List<Index> backingIndices = randomIndexInstances();
+        List<Index> backingIndices = randomNonEmptyIndexInstances();
         DataStream noFailureStoreDataStream = new DataStream(
             randomAlphaOfLength(10),
             backingIndices,
@@ -1875,7 +1868,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             is(false)
         );
 
-        backingIndices = randomIndexInstances();
+        backingIndices = randomNonEmptyIndexInstances();
         DataStream failureStoreDataStreamWithEmptyFailureIndices = new DataStream(
             randomAlphaOfLength(10),
             backingIndices,
@@ -1900,7 +1893,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             is(false)
         );
 
-        backingIndices = randomIndexInstances();
+        backingIndices = randomNonEmptyIndexInstances();
         List<Index> failureIndices = randomIndexInstances();
         String dataStreamName = randomAlphaOfLength(10);
         Index writeFailureIndex = new Index(

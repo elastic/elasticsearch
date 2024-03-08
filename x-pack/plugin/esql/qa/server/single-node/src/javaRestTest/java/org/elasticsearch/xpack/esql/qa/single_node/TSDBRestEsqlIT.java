@@ -42,7 +42,7 @@ public class TSDBRestEsqlIT extends ESRestTestCase {
     }
 
     public void testTimeSeriesQuerying() throws IOException {
-        assertTrue("time series querying relies on query pragma", Build.current().isSnapshot());
+        assumeTrue("time series querying relies on query pragma", Build.current().isSnapshot());
         var settings = Settings.builder()
             .loadFromStream("tsdb-settings.json", TSDBRestEsqlIT.class.getResourceAsStream("/tsdb-settings.json"), false)
             .build();

@@ -13,6 +13,8 @@
  * law.  Dissemination of this information or reproduction of
  * this material is strictly forbidden unless prior written
  * permission is obtained from Elasticsearch B.V.
+ *
+ * This file was contributed to by generative AI
  */
 
 package co.elastic.elasticsearch.stateless.commits;
@@ -21,6 +23,7 @@ import co.elastic.elasticsearch.stateless.lucene.StatelessCommitRef;
 import co.elastic.elasticsearch.stateless.test.FakeStatelessNode;
 
 import org.apache.lucene.store.IOContext;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.test.ESTestCase;
@@ -30,7 +33,10 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Semaphore;
+import java.util.function.BiConsumer;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -131,6 +137,150 @@ public class VirtualBatchedCompoundCommitTests extends ESTestCase {
             for (StatelessCommitRef commit : commits) {
                 assertThat(closedCommitRefGenerations, hasItem(commit.getGeneration()));
             }
+        }
+    }
+
+    public void testGetVirtualBatchedCompoundCommitBytesByRange() throws Exception {
+        var primaryTerm = 1;
+        try (var fakeNode = createFakeNode(primaryTerm)) {
+            List<Long> closedCommitRefGenerations = new ArrayList<>();
+            var commits = fakeNode.generateIndexCommits(randomIntBetween(1, 4), randomBoolean(), closedCommitRefGenerations::add);
+            var virtualBatchedCompoundCommit = new VirtualBatchedCompoundCommit(
+                fakeNode.shardId,
+                "node-id",
+                primaryTerm,
+                commits.get(0).getGeneration(),
+                (fileName) -> {
+                    throw new AssertionError("Unexpected call");
+                }
+            );
+            for (StatelessCommitRef statelessCommitRef : commits) {
+                virtualBatchedCompoundCommit.appendCommit(statelessCommitRef);
+            }
+
+            try (BytesStreamOutput output = new BytesStreamOutput()) {
+                virtualBatchedCompoundCommit.writeToStore(output);
+                var serializedBatchedCompoundCommit = output.bytes();
+
+                BiConsumer<Long, Long> assertBytesRange = (offset, bytesToRead) -> {
+                    var serializedBatchedCompoundCommitBytesRef = new BytesRef(
+                        serializedBatchedCompoundCommit.toBytesRef().bytes,
+                        offset.intValue(),
+                        bytesToRead.intValue()
+                    );
+                    var bytesStreamOutput = new BytesStreamOutput(bytesToRead.intValue());
+                    try {
+                        virtualBatchedCompoundCommit.getBytesByRange(offset, bytesToRead, bytesStreamOutput);
+                    } catch (IOException e) {
+                        assert false : "Unexpected IOException: " + e.getMessage();
+                    }
+                    assertArrayEquals(
+                        BytesRef.deepCopyOf(serializedBatchedCompoundCommitBytesRef).bytes,
+                        BytesRef.deepCopyOf(bytesStreamOutput.bytes().toBytesRef()).bytes
+                    );
+                };
+
+                // Read all vBCC
+                assertBytesRange.accept(0L, (long) serializedBatchedCompoundCommit.length());
+
+                // Edge cases
+                assertBytesRange.accept(0L, 0L);
+                assertBytesRange.accept(0L, 1L); // first byte
+                assertBytesRange.accept((long) serializedBatchedCompoundCommit.length() - 1, 0L);
+                assertBytesRange.accept((long) serializedBatchedCompoundCommit.length() - 1, 1L); // last byte
+                assertBytesRange.accept((long) serializedBatchedCompoundCommit.length(), 0L);
+
+                // Read first header
+                long firstHeaderSize = virtualBatchedCompoundCommit.getPendingCompoundCommits().stream().findFirst().get().getHeaderSize();
+                assertBytesRange.accept(0L, firstHeaderSize);
+
+                // Read a random file
+                StatelessCommitRef randomCommit = commits.get(randomIntBetween(0, commits.size() - 1));
+                List<String> randomCommitFiles = randomCommit.getCommitFiles().stream().toList();
+                String randomFile = randomCommitFiles.get(randomIntBetween(0, randomCommitFiles.size() - 1));
+                BlobLocation randomBlobLocation = virtualBatchedCompoundCommit.getBlobLocation(randomFile);
+                assertBytesRange.accept(randomBlobLocation.offset(), randomBlobLocation.fileLength());
+
+                // Random range
+                long randomOffset = randomLongBetween(0, serializedBatchedCompoundCommit.length() - 1);
+                long randomBytesToRead = randomLongBetween(0, serializedBatchedCompoundCommit.length() - randomOffset);
+                assertBytesRange.accept(randomOffset, randomBytesToRead);
+
+                // Close vBCC and expect an exception when trying to read from it
+                virtualBatchedCompoundCommit.close();
+                VirtualBatchedCompoundCommit.BatchedCompoundCommitAlreadyUploaded exception = expectThrows(
+                    VirtualBatchedCompoundCommit.BatchedCompoundCommitAlreadyUploaded.class,
+                    () -> virtualBatchedCompoundCommit.getBytesByRange(
+                        0L,
+                        (long) serializedBatchedCompoundCommit.length(),
+                        new BytesStreamOutput(serializedBatchedCompoundCommit.length())
+                    )
+                );
+                assertThat(exception.getMessage(), containsString(fakeNode.shardId.toString()));
+            }
+        }
+    }
+
+    public void testGetVirtualBatchedCompoundCommitBytesByRangeWithConcurrentAppends() throws Exception {
+        var primaryTerm = 1;
+        try (var fakeNode = createFakeNode(primaryTerm)) {
+            List<Long> closedCommitRefGenerations = new ArrayList<>();
+            var commits = fakeNode.generateIndexCommits(randomIntBetween(4, 20), randomBoolean(), closedCommitRefGenerations::add);
+            var virtualBatchedCompoundCommit = new VirtualBatchedCompoundCommit(
+                fakeNode.shardId,
+                "node-id",
+                primaryTerm,
+                commits.get(0).getGeneration(),
+                (fileName) -> {
+                    throw new AssertionError("Unexpected call");
+                }
+            );
+
+            if (randomBoolean()) {
+                StatelessCommitRef firstCommit = commits.get(0);
+                virtualBatchedCompoundCommit.appendCommit(firstCommit);
+                commits.remove(0);
+            }
+
+            final Semaphore appendBlock = new Semaphore(1);
+            Thread appendThread = new Thread(() -> {
+                try {
+                    for (StatelessCommitRef statelessCommitRef : commits) {
+                        appendBlock.acquire(); // wait on the slow validator thread to reach the point that it calls getBytesByRange
+                        virtualBatchedCompoundCommit.appendCommit(statelessCommitRef);
+                    }
+                } catch (Exception e) {
+                    assert false : "Unexpected exception: " + e.getMessage();
+                }
+            }, "TEST-appendThread");
+            appendThread.start();
+
+            while (appendThread.isAlive()) {
+                if (virtualBatchedCompoundCommit.getPendingCompoundCommits().size() > 0) {
+                    try (BytesStreamOutput output = new BytesStreamOutput()) {
+                        virtualBatchedCompoundCommit.writeToStore(output);
+                        var serializedBatchedCompoundCommit = output.bytes();
+                        Long randomOffset = randomLongBetween(0, serializedBatchedCompoundCommit.length() - 1);
+                        Long randomBytesToRead = randomLongBetween(0, serializedBatchedCompoundCommit.length() - randomOffset);
+                        var serializedBatchedCompoundCommitBytesRef = new BytesRef(
+                            serializedBatchedCompoundCommit.toBytesRef().bytes,
+                            randomOffset.intValue(),
+                            randomBytesToRead.intValue()
+                        );
+                        var bytesStreamOutput = new BytesStreamOutput(randomBytesToRead.intValue());
+                        appendBlock.release();
+                        virtualBatchedCompoundCommit.getBytesByRange(randomOffset, randomBytesToRead, bytesStreamOutput);
+                        assertArrayEquals(
+                            BytesRef.deepCopyOf(serializedBatchedCompoundCommitBytesRef).bytes,
+                            BytesRef.deepCopyOf(bytesStreamOutput.bytes().toBytesRef()).bytes
+                        );
+                    } catch (Exception e) {
+                        assert false : "Unexpected exception: " + e.getMessage();
+                    }
+                }
+            }
+
+            virtualBatchedCompoundCommit.close();
         }
     }
 

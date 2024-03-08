@@ -169,7 +169,7 @@ class JavaDateFormatter implements DateFormatter {
         this.parsers = parsers;
     }
 
-    private TemporalAccessor roundupParse(String input) {
+    TemporalAccessor roundupParse(String input) {
         if (Strings.isNullOrEmpty(input)) {
             throw new IllegalArgumentException("cannot parse empty datetime");
         }

@@ -110,7 +110,7 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
     @Override
     public void preParse(DocumentParserContext context) {
         String routing = context.sourceToParse().routing();
-        // TSDB uses field _ts_routing_hash instead.
+        // TSDB stores this value in field _ts_routing_hash instead.
         if (routing != null && context.indexSettings().getMode() != IndexMode.TIME_SERIES) {
             context.doc().add(new StringField(fieldType().name(), routing, Field.Store.YES));
             context.addToFieldNames(fieldType().name());

@@ -62,7 +62,7 @@ public abstract class IndexRouting {
     }
 
     protected final String indexName;
-    protected final int routingNumShards;
+    private final int routingNumShards;
     private final int routingFactor;
 
     private IndexRouting(IndexMetadata metadata) {
@@ -71,7 +71,7 @@ public abstract class IndexRouting {
         this.routingFactor = metadata.getRoutingFactor();
     }
 
-    public void process(IndexRequest indexRequest) {}
+    public abstract void process(IndexRequest indexRequest);
 
     /**
      * Called when indexing a document to generate the shard id that should contain
@@ -268,6 +268,9 @@ public abstract class IndexRouting {
         public boolean matchesField(String fieldName) {
             return isRoutingPath.test(fieldName);
         }
+
+        @Override
+        public void process(IndexRequest indexRequest) {}
 
         @Override
         public int indexShard(

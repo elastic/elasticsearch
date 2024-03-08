@@ -335,8 +335,8 @@ public enum IndexMode {
     public abstract MetadataFieldMapper timeSeriesIdFieldMapper();
 
     /**
-     * Return an instance of the {@link TimeSeriesIdFieldMapper} that generates
-     * the _tsid field. The field mapper will be added to the list of the metadata
+     * Return an instance of the {@link TimeSeriesRoutingHashFieldMapper} that generates
+     * the _ts_routing_hash field. The field mapper will be added to the list of the metadata
      * field mappers for the index.
      */
     public abstract MetadataFieldMapper timeSeriesRoutingHashFieldMapper();

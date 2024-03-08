@@ -37,7 +37,7 @@ public class RejectedExecutionTests extends AbstractWatcherIntegrationTestCase {
         return false;
     }
 
-    @AwaitsFix("https://github.com/elastic/elasticsearch/issues/105951")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105951")
     public void testHistoryOnRejection() throws Exception {
         createIndex("idx");
         prepareIndex("idx").setSource("field", "a").get();

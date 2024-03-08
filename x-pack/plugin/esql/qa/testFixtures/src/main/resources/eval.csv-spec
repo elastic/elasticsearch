@@ -200,14 +200,14 @@ Chirstian.     |Chirstian.Koblick|Chirstian.KoblickChirstian.|Chirstian
 Kyoichi.       |Kyoichi.Maliniak |Kyoichi.MaliniakKyoichi.   |Kyoichi
 ;
 
-roundArrays#[skip:-8.11.99, reason:Lucene multivalue warning introduced in 8.12 only]
+roundArrays#[skip:-8.13.99, reason:Alert order changed in 8.14]
 row a = [1.2], b = [2.4, 7.9] | eval c = round(a), d = round(b), e = round([1.2]), f = round([1.2, 4.6]), g = round([1.14], 1), h = round([1.14], [1, 2]);
+warning:Line 1:56: evaluation of [round(b)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:56: java.lang.IllegalArgumentException: single-value function encountered multi-value
 warning:Line 1:88: evaluation of [round([1.2, 4.6])] failed, treating result as null. Only first 20 failures recorded.
 warning:Line 1:88: java.lang.IllegalArgumentException: single-value function encountered multi-value
 warning:Line 1:133: evaluation of [round([1.14], [1, 2])] failed, treating result as null. Only first 20 failures recorded.
 warning:Line 1:133: java.lang.IllegalArgumentException: single-value function encountered multi-value
-warning:Line 1:56: evaluation of [round(b)] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:56: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 a:double | b:double   | c:double | d: double | e:double  | f:double  | g:double  | h:double 
 1.2      | [2.4, 7.9] | 1.0      | null      | 1.0       | null      | 1.1       | null

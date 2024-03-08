@@ -216,14 +216,14 @@ public class MlDailyMaintenanceService implements Releasable {
         // Step 4: Log any error that could have happened
         ActionListener<AcknowledgedResponse> finalListener = ActionListener.wrap(
             unused -> {},
-            e -> logger.error("An error occurred during [ML] maintenance tasks execution", e)
+            e -> logger.warn("An error occurred during [ML] maintenance tasks execution", e)
         );
 
         // Step 3: Delete expired data
         ActionListener<AcknowledgedResponse> deleteJobsListener = ActionListener.wrap(
             unused -> triggerDeleteExpiredDataTask(finalListener),
             e -> {
-                logger.info("[ML] maintenance task: triggerResetJobsInStateResetWithoutResetTask failed", e);
+                logger.warn("[ML] maintenance task: triggerResetJobsInStateResetWithoutResetTask failed", e);
                 // Note: Steps 1-3 are independent, so continue upon errors.
                 triggerDeleteExpiredDataTask(finalListener);
             }
@@ -233,7 +233,7 @@ public class MlDailyMaintenanceService implements Releasable {
         ActionListener<AcknowledgedResponse> resetJobsListener = ActionListener.wrap(
             unused -> triggerResetJobsInStateResetWithoutResetTask(deleteJobsListener),
             e -> {
-                logger.info("[ML] maintenance task: triggerDeleteJobsInStateDeletingWithoutDeletionTask failed", e);
+                logger.warn("[ML] maintenance task: triggerDeleteJobsInStateDeletingWithoutDeletionTask failed", e);
                 // Note: Steps 1-3 are independent, so continue upon errors.
                 triggerResetJobsInStateResetWithoutResetTask(deleteJobsListener);
             }

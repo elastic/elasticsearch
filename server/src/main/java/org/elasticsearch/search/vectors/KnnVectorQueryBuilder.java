@@ -256,6 +256,15 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
             out.writeOptionalFloat(vectorSimilarity);
         }
+        if (out.getTransportVersion().before(TransportVersions.KNN_QUERY_VECTOR_BUILDER) && queryVectorBuilder != null) {
+            throw new IllegalArgumentException(
+                format(
+                    "cannot serialize [%s] to older node of version [%s]",
+                    QUERY_VECTOR_BUILDER_FIELD.getPreferredName(),
+                    out.getTransportVersion()
+                )
+            );
+        }
         if (out.getTransportVersion().onOrAfter(TransportVersions.KNN_QUERY_VECTOR_BUILDER)) {
             out.writeOptionalNamedWriteable(queryVectorBuilder);
         }
@@ -272,17 +281,17 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         if (vectorSimilarity != null) {
             builder.field(VECTOR_SIMILARITY_FIELD.getPreferredName(), vectorSimilarity);
         }
+        if (queryVectorBuilder != null) {
+            builder.startObject(QUERY_VECTOR_BUILDER_FIELD.getPreferredName());
+            builder.field(queryVectorBuilder.getWriteableName(), queryVectorBuilder);
+            builder.endObject();
+        }
         if (filterQueries.isEmpty() == false) {
             builder.startArray(FILTER_FIELD.getPreferredName());
             for (QueryBuilder filterQuery : filterQueries) {
                 filterQuery.toXContent(builder, params);
             }
             builder.endArray();
-        }
-        if (queryVectorBuilder != null) {
-            builder.startObject(QUERY_VECTOR_BUILDER_FIELD.getPreferredName());
-            builder.field(queryVectorBuilder.getWriteableName(), queryVectorBuilder);
-            builder.endObject();
         }
         boostAndQueryNameToXContent(builder);
         builder.endObject();
@@ -417,7 +426,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(fieldName, Arrays.hashCode(queryVector), queryVectorBuilder, numCands, filterQueries, vectorSimilarity);
+        return Objects.hash(fieldName, Arrays.hashCode(queryVector), numCands, filterQueries, vectorSimilarity, queryVectorBuilder);
     }
 
     @Override

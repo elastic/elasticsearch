@@ -35,8 +35,6 @@ import static org.mockito.Mockito.mock;
 
 public class JobUpdateTests extends AbstractXContentSerializingTestCase<JobUpdate> {
 
-    private boolean useInternalParser = randomBoolean();
-
     @Override
     protected JobUpdate createTestInstance() {
         return createRandom(randomAlphaOfLength(4), null);
@@ -251,11 +249,7 @@ public class JobUpdateTests extends AbstractXContentSerializingTestCase<JobUpdat
 
     @Override
     protected JobUpdate doParseInstance(XContentParser parser) {
-        if (useInternalParser) {
-            return JobUpdate.INTERNAL_PARSER.apply(parser, null).build();
-        } else {
-            return JobUpdate.EXTERNAL_PARSER.apply(parser, null).build();
-        }
+        return JobUpdate.PARSER.apply(parser, null).build();
     }
 
     public void testMergeWithJob() {

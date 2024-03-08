@@ -126,12 +126,8 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 ? null
                 : DataStreamLifecycle.newBuilder().dataRetention(randomMillisUpToYear9999()).build();
             case 10 -> {
-                failureIndices = randomIndexInstances();
-                if (failureIndices.isEmpty()) {
-                    failureStore = false;
-                } else {
-                    failureStore = true;
-                }
+                failureIndices = randomValueOtherThan(failureIndices, DataStreamTestHelper::randomIndexInstances);
+                failureStore = failureIndices.isEmpty() == false;
             }
             case 11 -> {
                 autoShardingEvent = randomBoolean() && autoShardingEvent != null

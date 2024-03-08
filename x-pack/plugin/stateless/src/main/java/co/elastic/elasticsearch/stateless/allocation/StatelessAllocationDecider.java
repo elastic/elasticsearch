@@ -20,7 +20,6 @@ package co.elastic.elasticsearch.stateless.allocation;
 import co.elastic.elasticsearch.stateless.Stateless;
 
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -32,7 +31,6 @@ import java.util.Set;
 
 import static java.util.stream.Collectors.joining;
 import static org.elasticsearch.cluster.node.DiscoveryNodeRole.INDEX_ROLE;
-import static org.elasticsearch.cluster.node.DiscoveryNodeRole.SEARCH_ROLE;
 
 public class StatelessAllocationDecider extends AllocationDecider {
 
@@ -52,23 +50,6 @@ public class StatelessAllocationDecider extends AllocationDecider {
     @Override
     public Decision canRemain(IndexMetadata indexMetadata, ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         return decideCanAllocateShardToNode(shardRouting, node, allocation);
-    }
-
-    @Override
-    public Decision shouldAutoExpandToNode(IndexMetadata indexMetadata, DiscoveryNode node, RoutingAllocation allocation) {
-        var nodeRole = node.getRoles().contains(INDEX_ROLE) ? INDEX_ROLE : SEARCH_ROLE;
-        // This is a hack to bypass all auto-expand replicas configurations and force that only 1 replica is configured in such
-        // cases, for that we only accept to expand to the "first" index or search node, that way we limit the number of replicas to 1.
-        // This assumes that the cluster will have at least 1 index node and 1 search node.
-        var isFirstNotShuttingDownNode = allocation.nodes()
-            .stream()
-            .filter(discoveryNode -> discoveryNode.getRoles().contains(nodeRole))
-            .filter(discoveryNode -> allocation.metadata().nodeShutdowns().contains(discoveryNode.getId()) == false)
-            .findFirst()
-            .map(discoveryNode -> discoveryNode.equals(node))
-            .orElse(false);
-
-        return isFirstNotShuttingDownNode ? Decision.YES : Decision.NO;
     }
 
     private Decision decideCanAllocateShardToNode(ShardRouting shardRouting, RoutingNode routingNode, RoutingAllocation allocation) {

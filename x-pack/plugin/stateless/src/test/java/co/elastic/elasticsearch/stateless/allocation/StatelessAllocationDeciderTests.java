@@ -24,8 +24,6 @@ import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
-import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -43,13 +41,11 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.snapshots.EmptySnapshotsInfoService;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 
-import java.util.HashMap;
 import java.util.Objects;
 import java.util.Set;
 
@@ -99,47 +95,6 @@ public class StatelessAllocationDeciderTests extends ESAllocationTestCase {
             service.explainShardAllocation(findShard(state, indexName, 0, ShardRouting.Role.SEARCH_ONLY), allocation),
             Decision.Type.NO,
             "shard role [SEARCH_ONLY] does not match stateless node role [index]"
-        );
-    }
-
-    public void testAutoExpandToSearchNodesOnly() {
-        var indexName = UUIDs.randomBase64UUID();
-        var autoExpandReplicasSetting = randomFrom("0-all", "0-20", "0-3", "0-1");
-        var indexMetadata = IndexMetadata.builder(indexName)
-            .settings(
-                settings(IndexVersion.current()).put(IndexMetadata.INDEX_AUTO_EXPAND_REPLICAS_SETTING.getKey(), autoExpandReplicasSetting)
-            )
-            .numberOfShards(1)
-            .numberOfReplicas(randomBoolean() ? 0 : 1);
-
-        var state = createClusterState(2, 1, indexMetadata.build());
-
-        if (randomBoolean()) {
-            var shutdownNodeId = randomFrom(state.nodes().getAllNodes()).getId();
-            state = ClusterState.builder(state)
-                .metadata(
-                    Metadata.builder(state.metadata())
-                        .putCustom(NodesShutdownMetadata.TYPE, createNodesShutdownMetadata(shutdownNodeId))
-                        .build()
-                )
-                .build();
-        }
-
-        var service = createAllocationService(new StatelessAllocationDecider());
-        state = applyStartedShardsUntilNoChange(state, service);
-
-        assertThat(state.getRoutingNodes().hasUnassignedShards(), equalTo(false));
-    }
-
-    private NodesShutdownMetadata createNodesShutdownMetadata(String nodeId) {
-        return new NodesShutdownMetadata(new HashMap<>()).putSingleNodeMetadata(
-            SingleNodeShutdownMetadata.builder()
-                .setNodeId(nodeId)
-                .setType(SingleNodeShutdownMetadata.Type.SIGTERM)
-                .setReason(this.getTestName())
-                .setStartedAtMillis(1L)
-                .setGracePeriod(TimeValue.parseTimeValue(randomTimeValue(), this.getTestName()))
-                .build()
         );
     }
 

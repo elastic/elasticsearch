@@ -1005,3 +1005,49 @@ row a = "π/2 + a + B + Λ ºC" | eval lower = to_lower(a), upper = to_upper(a) 
 a:keyword           | upper:keyword         | lower:keyword
 π/2 + a + B + Λ ºC  | Π/2 + A + B + Λ ºC    | π/2 + a + b + λ ºc
 ;
+
+valueAt
+FROM employees
+| EVAL languages_word = VALUE_AT(languages, ["zero", "one", "two", "three", "four"])
+| SORT emp_no
+| LIMIT 4
+| KEEP first_name, languages, languages_word
+;
+
+first_name:keyword | languages:integer | languages_word:keyword
+Georgi             |                 2 | two
+Bezalel            |                 5 | null
+Parto              |                 4 | four
+Chirstian          |                 5 | null
+;
+
+matchingRow
+FROM employees
+| EVAL first_name_row = MATCHING_ROW(first_name, ["Bezalel", "Parto"])
+| SORT emp_no
+| LIMIT 4
+| KEEP first_name, first_name_row
+;
+
+first_name:keyword | first_name_row:integer
+Georgi             | null
+Bezalel            | 0
+Parto              | 1
+Chirstian          | null
+;
+
+localJoin
+FROM employees
+| EVAL first_name_row = MATCHING_ROW(first_name, ["Bezalel", "Parto"])
+| EVAL looked_up = VALUE_AT(first_name_row, ["foo", "bar"])
+| SORT emp_no
+| LIMIT 4
+| KEEP first_name, looked_up
+;
+
+first_name:keyword | looked_up:keyword
+Georgi             | null
+Bezalel            | foo
+Parto              | bar
+Chirstian          | null
+;

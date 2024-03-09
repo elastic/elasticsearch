@@ -17,31 +17,26 @@ import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.core.Releasable;
 
 import java.util.List;
 
 /**
- * A specialized hash table implementation maps values of a {@link Block} to ids (in longs).
- * This class delegates to {@link LongHash} or {@link BytesRefHash}.
- *
- * @see LongHash
- * @see BytesRefHash
+ * A specialized hash table implementation maps values of a {@link Block} to ids (ints).
+ * This class delegates to mostly {@link LongHash}, {@link LongLongHash} or {@link BytesRefHash}.
  */
 public abstract sealed class BlockHash implements Releasable, SeenGroupIds //
     permits BooleanBlockHash, BytesRefBlockHash, DoubleBlockHash, IntBlockHash, LongBlockHash,//
     NullBlockHash, PackedValuesBlockHash, BytesRefLongBlockHash, LongLongBlockHash {
 
-    protected final BigArrays bigArrays;
     protected final BlockFactory blockFactory;
 
-    BlockHash(DriverContext driverContext) {
-        bigArrays = driverContext.bigArrays();
-        blockFactory = driverContext.blockFactory();
+    BlockHash(BlockFactory blockFactory) {
+        this.blockFactory = blockFactory;
     }
 
     /**
@@ -49,6 +44,12 @@ public abstract sealed class BlockHash implements Releasable, SeenGroupIds //
      * pass the ordinals to the provided {@link GroupingAggregatorFunction.AddInput}.
      */
     public abstract void add(Page page, GroupingAggregatorFunction.AddInput addInput);
+
+    /**
+     * Lookup all values form the "group by" columns in the page and return the
+     * ordinals of each row.
+     */
+    public abstract IntBlock lookup(Page page);
 
     /**
      * Returns a {@link Block} that contains all the keys that are inserted by {@link #add}.
@@ -79,40 +80,40 @@ public abstract sealed class BlockHash implements Releasable, SeenGroupIds //
      */
     public static BlockHash build(
         List<HashAggregationOperator.GroupSpec> groups,
-        DriverContext driverContext,
+        BlockFactory blockFactory,
         int emitBatchSize,
         boolean allowBrokenOptimizations
     ) {
         if (groups.size() == 1) {
-            return newForElementType(groups.get(0).channel(), groups.get(0).elementType(), driverContext);
+            return newForElementType(groups.get(0).channel(), groups.get(0).elementType(), blockFactory);
         }
         if (allowBrokenOptimizations && groups.size() == 2) {
             var g1 = groups.get(0);
             var g2 = groups.get(1);
             if (g1.elementType() == ElementType.LONG && g2.elementType() == ElementType.LONG) {
-                return new LongLongBlockHash(driverContext, g1.channel(), g2.channel(), emitBatchSize);
+                return new LongLongBlockHash(blockFactory, g1.channel(), g2.channel(), emitBatchSize);
             }
             if (g1.elementType() == ElementType.BYTES_REF && g2.elementType() == ElementType.LONG) {
-                return new BytesRefLongBlockHash(driverContext, g1.channel(), g2.channel(), false, emitBatchSize);
+                return new BytesRefLongBlockHash(blockFactory, g1.channel(), g2.channel(), false, emitBatchSize);
             }
             if (g1.elementType() == ElementType.LONG && g2.elementType() == ElementType.BYTES_REF) {
-                return new BytesRefLongBlockHash(driverContext, g2.channel(), g1.channel(), true, emitBatchSize);
+                return new BytesRefLongBlockHash(blockFactory, g2.channel(), g1.channel(), true, emitBatchSize);
             }
         }
-        return new PackedValuesBlockHash(groups, driverContext, emitBatchSize);
+        return new PackedValuesBlockHash(groups, blockFactory, emitBatchSize);
     }
 
     /**
      * Creates a specialized hash table that maps a {@link Block} of the given input element type to ids.
      */
-    private static BlockHash newForElementType(int channel, ElementType type, DriverContext driverContext) {
+    private static BlockHash newForElementType(int channel, ElementType type, BlockFactory blockFactory) {
         return switch (type) {
-            case NULL -> new NullBlockHash(channel, driverContext);
-            case BOOLEAN -> new BooleanBlockHash(channel, driverContext);
-            case INT -> new IntBlockHash(channel, driverContext);
-            case LONG -> new LongBlockHash(channel, driverContext);
-            case DOUBLE -> new DoubleBlockHash(channel, driverContext);
-            case BYTES_REF -> new BytesRefBlockHash(channel, driverContext);
+            case NULL -> new NullBlockHash(channel, blockFactory);
+            case BOOLEAN -> new BooleanBlockHash(channel, blockFactory);
+            case INT -> new IntBlockHash(channel, blockFactory);
+            case LONG -> new LongBlockHash(channel, blockFactory);
+            case DOUBLE -> new DoubleBlockHash(channel, blockFactory);
+            case BYTES_REF -> new BytesRefBlockHash(channel, blockFactory);
             default -> throw new IllegalArgumentException("unsupported grouping element type [" + type + "]");
         };
     }

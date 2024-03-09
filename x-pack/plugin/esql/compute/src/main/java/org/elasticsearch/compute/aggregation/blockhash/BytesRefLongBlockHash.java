@@ -16,8 +16,10 @@ import org.elasticsearch.common.util.LongLongHash;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
+import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
@@ -36,8 +38,8 @@ final class BytesRefLongBlockHash extends BlockHash {
     private final BytesRefHash bytesHash;
     private final LongLongHash finalHash;
 
-    BytesRefLongBlockHash(DriverContext driverContext, int channel1, int channel2, boolean reverseOutput, int emitBatchSize) {
-        super(driverContext);
+    BytesRefLongBlockHash(BlockFactory blockFactory, int channel1, int channel2, boolean reverseOutput, int emitBatchSize) {
+        super(blockFactory);
         this.channel1 = channel1;
         this.channel2 = channel2;
         this.reverseOutput = reverseOutput;
@@ -47,8 +49,8 @@ final class BytesRefLongBlockHash extends BlockHash {
         BytesRefHash bytesHash = null;
         LongLongHash longHash = null;
         try {
-            bytesHash = new BytesRefHash(1, bigArrays);
-            longHash = new LongLongHash(1, bigArrays);
+            bytesHash = new BytesRefHash(1, blockFactory.bigArrays());
+            longHash = new LongLongHash(1, blockFactory.bigArrays());
             this.bytesHash = bytesHash;
             this.finalHash = longHash;
             success = true;
@@ -79,6 +81,11 @@ final class BytesRefLongBlockHash extends BlockHash {
                 work.add();
             }
         }
+    }
+
+    @Override
+    public IntBlock lookup(Page page) {
+        throw new UnsupportedOperationException("NOCOMMIT");
     }
 
     public IntVector add(BytesRefVector vector1, LongVector vector2) {

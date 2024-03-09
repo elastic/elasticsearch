@@ -33,12 +33,12 @@ final class LongLongBlockHash extends BlockHash {
     private final int emitBatchSize;
     private final LongLongHash hash;
 
-    LongLongBlockHash(DriverContext driverContext, int channel1, int channel2, int emitBatchSize) {
-        super(driverContext);
+    LongLongBlockHash(BlockFactory blockFactory, int channel1, int channel2, int emitBatchSize) {
+        super(blockFactory);
         this.channel1 = channel1;
         this.channel2 = channel2;
         this.emitBatchSize = emitBatchSize;
-        this.hash = new LongLongHash(1, bigArrays);
+        this.hash = new LongLongHash(1, blockFactory.bigArrays());
     }
 
     @Override
@@ -196,6 +196,11 @@ final class LongLongBlockHash extends BlockHash {
         }
         seen[nextSeen] = v;
         return nextSeen + 1;
+    }
+
+    @Override
+    public IntBlock lookup(Page page) {
+        throw new UnsupportedOperationException("NOCOMMIT");
     }
 
     @Override

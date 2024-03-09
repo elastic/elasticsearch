@@ -11,7 +11,9 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -24,8 +26,8 @@ final class NullBlockHash extends BlockHash {
     private final int channel;
     private boolean seenNull = false;
 
-    NullBlockHash(int channel, DriverContext driverContext) {
-        super(driverContext);
+    NullBlockHash(int channel, BlockFactory blockFactory) {
+        super(blockFactory);
         this.channel = channel;
     }
 
@@ -40,6 +42,11 @@ final class NullBlockHash extends BlockHash {
         } else {
             throw new IllegalArgumentException("can't use NullBlockHash for non-null blocks");
         }
+    }
+
+    @Override
+    public IntBlock lookup(Page page) {
+        throw new UnsupportedOperationException("NOCOMMIT");
     }
 
     @Override

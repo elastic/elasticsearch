@@ -224,5 +224,5 @@ countFunctions#[skip:-8.13.99]
 show functions |  stats  a = count(*), b = count(*), c = count(*) |  mv_expand c;
 
 a:long | b:long | c:long
-92     | 92     | 92
+94     | 94     | 94
 ;

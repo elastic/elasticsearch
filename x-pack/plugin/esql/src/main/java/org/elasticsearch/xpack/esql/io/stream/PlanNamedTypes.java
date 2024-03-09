@@ -43,6 +43,8 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFuncti
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Greatest;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Least;
+import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.MatchingRow;
+import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.ValueAt;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToBoolean;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCartesianPoint;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCartesianShape;
@@ -98,7 +100,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMax;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMedian;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSum;
-import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
+import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StX;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StY;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
@@ -194,6 +196,7 @@ import org.elasticsearch.xpack.ql.type.TextEsField;
 import org.elasticsearch.xpack.ql.type.UnsupportedEsField;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -378,6 +381,7 @@ public final class PlanNamedTypes {
             of(ScalarFunction.class, Greatest.class, PlanNamedTypes::writeVararg, PlanNamedTypes::readVarag),
             of(ScalarFunction.class, Least.class, PlanNamedTypes::writeVararg, PlanNamedTypes::readVarag),
             of(ScalarFunction.class, Log.class, PlanNamedTypes::writeLog, PlanNamedTypes::readLog),
+            of(ScalarFunction.class, MatchingRow.class, PlanNamedTypes::writeMatchingRow, PlanNamedTypes::readMatchingRow),
             of(ScalarFunction.class, Now.class, PlanNamedTypes::writeNow, PlanNamedTypes::readNow),
             of(ScalarFunction.class, Pi.class, PlanNamedTypes::writeNoArgScalar, PlanNamedTypes::readNoArgScalar),
             of(ScalarFunction.class, Round.class, PlanNamedTypes::writeRound, PlanNamedTypes::readRound),
@@ -392,6 +396,7 @@ public final class PlanNamedTypes {
             of(ScalarFunction.class, Replace.class, PlanNamedTypes::writeReplace, PlanNamedTypes::readReplace),
             of(ScalarFunction.class, ToLower.class, PlanNamedTypes::writeToLower, PlanNamedTypes::readToLower),
             of(ScalarFunction.class, ToUpper.class, PlanNamedTypes::writeToUpper, PlanNamedTypes::readToUpper),
+            of(ScalarFunction.class, ValueAt.class, PlanNamedTypes::writeValueAt, PlanNamedTypes::readValueAt),
             // ArithmeticOperations
             of(ArithmeticOperation.class, Add.class, PlanNamedTypes::writeArithmeticOperation, PlanNamedTypes::readArithmeticOperation),
             of(ArithmeticOperation.class, Sub.class, PlanNamedTypes::writeArithmeticOperation, PlanNamedTypes::readArithmeticOperation),
@@ -1448,6 +1453,25 @@ public final class PlanNamedTypes {
         out.writeExpression(fields.get(1));
     }
 
+    static MatchingRow readMatchingRow(PlanStreamInput in) throws IOException {
+        return new MatchingRow(
+            in.readSource(),
+            in.readExpression(),
+            in.readExpression(),
+            in.readCollectionAsList(readerFromPlanReader(PlanStreamInput::readExpression))
+        );
+    }
+
+    static void writeMatchingRow(PlanStreamOutput out, MatchingRow matchingRow) throws IOException {
+        out.writeSource(matchingRow.source());
+        out.writeExpression(matchingRow.children().get(0));
+        out.writeExpression(matchingRow.children().get(1));
+        out.writeCollection(
+            matchingRow.children().subList(2, matchingRow.children().size()),
+            writerFromPlanWriter(PlanStreamOutput::writeExpression)
+        );
+    }
+
     static Now readNow(PlanStreamInput in) throws IOException {
         return new Now(in.readSource(), in.configuration());
     }
@@ -1585,6 +1609,16 @@ public final class PlanNamedTypes {
         out.writeSource(split.source());
         out.writeExpression(split.left());
         out.writeExpression(split.right());
+    }
+
+    static ValueAt readValueAt(PlanStreamInput in) throws IOException {
+        return new ValueAt(in.readSource(), in.readExpression(), in.readExpression());
+    }
+
+    static void writeValueAt(PlanStreamOutput out, ValueAt valueAt) throws IOException {
+        out.writeSource(valueAt.source());
+        out.writeExpression(valueAt.index());
+        out.writeExpression(valueAt.values());
     }
 
     static CIDRMatch readCIDRMatch(PlanStreamInput in) throws IOException {

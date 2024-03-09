@@ -13,10 +13,10 @@ import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.MultivalueDedupe;
 import org.elasticsearch.compute.operator.MultivalueDedupeInt;
 
@@ -37,10 +37,10 @@ final class IntBlockHash extends BlockHash {
      */
     private boolean seenNull;
 
-    IntBlockHash(int channel, DriverContext driverContext) {
-        super(driverContext);
+    IntBlockHash(int channel, BlockFactory blockFactory) {
+        super(blockFactory);
         this.channel = channel;
-        this.longHash = new LongHash(1, bigArrays);
+        this.longHash = new LongHash(1, blockFactory.bigArrays());
     }
 
     @Override
@@ -101,6 +101,59 @@ final class IntBlockHash extends BlockHash {
             keys[i] = (int) longHash.get(i);
         }
         return new IntBlock[] { blockFactory.newIntArrayVector(keys, keys.length).asBlock() };
+    }
+
+    @Override
+    public IntBlock lookup(Page page) {
+        Block block = page.getBlock(channel);
+        if (block.areAllValuesNull()) {
+            return blockFactory.newConstantIntVector(0, block.getPositionCount()).asBlock();
+        }
+        IntBlock intBlock = (IntBlock) block;
+        IntVector intVector = intBlock.asVector();
+        return intVector == null ? lookup(intBlock) : lookup(intVector);
+    }
+
+    private IntBlock lookup(IntVector vector) {
+        int positions = vector.getPositionCount();
+        try (var builder = blockFactory.newIntBlockBuilder(positions)) {
+            for (int i = 0; i < positions; i++) {
+                appendLookup(builder, vector.getInt(i));
+            }
+            return builder.build();
+        }
+    }
+
+    private IntBlock lookup(IntBlock block) {
+        int positions = block.getPositionCount();
+        try (var builder = blockFactory.newIntBlockBuilder(positions)) {
+            for (int p = 0; p < positions; p++) {
+                int first = block.getFirstValueIndex(p);
+                int count = block.getValueCount(p);
+                switch (count) {
+                    case 0 -> builder.appendNull();
+                    case 1 -> appendLookup(builder, block.getInt(first));
+                    default -> {
+                        int end = first + count;
+                        builder.beginPositionEntry();
+                        for (int i = first; i < end; i++) {
+                            appendLookup(builder, block.getInt(i));
+                        }
+                        builder.endPositionEntry();
+                    }
+                }
+            }
+            return builder.build();
+        }
+    }
+
+    private void appendLookup(IntBlock.Builder builder, int v) {
+        int ord = Math.toIntExact(longHash.find(v));
+        if (ord < 0) {
+            builder.appendNull();
+        } else {
+            builder.appendInt(ord);
+        }
     }
 
     @Override

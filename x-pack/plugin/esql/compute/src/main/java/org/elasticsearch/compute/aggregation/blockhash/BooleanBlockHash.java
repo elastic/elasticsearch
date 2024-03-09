@@ -10,6 +10,7 @@ package org.elasticsearch.compute.aggregation.blockhash;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.IntBlock;
@@ -30,8 +31,8 @@ final class BooleanBlockHash extends BlockHash {
     private final int channel;
     private final boolean[] everSeen = new boolean[TRUE_ORD + 1];
 
-    BooleanBlockHash(int channel, DriverContext driverContext) {
-        super(driverContext);
+    BooleanBlockHash(int channel, BlockFactory blockFactory) {
+        super(blockFactory);
         this.channel = channel;
     }
 
@@ -70,6 +71,11 @@ final class BooleanBlockHash extends BlockHash {
 
     private IntBlock add(BooleanBlock block) {
         return new MultivalueDedupeBoolean(block).hash(blockFactory, everSeen);
+    }
+
+    @Override
+    public IntBlock lookup(Page page) {
+        throw new UnsupportedOperationException("NOCOMMIT");
     }
 
     @Override

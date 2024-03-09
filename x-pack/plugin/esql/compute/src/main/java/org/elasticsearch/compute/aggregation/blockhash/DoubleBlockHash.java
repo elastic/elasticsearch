@@ -13,6 +13,7 @@ import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.IntBlock;
@@ -40,10 +41,10 @@ final class DoubleBlockHash extends BlockHash {
      */
     private boolean seenNull;
 
-    DoubleBlockHash(int channel, DriverContext driverContext) {
-        super(driverContext);
+    DoubleBlockHash(int channel, BlockFactory blockFactory) {
+        super(blockFactory);
         this.channel = channel;
-        this.longHash = new LongHash(1, bigArrays);
+        this.longHash = new LongHash(1, blockFactory.bigArrays());
     }
 
     @Override
@@ -83,6 +84,11 @@ final class DoubleBlockHash extends BlockHash {
         MultivalueDedupe.HashResult result = new MultivalueDedupeDouble(block).hash(blockFactory, longHash);
         seenNull |= result.sawNull();
         return result.ords();
+    }
+
+    @Override
+    public IntBlock lookup(Page page) {
+        throw new UnsupportedOperationException("NOCOMMIT");
     }
 
     @Override

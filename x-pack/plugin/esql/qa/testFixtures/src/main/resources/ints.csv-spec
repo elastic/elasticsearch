@@ -559,3 +559,48 @@ warning:Line 1:76: org.elasticsearch.xpack.ql.InvalidArgumentException: [1002000
 
 x:long
 ;
+
+valueAtInt
+FROM employees
+| EVAL languages_table = VALUE_AT(languages, [-12, 12, 32, 0, 99])
+| SORT emp_no
+| LIMIT 4
+| KEEP first_name, languages, languages_table
+;
+
+first_name:keyword | languages:integer | languages_table:integer
+Georgi             |                 2 | 32
+Bezalel            |                 5 | null
+Parto              |                 4 | 99
+Chirstian          |                 5 | null
+;
+
+matchingRowInt
+FROM employees
+| EVAL languages_row = MATCHING_ROW(languages, [2, 3, 5, 8, 9, 4])
+| SORT emp_no
+| LIMIT 4
+| KEEP first_name, languages, languages_row
+;
+
+first_name:keyword | languages:integer | languages_row:integer
+Georgi             |                 2 | 0
+Bezalel            |                 5 | 2
+Parto              |                 4 | 5
+Chirstian          |                 5 | 2
+;
+
+valueAtLong
+FROM employees
+| EVAL languages_table = VALUE_AT(languages, [-121233243412, 12, 32, 0, 99])
+| SORT emp_no
+| LIMIT 4
+| KEEP first_name, languages, languages_table
+;
+
+first_name:keyword | languages:integer | languages_table:long
+Georgi             |                 2 | 32
+Bezalel            |                 5 | null
+Parto              |                 4 | 99
+Chirstian          |                 5 | null
+;

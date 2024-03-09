@@ -423,3 +423,18 @@ ROW deg = [90.0, 180.0, 270.0]
 [90.0, 180.0, 270.0] | [1.5707963267948966, 3.141592653589793, 4.71238898038469]
 // end::to_radians-result[]
 ;
+
+valueAt
+FROM employees
+| EVAL languages_table = VALUE_AT(languages, [1.0, 2.2, 3.2, -1.02, -1.02])
+| SORT emp_no
+| LIMIT 4
+| KEEP first_name, languages, languages_table
+;
+
+first_name:keyword | languages:integer | languages_table:double
+Georgi             |                 2 | 3.2
+Bezalel            |                 5 | null
+Parto              |                 4 | -1.02
+Chirstian          |                 5 | null
+;

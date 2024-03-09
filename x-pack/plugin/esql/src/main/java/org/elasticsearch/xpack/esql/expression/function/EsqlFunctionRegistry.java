@@ -20,6 +20,8 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Greatest;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Least;
+import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.MatchingRow;
+import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.ValueAt;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToBoolean;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCartesianPoint;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCartesianShape;
@@ -74,7 +76,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMax;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMedian;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSum;
-import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
+import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StX;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StY;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
@@ -138,10 +140,9 @@ public final class EsqlFunctionRegistry extends FunctionRegistry {
                 def(Cosh.class, Cosh::new, "cosh"),
                 def(E.class, E::new, "e"),
                 def(Floor.class, Floor::new, "floor"),
-                def(Greatest.class, Greatest::new, "greatest"),
                 def(Log.class, Log::new, "log"),
                 def(Log10.class, Log10::new, "log10"),
-                def(Least.class, Least::new, "least"),
+
                 def(Pi.class, Pi::new, "pi"),
                 def(Pow.class, Pow::new, "pow"),
                 def(Round.class, Round::new, "round"),
@@ -179,9 +180,14 @@ public final class EsqlFunctionRegistry extends FunctionRegistry {
             new FunctionDefinition[] { def(StX.class, StX::new, "st_x") },
             new FunctionDefinition[] { def(StY.class, StY::new, "st_y") },
             // conditional
-            new FunctionDefinition[] { def(Case.class, Case::new, "case") },
-            // null
-            new FunctionDefinition[] { def(Coalesce.class, Coalesce::new, "coalesce"), },
+            new FunctionDefinition[] {
+                def(Case.class, Case::new, "case"),
+                def(Coalesce.class, Coalesce::new, "coalesce"),
+                def(Greatest.class, Greatest::new, "greatest"),
+                def(MatchingRow.class, MatchingRow::new, "matching_row"),
+                def(Least.class, Least::new, "least"),
+                def(ValueAt.class, ValueAt::new, "value_at"),
+            },
             // IP
             new FunctionDefinition[] { def(CIDRMatch.class, CIDRMatch::new, "cidr_match") },
             // conversion functions

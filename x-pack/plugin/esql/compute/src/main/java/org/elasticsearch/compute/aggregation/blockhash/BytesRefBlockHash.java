@@ -18,12 +18,12 @@ import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.MultivalueDedupe;
 import org.elasticsearch.compute.operator.MultivalueDedupeBytesRef;
 
@@ -46,10 +46,10 @@ final class BytesRefBlockHash extends BlockHash {
      */
     private boolean seenNull;
 
-    BytesRefBlockHash(int channel, DriverContext driverContext) {
-        super(driverContext);
+    BytesRefBlockHash(int channel, BlockFactory factory) {
+        super(factory);
         this.channel = channel;
-        this.bytesRefHash = new BytesRefHash(1, bigArrays);
+        this.bytesRefHash = new BytesRefHash(1, factory.bigArrays());
     }
 
     @Override
@@ -86,10 +86,62 @@ final class BytesRefBlockHash extends BlockHash {
     }
 
     private IntBlock add(BytesRefBlock block) {
-        // TODO: use block factory
         MultivalueDedupe.HashResult result = new MultivalueDedupeBytesRef(block).hash(blockFactory, bytesRefHash);
         seenNull |= result.sawNull();
         return result.ords();
+    }
+
+    @Override
+    public IntBlock lookup(Page page) {
+        Block block = page.getBlock(channel);
+        if (block.areAllValuesNull()) {
+            return blockFactory.newConstantIntVector(0, block.getPositionCount()).asBlock();
+        }
+        BytesRefBlock bytesBlock = (BytesRefBlock) block;
+        BytesRefVector bytesVector = bytesBlock.asVector();
+        return bytesVector == null ? lookup(bytesBlock) : lookup(bytesVector);
+    }
+
+    private IntBlock lookup(BytesRefVector vector) {
+        int positions = vector.getPositionCount();
+        try (var builder = blockFactory.newIntBlockBuilder(positions)) {
+            for (int i = 0; i < positions; i++) {
+                appendLookup(builder, vector.getBytesRef(i, bytes));
+            }
+            return builder.build();
+        }
+    }
+
+    private IntBlock lookup(BytesRefBlock block) {
+        int positions = block.getPositionCount();
+        try (var builder = blockFactory.newIntBlockBuilder(positions)) {
+            for (int p = 0; p < positions; p++) {
+                int first = block.getFirstValueIndex(p);
+                int count = block.getValueCount(p);
+                switch (count) {
+                    case 0 -> builder.appendNull();
+                    case 1 -> appendLookup(builder, block.getBytesRef(first, bytes));
+                    default -> {
+                        int end = first + count;
+                        builder.beginPositionEntry();
+                        for (int i = first; i < end; i++) {
+                            appendLookup(builder, block.getBytesRef(i, bytes));
+                        }
+                        builder.endPositionEntry();
+                    }
+                }
+            }
+            return builder.build();
+        }
+    }
+
+    private void appendLookup(IntBlock.Builder builder, BytesRef ref) {
+        int ord = Math.toIntExact(bytesRefHash.find(ref));
+        if (ord < 0) {
+            builder.appendNull();
+        } else {
+            builder.appendInt(ord);
+        }
     }
 
     @Override

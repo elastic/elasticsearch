@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.expression.function.scalar.nulls;
+package org.elasticsearch.xpack.esql.expression.function.scalar.conditional;
 
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.ElementType;

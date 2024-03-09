@@ -16,11 +16,12 @@ import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.BatchEncoder;
-import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.MultivalueDedupe;
 import org.elasticsearch.core.Releasables;
@@ -59,11 +60,11 @@ final class PackedValuesBlockHash extends BlockHash {
     private final BytesRefBuilder bytes = new BytesRefBuilder();
     private final Group[] groups;
 
-    PackedValuesBlockHash(List<HashAggregationOperator.GroupSpec> specs, DriverContext driverContext, int emitBatchSize) {
-        super(driverContext);
+    PackedValuesBlockHash(List<HashAggregationOperator.GroupSpec> specs, BlockFactory blockFactory, int emitBatchSize) {
+        super(blockFactory);
         this.groups = specs.stream().map(Group::new).toArray(Group[]::new);
         this.emitBatchSize = emitBatchSize;
-        this.bytesRefHash = new BytesRefHash(1, bigArrays);
+        this.bytesRefHash = new BytesRefHash(1, blockFactory.bigArrays());
         this.nullTrackingBytes = (groups.length + 7) / 8;
     }
 
@@ -76,6 +77,12 @@ final class PackedValuesBlockHash extends BlockHash {
         try (AddWork work = new AddWork(page, addInput, batchSize)) {
             work.add();
         }
+    }
+
+    @Override
+    public IntBlock lookup(Page page) {
+        // NOCOMMIT if there are many value combinations this can make huge blocks. What do?
+        throw new UnsupportedOperationException("NOCOMMIT");
     }
 
     private static class Group {

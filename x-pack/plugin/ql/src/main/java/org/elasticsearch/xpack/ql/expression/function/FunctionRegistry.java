@@ -362,6 +362,27 @@ public class FunctionRegistry {
     }
 
     /**
+     * Build a {@linkplain FunctionDefinition} for functions with a mandatory argument followed by a varidic list.
+     */
+    @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
+    protected static <T extends Function> FunctionDefinition def(Class<T> function, BinaryVariadicBuilder<T> ctorRef, String... names) {
+        FunctionBuilder builder = (source, children, cfg) -> {
+            boolean hasMinimumOne = OptionalArgument.class.isAssignableFrom(function);
+            if (hasMinimumOne && children.size() < 1) {
+                throw new QlIllegalArgumentException("expects at least one argument");
+            } else if (hasMinimumOne == false && children.size() < 2) {
+                throw new QlIllegalArgumentException("expects at least two arguments");
+            }
+            return ctorRef.build(source, children.get(0), children.get(1), children.subList(2, children.size()));
+        };
+        return def(function, builder, names);
+    }
+
+    protected interface BinaryVariadicBuilder<T> {
+        T build(Source source, Expression first, Expression second, List<Expression> variadic);
+    }
+
+    /**
      * Build a {@linkplain FunctionDefinition} for a no-argument function that is configuration aware.
      */
     @SuppressWarnings("overloads")

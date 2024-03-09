@@ -8,9 +8,8 @@
 package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.optimizer.OptimizerRules;
 
-public class FoldNull extends OptimizerRules.FoldNull {
+public class FoldNull extends LogicalPlanOptimizer.FoldNull {
     @Override
     public Expression rule(Expression e) {
         return super.rule(e);

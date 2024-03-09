@@ -579,7 +579,6 @@ POST _sql?format=json
   "fetch_size": 5
 }
 ----
-// TEST[skip:waiting on https://github.com/elastic/elasticsearch/issues/75069]
 // TEST[setup:library]
 // TEST[s/"wait_for_completion_timeout": "2s"/"wait_for_completion_timeout": "0"/]
 
@@ -603,7 +602,6 @@ For CSV, TSV, and TXT responses, the API returns these values in the respective
   "rows": [ ]
 }
 ----
-// TESTRESPONSE[skip:waiting on https://github.com/elastic/elasticsearch/issues/75069]
 // TESTRESPONSE[s/FnR0TDhyWUVmUmVtWXRWZER4MXZiNFEad2F5UDk2ZVdTVHV1S0xDUy00SklUdzozMTU=/$body.id/]
 // TESTRESPONSE[s/"is_partial": true/"is_partial": $body.is_partial/]
 // TESTRESPONSE[s/"is_running": true/"is_running": $body.is_running/]
@@ -630,7 +628,6 @@ complete results.
   "completion_status": 200
 }
 ----
-// TESTRESPONSE[skip:waiting on https://github.com/elastic/elasticsearch/issues/75069]
 // TESTRESPONSE[s/FnR0TDhyWUVmUmVtWXRWZER4MXZiNFEad2F5UDk2ZVdTVHV1S0xDUy00SklUdzozMTU=/$body.id/]
 // TESTRESPONSE[s/"expiration_time_in_millis": 1611690295000/"expiration_time_in_millis": $body.expiration_time_in_millis/]
 
@@ -663,7 +660,6 @@ POST _sql?format=json
   "fetch_size": 5
 }
 ----
-// TEST[skip:waiting on https://github.com/elastic/elasticsearch/issues/75069]
 // TEST[setup:library]
 
 You can use the get async SQL search API's `keep_alive` parameter to later
@@ -702,7 +698,6 @@ POST _sql?format=json
   "fetch_size": 5
 }
 ----
-// TEST[skip:waiting on https://github.com/elastic/elasticsearch/issues/75069]
 // TEST[setup:library]
 
 If `is_partial` and `is_running` are `false`, the search was synchronous and
@@ -719,7 +714,6 @@ returned complete results.
   "cursor": ...
 }
 ----
-// TESTRESPONSE[skip:waiting on https://github.com/elastic/elasticsearch/issues/75069]
 // TESTRESPONSE[s/Fnc5UllQdUVWU0NxRFNMbWxNYXplaFEaMUpYQ05oSkpTc3kwZ21EdC1tbFJXQTo0NzA=/$body.id/]
 // TESTRESPONSE[s/"rows": \.\.\./"rows": $body.rows/]
 // TESTRESPONSE[s/"columns": \.\.\./"columns": $body.columns/]

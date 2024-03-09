@@ -25,10 +25,12 @@ import org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionLi
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
@@ -51,6 +53,8 @@ import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.isDataStrea
 public class MetadataCreateDataStreamService {
 
     private static final Logger logger = LogManager.getLogger(MetadataCreateDataStreamService.class);
+
+    public static final String FAILURE_STORES_REFRESH_INTERVAL_SETTING_NAME = "data_streams.failure_stores.refresh_interval";
 
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
@@ -98,6 +102,7 @@ public class MetadataCreateDataStreamService {
                 public ClusterState execute(ClusterState currentState) throws Exception {
                     ClusterState clusterState = createDataStream(
                         metadataCreateIndexService,
+                        clusterService,
                         currentState,
                         isDslOnlyMode,
                         request,
@@ -124,7 +129,7 @@ public class MetadataCreateDataStreamService {
         ClusterState current,
         ActionListener<Void> rerouteListener
     ) throws Exception {
-        return createDataStream(metadataCreateIndexService, current, isDslOnlyMode, request, rerouteListener);
+        return createDataStream(metadataCreateIndexService, clusterService, current, isDslOnlyMode, request, rerouteListener);
     }
 
     public static final class CreateDataStreamClusterStateUpdateRequest extends ClusterStateUpdateRequest<
@@ -184,12 +189,22 @@ public class MetadataCreateDataStreamService {
 
     static ClusterState createDataStream(
         MetadataCreateIndexService metadataCreateIndexService,
+        ClusterService clusterService,
         ClusterState currentState,
         boolean isDslOnlyMode,
         CreateDataStreamClusterStateUpdateRequest request,
         ActionListener<Void> rerouteListener
     ) throws Exception {
-        return createDataStream(metadataCreateIndexService, currentState, isDslOnlyMode, request, List.of(), null, rerouteListener);
+        return createDataStream(
+            metadataCreateIndexService,
+            clusterService,
+            currentState,
+            isDslOnlyMode,
+            request,
+            List.of(),
+            null,
+            rerouteListener
+        );
     }
 
     /**
@@ -204,6 +219,7 @@ public class MetadataCreateDataStreamService {
      */
     static ClusterState createDataStream(
         MetadataCreateIndexService metadataCreateIndexService,
+        ClusterService clusterService,
         ClusterState currentState,
         boolean isDslOnlyMode,
         CreateDataStreamClusterStateUpdateRequest request,
@@ -260,6 +276,7 @@ public class MetadataCreateDataStreamService {
             String failureStoreIndexName = DataStream.getDefaultFailureStoreName(dataStreamName, 1, request.getStartTime());
             currentState = createFailureStoreIndex(
                 metadataCreateIndexService,
+                clusterService,
                 currentState,
                 request,
                 dataStreamName,
@@ -384,6 +401,7 @@ public class MetadataCreateDataStreamService {
 
     private static ClusterState createFailureStoreIndex(
         MetadataCreateIndexService metadataCreateIndexService,
+        ClusterService clusterService,
         ClusterState currentState,
         CreateDataStreamClusterStateUpdateRequest request,
         String dataStreamName,
@@ -394,6 +412,13 @@ public class MetadataCreateDataStreamService {
             return currentState;
         }
 
+        var settingsBuilder = Settings.builder().put(IndexMetadata.SETTING_INDEX_HIDDEN, true);
+        // Optionally set a custom refresh interval for the failure store index.
+        var refreshInterval = clusterService.getSettings().getAsTime(FAILURE_STORES_REFRESH_INTERVAL_SETTING_NAME, null);
+        if (refreshInterval != null) {
+            settingsBuilder.put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), refreshInterval);
+        }
+
         CreateIndexClusterStateUpdateRequest createIndexRequest = new CreateIndexClusterStateUpdateRequest(
             "initialize_data_stream",
             failureStoreIndexName,
@@ -402,7 +427,7 @@ public class MetadataCreateDataStreamService {
             .nameResolvedInstant(request.getStartTime())
             .performReroute(false)
             .setMatchingTemplate(template)
-            .settings(MetadataRolloverService.HIDDEN_INDEX_SETTINGS);
+            .settings(settingsBuilder.build());
 
         try {
             currentState = metadataCreateIndexService.applyCreateIndexRequest(

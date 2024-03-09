@@ -7,8 +7,11 @@
 
 package org.elasticsearch.compute.data;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 
+import java.io.IOException;
 import java.util.BitSet;
 
 abstract class AbstractArrayBlock extends AbstractNonThreadSafeRefCounted implements Block {
@@ -117,5 +120,64 @@ abstract class AbstractArrayBlock extends AbstractNonThreadSafeRefCounted implem
     @Override
     public final boolean areAllValuesNull() {
         return nullValuesCount() == getPositionCount();
+    }
+
+    static final class SubFields {
+        long bytesReserved = 0;
+        final int positionCount;
+        final int[] firstValueIndexes;
+        final BitSet nullsMask;
+        final MvOrdering mvOrdering;
+
+        SubFields(BlockFactory blockFactory, StreamInput in) throws IOException {
+            this.positionCount = in.readVInt();
+            boolean success = false;
+            try {
+                if (in.readBoolean()) {
+                    bytesReserved += blockFactory.preAdjustBreakerForInt(positionCount + 1);
+                    final int[] values = new int[positionCount + 1];
+                    values[0] = in.readVInt();
+                    for (int i = 1; i <= positionCount; i++) {
+                        values[i] = values[i - 1] + in.readVInt();
+                    }
+                    this.firstValueIndexes = values;
+                } else {
+                    this.firstValueIndexes = null;
+                }
+                if (in.readBoolean()) {
+                    bytesReserved += blockFactory.preAdjustBreakerForLong(positionCount / Long.BYTES);
+                    nullsMask = BitSet.valueOf(in.readLongArray());
+                } else {
+                    nullsMask = null;
+                }
+                this.mvOrdering = in.readEnum(MvOrdering.class);
+                success = true;
+            } finally {
+                if (success == false) {
+                    blockFactory.adjustBreaker(-bytesReserved);
+                }
+            }
+        }
+
+        int vectorPositions() {
+            return firstValueIndexes == null ? positionCount : firstValueIndexes[positionCount];
+        }
+    }
+
+    void writeSubFields(StreamOutput out) throws IOException {
+        out.writeVInt(positionCount);
+        out.writeBoolean(firstValueIndexes != null);
+        if (firstValueIndexes != null) {
+            // firstValueIndexes are monotonic increasing
+            out.writeVInt(firstValueIndexes[0]);
+            for (int i = 1; i <= positionCount; i++) {
+                out.writeVInt(firstValueIndexes[i] - firstValueIndexes[i - 1]);
+            }
+        }
+        out.writeBoolean(nullsMask != null);
+        if (nullsMask != null) {
+            out.writeLongArray(nullsMask.toLongArray());
+        }
+        out.writeEnum(mvOrdering);
     }
 }

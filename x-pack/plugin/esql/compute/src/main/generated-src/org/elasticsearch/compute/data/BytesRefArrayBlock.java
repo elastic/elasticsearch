@@ -9,9 +9,11 @@ package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.core.Releasables;
 
+import java.io.IOException;
 import java.util.BitSet;
 
 /**
@@ -54,6 +56,29 @@ final class BytesRefArrayBlock extends AbstractArrayBlock implements BytesRefBlo
         assert firstValueIndexes == null
             ? vector.getPositionCount() == getPositionCount()
             : firstValueIndexes[getPositionCount()] == vector.getPositionCount();
+    }
+
+    static BytesRefArrayBlock readArrayBlock(BlockFactory blockFactory, BlockStreamInput in) throws IOException {
+        final SubFields sub = new SubFields(blockFactory, in);
+        BytesRefArrayVector vector = null;
+        boolean success = false;
+        try {
+            vector = BytesRefArrayVector.readArrayVector(sub.vectorPositions(), in, blockFactory);
+            var block = new BytesRefArrayBlock(vector, sub.positionCount, sub.firstValueIndexes, sub.nullsMask, sub.mvOrdering);
+            blockFactory.adjustBreaker(block.ramBytesUsed() - vector.ramBytesUsed() - sub.bytesReserved);
+            success = true;
+            return block;
+        } finally {
+            if (success == false) {
+                Releasables.close(vector);
+                blockFactory.adjustBreaker(-sub.bytesReserved);
+            }
+        }
+    }
+
+    void writeArrayBlock(StreamOutput out) throws IOException {
+        writeSubFields(out);
+        vector.writeArrayVector(vector.getPositionCount(), out);
     }
 
     @Override

@@ -8,8 +8,10 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Releasables;
 
+import java.io.IOException;
 import java.util.BitSet;
 
 /**
@@ -51,6 +53,29 @@ final class DoubleArrayBlock extends AbstractArrayBlock implements DoubleBlock {
         assert firstValueIndexes == null
             ? vector.getPositionCount() == getPositionCount()
             : firstValueIndexes[getPositionCount()] == vector.getPositionCount();
+    }
+
+    static DoubleArrayBlock readArrayBlock(BlockFactory blockFactory, BlockStreamInput in) throws IOException {
+        final SubFields sub = new SubFields(blockFactory, in);
+        DoubleArrayVector vector = null;
+        boolean success = false;
+        try {
+            vector = DoubleArrayVector.readArrayVector(sub.vectorPositions(), in, blockFactory);
+            var block = new DoubleArrayBlock(vector, sub.positionCount, sub.firstValueIndexes, sub.nullsMask, sub.mvOrdering);
+            blockFactory.adjustBreaker(block.ramBytesUsed() - vector.ramBytesUsed() - sub.bytesReserved);
+            success = true;
+            return block;
+        } finally {
+            if (success == false) {
+                Releasables.close(vector);
+                blockFactory.adjustBreaker(-sub.bytesReserved);
+            }
+        }
+    }
+
+    void writeArrayBlock(StreamOutput out) throws IOException {
+        writeSubFields(out);
+        vector.writeArrayVector(vector.getPositionCount(), out);
     }
 
     @Override

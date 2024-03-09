@@ -187,7 +187,7 @@ public class TransportPutRollupJobAction extends AcknowledgedTransportMasterNode
             .startObject("mappings")
             .startObject("_doc")
             .startObject("_meta")
-            .field(Rollup.ROLLUP_TEMPLATE_VERSION_FIELD, "") // empty string to remain backwards compatible
+            .field("rollup-version", "") // empty string to remain backwards compatible
             .startObject("_rollup")
             .field(config.getId(), config)
             .endObject()

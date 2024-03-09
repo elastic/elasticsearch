@@ -24,4 +24,9 @@ abstract class AbstractNativeAccess implements NativeAccess {
     String getName() {
         return name;
     }
+
+    @Override
+    public Systemd systemd() {
+        return null;
+    }
 }

@@ -229,7 +229,11 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 }
             }
         }
-        aggregates.addAll(groupings);
+        // since groupings are aliased, add refs to it in the aggregates
+        for (Expression group : groupings) {
+            aggregates.add(Expressions.attribute(group));
+        }
+
         return input -> new Aggregate(source(ctx), input, new ArrayList<>(groupings), aggregates);
     }
 

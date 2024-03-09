@@ -1044,7 +1044,7 @@ FROM employees
 ;
 
 // tag::docsStatsByExpression-result[]
-my_count:long    |LEFT(last_name, 1):keyword
+my_count:long  |LEFT(last_name, 1):keyword
 2              |A                 
 11             |B                 
 5              |C                 
@@ -1188,6 +1188,72 @@ e:i | l:i
 4   | 3
 ;
 
+nestedAggsOverGroupingWithAlias#[skip:-8.13.99,reason:supported in 8.14]
+FROM employees
+| STATS e = length(f) + 1, count(*) by f = first_name
+| SORT f
+| LIMIT 3
+;
+
+e:i | count(*):l | f:s
+10  | 1          | Alejandro
+8   | 1          | Amabile
+7   | 1          | Anneke
+;
+
+nestedAggsOverGroupingWithAliasInsideExpression#[skip:-8.13.99,reason:supported in 8.14]
+FROM employees
+| STATS m = max(l), o = min(s) by l = languages, s = salary + 1
+| SORT l
+| LIMIT 3
+;
+
+m:i | o:i   | l:i | s:i
+1   | 66175 | 1   | 66175
+1   | 63529 | 1   | 63529
+1   | 48736 | 1   | 48736
+;
+
+nestedAggsOverGroupingWithAliasAndProjection#[skip:-8.13.99,reason:supported in 8.14]
+FROM employees
+| STATS e = length(f) + 1, c = count(*) by f = first_name
+| KEEP e
+| LIMIT 3
+;
+
+e:i
+null
+7
+8
+;
+
+nestedAggsOverGroupingAndAggWithAliasAndProjection#[skip:-8.13.99,reason:supported in 8.14]
+FROM employees
+| STATS e = length(f) + count(*), m = max(emp_no) by f = first_name
+| KEEP e
+| LIMIT 3
+;
+
+e:l
+null
+7
+8  
+;
+
+nestedAggsOverGroupingExpAndAggWithAliasAndProjection#[skip:-8.13.99,reason:supported in 8.14]
+FROM employees
+| STATS e = f + count(*), m = max(emp_no) by f = length(first_name) % 2
+| KEEP e
+| SORT e
+| LIMIT 3
+;
+
+e:l
+44
+47
+null
+;
+
 defaultNameWithSpace
 ROW a = 1 | STATS couNt(*) | SORT `couNt(*)`
 ;
@@ -1217,3 +1283,4 @@ FROM airports
 c:l
 891
 ;
+

@@ -23,7 +23,9 @@ import org.elasticsearch.xpack.ql.common.Failure;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.AttributeMap;
+import org.elasticsearch.xpack.ql.expression.AttributeSet;
 import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.TypeResolutions;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
@@ -157,6 +159,7 @@ public class Verifier {
         if (p instanceof Aggregate agg) {
 
             List<Expression> nakedGroups = new ArrayList<>(agg.groupings().size());
+            AttributeSet groupRefs = new AttributeSet();
             // check grouping
             // The grouping can not be an aggregate function
             agg.groupings().forEach(e -> {
@@ -165,7 +168,13 @@ public class Verifier {
                         failures.add(fail(g, "cannot use an aggregate [{}] for grouping", af));
                     }
                 });
-                nakedGroups.add(Alias.unwrap(e));
+                // remember naked expressions (to deal with implicit aliasing for grouping)
+                nakedGroups.add(e);
+                // keep the grouping attributes (common case)
+                Attribute attr = Expressions.attribute(e);
+                if (attr != null) {
+                    groupRefs.add(attr);
+                }
             });
 
             // check aggregates - accept only aggregate functions or expressions in which each naked attribute is copied as
@@ -176,14 +185,20 @@ public class Verifier {
                     failures.add(fail(exp, "expected an aggregate function but found [{}]", exp.sourceText()));
                 }
                 // traverse the tree to find invalid matches
-                checkInvalidNamedExpressionUsage(exp, nakedGroups, failures, 0);
+                checkInvalidNamedExpressionUsage(exp, nakedGroups, groupRefs, failures, 0);
             });
         }
     }
 
     // traverse the expression and look either for an agg function or a grouping match
     // stop either when no children are left, the leaves are literals or a reference attribute is given
-    private static void checkInvalidNamedExpressionUsage(Expression e, List<Expression> groups, Set<Failure> failures, int level) {
+    private static void checkInvalidNamedExpressionUsage(
+        Expression e,
+        List<Expression> groups,
+        AttributeSet groupRefs,
+        Set<Failure> failures,
+        int level
+    ) {
         // found an aggregate, constant or a group, bail out
         if (e instanceof AggregateFunction af) {
             af.field().forEachDown(AggregateFunction.class, f -> {
@@ -191,12 +206,10 @@ public class Verifier {
             });
         } else if (e.foldable()) {
             // don't do anything
-        }
-        // don't allow nested groupings for now stats substring(group) by group as we don't optimize yet for them
-        else if (groups.contains(e)) {
-            if (level != 0) {
-                failures.add(fail(e, "scalar functions over groupings [{}] not allowed yet", e.sourceText()));
-            }
+        } else if (groups.contains(e) || groupRefs.contains(e)) {
+            // if (level != 0) {
+            // failures.add(fail(e, "scalar functions over groupings [{}] not allowed yet", e.sourceText()));
+            // }
         }
         // if a reference is found, mark it as an error
         else if (e instanceof NamedExpression ne) {
@@ -205,7 +218,7 @@ public class Verifier {
         // other keep on going
         else {
             for (Expression child : e.children()) {
-                checkInvalidNamedExpressionUsage(child, groups, failures, level + 1);
+                checkInvalidNamedExpressionUsage(child, groups, groupRefs, failures, level + 1);
             }
         }
     }

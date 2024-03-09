@@ -12,6 +12,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.expression.NamedExpressions;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
@@ -27,9 +28,11 @@ import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.analyzer.AnalyzerRules;
 import org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.BaseAnalyzerRule;
 import org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.ParameterizedAnalyzerRule;
+import org.elasticsearch.xpack.ql.capabilities.Resolvables;
 import org.elasticsearch.xpack.ql.common.Failure;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
+import org.elasticsearch.xpack.ql.expression.AttributeMap;
 import org.elasticsearch.xpack.ql.expression.EmptyAttribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
@@ -60,6 +63,7 @@ import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.ql.type.InvalidMappedField;
 import org.elasticsearch.xpack.ql.type.UnsupportedEsField;
 import org.elasticsearch.xpack.ql.util.CollectionUtils;
+import org.elasticsearch.xpack.ql.util.Holder;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 
 import java.util.ArrayList;
@@ -312,6 +316,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 childrenOutput.addAll(output);
             }
 
+            if (plan instanceof Aggregate agg) {
+                return resolveAggregate(agg, childrenOutput);
+            }
+
             if (plan instanceof Drop d) {
                 return resolveDrop(d, childrenOutput);
             }
@@ -337,6 +345,60 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
 
             return plan.transformExpressionsUp(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
+        }
+
+        private LogicalPlan resolveAggregate(Aggregate a, List<Attribute> childrenOutput) {
+            // if the grouping is resolved but the aggs are not, use the former to resolve the latter
+            // e.g. STATS a ... GROUP BY a = x + 1
+            Holder<Boolean> changed = new Holder<>(false);
+            List<Expression> groupings = a.groupings();
+            // first resolve groupings since the aggs might refer to them
+            // trying to globally resolve unresolved attributes will lead to some being marked as unresolvable
+            if (Resolvables.resolved(groupings) == false) {
+                List<Expression> newGroupings = new ArrayList<>(groupings.size());
+                for (Expression g : groupings) {
+                    Expression resolved = g.transformUp(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
+                    if (resolved != g) {
+                        changed.set(true);
+                    }
+                    newGroupings.add(resolved);
+                }
+                groupings = newGroupings;
+                if (changed.get()) {
+                    a = new Aggregate(a.source(), a.child(), newGroupings, a.aggregates());
+                    changed.set(false);
+                }
+            }
+
+            if (a.expressionsResolved() == false && Resolvables.resolved(groupings)) {
+
+                AttributeMap<Expression> resolved = new AttributeMap<>();
+                for (Expression e : groupings) {
+                    Attribute attr = Expressions.attribute(e);
+                    if (attr != null) {
+                        resolved.put(attr, attr);
+                    }
+                }
+                List<Attribute> resolvedList = NamedExpressions.mergeOutputAttributes(new ArrayList<>(resolved.keySet()), childrenOutput);
+                List<NamedExpression> newAggregates = new ArrayList<>();
+
+                for (NamedExpression aggregate : a.aggregates()) {
+                    var agg = (NamedExpression) aggregate.transformUp(UnresolvedAttribute.class, ua -> {
+                        Expression ne = ua;
+                        Attribute maybeResolved = maybeResolveAttribute(ua, resolvedList);
+                        if (maybeResolved != null) {
+                            changed.set(true);
+                            // ne = maybeResolved.resolved() ? resolved.get(maybeResolved) : maybeResolved;
+                            ne = maybeResolved;
+                        }
+                        return ne;
+                    });
+                    newAggregates.add(agg);
+                }
+
+                a = changed.get() ? new Aggregate(a.source(), a.child(), groupings, newAggregates) : a;
+            }
+            return a;
         }
 
         private LogicalPlan resolveMvExpand(MvExpand p, List<Attribute> childrenOutput) {

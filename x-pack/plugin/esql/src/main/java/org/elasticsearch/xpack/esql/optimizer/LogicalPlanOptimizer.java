@@ -1299,7 +1299,12 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
      * stats a = sum(a) + min(b) by x
      * becomes
      * stats a1 = sum(a), a2 = min(b) by x | eval a = a1 + a2 | keep a, x
-     *
+     * The rule also considers expressions applied over groups:
+     * stats a = x + 1 by x becomes stats by x | eval a = x + 1 | keep a, x
+     * And to combine the two:
+     * stats a = x + count(*) by x
+     * becomes
+     * stats a1 = count(*) by x | eval a = x + a1 | keep a1, x
      * Since the logic is very similar, this rule also handles duplicate aggregate functions to avoid duplicate compute
      * stats a = min(x), b = min(x), c = count(*), d = count() by g
      * becomes
@@ -1316,7 +1321,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             AttributeMap<Expression> aliases = new AttributeMap<>();
             aggregate.forEachExpressionUp(Alias.class, a -> aliases.put(a.toAttribute(), a.child()));
 
-            // break down each aggregate into AggregateFunction
+            // break down each aggregate into AggregateFunction and/or grouping key
             // preserve the projection at the end
             List<? extends NamedExpression> aggs = aggregate.aggregates();
 
@@ -1358,14 +1363,11 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
                             newProjections.add(as.replaceChild(found.toAttribute()));
                         }
                     }
-                    // nested expression over aggregate function - replace them with reference and move the expression into a
-                    // follow-up eval
+                    // nested expression over aggregate function or groups
+                    // replace them with reference and move the expression into a follow-up eval
                     else {
-                        Holder<Boolean> transformed = new Holder<>(false);
+                        changed.set(true);
                         Expression aggExpression = child.transformUp(AggregateFunction.class, af -> {
-                            transformed.set(true);
-                            changed.set(true);
-
                             AggregateFunction canonical = (AggregateFunction) af.canonical();
                             Alias alias = rootAggs.get(canonical);
                             if (alias == null) {
@@ -1387,17 +1389,8 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
                             return alias.toAttribute();
                         });
 
-                        Alias alias = as;
-                        if (transformed.get()) {
-                            // if at least a change occurred, update the alias and add it to the eval
-                            alias = as.replaceChild(aggExpression);
-                            newEvals.add(alias);
-                        }
-                        // aliased grouping
-                        else {
-                            newAggs.add(alias);
-                        }
-
+                        Alias alias = as.replaceChild(aggExpression);
+                        newEvals.add(alias);
                         newProjections.add(alias.toAttribute());
                     }
                 }

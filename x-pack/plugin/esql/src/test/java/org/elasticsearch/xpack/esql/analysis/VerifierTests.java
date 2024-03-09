@@ -68,14 +68,6 @@ public class VerifierTests extends ESTestCase {
             error("from test | eval z = 2 | stats x = avg(z), salary by emp_no")
         );
         assertEquals(
-            "1:26: scalar functions over groupings [first_name] not allowed yet",
-            error("from test | stats length(first_name), count(1) by first_name")
-        );
-        assertEquals(
-            "1:36: scalar functions over groupings [languages] not allowed yet",
-            error("from test | stats max(languages) + languages by l = languages")
-        );
-        assertEquals(
             "1:23: nested aggregations [max(salary)] not allowed inside other aggregations [max(max(salary))]",
             error("from test | stats max(max(salary)) by first_name")
         );
@@ -127,20 +119,6 @@ public class VerifierTests extends ESTestCase {
 
     public void testAggsInsideEval() throws Exception {
         assertEquals("1:29: aggregate function [max(b)] not allowed outside STATS command", error("row a = 1, b = 2 | eval x = max(b)"));
-    }
-
-    public void testAggsWithExpressionOverAggs() {
-        assertEquals(
-            "1:44: scalar functions over groupings [languages] not allowed yet",
-            error("from test | stats max(languages + 1) , m = languages + min(salary + 1) by l = languages, s = salary")
-        );
-    }
-
-    public void testAggScalarOverGroupingColumn() {
-        assertEquals(
-            "1:26: scalar functions over groupings [first_name] not allowed yet",
-            error("from test | stats length(first_name), count(1) by first_name")
-        );
     }
 
     public void testGroupingInAggs() {

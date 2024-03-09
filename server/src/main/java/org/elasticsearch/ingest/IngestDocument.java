@@ -436,7 +436,7 @@ public final class IngestDocument {
      * @throws IllegalArgumentException if the path is null, empty or invalid.
      */
     public void appendFieldValue(String path, Object value, boolean allowDuplicates) {
-        setFieldValue(path, value, true, allowDuplicates, true);
+        setFieldValue(path, value, true, allowDuplicates, false);
     }
 
     /**
@@ -450,11 +450,11 @@ public final class IngestDocument {
      * @param path The path within the document in dot-notation
      * @param value The value or values to append to the existing ones
      * @param allowDuplicates When false, any values that already exist in the field will not be added
-     * @param allowEmptyValues When false, values that resolve to empty strings will not be added
+     * @param ignoreEmptyValues When true, values that resolve to empty strings will not be added
      * @throws IllegalArgumentException if the path is null, empty or invalid.
      */
-    public void appendFieldValue(String path, Object value, boolean allowDuplicates, boolean allowEmptyValues) {
-        setFieldValue(path, value, true, allowDuplicates, allowEmptyValues);
+    public void appendFieldValue(String path, Object value, boolean allowDuplicates, boolean ignoreEmptyValues) {
+        setFieldValue(path, value, true, allowDuplicates, ignoreEmptyValues);
     }
 
     /**
@@ -468,11 +468,11 @@ public final class IngestDocument {
      * @param path The path within the document in dot-notation
      * @param valueSource The value source that will produce the value or values to append to the existing ones
      * @param allowDuplicates When false, any values that already exist in the field will not be added
-     * @param allowEmptyValues When false, values that resolve to empty strings will not be added
+     * @param ignoreEmptyValues When true, values that resolve to empty strings will not be added
      * @throws IllegalArgumentException if the path is null, empty or invalid.
      */
-    public void appendFieldValue(String path, ValueSource valueSource, boolean allowDuplicates, boolean allowEmptyValues) {
-        appendFieldValue(path, valueSource.copyAndResolve(templateModel), allowDuplicates, allowEmptyValues);
+    public void appendFieldValue(String path, ValueSource valueSource, boolean allowDuplicates, boolean ignoreEmptyValues) {
+        appendFieldValue(path, valueSource.copyAndResolve(templateModel), allowDuplicates, ignoreEmptyValues);
     }
 
     /**
@@ -486,7 +486,7 @@ public final class IngestDocument {
      * item identified by the provided path.
      */
     public void setFieldValue(String path, Object value) {
-        setFieldValue(path, value, false, true, true);
+        setFieldValue(path, value, false, true, false);
     }
 
     /**
@@ -552,7 +552,7 @@ public final class IngestDocument {
         setFieldValue(path, value);
     }
 
-    private void setFieldValue(String path, Object value, boolean append, boolean allowDuplicates, boolean allowEmptyValues) {
+    private void setFieldValue(String path, Object value, boolean append, boolean allowDuplicates, boolean ignoreEmptyValues) {
         FieldPath fieldPath = new FieldPath(path);
         Object context = fieldPath.initialContext;
         for (int i = 0; i < fieldPath.pathElements.length - 1; i++) {
@@ -609,13 +609,13 @@ public final class IngestDocument {
             if (append) {
                 if (map.containsKey(leafKey)) {
                     Object object = map.get(leafKey);
-                    Object list = appendValues(object, value, allowDuplicates, allowEmptyValues);
+                    Object list = appendValues(object, value, allowDuplicates, ignoreEmptyValues);
                     if (list != object) {
                         map.put(leafKey, list);
                     }
                 } else {
                     List<Object> list = new ArrayList<>();
-                    appendValues(list, value, allowEmptyValues);
+                    appendValues(list, value, ignoreEmptyValues);
                     map.put(leafKey, list);
                 }
                 return;
@@ -640,7 +640,7 @@ public final class IngestDocument {
             }
             if (append) {
                 Object object = list.get(index);
-                Object newList = appendValues(object, value, allowDuplicates, allowEmptyValues);
+                Object newList = appendValues(object, value, allowDuplicates, ignoreEmptyValues);
                 if (newList != object) {
                     list.set(index, newList);
                 }
@@ -661,7 +661,7 @@ public final class IngestDocument {
     }
 
     @SuppressWarnings("unchecked")
-    private static Object appendValues(Object maybeList, Object value, boolean allowDuplicates, boolean allowEmptyValues) {
+    private static Object appendValues(Object maybeList, Object value, boolean allowDuplicates, boolean ignoreEmptyValues) {
         List<Object> list;
         if (maybeList instanceof List) {
             // maybeList is already a list, we append the provided values to it
@@ -672,41 +672,41 @@ public final class IngestDocument {
             list.add(maybeList);
         }
         if (allowDuplicates) {
-            appendValues(list, value, allowEmptyValues);
+            appendValues(list, value, ignoreEmptyValues);
             return list;
         } else {
             // if no values were appended due to duplication, return the original object so the ingest document remains unmodified
-            return appendValuesWithoutDuplicates(list, value, allowEmptyValues) ? list : maybeList;
+            return appendValuesWithoutDuplicates(list, value, ignoreEmptyValues) ? list : maybeList;
         }
     }
 
-    private static void appendValues(List<Object> list, Object value, boolean allowEmptyValues) {
+    private static void appendValues(List<Object> list, Object value, boolean ignoreEmptyValues) {
         if (value instanceof List<?> l) {
-            if (allowEmptyValues) {
-                list.addAll(l);
-            } else {
+            if (ignoreEmptyValues) {
                 l.forEach((v) -> {
                     if (valueNotEmpty(v)) {
                         list.add(v);
                     }
                 });
+            } else {
+                list.addAll(l);
             }
-        } else if (allowEmptyValues || valueNotEmpty(value)) {
+        } else if (ignoreEmptyValues == false || valueNotEmpty(value)) {
             list.add(value);
         }
     }
 
-    private static boolean appendValuesWithoutDuplicates(List<Object> list, Object value, boolean allowEmptyValues) {
+    private static boolean appendValuesWithoutDuplicates(List<Object> list, Object value, boolean ignoreEmptyValues) {
         boolean valuesWereAppended = false;
         if (value instanceof List<?> valueList) {
             for (Object val : valueList) {
-                if (list.contains(val) == false && (allowEmptyValues || valueNotEmpty(val))) {
+                if (list.contains(val) == false && (ignoreEmptyValues == false || valueNotEmpty(val))) {
                     list.add(val);
                     valuesWereAppended = true;
                 }
             }
         } else {
-            if (list.contains(value) == false && (allowEmptyValues || valueNotEmpty(value))) {
+            if (list.contains(value) == false && (ignoreEmptyValues == false || valueNotEmpty(value))) {
                 list.add(value);
                 valuesWereAppended = true;
             }

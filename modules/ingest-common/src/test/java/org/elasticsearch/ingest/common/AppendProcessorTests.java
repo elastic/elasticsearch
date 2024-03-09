@@ -50,13 +50,13 @@ public class AppendProcessorTests extends ESTestCase {
         if (randomBoolean()) {
             Object value = scalar.randomValue();
             values.add(value);
-            appendProcessor = createAppendProcessor(field, value, true, true);
+            appendProcessor = createAppendProcessor(field, value, true, false);
         } else {
             int valuesSize = randomIntBetween(0, 10);
             for (int i = 0; i < valuesSize; i++) {
                 values.add(scalar.randomValue());
             }
-            appendProcessor = createAppendProcessor(field, values, true, true);
+            appendProcessor = createAppendProcessor(field, values, true, false);
         }
         appendProcessor.execute(ingestDocument);
         Object fieldValue = ingestDocument.getFieldValue(field, Object.class);
@@ -79,13 +79,13 @@ public class AppendProcessorTests extends ESTestCase {
         if (randomBoolean()) {
             Object value = scalar.randomValue();
             values.add(value);
-            appendProcessor = createAppendProcessor(field, value, true, true);
+            appendProcessor = createAppendProcessor(field, value, true, false);
         } else {
             int valuesSize = randomIntBetween(0, 10);
             for (int i = 0; i < valuesSize; i++) {
                 values.add(scalar.randomValue());
             }
-            appendProcessor = createAppendProcessor(field, values, true, true);
+            appendProcessor = createAppendProcessor(field, values, true, false);
         }
         appendProcessor.execute(ingestDocument);
         List<?> list = ingestDocument.getFieldValue(field, List.class);
@@ -103,13 +103,13 @@ public class AppendProcessorTests extends ESTestCase {
         if (randomBoolean()) {
             Object value = scalar.randomValue();
             values.add(value);
-            appendProcessor = createAppendProcessor(field, value, true, true);
+            appendProcessor = createAppendProcessor(field, value, true, false);
         } else {
             int valuesSize = randomIntBetween(0, 10);
             for (int i = 0; i < valuesSize; i++) {
                 values.add(scalar.randomValue());
             }
-            appendProcessor = createAppendProcessor(field, values, true, true);
+            appendProcessor = createAppendProcessor(field, values, true, false);
         }
         appendProcessor.execute(ingestDocument);
         List<?> fieldValue = ingestDocument.getFieldValue(field, List.class);
@@ -127,7 +127,7 @@ public class AppendProcessorTests extends ESTestCase {
 
         List<Object> valuesToAppend = new ArrayList<>();
         valuesToAppend.add(originalValue);
-        Processor appendProcessor = createAppendProcessor(field, valuesToAppend, false, true);
+        Processor appendProcessor = createAppendProcessor(field, valuesToAppend, false, false);
         appendProcessor.execute(ingestDocument);
         Object fieldValue = ingestDocument.getFieldValue(field, Object.class);
         assertThat(fieldValue, not(instanceOf(List.class)));
@@ -142,7 +142,7 @@ public class AppendProcessorTests extends ESTestCase {
         List<Object> valuesToAppend = new ArrayList<>();
         String newValue = randomValueOtherThan(originalValue, () -> randomAlphaOfLengthBetween(1, 10));
         valuesToAppend.add(newValue);
-        Processor appendProcessor = createAppendProcessor(field, valuesToAppend, false, true);
+        Processor appendProcessor = createAppendProcessor(field, valuesToAppend, false, false);
         appendProcessor.execute(ingestDocument);
         List<?> list = ingestDocument.getFieldValue(field, List.class);
         assertThat(list.size(), equalTo(2));
@@ -171,7 +171,7 @@ public class AppendProcessorTests extends ESTestCase {
         Collections.sort(valuesToAppend);
 
         // attempt to append both new and existing values
-        Processor appendProcessor = createAppendProcessor(originalField, valuesToAppend, false, true);
+        Processor appendProcessor = createAppendProcessor(originalField, valuesToAppend, false, false);
         appendProcessor.execute(ingestDocument);
         List<?> fieldValue = ingestDocument.getFieldValue(originalField, List.class);
         assertThat(fieldValue, sameInstance(list));
@@ -193,13 +193,13 @@ public class AppendProcessorTests extends ESTestCase {
         if (randomBoolean()) {
             Object value = scalar.randomValue();
             values.add(value);
-            appendProcessor = createAppendProcessor(field, value, true, false);
+            appendProcessor = createAppendProcessor(field, value, true, true);
         } else {
             int valuesSize = randomIntBetween(0, 10);
             for (int i = 0; i < valuesSize; i++) {
                 values.add(scalar.randomValue());
             }
-            appendProcessor = createAppendProcessor(field, values, true, false);
+            appendProcessor = createAppendProcessor(field, values, true, true);
         }
         appendProcessor.execute(ingestDocument);
         Object fieldValue = ingestDocument.getFieldValue(field, Object.class);
@@ -233,7 +233,7 @@ public class AppendProcessorTests extends ESTestCase {
                 value = scalar.randomValue();
                 values.add(value);
             }
-            appendProcessor = createAppendProcessor(field, value, true, false);
+            appendProcessor = createAppendProcessor(field, value, true, true);
         } else {
             int valuesSize = randomIntBetween(0, 10);
             List<Object> allValues = new ArrayList<>();
@@ -247,7 +247,7 @@ public class AppendProcessorTests extends ESTestCase {
                 }
                 allValues.add(value);
             }
-            appendProcessor = createAppendProcessor(field, allValues, true, false);
+            appendProcessor = createAppendProcessor(field, allValues, true, true);
         }
         appendProcessor.execute(ingestDocument);
         Object fieldValue = ingestDocument.getFieldValue(field, Object.class);
@@ -275,7 +275,7 @@ public class AppendProcessorTests extends ESTestCase {
                 value = scalar.randomValue();
                 values.add(value);
             }
-            appendProcessor = createAppendProcessor(field, value, true, false);
+            appendProcessor = createAppendProcessor(field, value, true, true);
         } else {
             List<Object> allValues = new ArrayList<>();
             int valuesSize = randomIntBetween(0, 10);
@@ -289,7 +289,7 @@ public class AppendProcessorTests extends ESTestCase {
                 }
                 allValues.add(value);
             }
-            appendProcessor = createAppendProcessor(field, allValues, true, false);
+            appendProcessor = createAppendProcessor(field, allValues, true, true);
         }
         appendProcessor.execute(ingestDocument);
         List<?> list = ingestDocument.getFieldValue(field, List.class);
@@ -297,14 +297,19 @@ public class AppendProcessorTests extends ESTestCase {
         assertThat(list, equalTo(values));
     }
 
-    private static Processor createAppendProcessor(String fieldName, Object fieldValue, boolean allowDuplicates, boolean allowEmptyValues) {
+    private static Processor createAppendProcessor(
+        String fieldName,
+        Object fieldValue,
+        boolean allowDuplicates,
+        boolean ignoreEmptyValues
+    ) {
         return new AppendProcessor(
             randomAlphaOfLength(10),
             null,
             new TestTemplateService.MockTemplateScript.Factory(fieldName),
             ValueSource.wrap(fieldValue, TestTemplateService.instance()),
             allowDuplicates,
-            allowEmptyValues
+            ignoreEmptyValues
         );
     }
 

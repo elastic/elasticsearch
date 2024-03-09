@@ -569,11 +569,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 if (resolved.equals(ua)) {
                     return enrich;
                 }
-                if (resolved.resolved() && resolved.dataType() != KEYWORD) {
-                    resolved = ua.withUnresolvedMessage(
-                        "Unsupported type [" + resolved.dataType() + "] for enrich matching field [" + ua.name() + "]; only KEYWORD allowed"
-                    );
-                }
+                // I don't know why we added this before?
                 return new Enrich(
                     enrich.source(),
                     enrich.child(),

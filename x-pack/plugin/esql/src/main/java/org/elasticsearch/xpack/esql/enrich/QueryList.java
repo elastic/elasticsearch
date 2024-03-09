@@ -74,6 +74,11 @@ abstract class QueryList {
         };
     }
 
+    // Generate geo_match query for the input term here
+    static QueryList geoMatchQuery() {
+        throw new UnsupportedOperationException();
+    }
+
     private static IntFunction<Object> blockToJavaObject(Block block) {
         return switch (block.elementType()) {
             case BOOLEAN -> {

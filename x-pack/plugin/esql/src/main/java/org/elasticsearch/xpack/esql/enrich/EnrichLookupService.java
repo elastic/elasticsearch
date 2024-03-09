@@ -265,13 +265,12 @@ public class EnrichLookupService {
             DriverContext driverContext = new DriverContext(bigArrays, blockFactory.newChildFactory(localBreaker));
             SearchExecutionContext searchExecutionContext = searchContext.getSearchExecutionContext();
             MappedFieldType fieldType = searchExecutionContext.getFieldType(matchField);
-            final SourceOperator queryOperator = switch (matchType) {
-                case "match", "range" -> {
-                    QueryList queryList = QueryList.termQueryList(fieldType, searchExecutionContext, inputBlock);
-                    yield new EnrichQuerySourceOperator(driverContext.blockFactory(), queryList, searchExecutionContext.getIndexReader());
-                }
+            var queryList = switch (matchType) {
+                case "match", "range" -> QueryList.termQueryList(fieldType, searchExecutionContext, inputBlock);
+                case "geo_match" -> QueryList.geoMatchQuery(fieldType, searchExecutionContext, inputBlock); //
                 default -> throw new EsqlIllegalArgumentException("illegal match type " + matchType);
             };
+            var sourceOperator = new EnrichQuerySourceOperator(driverContext.blockFactory(), queryList, searchExecutionContext.getIndexReader());
             List<Operator> intermediateOperators = new ArrayList<>(extractFields.size() + 2);
             final ElementType[] mergingTypes = new ElementType[extractFields.size()];
             // load the fields

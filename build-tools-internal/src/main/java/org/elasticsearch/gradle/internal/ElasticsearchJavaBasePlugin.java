@@ -20,6 +20,7 @@ import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.ResolutionStrategy;
+import org.gradle.api.file.FileCollection;
 import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.provider.Provider;
@@ -178,13 +179,14 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
         nativeConfig.defaultDependencies(deps -> {
             deps.add(project.getDependencies().project(Map.of("path", nativeProject, "configuration", "default")));
         });
+        // This input to the following lambda needs to be serializable. Configuration is not serializable, but FileCollection is.
+        FileCollection nativeConfigFiles = nativeConfig;
 
         project.getTasks().withType(Test.class).configureEach(test -> {
-
             var systemProperties = test.getExtensions().getByType(SystemPropertyCommandLineArgumentProvider.class);
-            var libraryPath = (Supplier<String>) () -> TestUtil.getTestLibraryPath(nativeConfig.getAsPath());
+            var libraryPath = (Supplier<String>) () -> TestUtil.getTestLibraryPath(nativeConfigFiles.getAsPath());
 
-            test.dependsOn(nativeConfig);
+            test.dependsOn(nativeConfigFiles);
             // we may use JNA or the JDK's foreign function api to load libraries, so we set both sysprops
             systemProperties.systemProperty("java.library.path", libraryPath);
             systemProperties.systemProperty("jna.library.path", libraryPath);

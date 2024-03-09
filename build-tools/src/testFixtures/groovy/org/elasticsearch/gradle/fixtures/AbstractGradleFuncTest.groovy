@@ -53,7 +53,9 @@ abstract class AbstractGradleFuncTest extends Specification {
 
         def nativeLibsProject = subProject(":libs:elasticsearch-native:elasticsearch-native-libraries")
         nativeLibsProject << """
-            configurations.create('runtimePath')
+            plugins {
+                id 'base'
+            }
         """
     }
 

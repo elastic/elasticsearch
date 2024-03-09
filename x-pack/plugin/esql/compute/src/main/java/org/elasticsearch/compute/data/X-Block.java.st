@@ -122,15 +122,15 @@ $endif$
                 out.writeBoolean(false);
                 final int valueCount = block.getValueCount(pos);
                 out.writeVInt(valueCount);
-        $if(BytesRef)$
+$if(BytesRef)$
                 var scratch = new BytesRef();
-        $endif$
+$endif$
                 for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
-        $if(BytesRef)$
+$if(BytesRef)$
                     out.write$Type$(block.get$Type$(block.getFirstValueIndex(pos) + valueIndex, scratch));
-        $else$
+$else$
                     out.write$Type$(block.get$Type$(block.getFirstValueIndex(pos) + valueIndex));
-        $endif$
+$endif$
                 }
             }
         }

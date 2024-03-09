@@ -47,8 +47,7 @@ dependencies {
   libs "org.elasticsearch:zstd:${zstdVersion}:windows-x86-64"
 }
 
-def extractLibs = tasks.register('extractLibs', Copy)
-extractLibs.configure {
+def extractLibs = tasks.register('extractLibs', Copy) {
   from configurations.libs
   into layout.buildDirectory.dir('platform')
   // TODO: fix architecture in uploaded libs

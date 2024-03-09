@@ -333,7 +333,9 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
         }
         into('platform') {
           from(configurations.libsNative)
-          include (os + '-' + architecture + '/*')
+          if (os != null) {
+            include (os + '-' + architecture + '/*')
+          }
         }
       }
     }

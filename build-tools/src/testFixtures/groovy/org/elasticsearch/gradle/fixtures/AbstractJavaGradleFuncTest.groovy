@@ -49,4 +49,5 @@ class AbstractJavaGradleFuncTest extends AbstractGradleFuncTest {
         """
         classFile
     }
+
 }

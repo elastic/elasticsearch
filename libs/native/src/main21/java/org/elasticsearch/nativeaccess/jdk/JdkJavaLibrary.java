@@ -11,7 +11,7 @@ package org.elasticsearch.nativeaccess.jdk;
 import org.elasticsearch.nativeaccess.CloseableByteBuffer;
 import org.elasticsearch.nativeaccess.lib.JavaLibrary;
 
-public class JdkJavaLibrary implements JavaLibrary {
+class JdkJavaLibrary implements JavaLibrary {
     @Override
     public CloseableByteBuffer newBuffer(int len) {
         return new JdkCloseableByteBuffer(len);

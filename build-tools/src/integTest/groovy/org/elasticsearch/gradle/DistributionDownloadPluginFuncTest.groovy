@@ -9,7 +9,6 @@
 package org.elasticsearch.gradle
 
 import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
-import org.gradle.api.Project
 import org.gradle.testkit.runner.TaskOutcome
 import spock.lang.Unroll
 
@@ -121,6 +120,6 @@ class DistributionDownloadPluginFuncTest extends AbstractGradleFuncTest {
                 from(elasticsearch_distributions.test_distro)
                 into("build/distro")
             }
-        """
+            """
     }
 }

@@ -25,7 +25,7 @@ public final class Zstd {
      * Compress the content of {@code src} into {@code dst} at compression level {@code level}, and return the number of compressed bytes.
      * {@link ByteBuffer#position()} and {@link ByteBuffer#limit()} of both {@link ByteBuffer}s are left unmodified.
      */
-    int compress(ByteBuffer dst, ByteBuffer src, int level) {
+    public int compress(ByteBuffer dst, ByteBuffer src, int level) {
         Objects.requireNonNull(dst, "Null destination buffer");
         Objects.requireNonNull(src, "Null source buffer");
         long ret = zstdLib.compress(dst, src, level);

@@ -207,7 +207,7 @@ public class TransportBulkActionTests extends ESTestCase {
 
     public void testProhibitAppendWritesInBackingIndices() throws Exception {
         String dataStreamName = "logs-foobar";
-        ClusterState clusterState = createDataStream(dataStreamName);
+        ClusterState clusterState = createDataStream(dataStreamName, threadPool);
         Metadata metadata = clusterState.metadata();
 
         // Testing create op against backing index fails:
@@ -269,7 +269,7 @@ public class TransportBulkActionTests extends ESTestCase {
 
     public void testProhibitCustomRoutingOnDataStream() throws Exception {
         String dataStreamName = "logs-foobar";
-        ClusterState clusterState = createDataStream(dataStreamName);
+        ClusterState clusterState = createDataStream(dataStreamName, threadPool);
         Metadata metadata = clusterState.metadata();
 
         // custom routing requests against the data stream are prohibited

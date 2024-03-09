@@ -474,7 +474,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         );
     }
 
-    public static ClusterState createDataStream(final String dataStreamName) throws Exception {
+    public static ClusterState createDataStream(final String dataStreamName, ThreadPool threadPool) throws Exception {
         final MetadataCreateIndexService metadataCreateIndexService = getMetadataCreateIndexService();
         var clusterService = ClusterServiceUtils.createClusterService(threadPool);
         ComposableIndexTemplate template = ComposableIndexTemplate.builder()

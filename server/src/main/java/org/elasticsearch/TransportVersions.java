@@ -137,6 +137,9 @@ public class TransportVersions {
     public static final TransportVersion ESQL_TIMINGS = def(8_597_00_0);
     public static final TransportVersion DATA_STREAM_AUTO_SHARDING_EVENT = def(8_598_00_0);
     public static final TransportVersion ADD_FAILURE_STORE_INDICES_OPTIONS = def(8_599_00_0);
+    public static final TransportVersion ESQL_ENRICH_OPERATOR_STATUS = def(8_600_00_0);
+    public static final TransportVersion ESQL_SERIALIZE_ARRAY_VECTOR = def(8_601_00_0);
+    public static final TransportVersion ESQL_SERIALIZE_ARRAY_BLOCK = def(8_602_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

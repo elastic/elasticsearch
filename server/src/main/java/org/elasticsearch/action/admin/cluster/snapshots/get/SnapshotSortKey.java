@@ -11,6 +11,8 @@ package org.elasticsearch.action.admin.cluster.snapshots.get;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.snapshots.SnapshotInfo;
 
@@ -36,7 +38,7 @@ public enum SnapshotSortKey {
         }
 
         @Override
-        public Predicate<SnapshotInfo> getAfterPredicate(After after, SortOrder sortOrder) {
+        protected Predicate<SnapshotInfo> innerGetAfterPredicate(After after, SortOrder sortOrder) {
             return after.longValuePredicate(SnapshotInfo::startTime, sortOrder);
         }
     },
@@ -51,7 +53,7 @@ public enum SnapshotSortKey {
         }
 
         @Override
-        public Predicate<SnapshotInfo> getAfterPredicate(After after, SortOrder sortOrder) {
+        protected Predicate<SnapshotInfo> innerGetAfterPredicate(After after, SortOrder sortOrder) {
             // TODO: cover via pre-flight predicate
             final String snapshotName = after.snapshotName();
             final String repoName = after.repoName();
@@ -71,7 +73,7 @@ public enum SnapshotSortKey {
         }
 
         @Override
-        public Predicate<SnapshotInfo> getAfterPredicate(After after, SortOrder sortOrder) {
+        protected Predicate<SnapshotInfo> innerGetAfterPredicate(After after, SortOrder sortOrder) {
             return after.longValuePredicate(info -> info.endTime() - info.startTime(), sortOrder);
         }
     },
@@ -86,7 +88,7 @@ public enum SnapshotSortKey {
         }
 
         @Override
-        public Predicate<SnapshotInfo> getAfterPredicate(After after, SortOrder sortOrder) {
+        protected Predicate<SnapshotInfo> innerGetAfterPredicate(After after, SortOrder sortOrder) {
             // TODO: cover via pre-flight predicate
             return after.longValuePredicate(info -> info.indices().size(), sortOrder);
         }
@@ -102,7 +104,7 @@ public enum SnapshotSortKey {
         }
 
         @Override
-        public Predicate<SnapshotInfo> getAfterPredicate(After after, SortOrder sortOrder) {
+        protected Predicate<SnapshotInfo> innerGetAfterPredicate(After after, SortOrder sortOrder) {
             return after.longValuePredicate(SnapshotInfo::totalShards, sortOrder);
         }
     },
@@ -117,7 +119,7 @@ public enum SnapshotSortKey {
         }
 
         @Override
-        public Predicate<SnapshotInfo> getAfterPredicate(After after, SortOrder sortOrder) {
+        protected Predicate<SnapshotInfo> innerGetAfterPredicate(After after, SortOrder sortOrder) {
             return after.longValuePredicate(SnapshotInfo::failedShards, sortOrder);
         }
     },
@@ -132,7 +134,7 @@ public enum SnapshotSortKey {
         }
 
         @Override
-        public Predicate<SnapshotInfo> getAfterPredicate(After after, SortOrder sortOrder) {
+        protected Predicate<SnapshotInfo> innerGetAfterPredicate(After after, SortOrder sortOrder) {
             // TODO: cover via pre-flight predicate
             final String snapshotName = after.snapshotName();
             final String repoName = after.repoName();
@@ -185,8 +187,8 @@ public enum SnapshotSortKey {
 
     /**
      * @return an encoded representation of the value of the sort key for the given {@link SnapshotInfo}, including the values of the
-     * snapshot name and repo name for tiebreaking purposes, which can be returned to the user so they can pass it back to a subsequent call
-     * to the get-snapshots API in order to retrieve the next page of results.
+     * snapshot name and repo name for tiebreaking purposes, which can be returned to the user so they can pass it back to the
+     * {@code ?after} param of a subsequent call to the get-snapshots API in order to retrieve the next page of results.
      */
     public final String encodeAfterQueryParam(SnapshotInfo snapshotInfo) {
         final var rawValue = getSortKeyValue(snapshotInfo) + "," + snapshotInfo.repository() + "," + snapshotInfo.snapshotId().getName();
@@ -196,15 +198,24 @@ public enum SnapshotSortKey {
     /**
      * @return a string representation of the value of the sort key for the given {@link SnapshotInfo}, which should be the last item in the
      * response, which is combined with the snapshot and repository names, encoded, and returned to the user so they can pass it back to
-     * a subsequent call to the get-snapshots API in order to retrieve the next page of results.
+     * the {@code ?after} param of a subsequent call to the get-snapshots API in order to retrieve the next page of results.
      */
     protected abstract String getSortKeyValue(SnapshotInfo snapshotInfo);
 
     /**
      * @return a predicate to filter out {@link SnapshotInfo} items that match the user's query but which sort earlier than the given
-     * {@link After} value (i.e. they were returned on earlier pages of results).
+     * {@link After} value (i.e. they were returned on earlier pages of results). If {@code after} is {@code null} then the returned
+     * predicate matches all snapshots.
      */
-    public abstract Predicate<SnapshotInfo> getAfterPredicate(After after, SortOrder sortOrder);
+    public final Predicate<SnapshotInfo> getAfterPredicate(@Nullable After after, SortOrder sortOrder) {
+        return after == null ? Predicates.always() : innerGetAfterPredicate(after, sortOrder);
+    }
+
+    /**
+     * @return a predicate to filter out {@link SnapshotInfo} items that match the user's query but which sort earlier than the given
+     * {@link After} value (i.e. they were returned on earlier pages of results). The {@code after} parameter is not {@code null}.
+     */
+    protected abstract Predicate<SnapshotInfo> innerGetAfterPredicate(After after, SortOrder sortOrder);
 
     private static int compareName(String name, String repoName, SnapshotInfo info) {
         final int res = name.compareTo(info.snapshotId().getName());

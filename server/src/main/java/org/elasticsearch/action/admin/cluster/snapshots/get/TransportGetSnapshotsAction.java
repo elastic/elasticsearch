@@ -26,7 +26,6 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Predicates;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
@@ -487,7 +486,9 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         }
 
         private SnapshotsInRepo sortSnapshots(Stream<SnapshotInfo> snapshotInfoStream, int totalCount, int offset, int size) {
-            final var resultsStream = snapshotInfoStream.filter(buildAfterPredicate()).sorted(buildComparator()).skip(offset);
+            final var resultsStream = snapshotInfoStream.filter(sortBy.getAfterPredicate(after, order))
+                .sorted(buildComparator())
+                .skip(offset);
             if (size == GetSnapshotsRequest.NO_LIMIT) {
                 return new SnapshotsInRepo(resultsStream.toList(), totalCount, 0);
             } else {
@@ -510,15 +511,6 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             final var comparator = sortBy.getSnapshotInfoComparator();
             return order == SortOrder.DESC ? comparator.reversed() : comparator;
         }
-
-        private Predicate<SnapshotInfo> buildAfterPredicate() {
-            if (after == null) {
-                return Predicates.always();
-            }
-            assert offset == 0 : "can't combine after and offset but saw [" + after + "] and offset [" + offset + "]";
-            return sortBy.getAfterPredicate(after, order);
-        }
-
     }
 
     /**

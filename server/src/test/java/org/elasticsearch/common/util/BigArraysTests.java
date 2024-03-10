@@ -9,9 +9,11 @@
 package org.elasticsearch.common.util;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.PreallocatedCircuitBreakerService;
+import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -273,6 +275,27 @@ public class BigArraysTests extends ESTestCase {
             assertEquals(array1[i], array2.get(i));
         }
         array2.close();
+    }
+
+    public void testByteIterator() throws Exception {
+        final byte[] bytes = new byte[randomIntBetween(1, 4000000)];
+        random().nextBytes(bytes);
+        ByteArray array = bigArrays.newByteArray(bytes.length, randomBoolean());
+        array.fillWith(new ByteArrayStreamInput(bytes));
+        for (int i = 0; i < bytes.length; i++) {
+            assertEquals(bytes[i], array.get(i));
+        }
+        BytesRefIterator it = array.iterator();
+        BytesRef ref;
+        int offset = 0;
+        while ((ref = it.next()) != null) {
+            for (int i = 0; i < ref.length; i++) {
+                assertEquals(bytes[offset], ref.bytes[ref.offset + i]);
+                offset++;
+            }
+        }
+        assertThat(offset, equalTo(bytes.length));
+        array.close();
     }
 
     public void testByteArrayEquals() {

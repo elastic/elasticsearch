@@ -115,6 +115,7 @@ stXFromAirportsSupportsNull#[skip:-8.13.99, reason:st_x and st_y added in 8.14]
 FROM airports
 | EVAL x = FLOOR(ABS(ST_X(city_location))/200), y = FLOOR(ABS(ST_Y(city_location))/100)
 | STATS c = count(*) BY x, y
+| SORT c DESC
 ;
 
 c:long  | x:double  | y:double

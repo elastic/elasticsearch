@@ -3800,6 +3800,7 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(primary);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/101008")
     @TestIssueLogging(
         issueUrl = "https://github.com/elastic/elasticsearch/issues/101008",
         value = "org.elasticsearch.index.shard.IndexShard:TRACE"

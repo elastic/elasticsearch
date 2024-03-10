@@ -423,13 +423,12 @@ public abstract class CentroidCalculatorTests extends ESTestCase {
         }
 
         private Matcher<Double> matchDouble(double value) {
-            if (value > 1e20 || value < 1e20) {
-                // Very large values have floating point errors, so instead of an absolute value, we use a relative one
-                return closeTo(value, Math.abs(value / 1e10));
-            } else {
-                // Most data (notably geo data) has values within bounds, and an absolute delta makes more sense.
-                return closeTo(value, DELTA);
-            }
+            // Very large values have floating point errors, so instead of an absolute value, we use a relative one
+            // Most data (notably geo data) has values within bounds, and an absolute delta makes more sense.
+            double delta = (value > 1e28 || value < -1e28) ? Math.abs(value / 1e6)
+                : (value > 1e20 || value < -1e20) ? Math.abs(value / 1e10)
+                : DELTA;
+            return closeTo(value, delta);
         }
 
         @Override

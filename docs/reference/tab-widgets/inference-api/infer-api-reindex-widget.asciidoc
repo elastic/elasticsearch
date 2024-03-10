@@ -1,0 +1,39 @@
+++++
+<div class="tabs" data-tab-group="model">
+  <div role="tablist" aria-label="model">
+    <button role="tab"
+            aria-selected="true"
+            aria-controls="infer-api-reindex-cohere-tab"
+            id="infer-api-reindex-cohere">
+      Cohere
+    </button>
+    <button role="tab"
+            aria-selected="false"
+            aria-controls="infer-api-reindex-openai-tab"
+            id="infer-api-reindex-openai">
+      OpenAI
+    </button>
+  </div>
+  <div tabindex="0"
+       role="tabpanel"
+       id="infer-api-reindex-cohere-tab"
+       aria-labelledby="infer-api-reindex-cohere">
+++++
+
+include::infer-api-reindex.asciidoc[tag=cohere]
+
+++++
+  </div>
+  <div tabindex="0"
+       role="tabpanel"
+       id="infer-api-reindex-openai-tab"
+       aria-labelledby="infer-api-reindex-openai"
+       hidden="">
+++++
+
+include::infer-api-reindex.asciidoc[tag=openai]
+
+++++
+  </div>
+</div>
+++++

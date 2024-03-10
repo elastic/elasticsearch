@@ -418,7 +418,7 @@ public class ConnectorIndexService {
                         updateConfigurationScript,
                         Map.of(
                             Connector.CONFIGURATION_FIELD.getPreferredName(),
-                            request.getConfiguration(),
+                            request.getConfigurationAsMap(),
                             Connector.STATUS_FIELD.getPreferredName(),
                             ConnectorStatus.CONFIGURED.toString()
                         )

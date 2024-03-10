@@ -257,6 +257,16 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
         ActionListener<GetStackTracesResponse> submitListener,
         GetStackTracesResponseBuilder responseBuilder
     ) {
+
+        RandomSamplerAggregationBuilder randomSampler = new RandomSamplerAggregationBuilder("sample").setSeed(request.hashCode())
+            .setProbability(responseBuilder.getSamplingRate())
+            .subAggregation(
+                new CountedTermsAggregationBuilder("group_by").size(MAX_TRACE_EVENTS_RESULT_SIZE).field(request.getStackTraceIdsField())
+            );
+        // shard seed is only set in tests and ensures consistent results
+        if (request.getShardSeed() != null) {
+            randomSampler.setShardSeed(request.getShardSeed());
+        }
         client.prepareSearch(request.getIndices())
             .setTrackTotalHits(false)
             .setSize(0)
@@ -266,14 +276,7 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
             .setQuery(request.getQuery())
             .addAggregation(new MinAggregationBuilder("min_time").field("@timestamp"))
             .addAggregation(new MaxAggregationBuilder("max_time").field("@timestamp"))
-            .addAggregation(
-                new RandomSamplerAggregationBuilder("sample").setSeed(request.hashCode())
-                    .setProbability(responseBuilder.getSamplingRate())
-                    .subAggregation(
-                        new CountedTermsAggregationBuilder("group_by").size(MAX_TRACE_EVENTS_RESULT_SIZE)
-                            .field(request.getStackTraceIdsField())
-                    )
-            )
+            .addAggregation(randomSampler)
             .execute(handleEventsGroupedByStackTrace(submitTask, client, responseBuilder, submitListener, searchResponse -> {
                 long totalSamples = 0;
                 SingleBucketAggregation sample = searchResponse.getAggregations().get("sample");

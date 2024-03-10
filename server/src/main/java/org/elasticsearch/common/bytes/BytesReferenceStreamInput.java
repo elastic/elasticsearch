@@ -154,14 +154,15 @@ class BytesReferenceStreamInput extends StreamInput {
 
     @Override
     public Symbol readSymbol() throws IOException {
-        final int length = readArraySize();
+        final int length = readVInt();
+        validateArraySize(length);
         if (slice.hasArray() && slice.remaining() >= length) {
             int start = slice.position() + slice.arrayOffset();
-            int end = start + length;
-            Symbol symbol = Symbol.lookupOrThrow(slice.array(), start, end);
-            slice.position(end - slice.arrayOffset());
+            Symbol symbol = Symbol.lookupOrThrow(slice.array(), start, start + length);
+            slice.position(slice.position() + length);
             return symbol;
         } else {
+            ensureCanReadBytes(length);
             return Symbol.lookupOrThrow(doReadByteArray(length));
         }
     }

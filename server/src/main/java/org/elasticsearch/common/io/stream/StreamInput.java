@@ -1346,17 +1346,21 @@ public abstract class StreamInput extends InputStream {
      */
     protected int readArraySize() throws IOException {
         final int arraySize = readVInt();
+        validateArraySize(arraySize);
+        // let's do a sanity check that if we are reading an array size that is bigger that the remaining bytes we can safely
+        // throw an exception instead of allocating the array based on the size. A simple corrupted byte can make a node go OOM
+        // if the size is large and for perf reasons we allocate arrays ahead of time
+        ensureCanReadBytes(arraySize);
+        return arraySize;
+    }
+
+    protected static void validateArraySize(int arraySize) {
         if (arraySize > ArrayUtil.MAX_ARRAY_LENGTH) {
             throwExceedsMaxArraySize(arraySize);
         }
         if (arraySize < 0) {
             throwNegative(arraySize);
         }
-        // let's do a sanity check that if we are reading an array size that is bigger that the remaining bytes we can safely
-        // throw an exception instead of allocating the array based on the size. A simple corrupted byte can make a node go OOM
-        // if the size is large and for perf reasons we allocate arrays ahead of time
-        ensureCanReadBytes(arraySize);
-        return arraySize;
     }
 
     private static void throwNegative(int arraySize) {

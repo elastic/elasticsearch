@@ -159,16 +159,15 @@ public class ByteBufferStreamInput extends StreamInput {
 
     @Override
     public Symbol readSymbol() throws IOException {
-        final int length = readArraySize();
-        if (buffer.remaining() >= length) {
-            int start = buffer.position() + buffer.arrayOffset();
-            int end = start + length;
-            Symbol symbol = Symbol.lookupOrThrow(buffer.array(), start, end);
-            buffer.position(end - buffer.arrayOffset());
-            return symbol;
-        } else {
-            return Symbol.lookupOrThrow(doReadByteArray(length));
+        final int length = readVInt();
+        validateArraySize(length);
+        if (buffer.remaining() < length) {
+            throwEOF(length, buffer.remaining());
         }
+        int start = buffer.position() + buffer.arrayOffset();
+        Symbol symbol = Symbol.lookupOrThrow(buffer.array(), start, start + length);
+        buffer.position(buffer.position() + length);
+        return symbol;
     }
 
     @Override

@@ -1129,15 +1129,7 @@ public abstract class StreamInput extends InputStream {
     @Nullable
     public <C extends NamedWriteable> C readNamedWriteable(
         @SuppressWarnings("unused") Class<C> categoryClass,
-        @SuppressWarnings("unused") String name
-    ) throws IOException {
-        throw new UnsupportedOperationException("can't read named writeable from StreamInput");
-    }
-
-    @Nullable
-    public <C extends NamedWriteable> C readNamedWriteable(
-        @SuppressWarnings("unused") Class<C> categoryClass,
-        @SuppressWarnings("unused") Symbol key
+        @SuppressWarnings("unused") Symbol name
     ) throws IOException {
         throw new UnsupportedOperationException("can't read named writeable from StreamInput");
     }

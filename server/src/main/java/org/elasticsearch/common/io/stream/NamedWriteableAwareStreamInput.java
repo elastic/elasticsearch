@@ -51,12 +51,6 @@ public class NamedWriteableAwareStreamInput extends FilterStreamInput {
     }
 
     @Override
-    // FIXME replace all usages of this & remove
-    public <C extends NamedWriteable> C readNamedWriteable(Class<C> categoryClass, String name) throws IOException {
-        return readNamedWriteable(categoryClass, Symbol.ofConstant(name));
-    }
-
-    @Override
     public <C extends NamedWriteable> C readNamedWriteable(Class<C> categoryClass, Symbol symbol) throws IOException {
         Writeable.Reader<? extends C> reader = namedWriteableRegistry.getReader(categoryClass, symbol);
         C namedWritable = reader.read(this);

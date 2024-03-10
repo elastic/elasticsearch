@@ -53,7 +53,18 @@ public final class Symbol implements Writeable {
     }
 
     /**
-     * Lookup the symbol matching the provided bytes. If no symbol matches this throws an {@link IllegalArgumentException}.
+     * Lookup the symbol of the given name throwing an {@link IllegalArgumentException} if not found.
+     */
+    public static Symbol lookupOrThrow(String name) {
+        Symbol symbol = BY_NAME.get(name);
+        if (symbol == null) {
+            throw new IllegalArgumentException("Unknown symbol[" + name + "]");
+        }
+        return symbol;
+    }
+
+    /**
+     * Lookup the symbol matching the bytes throwing an {@link IllegalArgumentException} if no match is found.
      */
     public static Symbol lookupOrThrow(byte[] bytes) {
         Symbol[] symbols = BY_HASH.get(Murmur3HashFunction.hash(bytes, 0, bytes.length));
@@ -65,8 +76,7 @@ public final class Symbol implements Writeable {
     }
 
     /**
-     * Lookup the symbol matching the provided bytes given start and end index.
-     * If no symbol matches this throws an {@link IllegalArgumentException}.
+     * Lookup the symbol matching the bytes from start to end index, throwing an {@link IllegalArgumentException} if no match is found.
      */
     public static Symbol lookupOrThrow(byte[] buffer, int start, int end) {
         Symbol[] symbols = BY_HASH.get(Murmur3HashFunction.hash(buffer, start, end - start));

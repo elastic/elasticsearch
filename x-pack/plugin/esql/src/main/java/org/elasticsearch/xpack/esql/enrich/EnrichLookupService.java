@@ -76,6 +76,7 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
+import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
@@ -134,7 +135,7 @@ public class EnrichLookupService {
         this.localBreakerSettings = new LocalCircuitBreaker.SizeSettings(clusterService.getSettings());
         transportService.registerRequestHandler(
             LOOKUP_ACTION_NAME,
-            transportService.getThreadPool().executor(ThreadPool.Names.SEARCH_WORKER),
+            transportService.getThreadPool().executor(EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME),
             in -> new LookupRequest(in, blockFactory),
             new TransportHandler()
         );

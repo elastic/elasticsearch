@@ -19,6 +19,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.lucene.LuceneOperator;
@@ -39,6 +40,8 @@ import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.threadpool.ExecutorBuilder;
+import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
@@ -66,6 +69,8 @@ import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 public class EsqlPlugin extends Plugin implements ActionPlugin {
+
+    public static final String ESQL_WORKER_THREAD_POOL_NAME = "esql_worker";
 
     public static final Setting<Integer> QUERY_RESULT_TRUNCATION_MAX_SIZE = Setting.intSetting(
         "esql.query.result_truncation_max_size",
@@ -173,5 +178,21 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
             ).stream(),
             Block.getNamedWriteables().stream()
         ).toList();
+    }
+
+    public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
+        final int allocatedProcessors = EsExecutors.allocatedProcessors(settings);
+        return List.of(
+            // TODO: Maybe have two types of threadpools for workers: one for CPU-bound and one for I/O-bound tasks.
+            // And we should also reduce the number of threads of the CPU-bound threadpool to allocatedProcessors.
+            new FixedExecutorBuilder(
+                settings,
+                ESQL_WORKER_THREAD_POOL_NAME,
+                ThreadPool.searchOrGetThreadPoolSize(allocatedProcessors),
+                1000,
+                ESQL_WORKER_THREAD_POOL_NAME,
+                EsExecutors.TaskTrackingConfig.DEFAULT
+            )
+        );
     }
 }

@@ -114,6 +114,7 @@ public final class ConnectorTestUtils {
             .setFilteringRules(randomFrom(new Boolean[] { null, randomBoolean() }))
             .setFilteringAdvancedConfig(randomFrom(new Boolean[] { null, randomBoolean() }))
             .setIncrementalSyncEnabled(randomBoolean() ? randomConnectorFeatureEnabled() : null)
+            .setNativeConnectorAPIKeysEnabled(randomBoolean() ? randomConnectorFeatureEnabled() : null)
             .setSyncRulesFeatures(randomBoolean() ? randomSyncRulesFeatures() : null)
             .build();
     }

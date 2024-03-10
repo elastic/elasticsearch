@@ -1792,14 +1792,14 @@ Total number of unallocated bytes in all file stores.
 `available`::
 (<<byte-units,byte value>>)
 Total disk space available to this Java virtual machine on all file
-stores. Depending on OS or process level restrictions, this might appear
+stores. Depending on OS or process level restrictions (e.g. XFS quotas), this might appear
 less than `free`. This is the actual amount of free disk
 space the {es} node can utilise.
 
 `available_in_bytes`::
 (integer)
 Total number of bytes available to this Java virtual machine on all file
-stores. Depending on OS or process level restrictions, this might appear
+stores. Depending on OS or process level restrictions (e.g. XFS quotas), this might appear
 less than `free_in_bytes`. This is the actual amount of free disk
 space the {es} node can utilise.
 =======

@@ -2125,7 +2125,7 @@ public class MasterServiceTests extends ESTestCase {
 
         final var source = randomIdentifier();
         final var taskDescription = randomIdentifier();
-        final var timeout = TimeValue.timeValueMillis(between(0, 100000));
+        final var timeout = TimeValue.timeValueMillis(between(1, 100000));
 
         final var actionCount = new AtomicInteger();
         final var deterministicTaskQueue = new DeterministicTaskQueue();

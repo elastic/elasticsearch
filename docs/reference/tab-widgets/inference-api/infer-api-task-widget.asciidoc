@@ -1,0 +1,39 @@
+++++
+<div class="tabs" data-tab-group="model">
+  <div role="tablist" aria-label="model">
+    <button role="tab"
+            aria-selected="true"
+            aria-controls="infer-api-task-cohere-tab"
+            id="infer-api-task-cohere">
+      Cohere
+    </button>
+    <button role="tab"
+            aria-selected="false"
+            aria-controls="infer-api-task-openai-tab"
+            id="infer-api-task-openai">
+      OpenAI
+    </button>
+  </div>
+  <div tabindex="0"
+       role="tabpanel"
+       id="infer-api-task-cohere-tab"
+       aria-labelledby="infer-api-task-cohere">
+++++
+
+include::infer-api-task.asciidoc[tag=cohere]
+
+++++
+  </div>
+  <div tabindex="0"
+       role="tabpanel"
+       id="infer-api-task-openai-tab"
+       aria-labelledby="infer-api-task-openai"
+       hidden="">
+++++
+
+include::infer-api-task.asciidoc[tag=openai]
+
+++++
+  </div>
+</div>
+++++

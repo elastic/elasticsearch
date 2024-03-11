@@ -263,7 +263,7 @@ Contains statistics about the size of shards assigned to the node.
 Total size of all shards assigned to the node.
 
 `size_in_bytes`::
-(long)
+(integer)
 Total size, in bytes, of all shards assigned to the node.
 
 `total_data_set_size`::
@@ -273,7 +273,7 @@ This includes the size of shards not stored fully on the node, such as the
 cache for <<partially-mounted,partially mounted indices>>.
 
 `total_data_set_size_in_bytes`::
-(long)
+(integer)
 Total data set size, in bytes, of all shards assigned to the node.
 This includes the size of shards not stored fully on the node, such as the
 cache for <<partially-mounted,partially mounted indices>>.
@@ -285,7 +285,7 @@ grow due to ongoing peer recoveries, restoring snapshots, and similar
 activities. A value of `-1b` indicates that this is not available.
 
 `reserved_in_bytes`::
-(long)
+(integer)
 A prediction, in bytes, of how much larger the shard stores on this node will
 eventually grow due to ongoing peer recoveries, restoring snapshots, and
 similar activities. A value of `-1` indicates that this is not available.
@@ -2832,7 +2832,7 @@ Total forecasted ingest load of all shards assigned to this node
 Forecasted size of all shards assigned to the node
 
 `forecasted_disk_usage_bytes`::
-(long)
+(integer)
 Forecasted size, in bytes, of all shards assigned to the node
 
 `current_disk_usage`::
@@ -2840,7 +2840,7 @@ Forecasted size, in bytes, of all shards assigned to the node
 Current size of all shards assigned to the node
 
 `current_disk_usage_bytes`::
-(long)
+(integer)
 Current size, in bytes, of all shards assigned to the node
 ======
 =====

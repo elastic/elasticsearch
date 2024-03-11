@@ -656,7 +656,6 @@ class NodeConstruction {
             repositoriesServiceReference::get,
             rerouteServiceReference::get
         );
-        final WriteLoadForecaster writeLoadForecaster = getWriteLoadForecaster(threadPool, settings, clusterService.getClusterSettings());
         final ClusterModule clusterModule = new ClusterModule(
             settings,
             clusterService,
@@ -665,7 +664,7 @@ class NodeConstruction {
             snapshotsInfoService,
             threadPool,
             systemIndices,
-            writeLoadForecaster,
+            getWriteLoadForecaster(threadPool, settings, clusterService.getClusterSettings()),
             telemetryProvider
         );
         modules.add(clusterModule);

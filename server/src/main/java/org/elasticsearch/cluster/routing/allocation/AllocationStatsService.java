@@ -89,7 +89,6 @@ public class AllocationStatsService {
         if (assignment == null) {
             return false;
         }
-        // TODO relocating shards?
         return assignment.nodeIds().contains(shardRouting.currentNodeId());
     }
 }

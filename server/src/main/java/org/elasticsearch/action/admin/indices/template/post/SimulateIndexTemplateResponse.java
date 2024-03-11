@@ -11,6 +11,7 @@ package org.elasticsearch.action.admin.indices.template.post;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
+import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -45,6 +46,8 @@ public class SimulateIndexTemplateResponse extends ActionResponse implements ToX
 
     @Nullable
     private RolloverConfiguration rolloverConfiguration = null;
+    @Nullable
+    private DataStreamGlobalRetention globalRetention = null;
 
     public SimulateIndexTemplateResponse(@Nullable Template resolvedTemplate, @Nullable Map<String, List<String>> overlappingTemplates) {
         this(resolvedTemplate, overlappingTemplates, null);
@@ -76,6 +79,9 @@ public class SimulateIndexTemplateResponse extends ActionResponse implements ToX
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
             rolloverConfiguration = in.readOptionalWriteable(RolloverConfiguration::new);
         }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.USE_DATA_STREAM_GLOBAL_RETENTION)) {
+            globalRetention = in.readOptionalWriteable(DataStreamGlobalRetention::read);
+        }
     }
 
     @Override
@@ -94,6 +100,9 @@ public class SimulateIndexTemplateResponse extends ActionResponse implements ToX
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
             out.writeOptionalWriteable(rolloverConfiguration);
         }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.USE_DATA_STREAM_GLOBAL_RETENTION)) {
+            out.writeOptionalWriteable(globalRetention);
+        }
     }
 
     @Override
@@ -101,7 +110,7 @@ public class SimulateIndexTemplateResponse extends ActionResponse implements ToX
         builder.startObject();
         if (this.resolvedTemplate != null) {
             builder.field(TEMPLATE.getPreferredName());
-            this.resolvedTemplate.toXContent(builder, params, rolloverConfiguration);
+            this.resolvedTemplate.toXContent(builder, params, rolloverConfiguration, globalRetention);
         }
         if (this.overlappingTemplates != null) {
             builder.startArray(OVERLAPPING.getPreferredName());

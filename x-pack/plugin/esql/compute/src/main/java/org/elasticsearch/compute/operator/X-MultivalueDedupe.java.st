@@ -77,11 +77,11 @@ $endif$
                 int first = block.getFirstValueIndex(p);
                 switch (count) {
                     case 0 -> builder.appendNull();
-    $if(BytesRef)$
+$if(BytesRef)$
                     case 1 -> builder.appendBytesRef(block.getBytesRef(first, work[0]));
-    $else$
+$else$
                     case 1 -> builder.append$Type$(block.get$Type$(first));
-    $endif$
+$endif$
                     default -> {
                         /*
                          * It's better to copyMissing when there are few unique values
@@ -131,11 +131,11 @@ $endif$
                 int first = block.getFirstValueIndex(p);
                 switch (count) {
                     case 0 -> builder.appendNull();
-    $if(BytesRef)$
+$if(BytesRef)$
                     case 1 -> builder.appendBytesRef(block.getBytesRef(first, work[0]));
-    $else$
+$else$
                     case 1 -> builder.append$Type$(block.get$Type$(first));
-    $endif$
+$endif$
                     default -> {
                         copyAndSort(first, count);
                         deduplicatedSortedWork(builder);
@@ -165,11 +165,11 @@ $endif$
                 int first = block.getFirstValueIndex(p);
                 switch (count) {
                     case 0 -> builder.appendNull();
-    $if(BytesRef)$
+$if(BytesRef)$
                     case 1 -> builder.appendBytesRef(block.getBytesRef(first, work[0]));
-    $else$
+$else$
                     case 1 -> builder.append$Type$(block.get$Type$(first));
-    $endif$
+$endif$
                     default -> {
                         copyMissing(first, count);
                         writeUniquedWork(builder);
@@ -190,11 +190,11 @@ $endif$
                 int first = block.getFirstValueIndex(p);
                 switch (count) {
                     case 0 -> builder.appendNull();
-    $if(BytesRef)$
+$if(BytesRef)$
                     case 1 -> builder.appendBytesRef(block.getBytesRef(first, work[0]));
-    $else$
+$else$
                     case 1 -> builder.append$Type$(block.get$Type$(first));
-    $endif$
+$endif$
                     default -> {
                         copyAndSort(first, count);
                         writeSortedWork(builder, ascending);

@@ -58,7 +58,7 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
 public class MvSort extends ScalarFunction implements OptionalArgument, EvaluatorMapper, Validatable {
     private final Expression field, order;
 
-    private static final Literal ASC = new Literal(Source.EMPTY, "ASC", DataTypes.TEXT);
+    private static final Literal ASC = new Literal(Source.EMPTY, "ASC", DataTypes.KEYWORD);
 
     @FunctionInfo(
         returnType = { "boolean", "date", "double", "integer", "ip", "keyword", "long", "text", "version" },
@@ -90,14 +90,7 @@ public class MvSort extends ScalarFunction implements OptionalArgument, Evaluato
             return resolution;
         }
 
-        if (order != null) {
-            resolution = isString(order, sourceText(), SECOND);
-            if (resolution.unresolved()) {
-                return resolution;
-            }
-        }
-
-        return resolution;
+        return isString(order, sourceText(), SECOND);
     }
 
     @Override
@@ -109,42 +102,43 @@ public class MvSort extends ScalarFunction implements OptionalArgument, Evaluato
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(
         Function<Expression, EvalOperator.ExpressionEvaluator.Factory> toEvaluator
     ) {
+        boolean ordering = order.foldable() && ((BytesRef) order.fold()).utf8ToString().equalsIgnoreCase("DESC") ? false : true;
         return switch (PlannerUtils.toElementType(field.dataType())) {
             case BOOLEAN -> new MvSort.EvaluatorFactory(
                 toEvaluator.apply(field),
-                toEvaluator.apply(order),
-                (blockFactory, fieldBlock, ascending) -> new MultivalueDedupeBoolean((BooleanBlock) fieldBlock).sortToBlock(
+                ordering,
+                (blockFactory, fieldBlock, sortOrder) -> new MultivalueDedupeBoolean((BooleanBlock) fieldBlock).sortToBlock(
                     blockFactory,
-                    ascending
+                    sortOrder
                 )
             );
             case BYTES_REF -> new MvSort.EvaluatorFactory(
                 toEvaluator.apply(field),
-                toEvaluator.apply(order),
-                (blockFactory, fieldBlock, ascending) -> new MultivalueDedupeBytesRef((BytesRefBlock) fieldBlock).sortToBlock(
+                ordering,
+                (blockFactory, fieldBlock, sortOrder) -> new MultivalueDedupeBytesRef((BytesRefBlock) fieldBlock).sortToBlock(
                     blockFactory,
-                    ascending
+                    sortOrder
                 )
             );
             case INT -> new MvSort.EvaluatorFactory(
                 toEvaluator.apply(field),
-                toEvaluator.apply(order),
-                (blockFactory, fieldBlock, ascending) -> new MultivalueDedupeInt((IntBlock) fieldBlock).sortToBlock(blockFactory, ascending)
+                ordering,
+                (blockFactory, fieldBlock, sortOrder) -> new MultivalueDedupeInt((IntBlock) fieldBlock).sortToBlock(blockFactory, sortOrder)
             );
             case LONG -> new MvSort.EvaluatorFactory(
                 toEvaluator.apply(field),
-                toEvaluator.apply(order),
-                (blockFactory, fieldBlock, ascending) -> new MultivalueDedupeLong((LongBlock) fieldBlock).sortToBlock(
+                ordering,
+                (blockFactory, fieldBlock, sortOrder) -> new MultivalueDedupeLong((LongBlock) fieldBlock).sortToBlock(
                     blockFactory,
-                    ascending
+                    sortOrder
                 )
             );
             case DOUBLE -> new MvSort.EvaluatorFactory(
                 toEvaluator.apply(field),
-                toEvaluator.apply(order),
-                (blockFactory, fieldBlock, ascending) -> new MultivalueDedupeDouble((DoubleBlock) fieldBlock).sortToBlock(
+                ordering,
+                (blockFactory, fieldBlock, sortOrder) -> new MultivalueDedupeDouble((DoubleBlock) fieldBlock).sortToBlock(
                     blockFactory,
-                    ascending
+                    sortOrder
                 )
             );
             case NULL -> EvalOperator.CONSTANT_NULL_FACTORY;
@@ -154,12 +148,12 @@ public class MvSort extends ScalarFunction implements OptionalArgument, Evaluato
 
     private record EvaluatorFactory(
         EvalOperator.ExpressionEvaluator.Factory field,
-        EvalOperator.ExpressionEvaluator.Factory order,
+        boolean order,
         TriFunction<BlockFactory, Block, Boolean, Block> sort
     ) implements EvalOperator.ExpressionEvaluator.Factory {
         @Override
         public EvalOperator.ExpressionEvaluator get(DriverContext context) {
-            return new MvSort.Evaluator(context.blockFactory(), field.get(context), order.get(context), sort);
+            return new MvSort.Evaluator(context.blockFactory(), field.get(context), order, sort);
         }
 
         @Override
@@ -171,13 +165,13 @@ public class MvSort extends ScalarFunction implements OptionalArgument, Evaluato
     private static class Evaluator implements EvalOperator.ExpressionEvaluator {
         private final BlockFactory blockFactory;
         private final EvalOperator.ExpressionEvaluator field;
-        private final EvalOperator.ExpressionEvaluator order;
+        private final boolean order;
         private final TriFunction<BlockFactory, Block, Boolean, Block> sort;
 
         protected Evaluator(
             BlockFactory blockFactory,
             EvalOperator.ExpressionEvaluator field,
-            EvalOperator.ExpressionEvaluator order,
+            boolean order,
             TriFunction<BlockFactory, Block, Boolean, Block> sort
         ) {
             this.blockFactory = blockFactory;
@@ -189,21 +183,7 @@ public class MvSort extends ScalarFunction implements OptionalArgument, Evaluato
         @Override
         public Block eval(Page page) {
             try (Block fieldBlock = field.eval(page)) {
-                try (BytesRefBlock orderBlock = (BytesRefBlock) order.eval(page)) {
-                    boolean ascending = orderBlock.areAllValuesNull();  // if all are nulls, default is ascending
-                    if (ascending == false) { // the first not null value decides the order
-                        for (int p = 0; p < orderBlock.getPositionCount(); p++) {
-                            int count = orderBlock.getValueCount(p);
-                            if (count > 0) {
-                                BytesRef orderScratch = new BytesRef();
-                                BytesRef sortOrder = orderBlock.getBytesRef(orderBlock.getFirstValueIndex(p), orderScratch);
-                                ascending = sortOrder.utf8ToString().equalsIgnoreCase("DESC") == false;
-                                break;
-                            }
-                        }
-                    }
-                    return sort.apply(blockFactory, fieldBlock, ascending);
-                }
+                return sort.apply(blockFactory, fieldBlock, order);
             }
         }
 

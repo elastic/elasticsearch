@@ -259,6 +259,26 @@ public class RestTableTests extends ESTestCase {
         assertEquals(Arrays.asList(1, 0, 2), rowOrder);
     }
 
+    public void testFormattedDouble() {
+        Table table = new Table();
+        table.startHeaders();
+        table.addCell("number");
+        table.endHeaders();
+        List<Integer> comparisonList = Arrays.asList(10, 9, 11);
+        for (int i = 0; i < comparisonList.size(); i++) {
+            table.startRow();
+            table.addCell(RestTable.FormattedDouble.format2DecimalPlaces(comparisonList.get(i)));
+            table.endRow();
+        }
+        restRequest.params().put("s", "number");
+        List<Integer> rowOrder = RestTable.getRowOrder(table, restRequest);
+        assertEquals(Arrays.asList(1, 0, 2), rowOrder);
+
+        restRequest.params().put("s", "number:desc");
+        rowOrder = RestTable.getRowOrder(table, restRequest);
+        assertEquals(Arrays.asList(2, 0, 1), rowOrder);
+    }
+
     public void testPlainTextChunking() throws Exception {
         final var cells = randomArray(8, 8, String[]::new, () -> randomAlphaOfLengthBetween(1, 5));
         final var expectedRow = String.join(" ", cells) + "\n";

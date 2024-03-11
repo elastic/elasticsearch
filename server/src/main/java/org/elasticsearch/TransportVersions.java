@@ -143,7 +143,6 @@ public class TransportVersions {
     public static final TransportVersion ADD_DATA_STREAM_GLOBAL_RETENTION = def(8_603_00_0);
     public static final TransportVersion AGGS_EXCLUDED_DELETED_DOCS = def(8_604_00_0);
 
-
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

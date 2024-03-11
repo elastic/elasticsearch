@@ -383,9 +383,10 @@ public class NodeStats extends BaseNodeResponse implements ChunkedToXContent {
             singleChunk(ifPresent(getAdaptiveSelectionStats())),
             ifPresent(getScriptCacheStats()).toXContentChunked(outerParams),
             singleChunk(
-                (builder, p) -> builder.value(ifPresent(getIndexingPressureStats()), p).value(ifPresent(getRepositoriesStats()), p)
-            ),
-            singleChunk(ifPresent(getNodeAllocationStats()))
+                (builder, p) -> builder.value(ifPresent(getIndexingPressureStats()), p)
+                    .value(ifPresent(getRepositoriesStats()), p)
+                    .value(ifPresent(getNodeAllocationStats()), p)
+            )
         );
     }
 

@@ -492,7 +492,7 @@ public class NodeStatsTests extends ESTestCase {
     }
 
     private static int expectedChunks(NodeStats nodeStats, NodeStatsLevel level) {
-        return 8 // number of static chunks, see NodeStats#toXContentChunked
+        return 7 // number of static chunks, see NodeStats#toXContentChunked
             + expectedChunks(nodeStats.getHttp()) //
             + expectedChunks(nodeStats.getIndices(), level) //
             + expectedChunks(nodeStats.getTransport()) //

@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.core.security.action.user.QueryUserRequest;
 import org.elasticsearch.xpack.core.security.action.user.QueryUserResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Subject;
-import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.profile.ProfileService;
@@ -57,12 +56,7 @@ public final class TransportQueryUserAction extends TransportAction<QueryUserReq
         super(ActionTypes.QUERY_USER_ACTION.name(), actionFilters, transportService.getTaskManager());
         this.usersStore = usersStore;
         this.profileService = profileService;
-        this.nativeRealmRef = realms.getRealmRefs()
-            .values()
-            .stream()
-            .filter(realmRef -> NativeRealmSettings.TYPE.equals(realmRef.getType()))
-            .findFirst()
-            .orElseThrow(() -> new IllegalStateException("native realm realm ref not found"));
+        this.nativeRealmRef = realms.getNativeRealmRef();
     }
 
     @Override

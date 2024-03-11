@@ -67,10 +67,12 @@ import org.elasticsearch.xpack.core.security.action.profile.SuggestProfilesRespo
 import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.DomainConfig;
+import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmDomain;
 import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.user.InternalUser;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import java.io.IOException;
@@ -118,6 +120,7 @@ public class ProfileService {
     private final ClusterService clusterService;
     private final FeatureService featureService;
     private final Function<String, DomainConfig> domainConfigLookup;
+    private final Function<RealmConfig.RealmIdentifier, Authentication.RealmRef> realmRefLookup;
 
     public ProfileService(
         Settings settings,
@@ -126,7 +129,7 @@ public class ProfileService {
         SecurityIndexManager profileIndex,
         ClusterService clusterService,
         FeatureService featureService,
-        Function<String, DomainConfig> domainConfigLookup
+        Realms realms
     ) {
         this.settings = settings;
         this.clock = clock;
@@ -134,7 +137,8 @@ public class ProfileService {
         this.profileIndex = profileIndex;
         this.clusterService = clusterService;
         this.featureService = featureService;
-        this.domainConfigLookup = domainConfigLookup;
+        this.domainConfigLookup = realms::getDomainConfig;
+        this.realmRefLookup = realms::getRealmRef;
     }
 
     public void getProfiles(List<String> uids, Set<String> dataKeys, ActionListener<ResultsAndErrors<Profile>> listener) {

@@ -334,10 +334,9 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
                 }
                 ll.onResponse(null);
             })));
-            return new KnnVectorQueryBuilder(fieldName, queryVector, queryVectorBuilder, toSet::get, numCands, vectorSimilarity)
-                .boost(boost)
-                .queryName(queryName)
-                .addFilterQueries(filterQueries);
+            return new KnnVectorQueryBuilder(fieldName, queryVector, queryVectorBuilder, toSet::get, numCands, vectorSimilarity).boost(
+                boost
+            ).queryName(queryName).addFilterQueries(filterQueries);
         }
         if (ctx.convertToInnerHitsRewriteContext() != null) {
             return new ExactKnnQueryBuilder(queryVector, fieldName).boost(boost).queryName(queryName);

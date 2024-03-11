@@ -50,6 +50,9 @@ using metrics.
   `adaptive_selection`::
       Statistics about <<search-adaptive-replica,adaptive replica selection>>.
 
+  `allocations`::
+      Statistics about allocated shards
+
   `breaker`::
       Statistics about the field data circuit breaker.
 
@@ -2801,6 +2804,44 @@ search requests on the keyed node.
 (string)
 The rank of this node; used for shard selection when routing search
 requests.
+======
+
+[[cluster-nodes-stats-api-response-body-allocations]]
+`allocations`::
+(object)
+Contains allocations statistics for the node.
++
+.Properties of `allocations`
+[%collapsible%open]
+======
+`shards`::
+(integer)
+The number of shards currently allocated to this node
+
+`undesired_shards`::
+(integer)
+The amount of shards that are scheduled to be moved elsewhere in the cluster
+or -1 other than desired balance allocator is used
+
+`forecasted_ingest_load`::
+(double)
+Total forecasted ingest load of all shards assigned to this node
+
+`forecasted_disk_usage`::
+(<<byte-units,byte value>>)
+Forecasted size of all shards assigned to the node
+
+`forecasted_disk_usage_bytes`::
+(integer)
+Forecasted size, in bytes, of all shards assigned to the node
+
+`current_disk_usage`::
+(<<byte-units,byte value>>)
+Current size of all shards assigned to the node
+
+`current_disk_usage_bytes`::
+(integer)
+Current size, in bytes, of all shards assigned to the node
 ======
 =====
 ====

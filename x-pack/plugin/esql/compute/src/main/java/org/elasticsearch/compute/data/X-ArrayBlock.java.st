@@ -10,14 +10,17 @@ package org.elasticsearch.compute.data;
 $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.core.Releasables;
 
 $else$
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Releasables;
 
 $endif$
+import java.io.IOException;
 import java.util.BitSet;
 
 /**
@@ -62,6 +65,29 @@ final class $Type$ArrayBlock extends AbstractArrayBlock implements $Type$Block {
         assert firstValueIndexes == null
             ? vector.getPositionCount() == getPositionCount()
             : firstValueIndexes[getPositionCount()] == vector.getPositionCount();
+    }
+
+    static $Type$ArrayBlock readArrayBlock(BlockFactory blockFactory, BlockStreamInput in) throws IOException {
+        final SubFields sub = new SubFields(blockFactory, in);
+        $Type$ArrayVector vector = null;
+        boolean success = false;
+        try {
+            vector = $Type$ArrayVector.readArrayVector(sub.vectorPositions(), in, blockFactory);
+            var block = new $Type$ArrayBlock(vector, sub.positionCount, sub.firstValueIndexes, sub.nullsMask, sub.mvOrdering);
+            blockFactory.adjustBreaker(block.ramBytesUsed() - vector.ramBytesUsed() - sub.bytesReserved);
+            success = true;
+            return block;
+        } finally {
+            if (success == false) {
+                Releasables.close(vector);
+                blockFactory.adjustBreaker(-sub.bytesReserved);
+            }
+        }
+    }
+
+    void writeArrayBlock(StreamOutput out) throws IOException {
+        writeSubFields(out);
+        vector.writeArrayVector(vector.getPositionCount(), out);
     }
 
     @Override

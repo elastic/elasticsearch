@@ -38,6 +38,10 @@ public final class GetApiKeyResponse extends ActionResponse implements ToXConten
     @Nullable
     private final String[] ownerProfileUids;
 
+    public GetApiKeyResponse(Collection<ApiKey> foundApiKeysInfo) {
+        this(foundApiKeysInfo, null);
+    }
+
     public GetApiKeyResponse(Collection<ApiKey> foundApiKeysInfo, @Nullable Collection<String> ownerProfileUids) {
         Objects.requireNonNull(foundApiKeysInfo, "found_api_keys_info must be provided");
         this.foundApiKeysInfo = foundApiKeysInfo.toArray(new ApiKey[0]);

@@ -30,6 +30,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -68,6 +69,10 @@ public class UpdateConnectorConfigurationAction {
 
         public Map<String, ConnectorConfiguration> getConfiguration() {
             return configuration;
+        }
+
+        public Map<String, Map<String, Object>> getConfigurationAsMap() {
+            return configuration.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().toMap()));
         }
 
         public Map<String, Object> getConfigurationValues() {

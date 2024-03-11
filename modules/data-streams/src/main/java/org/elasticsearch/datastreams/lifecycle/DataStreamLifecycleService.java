@@ -822,38 +822,40 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
      * @return The set of indices that delete requests have been sent for
      */
     private Set<Index> maybeExecuteRetention(ClusterState state, DataStream dataStream, Set<Index> indicesToExcludeForRemainingRun) {
-        TimeValue retention = getRetentionConfiguration(dataStream);
+        Metadata metadata = state.metadata();
+        List<Index> backingIndicesOlderThanRetention = dataStream.getIndicesPastRetention(metadata::index, nowSupplier);
+        if (backingIndicesOlderThanRetention.isEmpty()) {
+            return Set.of();
+        }
         Set<Index> indicesToBeRemoved = new HashSet<>();
-        if (retention != null) {
-            Metadata metadata = state.metadata();
-            List<Index> backingIndicesOlderThanRetention = dataStream.getIndicesPastRetention(metadata::index, nowSupplier);
+        // We know that there is lifecycle and retention because there are indices to be deleted
+        assert dataStream.getLifecycle() != null;
+        TimeValue effectiveDataRetention = dataStream.getLifecycle().getEffectiveDataRetention();
+        for (Index index : backingIndicesOlderThanRetention) {
+            if (indicesToExcludeForRemainingRun.contains(index) == false) {
+                IndexMetadata backingIndex = metadata.index(index);
+                assert backingIndex != null : "the data stream backing indices must exist";
 
-            for (Index index : backingIndicesOlderThanRetention) {
-                if (indicesToExcludeForRemainingRun.contains(index) == false) {
-                    IndexMetadata backingIndex = metadata.index(index);
-                    assert backingIndex != null : "the data stream backing indices must exist";
+                IndexMetadata.DownsampleTaskStatus downsampleStatus = INDEX_DOWNSAMPLE_STATUS.get(backingIndex.getSettings());
+                // we don't want to delete the source index if they have an in-progress downsampling operation because the
+                // target downsample index will remain in the system as a standalone index
+                if (downsampleStatus.equals(UNKNOWN)) {
+                    indicesToBeRemoved.add(index);
 
-                    IndexMetadata.DownsampleTaskStatus downsampleStatus = INDEX_DOWNSAMPLE_STATUS.get(backingIndex.getSettings());
-                    // we don't want to delete the source index if they have an in-progress downsampling operation because the
-                    // target downsample index will remain in the system as a standalone index
-                    if (downsampleStatus.equals(UNKNOWN)) {
-                        indicesToBeRemoved.add(index);
-
-                        // there's an opportunity here to batch the delete requests (i.e. delete 100 indices / request)
-                        // let's start simple and reevaluate
-                        String indexName = backingIndex.getIndex().getName();
-                        deleteIndexOnce(indexName, "the lapsed [" + retention + "] retention period");
-                    } else {
-                        // there's an opportunity here to cancel downsampling and delete the source index now
-                        logger.trace(
-                            "Data stream lifecycle skips deleting index [{}] even though its retention period [{}] has lapsed "
-                                + "because there's a downsampling operation currently in progress for this index. Current downsampling "
-                                + "status is [{}]. When downsampling completes, DSL will delete this index.",
-                            index.getName(),
-                            retention,
-                            downsampleStatus
-                        );
-                    }
+                    // there's an opportunity here to batch the delete requests (i.e. delete 100 indices / request)
+                    // let's start simple and reevaluate
+                    String indexName = backingIndex.getIndex().getName();
+                    deleteIndexOnce(indexName, "the lapsed [" + effectiveDataRetention + "] retention period");
+                } else {
+                    // there's an opportunity here to cancel downsampling and delete the source index now
+                    logger.trace(
+                        "Data stream lifecycle skips deleting index [{}] even though its retention period [{}] has lapsed "
+                            + "because there's a downsampling operation currently in progress for this index. Current downsampling "
+                            + "status is [{}]. When downsampling completes, DSL will delete this index.",
+                        index.getName(),
+                        effectiveDataRetention,
+                        downsampleStatus
+                    );
                 }
             }
         }
@@ -1220,14 +1222,6 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     private static boolean isForceMergeComplete(IndexMetadata backingIndex) {
         Map<String, String> customMetadata = backingIndex.getCustomData(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY);
         return customMetadata != null && customMetadata.containsKey(FORCE_MERGE_COMPLETED_TIMESTAMP_METADATA_KEY);
-    }
-
-    @Nullable
-    static TimeValue getRetentionConfiguration(DataStream dataStream) {
-        if (dataStream.getLifecycle() == null) {
-            return null;
-        }
-        return dataStream.getLifecycle().getEffectiveDataRetention();
     }
 
     /**

@@ -18,6 +18,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xcontent.ParseField;
@@ -67,12 +68,7 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
         }
 
         public static boolean isFieldTypeAllowed(String typeName) {
-            for (AllowedFieldType fieldType : values()) {
-                if (fieldType.getTypeName().equals(typeName)) {
-                    return true;
-                }
-            }
-            return false;
+            return Arrays.stream(values()).anyMatch(value -> value.typeName.equals(typeName));
         }
 
         public static String getAllowedFieldTypesAsString() {
@@ -168,8 +164,7 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
     }
 
     @Override
-    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
-
+    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) {
         if (weightedTokensSupplier != null) {
             if (weightedTokensSupplier.get() == null) {
                 return this;
@@ -188,8 +183,8 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
         inferRequest.setPrefixType(TrainedModelPrefixStrings.PrefixType.SEARCH);
 
         SetOnce<TextExpansionResults> textExpansionResultsSupplier = new SetOnce<>();
-        queryRewriteContext.registerAsyncAction((client, listener) -> {
-            executeAsyncWithOrigin(
+        queryRewriteContext.registerAsyncAction(
+            (client, listener) -> executeAsyncWithOrigin(
                 client,
                 ML_ORIGIN,
                 CoordinatedInferenceAction.INSTANCE,
@@ -220,21 +215,34 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
                         );
                     }
                 }, listener::onFailure)
-            );
-        });
+            )
+        );
 
         return new TextExpansionQueryBuilder(this, textExpansionResultsSupplier);
     }
 
     private QueryBuilder weightedTokensToQuery(String fieldName, TextExpansionResults textExpansionResults) {
-        WeightedTokensQueryBuilder weightedTokensQueryBuilder = new WeightedTokensQueryBuilder(
-            fieldName,
-            textExpansionResults.getWeightedTokens(),
-            tokenPruningConfig
-        );
-        weightedTokensQueryBuilder.queryName(queryName);
-        weightedTokensQueryBuilder.boost(boost);
-        return weightedTokensQueryBuilder;
+        if (tokenPruningConfig != null) {
+            WeightedTokensQueryBuilder weightedTokensQueryBuilder = new WeightedTokensQueryBuilder(
+                fieldName,
+                textExpansionResults.getWeightedTokens(),
+                tokenPruningConfig
+            );
+            weightedTokensQueryBuilder.queryName(queryName);
+            weightedTokensQueryBuilder.boost(boost);
+            return weightedTokensQueryBuilder;
+        }
+        // Note: Weighted tokens queries were introduced in 8.13.0. To support mixed version clusters prior to 8.13.0,
+        // if no token pruning configuration is specified we fall back to a boolean query.
+        // TODO this should be updated to always use a WeightedTokensQueryBuilder once it's in all supported versions.
+        var boolQuery = QueryBuilders.boolQuery();
+        for (var weightedToken : textExpansionResults.getWeightedTokens()) {
+            boolQuery.should(QueryBuilders.termQuery(fieldName, weightedToken.token()).boost(weightedToken.weight()));
+        }
+        boolQuery.minimumShouldMatch(1);
+        boolQuery.boost(boost);
+        boolQuery.queryName(queryName);
+        return boolQuery;
     }
 
     @Override

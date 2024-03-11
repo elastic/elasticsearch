@@ -465,7 +465,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
             final String templateName = config.getTemplateName();
 
             PutIndexTemplateRequest request = new PutIndexTemplateRequest(templateName).source(config.loadBytes(), XContentType.JSON);
-            request.masterNodeTimeout(TimeValue.timeValueMinutes(1));
+            request.masterNodeTimeout(TimeValue.MAX_VALUE);
             executeAsyncWithOrigin(
                 client.threadPool().getThreadContext(),
                 getOrigin(),
@@ -498,7 +498,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
         final Executor executor = threadPool.generic();
         executor.execute(() -> {
             PutComponentTemplateAction.Request request = new PutComponentTemplateAction.Request(templateName).componentTemplate(template);
-            request.masterNodeTimeout(TimeValue.timeValueMinutes(1));
+            request.masterNodeTimeout(TimeValue.MAX_VALUE);
             executeAsyncWithOrigin(
                 client.threadPool().getThreadContext(),
                 getOrigin(),
@@ -538,7 +538,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
         executor.execute(() -> {
             TransportPutComposableIndexTemplateAction.Request request = new TransportPutComposableIndexTemplateAction.Request(templateName)
                 .indexTemplate(indexTemplate);
-            request.masterNodeTimeout(TimeValue.timeValueMinutes(1));
+            request.masterNodeTimeout(TimeValue.MAX_VALUE);
             executeAsyncWithOrigin(
                 client.threadPool().getThreadContext(),
                 getOrigin(),
@@ -615,7 +615,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
         final Executor executor = threadPool.generic();
         executor.execute(() -> {
             PutLifecycleRequest request = new PutLifecycleRequest(policy);
-            request.masterNodeTimeout(TimeValue.timeValueMinutes(1));
+            request.masterNodeTimeout(TimeValue.MAX_VALUE);
             executeAsyncWithOrigin(
                 client.threadPool().getThreadContext(),
                 getOrigin(),
@@ -727,7 +727,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
                 pipelineConfig.loadConfig(),
                 pipelineConfig.getXContentType()
             );
-            request.masterNodeTimeout(TimeValue.timeValueMinutes(1));
+            request.masterNodeTimeout(TimeValue.MAX_VALUE);
 
             executeAsyncWithOrigin(
                 client.threadPool().getThreadContext(),
@@ -815,7 +815,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
                     );
                     RolloverRequest request = new RolloverRequest(rolloverTarget, null);
                     request.lazy(true);
-                    request.masterNodeTimeout(TimeValue.timeValueMinutes(1));
+                    request.masterNodeTimeout(TimeValue.MAX_VALUE);
                     executeAsyncWithOrigin(
                         client.threadPool().getThreadContext(),
                         getOrigin(),

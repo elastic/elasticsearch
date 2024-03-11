@@ -571,6 +571,20 @@ This param is in technical preview and may change in the future. The syntax will
 likely change before GA.
 +
 This parameter is deprecated and will be removed. Use <<retriever, retriever>> instead.
++
+(Optional, object)
+Defines a method for combining and ranking result sets from
+a combination of <<request-body-search-query, query>>,
+<<request-body-sub-searches, sub searches>>, and/or
+<<search-api-knn, knn searches>>. Requires a minimum of 2 results sets for
+ranking from the specified sources.
++
+.Ranking methods
+[%collapsible%open]
+====
+`rrf`::
+(Optional, object) Sets the ranking method to <<rrf, reciprocal rank fusion (RRF)>>.
+====
 
 [[search-api-body-runtime]]
 // tag::runtime-mappings-def[]

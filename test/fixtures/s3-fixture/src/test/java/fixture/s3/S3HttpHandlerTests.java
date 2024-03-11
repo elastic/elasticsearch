@@ -90,11 +90,7 @@ public class S3HttpHandlerTests extends ESTestCase {
         final var blobBytes = randomBytesReference(256);
         assertEquals(RestStatus.OK, handleRequest(handler, "PUT", blobPath, blobBytes).status());
 
-        assertEquals(
-            "No Range",
-            new TestHttpResponse(RestStatus.OK, blobBytes, null),
-            handleRequest(handler, "GET", blobPath)
-        );
+        assertEquals("No Range", new TestHttpResponse(RestStatus.OK, blobBytes, null), handleRequest(handler, "GET", blobPath));
 
         var end = blobBytes.length();
         assertEquals(
@@ -110,7 +106,7 @@ public class S3HttpHandlerTests extends ESTestCase {
             handleRequest(handler, "GET", blobPath, BytesArray.EMPTY, bytesRangeHeader(0, end))
         );
 
-        var start = randomFrom(blobBytes.length(), Integer.MAX_VALUE - 1 );
+        var start = randomFrom(blobBytes.length(), Integer.MAX_VALUE - 1);
         end = randomIntBetween(start, Integer.MAX_VALUE);
         assertEquals(
             "Invalid Range: bytes=" + start + '-' + end,
@@ -339,6 +335,7 @@ public class S3HttpHandlerTests extends ESTestCase {
         TestHttpResponse(RestStatus status, String body) {
             this(status, body, null);
         }
+
         TestHttpResponse(RestStatus status, String body, @Nullable String etag) {
             this(status, new BytesArray(body.getBytes(StandardCharsets.UTF_8)), etag);
         }

@@ -18,7 +18,7 @@ import java.util.Map;
  * This class groups historical features that have been removed from the production codebase, but are still used by YAML test
  * to support BwC. Rather than leaving them in the main src we group them here, so it's clear they are not used in production code anymore.
  */
-public class YamlTestLegacyFeatures  implements FeatureSpecification {
+public class YamlTestLegacyFeatures implements FeatureSpecification {
 
     private static final NodeFeature CAT_ALIASES_SHOW_WRITE_INDEX = new NodeFeature("cat_aliases_show_write_index");
 

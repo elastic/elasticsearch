@@ -11,7 +11,6 @@ package org.elasticsearch.common.time;
 import org.elasticsearch.common.Strings;
 
 import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.ChronoField;
@@ -70,10 +69,6 @@ class JavaDateFormatter implements DateFormatter {
     private final DateTimePrinter printer;
     private final DateTimeParser[] parsers;
     final DateTimeParser[] roundupParsers;
-
-    JavaDateFormatter(String format, DateTimeFormatter formatter) {
-        this(format, new JavaTimeDateTimePrinter(formatter), new JavaTimeDateTimeParser(formatter));
-    }
 
     // named formatters use default roundUpParser
     JavaDateFormatter(String format, DateTimePrinter printer, DateTimeParser... parsers) {

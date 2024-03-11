@@ -140,7 +140,15 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         if (queryVectorSupplier == null && queryVector == null && queryVectorBuilder == null) {
             throw new IllegalArgumentException(
                 format(
-                    "either [%s] and [%s] or [%s] must be provided",
+                    "either [%s] or [%s] must be provided",
+                    QUERY_VECTOR_FIELD.getPreferredName(),
+                    QUERY_VECTOR_BUILDER_FIELD.getPreferredName()
+                )
+            );
+        } else if (queryVector != null && queryVectorBuilder != null) {
+            throw new IllegalArgumentException(
+                format(
+                    "only one of [%s] and [%s] must be provided",
                     QUERY_VECTOR_FIELD.getPreferredName(),
                     QUERY_VECTOR_BUILDER_FIELD.getPreferredName()
                 )

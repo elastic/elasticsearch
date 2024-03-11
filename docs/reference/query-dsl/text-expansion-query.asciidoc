@@ -155,8 +155,9 @@ GET my-index/_search
 ----
 // TEST[skip: TBD]
 
-This can also be achieved using <<rrf>>, through an <<rrf-retriever, `rrf` retriever>>
-with multiple <<standard-retriever, `standard` retrievers>>.
+This can also be achieved using <<rrf, reciprocal rank fusion (RRF)>>,
+through an <<rrf-retriever, `rrf` retriever>> with multiple
+<<standard-retriever, `standard` retrievers>>.
 
 [source,console]
 ----

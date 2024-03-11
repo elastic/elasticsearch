@@ -56,7 +56,7 @@ class JavaTimeDateTimeParser implements DateTimeParser {
     }
 
     @Override
-    public TemporalAccessor parse(CharSequence str) throws DateTimeParseException {
+    public TemporalAccessor parse(CharSequence str) {
         return formatter.parse(str);
     }
 

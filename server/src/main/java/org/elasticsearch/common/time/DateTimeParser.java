@@ -15,6 +15,9 @@ import java.time.temporal.TemporalAccessor;
 import java.util.Locale;
 import java.util.Optional;
 
+/**
+ * An object that can parse strings into datetime objects
+ */
 interface DateTimeParser {
     ZoneId getZone();
 
@@ -28,7 +31,14 @@ interface DateTimeParser {
 
     void applyToBuilder(DateTimeFormatterBuilder builder);
 
-    TemporalAccessor parse(CharSequence str) throws DateTimeParseException;
+    /**
+     * Parses the specified string.
+     * <p>
+     * The pattern must fully match, using the whole string.
+     * If the string cannot be fully parsed, {@link DateTimeParseException} is thrown.
+     * @throws DateTimeParseException   The string could not be fully parsed
+     */
+    TemporalAccessor parse(CharSequence str);
 
     /**
      * Try to parse the specified string.

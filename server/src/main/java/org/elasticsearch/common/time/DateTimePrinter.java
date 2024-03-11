@@ -12,6 +12,9 @@ import java.time.ZoneId;
 import java.time.temporal.TemporalAccessor;
 import java.util.Locale;
 
+/**
+ * An object that can format datetime objects as strings
+ */
 interface DateTimePrinter {
     ZoneId getZone();
 
@@ -21,5 +24,8 @@ interface DateTimePrinter {
 
     DateTimePrinter withLocale(Locale locale);
 
+    /**
+     * Returns the string representation of the specified {@link TemporalAccessor}
+     */
     String format(TemporalAccessor accessor);
 }

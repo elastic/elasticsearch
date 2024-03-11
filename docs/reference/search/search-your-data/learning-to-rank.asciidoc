@@ -23,9 +23,9 @@ image::images/search/learning-to-rank-overview.png[Learning To Rank overview,ali
 
 In addition to the list of documents to sort, the LTR function also requires a
 search context. Typically, this search context includes at least the search
-terms provided by the user (text_query in the example above).
+terms provided by the user (`text_query` in the example above).
 The search context can also provide additional information used in the ranking mode.
-This could be information about the user doing the search (like demographic data, geolocation, or age); about the query (like query length); or document in the context of the query (like score for the title field).
+This could be information about the user doing the search (such as demographic data, geolocation, or age); about the query (such as query length); or document in the context of the query (such as score for the title field).
 
 [discrete]
 [[learning-to-rank-judgement-list]]

@@ -40,7 +40,7 @@ Feature extractors are defined using templated queries. https://eland.readthedoc
 from eland.ml.ltr import QueryFeatureExtractor
 
 feature_extractors=[
-    # We want to use the score of the match query for the title field as a features:
+    # We want to use the score of the match query for the title field as a feature:
     QueryFeatureExtractor(
         feature_name="title_bm25",
         query={"match": {"title": "{{query}}"}}

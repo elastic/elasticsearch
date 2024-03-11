@@ -146,6 +146,8 @@ MLModel.import_ltr_model(
 
 This method will serialize the trained model and the Learning To Rank configuration (including feature extraction) in a format that {es} can understand. The model is then deployed to {es} using the <<put-trained-models, Create Trained Models API>>.
 
+The following types of models are currently supported for LTR with {es}:
+
 * https://scikit-learn.org/stable/modules/generated/sklearn.tree.DecisionTreeRegressor.html[`DecisionTreeRegressor`^]
 * https://scikit-learn.org/stable/modules/generated/sklearn.ensemble.RandomForestRegressor.html[`RandomForestRegressor`^]
 * https://lightgbm.readthedocs.io/en/latest/pythonapi/lightgbm.LGBMRegressor.html[`LGBMRegressor`^]

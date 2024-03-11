@@ -245,31 +245,49 @@ public class S3HttpHandler implements HttpHandler {
 
             } else if (Regex.simpleMatch("GET /" + path + "/*", request)) {
                 final BytesReference blob = blobs.get(requestComponents.uri());
-                if (blob != null) {
-                    final String range = exchange.getRequestHeaders().getFirst("Range");
-                    if (range == null) {
-                        exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
-                        exchange.sendResponseHeaders(RestStatus.OK.getStatus(), blob.length());
-                        blob.writeTo(exchange.getResponseBody());
-                    } else {
-                        final Matcher matcher = Pattern.compile("^bytes=([0-9]+)-([0-9]+)$").matcher(range);
-                        if (matcher.matches() == false) {
-                            throw new AssertionError("Bytes range does not match expected pattern: " + range);
-                        }
-
-                        final int start = Integer.parseInt(matcher.group(1));
-                        final int end = Integer.parseInt(matcher.group(2));
-
-                        final BytesReference rangeBlob = blob.slice(start, end + 1 - start);
-                        exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
-                        exchange.getResponseHeaders()
-                            .add("Content-Range", String.format(Locale.ROOT, "bytes %d-%d/%d", start, end, rangeBlob.length()));
-                        exchange.sendResponseHeaders(RestStatus.OK.getStatus(), rangeBlob.length());
-                        rangeBlob.writeTo(exchange.getResponseBody());
-                    }
-                } else {
+                if (blob == null) {
                     exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
+                    return;
                 }
+                final String range = exchange.getRequestHeaders().getFirst("Range");
+                if (range == null) {
+                    exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
+                    exchange.sendResponseHeaders(RestStatus.OK.getStatus(), blob.length());
+                    blob.writeTo(exchange.getResponseBody());
+                    return;
+                }
+
+                // S3 supports https://www.rfc-editor.org/rfc/rfc9110.html#name-range. The AWS SDK v1.x seems to always generate range
+                // requests with a header value like "Range: bytes=start-end" where both {@code start} and {@code end} are always defined
+                // (sometimes to very high value for {@code end}). It would be too tedious to fully support the RFC so S3HttpHandler only
+                // supports when both {@code start} and {@code end} are defined to match the SDK behavior.
+                final Matcher matcher = Pattern.compile("^bytes=([0-9]+)-([0-9]+)$").matcher(range);
+                if (matcher.matches() == false) {
+                    throw new AssertionError("Bytes range does not match expected pattern: " + range);
+                }
+                var groupStart = matcher.group(1);
+                var groupEnd = matcher.group(2);
+                if (groupStart == null || groupEnd == null) {
+                    throw new AssertionError("Bytes range does not match expected pattern: " + range);
+                }
+                int start = Integer.parseInt(groupStart);
+                int end = Integer.parseInt(groupEnd);
+                if (end < start) {
+                    exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
+                    exchange.sendResponseHeaders(RestStatus.OK.getStatus(), blob.length());
+                    blob.writeTo(exchange.getResponseBody());
+                    return;
+                } else if (blob.length() <= start) {
+                    exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
+                    exchange.sendResponseHeaders(RestStatus.REQUESTED_RANGE_NOT_SATISFIED.getStatus(), blob.length());
+                    return;
+                }
+
+                var responseBlob = blob.slice(start, Math.min(end - start + 1, blob.length() - start));
+                exchange.getResponseHeaders()
+                    .add("Content-Range", String.format(Locale.ROOT, "bytes %d-%d/%d", start, end, responseBlob.length()));
+                exchange.sendResponseHeaders(RestStatus.PARTIAL_CONTENT.getStatus(), responseBlob.length());
+                responseBlob.writeTo(exchange.getResponseBody());
 
             } else if (Regex.simpleMatch("DELETE /" + path + "/*", request)) {
                 int deletions = 0;

@@ -83,6 +83,58 @@ public class S3HttpHandlerTests extends ESTestCase {
         );
     }
 
+    public void testGetWithBytesRange() {
+        final var handler = new S3HttpHandler("bucket", "path");
+        final var blobName = "blob_name_" + randomIdentifier();
+        final var blobPath = "/bucket/path/" + blobName;
+        final var blobBytes = randomBytesReference(256);
+        assertEquals(RestStatus.OK, handleRequest(handler, "PUT", blobPath, blobBytes).status());
+
+        assertEquals(
+            "No Range",
+            new TestHttpResponse(RestStatus.OK, blobBytes, null),
+            handleRequest(handler, "GET", blobPath)
+        );
+
+        var end = blobBytes.length();
+        assertEquals(
+            "Exact Range: bytes=0-" + end,
+            new TestHttpResponse(RestStatus.PARTIAL_CONTENT, blobBytes, null),
+            handleRequest(handler, "GET", blobPath, BytesArray.EMPTY, bytesRangeHeader(0, end))
+        );
+
+        end = randomIntBetween(blobBytes.length(), Integer.MAX_VALUE);
+        assertEquals(
+            "Larger Range: bytes=0-" + end,
+            new TestHttpResponse(RestStatus.PARTIAL_CONTENT, blobBytes, null),
+            handleRequest(handler, "GET", blobPath, BytesArray.EMPTY, bytesRangeHeader(0, end))
+        );
+
+        var start = randomFrom(blobBytes.length(), Integer.MAX_VALUE - 1 );
+        end = randomIntBetween(start, Integer.MAX_VALUE);
+        assertEquals(
+            "Invalid Range: bytes=" + start + '-' + end,
+            new TestHttpResponse(RestStatus.REQUESTED_RANGE_NOT_SATISFIED, BytesArray.EMPTY, null),
+            handleRequest(handler, "GET", blobPath, BytesArray.EMPTY, bytesRangeHeader(start, end))
+        );
+
+        start = randomFrom(2, Integer.MAX_VALUE - 1);
+        end = randomIntBetween(0, start - 1);
+        assertEquals(
+            "Weird Valid Range: bytes=" + start + '-' + end,
+            new TestHttpResponse(RestStatus.OK, blobBytes, null),
+            handleRequest(handler, "GET", blobPath, BytesArray.EMPTY, bytesRangeHeader(start, end))
+        );
+
+        start = randomIntBetween(0, blobBytes.length() - 1);
+        end = randomIntBetween(start, Integer.MAX_VALUE);
+        assertEquals(
+            "Range: bytes=" + start + '-' + end,
+            new TestHttpResponse(RestStatus.PARTIAL_CONTENT, blobBytes.slice(start, blobBytes.length() - start), null),
+            handleRequest(handler, "GET", blobPath, BytesArray.EMPTY, bytesRangeHeader(start, end))
+        );
+    }
+
     public void testSingleMultipartUpload() {
         final var handler = new S3HttpHandler("bucket", "path");
 
@@ -217,6 +269,10 @@ public class S3HttpHandlerTests extends ESTestCase {
             </CompleteMultipartUpload>""", part1Etag, part2Etag)).status());
     }
 
+    private static String getUploadId(BytesReference createUploadResponseBody) {
+        return getUploadId(createUploadResponseBody.utf8ToString());
+    }
+
     private static String getUploadId(String createUploadResponseBody) {
         final var startTag = "<UploadId>";
         final var startTagPosition = createUploadResponseBody.indexOf(startTag);
@@ -279,9 +335,12 @@ public class S3HttpHandlerTests extends ESTestCase {
         assertEquals(List.of(expectedTags), S3HttpHandler.extractPartEtags(new BytesArray(body.getBytes(StandardCharsets.UTF_8))));
     }
 
-    private record TestHttpResponse(RestStatus status, String body, @Nullable String etag) {
+    private record TestHttpResponse(RestStatus status, BytesReference body, @Nullable String etag) {
         TestHttpResponse(RestStatus status, String body) {
             this(status, body, null);
+        }
+        TestHttpResponse(RestStatus status, String body, @Nullable String etag) {
+            this(status, new BytesArray(body.getBytes(StandardCharsets.UTF_8)), etag);
         }
     }
 
@@ -290,7 +349,21 @@ public class S3HttpHandlerTests extends ESTestCase {
     }
 
     private static TestHttpResponse handleRequest(S3HttpHandler handler, String method, String uri, String requestBody) {
-        final var httpExchange = new TestHttpExchange(method, uri, new BytesArray(requestBody.getBytes(StandardCharsets.UTF_8)));
+        return handleRequest(handler, method, uri, new BytesArray(requestBody.getBytes(StandardCharsets.UTF_8)));
+    }
+
+    private static TestHttpResponse handleRequest(S3HttpHandler handler, String method, String uri, BytesReference requestBody) {
+        return handleRequest(handler, method, uri, requestBody, TestHttpExchange.EMPTY_HEADERS);
+    }
+
+    private static TestHttpResponse handleRequest(
+        S3HttpHandler handler,
+        String method,
+        String uri,
+        BytesReference requestBody,
+        Headers requestHeaders
+    ) {
+        final var httpExchange = new TestHttpExchange(method, uri, requestBody, requestHeaders);
         try {
             handler.handle(httpExchange);
         } catch (IOException e) {
@@ -299,9 +372,23 @@ public class S3HttpHandlerTests extends ESTestCase {
         assertNotEquals(0, httpExchange.getResponseCode());
         return new TestHttpResponse(
             RestStatus.fromCode(httpExchange.getResponseCode()),
-            httpExchange.getResponseBodyContents().utf8ToString(),
+            httpExchange.getResponseBodyContents(),
             httpExchange.getResponseHeaders().getFirst("ETag")
         );
+    }
+
+    private static Headers bytesRangeHeader(@Nullable Integer startInclusive, @Nullable Integer endInclusive) {
+        StringBuilder range = new StringBuilder("bytes=");
+        if (startInclusive != null) {
+            range.append(startInclusive);
+        }
+        range.append('-');
+        if (endInclusive != null) {
+            range.append(endInclusive);
+        }
+        var headers = new Headers();
+        headers.put("Range", List.of(range.toString()));
+        return headers;
     }
 
     private static class TestHttpExchange extends HttpExchange {
@@ -311,20 +398,22 @@ public class S3HttpHandlerTests extends ESTestCase {
         private final String method;
         private final URI uri;
         private final BytesReference requestBody;
+        private final Headers requestHeaders;
 
         private final Headers responseHeaders = new Headers();
         private final BytesStreamOutput responseBody = new BytesStreamOutput();
         private int responseCode;
 
-        TestHttpExchange(String method, String uri, BytesReference requestBody) {
+        TestHttpExchange(String method, String uri, BytesReference requestBody, Headers requestHeaders) {
             this.method = method;
             this.uri = URI.create(uri);
             this.requestBody = requestBody;
+            this.requestHeaders = requestHeaders;
         }
 
         @Override
         public Headers getRequestHeaders() {
-            return EMPTY_HEADERS;
+            return requestHeaders;
         }
 
         @Override

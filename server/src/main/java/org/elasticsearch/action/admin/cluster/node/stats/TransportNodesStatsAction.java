@@ -8,11 +8,15 @@
 
 package org.elasticsearch.action.admin.cluster.node.stats;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
+import org.elasticsearch.action.admin.cluster.allocation.TransportGetAllocationStatsAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.allocation.NodeAllocationStats;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
@@ -42,7 +46,9 @@ public class TransportNodesStatsAction extends TransportNodesAction<
     NodeStats> {
 
     public static final ActionType<NodesStatsResponse> TYPE = new ActionType<>("cluster:monitor/nodes/stats");
+
     private final NodeService nodeService;
+    private final NodeClient client;
 
     @Inject
     public TransportNodesStatsAction(
@@ -50,7 +56,8 @@ public class TransportNodesStatsAction extends TransportNodesAction<
         ClusterService clusterService,
         TransportService transportService,
         NodeService nodeService,
-        ActionFilters actionFilters
+        ActionFilters actionFilters,
+        NodeClient client
     ) {
         super(
             TYPE.name(),
@@ -61,11 +68,40 @@ public class TransportNodesStatsAction extends TransportNodesAction<
             threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.nodeService = nodeService;
+        this.client = client;
     }
 
     @Override
     protected NodesStatsResponse newResponse(NodesStatsRequest request, List<NodeStats> responses, List<FailedNodeException> failures) {
         return new NodesStatsResponse(clusterService.getClusterName(), responses, failures);
+    }
+
+    @Override
+    protected void newResponseAsync(
+        Task task,
+        NodesStatsRequest request,
+        List<NodeStats> responses,
+        List<FailedNodeException> failures,
+        ActionListener<NodesStatsResponse> listener
+    ) {
+        Set<String> metrics = request.getNodesStatsRequestParameters().requestedMetrics();
+        if (NodesStatsRequestParameters.Metric.ALLOCATIONS.containedIn(metrics)) {
+            client.execute(
+                TransportGetAllocationStatsAction.TYPE,
+                new TransportGetAllocationStatsAction.Request(new TaskId(clusterService.localNode().getId(), task.getId())),
+                listener.delegateFailure((l, r) -> {
+                    ActionListener.respondAndRelease(l, newResponse(request, merge(responses, r.getNodeAllocationStats()), failures));
+                })
+            );
+        } else {
+            ActionListener.run(listener, l -> ActionListener.respondAndRelease(l, newResponse(request, responses, failures)));
+        }
+    }
+
+    private static List<NodeStats> merge(List<NodeStats> responses, Map<String, NodeAllocationStats> allocationStats) {
+        return responses.stream()
+            .map(response -> response.withNodeAllocationStats(allocationStats.get(response.getNode().getId())))
+            .toList();
     }
 
     @Override
@@ -80,10 +116,10 @@ public class TransportNodesStatsAction extends TransportNodesAction<
     }
 
     @Override
-    protected NodeStats nodeOperation(NodeStatsRequest nodeStatsRequest, Task task) {
+    protected NodeStats nodeOperation(NodeStatsRequest request, Task task) {
         assert task instanceof CancellableTask;
 
-        final NodesStatsRequestParameters nodesStatsRequestParameters = nodeStatsRequest.getNodesStatsRequestParameters();
+        final NodesStatsRequestParameters nodesStatsRequestParameters = request.getNodesStatsRequestParameters();
         Set<String> metrics = nodesStatsRequestParameters.requestedMetrics();
         return nodeService.stats(
             nodesStatsRequestParameters.indices(),

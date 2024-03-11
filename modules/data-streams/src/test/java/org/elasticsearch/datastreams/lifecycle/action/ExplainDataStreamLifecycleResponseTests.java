@@ -14,6 +14,7 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.action.datastreams.lifecycle.ErrorEntry;
 import org.elasticsearch.action.datastreams.lifecycle.ExplainIndexDataStreamLifecycle;
+import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -66,7 +67,7 @@ public class ExplainDataStreamLifecycleResponseTests extends AbstractWireSeriali
         ExplainIndexDataStreamLifecycle explainIndex = createRandomIndexDataStreamLifecycleExplanation(now, lifecycle);
         explainIndex.setNowSupplier(() -> now);
         {
-            Response response = new Response(List.of(explainIndex), null);
+            Response response = new Response(List.of(explainIndex), null, null);
 
             XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
             response.toXContentChunked(EMPTY_PARAMS).forEachRemaining(xcontent -> {
@@ -132,7 +133,7 @@ public class ExplainDataStreamLifecycleResponseTests extends AbstractWireSeriali
                     new MinPrimaryShardDocsCondition(4L)
                 )
             );
-            Response response = new Response(List.of(explainIndex), new RolloverConfiguration(rolloverConditions));
+            Response response = new Response(List.of(explainIndex), new RolloverConfiguration(rolloverConditions), null);
 
             XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
             response.toXContentChunked(EMPTY_PARAMS).forEachRemaining(xcontent -> {
@@ -212,7 +213,7 @@ public class ExplainDataStreamLifecycleResponseTests extends AbstractWireSeriali
                     )
                     : null
             );
-            Response response = new Response(List.of(explainIndexWithNullGenerationDate), null);
+            Response response = new Response(List.of(explainIndexWithNullGenerationDate), null, null);
 
             XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
             response.toXContentChunked(EMPTY_PARAMS).forEachRemaining(xcontent -> {
@@ -241,6 +242,7 @@ public class ExplainDataStreamLifecycleResponseTests extends AbstractWireSeriali
                 createRandomIndexDataStreamLifecycleExplanation(now, lifecycle),
                 createRandomIndexDataStreamLifecycleExplanation(now, lifecycle)
             ),
+            null,
             null
         );
 
@@ -295,6 +297,12 @@ public class ExplainDataStreamLifecycleResponseTests extends AbstractWireSeriali
                     new RolloverConditions(
                         Map.of(MaxPrimaryShardDocsCondition.NAME, new MaxPrimaryShardDocsCondition(randomLongBetween(1000, 199_999_000)))
                     )
+                )
+                : null,
+            randomBoolean()
+                ? new DataStreamGlobalRetention(
+                    TimeValue.timeValueDays(randomIntBetween(1, 10)),
+                    TimeValue.timeValueDays(randomIntBetween(10, 20))
                 )
                 : null
         );

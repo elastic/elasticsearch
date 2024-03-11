@@ -95,10 +95,12 @@ public class SystemdPlugin extends Plugin implements ClusterPlugin {
     }
 
     void notifyReady() {
+        assert systemd != null;
         systemd.notify_ready();
     }
 
     void notifyStopping() {
+        assert systemd != null;
         systemd.notify_stopping();
     }
 

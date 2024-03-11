@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.cluster.node.stats;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
@@ -85,7 +86,8 @@ public class TransportNodesStatsAction extends TransportNodesAction<
         ActionListener<NodesStatsResponse> listener
     ) {
         Set<String> metrics = request.getNodesStatsRequestParameters().requestedMetrics();
-        if (NodesStatsRequestParameters.Metric.ALLOCATIONS.containedIn(metrics)) {
+        if (NodesStatsRequestParameters.Metric.ALLOCATIONS.containedIn(metrics)
+            && clusterService.state().getMinTransportVersion().onOrAfter(TransportVersions.ALLOCATION_STATS)) {
             client.execute(
                 TransportGetAllocationStatsAction.TYPE,
                 new TransportGetAllocationStatsAction.Request(task.getParentTaskId()),

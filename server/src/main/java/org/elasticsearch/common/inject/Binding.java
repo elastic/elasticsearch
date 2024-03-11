@@ -77,6 +77,6 @@ public interface Binding<T> extends Element {
      * @param visitor to call back on
      * @since 2.0
      */
-    <V> V acceptTargetVisitor(BindingTargetVisitor<? super T, V> visitor);
+    <V> void acceptTargetVisitor(BindingTargetVisitor<? super T, V> visitor);
 
 }

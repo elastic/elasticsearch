@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.datastreams.lifecycle.action;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -14,6 +15,7 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
+import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -157,19 +159,23 @@ public class GetDataStreamLifecycleAction {
 
             @Override
             public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                return toXContent(builder, params, null);
+                return toXContent(builder, params, null, null);
             }
 
             /**
              * Converts the response to XContent and passes the RolloverConditions, when provided, to the data stream lifecycle.
              */
-            public XContentBuilder toXContent(XContentBuilder builder, Params params, @Nullable RolloverConfiguration rolloverConfiguration)
-                throws IOException {
+            public XContentBuilder toXContent(
+                XContentBuilder builder,
+                Params params,
+                @Nullable RolloverConfiguration rolloverConfiguration,
+                @Nullable DataStreamGlobalRetention globalRetention
+            ) throws IOException {
                 builder.startObject();
                 builder.field(NAME_FIELD.getPreferredName(), dataStreamName);
                 if (lifecycle != null) {
                     builder.field(LIFECYCLE_FIELD.getPreferredName());
-                    lifecycle.toXContent(builder, params, rolloverConfiguration);
+                    lifecycle.toXContent(builder, params, rolloverConfiguration, globalRetention);
                 }
                 builder.endObject();
                 return builder;
@@ -179,18 +185,31 @@ public class GetDataStreamLifecycleAction {
         private final List<DataStreamLifecycle> dataStreamLifecycles;
         @Nullable
         private final RolloverConfiguration rolloverConfiguration;
+        @Nullable
+        private final DataStreamGlobalRetention globalRetention;
 
         public Response(List<DataStreamLifecycle> dataStreamLifecycles) {
-            this(dataStreamLifecycles, null);
+            this(dataStreamLifecycles, null, null);
         }
 
-        public Response(List<DataStreamLifecycle> dataStreamLifecycles, @Nullable RolloverConfiguration rolloverConfiguration) {
+        public Response(
+            List<DataStreamLifecycle> dataStreamLifecycles,
+            @Nullable RolloverConfiguration rolloverConfiguration,
+            @Nullable DataStreamGlobalRetention globalRetention
+        ) {
             this.dataStreamLifecycles = dataStreamLifecycles;
             this.rolloverConfiguration = rolloverConfiguration;
+            this.globalRetention = globalRetention;
         }
 
         public Response(StreamInput in) throws IOException {
-            this(in.readCollectionAsList(Response.DataStreamLifecycle::new), in.readOptionalWriteable(RolloverConfiguration::new));
+            this(
+                in.readCollectionAsList(Response.DataStreamLifecycle::new),
+                in.readOptionalWriteable(RolloverConfiguration::new),
+                in.getTransportVersion().onOrAfter(TransportVersions.USE_DATA_STREAM_GLOBAL_RETENTION)
+                    ? in.readOptionalWriteable(DataStreamGlobalRetention::read)
+                    : null
+            );
         }
 
         public List<DataStreamLifecycle> getDataStreamLifecycles() {
@@ -202,10 +221,18 @@ public class GetDataStreamLifecycleAction {
             return rolloverConfiguration;
         }
 
+        @Nullable
+        public DataStreamGlobalRetention getGlobalRetention() {
+            return globalRetention;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeCollection(dataStreamLifecycles);
             out.writeOptionalWriteable(rolloverConfiguration);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.USE_DATA_STREAM_GLOBAL_RETENTION)) {
+                out.writeOptionalWriteable(globalRetention);
+            }
         }
 
         @Override
@@ -217,7 +244,12 @@ public class GetDataStreamLifecycleAction {
             }),
                 Iterators.map(
                     dataStreamLifecycles.iterator(),
-                    dataStreamLifecycle -> (builder, params) -> dataStreamLifecycle.toXContent(builder, params, rolloverConfiguration)
+                    dataStreamLifecycle -> (builder, params) -> dataStreamLifecycle.toXContent(
+                        builder,
+                        params,
+                        rolloverConfiguration,
+                        globalRetention
+                    )
                 ),
                 Iterators.single((builder, params) -> {
                     builder.endArray();

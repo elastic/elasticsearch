@@ -29,7 +29,6 @@ import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
-import org.elasticsearch.repositories.GetSnapshotInfoContext;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
@@ -318,45 +317,39 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                 delegate.onResponse(new SnapshotsStatusResponse(Collections.unmodifiableList(builder)));
             } else {
                 final List<SnapshotStatus> threadSafeBuilder = Collections.synchronizedList(builder);
-                repositoriesService.repository(repositoryName)
-                    .getSnapshotInfo(new GetSnapshotInfoContext(snapshotIdsToLoad, true, task::isCancelled, (context, snapshotInfo) -> {
-                        List<SnapshotIndexShardStatus> shardStatusBuilder = new ArrayList<>();
-                        final Map<ShardId, IndexShardSnapshotStatus.Copy> shardStatuses;
-                        try {
-                            shardStatuses = snapshotShards(repositoryName, repositoryData, task, snapshotInfo);
-                        } catch (Exception e) {
-                            // stops all further fetches of snapshotInfo since context is fail-fast
-                            context.onFailure(e);
-                            return;
-                        }
-                        for (final var shardStatus : shardStatuses.entrySet()) {
-                            IndexShardSnapshotStatus.Copy lastSnapshotStatus = shardStatus.getValue();
-                            shardStatusBuilder.add(new SnapshotIndexShardStatus(shardStatus.getKey(), lastSnapshotStatus));
-                        }
-                        final SnapshotsInProgress.State state = switch (snapshotInfo.state()) {
-                            case FAILED -> SnapshotsInProgress.State.FAILED;
-                            case SUCCESS, PARTIAL ->
-                                // Translating both PARTIAL and SUCCESS to SUCCESS for now
-                                // TODO: add the differentiation on the metadata level in the next major release
-                                SnapshotsInProgress.State.SUCCESS;
-                            default -> throw new IllegalArgumentException("Unexpected snapshot state " + snapshotInfo.state());
-                        };
-                        final long startTime = snapshotInfo.startTime();
-                        final long endTime = snapshotInfo.endTime();
-                        assert endTime >= startTime || (endTime == 0L && snapshotInfo.state().completed() == false)
-                            : "Inconsistent timestamps found in SnapshotInfo [" + snapshotInfo + "]";
-                        threadSafeBuilder.add(
-                            new SnapshotStatus(
-                                new Snapshot(repositoryName, snapshotInfo.snapshotId()),
-                                state,
-                                Collections.unmodifiableList(shardStatusBuilder),
-                                snapshotInfo.includeGlobalState(),
-                                startTime,
-                                // Use current time to calculate overall runtime for in-progress snapshots that have endTime == 0
-                                (endTime == 0 ? threadPool.absoluteTimeInMillis() : endTime) - startTime
-                            )
-                        );
-                    }, delegate.map(v -> new SnapshotsStatusResponse(List.copyOf(threadSafeBuilder)))));
+                repositoriesService.repository(repositoryName).getSnapshotInfo(snapshotIdsToLoad, true, task::isCancelled, snapshotInfo -> {
+                    List<SnapshotIndexShardStatus> shardStatusBuilder = new ArrayList<>();
+                    final Map<ShardId, IndexShardSnapshotStatus.Copy> shardStatuses;
+                    shardStatuses = snapshotShards(repositoryName, repositoryData, task, snapshotInfo);
+                    // an exception here stops further fetches of snapshotInfo since context is fail-fast
+                    for (final var shardStatus : shardStatuses.entrySet()) {
+                        IndexShardSnapshotStatus.Copy lastSnapshotStatus = shardStatus.getValue();
+                        shardStatusBuilder.add(new SnapshotIndexShardStatus(shardStatus.getKey(), lastSnapshotStatus));
+                    }
+                    final SnapshotsInProgress.State state = switch (snapshotInfo.state()) {
+                        case FAILED -> SnapshotsInProgress.State.FAILED;
+                        case SUCCESS, PARTIAL ->
+                            // Translating both PARTIAL and SUCCESS to SUCCESS for now
+                            // TODO: add the differentiation on the metadata level in the next major release
+                            SnapshotsInProgress.State.SUCCESS;
+                        default -> throw new IllegalArgumentException("Unexpected snapshot state " + snapshotInfo.state());
+                    };
+                    final long startTime = snapshotInfo.startTime();
+                    final long endTime = snapshotInfo.endTime();
+                    assert endTime >= startTime || (endTime == 0L && snapshotInfo.state().completed() == false)
+                        : "Inconsistent timestamps found in SnapshotInfo [" + snapshotInfo + "]";
+                    threadSafeBuilder.add(
+                        new SnapshotStatus(
+                            new Snapshot(repositoryName, snapshotInfo.snapshotId()),
+                            state,
+                            Collections.unmodifiableList(shardStatusBuilder),
+                            snapshotInfo.includeGlobalState(),
+                            startTime,
+                            // Use current time to calculate overall runtime for in-progress snapshots that have endTime == 0
+                            (endTime == 0 ? threadPool.absoluteTimeInMillis() : endTime) - startTime
+                        )
+                    );
+                }, delegate.map(v -> new SnapshotsStatusResponse(List.copyOf(threadSafeBuilder))));
             }
         }));
     }

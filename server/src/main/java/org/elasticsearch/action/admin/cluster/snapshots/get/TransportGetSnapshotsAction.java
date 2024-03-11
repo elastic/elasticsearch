@@ -10,7 +10,6 @@ package org.elasticsearch.action.admin.cluster.snapshots.get;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.repositories.get.TransportGetRepositoriesAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -27,12 +26,13 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.repositories.GetSnapshotInfoContext;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryMissingException;
+import org.elasticsearch.repositories.ResolvedRepositories;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
@@ -111,7 +111,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
 
         new GetSnapshotsOperation(
             (CancellableTask) task,
-            TransportGetRepositoriesAction.getRepositories(state, request.repositories()),
+            ResolvedRepositories.resolve(state, request.repositories()),
             request.isSingleRepositoryRequest() == false,
             request.snapshots(),
             request.ignoreUnavailable(),
@@ -148,7 +148,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         private final SnapshotPredicates predicates;
 
         // snapshot ordering/pagination
-        private final GetSnapshotsRequest.SortBy sortBy;
+        private final SnapshotSortKey sortBy;
         private final SortOrder order;
         @Nullable
         private final String fromSortValue;
@@ -172,12 +172,12 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
 
         GetSnapshotsOperation(
             CancellableTask cancellableTask,
-            TransportGetRepositoriesAction.RepositoriesResult repositoriesResult,
+            ResolvedRepositories resolvedRepositories,
             boolean isMultiRepoRequest,
             String[] snapshots,
             boolean ignoreUnavailable,
             SnapshotPredicates predicates,
-            GetSnapshotsRequest.SortBy sortBy,
+            SnapshotSortKey sortBy,
             SortOrder order,
             String fromSortValue,
             int offset,
@@ -188,7 +188,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             boolean indices
         ) {
             this.cancellableTask = cancellableTask;
-            this.repositories = repositoriesResult.metadata();
+            this.repositories = resolvedRepositories.repositoryMetadata();
             this.isMultiRepoRequest = isMultiRepoRequest;
             this.snapshots = snapshots;
             this.ignoreUnavailable = ignoreUnavailable;
@@ -203,28 +203,12 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             this.verbose = verbose;
             this.indices = indices;
 
-            for (final var missingRepo : repositoriesResult.missing()) {
+            for (final var missingRepo : resolvedRepositories.missing()) {
                 failuresByRepository.put(missingRepo, new RepositoryMissingException(missingRepo));
             }
         }
 
-        /**
-         * Filters the list of repositories that a request will fetch snapshots from in the special case of sorting by repository
-         * name and having a non-null value for {@link GetSnapshotsRequest#fromSortValue()} on the request to exclude repositories outside
-         * the sort value range if possible.
-         */
-        private List<RepositoryMetadata> maybeFilterRepositories() {
-            if (sortBy != GetSnapshotsRequest.SortBy.REPOSITORY || fromSortValue == null) {
-                return repositories;
-            }
-            final Predicate<RepositoryMetadata> predicate = order == SortOrder.ASC
-                ? repositoryMetadata -> fromSortValue.compareTo(repositoryMetadata.name()) <= 0
-                : repositoryMetadata -> fromSortValue.compareTo(repositoryMetadata.name()) >= 0;
-            return repositories.stream().filter(predicate).toList();
-        }
-
         void getMultipleReposSnapshotInfo(ActionListener<GetSnapshotsResponse> listener) {
-            List<RepositoryMetadata> filteredRepositories = maybeFilterRepositories();
             try (var listeners = new RefCountingListener(listener.map(ignored -> {
                 cancellableTask.ensureNotCancelled();
                 final var sortedSnapshotsInRepos = sortSnapshots(
@@ -246,8 +230,13 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                     finalRemaining
                 );
             }))) {
-                for (final RepositoryMetadata repository : filteredRepositories) {
+                for (final RepositoryMetadata repository : repositories) {
                     final String repoName = repository.name();
+                    if (skipRepository(repoName)) {
+                        // TODO we should still count the matching snapshots in totalCount
+                        continue;
+                    }
+
                     getSingleRepoSnapshotInfo(repoName, listeners.acquire((SnapshotsInRepo snapshotsInRepo) -> {
                         allSnapshotInfos.add(snapshotsInRepo.snapshotInfos());
                         remaining.addAndGet(snapshotsInRepo.remaining());
@@ -261,6 +250,15 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                         }
                     }));
                 }
+            }
+        }
+
+        private boolean skipRepository(String repositoryName) {
+            if (sortBy == SnapshotSortKey.REPOSITORY && fromSortValue != null) {
+                // If we are sorting by repository name with an offset given by fromSortValue, skip earlier repositories
+                return order == SortOrder.ASC ? fromSortValue.compareTo(repositoryName) > 0 : fromSortValue.compareTo(repositoryName) < 0;
+            } else {
+                return false;
             }
         }
 
@@ -326,7 +324,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             }
 
             final Set<Snapshot> toResolve = new HashSet<>();
-            if (TransportGetRepositoriesAction.isMatchAll(snapshots)) {
+            if (ResolvedRepositories.isMatchAll(snapshots)) {
                 toResolve.addAll(allSnapshotIds.values());
             } else {
                 final List<String> includePatterns = new ArrayList<>();
@@ -400,7 +398,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             if (cancellableTask.notifyIfCancelled(listener)) {
                 return;
             }
-            final Set<SnapshotInfo> snapshotSet = new HashSet<>();
+            final List<SnapshotInfo> snapshots = new ArrayList<>(snapshotIds.size());
             final Set<SnapshotId> snapshotIdsToIterate = new HashSet<>(snapshotIds);
             // first, look at the snapshots in progress
             final List<SnapshotsInProgress.Entry> entries = SnapshotsService.currentSnapshots(
@@ -412,46 +410,38 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                 if (snapshotIdsToIterate.remove(entry.snapshot().getSnapshotId())) {
                     final SnapshotInfo snapshotInfo = SnapshotInfo.inProgress(entry);
                     if (predicates.test(snapshotInfo)) {
-                        snapshotSet.add(snapshotInfo.maybeWithoutIndices(indices));
+                        snapshots.add(snapshotInfo.maybeWithoutIndices(indices));
                     }
                 }
             }
             // then, look in the repository if there's any matching snapshots left
-            final List<SnapshotInfo> snapshotInfos;
-            if (snapshotIdsToIterate.isEmpty()) {
-                snapshotInfos = Collections.emptyList();
-            } else {
-                snapshotInfos = Collections.synchronizedList(new ArrayList<>());
-            }
-            final ActionListener<Void> allDoneListener = listener.safeMap(v -> {
-                final ArrayList<SnapshotInfo> snapshotList = new ArrayList<>(snapshotInfos);
-                snapshotList.addAll(snapshotSet);
-                return sortSnapshotsWithNoOffsetOrLimit(snapshotList);
-            });
-            if (snapshotIdsToIterate.isEmpty()) {
-                allDoneListener.onResponse(null);
-                return;
-            }
-            final Repository repository;
-            try {
-                repository = repositoriesService.repository(repositoryName);
-            } catch (RepositoryMissingException e) {
-                listener.onFailure(e);
-                return;
-            }
-            repository.getSnapshotInfo(
-                new GetSnapshotInfoContext(
-                    snapshotIdsToIterate,
-                    ignoreUnavailable == false,
-                    cancellableTask::isCancelled,
-                    (context, snapshotInfo) -> {
-                        if (predicates.test(snapshotInfo)) {
-                            snapshotInfos.add(snapshotInfo.maybeWithoutIndices(indices));
-                        }
-                    },
-                    allDoneListener
+            try (
+                var listeners = new RefCountingListener(
+                    // no need to synchronize access to snapshots: Repository#getSnapshotInfo fails fast but we're on the success path here
+                    listener.safeMap(v -> sortSnapshotsWithNoOffsetOrLimit(snapshots))
                 )
-            );
+            ) {
+                if (snapshotIdsToIterate.isEmpty()) {
+                    return;
+                }
+
+                final Repository repository;
+                try {
+                    repository = repositoriesService.repository(repositoryName);
+                } catch (RepositoryMissingException e) {
+                    listeners.acquire().onFailure(e);
+                    return;
+                }
+
+                // only need to synchronize accesses related to reading SnapshotInfo from the repo
+                final List<SnapshotInfo> syncSnapshots = Collections.synchronizedList(snapshots);
+
+                repository.getSnapshotInfo(snapshotIdsToIterate, ignoreUnavailable == false, cancellableTask::isCancelled, snapshotInfo -> {
+                    if (predicates.test(snapshotInfo)) {
+                        syncSnapshots.add(snapshotInfo.maybeWithoutIndices(indices));
+                    }
+                }, listeners.acquire());
+            }
         }
 
         private boolean isCurrentSnapshotsOnly() {
@@ -494,61 +484,41 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             return sortSnapshotsWithNoOffsetOrLimit(snapshotInfos);
         }
 
-        private static final Comparator<SnapshotInfo> BY_START_TIME = Comparator.comparingLong(SnapshotInfo::startTime)
-            .thenComparing(SnapshotInfo::snapshotId);
-
-        private static final Comparator<SnapshotInfo> BY_DURATION = Comparator.<SnapshotInfo>comparingLong(
-            sni -> sni.endTime() - sni.startTime()
-        ).thenComparing(SnapshotInfo::snapshotId);
-
-        private static final Comparator<SnapshotInfo> BY_INDICES_COUNT = Comparator.<SnapshotInfo>comparingInt(sni -> sni.indices().size())
-            .thenComparing(SnapshotInfo::snapshotId);
-
-        private static final Comparator<SnapshotInfo> BY_SHARDS_COUNT = Comparator.comparingInt(SnapshotInfo::totalShards)
-            .thenComparing(SnapshotInfo::snapshotId);
-
-        private static final Comparator<SnapshotInfo> BY_FAILED_SHARDS_COUNT = Comparator.comparingInt(SnapshotInfo::failedShards)
-            .thenComparing(SnapshotInfo::snapshotId);
-
-        private static final Comparator<SnapshotInfo> BY_NAME = Comparator.comparing(sni -> sni.snapshotId().getName());
-
-        private static final Comparator<SnapshotInfo> BY_REPOSITORY = Comparator.comparing(SnapshotInfo::repository)
-            .thenComparing(SnapshotInfo::snapshotId);
-
         private SnapshotsInRepo sortSnapshotsWithNoOffsetOrLimit(List<SnapshotInfo> snapshotInfos) {
             return sortSnapshots(snapshotInfos.stream(), snapshotInfos.size(), 0, GetSnapshotsRequest.NO_LIMIT);
         }
 
-        private SnapshotsInRepo sortSnapshots(Stream<SnapshotInfo> infos, int totalCount, int offset, int size) {
-            final Comparator<SnapshotInfo> comparator = switch (sortBy) {
-                case START_TIME -> BY_START_TIME;
-                case NAME -> BY_NAME;
-                case DURATION -> BY_DURATION;
-                case INDICES -> BY_INDICES_COUNT;
-                case SHARDS -> BY_SHARDS_COUNT;
-                case FAILED_SHARDS -> BY_FAILED_SHARDS_COUNT;
-                case REPOSITORY -> BY_REPOSITORY;
-            };
-
-            if (after != null) {
-                assert offset == 0 : "can't combine after and offset but saw [" + after + "] and offset [" + offset + "]";
-                infos = infos.filter(buildAfterPredicate());
-            }
-            infos = infos.sorted(order == SortOrder.DESC ? comparator.reversed() : comparator).skip(offset);
-            final List<SnapshotInfo> allSnapshots = infos.toList();
-            final List<SnapshotInfo> snapshots;
-            if (size != GetSnapshotsRequest.NO_LIMIT) {
-                snapshots = allSnapshots.stream().limit(size + 1).toList();
+        private SnapshotsInRepo sortSnapshots(Stream<SnapshotInfo> snapshotInfoStream, int totalCount, int offset, int size) {
+            final var resultsStream = snapshotInfoStream.filter(buildAfterPredicate()).sorted(buildComparator()).skip(offset);
+            if (size == GetSnapshotsRequest.NO_LIMIT) {
+                return new SnapshotsInRepo(resultsStream.toList(), totalCount, 0);
             } else {
-                snapshots = allSnapshots;
+                final var allocateSize = Math.min(size, 1000); // ignore excessively-large sizes in request params
+                final var results = new ArrayList<SnapshotInfo>(allocateSize);
+                var remaining = 0;
+                for (var iterator = resultsStream.iterator(); iterator.hasNext();) {
+                    final var snapshotInfo = iterator.next();
+                    if (results.size() < size) {
+                        results.add(snapshotInfo);
+                    } else {
+                        remaining += 1;
+                    }
+                }
+                return new SnapshotsInRepo(results, totalCount, remaining);
             }
-            final List<SnapshotInfo> resultSet = size != GetSnapshotsRequest.NO_LIMIT && size < snapshots.size()
-                ? snapshots.subList(0, size)
-                : snapshots;
-            return new SnapshotsInRepo(resultSet, totalCount, allSnapshots.size() - resultSet.size());
+        }
+
+        private Comparator<SnapshotInfo> buildComparator() {
+            final var comparator = sortBy.getSnapshotInfoComparator();
+            return order == SortOrder.DESC ? comparator.reversed() : comparator;
         }
 
         private Predicate<SnapshotInfo> buildAfterPredicate() {
+            if (after == null) {
+                return Predicates.always();
+            }
+            assert offset == 0 : "can't combine after and offset but saw [" + after + "] and offset [" + offset + "]";
+
             final String snapshotName = after.snapshotName();
             final String repoName = after.repoName();
             final String value = after.value();
@@ -731,7 +701,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             return excludes.length == 0 || Regex.simpleMatch(excludes, policy) == false;
         }
 
-        private static SnapshotPredicates getSortValuePredicate(String fromSortValue, GetSnapshotsRequest.SortBy sortBy, SortOrder order) {
+        private static SnapshotPredicates getSortValuePredicate(String fromSortValue, SnapshotSortKey sortBy, SortOrder order) {
             if (fromSortValue == null) {
                 return MATCH_ALL;
             }

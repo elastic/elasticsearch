@@ -12,7 +12,6 @@ import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.index.mapper.LegacyTypeFieldMapper;
@@ -22,8 +21,6 @@ import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Base64;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -41,21 +38,19 @@ public class FieldsVisitor extends FieldNamesProvidingStoredFieldsVisitor {
 
     private final boolean loadSource;
     private final String sourceFieldName;
-    private final IndexMode indexMode;
     private final Set<String> requiredFields;
     protected BytesReference source;
     protected String id;
     protected Map<String, List<Object>> fieldsValues;
 
     public FieldsVisitor(boolean loadSource) {
-        this(loadSource, SourceFieldMapper.NAME, IndexMode.STANDARD);
+        this(loadSource, SourceFieldMapper.NAME);
     }
 
     @SuppressWarnings("this-escape")
-    public FieldsVisitor(boolean loadSource, String sourceFieldName, IndexMode indexMode) {
+    public FieldsVisitor(boolean loadSource, String sourceFieldName) {
         this.loadSource = loadSource;
         this.sourceFieldName = sourceFieldName;
-        this.indexMode = indexMode;
         requiredFields = new HashSet<>();
         reset();
     }
@@ -167,12 +162,6 @@ public class FieldsVisitor extends FieldNamesProvidingStoredFieldsVisitor {
     }
 
     public String routing() {
-        if (indexMode == IndexMode.TIME_SERIES && id != null) {
-            // In time-series indexes, the routing hash is stored in the first 4 bytes of the id.
-            // To retrieve it as routing param, we first need to decode the id, then encode these first 4 bytes.
-            byte[] idBytes = Base64.getUrlDecoder().decode(id);
-            return Base64.getUrlEncoder().withoutPadding().encodeToString(Arrays.copyOf(idBytes, 4));
-        }
         if (fieldsValues == null) {
             return null;
         }

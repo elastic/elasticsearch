@@ -12,7 +12,6 @@ import org.apache.lucene.index.NoMergePolicy;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -47,7 +46,6 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
     public void testBasics() throws Exception {
         long fromSeqNo = randomNonNegativeLong();
         long toSeqNo = randomLongBetween(fromSeqNo, Long.MAX_VALUE);
-        IndexMode indexMode = randomFrom(IndexMode.values());
         // Empty engine
         try (Translog.Snapshot snapshot = engine.newChangesSnapshot("test", fromSeqNo, toSeqNo, true, randomBoolean(), randomBoolean())) {
             IllegalStateException error = expectThrows(IllegalStateException.class, () -> drainAll(snapshot));
@@ -62,9 +60,7 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
         int numOps = between(1, 100);
         int refreshedSeqNo = -1;
         for (int i = 0; i < numOps; i++) {
-            String id = Integer.toString(
-                indexMode == IndexMode.TIME_SERIES ? randomIntBetween(1_000_000, 100_000_000) : randomIntBetween(i, i + 5)
-            );
+            String id = Integer.toString(randomIntBetween(i, i + 5));
             ParsedDocument doc = createParsedDoc(id, null, randomBoolean());
             if (randomBoolean()) {
                 engine.index(indexForDoc(doc));
@@ -94,8 +90,7 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
                     false,
                     randomBoolean(),
                     randomBoolean(),
-                    IndexVersion.current(),
-                    indexMode
+                    IndexVersion.current()
                 )
             ) {
                 searcher = null;
@@ -114,8 +109,7 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
                     true,
                     randomBoolean(),
                     randomBoolean(),
-                    IndexVersion.current(),
-                    indexMode
+                    IndexVersion.current()
                 )
             ) {
                 searcher = null;
@@ -140,8 +134,7 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
                     false,
                     randomBoolean(),
                     randomBoolean(),
-                    IndexVersion.current(),
-                    indexMode
+                    IndexVersion.current()
                 )
             ) {
                 searcher = null;
@@ -159,8 +152,7 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
                     true,
                     randomBoolean(),
                     randomBoolean(),
-                    IndexVersion.current(),
-                    indexMode
+                    IndexVersion.current()
                 )
             ) {
                 searcher = null;
@@ -183,8 +175,7 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
                     true,
                     randomBoolean(),
                     randomBoolean(),
-                    IndexVersion.current(),
-                    indexMode
+                    IndexVersion.current()
                 )
             ) {
                 searcher = null;
@@ -246,8 +237,7 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
                 false,
                 randomBoolean(),
                 accessStats,
-                IndexVersion.current(),
-                IndexMode.STANDARD
+                IndexVersion.current()
             )
         ) {
             if (accessStats) {

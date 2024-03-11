@@ -84,6 +84,9 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
         } else if (context.sourceToParse().routing() != null) {
             int routingHash = TimeSeriesRoutingHashFieldMapper.decode(context.sourceToParse().routing());
             id = createId(routingHash, tsid, timestamp);
+        } else if (context.sourceToParse().id() != null) {
+            // in case of loading synthetic source
+            id = context.sourceToParse().id();
         } else {
             throw new IllegalArgumentException(
                 "_ts_routing_hash was null but must be set because index ["

@@ -27,11 +27,7 @@ The search context can also be a lot more complex and provides information like 
 [discrete]
 [[learning-to-rank-judgement-list]]
 === Judgment list
-The LTR model is usually trained on human-curated judgment lists, where users have
-ranked the relevance of documents to their search queries. Judgment lists
-determine the ideal ordering of results for a given search query. The goal of
-LTR is for the model to mirror the judgment list rankings as closely as possible
-for new queries and documents.
+The LTR model is usually trained on a judgment list, which is a set of queries and documents with a relevance grade. Judgment lists can be human or machine generated: they're commonly populated from behavioural analytics, often with human moderation. Judgment lists determine the ideal ordering of results for a given search query. The goal of LTR is to fit the model to the judgment list rankings as closely as possible for new queries and documents.
 
 The judgment list is the main input used to train the model. It consists of a dataset that contains pairs of queries and documents, along with their corresponding relevance labels.
 The relevance judgment is typically either a binary (relevant/irrelevant) or a more

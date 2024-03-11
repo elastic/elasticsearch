@@ -344,7 +344,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                 .collect(Collectors.toSet());
             assert semanticNodeVersions.isEmpty() == false || serverless;
 
-            testFeatureService = createTestFeatureService(getClusterStateFeatures(adminClient), semanticNodeVersions, List.of());
+            testFeatureService = createTestFeatureService(getClusterStateFeatures(adminClient), semanticNodeVersions);
         }
 
         assert testFeatureServiceInitialized();
@@ -355,15 +355,18 @@ public abstract class ESRestTestCase extends ESTestCase {
         assert nodesVersions != null;
     }
 
-    protected TestFeatureService createTestFeatureService(
+    protected List<FeatureSpecification> createAdditionalFeatureSpecifications() {
+        return List.of();
+    }
+
+    protected final TestFeatureService createTestFeatureService(
         Map<String, Set<String>> clusterStateFeatures,
-        Set<Version> semanticNodeVersions,
-        List<FeatureSpecification> additionalFeatureSpecifications
+        Set<Version> semanticNodeVersions
     ) {
         // Historical features information is unavailable when using legacy test plugins
         boolean hasHistoricalFeaturesInformation = System.getProperty("tests.features.metadata.path") != null;
 
-        final List<FeatureSpecification> featureSpecifications = new ArrayList<>(additionalFeatureSpecifications);
+        final List<FeatureSpecification> featureSpecifications = new ArrayList<>(createAdditionalFeatureSpecifications());
         featureSpecifications.add(new RestTestLegacyFeatures());
         if (hasHistoricalFeaturesInformation) {
             featureSpecifications.add(new ESRestTestCaseHistoricalFeatures());

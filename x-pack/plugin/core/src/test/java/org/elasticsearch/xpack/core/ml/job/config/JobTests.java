@@ -100,7 +100,7 @@ public class JobTests extends AbstractXContentSerializingTestCase<Job> {
 
     @Override
     protected Job doParseInstance(XContentParser parser) {
-        return Job.STRICT_PARSER.apply(parser, null).build();
+        return Job.LENIENT_PARSER.apply(parser, null).build();
     }
 
     public void testToXContentForInternalStorage() throws IOException {
@@ -118,10 +118,10 @@ public class JobTests extends AbstractXContentSerializingTestCase<Job> {
         }
     }
 
-    public void testFutureConfigParse() throws IOException {
+    public void testRestRequestParser_DoesntAllowInternalFields() throws IOException {
         XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(XContentParserConfiguration.EMPTY, FUTURE_JOB);
-        XContentParseException e = expectThrows(XContentParseException.class, () -> Job.STRICT_PARSER.apply(parser, null).build());
-        assertEquals("[4:5] [job_details] unknown field [tomorrows_technology_today]", e.getMessage());
+        XContentParseException e = expectThrows(XContentParseException.class, () -> Job.REST_REQUEST_PARSER.apply(parser, null).build());
+        assertEquals("[3:5] [job_details] unknown field [create_time]", e.getMessage());
     }
 
     public void testFutureMetadataParse() throws IOException {

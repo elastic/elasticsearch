@@ -99,7 +99,6 @@ public class Job implements SimpleDiffable<Job>, Writeable, ToXContentObject {
 
     // These parsers follow the pattern that metadata is parsed leniently (to allow for enhancements), whilst config is parsed strictly
     public static final ObjectParser<Builder, Void> LENIENT_PARSER = createParser(true, true);
-    public static final ObjectParser<Builder, Void> STRICT_PARSER = createParser(true, false);
     // Use the REST request parser to parse a job passed to the API, to disallow setting internal fields.
     public static final ObjectParser<Builder, Void> REST_REQUEST_PARSER = createParser(false, false);
 

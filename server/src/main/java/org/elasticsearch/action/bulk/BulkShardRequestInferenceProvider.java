@@ -84,6 +84,7 @@ public class BulkShardRequestInferenceProvider {
         Runnable onModelLoadingComplete = () -> listener.onResponse(
             new BulkShardRequestInferenceProvider(clusterState, inferenceProviderMap)
         );
+        // TODO Use new registry
         try (var refs = new RefCountingRunnable(onModelLoadingComplete)) {
             for (var inferenceId : inferenceIds) {
                 ActionListener<ModelRegistry.UnparsedModel> modelLoadingListener = new ActionListener<>() {

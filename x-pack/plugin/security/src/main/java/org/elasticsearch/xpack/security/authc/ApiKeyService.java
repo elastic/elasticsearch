@@ -1927,9 +1927,9 @@ public class ApiKeyService {
                         Arrays.toString(apiKeyIds),
                         activeOnly
                     );
-                    listener.onResponse(GetApiKeyResponse.emptyResponse());
+                    listener.onResponse(GetApiKeyResponse.EMPTY);
                 } else {
-                    listener.onResponse(new GetApiKeyResponse(apiKeyInfos));
+                    listener.onResponse(new GetApiKeyResponse(apiKeyInfos, null));
                 }
             }, listener::onFailure)
         );

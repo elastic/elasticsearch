@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.core.security.action.apikey;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.AbstractObjectParser;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -162,6 +163,26 @@ public final class ApiKey implements ToXContentObject {
         // This assertion will need to be changed (or removed) when derived keys are properly supported
         assert limitedBy == null || limitedBy.roleDescriptorsList().size() == 1 : "can only have one set of limited-by role descriptors";
         this.limitedBy = limitedBy;
+    }
+
+    // Should only be used by XContent parsers
+    @SuppressWarnings("unchecked")
+    ApiKey(Object[] parsed) {
+        this(
+            (String) parsed[0],
+            (String) parsed[1],
+            (Type) parsed[2],
+            Instant.ofEpochMilli((Long) parsed[3]),
+            (parsed[4] == null) ? null : Instant.ofEpochMilli((Long) parsed[4]),
+            (Boolean) parsed[5],
+            (parsed[6] == null) ? null : Instant.ofEpochMilli((Long) parsed[6]),
+            (String) parsed[7],
+            (String) parsed[8],
+            (String) parsed[9],
+            (parsed[10] == null) ? null : (Map<String, Object>) parsed[10],
+            (List<RoleDescriptor>) parsed[11],
+            (RoleDescriptorsIntersection) parsed[12]
+        );
     }
 
     public String getId() {
@@ -343,52 +364,6 @@ public final class ApiKey implements ToXContentObject {
             && Objects.equals(limitedBy, other.limitedBy);
     }
 
-    @SuppressWarnings("unchecked")
-    static final ConstructingObjectParser<ApiKey, Void> PARSER = new ConstructingObjectParser<>("api_key", true, args -> {
-        return new ApiKey(
-            (String) args[0],
-            (String) args[1],
-            (Type) args[2],
-            Instant.ofEpochMilli((Long) args[3]),
-            (args[4] == null) ? null : Instant.ofEpochMilli((Long) args[4]),
-            (Boolean) args[5],
-            (args[6] == null) ? null : Instant.ofEpochMilli((Long) args[6]),
-            (String) args[7],
-            (String) args[8],
-            (String) args[9],
-            (args[10] == null) ? null : (Map<String, Object>) args[10],
-            (List<RoleDescriptor>) args[11],
-            (RoleDescriptorsIntersection) args[12]
-        );
-    });
-    static {
-        PARSER.declareString(constructorArg(), new ParseField("name"));
-        PARSER.declareString(constructorArg(), new ParseField("id"));
-        PARSER.declareField(constructorArg(), Type::fromXContent, new ParseField("type"), ObjectParser.ValueType.STRING);
-        PARSER.declareLong(constructorArg(), new ParseField("creation"));
-        PARSER.declareLong(optionalConstructorArg(), new ParseField("expiration"));
-        PARSER.declareBoolean(constructorArg(), new ParseField("invalidated"));
-        PARSER.declareLong(optionalConstructorArg(), new ParseField("invalidation"));
-        PARSER.declareString(constructorArg(), new ParseField("username"));
-        PARSER.declareString(constructorArg(), new ParseField("realm"));
-        PARSER.declareStringOrNull(optionalConstructorArg(), new ParseField("realm_type"));
-        PARSER.declareObject(optionalConstructorArg(), (p, c) -> p.map(), new ParseField("metadata"));
-        PARSER.declareNamedObjects(optionalConstructorArg(), (p, c, n) -> {
-            p.nextToken();
-            return RoleDescriptor.parse(n, p, false);
-        }, new ParseField("role_descriptors"));
-        PARSER.declareField(
-            optionalConstructorArg(),
-            (p, c) -> RoleDescriptorsIntersection.fromXContent(p),
-            new ParseField("limited_by"),
-            ObjectParser.ValueType.OBJECT_ARRAY
-        );
-    }
-
-    public static ApiKey fromXContent(XContentParser parser) throws IOException {
-        return PARSER.parse(parser, null);
-    }
-
     @Override
     public String toString() {
         return "ApiKey [name="
@@ -420,4 +395,38 @@ public final class ApiKey implements ToXContentObject {
             + "]";
     }
 
+    static final ConstructingObjectParser<ApiKey, Void> PARSER;
+    static {
+        PARSER = new ConstructingObjectParser<>("api_key", true, ApiKey::new);
+        initializeParser(PARSER);
+    }
+
+    public static ApiKey fromXContent(XContentParser parser) throws IOException {
+        return PARSER.parse(parser, null);
+    }
+
+    static int initializeParser(AbstractObjectParser<?, Void> parser) {
+        parser.declareString(constructorArg(), new ParseField("name"));
+        parser.declareString(constructorArg(), new ParseField("id"));
+        parser.declareField(constructorArg(), Type::fromXContent, new ParseField("type"), ObjectParser.ValueType.STRING);
+        parser.declareLong(constructorArg(), new ParseField("creation"));
+        parser.declareLong(optionalConstructorArg(), new ParseField("expiration"));
+        parser.declareBoolean(constructorArg(), new ParseField("invalidated"));
+        parser.declareLong(optionalConstructorArg(), new ParseField("invalidation"));
+        parser.declareString(constructorArg(), new ParseField("username"));
+        parser.declareString(constructorArg(), new ParseField("realm"));
+        parser.declareStringOrNull(optionalConstructorArg(), new ParseField("realm_type"));
+        parser.declareObject(optionalConstructorArg(), (p, c) -> p.map(), new ParseField("metadata"));
+        parser.declareNamedObjects(optionalConstructorArg(), (p, c, n) -> {
+            p.nextToken();
+            return RoleDescriptor.parse(n, p, false);
+        }, new ParseField("role_descriptors"));
+        parser.declareField(
+            optionalConstructorArg(),
+            (p, c) -> RoleDescriptorsIntersection.fromXContent(p),
+            new ParseField("limited_by"),
+            ObjectParser.ValueType.OBJECT_ARRAY
+        );
+        return 13; // the number of fields to parse
+    }
 }

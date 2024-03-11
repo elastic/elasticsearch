@@ -45,7 +45,8 @@ feature_extractors=[
         feature_name="title_bm25",
         query={"match": {"title": "{{query}}"}}
     ),
-    # We can use a script_score query to get the value of the field rating directly as a feature:
+    # We can use a script_score query to get the value
+    # of the field rating directly as a feature:
     QueryFeatureExtractor(
         feature_name="popularity",
         query={
@@ -55,7 +56,8 @@ feature_extractors=[
             }
         },
     ),
-    # We can execute a script on the value of the query and use the return value as a feature:
+    # We can execute a script on the value of the query
+    # and use the return value as a feature:
     QueryFeatureExtractor(
         feature_name="query_length",
         query={

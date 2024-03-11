@@ -13,7 +13,7 @@ For more information, see {subscriptions}.
 [[learning-to-rank-rescorer]]
 ==== Learning To Rank as a rescorer
 
-Once your LTR model is trained and deployed in {es}, it can be used as a <<rescore, rescorer>> in the <<search-your-data, Search API>>:
+Once your LTR model is trained and deployed in {es}, it can be used as a <<rescore, rescorer>> in the <<search-your-data, search API>>:
 
 [source,console]
 ----

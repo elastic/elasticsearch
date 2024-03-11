@@ -64,7 +64,11 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         this.query = in.readString();
     }
 
-    private SemanticQueryBuilder(SemanticQueryBuilder other, SetOnce<InferenceServiceResults> inferenceResultsSupplier, SetOnce<SemanticTextModelSettings> modelSettingsSupplier) {
+    private SemanticQueryBuilder(
+        SemanticQueryBuilder other,
+        SetOnce<InferenceServiceResults> inferenceResultsSupplier,
+        SetOnce<SemanticTextModelSettings> modelSettingsSupplier
+    ) {
         this.fieldName = other.fieldName;
         this.query = other.query;
         this.boost = other.boost;

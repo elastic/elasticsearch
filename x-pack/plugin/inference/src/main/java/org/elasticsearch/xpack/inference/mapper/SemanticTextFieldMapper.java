@@ -30,7 +30,6 @@ import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
-import org.elasticsearch.index.query.NestedQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
 import org.elasticsearch.inference.InferenceResults;
@@ -191,12 +190,7 @@ public class SemanticTextFieldMapper extends FieldMapper {
             BooleanQuery.Builder queryBuilder = new BooleanQuery.Builder().setMinimumNumberShouldMatch(1);
             for (TextExpansionResults.WeightedToken weightedToken : textExpansionResults.getWeightedTokens()) {
                 queryBuilder.add(
-                    new BoostQuery(
-                        new TermQuery(
-                            new Term(fieldName, weightedToken.token())
-                        ),
-                        weightedToken.weight()
-                    ),
+                    new BoostQuery(new TermQuery(new Term(fieldName, weightedToken.token())), weightedToken.weight()),
                     BooleanClause.Occur.SHOULD
                 );
             }
@@ -213,12 +207,13 @@ public class SemanticTextFieldMapper extends FieldMapper {
             var vectorFieldType = new DenseVectorFieldMapper.DenseVectorFieldType(
                 fieldName,
                 indexVersionCreated,
-                //TODO Add to SemanticTextModelSettings
+                // TODO Add to SemanticTextModelSettings
                 DenseVectorFieldMapper.ElementType.FLOAT,
                 modelSettings.dimensions(),
                 true,
                 getSimilarity(modelSettings.similarity()),
-                Map.of());
+                Map.of()
+            );
 
             Query knnQuery = vectorFieldType.createKnnQuery(textEmbeddingResults.getInferenceAsFloat(), 10, null, null, null);
             BitSetProducer parentFilter = context.bitsetFilter(Queries.newNonNestedFilter(context.indexVersionCreated()));

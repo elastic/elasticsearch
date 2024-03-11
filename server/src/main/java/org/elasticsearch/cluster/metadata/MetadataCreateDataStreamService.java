@@ -417,7 +417,7 @@ public class MetadataCreateDataStreamService {
         var refreshInterval = getFailureStoreRefreshInterval(settings);
         if (refreshInterval != null) {
             indexSettings = Settings.builder()
-                .put(IndexMetadata.SETTING_INDEX_HIDDEN, true)
+                .put(indexSettings)
                 .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), refreshInterval)
                 .build();
         }

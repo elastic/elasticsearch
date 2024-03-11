@@ -14,16 +14,11 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.health.node.LocalHealthMonitorTests;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.indices.EmptySystemIndices;
-import org.elasticsearch.threadpool.TestThreadPool;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.List;
@@ -38,18 +33,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class MetadataMigrateToDataStreamServiceTests extends MapperServiceTestCase {
-
-    private static ThreadPool threadPool;
-
-    @BeforeClass
-    public static void setUpThreadPool() {
-        threadPool = new TestThreadPool(LocalHealthMonitorTests.class.getSimpleName());
-    }
-
-    @AfterClass
-    public static void tearDownThreadPool() {
-        terminate(threadPool);
-    }
 
     public void testValidateRequestWithNonexistentAlias() {
         ClusterState cs = ClusterState.EMPTY_STATE;

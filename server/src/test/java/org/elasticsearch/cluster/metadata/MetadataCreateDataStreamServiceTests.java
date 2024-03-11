@@ -18,7 +18,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.health.node.LocalHealthMonitorTests;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.ExecutorNames;
@@ -26,12 +25,7 @@ import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemDataStreamDescriptor.Type;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.SystemIndices.Feature;
-import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.TestThreadPool;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -53,21 +47,8 @@ import static org.mockito.Mockito.when;
 
 public class MetadataCreateDataStreamServiceTests extends ESTestCase {
 
-    private static ThreadPool threadPool;
-
-    @BeforeClass
-    public static void setUpThreadPool() {
-        threadPool = new TestThreadPool(LocalHealthMonitorTests.class.getSimpleName());
-    }
-
-    @AfterClass
-    public static void tearDownThreadPool() {
-        terminate(threadPool);
-    }
-
     public void testCreateDataStream() throws Exception {
         final MetadataCreateIndexService metadataCreateIndexService = getMetadataCreateIndexService();
-        var clusterService = ClusterServiceUtils.createClusterService(threadPool);
         final String dataStreamName = "my-data-stream";
         ComposableIndexTemplate template = ComposableIndexTemplate.builder()
             .indexPatterns(List.of(dataStreamName + "*"))
@@ -461,7 +442,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         );
     }
 
-    public static ClusterState createDataStream(final String dataStreamName, ThreadPool threadPool) throws Exception {
+    public static ClusterState createDataStream(final String dataStreamName) throws Exception {
         final MetadataCreateIndexService metadataCreateIndexService = getMetadataCreateIndexService();
         ComposableIndexTemplate template = ComposableIndexTemplate.builder()
             .indexPatterns(List.of(dataStreamName + "*"))

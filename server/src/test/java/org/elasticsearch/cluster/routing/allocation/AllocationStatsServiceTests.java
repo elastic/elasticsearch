@@ -40,7 +40,7 @@ import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.hasEntry;
 
-public class AllocationStatsServiceTest extends ESAllocationTestCase {
+public class AllocationStatsServiceTests extends ESAllocationTestCase {
 
     public void testShardStats() {
 

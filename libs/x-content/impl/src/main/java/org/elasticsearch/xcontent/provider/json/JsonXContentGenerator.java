@@ -500,7 +500,7 @@ public class JsonXContentGenerator implements XContentGenerator {
     public void writeRawValue(String value) throws IOException {
         try {
             if (supportsRawWrites()) {
-                generator.writeRaw(value);
+                generator.writeRawValue(value);
             } else {
                 // fallback to a regular string for formats that don't allow writing the value as is
                 generator.writeString(value);

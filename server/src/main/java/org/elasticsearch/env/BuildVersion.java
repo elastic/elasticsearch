@@ -92,7 +92,7 @@ public abstract class BuildVersion {
     }
 
     // only exists for NodeMetadata#toXContent
-    abstract int id();
+    public abstract int id();
 
     private static class CurrentExtensionHolder {
         private static final BuildExtension BUILD_EXTENSION = findExtension();

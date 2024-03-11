@@ -83,7 +83,6 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME;
 
-
 /**
  * Computes the result of a {@link PhysicalPlan}.
  */

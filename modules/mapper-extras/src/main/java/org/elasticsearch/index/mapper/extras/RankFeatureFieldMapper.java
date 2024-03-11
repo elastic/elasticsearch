@@ -9,7 +9,6 @@
 package org.elasticsearch.index.mapper.extras;
 
 import org.apache.lucene.document.FeatureField;
-import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
@@ -136,12 +135,7 @@ public class RankFeatureFieldMapper extends FieldMapper {
 
         @Override
         public boolean fieldHasValue(FieldInfos fieldInfos) {
-            for (FieldInfo fieldInfo : fieldInfos) {
-                if (fieldInfo.getName().equals(NAME)) {
-                    return true;
-                }
-            }
-            return false;
+            return fieldInfos.fieldInfo(NAME) != null;
         }
 
         @Override

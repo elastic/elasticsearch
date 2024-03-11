@@ -137,7 +137,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         if (numCands != null && numCands > NUM_CANDS_LIMIT) {
             throw new IllegalArgumentException("[" + NUM_CANDS_FIELD.getPreferredName() + "] cannot exceed [" + NUM_CANDS_LIMIT + "]");
         }
-        if (queryVectorSupplier == null && queryVector == null && queryVectorBuilder == null) {
+        if (queryVector == null && queryVectorBuilder == null) {
             throw new IllegalArgumentException(
                 format(
                     "either [%s] or [%s] must be provided",
@@ -338,7 +338,8 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
                 }
                 ll.onResponse(null);
             })));
-            return new KnnVectorQueryBuilder(fieldName, toSet::get, numCands, vectorSimilarity).boost(boost)
+            return new KnnVectorQueryBuilder(fieldName, queryVector, queryVectorBuilder, toSet::get, numCands, vectorSimilarity)
+                .boost(boost)
                 .queryName(queryName)
                 .addFilterQueries(filterQueries);
         }

@@ -309,10 +309,8 @@ public class InferencePlugin extends Plugin
 
     @Override
     public List<QuerySpec<?>> getQueries() {
-        return List.of(new QuerySpec<QueryBuilder>(
-            SemanticQueryBuilder.NAME,
-            SemanticQueryBuilder::new,
-            SemanticQueryBuilder::fromXContent
-        ));
+        return List.of(
+            new QuerySpec<QueryBuilder>(SemanticQueryBuilder.NAME, SemanticQueryBuilder::new, SemanticQueryBuilder::fromXContent)
+        );
     }
 }

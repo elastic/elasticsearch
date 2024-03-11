@@ -135,16 +135,18 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         );
 
         SetOnce<InferenceServiceResults> inferenceResultsSupplier = new SetOnce<>();
-        queryRewriteContext.registerAsyncAction((client, listener) -> executeAsyncWithOrigin(
-            client,
-            ML_ORIGIN,
-            InferenceAction.INSTANCE,
-            inferenceRequest,
-            listener.delegateFailureAndWrap((l, inferenceResponse) -> {
-                inferenceResultsSupplier.set(inferenceResponse.getResults());
-                l.onResponse(null);
-            })
-        ));
+        queryRewriteContext.registerAsyncAction(
+            (client, listener) -> executeAsyncWithOrigin(
+                client,
+                ML_ORIGIN,
+                InferenceAction.INSTANCE,
+                inferenceRequest,
+                listener.delegateFailureAndWrap((l, inferenceResponse) -> {
+                    inferenceResultsSupplier.set(inferenceResponse.getResults());
+                    l.onResponse(null);
+                })
+            )
+        );
 
         return new SemanticQueryBuilder(this, inferenceResultsSupplier);
     }
@@ -187,12 +189,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         if (inferenceResults instanceof TextExpansionResults textExpansionResults) {
             for (TextExpansionResults.WeightedToken weightedToken : textExpansionResults.getWeightedTokens()) {
                 queryBuilder.add(
-                    new BoostQuery(
-                        new TermQuery(
-                            new Term(inferenceResultsFieldName, weightedToken.token())
-                        ),
-                        weightedToken.weight()
-                    ),
+                    new BoostQuery(new TermQuery(new Term(inferenceResultsFieldName, weightedToken.token())), weightedToken.weight()),
                     BooleanClause.Occur.SHOULD
                 );
             }

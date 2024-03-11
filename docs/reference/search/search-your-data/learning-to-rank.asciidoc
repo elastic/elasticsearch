@@ -36,7 +36,7 @@ for new queries and documents.
 The judgment list is the main input used to train the model. It consists of a dataset that contains pairs of queries and documents, along with their corresponding relevance labels.
 The relevance judgment is typically either a binary (relevant/irrelevant) or a more
 granular label, such as a grade between 0 (completely irrelevant) to 4 (highly
-relevant). The example above uses a graded relevance judgment.
+relevant). The example below uses a graded relevance judgment.
 
 
 [[learning-to-rank-judgment-list-example]]

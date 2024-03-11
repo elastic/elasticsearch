@@ -87,9 +87,21 @@ the top `size` results.
 `query_vector`::
 +
 --
-(Required, array of floats) Query vector. Must have the same number of dimensions
+(Optional, array of floats) Query vector. Must have the same number of dimensions
 as the vector field you are searching against.
+Either this or ``query_vector_builder`` must be provided.
 --
+
+`query_vector_builder`::
++
+--
+(Optional, object) Query vector builder.
+A configuration object indicating how to build a query_vector before executing
+the request. You must provide a `query_vector_builder` or `query_vector`, but
+not both. Refer to <<knn-semantic-search>> to learn more.
+Either this or ``query_vector`` must be provided.
+--
+
 
 `num_candidates`::
 +

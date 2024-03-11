@@ -14,6 +14,10 @@ public class OpenAiUtils {
     public static final String HOST = "api.openai.com";
     public static final String VERSION_1 = "v1";
     public static final String EMBEDDINGS_PATH = "embeddings";
+
+    public static final String CHAT_PATH = "chat";
+
+    public static final String COMPLETIONS_PATH = "completions";
     public static final String ORGANIZATION_HEADER = "OpenAI-Organization";
 
     public static Header createOrgHeader(String org) {

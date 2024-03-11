@@ -42,5 +42,14 @@ public class XContentUtils {
         throw new IllegalStateException(format(errorMsgTemplate, field));
     }
 
+    //TODO: docs
+    //TODO: tests
+    public static void positionParserAfterEndOfObject(XContentParser parser) throws IOException {
+        while ((parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            //do nothing
+            //TODO: break at some point?
+        }
+    }
+
     private XContentUtils() {}
 }

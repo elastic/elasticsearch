@@ -6,7 +6,8 @@
 
 preview::["The Learning To Rank feature is in technical preview and may be changed or removed in a future release. Elastic will work to fix any issues, but this feature is not subject to the support SLA of official GA features."]
 
-NOTE: This feature is available for Elastic Stack versions 8.12.0 and newer and requires a https://www.elastic.co/pricing[Platinum subscription] or higher.
+NOTE: This feature was introduced in version 8.12.0 and is only available to certain subscription levels.
+For more information, see {subscriptions}.
 
 [discrete]
 [[learning-to-rank-rescorer]]

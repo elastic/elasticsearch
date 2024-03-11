@@ -3,7 +3,8 @@
 
 preview::["The Learning To Rank feature is in technical preview and may be changed or removed in a future release. Elastic will work to fix any issues, but this feature is not subject to the support SLA of official GA features."]
 
-NOTE: This feature is available for Elastic Stack versions 8.12.0 and newer and requires a https://www.elastic.co/pricing[Platinum subscription] or higher.
+NOTE: This feature was introduced in version 8.12.0 and is only available to certain subscription levels.
+For more information, see {subscriptions}.
 
 Learning To Rank (LTR) uses a trained machine learning (ML) model to build a
 ranking function for your search engine. Typically, the model is used as a
@@ -20,9 +21,11 @@ image::images/search/learning-to-rank-overview.png[Learning To Rank overview,ali
 [[learning-to-rank-search-context]]
 === Search context
 
-In addition to the list of documents to sort, the LTR function also requires a search context. Typically, this search context includes at least the search terms provided by the user ('text_query' in the example above).
-
-The search context can also be a lot more complex and provides information like demographic data (geolocation, age, …) data for the user who submitted the search.
+In addition to the list of documents to sort, the LTR function also requires a
+search context. Typically, this search context includes at least the search
+terms provided by the user (text_query in the example above).
+The search context can also provide additional information used in the ranking mode.
+This could be information about the user doing the search (like demographic data, geolocation, or age); about the query (like query length); or document in the context of the query (like score for the title field).
 
 [discrete]
 [[learning-to-rank-judgement-list]]
@@ -127,7 +130,7 @@ Learn more about training in <<learning-to-rank-model-training, Train and deploy
 In the next pages of this guide you will learn to:
 
 * <<learning-to-rank-model-training, Train and deploy a LTR model using `eland`>>
-* <<learning-to-rank-search-usage, Search using LTR model as a rescorer>> 
+* <<learning-to-rank-search-usage, Search using LTR model as a rescorer>>
 
 include::learning-to-rank-model-training.asciidoc[]
 include::learning-to-rank-search-usage.asciidoc[]

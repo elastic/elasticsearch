@@ -485,6 +485,10 @@ public class Job implements SimpleDiffable<Job>, Writeable, ToXContentObject {
         return deleting;
     }
 
+    public boolean isResetting() {
+        return blocked != null && Blocked.Reason.RESET.equals(blocked.getReason());
+    }
+
     public boolean allowLazyOpen() {
         return allowLazyOpen;
     }

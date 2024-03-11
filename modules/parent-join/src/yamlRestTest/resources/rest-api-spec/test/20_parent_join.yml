@@ -144,3 +144,20 @@ teardown:
             parent_id:
               type: child
               id: "1"
+
+---
+"deprecated use of multi-fields":
+  - skip:
+      version: " - 8.13.99"
+      reason: "deprecation added in 8.14"
+      features: warnings
+
+  - do:
+      warnings:
+        - "Adding multifields to [join] mappers has no effect and will be forbidden in future"
+      indices.create:
+        index: join-multi-field
+        body:
+          mappings:
+            properties:
+              join_field: { "type": "join", "relations": { "parent": "child", "child": "grand_child" }, "fields": {"keyword": {"type": "keyword"}} }

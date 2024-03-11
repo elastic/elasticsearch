@@ -36,6 +36,7 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.ql.type.DataTypes.NULL;
+import static org.elasticsearch.xpack.ql.type.DataTypes.SOURCE;
 
 public final class Case extends EsqlScalarFunction {
     record Condition(Expression condition, Expression value) {}
@@ -82,13 +83,31 @@ public final class Case extends EsqlScalarFunction {
                 "version" }
         ) List<Expression> rest
     ) {
-        super(source, Stream.concat(Stream.of(first), rest.stream()).toList());
+        super(source, children(source, first, rest));
         int conditionCount = children().size() / 2;
         conditions = new ArrayList<>(conditionCount);
         for (int c = 0; c < conditionCount; c++) {
             conditions.add(new Condition(children().get(c * 2), children().get(c * 2 + 1)));
         }
-        elseValue = children().size() % 2 == 0 ? new Literal(source, null, NULL) : children().get(children().size() - 1);
+        elseValue = children().get(children().size() - 1);
+    }
+
+    /**
+     * Build the list of children including the {@code null} {@link Literal} if there isn't an
+     * 
+     * @param source
+     * @param first
+     * @param rest
+     * @return
+     */
+    private static List<Expression> children(Source source, Expression first, List<Expression> rest) {
+        List<Expression> children = new ArrayList<>();
+        children.add(first);
+        children.addAll(rest);
+        if (rest.size() % 2 == 0) {
+            children.add(new Literal(source, null, NULL));
+        }
+        return children;
     }
 
     @Override
@@ -151,6 +170,10 @@ public final class Case extends EsqlScalarFunction {
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
+        if (newChildren.size() == 1) {
+            // The case is compacted to just an "elseValue" - so it's just the result.
+            return newChildren.get(0);
+        }
         return new Case(source(), newChildren.get(0), newChildren.subList(1, newChildren.size()));
     }
 
@@ -186,6 +209,21 @@ public final class Case extends EsqlScalarFunction {
 
     /**
      * Fold the arms of {@code CASE} statements.
+     * <ol>
+     *     <li>
+     *         Conditions that evaluator to {@code false} are removed so
+     * <pre>{@code
+     * EVAL c=CASE(false, foo, b, bar, bort)
+     * }</pre>
+     * becomes
+     * <pre>{@code
+     * EVAL c=CASE(b, bar, bort)
+     * }</pre>
+     *     </li>
+     *     <li>
+     *         Conditions that
+     *     </li>
+     * </ol>
      * <pre>{@code
      * EVAL c=CASE(true, foo, bar)
      * }</pre>
@@ -195,16 +233,21 @@ public final class Case extends EsqlScalarFunction {
      * }</pre>
      */
     public Expression partiallyFold() {
+        List<Expression> newChildren = new ArrayList<>(children().size());
         for (Condition condition : conditions) {
             if (condition.condition.foldable() == false) {
-                return this;
+                newChildren.add(condition.condition);
+                newChildren.add(condition.value);
+                continue;
             }
             Boolean b = (Boolean) condition.condition.fold();
             if (b != null && b) {
-                return condition.value;
+                newChildren.add(condition.value);
+                return replaceChildren(newChildren);
             }
         }
-        return elseValue;
+        newChildren.add(elseValue);
+        return replaceChildren(newChildren);
     }
 
     @Override

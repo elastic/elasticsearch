@@ -12,6 +12,8 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -51,6 +53,8 @@ import java.util.Set;
  * Only one parent-join field can be defined per index.
  */
 public final class ParentJoinFieldMapper extends FieldMapper {
+
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(ParentJoinFieldMapper.class);
 
     public static final String NAME = "join";
     public static final String CONTENT_TYPE = "join";
@@ -112,6 +116,13 @@ public final class ParentJoinFieldMapper extends FieldMapper {
 
         @Override
         public ParentJoinFieldMapper build(MapperBuilderContext context) {
+            if (multiFieldsBuilder.hasMultiFields()) {
+                DEPRECATION_LOGGER.warn(
+                    DeprecationCategory.MAPPINGS,
+                    CONTENT_TYPE + "_multifields",
+                    "Adding multifields to [" + CONTENT_TYPE + "] mappers has no effect and will be forbidden in future"
+                );
+            }
             checkObjectOrNested(context, name());
             final Map<String, ParentIdFieldMapper> parentIdFields = new HashMap<>();
             relations.get()

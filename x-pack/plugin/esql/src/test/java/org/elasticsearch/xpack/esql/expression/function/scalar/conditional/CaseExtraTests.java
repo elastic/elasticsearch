@@ -22,6 +22,19 @@ import static org.hamcrest.Matchers.equalTo;
  * {@link CaseTests}.
  */
 public class CaseExtraTests extends ESTestCase {
+    public void testPartialFoldDropsFalse() {
+        Case c = new Case(
+            Source.synthetic("case"),
+            new Literal(Source.EMPTY, false, DataTypes.BOOLEAN),
+            List.of(field("first", DataTypes.LONG), field("last_cond", DataTypes.BOOLEAN), field("last", DataTypes.LONG))
+        );
+        assertThat(c.foldable(), equalTo(false));
+        assertThat(
+            c.partiallyFold(),
+            equalTo(new Case(Source.synthetic("case"), field("last_cond", DataTypes.BOOLEAN), List.of(field("last", DataTypes.LONG))))
+        );
+    }
+
     public void testPartialFoldFirst() {
         Case c = new Case(
             Source.synthetic("case"),

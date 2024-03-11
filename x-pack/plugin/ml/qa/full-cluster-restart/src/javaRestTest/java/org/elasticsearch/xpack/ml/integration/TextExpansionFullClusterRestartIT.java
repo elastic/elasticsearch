@@ -10,10 +10,12 @@ package org.elasticsearch.xpack.ml.integration;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.gradle.testclusters.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.local.distribution.DistributionType;
+import org.elasticsearch.upgrades.FullClusterRestartUpgradeStatus;
+import org.elasticsearch.upgrades.ParameterizedFullClusterRestartTestCase;
 import org.junit.ClassRule;
 
-import static org.apache.lucene.tests.util.LuceneTestCase.assumeTrue;
 import static org.elasticsearch.Version.V_8_13_0;
 
 public class TextExpansionFullClusterRestartIT extends ParameterizedFullClusterRestartTestCase {

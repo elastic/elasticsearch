@@ -10,8 +10,10 @@ package org.elasticsearch.action.admin.indices.stats;
 
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.ChunkedBroadcastResponse;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
@@ -35,13 +37,13 @@ public class FieldUsageStatsResponse extends ChunkedBroadcastResponse {
 
     FieldUsageStatsResponse(StreamInput in) throws IOException {
         super(in);
-        stats = in.readMap(i -> i.readList(FieldUsageShardResponse::new));
+        stats = in.readMap(i -> i.readCollectionAsList(FieldUsageShardResponse::new));
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeMap(stats, StreamOutput::writeString, StreamOutput::writeList);
+        out.writeMap(stats, StreamOutput::writeCollection);
     }
 
     public Map<String, List<FieldUsageShardResponse>> getStats() {
@@ -50,14 +52,13 @@ public class FieldUsageStatsResponse extends ChunkedBroadcastResponse {
 
     @Override
     protected Iterator<ToXContent> customXContentChunks(ToXContent.Params params) {
-        return stats.entrySet().stream().sorted(Map.Entry.comparingByKey()).map(entry -> (ToXContent) (builder, p) -> {
-            builder.startObject(entry.getKey());
-            builder.startArray("shards");
-            for (FieldUsageShardResponse resp : entry.getValue()) {
-                resp.toXContent(builder, params);
-            }
-            builder.endArray();
-            return builder.endObject();
-        }).iterator();
+        return Iterators.flatMap(
+            stats.entrySet().stream().sorted(Map.Entry.comparingByKey()).iterator(),
+            entry -> Iterators.concat(
+                ChunkedToXContentHelper.singleChunk((builder, p) -> builder.startObject(entry.getKey()).startArray("shards")),
+                entry.getValue().iterator(),
+                ChunkedToXContentHelper.singleChunk((builder, p) -> builder.endArray().endObject())
+            )
+        );
     }
 }

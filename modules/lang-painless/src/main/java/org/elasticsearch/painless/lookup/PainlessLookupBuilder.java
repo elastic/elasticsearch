@@ -56,18 +56,14 @@ import static org.elasticsearch.painless.lookup.PainlessLookupUtility.typesToCan
 
 public final class PainlessLookupBuilder {
 
-    private static final Map<PainlessConstructor, PainlessConstructor> painlessConstructorCache = new HashMap<>();
-    private static final Map<PainlessMethod, PainlessMethod> painlessMethodCache = new HashMap<>();
-    private static final Map<PainlessField, PainlessField> painlessFieldCache = new HashMap<>();
-    private static final Map<PainlessClassBinding, PainlessClassBinding> painlessClassBindingCache = new HashMap<>();
-    private static final Map<PainlessInstanceBinding, PainlessInstanceBinding> painlessInstanceBindingCache = new HashMap<>();
-    private static final Map<PainlessMethod, PainlessMethod> painlessFilteredCache = new HashMap<>();
-
     private static final Pattern CLASS_NAME_PATTERN = Pattern.compile("^[_a-zA-Z][._a-zA-Z0-9]*$");
-    private static final Pattern METHOD_NAME_PATTERN = Pattern.compile("^[_a-zA-Z][_a-zA-Z0-9]*$");
-    private static final Pattern FIELD_NAME_PATTERN = Pattern.compile("^[_a-zA-Z][_a-zA-Z0-9]*$");
+    private static final Pattern METHOD_AND_FIELD_NAME_PATTERN = Pattern.compile("^[_a-zA-Z][_a-zA-Z0-9]*$");
 
-    public static PainlessLookup buildFromWhitelists(List<Whitelist> whitelists) {
+    public static PainlessLookup buildFromWhitelists(
+        List<Whitelist> whitelists,
+        Map<Object, Object> dedup,
+        Map<PainlessMethod, PainlessMethod> filteredMethodCache
+    ) {
         PainlessLookupBuilder painlessLookupBuilder = new PainlessLookupBuilder();
         String origin = "internal error";
 
@@ -92,7 +88,8 @@ public final class PainlessLookupBuilder {
                         painlessLookupBuilder.addPainlessConstructor(
                             targetCanonicalClassName,
                             whitelistConstructor.canonicalTypeNameParameters,
-                            whitelistConstructor.painlessAnnotations
+                            whitelistConstructor.painlessAnnotations,
+                            dedup
                         );
                     }
 
@@ -105,7 +102,8 @@ public final class PainlessLookupBuilder {
                             whitelistMethod.methodName,
                             whitelistMethod.returnCanonicalTypeName,
                             whitelistMethod.canonicalTypeNameParameters,
-                            whitelistMethod.painlessAnnotations
+                            whitelistMethod.painlessAnnotations,
+                            dedup
                         );
                     }
 
@@ -116,7 +114,8 @@ public final class PainlessLookupBuilder {
                             targetCanonicalClassName,
                             whitelistField.fieldName,
                             whitelistField.canonicalTypeNameParameter,
-                            whitelistField.painlessAnnotations
+                            whitelistField.painlessAnnotations,
+                            dedup
                         );
                     }
                 }
@@ -129,7 +128,8 @@ public final class PainlessLookupBuilder {
                         whitelistStatic.methodName,
                         whitelistStatic.returnCanonicalTypeName,
                         whitelistStatic.canonicalTypeNameParameters,
-                        whitelistStatic.painlessAnnotations
+                        whitelistStatic.painlessAnnotations,
+                        dedup
                     );
                 }
 
@@ -141,7 +141,8 @@ public final class PainlessLookupBuilder {
                         whitelistClassBinding.methodName,
                         whitelistClassBinding.returnCanonicalTypeName,
                         whitelistClassBinding.canonicalTypeNameParameters,
-                        whitelistClassBinding.painlessAnnotations
+                        whitelistClassBinding.painlessAnnotations,
+                        dedup
                     );
                 }
 
@@ -152,7 +153,8 @@ public final class PainlessLookupBuilder {
                         whitelistInstanceBinding.methodName,
                         whitelistInstanceBinding.returnCanonicalTypeName,
                         whitelistInstanceBinding.canonicalTypeNameParameters,
-                        whitelistInstanceBinding.painlessAnnotations
+                        whitelistInstanceBinding.painlessAnnotations,
+                        dedup
                     );
                 }
             }
@@ -160,7 +162,7 @@ public final class PainlessLookupBuilder {
             throw new IllegalArgumentException("error loading whitelist(s) " + origin, exception);
         }
 
-        return painlessLookupBuilder.build();
+        return painlessLookupBuilder.build(dedup, filteredMethodCache);
     }
 
     // javaClassNamesToClasses is all the classes that need to be available to the custom classloader
@@ -203,7 +205,7 @@ public final class PainlessLookupBuilder {
         return type == def.class || classesToPainlessClassBuilders.containsKey(type);
     }
 
-    private Class<?> loadClass(ClassLoader classLoader, String javaClassName, Supplier<String> errorMessage) {
+    private static Class<?> loadClass(ClassLoader classLoader, String javaClassName, Supplier<String> errorMessage) {
         try {
             return Class.forName(javaClassName, true, classLoader);
         } catch (ClassNotFoundException cnfe) {
@@ -269,7 +271,7 @@ public final class PainlessLookupBuilder {
         return new IllegalArgumentException(Strings.format(formatText, args), cause);
     }
 
-    public void addPainlessClass(Class<?> clazz, Map<Class<?>, Object> annotations) {
+    private void addPainlessClass(Class<?> clazz, Map<Class<?>, Object> annotations) {
         Objects.requireNonNull(clazz);
         Objects.requireNonNull(annotations);
 
@@ -355,10 +357,11 @@ public final class PainlessLookupBuilder {
         }
     }
 
-    public void addPainlessConstructor(
+    private void addPainlessConstructor(
         String targetCanonicalClassName,
         List<String> canonicalTypeNameParameters,
-        Map<Class<?>, Object> annotations
+        Map<Class<?>, Object> annotations,
+        Map<Object, Object> dedup
     ) {
         Objects.requireNonNull(targetCanonicalClassName);
         Objects.requireNonNull(canonicalTypeNameParameters);
@@ -391,10 +394,15 @@ public final class PainlessLookupBuilder {
             typeParameters.add(typeParameter);
         }
 
-        addPainlessConstructor(targetClass, typeParameters, annotations);
+        addPainlessConstructor(targetClass, typeParameters, annotations, dedup);
     }
 
-    public void addPainlessConstructor(Class<?> targetClass, List<Class<?>> typeParameters, Map<Class<?>, Object> annotations) {
+    private void addPainlessConstructor(
+        Class<?> targetClass,
+        List<Class<?>> typeParameters,
+        Map<Class<?>, Object> annotations,
+        Map<Object, Object> dedup
+    ) {
         Objects.requireNonNull(targetClass);
         Objects.requireNonNull(typeParameters);
 
@@ -473,7 +481,7 @@ public final class PainlessLookupBuilder {
         );
 
         if (existingPainlessConstructor == null) {
-            newPainlessConstructor = painlessConstructorCache.computeIfAbsent(newPainlessConstructor, Function.identity());
+            newPainlessConstructor = (PainlessConstructor) dedup.computeIfAbsent(newPainlessConstructor, Function.identity());
             painlessClassBuilder.constructors.put(painlessConstructorKey.intern(), newPainlessConstructor);
         } else if (newPainlessConstructor.equals(existingPainlessConstructor) == false) {
             throw lookupException(
@@ -486,14 +494,15 @@ public final class PainlessLookupBuilder {
         }
     }
 
-    public void addPainlessMethod(
+    private void addPainlessMethod(
         ClassLoader classLoader,
         String targetCanonicalClassName,
         String augmentedCanonicalClassName,
         String methodName,
         String returnCanonicalTypeName,
         List<String> canonicalTypeNameParameters,
-        Map<Class<?>, Object> annotations
+        Map<Class<?>, Object> annotations,
+        Map<Object, Object> dedup
     ) {
 
         Objects.requireNonNull(classLoader);
@@ -561,7 +570,7 @@ public final class PainlessLookupBuilder {
             );
         }
 
-        addPainlessMethod(targetClass, augmentedClass, methodName, returnType, typeParameters, annotations);
+        addPainlessMethod(targetClass, augmentedClass, methodName, returnType, typeParameters, annotations, dedup);
     }
 
     public void addPainlessMethod(
@@ -570,7 +579,8 @@ public final class PainlessLookupBuilder {
         String methodName,
         Class<?> returnType,
         List<Class<?>> typeParameters,
-        Map<Class<?>, Object> annotations
+        Map<Class<?>, Object> annotations,
+        Map<Object, Object> dedup
     ) {
 
         Objects.requireNonNull(targetClass);
@@ -585,7 +595,7 @@ public final class PainlessLookupBuilder {
 
         String targetCanonicalClassName = typeToCanonicalTypeName(targetClass);
 
-        if (METHOD_NAME_PATTERN.matcher(methodName).matches() == false) {
+        if (METHOD_AND_FIELD_NAME_PATTERN.matcher(methodName).matches() == false) {
             throw new IllegalArgumentException(
                 "invalid method name [" + methodName + "] for target class [" + targetCanonicalClassName + "]."
             );
@@ -748,7 +758,7 @@ public final class PainlessLookupBuilder {
         );
 
         if (existingPainlessMethod == null) {
-            newPainlessMethod = painlessMethodCache.computeIfAbsent(newPainlessMethod, key -> key);
+            newPainlessMethod = (PainlessMethod) dedup.computeIfAbsent(newPainlessMethod, Function.identity());
 
             if (isStatic) {
                 painlessClassBuilder.staticMethods.put(painlessMethodKey.intern(), newPainlessMethod);
@@ -771,12 +781,13 @@ public final class PainlessLookupBuilder {
         }
     }
 
-    public void addPainlessField(
+    private void addPainlessField(
         ClassLoader classLoader,
         String targetCanonicalClassName,
         String fieldName,
         String canonicalTypeNameParameter,
-        Map<Class<?>, Object> annotations
+        Map<Class<?>, Object> annotations,
+        Map<Object, Object> dedup
     ) {
 
         Objects.requireNonNull(classLoader);
@@ -827,15 +838,16 @@ public final class PainlessLookupBuilder {
             );
         }
 
-        addPainlessField(targetClass, augmentedClass, fieldName, typeParameter, annotations);
+        addPainlessField(targetClass, augmentedClass, fieldName, typeParameter, annotations, dedup);
     }
 
-    public void addPainlessField(
+    private void addPainlessField(
         Class<?> targetClass,
         Class<?> augmentedClass,
         String fieldName,
         Class<?> typeParameter,
-        Map<Class<?>, Object> annotations
+        Map<Class<?>, Object> annotations,
+        Map<Object, Object> dedup
     ) {
 
         Objects.requireNonNull(targetClass);
@@ -849,7 +861,7 @@ public final class PainlessLookupBuilder {
 
         String targetCanonicalClassName = typeToCanonicalTypeName(targetClass);
 
-        if (FIELD_NAME_PATTERN.matcher(fieldName).matches() == false) {
+        if (METHOD_AND_FIELD_NAME_PATTERN.matcher(fieldName).matches() == false) {
             throw new IllegalArgumentException(
                 "invalid field name [" + fieldName + "] for target class [" + targetCanonicalClassName + "]."
             );
@@ -946,7 +958,7 @@ public final class PainlessLookupBuilder {
             PainlessField newPainlessField = new PainlessField(javaField, typeParameter, annotations, methodHandleGetter, null);
 
             if (existingPainlessField == null) {
-                newPainlessField = painlessFieldCache.computeIfAbsent(newPainlessField, Function.identity());
+                newPainlessField = (PainlessField) dedup.computeIfAbsent(newPainlessField, Function.identity());
                 painlessClassBuilder.staticFields.put(painlessFieldKey.intern(), newPainlessField);
             } else if (newPainlessField.equals(existingPainlessField) == false) {
                 throw lookupException(
@@ -981,7 +993,7 @@ public final class PainlessLookupBuilder {
             );
 
             if (existingPainlessField == null) {
-                newPainlessField = painlessFieldCache.computeIfAbsent(newPainlessField, key -> key);
+                newPainlessField = (PainlessField) dedup.computeIfAbsent(newPainlessField, Function.identity());
                 painlessClassBuilder.fields.put(painlessFieldKey.intern(), newPainlessField);
             } else if (newPainlessField.equals(existingPainlessField) == false) {
                 throw lookupException(
@@ -1004,7 +1016,8 @@ public final class PainlessLookupBuilder {
         String methodName,
         String returnCanonicalTypeName,
         List<String> canonicalTypeNameParameters,
-        Map<Class<?>, Object> annotations
+        Map<Class<?>, Object> annotations,
+        Map<Object, Object> dedup
     ) {
 
         Objects.requireNonNull(classLoader);
@@ -1046,7 +1059,7 @@ public final class PainlessLookupBuilder {
             );
         }
 
-        addImportedPainlessMethod(targetClass, methodName, returnType, typeParameters, annotations);
+        addImportedPainlessMethod(targetClass, methodName, returnType, typeParameters, annotations, dedup);
     }
 
     public void addImportedPainlessMethod(
@@ -1054,7 +1067,8 @@ public final class PainlessLookupBuilder {
         String methodName,
         Class<?> returnType,
         List<Class<?>> typeParameters,
-        Map<Class<?>, Object> annotations
+        Map<Class<?>, Object> annotations,
+        Map<Object, Object> dedup
     ) {
         Objects.requireNonNull(targetClass);
         Objects.requireNonNull(methodName);
@@ -1077,7 +1091,7 @@ public final class PainlessLookupBuilder {
             );
         }
 
-        if (METHOD_NAME_PATTERN.matcher(methodName).matches() == false) {
+        if (METHOD_AND_FIELD_NAME_PATTERN.matcher(methodName).matches() == false) {
             throw new IllegalArgumentException(
                 "invalid imported method name [" + methodName + "] for target class [" + targetCanonicalClassName + "]."
             );
@@ -1182,7 +1196,7 @@ public final class PainlessLookupBuilder {
         );
 
         if (existingImportedPainlessMethod == null) {
-            newImportedPainlessMethod = painlessMethodCache.computeIfAbsent(newImportedPainlessMethod, key -> key);
+            newImportedPainlessMethod = (PainlessMethod) dedup.computeIfAbsent(newImportedPainlessMethod, Function.identity());
             painlessMethodKeysToImportedPainlessMethods.put(painlessMethodKey.intern(), newImportedPainlessMethod);
         } else if (newImportedPainlessMethod.equals(existingImportedPainlessMethod) == false) {
             throw lookupException(
@@ -1206,7 +1220,8 @@ public final class PainlessLookupBuilder {
         String methodName,
         String returnCanonicalTypeName,
         List<String> canonicalTypeNameParameters,
-        Map<Class<?>, Object> annotations
+        Map<Class<?>, Object> annotations,
+        Map<Object, Object> dedup
     ) {
 
         Objects.requireNonNull(classLoader);
@@ -1247,15 +1262,16 @@ public final class PainlessLookupBuilder {
             );
         }
 
-        addPainlessClassBinding(targetClass, methodName, returnType, typeParameters, annotations);
+        addPainlessClassBinding(targetClass, methodName, returnType, typeParameters, annotations, dedup);
     }
 
-    public void addPainlessClassBinding(
+    private void addPainlessClassBinding(
         Class<?> targetClass,
         String methodName,
         Class<?> returnType,
         List<Class<?>> typeParameters,
-        Map<Class<?>, Object> annotations
+        Map<Class<?>, Object> annotations,
+        Map<Object, Object> dedup
     ) {
         Objects.requireNonNull(targetClass);
         Objects.requireNonNull(methodName);
@@ -1333,7 +1349,7 @@ public final class PainlessLookupBuilder {
             }
         }
 
-        if (METHOD_NAME_PATTERN.matcher(methodName).matches() == false) {
+        if (METHOD_AND_FIELD_NAME_PATTERN.matcher(methodName).matches() == false) {
             throw new IllegalArgumentException(
                 "invalid method name [" + methodName + "] for class binding [" + targetCanonicalClassName + "]."
             );
@@ -1446,7 +1462,7 @@ public final class PainlessLookupBuilder {
         );
 
         if (existingPainlessClassBinding == null) {
-            newPainlessClassBinding = painlessClassBindingCache.computeIfAbsent(newPainlessClassBinding, Function.identity());
+            newPainlessClassBinding = (PainlessClassBinding) dedup.computeIfAbsent(newPainlessClassBinding, Function.identity());
             painlessMethodKeysToPainlessClassBindings.put(painlessMethodKey.intern(), newPainlessClassBinding);
         } else if (newPainlessClassBinding.equals(existingPainlessClassBinding) == false) {
             throw lookupException(
@@ -1469,7 +1485,8 @@ public final class PainlessLookupBuilder {
         String methodName,
         String returnCanonicalTypeName,
         List<String> canonicalTypeNameParameters,
-        Map<Class<?>, Object> painlessAnnotations
+        Map<Class<?>, Object> painlessAnnotations,
+        Map<Object, Object> dedup
     ) {
 
         Objects.requireNonNull(targetInstance);
@@ -1509,7 +1526,7 @@ public final class PainlessLookupBuilder {
             );
         }
 
-        addPainlessInstanceBinding(targetInstance, methodName, returnType, typeParameters, painlessAnnotations);
+        addPainlessInstanceBinding(targetInstance, methodName, returnType, typeParameters, painlessAnnotations, dedup);
     }
 
     public void addPainlessInstanceBinding(
@@ -1517,7 +1534,8 @@ public final class PainlessLookupBuilder {
         String methodName,
         Class<?> returnType,
         List<Class<?>> typeParameters,
-        Map<Class<?>, Object> painlessAnnotations
+        Map<Class<?>, Object> painlessAnnotations,
+        Map<Object, Object> dedup
     ) {
         Objects.requireNonNull(targetInstance);
         Objects.requireNonNull(methodName);
@@ -1542,7 +1560,7 @@ public final class PainlessLookupBuilder {
             );
         }
 
-        if (METHOD_NAME_PATTERN.matcher(methodName).matches() == false) {
+        if (METHOD_AND_FIELD_NAME_PATTERN.matcher(methodName).matches() == false) {
             throw new IllegalArgumentException(
                 "invalid method name [" + methodName + "] for instance binding [" + targetCanonicalClassName + "]."
             );
@@ -1629,7 +1647,7 @@ public final class PainlessLookupBuilder {
         );
 
         if (existingPainlessInstanceBinding == null) {
-            newPainlessInstanceBinding = painlessInstanceBindingCache.computeIfAbsent(newPainlessInstanceBinding, key -> key);
+            newPainlessInstanceBinding = (PainlessInstanceBinding) dedup.computeIfAbsent(newPainlessInstanceBinding, Function.identity());
             painlessMethodKeysToPainlessInstanceBindings.put(painlessMethodKey.intern(), newPainlessInstanceBinding);
         } else if (newPainlessInstanceBinding.equals(existingPainlessInstanceBinding) == false) {
             throw lookupException(
@@ -1649,16 +1667,19 @@ public final class PainlessLookupBuilder {
         }
     }
 
-    public PainlessLookup build() {
+    public PainlessLookup build(Map<Object, Object> dedup, Map<PainlessMethod, PainlessMethod> filteredMethodCache) {
         buildPainlessClassHierarchy();
         setFunctionalInterfaceMethods();
-        generateRuntimeMethods();
+        generateRuntimeMethods(filteredMethodCache);
         cacheRuntimeHandles();
 
         Map<Class<?>, PainlessClass> classesToPainlessClasses = Maps.newMapWithExpectedSize(classesToPainlessClassBuilders.size());
 
         for (Map.Entry<Class<?>, PainlessClassBuilder> painlessClassBuilderEntry : classesToPainlessClassBuilders.entrySet()) {
-            classesToPainlessClasses.put(painlessClassBuilderEntry.getKey(), painlessClassBuilderEntry.getValue().build());
+            classesToPainlessClasses.put(
+                painlessClassBuilderEntry.getKey(),
+                (PainlessClass) dedup.computeIfAbsent(painlessClassBuilderEntry.getValue().build(), Function.identity())
+            );
         }
 
         if (javaClassNamesToClasses.values().containsAll(canonicalClassNamesToClasses.values()) == false) {
@@ -1680,6 +1701,7 @@ public final class PainlessLookupBuilder {
             );
         }
 
+        classesToDirectSubClasses.replaceAll((key, set) -> Set.copyOf(set)); // save some memory, especially when set is empty
         return new PainlessLookup(
             javaClassNamesToClasses,
             canonicalClassNamesToClasses,
@@ -1816,7 +1838,7 @@ public final class PainlessLookupBuilder {
      * {@link Map}. The {@link PainlessClass#runtimeMethods} {@link Map} is used exclusively to look up methods at
      * run-time resulting from calls with a def type value target.
      */
-    private void generateRuntimeMethods() {
+    private void generateRuntimeMethods(Map<PainlessMethod, PainlessMethod> filteredMethodCache) {
         for (Map.Entry<Class<?>, PainlessClassBuilder> painlessClassBuilderEntry : classesToPainlessClassBuilders.entrySet()) {
             Class<?> targetClass = painlessClassBuilderEntry.getKey();
             PainlessClassBuilder painlessClassBuilder = painlessClassBuilderEntry.getValue();
@@ -1831,16 +1853,21 @@ public final class PainlessLookupBuilder {
                         || typeParameter == Long.class
                         || typeParameter == Float.class
                         || typeParameter == Double.class) {
-                        generateFilteredMethod(targetClass, painlessClassBuilder, painlessMethod);
+                        generateFilteredMethod(targetClass, painlessClassBuilder, painlessMethod, filteredMethodCache);
                     }
                 }
             }
         }
     }
 
-    private void generateFilteredMethod(Class<?> targetClass, PainlessClassBuilder painlessClassBuilder, PainlessMethod painlessMethod) {
+    private static void generateFilteredMethod(
+        Class<?> targetClass,
+        PainlessClassBuilder painlessClassBuilder,
+        PainlessMethod painlessMethod,
+        Map<PainlessMethod, PainlessMethod> filteredMethodCache
+    ) {
         String painlessMethodKey = buildPainlessMethodKey(painlessMethod.javaMethod().getName(), painlessMethod.typeParameters().size());
-        PainlessMethod filteredPainlessMethod = painlessFilteredCache.get(painlessMethod);
+        PainlessMethod filteredPainlessMethod = filteredMethodCache.get(painlessMethod);
 
         if (filteredPainlessMethod == null) {
             Method javaMethod = painlessMethod.javaMethod();
@@ -1894,7 +1921,7 @@ public final class PainlessLookupBuilder {
                     Map.of()
                 );
                 painlessClassBuilder.runtimeMethods.put(painlessMethodKey.intern(), filteredPainlessMethod);
-                painlessFilteredCache.put(painlessMethod, filteredPainlessMethod);
+                filteredMethodCache.put(painlessMethod, filteredPainlessMethod);
             } catch (Exception exception) {
                 throw new IllegalStateException(
                     "internal error occurred attempting to generate a runtime method [" + painlessMethodKey + "]",
@@ -1907,10 +1934,10 @@ public final class PainlessLookupBuilder {
     }
 
     private void cacheRuntimeHandles() {
-        classesToPainlessClassBuilders.values().forEach(this::cacheRuntimeHandles);
+        classesToPainlessClassBuilders.values().forEach(PainlessLookupBuilder::cacheRuntimeHandles);
     }
 
-    private void cacheRuntimeHandles(PainlessClassBuilder painlessClassBuilder) {
+    private static void cacheRuntimeHandles(PainlessClassBuilder painlessClassBuilder) {
         for (Map.Entry<String, PainlessMethod> painlessMethodEntry : painlessClassBuilder.methods.entrySet()) {
             String methodKey = painlessMethodEntry.getKey();
             PainlessMethod painlessMethod = painlessMethodEntry.getValue();

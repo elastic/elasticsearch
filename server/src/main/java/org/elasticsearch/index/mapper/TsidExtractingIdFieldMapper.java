@@ -11,9 +11,6 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.hash.MurmurHash3;
@@ -21,12 +18,7 @@ import org.elasticsearch.common.hash.MurmurHash3.Hash128;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.query.SearchExecutionContext;
 
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
 import java.util.Locale;
 
 /**
@@ -41,74 +33,27 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
 
     public static final TsidExtractingIdFieldMapper INSTANCE = new TsidExtractingIdFieldMapper();
 
-    public static final TypeParser PARSER = new FixedTypeParser(MappingParserContext::idFieldMapper);
-
-    static final class IdFieldType extends TermBasedFieldType {
-        IdFieldType() {
-            super(NAME, true, true, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
-        }
-
-        @Override
-        public String typeName() {
-            return CONTENT_TYPE;
-        }
-
-        @Override
-        public boolean isSearchable() {
-            // The _id field is always searchable.
-            return true;
-        }
-
-        @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            return new StoredValueFetcher(context.lookup(), NAME);
-        }
-
-        @Override
-        public Query termQuery(Object value, SearchExecutionContext context) {
-            return termsQuery(Arrays.asList(value), context);
-        }
-
-        @Override
-        public Query existsQuery(SearchExecutionContext context) {
-            return new MatchAllDocsQuery();
-        }
-
-        @Override
-        public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
-            failIfNotIndexed();
-            BytesRef[] bytesRefs = values.stream().map(v -> {
-                Object idObject = v;
-                if (idObject instanceof BytesRef) {
-                    idObject = ((BytesRef) idObject).utf8ToString();
-                }
-                return Uid.encodeId(idObject.toString());
-            }).toArray(BytesRef[]::new);
-            return new TermInSetQuery(name(), bytesRefs);
-        }
-
-        @Override
-        public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
-            throw new IllegalArgumentException("Fielddata is not supported on [_id] field in [time_series] indices");
-        }
-    }
-
     private TsidExtractingIdFieldMapper() {
-        super(new IdFieldType());
+        super(new AbstractIdFieldType() {
+            @Override
+            public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
+                throw new IllegalArgumentException("Fielddata is not supported on [_id] field in [time_series] indices");
+            }
+        });
     }
 
     private static final long SEED = 0;
 
     public static void createField(DocumentParserContext context, IndexRouting.ExtractFromSource.Builder routingBuilder, BytesRef tsid) {
-        List<IndexableField> timestampFields = context.rootDoc().getFields(DataStreamTimestampFieldMapper.DEFAULT_PATH);
-        if (timestampFields.isEmpty()) {
+        final IndexableField timestampField = context.rootDoc().getField(DataStreamTimestampFieldMapper.DEFAULT_PATH);
+        if (timestampField == null) {
             throw new IllegalArgumentException(
                 "data stream timestamp field [" + DataStreamTimestampFieldMapper.DEFAULT_PATH + "] is missing"
             );
         }
-        long timestamp = timestampFields.get(0).numericValue().longValue();
+        long timestamp = timestampField.numericValue().longValue();
         byte[] suffix = new byte[16];
-        String id = createId(context.getDynamicMappers().isEmpty(), routingBuilder, tsid, timestamp, suffix);
+        String id = createId(context.hasDynamicMappers(), routingBuilder, tsid, timestamp, suffix);
         /*
          * Make sure that _id from extracting the tsid matches that _id
          * from extracting the _source. This should be true for all valid
@@ -119,9 +64,6 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
          * it always must pass.
          */
         IndexRouting.ExtractFromSource indexRouting = (IndexRouting.ExtractFromSource) context.indexSettings().getIndexRouting();
-        assert context.getDynamicMappers().isEmpty() == false
-            || context.getDynamicRuntimeFields().isEmpty() == false
-            || id.equals(indexRouting.createId(TimeSeriesIdFieldMapper.decodeTsid(tsid), suffix));
         assert context.getDynamicMappers().isEmpty() == false
             || context.getDynamicRuntimeFields().isEmpty() == false
             || id.equals(indexRouting.createId(context.sourceToParse().getXContentType(), context.sourceToParse().source(), suffix));
@@ -156,14 +98,11 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
         ByteUtils.writeLongLE(hash.h1, suffix, 0);
         ByteUtils.writeLongBE(timestamp, suffix, 8);   // Big Ending shrinks the inverted index by ~37%
 
-        String id = routingBuilder.createId(suffix, () -> {
-            if (dynamicMappersExists == false) {
-                throw new IllegalStateException(
-                    "Didn't find any fields to include in the routing which would be fine if there are"
-                        + " dynamic mapping waiting but we couldn't find any of those either!"
-                );
-            }
-            return 0;
+        String id = routingBuilder.createId(suffix, dynamicMappersExists ? () -> 0 : () -> {
+            throw new IllegalStateException(
+                "Didn't find any fields to include in the routing which would be fine if there are"
+                    + " dynamic mapping waiting but we couldn't find any of those either!"
+            );
         });
         assert Uid.isURLBase64WithoutPadding(id); // Make sure we get to use Uid's nice optimizations
         return id;
@@ -181,7 +120,7 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
         StringBuilder description = new StringBuilder("a time series document");
         IndexableField tsidField = context.doc().getField(TimeSeriesIdFieldMapper.NAME);
         if (tsidField != null) {
-            description.append(" with dimensions ").append(tsidDescription(tsidField));
+            description.append(" with tsid ").append(tsidDescription(tsidField));
         }
         IndexableField timestampField = context.doc().getField(DataStreamTimestampFieldMapper.DEFAULT_PATH);
         if (timestampField != null) {
@@ -200,7 +139,7 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
     }
 
     private static String tsidDescription(IndexableField tsidField) {
-        String tsid = TimeSeriesIdFieldMapper.decodeTsid(tsidField.binaryValue()).toString();
+        String tsid = TimeSeriesIdFieldMapper.encodeTsid(tsidField.binaryValue()).toString();
         if (tsid.length() <= DESCRIPTION_TSID_LIMIT) {
             return tsid;
         }

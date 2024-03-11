@@ -38,7 +38,7 @@ public class CoordinationDiagnosticsAction extends ActionType<CoordinationDiagno
     public static final String NAME = "internal:cluster/coordination_diagnostics/info";
 
     private CoordinationDiagnosticsAction() {
-        super(NAME, CoordinationDiagnosticsAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends ActionRequest {
@@ -131,7 +131,7 @@ public class CoordinationDiagnosticsAction extends ActionType<CoordinationDiagno
                 transportService,
                 actionFilters,
                 CoordinationDiagnosticsAction.Request::new,
-                ThreadPool.Names.CLUSTER_COORDINATION
+                transportService.getThreadPool().executor(ThreadPool.Names.CLUSTER_COORDINATION)
             );
             this.coordinationDiagnosticsService = coordinationDiagnosticsService;
         }

@@ -10,6 +10,7 @@ package org.elasticsearch.threadpool;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -28,6 +29,11 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.ReportingService;
+import org.elasticsearch.telemetry.metric.Instrument;
+import org.elasticsearch.telemetry.metric.LongAsyncCounter;
+import org.elasticsearch.telemetry.metric.LongGauge;
+import org.elasticsearch.telemetry.metric.LongWithAttributes;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -65,6 +71,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         public static final String ANALYZE = "analyze";
         public static final String WRITE = "write";
         public static final String SEARCH = "search";
+        public static final String SEARCH_WORKER = "search_worker";
         public static final String SEARCH_COORDINATION = "search_coordination";
         public static final String AUTO_COMPLETE = "auto_complete";
         public static final String SEARCH_THROTTLED = "search_throttled";
@@ -82,6 +89,14 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         public static final String SYSTEM_CRITICAL_READ = "system_critical_read";
         public static final String SYSTEM_CRITICAL_WRITE = "system_critical_write";
     }
+
+    public static final String THREAD_POOL_METRIC_PREFIX = "es.thread_pool.";
+    public static final String THREAD_POOL_METRIC_NAME_COMPLETED = ".threads.completed.total";
+    public static final String THREAD_POOL_METRIC_NAME_CURRENT = ".threads.count.current";
+    public static final String THREAD_POOL_METRIC_NAME_QUEUE = ".threads.queue.size";
+    public static final String THREAD_POOL_METRIC_NAME_ACTIVE = ".threads.active.current";
+    public static final String THREAD_POOL_METRIC_NAME_LARGEST = ".threads.largest.current";
+    public static final String THREAD_POOL_METRIC_NAME_REJECTED = ".threads.rejected.total";
 
     public enum ThreadPoolType {
         DIRECT("direct"),
@@ -118,6 +133,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         entry(Names.ANALYZE, ThreadPoolType.FIXED),
         entry(Names.WRITE, ThreadPoolType.FIXED),
         entry(Names.SEARCH, ThreadPoolType.FIXED),
+        entry(Names.SEARCH_WORKER, ThreadPoolType.FIXED),
         entry(Names.SEARCH_COORDINATION, ThreadPoolType.FIXED),
         entry(Names.MANAGEMENT, ThreadPoolType.SCALING),
         entry(Names.FLUSH, ThreadPoolType.SCALING),
@@ -150,6 +166,8 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
 
     private final long slowSchedulerWarnThresholdNanos;
 
+    private Map<String, ArrayList<Instrument>> instruments;
+
     @SuppressWarnings("rawtypes")
     public Collection<ExecutorBuilder> builders() {
         return Collections.unmodifiableCollection(builders.values());
@@ -177,43 +195,42 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
     );
 
     @SuppressWarnings({ "rawtypes", "unchecked" })
-    public ThreadPool(final Settings settings, final ExecutorBuilder<?>... customBuilders) {
+    public ThreadPool(final Settings settings, MeterRegistry meterRegistry, final ExecutorBuilder<?>... customBuilders) {
         assert Node.NODE_NAME_SETTING.exists(settings);
 
         final Map<String, ExecutorBuilder> builders = new HashMap<>();
         final int allocatedProcessors = EsExecutors.allocatedProcessors(settings);
+        final int halfProc = halfAllocatedProcessors(allocatedProcessors);
         final int halfProcMaxAt5 = halfAllocatedProcessorsMaxFive(allocatedProcessors);
         final int halfProcMaxAt10 = halfAllocatedProcessorsMaxTen(allocatedProcessors);
         final int genericThreadPoolMax = boundedBy(4 * allocatedProcessors, 128, 512);
+        final Map<String, ArrayList<Instrument>> instruments = new HashMap<>();
+
         builders.put(
             Names.GENERIC,
             new ScalingExecutorBuilder(Names.GENERIC, 4, genericThreadPoolMax, TimeValue.timeValueSeconds(30), false)
         );
-        builders.put(Names.WRITE, new FixedExecutorBuilder(settings, Names.WRITE, allocatedProcessors, 10000, new TaskTrackingConfig(0.1)));
+        builders.put(
+            Names.WRITE,
+            new FixedExecutorBuilder(settings, Names.WRITE, allocatedProcessors, 10000, new TaskTrackingConfig(true, 0.1))
+        );
+        int searchOrGetThreadPoolSize = searchOrGetThreadPoolSize(allocatedProcessors);
         builders.put(
             Names.GET,
-            new FixedExecutorBuilder(
-                settings,
-                Names.GET,
-                searchOrGetThreadPoolSize(allocatedProcessors),
-                1000,
-                TaskTrackingConfig.DO_NOT_TRACK
-            )
+            new FixedExecutorBuilder(settings, Names.GET, searchOrGetThreadPoolSize, 1000, TaskTrackingConfig.DO_NOT_TRACK)
         );
         builders.put(Names.ANALYZE, new FixedExecutorBuilder(settings, Names.ANALYZE, 1, 16, TaskTrackingConfig.DO_NOT_TRACK));
         builders.put(
             Names.SEARCH,
-            new FixedExecutorBuilder(
-                settings,
-                Names.SEARCH,
-                searchOrGetThreadPoolSize(allocatedProcessors),
-                1000,
-                TaskTrackingConfig.DEFAULT
-            )
+            new FixedExecutorBuilder(settings, Names.SEARCH, searchOrGetThreadPoolSize, 1000, TaskTrackingConfig.DEFAULT)
+        );
+        builders.put(
+            Names.SEARCH_WORKER,
+            new FixedExecutorBuilder(settings, Names.SEARCH_WORKER, searchOrGetThreadPoolSize, -1, TaskTrackingConfig.DEFAULT)
         );
         builders.put(
             Names.SEARCH_COORDINATION,
-            new FixedExecutorBuilder(settings, Names.SEARCH_COORDINATION, halfProcMaxAt5, 1000, TaskTrackingConfig.DEFAULT)
+            new FixedExecutorBuilder(settings, Names.SEARCH_COORDINATION, halfProc, 1000, TaskTrackingConfig.DEFAULT)
         );
         builders.put(
             Names.AUTO_COMPLETE,
@@ -228,7 +245,9 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
             new ScalingExecutorBuilder(Names.MANAGEMENT, 1, boundedBy(allocatedProcessors, 1, 5), TimeValue.timeValueMinutes(5), false)
         );
         builders.put(Names.FLUSH, new ScalingExecutorBuilder(Names.FLUSH, 1, halfProcMaxAt5, TimeValue.timeValueMinutes(5), false));
-        builders.put(Names.REFRESH, new ScalingExecutorBuilder(Names.REFRESH, 1, halfProcMaxAt10, TimeValue.timeValueMinutes(5), false));
+        // TODO: remove (or refine) this temporary stateless custom refresh pool sizing once ES-7631 is solved.
+        final int refreshThreads = DiscoveryNode.isStateless(settings) ? allocatedProcessors : halfProcMaxAt10;
+        builders.put(Names.REFRESH, new ScalingExecutorBuilder(Names.REFRESH, 1, refreshThreads, TimeValue.timeValueMinutes(5), false));
         builders.put(Names.WARMER, new ScalingExecutorBuilder(Names.WARMER, 1, halfProcMaxAt5, TimeValue.timeValueMinutes(5), false));
         final int maxSnapshotCores = getMaxSnapshotThreadPoolSize(allocatedProcessors);
         builders.put(Names.SNAPSHOT, new ScalingExecutorBuilder(Names.SNAPSHOT, 1, maxSnapshotCores, TimeValue.timeValueMinutes(5), false));
@@ -270,7 +289,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         );
         builders.put(
             Names.SYSTEM_WRITE,
-            new FixedExecutorBuilder(settings, Names.SYSTEM_WRITE, halfProcMaxAt5, 1000, new TaskTrackingConfig(0.1))
+            new FixedExecutorBuilder(settings, Names.SYSTEM_WRITE, halfProcMaxAt5, 1000, new TaskTrackingConfig(true, 0.1))
         );
         builders.put(
             Names.SYSTEM_CRITICAL_READ,
@@ -278,7 +297,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         );
         builders.put(
             Names.SYSTEM_CRITICAL_WRITE,
-            new FixedExecutorBuilder(settings, Names.SYSTEM_CRITICAL_WRITE, halfProcMaxAt5, 1500, new TaskTrackingConfig(0.1))
+            new FixedExecutorBuilder(settings, Names.SYSTEM_CRITICAL_WRITE, halfProcMaxAt5, 1500, new TaskTrackingConfig(true, 0.1))
         );
 
         for (final ExecutorBuilder<?> builder : customBuilders) {
@@ -304,7 +323,8 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
 
         executors.put(Names.SAME, new ExecutorHolder(EsExecutors.DIRECT_EXECUTOR_SERVICE, new Info(Names.SAME, ThreadPoolType.DIRECT)));
         this.executors = Map.copyOf(executors);
-
+        this.executors.forEach((k, v) -> instruments.put(k, setupMetrics(meterRegistry, k, v)));
+        this.instruments = instruments;
         final List<Info> infos = executors.values()
             .stream()
             .filter(holder -> holder.info.getName().equals("same") == false)
@@ -319,6 +339,59 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
             LATE_TIME_INTERVAL_WARN_THRESHOLD_SETTING.get(settings).millis()
         );
         this.cachedTimeThread.start();
+    }
+
+    private static ArrayList<Instrument> setupMetrics(MeterRegistry meterRegistry, String name, ExecutorHolder holder) {
+        Map<String, Object> at = Map.of();
+        ArrayList<Instrument> instruments = new ArrayList<>();
+        if (holder.executor() instanceof ThreadPoolExecutor threadPoolExecutor) {
+            String prefix = THREAD_POOL_METRIC_PREFIX + name;
+            instruments.add(
+                meterRegistry.registerLongGauge(
+                    prefix + THREAD_POOL_METRIC_NAME_CURRENT,
+                    "number of threads for " + name,
+                    "count",
+                    () -> new LongWithAttributes(threadPoolExecutor.getPoolSize(), at)
+                )
+            );
+            instruments.add(
+                meterRegistry.registerLongGauge(
+                    prefix + THREAD_POOL_METRIC_NAME_QUEUE,
+                    "number queue size for " + name,
+                    "count",
+                    () -> new LongWithAttributes(threadPoolExecutor.getQueue().size(), at)
+                )
+            );
+            instruments.add(
+                meterRegistry.registerLongGauge(
+                    prefix + THREAD_POOL_METRIC_NAME_ACTIVE,
+                    "number of active threads for " + name,
+                    "count",
+                    () -> new LongWithAttributes(threadPoolExecutor.getActiveCount(), at)
+                )
+            );
+            instruments.add(
+                meterRegistry.registerLongGauge(
+                    prefix + THREAD_POOL_METRIC_NAME_LARGEST,
+                    "largest pool size for " + name,
+                    "count",
+                    () -> new LongWithAttributes(threadPoolExecutor.getLargestPoolSize(), at)
+                )
+            );
+            instruments.add(
+                meterRegistry.registerLongAsyncCounter(
+                    prefix + THREAD_POOL_METRIC_NAME_COMPLETED,
+                    "number of completed threads for " + name,
+                    "count",
+                    () -> new LongWithAttributes(threadPoolExecutor.getCompletedTaskCount(), at)
+                )
+            );
+            RejectedExecutionHandler rejectedExecutionHandler = threadPoolExecutor.getRejectedExecutionHandler();
+            if (rejectedExecutionHandler instanceof EsRejectedExecutionHandler handler) {
+                handler.registerCounter(meterRegistry, prefix + THREAD_POOL_METRIC_NAME_REJECTED, name);
+            }
+        }
+        return instruments;
     }
 
     // for subclassing by tests that don't actually use any of the machinery that the regular constructor sets up
@@ -446,7 +519,9 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
     public ExecutorService executor(String name) {
         final ExecutorHolder holder = executors.get(name);
         if (holder == null) {
-            throw new IllegalArgumentException("no executor service found for [" + name + "]");
+            final var message = "no executor service found for [" + name + "]";
+            assert false : message;
+            throw new IllegalArgumentException(message);
         }
         return holder.executor();
     }
@@ -465,11 +540,11 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
      * @throws org.elasticsearch.common.util.concurrent.EsRejectedExecutionException if the task cannot be scheduled for execution
      */
     @Override
-    public ScheduledCancellable schedule(Runnable command, TimeValue delay, String executor) {
+    public ScheduledCancellable schedule(Runnable command, TimeValue delay, Executor executor) {
         final Runnable contextPreservingRunnable = threadContext.preserveContext(command);
         final Runnable toSchedule;
-        if (Names.SAME.equals(executor) == false) {
-            toSchedule = new ThreadedRunnable(contextPreservingRunnable, executor(executor));
+        if (executor != EsExecutors.DIRECT_EXECUTOR_SERVICE) {
+            toSchedule = new ThreadedRunnable(contextPreservingRunnable, executor);
         } else if (slowSchedulerWarnThresholdNanos > 0) {
             toSchedule = new Runnable() {
                 @Override
@@ -501,7 +576,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         return new ScheduledCancellableAdapter(scheduler.schedule(toSchedule, delay.millis(), TimeUnit.MILLISECONDS));
     }
 
-    public void scheduleUnlessShuttingDown(TimeValue delay, String executor, Runnable command) {
+    public void scheduleUnlessShuttingDown(TimeValue delay, Executor executor, Runnable command) {
         try {
             schedule(command, delay, executor);
         } catch (EsRejectedExecutionException e) {
@@ -521,13 +596,14 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         }
     }
 
-    @Override
-    public Cancellable scheduleWithFixedDelay(Runnable command, TimeValue interval, String executor) {
-        return new ReschedulingRunnable(command, interval, executor, this, (e) -> {
+    public Cancellable scheduleWithFixedDelay(Runnable command, TimeValue interval, Executor executor) {
+        var runnable = new ReschedulingRunnable(command, interval, executor, this, (e) -> {
             if (logger.isDebugEnabled()) {
                 logger.debug(() -> format("scheduled task [%s] was rejected on thread pool [%s]", command, executor), e);
             }
         }, (e) -> logger.warn(() -> format("failed to run scheduled task [%s] on thread pool [%s]", command, executor), e));
+        runnable.start();
+        return runnable;
     }
 
     protected final void stopCachedTimeThread() {
@@ -535,11 +611,33 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         cachedTimeThread.interrupt();
     }
 
+    private void closeMetrics(ExecutorHolder executor) {
+        if (this.instruments.containsKey(executor.info.getName())) {
+            this.instruments.get(executor.info.getName()).forEach((instrument) -> {
+                if (instrument instanceof LongAsyncCounter longasynccounter) {
+                    try {
+                        longasynccounter.close();
+                    } catch (Exception e) {
+                        logger.warn(format("Failed to close LongAsyncCounter for %s. %s", executor.info.getName(), e.getMessage()), e);
+                    }
+                } else if (instrument instanceof LongGauge longgauge) {
+                    try {
+                        longgauge.close();
+                    } catch (Exception e) {
+                        logger.warn(format("Failed to close LongGauge for %s. %s", executor.info.getName(), e.getMessage()), e);
+                    }
+                }
+            });
+        }
+        this.instruments.remove(executor.info.getName());
+    }
+
     public void shutdown() {
         stopCachedTimeThread();
         scheduler.shutdown();
         for (ExecutorHolder executor : executors.values()) {
             if (executor.executor() instanceof ThreadPoolExecutor) {
+                closeMetrics(executor);
                 executor.executor().shutdown();
             }
         }
@@ -550,6 +648,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         scheduler.shutdownNow();
         for (ExecutorHolder executor : executors.values()) {
             if (executor.executor() instanceof ThreadPoolExecutor) {
+                closeMetrics(executor);
                 executor.executor().shutdownNow();
             }
         }
@@ -559,6 +658,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         boolean result = scheduler.awaitTermination(timeout, unit);
         for (ExecutorHolder executor : executors.values()) {
             if (executor.executor() instanceof ThreadPoolExecutor) {
+                closeMetrics(executor);
                 result &= executor.executor().awaitTermination(timeout, unit);
             }
         }
@@ -581,22 +681,27 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
      * than value, otherwise value
      */
     static int boundedBy(int value, int min, int max) {
+        assert min < max : min + " vs " + max;
         return Math.min(max, Math.max(min, value));
     }
 
+    static int halfAllocatedProcessors(final int allocatedProcessors) {
+        return (allocatedProcessors + 1) / 2;
+    }
+
     static int halfAllocatedProcessorsMaxFive(final int allocatedProcessors) {
-        return boundedBy((allocatedProcessors + 1) / 2, 1, 5);
+        return boundedBy(halfAllocatedProcessors(allocatedProcessors), 1, 5);
     }
 
     static int halfAllocatedProcessorsMaxTen(final int allocatedProcessors) {
-        return boundedBy((allocatedProcessors + 1) / 2, 1, 10);
+        return boundedBy(halfAllocatedProcessors(allocatedProcessors), 1, 10);
     }
 
     static int twiceAllocatedProcessors(final int allocatedProcessors) {
         return boundedBy(2 * allocatedProcessors, 2, Integer.MAX_VALUE);
     }
 
-    static int oneEighthAllocatedProcessors(final int allocatedProcessors) {
+    public static int oneEighthAllocatedProcessors(final int allocatedProcessors) {
         return boundedBy(allocatedProcessors / 8, 1, Integer.MAX_VALUE);
     }
 

@@ -8,9 +8,12 @@ package org.elasticsearch.xpack.searchablesnapshots;
 
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.blobcache.BlobCachePlugin;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -33,6 +36,8 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.indices.store.TransportNodesListShardStoreMetadata;
+import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
@@ -60,11 +65,12 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.blobcache.shared.SharedBytes.pageAligned;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.license.LicenseSettings.SELF_GENERATED_LICENSE_TYPE;
 import static org.elasticsearch.test.NodeRoles.addRoles;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils.pageAligned;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -84,6 +90,7 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
         plugins.add(BlobCachePlugin.class);
         plugins.add(LocalStateSearchableSnapshots.class);
         plugins.add(LicensedSnapshotBasedRecoveriesPlugin.class);
+        plugins.add(ForbiddenActionsPlugin.class);
         return Collections.unmodifiableList(plugins);
     }
 
@@ -203,7 +210,7 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
         // This index does not permit dynamic fields, so we can only use defined field names
         final String key = indexName.equals(SearchableSnapshots.SNAPSHOT_BLOB_CACHE_INDEX) ? "type" : "foo";
         for (int i = between(10, maxIndexRequests); i >= 0; i--) {
-            indexRequestBuilders.add(client().prepareIndex(indexName).setSource(key, randomBoolean() ? "bar" : "baz"));
+            indexRequestBuilders.add(prepareIndex(indexName).setSource(key, randomBoolean() ? "bar" : "baz"));
         }
         indexRandom(true, true, indexRequestBuilders);
         refresh(indexName);
@@ -289,15 +296,10 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
                 } catch (InterruptedException e) {
                     throw new RuntimeException(e);
                 }
-                allHits.set(t, client().prepareSearch(indexName).setTrackTotalHits(true).get().getHits().getTotalHits());
-                barHits.set(
-                    t,
-                    client().prepareSearch(indexName)
-                        .setTrackTotalHits(true)
-                        .setQuery(matchQuery("foo", "bar"))
-                        .get()
-                        .getHits()
-                        .getTotalHits()
+                assertResponse(prepareSearch(indexName).setTrackTotalHits(true), resp -> allHits.set(t, resp.getHits().getTotalHits()));
+                assertResponse(
+                    prepareSearch(indexName).setTrackTotalHits(true).setQuery(matchQuery("foo", "bar")),
+                    resp -> barHits.set(t, resp.getHits().getTotalHits())
                 );
             });
             threads[i].start();
@@ -361,6 +363,40 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
         @Override
         public boolean isLicenseEnabled() {
             return true;
+        }
+    }
+
+    public static class ForbiddenActionsPlugin extends Plugin implements ActionPlugin {
+
+        private ActionFilter actionFilter;
+
+        @Override
+        public Collection<?> createComponents(PluginServices services) {
+            final var clusterService = services.clusterService();
+            actionFilter = new ActionFilter.Simple() {
+                @Override
+                protected boolean apply(String action, ActionRequest request, ActionListener<?> listener) {
+                    if (action.equals(TransportNodesListShardStoreMetadata.ACTION_NAME)) {
+                        final var shardId = asInstanceOf(TransportNodesListShardStoreMetadata.Request.class, request).shardId();
+                        final var indexMetadata = clusterService.state().metadata().index(shardId.getIndex());
+                        if (indexMetadata != null) {
+                            assertFalse(shardId.toString(), indexMetadata.isSearchableSnapshot());
+                        }
+                    }
+                    return true;
+                }
+
+                @Override
+                public int order() {
+                    return 0;
+                }
+            };
+            return List.of();
+        }
+
+        @Override
+        public List<ActionFilter> getActionFilters() {
+            return List.of(actionFilter);
         }
     }
 }

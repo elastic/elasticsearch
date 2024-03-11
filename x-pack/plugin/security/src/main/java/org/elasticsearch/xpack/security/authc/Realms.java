@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.authc;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.common.Strings;
@@ -35,6 +36,7 @@ import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.kerberos.KerberosRealmSettings;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
+import org.elasticsearch.xpack.security.support.ReloadableSecurityComponent;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -57,7 +59,7 @@ import java.util.stream.StreamSupport;
 /**
  * Serves as a realms registry (also responsible for ordering the realms appropriately)
  */
-public class Realms extends AbstractLifecycleComponent implements Iterable<Realm> {
+public class Realms extends AbstractLifecycleComponent implements Iterable<Realm>, ReloadableSecurityComponent {
 
     private static final Logger logger = LogManager.getLogger(Realms.class);
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(logger.getName());
@@ -79,6 +81,7 @@ public class Realms extends AbstractLifecycleComponent implements Iterable<Realm
     // the realms in current use. This list will change dynamically as the license changes
     private volatile List<Realm> activeRealms;
 
+    @SuppressWarnings("this-escape")
     public Realms(
         Settings settings,
         Environment env,
@@ -385,23 +388,26 @@ public class Realms extends AbstractLifecycleComponent implements Iterable<Realm
         final Set<String> realmTypes = realms.stream().map(Realm::type).collect(Collectors.toUnmodifiableSet());
         // Add native realm first so that file realm will be added before it
         if (false == disabledBasicRealmTypes.contains(NativeRealmSettings.TYPE) && false == realmTypes.contains(NativeRealmSettings.TYPE)) {
+            boolean enabled = settings.getAsBoolean(NativeRealmSettings.NATIVE_USERS_ENABLED, true);
             ensureRealmNameIsAvailable(realms, NativeRealmSettings.DEFAULT_NAME);
             var nativeRealmId = new RealmConfig.RealmIdentifier(NativeRealmSettings.TYPE, NativeRealmSettings.DEFAULT_NAME);
             var realmConfig = new RealmConfig(
                 nativeRealmId,
-                ensureOrderSetting(settings, nativeRealmId, Integer.MIN_VALUE),
+                buildSettingsforDefaultRealm(settings, nativeRealmId, Integer.MIN_VALUE, enabled),
                 env,
                 threadContext
             );
             realmConfigs.add(realmConfig);
-            realms.add(0, factories.get(NativeRealmSettings.TYPE).create(realmConfig));
+            if (enabled) {
+                realms.add(0, factories.get(NativeRealmSettings.TYPE).create(realmConfig));
+            }
         }
         if (false == disabledBasicRealmTypes.contains(FileRealmSettings.TYPE) && false == realmTypes.contains(FileRealmSettings.TYPE)) {
             ensureRealmNameIsAvailable(realms, FileRealmSettings.DEFAULT_NAME);
             var fileRealmId = new RealmConfig.RealmIdentifier(FileRealmSettings.TYPE, FileRealmSettings.DEFAULT_NAME);
             var realmConfig = new RealmConfig(
                 fileRealmId,
-                ensureOrderSetting(settings, fileRealmId, Integer.MIN_VALUE),
+                buildSettingsforDefaultRealm(settings, fileRealmId, Integer.MIN_VALUE, true),
                 env,
                 threadContext
             );
@@ -418,7 +424,7 @@ public class Realms extends AbstractLifecycleComponent implements Iterable<Realm
     /**
      * Check that the given realmName is not yet used by the given list of realms.
      */
-    private void ensureRealmNameIsAvailable(List<Realm> realms, String realmName) {
+    private static void ensureRealmNameIsAvailable(List<Realm> realms, String realmName) {
         assert realms.size() == realms.stream().map(Realm::name).collect(Collectors.toUnmodifiableSet()).size()
             : "existing realm names must be unique";
         final Realm misNamedRealm = realms.stream().filter(realm -> realmName.equals(realm.name())).findFirst().orElse(null);
@@ -433,9 +439,18 @@ public class Realms extends AbstractLifecycleComponent implements Iterable<Realm
         }
     }
 
-    private static Settings ensureOrderSetting(Settings settings, RealmConfig.RealmIdentifier realmIdentifier, int order) {
-        String orderSettingKey = RealmSettings.realmSettingPrefix(realmIdentifier) + "order";
-        return Settings.builder().put(settings).put(orderSettingKey, order).build();
+    private static Settings buildSettingsforDefaultRealm(
+        Settings settings,
+        RealmConfig.RealmIdentifier realmIdentifier,
+        int order,
+        boolean enabled
+    ) {
+        final String prefix = RealmSettings.realmSettingPrefix(realmIdentifier);
+        final Settings.Builder builder = Settings.builder().put(settings).put(prefix + "order", order);
+        if (enabled == false) {
+            builder.put(prefix + "enabled", false);
+        }
+        return builder.build();
     }
 
     private static void checkUniqueOrders(Map<Integer, Set<String>> orderToRealmName) {
@@ -449,7 +464,7 @@ public class Realms extends AbstractLifecycleComponent implements Iterable<Realm
         }
     }
 
-    private void ensureUniqueExplicitlyConfiguredRealmNames(Map<String, Set<String>> nameToRealmIdentifier) {
+    private static void ensureUniqueExplicitlyConfiguredRealmNames(Map<String, Set<String>> nameToRealmIdentifier) {
         String duplicateRealms = nameToRealmIdentifier.entrySet()
             .stream()
             .filter(entry -> entry.getValue().size() > 1)
@@ -552,5 +567,24 @@ public class Realms extends AbstractLifecycleComponent implements Iterable<Realm
             converted.put(entry.getKey(), new ArrayList<>(Collections.singletonList(entry.getValue())));
         }
         return converted;
+    }
+
+    @Override
+    public void reload(Settings settings) {
+        final List<Exception> reloadExceptions = new ArrayList<>();
+        for (Realm realm : this.allConfiguredRealms) {
+            if (realm instanceof ReloadableSecurityComponent reloadableRealm) {
+                try {
+                    reloadableRealm.reload(settings);
+                } catch (Exception e) {
+                    reloadExceptions.add(e);
+                }
+            }
+        }
+        if (false == reloadExceptions.isEmpty()) {
+            final var combinedException = new ElasticsearchException("secure settings reload failed for one or more realms");
+            reloadExceptions.forEach(combinedException::addSuppressed);
+            throw combinedException;
+        }
     }
 }

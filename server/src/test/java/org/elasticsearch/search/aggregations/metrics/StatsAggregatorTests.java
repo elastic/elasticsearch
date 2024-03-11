@@ -13,7 +13,6 @@ import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.MultiReader;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.NumericUtils;
@@ -220,9 +219,7 @@ public class StatsAggregatorTests extends AggregatorTestCase {
                 IndexReader unmappedReader = unmappedWriter.getReader();
                 MultiReader multiReader = new MultiReader(mappedReader, unmappedReader)
             ) {
-
-                final IndexSearcher searcher = new IndexSearcher(multiReader);
-                final InternalStats stats = searchAndReduce(searcher, new AggTestConfig(builder, ft));
+                final InternalStats stats = searchAndReduce(multiReader, new AggTestConfig(builder, ft));
 
                 assertEquals(expected.count, stats.getCount(), 0);
                 assertEquals(expected.sum, stats.getSum(), TOLERANCE);

@@ -10,11 +10,13 @@ package org.elasticsearch.test;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.util.Throwables;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.ClusterStatePublicationEvent;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
@@ -28,14 +30,16 @@ import org.elasticsearch.cluster.service.ClusterApplier;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
+import org.elasticsearch.cluster.version.CompatibilityVersionsUtils;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.tracing.Tracer;
 
 import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
@@ -126,7 +130,7 @@ public class ClusterServiceUtils {
         clusterService.setNodeConnectionsService(createNoOpNodeConnectionsService());
         ClusterState initialClusterState = ClusterState.builder(new ClusterName(ClusterServiceUtils.class.getSimpleName()))
             .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).masterNodeId(localNode.getId()))
-            .putTransportVersion(localNode.getId(), TransportVersion.current())
+            .putCompatibilityVersions(localNode.getId(), CompatibilityVersionsUtils.staticCurrent())
             .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK)
             .build();
         clusterService.getClusterApplierService().setInitialState(initialClusterState);
@@ -194,7 +198,7 @@ public class ClusterServiceUtils {
 
     public static void awaitClusterState(Logger logger, Predicate<ClusterState> statePredicate, ClusterService clusterService)
         throws Exception {
-        final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+        final PlainActionFuture<Void> future = new PlainActionFuture<>();
         ClusterStateObserver.waitForState(
             clusterService,
             clusterService.getClusterApplierService().threadPool().getThreadContext(),
@@ -245,5 +249,34 @@ public class ClusterServiceUtils {
             10,
             TimeUnit.SECONDS
         );
+    }
+
+    public static SubscribableListener<Void> addTemporaryStateListener(ClusterService clusterService, Predicate<ClusterState> predicate) {
+        final var listener = new SubscribableListener<Void>();
+        final ClusterStateListener clusterStateListener = new ClusterStateListener() {
+            @Override
+            public void clusterChanged(ClusterChangedEvent event) {
+                try {
+                    if (predicate.test(event.state())) {
+                        listener.onResponse(null);
+                    }
+                } catch (Exception e) {
+                    listener.onFailure(e);
+                }
+            }
+
+            @Override
+            public String toString() {
+                return predicate.toString();
+            }
+        };
+        clusterService.addListener(clusterStateListener);
+        listener.addListener(ActionListener.running(() -> clusterService.removeListener(clusterStateListener)));
+        if (predicate.test(clusterService.state())) {
+            listener.onResponse(null);
+        } else {
+            listener.addTimeout(TimeValue.timeValueSeconds(10), clusterService.threadPool(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        }
+        return listener;
     }
 }

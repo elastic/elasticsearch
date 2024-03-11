@@ -19,6 +19,8 @@ NOTE: Elasticsearch includes a bundled version of https://openjdk.java.net[OpenJ
 from the JDK maintainers (GPLv2+CE). To use your own version of Java,
 see the <<jvm-version, JVM version requirements>>
 
+TIP: For a step-by-step example of setting up the {stack} on your own premises, try out our tutorial: {stack-ref}/installing-stack-demo-self.html[Installing a self-managed Elastic Stack].
+
 [[rpm-key]]
 ==== Import the Elasticsearch GPG Key
 
@@ -34,11 +36,9 @@ rpm --import https://artifacts.elastic.co/GPG-KEY-elasticsearch
 
 ifeval::["{release-state}"=="unreleased"]
 
-Version {version} of Elasticsearch has not yet been released.
+WARNING: Version {version} of Elasticsearch has not yet been released.
 
 endif::[]
-
-ifeval::["{release-state}"!="unreleased"]
 
 Create a file called `elasticsearch.repo` in the `/etc/yum.repos.d/` directory
 for RedHat based distributions, or in the `/etc/zypp/repos.d/` directory for
@@ -57,8 +57,6 @@ enabled=0
 autorefresh=1
 type=rpm-md
 --------------------------------------------------
-
-endif::[]
 
 ifeval::["{release-state}"=="prerelease"]
 
@@ -101,11 +99,9 @@ endif::[]
 
 ifeval::["{release-state}"=="unreleased"]
 
-Version {version} of Elasticsearch has not yet been released.
+WARNING: Version {version} of Elasticsearch has not yet been released.
 
 endif::[]
-
-ifeval::["{release-state}"!="unreleased"]
 
 The RPM for Elasticsearch v{version} can be downloaded from the website and installed as follows:
 
@@ -118,8 +114,6 @@ sudo rpm --install elasticsearch-{version}-x86_64.rpm
 --------------------------------------------
 <1> Compares the SHA of the downloaded RPM and the published checksum, which should output
     `elasticsearch-{version}-x86_64.rpm: OK`.
-
-endif::[]
 
 include::skip-set-kernel-parameters.asciidoc[]
 

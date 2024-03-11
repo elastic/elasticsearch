@@ -10,6 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Streams;
@@ -25,6 +26,7 @@ import org.opensaml.saml.saml2.encryption.Decrypter;
 import org.opensaml.saml.security.impl.SAMLSignatureProfileValidator;
 import org.opensaml.security.credential.Credential;
 import org.opensaml.security.x509.X509Credential;
+import org.opensaml.xmlsec.algorithm.AlgorithmSupport;
 import org.opensaml.xmlsec.crypto.XMLSigningUtil;
 import org.opensaml.xmlsec.encryption.support.ChainingEncryptedKeyResolver;
 import org.opensaml.xmlsec.encryption.support.EncryptedKeyResolver;
@@ -133,7 +135,7 @@ public class SamlObjectHandler {
         return new ChainingKeyInfoCredentialResolver(Arrays.asList(localKeyInfoCredentialResolver, collectionKeyInfoCredentialResolver));
     }
 
-    private EncryptedKeyResolver createResolverForEncryptedKeyElements() {
+    private static EncryptedKeyResolver createResolverForEncryptedKeyElements() {
         return new ChainingEncryptedKeyResolver(
             Arrays.asList(
                 new InlineEncryptedKeyResolver(),
@@ -147,7 +149,7 @@ public class SamlObjectHandler {
         return sp;
     }
 
-    protected String describe(X509Certificate certificate) {
+    protected static String describe(X509Certificate certificate) {
         return "X509Certificate{Subject="
             + certificate.getSubjectX500Principal()
             + "; SerialNo="
@@ -155,7 +157,7 @@ public class SamlObjectHandler {
             + "}";
     }
 
-    protected String describe(Collection<X509Credential> credentials) {
+    protected static String describe(Collection<X509Credential> credentials) {
         return credentials.stream().map(credential -> describe(credential.getEntityCertificate())).collect(Collectors.joining(","));
     }
 
@@ -170,6 +172,21 @@ public class SamlObjectHandler {
 
         checkIdpSignature(credential -> {
             try {
+                final String signatureAlg = AlgorithmSupport.getKeyAlgorithm(signature.getSignatureAlgorithm());
+                final String keyAlg = credential.getPublicKey().getAlgorithm();
+                if (signatureAlg != null && signatureAlg.equals(keyAlg) == false) {
+                    if (logger.isDebugEnabled()) {
+                        String keyFingerprint = "SHA265:"
+                            + MessageDigests.toHexString(MessageDigests.sha256().digest(credential.getPublicKey().getEncoded()));
+                        logger.debug(
+                            "Skipping [{}] key [{}] because it is not compatible with signature algorithm [{}]",
+                            keyAlg,
+                            keyFingerprint,
+                            signatureAlg
+                        );
+                    }
+                    return false;
+                }
                 return AccessController.doPrivileged((PrivilegedExceptionAction<Boolean>) () -> {
                     try (RestorableContextClassLoader ignore = new RestorableContextClassLoader(SignatureValidator.class)) {
                         SignatureValidator.validate(signature, credential);
@@ -245,7 +262,7 @@ public class SamlObjectHandler {
         return samlException(msg, signature, describeCredentials(credentials));
     }
 
-    private String describeCredentials(List<Credential> credentials) {
+    private static String describeCredentials(List<Credential> credentials) {
         return credentials.stream().map(c -> {
             if (c == null) {
                 return "<null>";
@@ -308,7 +325,7 @@ public class SamlObjectHandler {
         }
     }
 
-    protected String text(XMLObject xml, int length) {
+    protected static String text(XMLObject xml, int length) {
         return text(xml, length, 0);
     }
 
@@ -418,7 +435,7 @@ public class SamlObjectHandler {
         }
     }
 
-    protected byte[] inflate(byte[] bytes) {
+    protected static byte[] inflate(byte[] bytes) {
         Inflater inflater = new Inflater(true);
         try (
             ByteArrayInputStream in = new ByteArrayInputStream(bytes);

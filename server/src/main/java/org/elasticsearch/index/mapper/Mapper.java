@@ -8,30 +8,39 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.document.FieldType;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.StringLiteralDeduplicator;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.xcontent.ToXContentFragment;
 
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Function;
 
 public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
+
     public abstract static class Builder {
 
-        protected final String name;
+        private String name;
 
         protected Builder(String name) {
-            this.name = internFieldName(name);
+            setName(name);
         }
 
         // TODO rename this to leafName?
-        public String name() {
+        public final String name() {
             return this.name;
         }
 
         /** Returns a newly built mapper. */
         public abstract Mapper build(MapperBuilderContext context);
+
+        void setName(String name) {
+            this.name = internFieldName(name);
+        }
     }
 
     public interface TypeParser {
@@ -41,7 +50,7 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
          * Whether we can parse this type on indices with the given index created version.
          */
         default boolean supportsVersion(IndexVersion indexCreatedVersion) {
-            return indexCreatedVersion.onOrAfter(IndexVersion.MINIMUM_COMPATIBLE);
+            return indexCreatedVersion.onOrAfter(IndexVersions.MINIMUM_COMPATIBLE);
         }
     }
 
@@ -68,9 +77,11 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
      */
     public abstract String typeName();
 
-    /** Return the merge of {@code mergeWith} into this.
-     *  Both {@code this} and {@code mergeWith} will be left unmodified. */
-    public abstract Mapper merge(Mapper mergeWith, MapperBuilderContext mapperBuilderContext);
+    /**
+     * Return the merge of {@code mergeWith} into this.
+     * Both {@code this} and {@code mergeWith} will be left unmodified.
+     */
+    public abstract Mapper merge(Mapper mergeWith, MapperMergeContext mapperMergeContext);
 
     /**
      * Validate any cross-field references made by this mapper
@@ -105,4 +116,33 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
     public static String internFieldName(String fieldName) {
         return fieldNameStringDeduplicator.deduplicate(fieldName);
     }
+
+    private static final Map<FieldType, FieldType> fieldTypeDeduplicator = new ConcurrentHashMap<>();
+
+    /**
+     * Freezes the given {@link FieldType} instances and tries to deduplicate it as long as the field does not return a non-empty value for
+     * {@link FieldType#getAttributes()}.
+     *
+     * @param fieldType field type to deduplicate
+     * @return deduplicated field type
+     */
+    public static FieldType freezeAndDeduplicateFieldType(FieldType fieldType) {
+        fieldType.freeze();
+        var attributes = fieldType.getAttributes();
+        if ((attributes != null && attributes.isEmpty() == false) || fieldType.getClass() != FieldType.class) {
+            // don't deduplicate subclasses or types with non-empty attribute maps to avoid memory leaks
+            return fieldType;
+        }
+        if (fieldTypeDeduplicator.size() > 1000) {
+            // guard against the case where we run up too many combinations via (vector-)dimensions combinations
+            fieldTypeDeduplicator.clear();
+        }
+        return fieldTypeDeduplicator.computeIfAbsent(fieldType, Function.identity());
+    }
+
+    /**
+     * The total number of fields as defined in the mapping.
+     * Defines how this mapper counts towards {@link MapperService#INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING}.
+     */
+    public abstract int getTotalFieldsCount();
 }

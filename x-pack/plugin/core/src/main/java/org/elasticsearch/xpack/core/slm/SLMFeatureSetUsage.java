@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.slm;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
@@ -40,7 +41,7 @@ public class SLMFeatureSetUsage extends XPackFeatureSet.Usage {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.V_7_5_0;
+        return TransportVersions.V_7_5_0;
     }
 
     public SnapshotLifecycleStats getStats() {

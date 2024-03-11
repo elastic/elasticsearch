@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.tasks.Task;
@@ -63,7 +64,7 @@ public class TransportPostFeatureUpgradeAction extends TransportMasterNodeAction
             PostFeatureUpgradeRequest::new,
             indexNameExpressionResolver,
             PostFeatureUpgradeResponse::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.systemIndices = systemIndices;
         this.persistentTasksService = persistentTasksService;
@@ -94,6 +95,7 @@ public class TransportPostFeatureUpgradeAction extends TransportMasterNodeAction
                 SYSTEM_INDEX_UPGRADE_TASK_NAME,
                 SYSTEM_INDEX_UPGRADE_TASK_NAME,
                 new SystemIndexMigrationTaskParams(),
+                null,
                 ActionListener.wrap(startedTask -> {
                     listener.onResponse(new PostFeatureUpgradeResponse(true, featuresToMigrate, null, null));
                 }, ex -> {

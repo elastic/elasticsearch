@@ -8,7 +8,6 @@
 
 package org.elasticsearch.cluster;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -30,7 +29,8 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.cluster.version.CompatibilityVersions;
+import org.elasticsearch.cluster.version.CompatibilityVersionsUtils;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -50,7 +50,6 @@ import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfoTestUtils;
 import org.elasticsearch.snapshots.SnapshotsInProgressSerializationTests;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.VersionUtils;
 
 import java.util.Collections;
@@ -63,6 +62,7 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.cluster.metadata.AliasMetadata.newAliasMetadataBuilder;
 import static org.elasticsearch.cluster.routing.RandomShardRoutingMutator.randomChange;
+import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.elasticsearch.cluster.routing.UnassignedInfoTests.randomUnassignedInfo;
 import static org.elasticsearch.test.XContentTestUtils.convertToMap;
 import static org.elasticsearch.test.XContentTestUtils.differenceBetweenMapsIgnoringArrayOrder;
@@ -79,8 +79,8 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(masterNode).add(otherNode).localNodeId(masterNode.getId()).build();
         ClusterState clusterState = ClusterState.builder(new ClusterName("test"))
             .nodes(discoveryNodes)
-            .putTransportVersion("master", TransportVersionUtils.randomVersion(random()))
-            .putTransportVersion("other", TransportVersionUtils.randomVersion(random()))
+            .putCompatibilityVersions("master", CompatibilityVersionsUtils.fakeSystemIndicesRandom())
+            .putCompatibilityVersions("other", CompatibilityVersionsUtils.fakeSystemIndicesRandom())
             .build();
         ClusterState clusterStateFromDiffs = ClusterState.Builder.fromBytes(
             ClusterState.Builder.toBytes(clusterState),
@@ -227,7 +227,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
      */
     private ClusterState.Builder randomNodes(ClusterState clusterState) {
         DiscoveryNodes.Builder nodes = DiscoveryNodes.builder(clusterState.nodes());
-        Map<String, TransportVersion> transports = new HashMap<>(clusterState.transportVersions());
+        Map<String, CompatibilityVersions> versions = new HashMap<>(clusterState.compatibilityVersions());
         List<String> nodeIds = randomSubsetOf(
             randomInt(clusterState.nodes().getNodes().size() - 1),
             clusterState.nodes().getNodes().keySet().toArray(new String[0])
@@ -235,10 +235,10 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
         for (String nodeId : nodeIds) {
             if (nodeId.startsWith("node-")) {
                 nodes.remove(nodeId);
-                transports.remove(nodeId);
+                versions.remove(nodeId);
                 if (randomBoolean()) {
                     nodes.add(randomNode(nodeId));
-                    transports.put(nodeId, TransportVersionUtils.randomVersion(random()));
+                    versions.put(nodeId, CompatibilityVersionsUtils.fakeSystemIndicesRandom());
                 }
             }
         }
@@ -246,10 +246,10 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
         for (int i = 0; i < additionalNodeCount; i++) {
             String id = "node-" + randomAlphaOfLength(10);
             nodes.add(randomNode(id));
-            transports.put(id, TransportVersionUtils.randomVersion(random()));
+            versions.put(id, CompatibilityVersionsUtils.fakeSystemIndicesRandom());
         }
 
-        return ClusterState.builder(clusterState).nodes(nodes).transportVersions(transports);
+        return ClusterState.builder(clusterState).nodes(nodes).nodeIdsToCompatibilityVersions(versions);
     }
 
     /**
@@ -304,7 +304,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                 }
                 String nodeId = randomFrom(availableNodeIds);
                 availableNodeIds.remove(nodeId);
-                indexShard.addShard(TestShardRouting.newShardRouting(index, i, nodeId, null, j == 0, newState, unassignedInfo));
+                indexShard.addShard(shardRoutingBuilder(index, i, nodeId, j == 0, newState).withUnassignedInfo(unassignedInfo).build());
             }
             builder.addIndexShard(indexShard);
         }
@@ -558,8 +558,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                 IndexMetadata.Builder builder = IndexMetadata.builder(name);
                 Settings.Builder settingsBuilder = Settings.builder();
                 setRandomIndexSettings(random(), settingsBuilder);
-                settingsBuilder.put(randomSettings(Settings.EMPTY))
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, randomVersion(random()).id());
+                settingsBuilder.put(randomSettings(Settings.EMPTY)).put(IndexMetadata.SETTING_VERSION_CREATED, randomVersion(random()));
                 builder.settings(settingsBuilder);
                 builder.numberOfShards(randomIntBetween(1, 10)).numberOfReplicas(randomInt(10));
                 int aliasCount = randomInt(10);

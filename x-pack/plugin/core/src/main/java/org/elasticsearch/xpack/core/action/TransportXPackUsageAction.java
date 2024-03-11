@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.action;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -28,8 +29,9 @@ import java.util.List;
 public class TransportXPackUsageAction extends TransportMasterNodeAction<XPackUsageRequest, XPackUsageResponse> {
 
     private final NodeClient client;
-    private final List<XPackUsageFeatureAction> usageActions;
+    private final List<ActionType<XPackUsageFeatureResponse>> usageActions;
 
+    @SuppressWarnings("this-escape")
     @Inject
     public TransportXPackUsageAction(
         ThreadPool threadPool,
@@ -48,14 +50,14 @@ public class TransportXPackUsageAction extends TransportMasterNodeAction<XPackUs
             XPackUsageRequest::new,
             indexNameExpressionResolver,
             XPackUsageResponse::new,
-            ThreadPool.Names.MANAGEMENT
+            threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.client = client;
         this.usageActions = usageActions();
     }
 
     // overrideable for tests
-    protected List<XPackUsageFeatureAction> usageActions() {
+    protected List<ActionType<XPackUsageFeatureResponse>> usageActions() {
         return XPackUsageFeatureAction.ALL;
     }
 

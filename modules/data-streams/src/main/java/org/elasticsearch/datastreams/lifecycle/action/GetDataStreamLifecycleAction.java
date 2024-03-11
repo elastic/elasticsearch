@@ -34,14 +34,13 @@ import java.util.Objects;
 /**
  * This action retrieves the data stream lifecycle from every data stream that has a data stream lifecycle configured.
  */
-public class GetDataStreamLifecycleAction extends ActionType<GetDataStreamLifecycleAction.Response> {
+public class GetDataStreamLifecycleAction {
 
-    public static final GetDataStreamLifecycleAction INSTANCE = new GetDataStreamLifecycleAction();
-    public static final String NAME = "indices:admin/data_stream/lifecycle/get";
+    public static final ActionType<GetDataStreamLifecycleAction.Response> INSTANCE = new ActionType<>(
+        "indices:admin/data_stream/lifecycle/get"
+    );
 
-    private GetDataStreamLifecycleAction() {
-        super(NAME, Response::new);
-    }
+    private GetDataStreamLifecycleAction() {/* no instances */}
 
     public static class Request extends MasterNodeReadRequest<Request> implements IndicesRequest.Replaceable {
 
@@ -191,7 +190,7 @@ public class GetDataStreamLifecycleAction extends ActionType<GetDataStreamLifecy
         }
 
         public Response(StreamInput in) throws IOException {
-            this(in.readList(Response.DataStreamLifecycle::new), in.readOptionalWriteable(RolloverConfiguration::new));
+            this(in.readCollectionAsList(Response.DataStreamLifecycle::new), in.readOptionalWriteable(RolloverConfiguration::new));
         }
 
         public List<DataStreamLifecycle> getDataStreamLifecycles() {
@@ -205,31 +204,27 @@ public class GetDataStreamLifecycleAction extends ActionType<GetDataStreamLifecy
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeList(dataStreamLifecycles);
+            out.writeCollection(dataStreamLifecycles);
             out.writeOptionalWriteable(rolloverConfiguration);
         }
 
         @Override
-        public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params outerParams) {
-            final Iterator<? extends ToXContent> lifecyclesIterator = dataStreamLifecycles.stream()
-                .map(
-                    dataStreamLifecycle -> (ToXContent) (builder, params) -> dataStreamLifecycle.toXContent(
-                        builder,
-                        params,
-                        rolloverConfiguration
-                    )
-                )
-                .iterator();
-
+        public Iterator<ToXContent> toXContentChunked(ToXContent.Params outerParams) {
             return Iterators.concat(Iterators.single((builder, params) -> {
                 builder.startObject();
                 builder.startArray(DATA_STREAMS_FIELD.getPreferredName());
                 return builder;
-            }), lifecyclesIterator, Iterators.single((ToXContent) (builder, params) -> {
-                builder.endArray();
-                builder.endObject();
-                return builder;
-            }));
+            }),
+                Iterators.map(
+                    dataStreamLifecycles.iterator(),
+                    dataStreamLifecycle -> (builder, params) -> dataStreamLifecycle.toXContent(builder, params, rolloverConfiguration)
+                ),
+                Iterators.single((builder, params) -> {
+                    builder.endArray();
+                    builder.endObject();
+                    return builder;
+                })
+            );
         }
 
         @Override

@@ -7,16 +7,16 @@
 
 package org.elasticsearch.xpack.remotecluster;
 
-import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.junit.RunnableTestRuleAdapter;
@@ -27,15 +27,17 @@ import org.junit.rules.TestRule;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
-import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -43,31 +45,37 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTestCase {
 
     private static final AtomicReference<Map<String, Object>> API_KEY_MAP_REF = new AtomicReference<>();
     private static final AtomicReference<Map<String, Object>> REST_API_KEY_MAP_REF = new AtomicReference<>();
     private static final AtomicBoolean SSL_ENABLED_REF = new AtomicBoolean();
+    private static final AtomicBoolean NODE1_RCS_SERVER_ENABLED = new AtomicBoolean();
+    private static final AtomicBoolean NODE2_RCS_SERVER_ENABLED = new AtomicBoolean();
+    private static final AtomicInteger INVALID_SECRET_LENGTH = new AtomicInteger();
 
     static {
         fulfillingCluster = ElasticsearchCluster.local()
             .name("fulfilling-cluster")
             .nodes(3)
             .apply(commonClusterConfig)
-            .setting("remote_cluster_server.enabled", "true")
             .setting("remote_cluster.port", "0")
-            .setting("xpack.security.remote_cluster_server.ssl.enabled", String.valueOf(SSL_ENABLED_REF.get()))
+            .setting("xpack.security.remote_cluster_server.ssl.enabled", () -> String.valueOf(SSL_ENABLED_REF.get()))
             .setting("xpack.security.remote_cluster_server.ssl.key", "remote-cluster.key")
             .setting("xpack.security.remote_cluster_server.ssl.certificate", "remote-cluster.crt")
             .setting("xpack.security.authc.token.enabled", "true")
             .keystore("xpack.security.remote_cluster_server.ssl.secure_key_passphrase", "remote-cluster-password")
+            .node(0, spec -> spec.setting("remote_cluster_server.enabled", "true"))
+            .node(1, spec -> spec.setting("remote_cluster_server.enabled", () -> String.valueOf(NODE1_RCS_SERVER_ENABLED.get())))
+            .node(2, spec -> spec.setting("remote_cluster_server.enabled", () -> String.valueOf(NODE2_RCS_SERVER_ENABLED.get())))
             .build();
 
         queryCluster = ElasticsearchCluster.local()
             .name("query-cluster")
             .apply(commonClusterConfig)
-            .setting("xpack.security.remote_cluster_client.ssl.enabled", String.valueOf(SSL_ENABLED_REF.get()))
+            .setting("xpack.security.remote_cluster_client.ssl.enabled", () -> String.valueOf(SSL_ENABLED_REF.get()))
             .setting("xpack.security.remote_cluster_client.ssl.certificate_authorities", "remote-cluster-ca.crt")
             .setting("xpack.security.authc.token.enabled", "true")
             .keystore("cluster.remote.my_remote_cluster.credentials", () -> {
@@ -105,8 +113,16 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
                 }
                 return (String) REST_API_KEY_MAP_REF.get().get("encoded");
             })
+            // Define a remote with invalid API key secret length
+            .keystore(
+                "cluster.remote.invalid_secret_length.credentials",
+                () -> Base64.getEncoder()
+                    .encodeToString(
+                        (UUIDs.base64UUID() + ":" + randomAlphaOfLength(INVALID_SECRET_LENGTH.get())).getBytes(StandardCharsets.UTF_8)
+                    )
+            )
             .rolesFile(Resource.fromClasspath("roles.yml"))
-            .user(REMOTE_METRIC_USER, PASS.toString(), "read_remote_shared_metrics")
+            .user(REMOTE_METRIC_USER, PASS.toString(), "read_remote_shared_metrics", false)
             .build();
     }
 
@@ -114,9 +130,12 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
     // Use a RuleChain to ensure that fulfilling cluster is started before query cluster
     // `SSL_ENABLED_REF` is used to control the SSL-enabled setting on the test clusters
     // We set it here, since randomization methods are not available in the static initialize context above
-    public static TestRule clusterRule = RuleChain.outerRule(new RunnableTestRuleAdapter(() -> SSL_ENABLED_REF.set(usually())))
-        .around(fulfillingCluster)
-        .around(queryCluster);
+    public static TestRule clusterRule = RuleChain.outerRule(new RunnableTestRuleAdapter(() -> {
+        SSL_ENABLED_REF.set(usually());
+        NODE1_RCS_SERVER_ENABLED.set(randomBoolean());
+        NODE2_RCS_SERVER_ENABLED.set(randomBoolean());
+        INVALID_SECRET_LENGTH.set(randomValueOtherThan(22, () -> randomIntBetween(0, 99)));
+    })).around(fulfillingCluster).around(queryCluster);
 
     public void testCrossClusterSearch() throws Exception {
         configureRemoteCluster();
@@ -151,7 +170,8 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
                 { "index": { "_index": "shared-metrics" } }
                 { "name": "metric3" }
                 { "index": { "_index": "shared-metrics" } }
-                { "name": "metric4" }\n"""));
+                { "name": "metric4" }
+                """));
             assertOK(performRequestAgainstFulfillingCluster(bulkRequest));
         }
 
@@ -204,14 +224,18 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
             );
             final Response response = performRequestWithRemoteSearchUser(searchRequest);
             assertOK(response);
-            final SearchResponse searchResponse = SearchResponse.fromXContent(responseAsParser(response));
-            final List<String> actualIndices = Arrays.stream(searchResponse.getHits().getHits())
-                .map(SearchHit::getIndex)
-                .collect(Collectors.toList());
-            if (alsoSearchLocally) {
-                assertThat(actualIndices, containsInAnyOrder("index1", "local_index"));
-            } else {
-                assertThat(actualIndices, containsInAnyOrder("index1"));
+            final SearchResponse searchResponse = SearchResponseUtils.parseSearchResponse(responseAsParser(response));
+            try {
+                final List<String> actualIndices = Arrays.stream(searchResponse.getHits().getHits())
+                    .map(SearchHit::getIndex)
+                    .collect(Collectors.toList());
+                if (alsoSearchLocally) {
+                    assertThat(actualIndices, containsInAnyOrder("index1", "local_index"));
+                } else {
+                    assertThat(actualIndices, containsInAnyOrder("index1"));
+                }
+            } finally {
+                searchResponse.decRef();
             }
 
             // Check remote metric users can search metric documents from all FC nodes
@@ -219,14 +243,18 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
                 "GET",
                 String.format(Locale.ROOT, "/my_remote_cluster:*/_search?ccs_minimize_roundtrips=%s", randomBoolean())
             );
-            final SearchResponse metricSearchResponse = SearchResponse.fromXContent(
+            final SearchResponse metricSearchResponse = SearchResponseUtils.parseSearchResponse(
                 responseAsParser(performRequestWithRemoteMetricUser(metricSearchRequest))
             );
-            assertThat(metricSearchResponse.getHits().getTotalHits().value, equalTo(4L));
-            assertThat(
-                Arrays.stream(metricSearchResponse.getHits().getHits()).map(SearchHit::getIndex).collect(Collectors.toSet()),
-                containsInAnyOrder("shared-metrics")
-            );
+            try {
+                assertThat(metricSearchResponse.getHits().getTotalHits().value, equalTo(4L));
+                assertThat(
+                    Arrays.stream(metricSearchResponse.getHits().getHits()).map(SearchHit::getIndex).collect(Collectors.toSet()),
+                    containsInAnyOrder("shared-metrics")
+                );
+            } finally {
+                metricSearchResponse.decRef();
+            }
 
             // Check that access is denied because of user privileges
             final ResponseException exception = expectThrows(
@@ -319,10 +347,7 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
                 () -> performRequestWithRemoteSearchUser(new Request("GET", "/invalid_remote:index1/_search"))
             );
             assertThat(exception4.getResponse().getStatusLine().getStatusCode(), equalTo(401));
-            assertThat(
-                exception4.getMessage(),
-                allOf(containsString("unable to authenticate user "), containsString("unable to find apikey"))
-            );
+            assertThat(exception4.getMessage(), containsString("unable to find apikey"));
 
             // check that REST API key is not supported by cross cluster access
             updateClusterSettings(
@@ -348,29 +373,57 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
                         + "] has type [rest]"
                 )
             );
+
+            // Check invalid cross-cluster API key length is rejected
+            updateClusterSettings(
+                randomBoolean()
+                    ? Settings.builder()
+                        .put("cluster.remote.invalid_secret_length.seeds", fulfillingCluster.getRemoteClusterServerEndpoint(0))
+                        .build()
+                    : Settings.builder()
+                        .put("cluster.remote.invalid_secret_length.mode", "proxy")
+                        .put("cluster.remote.invalid_secret_length.proxy_address", fulfillingCluster.getRemoteClusterServerEndpoint(0))
+                        .build()
+            );
+            final ResponseException exception6 = expectThrows(
+                ResponseException.class,
+                () -> performRequestWithRemoteSearchUser(new Request("GET", "/invalid_secret_length:*/_search"))
+            );
+            assertThat(exception6.getResponse().getStatusLine().getStatusCode(), equalTo(401));
+            assertThat(exception6.getMessage(), containsString("invalid cross-cluster API key value"));
         }
     }
 
     @SuppressWarnings("unchecked")
     public void testNodesInfo() throws IOException {
-        final Request request = new Request("GET", "/_nodes/transport,remote_cluster_server");
+        final Request request = new Request("GET", "/_nodes/settings,transport,remote_cluster_server");
         final Response response = performRequestAgainstFulfillingCluster(request);
         assertOK(response);
         final Map<String, Object> responseMap = responseAsMap(response);
 
         assertThat(ObjectPath.eval("_nodes.total", responseMap), equalTo(3));
         final Map<String, Object> nodes = ObjectPath.eval("nodes", responseMap);
-        nodes.forEach((k, v) -> {
-            final Map<String, Object> node = (Map<String, Object>) v;
+        int numberOfRemoteClusterServerNodes = 0;
+        for (Map.Entry<String, Object> entry : nodes.entrySet()) {
+            final Map<String, Object> node = (Map<String, Object>) entry.getValue();
             // remote cluster is not reported in transport profiles
             assertThat(ObjectPath.eval("transport.profiles", node), anEmptyMap());
 
-            final List<String> boundAddresses = ObjectPath.eval("remote_cluster_server.bound_address", node);
-            assertThat(boundAddresses, notNullValue());
-            assertThat(boundAddresses, not(empty()));
-            final String publishAddress = ObjectPath.eval("remote_cluster_server.publish_address", node);
-            assertThat(publishAddress, notNullValue());
-        });
+            if (Boolean.parseBoolean(ObjectPath.eval("settings.remote_cluster_server.enabled", node))) {
+                numberOfRemoteClusterServerNodes += 1;
+                final List<String> boundAddresses = ObjectPath.eval("remote_cluster_server.bound_address", node);
+                assertThat(boundAddresses, notNullValue());
+                assertThat(boundAddresses, not(empty()));
+                final String publishAddress = ObjectPath.eval("remote_cluster_server.publish_address", node);
+                assertThat(publishAddress, notNullValue());
+            } else {
+                assertThat(ObjectPath.eval("remote_cluster_server", node), nullValue());
+            }
+        }
+        assertThat(
+            numberOfRemoteClusterServerNodes,
+            equalTo(1 + (NODE1_RCS_SERVER_ENABLED.get() ? 1 : 0) + (NODE2_RCS_SERVER_ENABLED.get() ? 1 : 0))
+        );
     }
 
     private Response performRequestWithRemoteSearchUser(final Request request) throws IOException {
@@ -392,23 +445,5 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
             RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", headerFromRandomAuthMethod("local_search_user", PASS))
         );
         return client().performRequest(request);
-    }
-
-    private String headerFromRandomAuthMethod(final String username, final SecureString password) throws IOException {
-        final boolean useBearerTokenAuth = randomBoolean();
-        if (useBearerTokenAuth) {
-            final Request request = new Request(HttpPost.METHOD_NAME, "/_security/oauth2/token");
-            request.setJsonEntity(String.format(Locale.ROOT, """
-                {
-                  "grant_type":"password",
-                  "username":"%s",
-                  "password":"%s"
-                }
-                """, username, password));
-            final Map<String, Object> responseBody = entityAsMap(adminClient().performRequest(request));
-            return "Bearer " + responseBody.get("access_token");
-        } else {
-            return basicAuthHeaderValue(username, password);
-        }
     }
 }

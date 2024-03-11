@@ -9,8 +9,8 @@
 import org.elasticsearch.gradle.testclusters.DefaultTestClustersTask;
 
 apply plugin: 'elasticsearch.validate-rest-spec'
-apply plugin: 'elasticsearch.legacy-yaml-rest-test'
-apply plugin: 'elasticsearch.legacy-yaml-rest-compat-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
@@ -42,6 +42,7 @@ dependencies {
     api 'org.ow2.asm:asm-analysis:7.2'
     api 'org.ow2.asm:asm:7.2'
     spi project('spi')
+    clusterModules project(':modules:mapper-extras')
 }
 
 tasks.named("dependencyLicenses").configure {

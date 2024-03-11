@@ -9,6 +9,7 @@
 package org.elasticsearch.action.get;
 
 import org.apache.lucene.store.AlreadyClosedException;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -16,6 +17,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.TransportActions;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.IndexService;
@@ -33,7 +35,6 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.Objects;
 
-// TODO(ES-5727): add a retry mechanism to TransportShardMultiGetFromTranslogAction
 public class TransportShardMultiGetFomTranslogAction extends HandledTransportAction<
     TransportShardMultiGetFomTranslogAction.Request,
     TransportShardMultiGetFomTranslogAction.Response> {
@@ -48,7 +49,7 @@ public class TransportShardMultiGetFomTranslogAction extends HandledTransportAct
         IndicesService indicesService,
         ActionFilters actionFilters
     ) {
-        super(NAME, transportService, actionFilters, Request::new, ThreadPool.Names.GET);
+        super(NAME, transportService, actionFilters, Request::new, transportService.getThreadPool().executor(ThreadPool.Names.GET));
         this.indicesService = indicesService;
     }
 
@@ -102,7 +103,7 @@ public class TransportShardMultiGetFomTranslogAction extends HandledTransportAct
                 }
                 segmentGeneration = ((InternalEngine) engine).getLastUnsafeSegmentGenerationForGets();
             }
-            return new Response(multiGetShardResponse, segmentGeneration);
+            return new Response(multiGetShardResponse, indexShard.getOperationPrimaryTerm(), segmentGeneration);
         });
     }
 
@@ -164,9 +165,11 @@ public class TransportShardMultiGetFomTranslogAction extends HandledTransportAct
     public static class Response extends ActionResponse {
 
         private final MultiGetShardResponse multiGetShardResponse;
+        private final long primaryTerm;
         private final long segmentGeneration;
 
-        public Response(MultiGetShardResponse response, long segmentGeneration) {
+        public Response(MultiGetShardResponse response, long primaryTerm, long segmentGeneration) {
+            this.primaryTerm = primaryTerm;
             this.segmentGeneration = segmentGeneration;
             this.multiGetShardResponse = response;
         }
@@ -175,16 +178,24 @@ public class TransportShardMultiGetFomTranslogAction extends HandledTransportAct
             super(in);
             segmentGeneration = in.readZLong();
             multiGetShardResponse = new MultiGetShardResponse(in);
+            primaryTerm = in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0) ? in.readVLong() : Engine.UNKNOWN_PRIMARY_TERM;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeZLong(segmentGeneration);
             multiGetShardResponse.writeTo(out);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
+                out.writeVLong(primaryTerm);
+            }
         }
 
         public long segmentGeneration() {
             return segmentGeneration;
+        }
+
+        public long primaryTerm() {
+            return primaryTerm;
         }
 
         public MultiGetShardResponse multiGetShardResponse() {
@@ -193,25 +204,27 @@ public class TransportShardMultiGetFomTranslogAction extends HandledTransportAct
 
         @Override
         public String toString() {
-            return "ShardMultiGetFomTranslogResponse{"
-                + "multiGetShardResponse="
-                + multiGetShardResponse
-                + ", segmentGeneration="
-                + segmentGeneration
-                + "}";
+            return Strings.format(
+                "ShardMultiGetFomTranslogResponse{multiGetShardResponse=%s, primaryTerm=%d, segmentGeneration=%d}",
+                multiGetShardResponse,
+                primaryTerm,
+                segmentGeneration
+            );
         }
 
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o instanceof Response == false) return false;
-            Response other = (Response) o;
-            return segmentGeneration == other.segmentGeneration && Objects.equals(multiGetShardResponse, other.multiGetShardResponse);
+            Response response = (Response) o;
+            return segmentGeneration == response.segmentGeneration
+                && Objects.equals(multiGetShardResponse, response.multiGetShardResponse)
+                && primaryTerm == response.primaryTerm;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(segmentGeneration, multiGetShardResponse);
+            return Objects.hash(segmentGeneration, multiGetShardResponse, primaryTerm);
         }
     }
 }

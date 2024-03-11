@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
@@ -31,6 +32,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
@@ -106,7 +108,7 @@ public class UpdateTimeSeriesRangeService extends AbstractLifecycleComponent imp
             Index head = dataStream.getWriteIndex();
             IndexMetadata im = current.metadata().getIndexSafe(head);
             Instant currentEnd = IndexSettings.TIME_SERIES_END_TIME.get(im.getSettings());
-            TimeValue lookAheadTime = DataStreamsPlugin.LOOK_AHEAD_TIME.get(im.getSettings());
+            TimeValue lookAheadTime = DataStreamsPlugin.getLookAheadTime(im.getSettings());
             Instant newEnd = DataStream.getCanonicalTimestampBound(
                 now.plus(lookAheadTime.getMillis(), ChronoUnit.MILLIS).plus(pollInterval.getMillis(), ChronoUnit.MILLIS)
             );
@@ -155,7 +157,7 @@ public class UpdateTimeSeriesRangeService extends AbstractLifecycleComponent imp
             job = threadPool.scheduleWithFixedDelay(
                 () -> perform(() -> LOGGER.debug("completed tsdb update task")),
                 pollInterval,
-                ThreadPool.Names.SAME
+                EsExecutors.DIRECT_EXECUTOR_SERVICE
             );
         }
     }
@@ -210,6 +212,11 @@ public class UpdateTimeSeriesRangeService extends AbstractLifecycleComponent imp
                 taskContext.success(() -> taskContext.getTask().listener().accept(null));
             }
             return result;
+        }
+
+        @Override
+        public String describeTasks(List<UpdateTimeSeriesTask> tasks) {
+            return ""; // tasks are equivalent and idempotent, no need to list them out
         }
     }
 }

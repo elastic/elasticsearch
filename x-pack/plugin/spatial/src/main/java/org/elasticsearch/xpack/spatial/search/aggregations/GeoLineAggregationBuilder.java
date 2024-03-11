@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.spatial.search.aggregations;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -211,6 +212,6 @@ public class GeoLineAggregationBuilder extends MultiValuesSourceAggregationBuild
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.V_7_11_0;
+        return TransportVersions.V_7_11_0;
     }
 }

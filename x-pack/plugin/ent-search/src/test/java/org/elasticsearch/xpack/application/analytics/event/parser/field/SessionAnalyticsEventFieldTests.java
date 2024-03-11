@@ -7,11 +7,11 @@
 
 package org.elasticsearch.xpack.application.analytics.event.parser.field;
 
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.xcontent.ContextParser;
 import org.elasticsearch.xpack.application.analytics.event.AnalyticsEvent;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -25,7 +25,7 @@ public class SessionAnalyticsEventFieldTests extends AnalyticsEventFieldParserTe
 
     @Override
     protected Map<String, String> createTestInstance() {
-        return randomEventSessionField();
+        return new HashMap<>(randomEventSessionField());
     }
 
     @Override
@@ -34,6 +34,6 @@ public class SessionAnalyticsEventFieldTests extends AnalyticsEventFieldParserTe
     }
 
     public static Map<String, String> randomEventSessionField() {
-        return MapBuilder.<String, String>newMapBuilder().put(SESSION_ID_FIELD.getPreferredName(), randomIdentifier()).map();
+        return Map.of(SESSION_ID_FIELD.getPreferredName(), randomIdentifier());
     }
 }

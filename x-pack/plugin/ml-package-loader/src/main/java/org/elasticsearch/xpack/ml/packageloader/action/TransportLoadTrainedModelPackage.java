@@ -9,47 +9,50 @@ package org.elasticsearch.xpack.ml.packageloader.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.core.Tuple;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskAwareRequest;
+import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.common.notifications.Level;
 import org.elasticsearch.xpack.core.ml.action.AuditMlNotificationAction;
 import org.elasticsearch.xpack.core.ml.action.NodeAcknowledgedResponse;
-import org.elasticsearch.xpack.core.ml.action.PutTrainedModelDefinitionPartAction;
-import org.elasticsearch.xpack.core.ml.action.PutTrainedModelVocabularyAction;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ModelPackageConfig;
 import org.elasticsearch.xpack.core.ml.packageloader.action.LoadTrainedModelPackageAction;
 import org.elasticsearch.xpack.core.ml.packageloader.action.LoadTrainedModelPackageAction.Request;
 import org.elasticsearch.xpack.ml.packageloader.MachineLearningPackageLoader;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.net.MalformedURLException;
-import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
+import static org.elasticsearch.xpack.core.ml.MlTasks.MODEL_IMPORT_TASK_ACTION;
+import static org.elasticsearch.xpack.core.ml.MlTasks.MODEL_IMPORT_TASK_TYPE;
+import static org.elasticsearch.xpack.core.ml.MlTasks.downloadModelTaskDescription;
 
 public class TransportLoadTrainedModelPackage extends TransportMasterNodeAction<Request, AcknowledgedResponse> {
-
-    private static final int DEFAULT_CHUNK_SIZE = 4 * 1024 * 1024; // 4MB
 
     private static final Logger logger = LogManager.getLogger(TransportLoadTrainedModelPackage.class);
 
@@ -73,148 +76,161 @@ public class TransportLoadTrainedModelPackage extends TransportMasterNodeAction<
             LoadTrainedModelPackageAction.Request::new,
             indexNameExpressionResolver,
             NodeAcknowledgedResponse::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.client = new OriginSettingClient(client, ML_ORIGIN);
     }
 
     @Override
-    protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<AcknowledgedResponse> listener)
-        throws Exception {
-        ModelPackageConfig modelPackageConfig = request.getModelPackageConfig();
-        String repository = modelPackageConfig.getModelRepository();
-        String modelId = request.getModelId();
-        long size = modelPackageConfig.getSize();
-        String packagedModelId = modelPackageConfig.getPackagedModelId();
-
-        threadPool.executor(MachineLearningPackageLoader.UTILITY_THREAD_POOL_NAME).execute(() -> {
-            try {
-                final long relativeStartNanos = System.nanoTime();
-                logAndWriteNotificationAtInfo(modelId, "starting model upload");
-
-                URI uri = ModelLoaderUtils.resolvePackageLocation(repository, packagedModelId + ModelLoaderUtils.MODEL_FILE_EXTENSION);
-
-                // Uploading other artefacts of the model first, that way the model is last and a simple search can be used to check if the
-                // download is complete
-                if (Strings.isNullOrEmpty(modelPackageConfig.getVocabularyFile()) == false) {
-                    Tuple<List<String>, List<String>> vocabularyAndMerges = ModelLoaderUtils.loadVocabulary(
-                        ModelLoaderUtils.resolvePackageLocation(repository, modelPackageConfig.getVocabularyFile())
-                    );
-
-                    PutTrainedModelVocabularyAction.Request r2 = new PutTrainedModelVocabularyAction.Request(
-                        modelId,
-                        vocabularyAndMerges.v1(),
-                        vocabularyAndMerges.v2(),
-                        List.of()
-                    );
-                    client.execute(PutTrainedModelVocabularyAction.INSTANCE, r2).actionGet();
-
-                    logAndWriteNotificationAtDebug(
-                        modelId,
-                        format("uploaded model vocabulary [%s]", modelPackageConfig.getVocabularyFile())
-                    );
-                }
-
-                InputStream modelInputStream = ModelLoaderUtils.getInputStreamFromModelRepository(uri);
-
-                ModelLoaderUtils.InputStreamChunker chunkIterator = new ModelLoaderUtils.InputStreamChunker(
-                    modelInputStream,
-                    DEFAULT_CHUNK_SIZE
-                );
-
-                // simple round up
-                int totalParts = (int) ((size + DEFAULT_CHUNK_SIZE - 1) / DEFAULT_CHUNK_SIZE);
-
-                for (int part = 0; part < totalParts - 1; ++part) {
-                    BytesArray definition = chunkIterator.next();
-
-                    PutTrainedModelDefinitionPartAction.Request r = new PutTrainedModelDefinitionPartAction.Request(
-                        modelId,
-                        definition,
-                        part,
-                        size,
-                        totalParts
-                    );
-
-                    client.execute(PutTrainedModelDefinitionPartAction.INSTANCE, r).actionGet();
-                }
-
-                // get the last part, this time verify the checksum and size
-                BytesArray definition = chunkIterator.next();
-
-                if (modelPackageConfig.getSha256().equals(chunkIterator.getSha256()) == false) {
-                    String message = format(
-                        "Model sha256 checksums do not match, expected [%s] but got [%s]",
-                        modelPackageConfig.getSha256(),
-                        chunkIterator.getSha256()
-                    );
-                    logAndWriteNotificationAtError(modelId, message);
-                    return;
-                }
-
-                if (modelPackageConfig.getSize() != chunkIterator.getTotalBytesRead()) {
-                    String message = format(
-                        "Model size does not match, expected [%d] but got [%d]",
-                        modelPackageConfig.getSize(),
-                        chunkIterator.getTotalBytesRead()
-                    );
-                    logAndWriteNotificationAtError(modelId, message);
-                    return;
-                }
-
-                PutTrainedModelDefinitionPartAction.Request r = new PutTrainedModelDefinitionPartAction.Request(
-                    modelId,
-                    definition,
-                    totalParts - 1,
-                    size,
-                    totalParts
-                );
-
-                client.execute(PutTrainedModelDefinitionPartAction.INSTANCE, r).actionGet();
-                logger.debug(format("finished uploading model [%s] using [%d] parts", modelId, totalParts));
-
-                final long totalRuntimeNanos = System.nanoTime() - relativeStartNanos;
-                logAndWriteNotificationAtInfo(
-                    modelId,
-                    format("finished model upload after [%d] seconds", TimeUnit.NANOSECONDS.toSeconds(totalRuntimeNanos))
-                );
-            } catch (MalformedURLException e) {
-                logAndWriteNotificationAtError(modelId, format("Invalid URL [%s]", e));
-            } catch (URISyntaxException e) {
-                logAndWriteNotificationAtError(modelId, format("Invalid URL syntax [%s]", e));
-            } catch (IOException e) {
-                logAndWriteNotificationAtError(modelId, format("IOException [%s]", e));
-            }
-        });
-
-        listener.onResponse(AcknowledgedResponse.TRUE);
+    protected ClusterBlockException checkBlock(Request request, ClusterState state) {
+        return null;
     }
 
-    private void logAndWriteNotificationAtError(String modelId, String message) {
-        writeNotification(modelId, message, Level.ERROR);
+    @Override
+    protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<AcknowledgedResponse> listener)
+        throws Exception {
+        CancellableTask downloadTask = createDownloadTask(request);
+
+        try {
+            ParentTaskAssigningClient parentTaskAssigningClient = getParentTaskAssigningClient(downloadTask);
+
+            ModelImporter modelImporter = new ModelImporter(
+                parentTaskAssigningClient,
+                request.getModelId(),
+                request.getModelPackageConfig(),
+                downloadTask
+            );
+
+            threadPool.executor(MachineLearningPackageLoader.UTILITY_THREAD_POOL_NAME)
+                .execute(() -> importModel(client, taskManager, request, modelImporter, listener, downloadTask));
+        } catch (Exception e) {
+            taskManager.unregister(downloadTask);
+            listener.onFailure(e);
+            return;
+        }
+
+        if (request.isWaitForCompletion() == false) {
+            listener.onResponse(AcknowledgedResponse.TRUE);
+        }
+    }
+
+    private ParentTaskAssigningClient getParentTaskAssigningClient(Task originTask) {
+        var parentTaskId = new TaskId(clusterService.localNode().getId(), originTask.getId());
+        return new ParentTaskAssigningClient(client, parentTaskId);
+    }
+
+    /**
+     * This is package scope so that we can test the logic directly.
+     * This should only be called from the masterOperation method and the tests
+     *
+     * @param auditClient a client which should only be used to send audit notifications. This client cannot be associated with the passed
+     *                    in task, that way when the task is cancelled the notification requests can
+     *                    still be performed. If it is associated with the task (i.e. via ParentTaskAssigningClient),
+     *                    then the requests will throw a TaskCancelledException.
+     */
+    static void importModel(
+        Client auditClient,
+        TaskManager taskManager,
+        Request request,
+        ModelImporter modelImporter,
+        ActionListener<AcknowledgedResponse> listener,
+        Task task
+    ) {
+        String modelId = request.getModelId();
+        final AtomicReference<Exception> exceptionRef = new AtomicReference<>();
+
+        try {
+            final long relativeStartNanos = System.nanoTime();
+
+            modelImporter.doImport();
+
+            final long totalRuntimeNanos = System.nanoTime() - relativeStartNanos;
+            logAndWriteNotificationAtInfo(
+                auditClient,
+                modelId,
+                format("finished model import after [%d] seconds", TimeUnit.NANOSECONDS.toSeconds(totalRuntimeNanos))
+            );
+        } catch (ElasticsearchException e) {
+            recordError(auditClient, modelId, exceptionRef, e);
+        } catch (MalformedURLException e) {
+            recordError(auditClient, modelId, "an invalid URL", exceptionRef, e, RestStatus.INTERNAL_SERVER_ERROR);
+        } catch (URISyntaxException e) {
+            recordError(auditClient, modelId, "an invalid URL syntax", exceptionRef, e, RestStatus.INTERNAL_SERVER_ERROR);
+        } catch (IOException e) {
+            recordError(auditClient, modelId, "an IOException", exceptionRef, e, RestStatus.SERVICE_UNAVAILABLE);
+        } catch (Exception e) {
+            recordError(auditClient, modelId, "an Exception", exceptionRef, e, RestStatus.INTERNAL_SERVER_ERROR);
+        } finally {
+            taskManager.unregister(task);
+
+            if (request.isWaitForCompletion()) {
+                if (exceptionRef.get() != null) {
+                    listener.onFailure(exceptionRef.get());
+                } else {
+                    listener.onResponse(AcknowledgedResponse.TRUE);
+                }
+
+            }
+        }
+    }
+
+    private CancellableTask createDownloadTask(Request request) {
+        return (CancellableTask) taskManager.register(MODEL_IMPORT_TASK_TYPE, MODEL_IMPORT_TASK_ACTION, new TaskAwareRequest() {
+            @Override
+            public void setParentTask(TaskId taskId) {
+                request.setParentTask(taskId);
+            }
+
+            @Override
+            public void setRequestId(long requestId) {
+                request.setRequestId(requestId);
+            }
+
+            @Override
+            public TaskId getParentTask() {
+                return request.getParentTask();
+            }
+
+            @Override
+            public CancellableTask createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+                return new CancellableTask(id, type, action, downloadModelTaskDescription(request.getModelId()), parentTaskId, headers);
+            }
+        }, false);
+    }
+
+    private static void recordError(Client client, String modelId, AtomicReference<Exception> exceptionRef, ElasticsearchException e) {
+        logAndWriteNotificationAtError(client, modelId, e.getDetailedMessage());
+        exceptionRef.set(e);
+    }
+
+    private static void recordError(
+        Client client,
+        String modelId,
+        String failureType,
+        AtomicReference<Exception> exceptionRef,
+        Exception e,
+        RestStatus status
+    ) {
+        String message = format("Model importing failed due to %s [%s]", failureType, e);
+        logAndWriteNotificationAtError(client, modelId, message);
+        exceptionRef.set(new ElasticsearchStatusException(message, status, e));
+    }
+
+    private static void logAndWriteNotificationAtError(Client client, String modelId, String message) {
+        writeNotification(client, modelId, message, Level.ERROR);
         logger.error(format("[%s] %s", modelId, message));
     }
 
-    private void logAndWriteNotificationAtDebug(String modelId, String message) {
-        writeNotification(modelId, message, Level.INFO); // info is the lowest level
-        logger.debug(() -> format("[%s] %s", modelId, message));
-    }
-
-    private void logAndWriteNotificationAtInfo(String modelId, String message) {
-        writeNotification(modelId, message, Level.INFO);
+    private static void logAndWriteNotificationAtInfo(Client client, String modelId, String message) {
+        writeNotification(client, modelId, message, Level.INFO);
         logger.info(format("[%s] %s", modelId, message));
     }
 
-    private void writeNotification(String modelId, String message, Level level) {
+    private static void writeNotification(Client client, String modelId, String message, Level level) {
         client.execute(
             AuditMlNotificationAction.INSTANCE,
             new AuditMlNotificationAction.Request(AuditMlNotificationAction.AuditType.INFERENCE, modelId, message, level),
             ActionListener.noop()
         );
-    }
-
-    @Override
-    protected ClusterBlockException checkBlock(Request request, ClusterState state) {
-        return null;
     }
 }

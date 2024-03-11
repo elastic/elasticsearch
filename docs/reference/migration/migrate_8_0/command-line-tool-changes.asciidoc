@@ -2,10 +2,6 @@
 [[breaking_80_command_line_tool_changes]]
 ==== Command line tool changes
 
-//NOTE: The notable-breaking-changes tagged regions are re-used in the
-//Installation and Upgrade Guide
-
-//tag::notable-breaking-changes[]
 TIP: {ess-skip-section}
 
 [[migrate-tool-removed]]
@@ -22,4 +18,3 @@ realm directly.
 Discontinue use of the `elasticsearch-migrate` tool. Attempts to use the
 `elasticsearch-migrate` tool will result in an error.
 ====
-//end::notable-breaking-changes[]

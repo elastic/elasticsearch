@@ -10,6 +10,7 @@ package org.elasticsearch.aggregations.bucket.adjacency;
 
 import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.aggregations.bucket.adjacency.AdjacencyMatrixAggregator.KeyedFilter;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -29,7 +30,6 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -151,14 +151,14 @@ public class AdjacencyMatrixAggregationBuilder extends AbstractAggregationBuilde
         }
         // internally we want to have a fixed order of filters, regardless of
         // the order of the filters in the request
-        Collections.sort(this.filters, Comparator.comparing(KeyedFilter::key));
+        this.filters.sort(Comparator.comparing(KeyedFilter::key));
     }
 
     private AdjacencyMatrixAggregationBuilder setFiltersAsList(List<KeyedFilter> filters) {
         this.filters = new ArrayList<>(filters);
         // internally we want to have a fixed order of filters, regardless of
         // the order of the filters in the request
-        Collections.sort(this.filters, Comparator.comparing(KeyedFilter::key));
+        this.filters.sort(Comparator.comparing(KeyedFilter::key));
         return this;
     }
 
@@ -262,6 +262,6 @@ public class AdjacencyMatrixAggregationBuilder extends AbstractAggregationBuilde
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.ZERO;
+        return TransportVersions.ZERO;
     }
 }

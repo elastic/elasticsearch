@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheRequest;
@@ -23,11 +24,13 @@ import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.support.CachingRealm;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.Realms;
+import org.junit.After;
 import org.junit.Before;
 
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.ArgumentMatchers.any;
@@ -38,6 +41,7 @@ import static org.mockito.Mockito.when;
 
 public class TransportClearRealmCacheActionTests extends ESTestCase {
 
+    private static ThreadPool threadPool;
     private AuthenticationService authenticationService;
     private TransportClearRealmCacheAction action;
     private TestCachingRealm nativeRealm;
@@ -45,19 +49,29 @@ public class TransportClearRealmCacheActionTests extends ESTestCase {
 
     @Before
     public void setup() {
+        threadPool = new TestThreadPool("TransportClearRealmCacheActionTests");
+
         authenticationService = mock(AuthenticationService.class);
         nativeRealm = mockRealm("native");
         fileRealm = mockRealm("file");
         final Realms realms = mockRealms(List.of(nativeRealm, fileRealm));
+        TransportService transportService = mock(TransportService.class);
+        when(transportService.getThreadPool()).thenReturn(threadPool);
 
         action = new TransportClearRealmCacheAction(
-            mock(ThreadPool.class),
+            threadPool,
             mockClusterService(),
-            mock(TransportService.class),
+            transportService,
             mock(ActionFilters.class),
             realms,
             authenticationService
         );
+    }
+
+    @After
+    public void cleanup() {
+        ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
+        threadPool = null;
     }
 
     public void testSingleUserCacheCleanupForAllRealms() {

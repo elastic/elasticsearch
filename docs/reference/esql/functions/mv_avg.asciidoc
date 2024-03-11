@@ -1,0 +1,35 @@
+[discrete]
+[[esql-mv_avg]]
+=== `MV_AVG`
+
+*Syntax*
+
+[source,esql]
+----
+MV_AVG(expression)
+----
+
+*Parameters*
+
+`expression`::
+Multivalue expression.
+
+*Description*
+
+Converts a multivalued expression into a single valued column containing the
+average of all of the values.
+
+*Supported types*
+
+include::types/mv_avg.asciidoc[]
+
+*Example*
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/math.csv-spec[tag=mv_avg]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/math.csv-spec[tag=mv_avg-result]
+|===

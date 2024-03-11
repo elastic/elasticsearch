@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -78,6 +77,7 @@ import org.elasticsearch.xpack.ml.job.results.CategoryDefinitionTests;
 import org.elasticsearch.xpack.ml.job.results.ModelPlotTests;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
+import org.elasticsearch.xpack.wildcard.Wildcard;
 import org.junit.After;
 import org.junit.Before;
 
@@ -98,6 +98,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.stream.Collectors.toList;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertCheckedResponse;
 import static org.elasticsearch.xcontent.json.JsonXContent.jsonXContent;
 import static org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex.createStateIndexAndAliasIfNecessary;
 import static org.hamcrest.Matchers.closeTo;
@@ -137,7 +138,8 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
             MockPainlessScriptEngine.TestPlugin.class,
             // ILM is required for .ml-state template index settings
             IndexLifecycle.class,
-            MapperExtrasPlugin.class
+            MapperExtrasPlugin.class,
+            Wildcard.class
         );
     }
 
@@ -775,15 +777,15 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         // Refresh the annotations index so that recently indexed annotation docs are visible.
         indicesAdmin().prepareRefresh(AnnotationIndex.LATEST_INDEX_NAME)
             .setIndicesOptions(IndicesOptions.STRICT_EXPAND_OPEN_HIDDEN_FORBID_CLOSED)
-            .execute()
-            .actionGet();
+            .get();
 
         SearchRequest searchRequest = new SearchRequest(AnnotationIndex.READ_ALIAS_NAME);
-        SearchResponse searchResponse = client().search(searchRequest).actionGet();
         List<Annotation> annotations = new ArrayList<>();
-        for (SearchHit hit : searchResponse.getHits().getHits()) {
-            annotations.add(parseAnnotation(hit.getSourceRef()));
-        }
+        assertCheckedResponse(client().search(searchRequest), searchResponse -> {
+            for (SearchHit hit : searchResponse.getHits().getHits()) {
+                annotations.add(parseAnnotation(hit.getSourceRef()));
+            }
+        });
         return annotations;
     }
 

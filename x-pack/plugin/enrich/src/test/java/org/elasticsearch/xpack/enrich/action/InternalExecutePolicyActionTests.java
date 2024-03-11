@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.transport.TransportService;
 import org.junit.Before;
 
@@ -28,7 +29,8 @@ public class InternalExecutePolicyActionTests extends ESTestCase {
 
     @Before
     public void instantiateTransportAction() {
-        transportAction = new InternalExecutePolicyAction.Transport(mock(TransportService.class), mock(ActionFilters.class), null, null);
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
+        transportAction = new InternalExecutePolicyAction.Transport(transportService, mock(ActionFilters.class), null, null);
     }
 
     public void testSelectNodeForPolicyExecution() {

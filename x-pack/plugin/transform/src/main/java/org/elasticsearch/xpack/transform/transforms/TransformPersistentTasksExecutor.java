@@ -16,6 +16,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -45,6 +46,7 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformStoredDoc;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskParams;
 import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
 import org.elasticsearch.xpack.transform.Transform;
+import org.elasticsearch.xpack.transform.TransformExtension;
 import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.SeqNoPrimaryTermAndIndex;
@@ -74,7 +76,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
     private final ClusterService clusterService;
     private final IndexNameExpressionResolver resolver;
     private final TransformAuditor auditor;
-    private final Settings transformInternalIndexAdditionalSettings;
+    private final TransformExtension transformExtension;
     private volatile int numFailureRetries;
 
     public TransformPersistentTasksExecutor(
@@ -83,10 +85,10 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         ThreadPool threadPool,
         ClusterService clusterService,
         Settings settings,
-        Settings transformInternalIndexAdditionalSettings,
+        TransformExtension transformExtension,
         IndexNameExpressionResolver resolver
     ) {
-        super(TransformField.TASK_NAME, ThreadPool.Names.GENERIC);
+        super(TransformField.TASK_NAME, threadPool.generic());
         this.client = client;
         this.transformServices = transformServices;
         this.threadPool = threadPool;
@@ -95,7 +97,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         this.auditor = transformServices.getAuditor();
         this.numFailureRetries = Transform.NUM_FAILURE_RETRIES_SETTING.get(settings);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(Transform.NUM_FAILURE_RETRIES_SETTING, this::setNumFailureRetries);
-        this.transformInternalIndexAdditionalSettings = transformInternalIndexAdditionalSettings;
+        this.transformExtension = transformExtension;
     }
 
     @Override
@@ -162,7 +164,9 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         List<String> unavailableIndices = new ArrayList<>(indices.length);
         for (String index : indices) {
             IndexRoutingTable routingTable = clusterState.getRoutingTable().index(index);
-            if (routingTable == null || routingTable.allPrimaryShardsActive() == false) {
+            if (routingTable == null
+                || routingTable.allPrimaryShardsActive() == false
+                || routingTable.readyForSearch(clusterState) == false) {
                 unavailableIndices.add(index);
             }
         }
@@ -179,6 +183,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
 
         final String transformId = params.getId();
         final TransformTask buildTask = (TransformTask) task;
+        final ParentTaskAssigningClient parentTaskClient = new ParentTaskAssigningClient(client, buildTask.getParentTaskId());
         // NOTE: TransformPersistentTasksExecutor#createTask pulls in the stored task state from the ClusterState when the object
         // is created. TransformTask#ctor takes into account setting the task as failed if that is passed in with the
         // persisted state.
@@ -187,7 +192,10 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         //
         // We want the rest of the state to be populated in the task when it is loaded on the node so that users can force start it again
         // later if they want.
-        final ClientTransformIndexerBuilder indexerBuilder = new ClientTransformIndexerBuilder().setClient(buildTask.getParentTaskClient())
+        final ClientTransformIndexerBuilder indexerBuilder = new ClientTransformIndexerBuilder().setClient(parentTaskClient)
+            .setClusterService(clusterService)
+            .setIndexNameExpressionResolver(resolver)
+            .setTransformExtension(transformExtension)
             .setTransformServices(transformServices);
 
         final SetOnce<TransformState> stateHolder = new SetOnce<>();
@@ -225,7 +233,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
             // TODO: do not use the same error message as for loading the last checkpoint
             String msg = TransformMessages.getMessage(TransformMessages.FAILED_TO_LOAD_TRANSFORM_CHECKPOINT, transformId);
             logger.error(msg, error);
-            markAsFailed(buildTask, msg);
+            markAsFailed(buildTask, error, msg);
         });
 
         // <5> load last checkpoint
@@ -239,7 +247,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         }, error -> {
             String msg = TransformMessages.getMessage(TransformMessages.FAILED_TO_LOAD_TRANSFORM_CHECKPOINT, transformId);
             logger.error(msg, error);
-            markAsFailed(buildTask, msg);
+            markAsFailed(buildTask, error, msg);
         });
 
         // <4> Set the previous stats (if they exist), initialize the indexer, start the task (If it is STOPPED)
@@ -284,7 +292,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
                 if (error instanceof ResourceNotFoundException == false) {
                     String msg = TransformMessages.getMessage(TransformMessages.FAILED_TO_LOAD_TRANSFORM_STATE, transformId);
                     logger.error(msg, error);
-                    markAsFailed(buildTask, msg);
+                    markAsFailed(buildTask, error, msg);
                 } else {
                     logger.trace("[{}] No stats found (new transform), starting the task", transformId);
                     startTask(buildTask, indexerBuilder, null, null, startTaskListener);
@@ -305,7 +313,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
                     TransformDeprecations.MIN_TRANSFORM_VERSION
                 );
                 auditor.error(transformId, transformTooOldError);
-                markAsFailed(buildTask, transformTooOldError);
+                markAsFailed(buildTask, null, transformTooOldError);
                 return;
             }
 
@@ -317,6 +325,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
                 auditor.error(transformId, validationException.getMessage());
                 markAsFailed(
                     buildTask,
+                    validationException,
                     TransformMessages.getMessage(
                         TransformMessages.TRANSFORM_CONFIGURATION_INVALID,
                         transformId,
@@ -326,8 +335,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
             }
         }, error -> {
             String msg = TransformMessages.getMessage(TransformMessages.FAILED_TO_LOAD_TRANSFORM_CONFIGURATION, transformId);
-            logger.error(msg, error);
-            markAsFailed(buildTask, msg);
+            markAsFailed(buildTask, error, msg);
         });
 
         // <2> Get the transform config
@@ -336,16 +344,15 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
             error -> {
                 Throwable cause = ExceptionsHelper.unwrapCause(error);
                 String msg = "Failed to create internal index mappings";
-                logger.error(msg, cause);
-                markAsFailed(buildTask, msg + "[" + cause + "]");
+                markAsFailed(buildTask, error, msg + "[" + cause + "]");
             }
         );
 
         // <1> Check the latest internal index (IMPORTANT: according to _this_ node, which might be newer than master) is installed
         TransformInternalIndex.createLatestVersionedIndexIfRequired(
             clusterService,
-            buildTask.getParentTaskClient(),
-            transformInternalIndexAdditionalSettings,
+            parentTaskClient,
+            transformExtension.getTransformInternalIndexAdditionalSettings(),
             templateCheckListener
         );
     }
@@ -364,10 +371,11 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         };
     }
 
-    private void markAsFailed(TransformTask task, String reason) {
+    private static void markAsFailed(TransformTask task, Throwable exception, String reason) {
         CountDownLatch latch = new CountDownLatch(1);
 
         task.fail(
+            exception,
             reason,
             new LatchedActionListener<>(
                 ActionListener.wrap(
@@ -418,7 +426,6 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
             type,
             action,
             parentTaskId,
-            client,
             persistentTask.getParams(),
             (TransformState) persistentTask.getState(),
             transformServices.getScheduler(),

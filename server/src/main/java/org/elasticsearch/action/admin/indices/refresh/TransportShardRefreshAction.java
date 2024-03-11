@@ -32,6 +32,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.concurrent.Executor;
 
 public class TransportShardRefreshAction extends TransportReplicationAction<
     BasicReplicationRequest,
@@ -41,8 +42,10 @@ public class TransportShardRefreshAction extends TransportReplicationAction<
     private static final Logger logger = LogManager.getLogger(TransportShardRefreshAction.class);
 
     public static final String NAME = RefreshAction.NAME + "[s]";
-    public static final ActionType<ReplicationResponse> TYPE = new ActionType<>(NAME, ReplicationResponse::new);
+    public static final ActionType<ReplicationResponse> TYPE = new ActionType<>(NAME);
     public static final String SOURCE_API = "api";
+
+    private final Executor refreshExecutor;
 
     @Inject
     public TransportShardRefreshAction(
@@ -65,10 +68,11 @@ public class TransportShardRefreshAction extends TransportReplicationAction<
             actionFilters,
             BasicReplicationRequest::new,
             ShardRefreshReplicaRequest::new,
-            ThreadPool.Names.REFRESH
+            threadPool.executor(ThreadPool.Names.REFRESH)
         );
         // registers the unpromotable version of shard refresh action
         new TransportUnpromotableShardRefreshAction(clusterService, transportService, shardStateAction, actionFilters, indicesService);
+        this.refreshExecutor = transportService.getThreadPool().executor(ThreadPool.Names.REFRESH);
     }
 
     @Override
@@ -122,6 +126,7 @@ public class TransportShardRefreshAction extends TransportReplicationAction<
             } else {
                 UnpromotableShardRefreshRequest unpromotableReplicaRequest = new UnpromotableShardRefreshRequest(
                     indexShardRoutingTable,
+                    replicaRequest.primaryRefreshResult.primaryTerm(),
                     replicaRequest.primaryRefreshResult.generation(),
                     false
                 );
@@ -129,11 +134,7 @@ public class TransportShardRefreshAction extends TransportReplicationAction<
                     transportService.getLocalNode(),
                     TransportUnpromotableShardRefreshAction.NAME,
                     unpromotableReplicaRequest,
-                    new ActionListenerResponseHandler<>(
-                        listener.safeMap(r -> null),
-                        in -> ActionResponse.Empty.INSTANCE,
-                        ThreadPool.Names.REFRESH
-                    )
+                    new ActionListenerResponseHandler<>(listener.safeMap(r -> null), in -> ActionResponse.Empty.INSTANCE, refreshExecutor)
                 );
             }
         }

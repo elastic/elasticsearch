@@ -13,6 +13,8 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -47,6 +49,7 @@ import java.util.Set;
 import java.util.function.IntFunction;
 
 import static java.util.Map.entry;
+import static org.elasticsearch.TransportVersions.V_8_11_X;
 
 /**
  * A stream from another node to this node. Technically, it can also be streamed from a byte array but that is mostly for testing.
@@ -213,7 +216,7 @@ public abstract class StreamOutput extends OutputStream {
         writeBytes(buffer, 0, index);
     }
 
-    private static int putVInt(byte[] buffer, int i, int off) {
+    public static int putVInt(byte[] buffer, int i, int off) {
         if (Integer.numberOfLeadingZeros(i) >= 25) {
             buffer[off] = (byte) i;
             return 1;
@@ -502,10 +505,7 @@ public abstract class StreamOutput extends OutputStream {
         if (array == null) {
             writeVInt(0);
         } else {
-            writeVInt(array.length);
-            for (String s : array) {
-                writeString(s);
-            }
+            writeStringArray(array);
         }
     }
 
@@ -552,13 +552,10 @@ public abstract class StreamOutput extends OutputStream {
         assert false == (map instanceof LinkedHashMap);
         this.writeByte((byte) 10);
         this.writeVInt(map.size());
-        Iterator<? extends Map.Entry<String, ?>> iterator = map.entrySet()
-            .stream()
-            .sorted((a, b) -> a.getKey().compareTo(b.getKey()))
-            .iterator();
+        Iterator<? extends Map.Entry<String, ?>> iterator = map.entrySet().stream().sorted(Map.Entry.comparingByKey()).iterator();
         while (iterator.hasNext()) {
             Map.Entry<String, ?> next = iterator.next();
-            if (this.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
+            if (this.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
                 this.writeGenericValue(next.getKey());
             } else {
                 this.writeString(next.getKey());
@@ -578,34 +575,14 @@ public abstract class StreamOutput extends OutputStream {
      * Writes values of a map as a collection
      */
     public final <V extends Writeable> void writeMapValues(final Map<?, V> map) throws IOException {
-        writeMapValues(map, (o, v) -> v.writeTo(o));
-    }
-
-    /**
-     * Write a {@link Map} of {@code K}-type keys to {@code V}-type {@link List}s.
-     * <pre><code>
-     * Map&lt;String, List&lt;String&gt;&gt; map = ...;
-     * out.writeMapOfLists(map, StreamOutput::writeString, StreamOutput::writeString);
-     * </code></pre>
-     *
-     * @param keyWriter The key writer
-     * @param valueWriter The value writer
-     */
-    public final <K, V> void writeMapOfLists(final Map<K, List<V>> map, final Writer<K> keyWriter, final Writer<V> valueWriter)
-        throws IOException {
-        writeMap(map, keyWriter, (stream, list) -> {
-            writeVInt(list.size());
-            for (final V value : list) {
-                valueWriter.write(this, value);
-            }
-        });
+        writeMapValues(map, StreamOutput::writeWriteable);
     }
 
     /**
      * Write a {@link Map} of {@code K}-type keys to {@code V}-type.
      */
     public final <K extends Writeable, V extends Writeable> void writeMap(final Map<K, V> map) throws IOException {
-        writeMap(map, (o, k) -> k.writeTo(o), (o, v) -> v.writeTo(o));
+        writeMap(map, StreamOutput::writeWriteable, StreamOutput::writeWriteable);
     }
 
     /**
@@ -619,11 +596,21 @@ public abstract class StreamOutput extends OutputStream {
      * @param valueWriter The value writer
      */
     public final <K, V> void writeMap(final Map<K, V> map, final Writer<K> keyWriter, final Writer<V> valueWriter) throws IOException {
-        writeVInt(map.size());
-        for (final Map.Entry<K, V> entry : map.entrySet()) {
-            keyWriter.write(this, entry.getKey());
-            valueWriter.write(this, entry.getValue());
+        int size = map.size();
+        writeVInt(size);
+        if (size > 0) {
+            for (final Map.Entry<K, V> entry : map.entrySet()) {
+                keyWriter.write(this, entry.getKey());
+                valueWriter.write(this, entry.getValue());
+            }
         }
+    }
+
+    /**
+     * Same as {@link #writeMap(Map, Writer, Writer)} but for {@code String} keys.
+     */
+    public final <V> void writeMap(final Map<String, V> map, final Writer<V> valueWriter) throws IOException {
+        writeMap(map, StreamOutput::writeString, valueWriter);
     }
 
     /**
@@ -678,10 +665,7 @@ public abstract class StreamOutput extends OutputStream {
         entry(Object[].class, (o, v) -> {
             o.writeByte((byte) 8);
             final Object[] list = (Object[]) v;
-            o.writeVInt(list.length);
-            for (Object item : list) {
-                o.writeGenericValue(item);
-            }
+            o.writeArray(StreamOutput::writeGenericValue, list);
         }),
         entry(Map.class, (o, v) -> {
             if (v instanceof LinkedHashMap) {
@@ -689,13 +673,13 @@ public abstract class StreamOutput extends OutputStream {
             } else {
                 o.writeByte((byte) 10);
             }
-            if (o.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
+            if (o.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
                 final Map<?, ?> map = (Map<?, ?>) v;
                 o.writeMap(map, StreamOutput::writeGenericValue, StreamOutput::writeGenericValue);
             } else {
                 @SuppressWarnings("unchecked")
                 final Map<String, ?> map = (Map<String, ?>) v;
-                o.writeMap(map, StreamOutput::writeString, StreamOutput::writeGenericValue);
+                o.writeMap(map, StreamOutput::writeGenericValue);
             }
         }),
         entry(Byte.class, (o, v) -> {
@@ -782,11 +766,31 @@ public abstract class StreamOutput extends OutputStream {
             o.writeInt(period.getYears());
             o.writeInt(period.getMonths());
             o.writeInt(period.getDays());
+        }),
+        entry(GenericNamedWriteable.class, (o, v) -> {
+            // Note that we do not rely on the checks in VersionCheckingStreamOutput because that only applies to CCS
+            final var genericNamedWriteable = (GenericNamedWriteable) v;
+            TransportVersion minSupportedVersion = genericNamedWriteable.getMinimalSupportedVersion();
+            assert minSupportedVersion.onOrAfter(V_8_11_X) : "[GenericNamedWriteable] requires [" + V_8_11_X + "]";
+            if (o.getTransportVersion().before(minSupportedVersion)) {
+                final var message = Strings.format(
+                    "[%s] requires minimal transport version [%s] and cannot be sent using transport version [%s]",
+                    genericNamedWriteable.getWriteableName(),
+                    minSupportedVersion,
+                    o.getTransportVersion()
+                );
+                assert false : message;
+                throw new IllegalStateException(message);
+            }
+            o.writeByte((byte) 30);
+            o.writeNamedWriteable(genericNamedWriteable);
         })
     );
 
+    public static final byte GENERIC_LIST_HEADER = (byte) 7;
+
     public <T> void writeGenericList(List<T> v, Writer<T> writer) throws IOException {
-        writeByte((byte) 7);
+        writeByte(GENERIC_LIST_HEADER);
         writeCollection(v, writer);
     }
 
@@ -812,6 +816,8 @@ public abstract class StreamOutput extends OutputStream {
             return Set.class;
         } else if (value instanceof BytesReference) {
             return BytesReference.class;
+        } else if (value instanceof GenericNamedWriteable) {
+            return GenericNamedWriteable.class;
         } else {
             return value.getClass();
         }
@@ -951,7 +957,7 @@ public abstract class StreamOutput extends OutputStream {
      * integer is first written to the stream, and then the elements of the array are written to the stream.
      */
     public <T extends Writeable> void writeArray(T[] array) throws IOException {
-        writeArray((out, value) -> value.writeTo(out), array);
+        writeArray(StreamOutput::writeWriteable, array);
     }
 
     /**
@@ -959,7 +965,7 @@ public abstract class StreamOutput extends OutputStream {
      * serialized to indicate whether the array was null or not.
      */
     public <T extends Writeable> void writeOptionalArray(@Nullable T[] array) throws IOException {
-        writeOptionalArray((out, value) -> value.writeTo(out), array);
+        writeOptionalArray(StreamOutput::writeWriteable, array);
     }
 
     public void writeOptionalWriteable(@Nullable Writeable writeable) throws IOException {
@@ -1031,28 +1037,16 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     /**
-     * Writes a collection to this stream. The corresponding collection can be read from a stream input using
-     * {@link StreamInput#readList(Writeable.Reader)}.
-     *
-     * @param collection the collection to write to this stream
-     * @throws IOException if an I/O exception occurs writing the collection
+     * Writes a collection which can then be read using {@link StreamInput#readCollectionAsList} or another {@code readCollectionAs*}
+     * method. Make sure to read the collection back into the same type as was originally written.
      */
     public void writeCollection(final Collection<? extends Writeable> collection) throws IOException {
-        writeCollection(collection, (o, v) -> v.writeTo(o));
+        writeCollection(collection, StreamOutput::writeWriteable);
     }
 
     /**
-     * Writes a list of {@link Writeable} objects
-     */
-    public void writeList(List<? extends Writeable> list) throws IOException {
-        writeCollection(list);
-    }
-
-    /**
-     * Writes a collection of objects via a {@link Writer}.
-     *
-     * @param collection the collection of objects
-     * @throws IOException if an I/O exception occurs writing the collection
+     * Writes a collection which can then be read using {@link StreamInput#readCollectionAsList} or another {@code readCollectionAs*}
+     * method. Make sure to read the collection back into the same type as was originally written.
      */
     public <T> void writeCollection(final Collection<T> collection, final Writer<T> writer) throws IOException {
         writeVInt(collection.size());
@@ -1062,29 +1056,24 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     /**
-     * Writes a collection of a strings. The corresponding collection can be read from a stream input using
-     * {@link StreamInput#readList(Writeable.Reader)}.
-     *
-     * @param collection the collection of strings
-     * @throws IOException if an I/O exception occurs writing the collection
+     * Writes a collection of strings which can then be read using {@link StreamInput#readStringCollectionAsList} or another {@code
+     * readStringCollectionAs*} method. Make sure to read the collection back into the same type as was originally written.
      */
     public void writeStringCollection(final Collection<String> collection) throws IOException {
         writeCollection(collection, StreamOutput::writeString);
     }
 
     /**
-     * Writes an optional collection. The corresponding collection can be read from a stream input using
-     * {@link StreamInput#readOptionalList(Writeable.Reader)}.
+     * Writes a possibly-{@code null} collection which can then be read using {@link StreamInput#readOptionalCollectionAsList}.
      */
-    public <T extends Writeable> void writeOptionalCollection(final Collection<T> collection) throws IOException {
-        writeOptionalCollection(collection, (o, v) -> v.writeTo(o));
+    public <T extends Writeable> void writeOptionalCollection(@Nullable final Collection<T> collection) throws IOException {
+        writeOptionalCollection(collection, StreamOutput::writeWriteable);
     }
 
     /**
-     * Writes an optional collection via {@link Writer}. The corresponding collection can be read from a stream input using
-     * {@link StreamInput#readOptionalList(Writeable.Reader)}.
+     * Writes a possibly-{@code null} collection which can then be read using {@link StreamInput#readOptionalCollectionAsList}.
      */
-    public <T> void writeOptionalCollection(final Collection<T> collection, final Writer<T> writer) throws IOException {
+    public <T> void writeOptionalCollection(@Nullable final Collection<T> collection, final Writer<T> writer) throws IOException {
         if (collection != null) {
             writeBoolean(true);
             writeCollection(collection, writer);
@@ -1094,24 +1083,19 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     /**
-     * Writes an optional collection of a strings. The corresponding collection can be read from a stream input using
-     * {@link StreamInput#readList(Writeable.Reader)}.
-     *
-     * @param collection the collection of strings
-     * @throws IOException if an I/O exception occurs writing the collection
+     * Writes a possibly-{@code null} collection of strings which can then be read using
+     * {@link StreamInput#readOptionalStringCollectionAsList}.
      */
-    public void writeOptionalStringCollection(final Collection<String> collection) throws IOException {
+    public void writeOptionalStringCollection(@Nullable final Collection<String> collection) throws IOException {
         writeOptionalCollection(collection, StreamOutput::writeString);
     }
 
     /**
-     * Writes a list of {@link NamedWriteable} objects.
+     * Writes a collection of {@link NamedWriteable} objects which can then be read using {@link
+     * StreamInput#readNamedWriteableCollectionAsList}.
      */
-    public void writeNamedWriteableList(List<? extends NamedWriteable> list) throws IOException {
-        writeVInt(list.size());
-        for (NamedWriteable obj : list) {
-            writeNamedWriteable(obj);
-        }
+    public void writeNamedWriteableCollection(Collection<? extends NamedWriteable> list) throws IOException {
+        writeCollection(list, StreamOutput::writeNamedWriteable);
     }
 
     /**

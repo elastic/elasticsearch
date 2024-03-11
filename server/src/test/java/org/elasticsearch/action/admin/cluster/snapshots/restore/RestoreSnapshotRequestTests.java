@@ -22,10 +22,7 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -79,18 +76,19 @@ public class RestoreSnapshotRequestTests extends AbstractWireSerializingTestCase
         instance.includeGlobalState(randomBoolean());
 
         if (randomBoolean()) {
-            Collection<IndicesOptions.WildcardStates> wildcardStates = randomSubsetOf(
-                Arrays.asList(IndicesOptions.WildcardStates.values())
-            );
-            Collection<IndicesOptions.Option> options = randomSubsetOf(
-                Arrays.asList(IndicesOptions.Option.ALLOW_NO_INDICES, IndicesOptions.Option.IGNORE_UNAVAILABLE)
-            );
-
             instance.indicesOptions(
-                new IndicesOptions(
-                    options.isEmpty() ? IndicesOptions.Option.NONE : EnumSet.copyOf(options),
-                    wildcardStates.isEmpty() ? IndicesOptions.WildcardStates.NONE : EnumSet.copyOf(wildcardStates)
-                )
+                IndicesOptions.builder()
+                    .concreteTargetOptions(new IndicesOptions.ConcreteTargetOptions(randomBoolean()))
+                    .wildcardOptions(
+                        new IndicesOptions.WildcardOptions(
+                            randomBoolean(),
+                            randomBoolean(),
+                            randomBoolean(),
+                            instance.indicesOptions().ignoreAliases() == false,
+                            randomBoolean()
+                        )
+                    )
+                    .build()
             );
         }
 
@@ -130,9 +128,13 @@ public class RestoreSnapshotRequestTests extends AbstractWireSerializingTestCase
         original.snapshotUuid(null); // cannot be set via the REST API
         original.quiet(false); // cannot be set via the REST API
         XContentBuilder builder = original.toXContent(XContentFactory.jsonBuilder(), new ToXContent.MapParams(Collections.emptyMap()));
-        XContentParser parser = XContentType.JSON.xContent()
-            .createParser(NamedXContentRegistry.EMPTY, null, BytesReference.bytes(builder).streamInput());
-        Map<String, Object> map = parser.mapOrdered();
+        Map<String, Object> map;
+        try (
+            XContentParser parser = XContentType.JSON.xContent()
+                .createParser(NamedXContentRegistry.EMPTY, null, BytesReference.bytes(builder).streamInput())
+        ) {
+            map = parser.mapOrdered();
+        }
 
         // we will only restore properties from the map that are contained in the request body. All other
         // properties are restored from the original (in the actual REST action this is restored from the
@@ -174,8 +176,11 @@ public class RestoreSnapshotRequestTests extends AbstractWireSerializingTestCase
 
     private Map<String, Object> convertRequestToMap(RestoreSnapshotRequest request) throws IOException {
         XContentBuilder builder = request.toXContent(XContentFactory.jsonBuilder(), new ToXContent.MapParams(Collections.emptyMap()));
-        XContentParser parser = XContentType.JSON.xContent()
-            .createParser(NamedXContentRegistry.EMPTY, null, BytesReference.bytes(builder).streamInput());
-        return parser.mapOrdered();
+        try (
+            XContentParser parser = XContentType.JSON.xContent()
+                .createParser(NamedXContentRegistry.EMPTY, null, BytesReference.bytes(builder).streamInput())
+        ) {
+            return parser.mapOrdered();
+        }
     }
 }

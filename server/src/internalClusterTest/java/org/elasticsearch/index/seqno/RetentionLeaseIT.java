@@ -352,10 +352,7 @@ public class RetentionLeaseIT extends ESIntegTestCase {
             Settings.builder().put(INDICES_RECOVERY_RETRY_DELAY_NETWORK_SETTING.getKey(), TimeValue.timeValueMillis(100))
         );
         final Semaphore recoveriesToDisrupt = new Semaphore(scaledRandomIntBetween(0, 4));
-        final MockTransportService primaryTransportService = (MockTransportService) internalCluster().getInstance(
-            TransportService.class,
-            primaryShardNodeName
-        );
+        final var primaryTransportService = MockTransportService.getInstance(primaryShardNodeName);
         primaryTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
             if (action.equals(PeerRecoveryTargetService.Actions.FINALIZE) && recoveriesToDisrupt.tryAcquire()) {
                 if (randomBoolean()) {
@@ -432,7 +429,7 @@ public class RetentionLeaseIT extends ESIntegTestCase {
                     )
                 );
             } catch (final Exception e) {
-                failWithException(e);
+                fail(e);
             }
         });
 
@@ -488,7 +485,7 @@ public class RetentionLeaseIT extends ESIntegTestCase {
 
                 @Override
                 public void onFailure(final Exception e) {
-                    failWithException(e);
+                    fail(e);
                 }
 
             });
@@ -533,7 +530,7 @@ public class RetentionLeaseIT extends ESIntegTestCase {
                     )
                 );
             } catch (final Exception e) {
-                failWithException(e);
+                fail(e);
             }
         });
 
@@ -580,27 +577,13 @@ public class RetentionLeaseIT extends ESIntegTestCase {
         final CountDownLatch actionLatch = new CountDownLatch(1);
         final AtomicBoolean success = new AtomicBoolean();
 
-        primaryConsumer.accept(primary, new ActionListener<ReplicationResponse>() {
-
-            @Override
-            public void onResponse(final ReplicationResponse replicationResponse) {
-                success.set(true);
-                actionLatch.countDown();
-            }
-
-            @Override
-            public void onFailure(final Exception e) {
-                failWithException(e);
-            }
-
-        });
+        primaryConsumer.accept(primary, ActionTestUtils.assertNoFailureListener(ignored -> {
+            success.set(true);
+            actionLatch.countDown();
+        }));
         actionLatch.await();
         assertTrue(success.get());
         afterSync.accept(primary);
-    }
-
-    private static void failWithException(Exception e) {
-        throw new AssertionError("unexpected", e);
     }
 
     private static ActionListener<ReplicationResponse> countDownLatchListener(CountDownLatch latch) {

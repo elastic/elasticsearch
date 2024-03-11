@@ -195,6 +195,13 @@ request that targets an excluded alias. For example, if `test3` is an index
 alias, the pattern `test*,-test3` still targets the indices for `test3`. To
 avoid this, exclude the concrete indices for the alias instead.
 
+You can also exclude clusters from a list of clusters to search using the `-` character:
+`remote*:*,-remote1:*,-remote4:*` will search all clusters with an alias that starts
+with "remote" except for "remote1" and "remote4". Note that to exclude a cluster
+with this notation you must exclude all of its indexes. Excluding a subset of indexes
+on a remote cluster is currently not supported. For example, this will throw an exception:
+`remote*:*,-remote1:logs*`.
+
 Multi-target APIs that can target indices support the following query
 string parameters:
 
@@ -294,6 +301,14 @@ set `compatible-with=7`:
 Content-Type: application/vnd.elasticsearch+json; compatible-with=7
 Accept: application/vnd.elasticsearch+json; compatible-with=7
 ----------------------------------------------------------------------
+
+[discrete]
+[[api-push-back]]
+=== HTTP `429 Too Many Requests` status code push back
+
+{es} APIs may respond with the HTTP `429 Too Many Requests` status code, indicating that the cluster is too busy
+to handle the request. When this happens, consider retrying after a short delay. If the retry also receives
+a `429 Too Many Requests` response, extend the delay by backing off exponentially before each subsequent retry.
 
 [discrete]
 [[api-url-access-control]]

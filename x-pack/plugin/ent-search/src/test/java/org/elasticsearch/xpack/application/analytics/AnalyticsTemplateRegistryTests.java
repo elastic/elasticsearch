@@ -13,8 +13,8 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.indices.template.put.PutComponentTemplateAction;
-import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
-import org.elasticsearch.action.ingest.PutPipelineAction;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
+import org.elasticsearch.action.ingest.PutPipelineTransportAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
@@ -31,6 +31,7 @@ import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -40,21 +41,16 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.ilm.DeleteAction;
+import org.elasticsearch.xpack.application.EnterpriseSearchFeatures;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
-import org.elasticsearch.xpack.core.ilm.LifecycleAction;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
-import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
+import org.elasticsearch.xpack.core.ilm.action.ILMActions;
 import org.junit.After;
 import org.junit.Before;
 
-import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -67,6 +63,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
@@ -81,7 +78,13 @@ public class AnalyticsTemplateRegistryTests extends ESTestCase {
         threadPool = new TestThreadPool(this.getClass().getName());
         client = new VerifyingClient(threadPool);
         ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
-        registry = new AnalyticsTemplateRegistry(clusterService, threadPool, client, NamedXContentRegistry.EMPTY);
+        registry = new AnalyticsTemplateRegistry(
+            clusterService,
+            new FeatureService(List.of(new EnterpriseSearchFeatures())),
+            threadPool,
+            client,
+            NamedXContentRegistry.EMPTY
+        );
     }
 
     @After
@@ -153,132 +156,6 @@ public class AnalyticsTemplateRegistryTests extends ESTestCase {
         });
     }
 
-    public void testThatNonExistingPoliciesAreAddedImmediately() throws Exception {
-        DiscoveryNode node = DiscoveryNodeUtils.create("node");
-        DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
-
-        AtomicInteger calledTimes = new AtomicInteger(0);
-        client.setVerifier((action, request, listener) -> {
-            if (action instanceof PutPipelineAction) {
-                calledTimes.incrementAndGet();
-                return AcknowledgedResponse.TRUE;
-            }
-            if (action instanceof PutLifecycleAction) {
-                calledTimes.incrementAndGet();
-                assertThat(action, instanceOf(PutLifecycleAction.class));
-                assertThat(request, instanceOf(PutLifecycleAction.Request.class));
-                final PutLifecycleAction.Request putRequest = (PutLifecycleAction.Request) request;
-                assertThat(putRequest.getPolicy().getName(), equalTo(AnalyticsTemplateRegistry.EVENT_DATA_STREAM_ILM_POLICY_NAME));
-                assertNotNull(listener);
-                return AcknowledgedResponse.TRUE;
-            } else if (action instanceof PutComponentTemplateAction) {
-                // Ignore this, it's verified in another test
-                return new AnalyticsTemplateRegistryTests.TestPutIndexTemplateResponse(true);
-            } else if (action instanceof PutComposableIndexTemplateAction) {
-                // Ignore this, it's verified in another test
-                return AcknowledgedResponse.TRUE;
-            } else {
-                fail("client called with unexpected request: " + request.toString());
-                return null;
-            }
-        });
-
-        ClusterChangedEvent event = createClusterChangedEvent(Collections.emptyMap(), Collections.emptyMap(), nodes);
-        registry.clusterChanged(event);
-        assertBusy(() -> assertThat(calledTimes.get(), equalTo(2)));
-    }
-
-    public void testPolicyAlreadyExists() {
-        DiscoveryNode node = DiscoveryNodeUtils.create("node");
-        DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
-
-        Map<String, LifecyclePolicy> policyMap = new HashMap<>();
-        List<LifecyclePolicy> policies = registry.getPolicyConfigs();
-        assertThat(policies, hasSize(1));
-        policies.forEach(p -> policyMap.put(p.getName(), p));
-
-        client.setVerifier((action, request, listener) -> {
-            if (action instanceof PutPipelineAction) {
-                // Ignore this, it's verified in another test
-                return AcknowledgedResponse.TRUE;
-            }
-            if (action instanceof PutComponentTemplateAction) {
-                // Ignore this, it's verified in another test
-                return AcknowledgedResponse.TRUE;
-            } else if (action instanceof PutLifecycleAction) {
-                fail("if the policy already exists it should not be re-put");
-            } else {
-                fail("client called with unexpected request: " + request.toString());
-            }
-            return null;
-        });
-
-        ClusterChangedEvent event = createClusterChangedEvent(
-            Collections.emptyMap(),
-            Collections.emptyMap(),
-            Collections.emptyMap(),
-            policyMap,
-            nodes
-        );
-        registry.clusterChanged(event);
-    }
-
-    public void testPolicyAlreadyExistsButDiffers() throws IOException {
-        DiscoveryNode node = DiscoveryNodeUtils.create("node");
-        DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
-
-        Map<String, LifecyclePolicy> policyMap = new HashMap<>();
-        String policyStr = "{\"phases\":{\"delete\":{\"min_age\":\"1m\",\"actions\":{\"delete\":{}}}}}";
-        List<LifecyclePolicy> policies = registry.getPolicyConfigs();
-        assertThat(policies, hasSize(1));
-        policies.forEach(p -> policyMap.put(p.getName(), p));
-
-        client.setVerifier((action, request, listener) -> {
-            if (action instanceof PutPipelineAction) {
-                // Ignore this, it's verified in another test
-                return AcknowledgedResponse.TRUE;
-            }
-            if (action instanceof PutComponentTemplateAction) {
-                // Ignore this, it's verified in another test
-                return AcknowledgedResponse.TRUE;
-            } else if (action instanceof PutLifecycleAction) {
-                fail("if the policy already exists it should not be re-put");
-            } else {
-                fail("client called with unexpected request: " + request.toString());
-            }
-            return null;
-        });
-
-        try (
-            XContentParser parser = XContentType.JSON.xContent()
-                .createParser(
-                    XContentParserConfiguration.EMPTY.withRegistry(
-                        new NamedXContentRegistry(
-                            List.of(
-                                new NamedXContentRegistry.Entry(
-                                    LifecycleAction.class,
-                                    new ParseField(DeleteAction.NAME),
-                                    DeleteAction::parse
-                                )
-                            )
-                        )
-                    ),
-                    policyStr
-                )
-        ) {
-            LifecyclePolicy different = LifecyclePolicy.parse(parser, policies.get(0).getName());
-            policyMap.put(policies.get(0).getName(), different);
-            ClusterChangedEvent event = createClusterChangedEvent(
-                Collections.emptyMap(),
-                Collections.emptyMap(),
-                Collections.emptyMap(),
-                policyMap,
-                nodes
-            );
-            registry.clusterChanged(event);
-        }
-    }
-
     public void testThatVersionedOldComponentTemplatesAreUpgraded() throws Exception {
         DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
@@ -326,17 +203,17 @@ public class AnalyticsTemplateRegistryTests extends ESTestCase {
         versions.put(AnalyticsTemplateRegistry.EVENT_DATA_STREAM_SETTINGS_COMPONENT_NAME, AnalyticsTemplateRegistry.REGISTRY_VERSION);
         ClusterChangedEvent sameVersionEvent = createClusterChangedEvent(Collections.emptyMap(), versions, nodes);
         client.setVerifier((action, request, listener) -> {
-            if (action instanceof PutPipelineAction) {
+            if (action == PutPipelineTransportAction.TYPE) {
                 // Ignore this, it's verified in another test
                 return AcknowledgedResponse.TRUE;
             }
             if (action instanceof PutComponentTemplateAction) {
                 fail("template should not have been re-installed");
                 return null;
-            } else if (action instanceof PutLifecycleAction) {
-                // Ignore this, it's verified in another test
-                return AcknowledgedResponse.TRUE;
-            } else if (action instanceof PutComposableIndexTemplateAction) {
+            } else if (action == ILMActions.PUT) {
+                fail("As of 8.12.0 we no longer put an ILM lifecycle and instead rely on DSL for analytics datastreams.");
+                return null;
+            } else if (action == TransportPutComposableIndexTemplateAction.TYPE) {
                 // Ignore this, it's verified in another test
                 return AcknowledgedResponse.TRUE;
             } else {
@@ -382,17 +259,16 @@ public class AnalyticsTemplateRegistryTests extends ESTestCase {
 
         AtomicInteger calledTimes = new AtomicInteger(0);
         client.setVerifier((action, request, listener) -> {
-            if (action instanceof PutPipelineAction) {
+            if (action == PutPipelineTransportAction.TYPE) {
                 calledTimes.incrementAndGet();
                 return AcknowledgedResponse.TRUE;
             }
             if (action instanceof PutComponentTemplateAction) {
                 // Ignore this, it's verified in another test
                 return AcknowledgedResponse.TRUE;
-            } else if (action instanceof PutLifecycleAction) {
-                // Ignore this, it's verified in another test
-                return AcknowledgedResponse.TRUE;
-            } else if (action instanceof PutComposableIndexTemplateAction) {
+            } else if (action == ILMActions.PUT) {
+                fail("As of 8.12.0 we no longer put an ILM lifecycle and instead rely on DSL for analytics datastreams.");
+            } else if (action == TransportPutComposableIndexTemplateAction.TYPE) {
                 // Ignore this, it's verified in another test
                 return AcknowledgedResponse.TRUE;
             } else {
@@ -467,21 +343,22 @@ public class AnalyticsTemplateRegistryTests extends ESTestCase {
         ActionRequest request,
         ActionListener<?> listener
     ) {
-        if (action instanceof PutPipelineAction) {
+        if (action == PutPipelineTransportAction.TYPE) {
             // Ignore this, it's verified in another test
             return AcknowledgedResponse.TRUE;
         }
         if (action instanceof PutComponentTemplateAction) {
             // Ignore this, it's verified in another test
             return AcknowledgedResponse.TRUE;
-        } else if (action instanceof PutLifecycleAction) {
-            // Ignore this, it's verified in another test
-            return AcknowledgedResponse.TRUE;
-        } else if (action instanceof PutComposableIndexTemplateAction) {
+        } else if (action == ILMActions.PUT) {
+            fail("As of 8.12.0 we no longer put an ILM lifecycle and instead rely on DSL for analytics datastreams.");
+            return null;
+        } else if (action == TransportPutComposableIndexTemplateAction.TYPE) {
             calledTimes.incrementAndGet();
-            assertThat(action, instanceOf(PutComposableIndexTemplateAction.class));
-            assertThat(request, instanceOf(PutComposableIndexTemplateAction.Request.class));
-            final PutComposableIndexTemplateAction.Request putRequest = (PutComposableIndexTemplateAction.Request) request;
+            assertThat(action, sameInstance(TransportPutComposableIndexTemplateAction.TYPE));
+            assertThat(request, instanceOf(TransportPutComposableIndexTemplateAction.Request.class));
+            final TransportPutComposableIndexTemplateAction.Request putRequest =
+                (TransportPutComposableIndexTemplateAction.Request) request;
             assertThat(putRequest.indexTemplate().version(), equalTo((long) AnalyticsTemplateRegistry.REGISTRY_VERSION));
             final List<String> indexPatterns = putRequest.indexTemplate().indexPatterns();
             assertThat(indexPatterns, hasSize(1));
@@ -500,7 +377,7 @@ public class AnalyticsTemplateRegistryTests extends ESTestCase {
         ActionRequest request,
         ActionListener<?> listener
     ) {
-        if (action instanceof PutPipelineAction) {
+        if (action == PutPipelineTransportAction.TYPE) {
             return AcknowledgedResponse.TRUE;
         }
         if (action instanceof PutComponentTemplateAction) {
@@ -511,10 +388,10 @@ public class AnalyticsTemplateRegistryTests extends ESTestCase {
             assertThat(putRequest.componentTemplate().version(), equalTo((long) AnalyticsTemplateRegistry.REGISTRY_VERSION));
             assertNotNull(listener);
             return new TestPutIndexTemplateResponse(true);
-        } else if (action instanceof PutLifecycleAction) {
-            // Ignore this, it's verified in another test
-            return AcknowledgedResponse.TRUE;
-        } else if (action instanceof PutComposableIndexTemplateAction) {
+        } else if (action == ILMActions.PUT) {
+            fail("As of 8.12.0 we no longer put an ILM lifecycle and instead rely on DSL for analytics datastreams.");
+            return null;
+        } else if (action == TransportPutComposableIndexTemplateAction.TYPE) {
             // Ignore this, it's verified in another test
             return AcknowledgedResponse.TRUE;
         } else {

@@ -11,7 +11,7 @@ package org.elasticsearch.reindex;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActiveShardCount;
-import org.elasticsearch.action.support.ListenableActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
@@ -39,10 +39,15 @@ public abstract class AbstractBaseReindexRestHandler<
         this.action = action;
     }
 
-    protected RestChannelConsumer doPrepareRequest(RestRequest request, NodeClient client, boolean includeCreated, boolean includeUpdated)
-        throws IOException {
+    protected RestChannelConsumer doPrepareRequest(
+        RestRequest request,
+        NamedWriteableRegistry namedWriteableRegistry,
+        NodeClient client,
+        boolean includeCreated,
+        boolean includeUpdated
+    ) throws IOException {
         // Build the internal request
-        Request internal = setCommonOptions(request, buildRequest(request, client.getNamedWriteableRegistry()));
+        Request internal = setCommonOptions(request, buildRequest(request, namedWriteableRegistry));
 
         // Executes the request and waits for completion
         if (request.paramAsBoolean("wait_for_completion", true)) {
@@ -64,9 +69,9 @@ public abstract class AbstractBaseReindexRestHandler<
         if (validationException != null) {
             throw validationException;
         }
-        final var responseFuture = new ListenableActionFuture<BulkByScrollResponse>();
-        final var task = client.executeLocally(action, internal, responseFuture);
-        responseFuture.addListener(new LoggingTaskListener<>(task));
+        final var responseListener = new SubscribableListener<BulkByScrollResponse>();
+        final var task = client.executeLocally(action, internal, responseListener);
+        responseListener.addListener(new LoggingTaskListener<>(task));
         return sendTask(client.getLocalNodeId(), task);
     }
 
@@ -107,7 +112,7 @@ public abstract class AbstractBaseReindexRestHandler<
         return request;
     }
 
-    private RestChannelConsumer sendTask(String localNodeId, Task task) {
+    private static RestChannelConsumer sendTask(String localNodeId, Task task) {
         return channel -> {
             try (XContentBuilder builder = channel.newBuilder()) {
                 builder.startObject();

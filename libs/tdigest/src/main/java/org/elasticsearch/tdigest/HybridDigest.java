@@ -70,7 +70,7 @@ public class HybridDigest extends AbstractTDigest {
     }
 
     @Override
-    public void add(double x, int w) {
+    public void add(double x, long w) {
         reserve(w);
         if (mergingDigest != null) {
             mergingDigest.add(x, w);

@@ -9,6 +9,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.queries.spans.SpanMultiTermQueryWrapper;
 import org.apache.lucene.queries.spans.SpanQuery;
 import org.apache.lucene.search.MultiTermQuery;
@@ -41,13 +42,13 @@ import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 /**
  * Abstract base {@linkplain MappedFieldType} for runtime fields based on a script.
  */
-abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
+public abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
 
     protected final Script script;
     private final Function<SearchLookup, LeafFactory> factory;
     private final boolean isResultDeterministic;
 
-    AbstractScriptFieldType(
+    protected AbstractScriptFieldType(
         String name,
         Function<SearchLookup, LeafFactory> factory,
         Script script,
@@ -217,11 +218,19 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
         );
     }
 
+    @Override
+    public final boolean fieldHasValue(FieldInfos fieldInfos) {
+        // To know whether script field types have value we would need to run the script,
+        // this because script fields do not have footprint in Lucene. Since running the
+        // script would be too expensive for _field_caps we consider them as always non-empty.
+        return true;
+    }
+
     // Placeholder Script for source-only fields
     // TODO rework things so that we don't need this
     protected static final Script DEFAULT_SCRIPT = new Script("");
 
-    abstract static class Builder<Factory> extends RuntimeField.Builder {
+    protected abstract static class Builder<Factory> extends RuntimeField.Builder {
         private final ScriptContext<Factory> scriptContext;
 
         private final FieldMapper.Parameter<Script> script = new FieldMapper.Parameter<>(
@@ -239,14 +248,14 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
             script
         );
 
-        Builder(String name, ScriptContext<Factory> scriptContext) {
+        protected Builder(String name, ScriptContext<Factory> scriptContext) {
             super(name);
             this.scriptContext = scriptContext;
         }
 
-        abstract Factory getParseFromSourceFactory();
+        protected abstract Factory getParseFromSourceFactory();
 
-        abstract Factory getCompositeLeafFactory(Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory);
+        protected abstract Factory getCompositeLeafFactory(Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory);
 
         @Override
         protected final RuntimeField createRuntimeField(MappingParserContext parserContext) {
@@ -286,7 +295,7 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
             return new LeafRuntimeField(name, fieldType, getParameters());
         }
 
-        abstract AbstractScriptFieldType<?> createFieldType(
+        protected abstract AbstractScriptFieldType<?> createFieldType(
             String name,
             Factory factory,
             Script script,
@@ -294,7 +303,7 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
             OnScriptError onScriptError
         );
 
-        AbstractScriptFieldType<?> createFieldType(
+        protected AbstractScriptFieldType<?> createFieldType(
             String name,
             Factory factory,
             Script script,

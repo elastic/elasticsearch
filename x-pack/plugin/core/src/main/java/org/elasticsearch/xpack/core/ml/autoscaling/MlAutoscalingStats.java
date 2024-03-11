@@ -15,8 +15,9 @@ import java.io.IOException;
 
 public record MlAutoscalingStats(
     int nodes,
-    long memoryInBytesSum,
+    long perNodeMemoryInBytes,
     long modelMemoryInBytesSum,
+    int processorsSum,
     int minNodes,
     long extraSingleNodeModelMemoryInBytes,
     int extraSingleNodeProcessors,
@@ -29,8 +30,9 @@ public record MlAutoscalingStats(
     public MlAutoscalingStats(StreamInput in) throws IOException {
         this(
             in.readVInt(), // nodes
-            in.readVLong(),  // memoryInBytesSum
+            in.readVLong(),  // perNodeMemoryInBytes
             in.readVLong(), // modelMemoryInBytes
+            in.readVInt(), // processorsSum
             in.readVInt(), // minNodes
             in.readVLong(), // extraSingleNodeModelMemoryInBytes
             in.readVInt(), // extraSingleNodeProcessors
@@ -44,8 +46,9 @@ public record MlAutoscalingStats(
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(nodes);
-        out.writeVLong(memoryInBytesSum);
+        out.writeVLong(perNodeMemoryInBytes);
         out.writeVLong(modelMemoryInBytesSum);
+        out.writeVLong(processorsSum);
         out.writeVInt(minNodes);
         out.writeVLong(extraSingleNodeModelMemoryInBytes);
         out.writeVInt(extraSingleNodeProcessors);

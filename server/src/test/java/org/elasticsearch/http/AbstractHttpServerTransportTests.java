@@ -31,6 +31,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.plugins.ActionPlugin;
+import org.elasticsearch.plugins.internal.RestExtension;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestControllerTests;
 import org.elasticsearch.rest.RestHeaderDefinition;
@@ -38,13 +39,13 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.usage.UsageService;
@@ -55,6 +56,7 @@ import org.junit.Before;
 
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -69,6 +71,7 @@ import java.util.concurrent.BlockingDeque;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static java.net.InetAddress.getByName;
 import static java.util.Arrays.asList;
@@ -82,8 +85,10 @@ import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
@@ -324,6 +329,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
      */
     public void testTraceParentAndTraceId() {
         final String traceParentValue = "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01";
+        final AtomicReference<Instant> traceStartTimeRef = new AtomicReference<>();
         final HttpServerTransport.Dispatcher dispatcher = new HttpServerTransport.Dispatcher() {
 
             @Override
@@ -332,7 +338,8 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 assertThat(threadContext.getHeader(Task.TRACE_PARENT_HTTP_HEADER), nullValue());
                 assertThat(threadContext.getTransient("parent_" + Task.TRACE_PARENT_HTTP_HEADER), equalTo(traceParentValue));
                 // request trace start time is also set
-                assertThat(threadContext.getTransient(Task.TRACE_START_TIME), notNullValue());
+                assertTrue(traceStartTimeRef.compareAndSet(null, threadContext.getTransient(Task.TRACE_START_TIME)));
+                assertNotNull(traceStartTimeRef.get());
             }
 
             @Override
@@ -371,14 +378,10 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 }
 
                 @Override
-                protected void doStart() {
-
-                }
+                protected void doStart() {}
 
                 @Override
-                protected void stopInternal() {
-
-                }
+                protected void stopInternal() {}
 
                 @Override
                 public HttpStats stats() {
@@ -391,11 +394,20 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 }
             }
         ) {
+            final var systemTimeBeforeRequest = System.currentTimeMillis();
             transport.dispatchRequest(fakeRequest, channel, null);
+            final var systemTimeAfterRequest = System.currentTimeMillis();
             // headers are "null" here, aka not present, because the thread context changes containing them is to be confined to the request
             assertThat(threadPool.getThreadContext().getHeader(Task.TRACE_ID), nullValue());
             assertThat(threadPool.getThreadContext().getHeader(Task.TRACE_PARENT_HTTP_HEADER), nullValue());
             assertThat(threadPool.getThreadContext().getTransient("parent_" + Task.TRACE_PARENT_HTTP_HEADER), nullValue());
+
+            // system clock is not _technically_ monotonic but in practice it's very unlikely to see a discontinuity here
+            assertThat(
+                traceStartTimeRef.get().toEpochMilli(),
+                allOf(greaterThanOrEqualTo(systemTimeBeforeRequest), lessThanOrEqualTo(systemTimeAfterRequest))
+            );
+
             transport.dispatchRequest(null, null, new Exception());
             // headers are "null" here, aka not present, because the thread context changes containing them is to be confined to the request
             assertThat(threadPool.getThreadContext().getHeader(Task.TRACE_ID), nullValue());
@@ -1130,6 +1142,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
         return new ActionModule(
             settings.getSettings(),
             TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext()),
+            null,
             settings.getIndexScopedSettings(),
             settings.getClusterSettings(),
             settings.getSettingsFilter(),
@@ -1141,7 +1154,9 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             null,
             null,
             mock(ClusterService.class),
-            List.of()
+            null,
+            List.of(),
+            RestExtension.allowAll()
         );
     }
 
@@ -1374,8 +1389,8 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
 
         @Override
         public void close() {
-            appender.stop();
             Loggers.removeAppender(mockLogger, appender);
+            appender.stop();
             if (checked == false) {
                 fail("did not check expectations matched in TimedOutLogExpectation");
             }

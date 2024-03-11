@@ -33,7 +33,7 @@ import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.index.memory.MemoryIndex;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 
@@ -208,7 +208,7 @@ class DocumentLeafReader extends LeafReader {
     }
 
     @Override
-    public TopDocs searchNearestVectors(String field, float[] target, int k, Bits acceptDocs, int visitedLimit) {
+    public void searchNearestVectors(String field, float[] target, KnnCollector knnCollector, Bits acceptDocs) {
         throw new UnsupportedOperationException();
     }
 
@@ -258,7 +258,7 @@ class DocumentLeafReader extends LeafReader {
     }
 
     @Override
-    public TopDocs searchNearestVectors(String field, byte[] target, int k, Bits acceptDocs, int visitedLimit) {
+    public void searchNearestVectors(String field, byte[] target, KnnCollector knnCollector, Bits acceptDocs) {
         throw new UnsupportedOperationException();
     }
 
@@ -291,6 +291,7 @@ class DocumentLeafReader extends LeafReader {
             0,
             VectorEncoding.FLOAT32,
             VectorSimilarityFunction.EUCLIDEAN,
+            false,
             false
         );
     }

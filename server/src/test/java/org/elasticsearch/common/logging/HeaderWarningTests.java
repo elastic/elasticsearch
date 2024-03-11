@@ -12,7 +12,6 @@ import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.hamcrest.RegexMatcher;
 import org.hamcrest.core.IsSame;
 
 import java.io.IOException;
@@ -22,13 +21,14 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.common.logging.HeaderWarning.WARNING_HEADER_PATTERN;
-import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.matchesRegex;
 import static org.hamcrest.Matchers.not;
 
 /**
@@ -36,7 +36,7 @@ import static org.hamcrest.Matchers.not;
  */
 public class HeaderWarningTests extends ESTestCase {
 
-    private static final RegexMatcher warningValueMatcher = matches(WARNING_HEADER_PATTERN.pattern());
+    private static final org.hamcrest.Matcher<String> warningValueMatcher = matchesRegex(WARNING_HEADER_PATTERN);
 
     private final HeaderWarning logger = new HeaderWarning();
 
@@ -309,6 +309,7 @@ public class HeaderWarningTests extends ESTestCase {
                 + ".ml-stats,.monitoring-beats-mb,.monitoring-ent-search-mb,.monitoring-es-mb,.monitoring-kibana-mb,"
                 + ".monitoring-logstash-mb,.profiling-ilm-lock,.slm-history,.watch-history-16,behavioral_analytics-events-default,"
                 + "ilm-history,logs,metrics,profiling-events,profiling-executables,profiling-metrics,profiling-returnpads-private,"
+                + "profiling-costs"
                 + "profiling-sq-executables,profiling-sq-leafframes,profiling-stackframes,profiling-stacktraces,"
                 + "profiling-symbols,synthetics] with patterns (.deprecation-indexing-template => [.logs-deprecation.*],"
                 + ".fleet-file-data => [.fleet-file-data-*-*],.fleet-files => [.fleet-files-*-*],.ml-anomalies- => [.ml-anomalies-*],"
@@ -316,11 +317,12 @@ public class HeaderWarningTests extends ESTestCase {
                 + ".monitoring-beats-mb => [.monitoring-beats-8-*],.monitoring-ent-search-mb => [.monitoring-ent-search-8-*],"
                 + ".monitoring-es-mb => [.monitoring-es-8-*],.monitoring-kibana-mb => [.monitoring-kibana-8-*],"
                 + ".monitoring-logstash-mb => [.monitoring-logstash-8-*],.profiling-ilm-lock => [.profiling-ilm-lock*],"
-                + ".slm-history => [.slm-history-5*],.watch-history-16 => [.watcher-history-16*],"
-                + "behavioral_analytics-events-default => [behavioral_analytics-events-*],ilm-history => [ilm-history-5*],"
+                + ".slm-history => [.slm-history-7*],.watch-history-16 => [.watcher-history-16*],"
+                + "behavioral_analytics-events-default => [behavioral_analytics-events-*],ilm-history => [ilm-history-7*],"
                 + "logs => [logs-*-*],metrics => [metrics-*-*],profiling-events => [profiling-events*],profiling-executables => "
                 + "[profiling-executables*],profiling-metrics => [profiling-metrics*],profiling-returnpads-private => "
                 + "[.profiling-returnpads-private*],profiling-sq-executables => [.profiling-sq-executables*],"
+                + "profiling-costs => [.profiling-costs*],"
                 + "profiling-sq-leafframes => [.profiling-sq-leafframes*],profiling-stackframes => [profiling-stackframes*],"
                 + "profiling-stacktraces => [profiling-stacktraces*],profiling-symbols => [.profiling-symbols*],synthetics => "
                 + "[synthetics-*-*]); this template [global] may be ignored in favor of a composable template at index creation time"
@@ -346,6 +348,24 @@ public class HeaderWarningTests extends ESTestCase {
         HeaderWarning.addWarning(threadContexts, "\"");
         HeaderWarning.addWarning(threadContexts, "\\");
         HeaderWarning.addWarning(threadContexts, allNotAllowedChars());
+    }
+
+    public void testWarnAgentValidationStateful() {
+        var sampleWarningWithFullAgent = "299 Elasticsearch-8.11.0-SNAPSHOT-e4ccab7b7122041b8315194941bef592410916d0 "
+            + "\"[xpack.eql.enabled] setting was deprecated in Elasticsearch and will be removed in a future release.\"";
+
+        var pattern = HeaderWarning.getPatternWithSemanticVersion();
+        final Matcher matcher = pattern.matcher(sampleWarningWithFullAgent);
+        assertTrue("Warning on stateful/on-prem should match pattern with semantic version", matcher.matches());
+    }
+
+    public void testWarnAgentValidationStateless() {
+        var sampleWarningWithFullAgent = "299 Elasticsearch-e4ccab7b7122041b8315194941bef592410916d0 "
+            + "\"[xpack.eql.enabled] setting was deprecated in Elasticsearch and will be removed in a future release.\"";
+
+        var pattern = HeaderWarning.getPatternWithoutSemanticVersion();
+        final Matcher matcher = pattern.matcher(sampleWarningWithFullAgent);
+        assertTrue("Warning on stateless should match pattern without semantic version", matcher.matches());
     }
 
     private String allNotAllowedChars() {

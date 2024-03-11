@@ -68,7 +68,7 @@ public class ClientYamlTestResponse {
      * Also in testing there is no access to media types defined outside of XContentType.
      * Therefore a null has to be returned if a response content-type has a mediatype not defined in XContentType.
      */
-    private XContentType getContentTypeIgnoreExceptions(String contentType) {
+    private static XContentType getContentTypeIgnoreExceptions(String contentType) {
         try {
             return XContentType.fromMediaType(contentType);
         } catch (IllegalArgumentException e) {

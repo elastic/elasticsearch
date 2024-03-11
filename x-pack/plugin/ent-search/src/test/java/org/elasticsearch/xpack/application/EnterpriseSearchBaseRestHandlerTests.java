@@ -27,13 +27,14 @@ import static org.mockito.Mockito.when;
 public class EnterpriseSearchBaseRestHandlerTests extends ESTestCase {
     public void testLicenseEnforcement() throws Exception {
         MockLicenseState licenseState = MockLicenseState.createMock();
+        final LicenseUtils.Product product = LicenseUtils.Product.QUERY_RULES;
         final boolean licensedFeature = randomBoolean();
 
         when(licenseState.isAllowed(LicenseUtils.LICENSED_ENT_SEARCH_FEATURE)).thenReturn(licensedFeature);
         when(licenseState.isActive()).thenReturn(licensedFeature);
 
         final AtomicBoolean consumerCalled = new AtomicBoolean(false);
-        EnterpriseSearchBaseRestHandler handler = new EnterpriseSearchBaseRestHandler(licenseState) {
+        EnterpriseSearchBaseRestHandler handler = new EnterpriseSearchBaseRestHandler(licenseState, product) {
 
             @Override
             protected RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
@@ -58,7 +59,8 @@ public class EnterpriseSearchBaseRestHandlerTests extends ESTestCase {
         FakeRestRequest fakeRestRequest = new FakeRestRequest();
         FakeRestChannel fakeRestChannel = new FakeRestChannel(fakeRestRequest, randomBoolean(), licensedFeature ? 0 : 1);
 
-        try (NodeClient client = new NoOpNodeClient(this.getTestName())) {
+        try (var threadPool = createThreadPool()) {
+            final var client = new NoOpNodeClient(threadPool);
             assertFalse(consumerCalled.get());
             verifyNoMoreInteractions(licenseState);
             handler.handleRequest(fakeRestRequest, fakeRestChannel, client);

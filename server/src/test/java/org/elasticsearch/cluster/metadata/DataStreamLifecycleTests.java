@@ -31,6 +31,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -50,43 +51,50 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
 
     @Override
     protected DataStreamLifecycle mutateInstance(DataStreamLifecycle instance) throws IOException {
+        var enabled = instance.isEnabled();
         var retention = instance.getDataRetention();
         var downsampling = instance.getDownsampling();
-        if (randomBoolean()) {
-            if (retention == null || retention == DataStreamLifecycle.Retention.NULL) {
-                retention = randomValueOtherThan(retention, DataStreamLifecycleTests::randomRetention);
-            } else {
-                retention = switch (randomInt(2)) {
-                    case 0 -> null;
-                    case 1 -> DataStreamLifecycle.Retention.NULL;
-                    default -> new DataStreamLifecycle.Retention(
-                        TimeValue.timeValueMillis(randomValueOtherThan(retention.value().millis(), ESTestCase::randomMillisUpToYear9999))
-                    );
-                };
+        switch (randomInt(2)) {
+            case 0 -> {
+                if (retention == null || retention == DataStreamLifecycle.Retention.NULL) {
+                    retention = randomValueOtherThan(retention, DataStreamLifecycleTests::randomRetention);
+                } else {
+                    retention = switch (randomInt(2)) {
+                        case 0 -> null;
+                        case 1 -> DataStreamLifecycle.Retention.NULL;
+                        default -> new DataStreamLifecycle.Retention(
+                            TimeValue.timeValueMillis(
+                                randomValueOtherThan(retention.value().millis(), ESTestCase::randomMillisUpToYear9999)
+                            )
+                        );
+                    };
+                }
             }
-        } else {
-            if (downsampling == null || downsampling == DataStreamLifecycle.Downsampling.NULL) {
-                downsampling = randomValueOtherThan(downsampling, DataStreamLifecycleTests::randomDownsampling);
-            } else {
-                downsampling = switch (randomInt(2)) {
-                    case 0 -> null;
-                    case 1 -> DataStreamLifecycle.Downsampling.NULL;
-                    default -> {
-                        if (downsampling.rounds().size() == 1) {
-                            yield new DataStreamLifecycle.Downsampling(
-                                List.of(downsampling.rounds().get(0), nextRound(downsampling.rounds().get(0)))
-                            );
+            case 1 -> {
+                if (downsampling == null || downsampling == DataStreamLifecycle.Downsampling.NULL) {
+                    downsampling = randomValueOtherThan(downsampling, DataStreamLifecycleTests::randomDownsampling);
+                } else {
+                    downsampling = switch (randomInt(2)) {
+                        case 0 -> null;
+                        case 1 -> DataStreamLifecycle.Downsampling.NULL;
+                        default -> {
+                            if (downsampling.rounds().size() == 1) {
+                                yield new DataStreamLifecycle.Downsampling(
+                                    List.of(downsampling.rounds().get(0), nextRound(downsampling.rounds().get(0)))
+                                );
 
-                        } else {
-                            var updatedRounds = new ArrayList<>(downsampling.rounds());
-                            updatedRounds.remove(randomInt(downsampling.rounds().size() - 1));
-                            yield new DataStreamLifecycle.Downsampling(updatedRounds);
+                            } else {
+                                var updatedRounds = new ArrayList<>(downsampling.rounds());
+                                updatedRounds.remove(randomInt(downsampling.rounds().size() - 1));
+                                yield new DataStreamLifecycle.Downsampling(updatedRounds);
+                            }
                         }
-                    }
-                };
+                    };
+                }
             }
+            default -> enabled = enabled == false;
         }
-        return new DataStreamLifecycle(retention, downsampling);
+        return DataStreamLifecycle.newBuilder().dataRetention(retention).downsampling(downsampling).enabled(enabled).build();
     }
 
     @Override
@@ -208,11 +216,50 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
             );
             assertThat(exception.getMessage(), equalTo("Downsampling configuration should have at least one round configured."));
         }
+        {
+            IllegalArgumentException exception = expectThrows(
+                IllegalArgumentException.class,
+                () -> new DataStreamLifecycle.Downsampling(
+                    Stream.iterate(1, i -> i * 2)
+                        .limit(12)
+                        .map(
+                            i -> new DataStreamLifecycle.Downsampling.Round(
+                                TimeValue.timeValueDays(i),
+                                new DownsampleConfig(new DateHistogramInterval(i + "h"))
+                            )
+                        )
+                        .toList()
+                )
+            );
+            assertThat(exception.getMessage(), equalTo("Downsampling configuration supports maximum 10 configured rounds. Found: 12"));
+        }
+
+        {
+            IllegalArgumentException exception = expectThrows(
+                IllegalArgumentException.class,
+                () -> new DataStreamLifecycle.Downsampling(
+                    List.of(
+                        new DataStreamLifecycle.Downsampling.Round(
+                            TimeValue.timeValueDays(10),
+                            new DownsampleConfig(new DateHistogramInterval("2m"))
+                        )
+                    )
+                )
+            );
+            assertThat(
+                exception.getMessage(),
+                equalTo("A downsampling round must have a fixed interval of at least five minutes but found: 2m")
+            );
+        }
     }
 
     @Nullable
     public static DataStreamLifecycle randomLifecycle() {
-        return new DataStreamLifecycle(randomRetention(), randomDownsampling());
+        return DataStreamLifecycle.newBuilder()
+            .dataRetention(randomRetention())
+            .downsampling(randomDownsampling())
+            .enabled(frequently())
+            .build();
     }
 
     @Nullable
@@ -230,7 +277,7 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
             case 0 -> null;
             case 1 -> DataStreamLifecycle.Downsampling.NULL;
             default -> {
-                var count = randomIntBetween(0, 10);
+                var count = randomIntBetween(0, 9);
                 List<DataStreamLifecycle.Downsampling.Round> rounds = new ArrayList<>();
                 var previous = new DataStreamLifecycle.Downsampling.Round(
                     TimeValue.timeValueDays(randomIntBetween(1, 365)),

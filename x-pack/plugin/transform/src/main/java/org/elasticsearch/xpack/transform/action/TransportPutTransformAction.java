@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.transform.action;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceAlreadyExistsException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -23,6 +22,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
+import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.action.PutTransformAction;
 import org.elasticsearch.xpack.core.transform.action.PutTransformAction.Request;
@@ -41,13 +42,10 @@ import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.AuthorizationStatePersistenceUtils;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
-import org.elasticsearch.xpack.transform.transforms.Function;
 import org.elasticsearch.xpack.transform.transforms.FunctionFactory;
 
 import java.time.Instant;
-import java.util.List;
 
-import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.transform.utils.SecondaryAuthorizationUtils.getSecurityHeadersPreferringSecondary;
 
 public class TransportPutTransformAction extends AcknowledgedTransportMasterNodeAction<Request> {
@@ -79,7 +77,7 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
             actionFilters,
             PutTransformAction.Request::new,
             indexNameExpressionResolver,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.settings = settings;
         this.client = client;
@@ -94,7 +92,7 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
     protected void masterOperation(Task task, Request request, ClusterState clusterState, ActionListener<AcknowledgedResponse> listener) {
         XPackPlugin.checkReadyForXPackCustomMetadata(clusterState);
 
-        TransformConfig config = request.getConfig().setCreateTime(Instant.now()).setVersion(Version.CURRENT);
+        TransformConfig config = request.getConfig().setCreateTime(Instant.now()).setVersion(TransformConfigVersion.CURRENT);
         config.setHeaders(getSecurityHeadersPreferringSecondary(threadPool, securityContext, clusterState));
 
         String transformId = config.getId();
@@ -107,21 +105,19 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
         }
 
         // <3> Create the transform
-        ActionListener<ValidateTransformAction.Response> validateTransformListener = ActionListener.wrap(
-            validationResponse -> putTransform(request, listener),
-            listener::onFailure
+        ActionListener<ValidateTransformAction.Response> validateTransformListener = listener.delegateFailureAndWrap(
+            (l, unused) -> putTransform(request, l)
         );
 
         // <2> Validate source and destination indices
-        ActionListener<Void> checkPrivilegesListener = ActionListener.wrap(
-            aVoid -> ClientHelper.executeAsyncWithOrigin(
+        ActionListener<Void> checkPrivilegesListener = validateTransformListener.delegateFailureAndWrap(
+            (l, aVoid) -> ClientHelper.executeAsyncWithOrigin(
                 client,
                 ClientHelper.TRANSFORM_ORIGIN,
                 ValidateTransformAction.INSTANCE,
                 new ValidateTransformAction.Request(config, request.isDeferValidation(), request.timeout()),
-                validateTransformListener
-            ),
-            listener::onFailure
+                l
+            )
         );
 
         // <1> Early check to verify that the user can create the destination index and can read from the source
@@ -169,24 +165,19 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
     }
 
     private void putTransform(Request request, ActionListener<AcknowledgedResponse> listener) {
+        var config = request.getConfig();
+        transformConfigManager.putTransformConfiguration(config, listener.delegateFailureAndWrap((l, unused) -> {
+            var transformId = config.getId();
+            logger.debug("[{}] created transform", transformId);
+            auditor.info(transformId, "Created transform.");
 
-        final TransformConfig config = request.getConfig();
-        // create the function for validation
-        final Function function = FunctionFactory.create(config);
+            var validationFunc = FunctionFactory.create(config);
+            TransformConfigLinter.getWarnings(validationFunc, config.getSource(), config.getSyncConfig()).forEach(warning -> {
+                logger.warn("[{}] {}", transformId, warning);
+                auditor.warning(transformId, warning);
+            });
 
-        // <2> Return to the listener
-        ActionListener<Boolean> putTransformConfigurationListener = ActionListener.wrap(putTransformConfigurationResult -> {
-            logger.debug("[{}] created transform", config.getId());
-            auditor.info(config.getId(), "Created transform.");
-            List<String> warnings = TransformConfigLinter.getWarnings(function, config.getSource(), config.getSyncConfig());
-            for (String warning : warnings) {
-                logger.warn(() -> format("[%s] %s", config.getId(), warning));
-                auditor.warning(config.getId(), warning);
-            }
-            listener.onResponse(AcknowledgedResponse.TRUE);
-        }, listener::onFailure);
-
-        // <1> Put our transform
-        transformConfigManager.putTransformConfiguration(config, putTransformConfigurationListener);
+            l.onResponse(AcknowledgedResponse.TRUE);
+        }));
     }
 }

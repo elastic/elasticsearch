@@ -9,7 +9,7 @@
 package org.elasticsearch.index.translog;
 
 import org.apache.lucene.store.AlreadyClosedException;
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -25,7 +25,6 @@ import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -144,6 +143,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      * @param persistedSequenceNumberConsumer a callback that's called whenever an operation with a given sequence number is successfully
      *                                        persisted.
      */
+    @SuppressWarnings("this-escape")
     public Translog(
         final TranslogConfig config,
         final String translogUUID,
@@ -572,8 +572,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      * @throws IOException if adding the operation to the translog resulted in an I/O exception
      */
     public Location add(final Operation operation) throws IOException {
-        final ReleasableBytesStreamOutput out = new ReleasableBytesStreamOutput(bigArrays);
-        try {
+        try (ReleasableBytesStreamOutput out = new ReleasableBytesStreamOutput(bigArrays)) {
             writeOperationWithSize(out, operation);
             final BytesReference bytes = out.bytes();
             try (ReleasableLock ignored = readLock.acquire()) {
@@ -603,8 +602,6 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         } catch (final Exception ex) {
             closeOnTragicEvent(ex);
             throw new TranslogException(shardId, "Failed to write operation [" + operation + "]", ex);
-        } finally {
-            Releasables.close(out);
         }
     }
 
@@ -1223,7 +1220,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
         @Override
         public void writeBody(final StreamOutput out) throws IOException {
-            final int format = out.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0)
+            final int format = out.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)
                 ? SERIALIZATION_FORMAT
                 : FORMAT_NO_VERSION_TYPE;
             out.writeVInt(format);
@@ -1318,7 +1315,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             if (format < FORMAT_NO_DOC_TYPE) {
                 final String docType = in.readString();
                 assert docType.equals(IdFieldMapper.NAME) : docType + " != " + IdFieldMapper.NAME;
-                in.readBytesRef(); // uid
+                in.readSlicedBytesReference(); // uid
             }
             long version = in.readLong();
             if (format < FORMAT_NO_VERSION_TYPE) {
@@ -1364,7 +1361,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
         @Override
         public void writeBody(final StreamOutput out) throws IOException {
-            final int format = out.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0)
+            final int format = out.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)
                 ? SERIALIZATION_FORMAT
                 : FORMAT_NO_VERSION_TYPE;
             out.writeVInt(format);
@@ -1504,7 +1501,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         ArrayList<Operation> operations = new ArrayList<>();
         int numOps = input.readInt();
         final BufferedChecksumStreamInput checksumStreamInput = new BufferedChecksumStreamInput(input, source);
-        if (input.getTransportVersion().before(TransportVersion.V_8_8_0)) {
+        if (input.getTransportVersion().before(TransportVersions.V_8_8_0)) {
             for (int i = 0; i < numOps; i++) {
                 operations.add(readOperation(checksumStreamInput));
             }
@@ -1554,7 +1551,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         if (size == 0) {
             return;
         }
-        if (outStream.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+        if (outStream.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
             final BufferedChecksumStreamOutput checksumStreamOutput = new BufferedChecksumStreamOutput(outStream);
             for (Operation op : toWrite) {
                 writeOperationNoSize(checksumStreamOutput, op);

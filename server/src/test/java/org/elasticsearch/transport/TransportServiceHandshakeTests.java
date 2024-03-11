@@ -11,6 +11,7 @@ package org.elasticsearch.transport;
 import org.elasticsearch.Build;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -23,6 +24,7 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
@@ -36,13 +38,12 @@ import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.transport.AbstractSimpleTransportTestCase.IGNORE_DESERIALIZATION_ERRORS_SETTING;
 import static org.hamcrest.Matchers.containsString;
@@ -82,14 +83,12 @@ public class TransportServiceHandshakeTests extends ESTestCase {
             transport,
             threadPool,
             transportInterceptor,
-            (boundAddress) -> new DiscoveryNode(
-                nodeNameAndId,
-                nodeNameAndId,
-                boundAddress.publishAddress(),
-                emptyMap(),
-                emptySet(),
-                nodeVersion
-            ),
+            (boundAddress) -> DiscoveryNodeUtils.builder(nodeNameAndId)
+                .name(nodeNameAndId)
+                .address(boundAddress.publishAddress())
+                .roles(emptySet())
+                .version(nodeVersion)
+                .build(),
             null,
             Collections.emptySet()
         );
@@ -130,7 +129,7 @@ public class TransportServiceHandshakeTests extends ESTestCase {
             TransportVersionUtils.randomCompatibleVersion(random()),
             new VersionInformation(
                 VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumCompatibilityVersion(), Version.CURRENT),
-                IndexVersion.MINIMUM_COMPATIBLE,
+                IndexVersions.MINIMUM_COMPATIBLE,
                 IndexVersion.current()
             ),
             TransportService.NOOP_TRANSPORT_INTERCEPTOR
@@ -138,7 +137,7 @@ public class TransportServiceHandshakeTests extends ESTestCase {
         DiscoveryNode discoveryNode = DiscoveryNodeUtils.builder("")
             .address(transportServiceB.getLocalNode().getAddress())
             .roles(emptySet())
-            .version(Version.CURRENT.minimumCompatibilityVersion())
+            .version(Version.CURRENT.minimumCompatibilityVersion(), IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current())
             .build();
         try (
             Transport.Connection connection = AbstractSimpleTransportTestCase.openConnection(
@@ -175,7 +174,7 @@ public class TransportServiceHandshakeTests extends ESTestCase {
         DiscoveryNode discoveryNode = DiscoveryNodeUtils.builder("")
             .address(transportServiceB.getLocalNode().getAddress())
             .roles(emptySet())
-            .version(Version.CURRENT.minimumCompatibilityVersion())
+            .version(Version.CURRENT.minimumCompatibilityVersion(), IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current())
             .build();
         IllegalStateException ex = expectThrows(IllegalStateException.class, () -> {
             try (
@@ -207,10 +206,10 @@ public class TransportServiceHandshakeTests extends ESTestCase {
         TransportService transportServiceB = startServices(
             "TS_B",
             settings,
-            TransportVersion.MINIMUM_COMPATIBLE,
+            TransportVersions.MINIMUM_COMPATIBLE,
             new VersionInformation(
                 VersionUtils.getPreviousVersion(Version.CURRENT.minimumCompatibilityVersion()),
-                IndexVersion.MINIMUM_COMPATIBLE,
+                IndexVersions.MINIMUM_COMPATIBLE,
                 IndexVersion.current()
             ),
             TransportService.NOOP_TRANSPORT_INTERCEPTOR
@@ -218,7 +217,7 @@ public class TransportServiceHandshakeTests extends ESTestCase {
         DiscoveryNode discoveryNode = DiscoveryNodeUtils.builder("")
             .address(transportServiceB.getLocalNode().getAddress())
             .roles(emptySet())
-            .version(Version.CURRENT.minimumCompatibilityVersion())
+            .version(Version.CURRENT.minimumCompatibilityVersion(), IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current())
             .build();
         IllegalStateException ex = expectThrows(IllegalStateException.class, () -> {
             try (
@@ -258,14 +257,14 @@ public class TransportServiceHandshakeTests extends ESTestCase {
         TransportService transportServiceB = startServices(
             "TS_B",
             settings,
-            TransportVersionUtils.getPreviousVersion(TransportVersion.MINIMUM_COMPATIBLE),
-            new VersionInformation(Version.CURRENT.minimumCompatibilityVersion(), IndexVersion.MINIMUM_COMPATIBLE, IndexVersion.current()),
+            TransportVersionUtils.getPreviousVersion(TransportVersions.MINIMUM_COMPATIBLE),
+            new VersionInformation(Version.CURRENT.minimumCompatibilityVersion(), IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current()),
             TransportService.NOOP_TRANSPORT_INTERCEPTOR
         );
         DiscoveryNode discoveryNode = DiscoveryNodeUtils.builder("")
             .address(transportServiceB.getLocalNode().getAddress())
             .roles(emptySet())
-            .version(Version.CURRENT.minimumCompatibilityVersion())
+            .version(Version.CURRENT.minimumCompatibilityVersion(), IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current())
             .build();
         expectThrows(ConnectTransportException.class, () -> {
             try (
@@ -301,7 +300,7 @@ public class TransportServiceHandshakeTests extends ESTestCase {
         DiscoveryNode discoveryNode = DiscoveryNodeUtils.builder(randomAlphaOfLength(10))
             .address(transportServiceB.getLocalNode().getAddress())
             .roles(emptySet())
-            .version(transportServiceB.getLocalNode().getVersion())
+            .version(transportServiceB.getLocalNode().getVersionInformation())
             .build();
         ConnectTransportException ex = expectThrows(
             ConnectTransportException.class,
@@ -337,7 +336,7 @@ public class TransportServiceHandshakeTests extends ESTestCase {
         final DiscoveryNode discoveryNode = DiscoveryNodeUtils.builder("")
             .address(transportServiceB.getLocalNode().getAddress())
             .roles(emptySet())
-            .version(Version.CURRENT.minimumCompatibilityVersion())
+            .version(Version.CURRENT.minimumCompatibilityVersion(), IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current())
             .build();
         TransportSerializationException ex = expectThrows(TransportSerializationException.class, () -> {
             try (
@@ -407,8 +406,8 @@ public class TransportServiceHandshakeTests extends ESTestCase {
         final TransportService transportServiceB = startServices(
             "TS_B",
             Settings.builder().put("cluster.name", "a").build(),
-            TransportVersion.MINIMUM_COMPATIBLE,
-            new VersionInformation(Version.CURRENT.minimumCompatibilityVersion(), IndexVersion.MINIMUM_COMPATIBLE, IndexVersion.current()),
+            TransportVersions.MINIMUM_COMPATIBLE,
+            new VersionInformation(Version.CURRENT.minimumCompatibilityVersion(), IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current()),
             transportInterceptorB
         );
         AbstractSimpleTransportTestCase.connectToNode(transportServiceA, transportServiceB.getLocalNode(), TestProfiles.LIGHT_PROFILE);
@@ -426,7 +425,7 @@ public class TransportServiceHandshakeTests extends ESTestCase {
         @Override
         public <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(
             String action,
-            String executor,
+            Executor executor,
             boolean forceExecution,
             TransportRequestHandler<T> actualHandler
         ) {
@@ -439,12 +438,7 @@ public class TransportServiceHandshakeTests extends ESTestCase {
                     }
 
                     @Override
-                    public String getChannelType() {
-                        return channel.getChannelType();
-                    }
-
-                    @Override
-                    public void sendResponse(TransportResponse response) throws IOException {
+                    public void sendResponse(TransportResponse response) {
                         assertThat(response, instanceOf(TransportService.HandshakeResponse.class));
                         if (modifyBuildHash) {
                             final TransportService.HandshakeResponse handshakeResponse = (TransportService.HandshakeResponse) response;
@@ -462,7 +456,7 @@ public class TransportServiceHandshakeTests extends ESTestCase {
                     }
 
                     @Override
-                    public void sendResponse(Exception exception) throws IOException {
+                    public void sendResponse(Exception exception) {
                         channel.sendResponse(exception);
 
                     }

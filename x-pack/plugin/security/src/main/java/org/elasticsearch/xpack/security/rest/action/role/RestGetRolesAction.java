@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.security.rest.action.role;
 
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.RestApiVersion;
@@ -21,7 +22,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.security.action.role.GetRolesRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.role.GetRolesResponse;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
-import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
 import java.util.List;
@@ -31,8 +31,8 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 /**
  * Rest endpoint to retrieve a Role from the security index
  */
-@ServerlessScope(Scope.INTERNAL)
-public class RestGetRolesAction extends SecurityBaseRestHandler {
+@ServerlessScope(Scope.PUBLIC)
+public class RestGetRolesAction extends NativeRoleBaseRestHandler {
 
     public RestGetRolesAction(Settings settings, XPackLicenseState licenseState) {
         super(settings, licenseState);
@@ -54,25 +54,47 @@ public class RestGetRolesAction extends SecurityBaseRestHandler {
     @Override
     public RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
         final String[] roles = request.paramAsStringArray("name", Strings.EMPTY_ARRAY);
-        return channel -> new GetRolesRequestBuilder(client).names(roles).execute(new RestBuilderListener<>(channel) {
-            @Override
-            public RestResponse buildResponse(GetRolesResponse response, XContentBuilder builder) throws Exception {
-                builder.startObject();
-                for (RoleDescriptor role : response.roles()) {
-                    builder.field(role.getName(), role);
-                }
-                builder.endObject();
+        final boolean restrictRequest = isPathRestricted(request);
+        return channel -> new GetRolesRequestBuilder(client).names(roles)
+            .nativeOnly(restrictRequest)
+            .execute(new RestBuilderListener<>(channel) {
+                @Override
+                public RestResponse buildResponse(GetRolesResponse response, XContentBuilder builder) throws Exception {
+                    builder.startObject();
+                    for (RoleDescriptor role : response.roles()) {
+                        builder.field(role.getName(), role);
+                    }
+                    builder.endObject();
 
-                // if the user asked for specific roles, but none of them were found
-                // we'll return an empty result and 404 status code
-                if (roles.length != 0 && response.roles().length == 0) {
-                    return new RestResponse(RestStatus.NOT_FOUND, builder);
-                }
+                    // if the user asked for specific roles, but none of them were found
+                    // we'll return an empty result and 404 status code
+                    if (roles.length != 0 && response.roles().length == 0) {
+                        return new RestResponse(RestStatus.NOT_FOUND, builder);
+                    }
 
-                // either the user asked for all roles, or at least one of the roles
-                // the user asked for was found
-                return new RestResponse(RestStatus.OK, builder);
-            }
-        });
+                    // either the user asked for all roles, or at least one of the roles
+                    // the user asked for was found
+                    return new RestResponse(RestStatus.OK, builder);
+                }
+            });
+    }
+
+    @Override
+    protected Exception innerCheckFeatureAvailable(RestRequest request) {
+        // Note: For non-restricted requests this action handles both reserved roles and native
+        // roles, and should still be available even if native role management is disabled.
+        // For restricted requests it should only be available if native role management is enabled
+        final boolean restrictPath = isPathRestricted(request);
+        if (false == restrictPath) {
+            return null;
+        } else {
+            return super.innerCheckFeatureAvailable(request);
+        }
+    }
+
+    private boolean isPathRestricted(RestRequest request) {
+        final boolean restrictRequest = request.hasParam(RestRequest.PATH_RESTRICTED);
+        assert false == restrictRequest || DiscoveryNode.isStateless(settings);
+        return restrictRequest;
     }
 }

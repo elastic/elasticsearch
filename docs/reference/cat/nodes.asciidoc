@@ -149,6 +149,9 @@ Node uptime, such as `17.3m`.
 `completion.size`, `cs`, `completionSize`::
 Size of completion, such as `0b`.
 
+`dense_vector.value_count`, `dvc`, `denseVectorCount`::
+Number of indexed dense vector.
+
 `fielddata.memory_size`, `fm`, `fielddataMemory`::
 Used fielddata cache memory, such as `0b`.
 
@@ -314,6 +317,9 @@ Time spent in suggest, such as `0`.
 
 `suggest.total`, `suto`, `suggestTotal`::
 Number of suggest operations, such as `0`.
+
+`shard_stats.total_count`, `sstc`, `shards`, `shardStatsTotalCount`::
+Number of shards assigned.
 
 `mappings.total_count`, `mtc`, `mappingsTotalCount`::
 Number of mappings, including <<runtime,runtime>> and <<object,object>> fields.

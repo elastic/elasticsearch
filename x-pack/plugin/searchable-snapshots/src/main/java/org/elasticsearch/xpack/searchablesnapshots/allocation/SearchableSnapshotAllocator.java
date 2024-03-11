@@ -30,7 +30,6 @@ import org.elasticsearch.cluster.routing.allocation.FailedShard;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
-import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -59,9 +58,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
+import java.util.function.Predicate;
 
-import static java.util.Collections.emptyList;
 import static java.util.stream.Collectors.toSet;
+import static org.elasticsearch.cluster.routing.ExpectedShardSizeEstimator.getExpectedShardSize;
 import static org.elasticsearch.gateway.ReplicaShardAllocator.augmentExplanationsWithStoreInfo;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SNAPSHOT_PARTIAL_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_INDEX_ID_SETTING;
@@ -126,7 +126,7 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
     }
 
     @Override
-    public void afterPrimariesBeforeReplicas(RoutingAllocation allocation) {}
+    public void afterPrimariesBeforeReplicas(RoutingAllocation allocation, Predicate<ShardRouting> isRelevantShardPredicate) {}
 
     @Override
     public void allocateUnassigned(
@@ -155,9 +155,9 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
                 if (Strings.hasLength(repositoryUuid) == false) {
                     repositoryName = SNAPSHOT_REPOSITORY_NAME_SETTING.get(indexSettings);
                 } else {
-                    final RepositoriesMetadata repoMetadata = allocation.metadata().custom(RepositoriesMetadata.TYPE);
-                    final List<RepositoryMetadata> repositories = repoMetadata == null ? emptyList() : repoMetadata.repositories();
-                    repositoryName = repositories.stream()
+                    repositoryName = RepositoriesMetadata.get(allocation.getClusterState())
+                        .repositories()
+                        .stream()
                         .filter(r -> repositoryUuid.equals(r.uuid()))
                         .map(RepositoryMetadata::name)
                         .findFirst()
@@ -199,7 +199,7 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
                 unassignedAllocationHandler.initialize(
                     allocateUnassignedDecision.getTargetNode().getId(),
                     allocateUnassignedDecision.getAllocationId(),
-                    DiskThresholdDecider.getExpectedShardSize(shardRouting, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE, allocation),
+                    getExpectedShardSize(shardRouting, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE, allocation),
                     allocation.changes()
                 );
             } else {
@@ -234,14 +234,7 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
                 // else we're recovering from a real snapshot, in which case we can only fix up the recovery source once the "real"
                 // recovery attempt has completed. It might succeed, but if it doesn't then we replace it with a dummy restore to bypass
                 // the RestoreInProgressAllocationDecider
-
-                final RestoreInProgress restoreInProgress = allocation.getClusterState().custom(RestoreInProgress.TYPE);
-                if (restoreInProgress == null) {
-                    // no ongoing restores, so this shard definitely completed
-                    return RecoverySource.SnapshotRecoverySource.NO_API_RESTORE_UUID;
-                }
-
-                final RestoreInProgress.Entry entry = restoreInProgress.get(recoverySource.restoreUUID());
+                final RestoreInProgress.Entry entry = RestoreInProgress.get(allocation.getClusterState()).get(recoverySource.restoreUUID());
                 if (entry == null) {
                     // this specific restore is not ongoing, so this shard definitely completed
                     return RecoverySource.SnapshotRecoverySource.NO_API_RESTORE_UUID;
@@ -338,7 +331,7 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
         return AllocateUnassignedDecision.NOT_TAKEN;
     }
 
-    private boolean isDelayedDueToNodeRestart(RoutingAllocation allocation, ShardRouting shardRouting) {
+    private static boolean isDelayedDueToNodeRestart(RoutingAllocation allocation, ShardRouting shardRouting) {
         if (shardRouting.unassignedInfo().isDelayed()) {
             String lastAllocatedNodeId = shardRouting.unassignedInfo().getLastAllocatedNodeId();
             if (lastAllocatedNodeId != null) {

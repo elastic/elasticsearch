@@ -44,7 +44,7 @@ public class QueryStringQueryBuilderMultiFieldTests extends MapperServiceTestCas
             """));
 
         withLuceneIndex(mapperService, iw -> iw.addDocument(doc.rootDoc()), ir -> {
-            Query query = queryStringQuery("test").field("f*").toQuery(createSearchExecutionContext(mapperService, new IndexSearcher(ir)));
+            Query query = queryStringQuery("test").field("f*").toQuery(createSearchExecutionContext(mapperService, newSearcher(ir)));
             Query expected = new DisjunctionMaxQuery(
                 List.of(new TermQuery(new Term("f_text", "test")), new TermQuery(new Term("f_keyword", "test"))),
                 0
@@ -71,7 +71,7 @@ public class QueryStringQueryBuilderMultiFieldTests extends MapperServiceTestCas
 
         withLuceneIndex(mapperService, iw -> iw.addDocument(doc.rootDoc()), ir -> {
 
-            IndexSearcher searcher = new IndexSearcher(ir);
+            IndexSearcher searcher = newSearcher(ir);
 
             {
                 // default value 'index.query.default_field = *' sets leniency to true
@@ -148,7 +148,7 @@ public class QueryStringQueryBuilderMultiFieldTests extends MapperServiceTestCas
             """));
 
         withLuceneIndex(mapperService, iw -> iw.addDocument(doc.rootDoc()), ir -> {
-            SearchExecutionContext context = createSearchExecutionContext(mapperService, new IndexSearcher(ir));
+            SearchExecutionContext context = createSearchExecutionContext(mapperService, newSearcher(ir));
             Query expected = new DisjunctionMaxQuery(
                 List.of(
                     new TermQuery(new Term("f_text1", "hello")),
@@ -181,7 +181,7 @@ public class QueryStringQueryBuilderMultiFieldTests extends MapperServiceTestCas
             Query query = queryStringQuery("first").type(MultiMatchQueryBuilder.Type.MOST_FIELDS)
                 .field("f_text", 0.3f)
                 .field("f*", 0.5f)
-                .toQuery(createSearchExecutionContext(mapperService, new IndexSearcher(ir)));
+                .toQuery(createSearchExecutionContext(mapperService, newSearcher(ir)));
             Query expected = new DisjunctionMaxQuery(
                 List.of(
                     new BoostQuery(new TermQuery(new Term("f_text", "first")), 0.15f),
@@ -211,7 +211,7 @@ public class QueryStringQueryBuilderMultiFieldTests extends MapperServiceTestCas
             """));
 
         withLuceneIndex(mapperService, iw -> iw.addDocument(doc.rootDoc()), ir -> {
-            IndexSearcher searcher = new IndexSearcher(ir);
+            IndexSearcher searcher = newSearcher(ir);
 
             // if we hit all fields, this should contain a date field and should disable cachability
             String query = "now " + randomAlphaOfLengthBetween(4, 10);

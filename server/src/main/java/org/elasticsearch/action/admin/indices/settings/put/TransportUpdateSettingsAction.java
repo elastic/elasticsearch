@@ -11,6 +11,7 @@ package org.elasticsearch.action.admin.indices.settings.put;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
@@ -24,6 +25,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndices;
@@ -43,6 +45,7 @@ import static org.elasticsearch.indices.SystemIndexMappingUpdateService.MANAGED_
 
 public class TransportUpdateSettingsAction extends AcknowledgedTransportMasterNodeAction<UpdateSettingsRequest> {
 
+    public static final ActionType<AcknowledgedResponse> TYPE = new ActionType<>("indices:admin/settings/update");
     private static final Logger logger = LogManager.getLogger(TransportUpdateSettingsAction.class);
 
     private final MetadataUpdateSettingsService updateSettingsService;
@@ -59,14 +62,14 @@ public class TransportUpdateSettingsAction extends AcknowledgedTransportMasterNo
         SystemIndices systemIndices
     ) {
         super(
-            UpdateSettingsAction.NAME,
+            TYPE.name(),
             transportService,
             clusterService,
             threadPool,
             actionFilters,
             UpdateSettingsRequest::new,
             indexNameExpressionResolver,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.updateSettingsService = updateSettingsService;
         this.systemIndices = systemIndices;
@@ -125,6 +128,7 @@ public class TransportUpdateSettingsAction extends AcknowledgedTransportMasterNo
         )
             .settings(requestSettings)
             .setPreserveExisting(request.isPreserveExisting())
+            .reopenShards(request.reopen())
             .ackTimeout(request.timeout())
             .masterNodeTimeout(request.masterNodeTimeout());
 

@@ -9,6 +9,7 @@
 package org.elasticsearch.action.admin.indices.forcemerge;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.broadcast.BroadcastRequest;
 import org.elasticsearch.common.UUIDs;
@@ -29,7 +30,6 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * to execute, and if so, executes it
  *
  * @see org.elasticsearch.client.internal.IndicesAdminClient#forceMerge(ForceMergeRequest)
- * @see ForceMergeResponse
  */
 public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
 
@@ -47,7 +47,7 @@ public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
      */
     private boolean shouldStoreResult;
 
-    private static final TransportVersion FORCE_MERGE_UUID_SIMPLE_VERSION = TransportVersion.V_8_0_0;
+    private static final TransportVersion FORCE_MERGE_UUID_SIMPLE_VERSION = TransportVersions.V_8_0_0;
 
     /**
      * Force merge UUID to store in the live commit data of a shard under

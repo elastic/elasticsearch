@@ -13,7 +13,7 @@ import org.apache.lucene.queries.intervals.IntervalIterator;
 import org.apache.lucene.queries.intervals.Intervals;
 import org.apache.lucene.queries.intervals.IntervalsSource;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -120,7 +120,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             this.ordered = in.readBoolean();
             this.analyzer = in.readOptionalString();
             this.filter = in.readOptionalWriteable(IntervalFilter::new);
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_2_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_2_0)) {
                 this.useField = in.readOptionalString();
             } else {
                 this.useField = null;
@@ -204,7 +204,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             out.writeBoolean(ordered);
             out.writeOptionalString(analyzer);
             out.writeOptionalWriteable(filter);
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_2_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_2_0)) {
                 out.writeOptionalString(useField);
             }
         }
@@ -288,7 +288,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         }
 
         public Disjunction(StreamInput in) throws IOException {
-            this.subSources = in.readNamedWriteableList(IntervalsSourceProvider.class);
+            this.subSources = in.readNamedWriteableCollectionAsList(IntervalsSourceProvider.class);
             this.filter = in.readOptionalWriteable(IntervalFilter::new);
         }
 
@@ -332,7 +332,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeNamedWriteableList(subSources);
+            out.writeNamedWriteableCollection(subSources);
             out.writeOptionalWriteable(filter);
         }
 
@@ -398,7 +398,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
 
         public Combine(StreamInput in) throws IOException {
             this.ordered = in.readBoolean();
-            this.subSources = in.readNamedWriteableList(IntervalsSourceProvider.class);
+            this.subSources = in.readNamedWriteableCollectionAsList(IntervalsSourceProvider.class);
             this.maxGaps = in.readInt();
             this.filter = in.readOptionalWriteable(IntervalFilter::new);
         }
@@ -447,7 +447,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeBoolean(ordered);
-            out.writeNamedWriteableList(subSources);
+            out.writeNamedWriteableCollection(subSources);
             out.writeInt(maxGaps);
             out.writeOptionalWriteable(filter);
         }

@@ -170,7 +170,7 @@ public class FetchSourcePhaseTests extends ESTestCase {
         when(sec.isSourceEnabled()).thenReturn(sourceBuilder != null);
         when(fetchContext.getSearchExecutionContext()).thenReturn(sec);
 
-        final SearchHit searchHit = new SearchHit(1, null, nestedIdentity);
+        final SearchHit searchHit = SearchHit.unpooled(1, null, nestedIdentity);
 
         // We don't need a real index, just a LeafReaderContext which cannot be mocked.
         MemoryIndex index = new MemoryIndex();

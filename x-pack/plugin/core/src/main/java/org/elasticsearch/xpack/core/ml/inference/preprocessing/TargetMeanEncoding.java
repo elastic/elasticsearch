@@ -171,7 +171,7 @@ public class TargetMeanEncoding implements LenientlyParsedPreProcessor, Strictly
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(field);
         out.writeString(featureName);
-        out.writeMap(meanMap, StreamOutput::writeString, StreamOutput::writeDouble);
+        out.writeMap(meanMap, StreamOutput::writeDouble);
         out.writeDouble(defaultValue);
         out.writeBoolean(custom);
     }

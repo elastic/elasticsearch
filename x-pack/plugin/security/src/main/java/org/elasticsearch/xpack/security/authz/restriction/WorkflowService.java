@@ -23,7 +23,7 @@ public class WorkflowService {
 
     private static final String WORKFLOW_HEADER = "_xpack_security_workflow";
 
-    public Workflow resolveWorkflowAndStoreInThreadContext(RestHandler restHandler, ThreadContext threadContext) {
+    public static Workflow resolveWorkflowAndStoreInThreadContext(RestHandler restHandler, ThreadContext threadContext) {
         Workflow workflow = resolveWorkflow(restHandler);
         if (workflow != null) {
             assert threadContext.getHeader(WORKFLOW_HEADER) == null
@@ -33,11 +33,11 @@ public class WorkflowService {
         return workflow;
     }
 
-    public String readWorkflowFromThreadContext(ThreadContext threadContext) {
+    public static String readWorkflowFromThreadContext(ThreadContext threadContext) {
         return threadContext.getHeader(WORKFLOW_HEADER);
     }
 
-    private Workflow resolveWorkflow(RestHandler restHandler) {
+    private static Workflow resolveWorkflow(RestHandler restHandler) {
         final String restHandlerName = resolveRestHandlerName(restHandler);
         if (restHandlerName == null) {
             logger.trace(() -> format("unable to resolve name of REST handler [%s]", restHandler.getClass()));

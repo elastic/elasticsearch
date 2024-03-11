@@ -54,14 +54,18 @@ The Repository analysis API performs a collection of read and write operations
 on your repository which are designed to detect incorrect behaviour and to
 measure the performance characteristics of your storage system.
 
-The default values for the parameters to this API are deliberately low to
-reduce the impact of running an analysis inadvertently. A realistic experiment
-should set `blob_count` to at least `2000`, `max_blob_size` to at least `2gb`,
-and `max_total_data_size` to at least `1tb`, and will almost certainly need to
-increase the `timeout` to allow time for the process to complete successfully.
-You should run the analysis on a multi-node cluster of a similar size to your
-production cluster so that it can detect any problems that only arise when the
-repository is accessed by many nodes at once.
+The default values for the parameters to this API are deliberately low to reduce
+the impact of running an analysis inadvertently and to provide a sensible
+starting point for your investigations. Run your first analysis with the default
+parameter values to check for simple problems. If successful, run a sequence of
+increasingly large analyses until you encounter a failure or you reach a
+`blob_count` of at least `2000`, a `max_blob_size` of at least `2gb`, a
+`max_total_data_size` of at least `1tb`, and a `register_operation_count` of at
+least `100`. Always specify a generous timeout, possibly `1h` or longer, to
+allow time for each analysis to run to completion. Perform the analyses using a
+multi-node cluster of a similar size to your production cluster so that it can
+detect any problems that only arise when the repository is accessed by many
+nodes at once.
 
 If the analysis fails then {es} detected that your repository behaved
 unexpectedly. This usually means you are using a third-party storage system
@@ -120,6 +124,14 @@ limit the bandwidth they consume.
 NOTE: This API is intended for exploratory use by humans. You should expect the
 request parameters and the response format to vary in future versions.
 
+NOTE: Different versions of {es} may perform different checks for repository
+compatibility, with newer versions typically being stricter than older ones. A
+storage system that passes repository analysis with one version of {es} may
+fail with a different version. This indicates it behaves incorrectly in ways
+that the former version did not detect. You must work with the supplier of your
+storage system to address the incompatibilities detected by the repository
+analysis API in any version of {es}.
+
 NOTE: This API may not work correctly in a mixed-version cluster.
 
 ==== Implementation details
@@ -130,8 +142,10 @@ between versions. The request parameters and response format depend on details
 of the implementation so may also be different in newer versions.
 
 The analysis comprises a number of blob-level tasks, as set by the `blob_count`
-parameter. The blob-level tasks are distributed over the data and
-master-eligible nodes in the cluster for execution.
+parameter, and a number of compare-and-exchange operations on linearizable
+registers, as set by the `register_operation_count` parameter. These tasks are
+distributed over the data and master-eligible nodes in the cluster for
+execution.
 
 For most blob-level tasks, the executing node first writes a blob to the
 repository, and then instructs some of the other nodes in the cluster to
@@ -164,6 +178,20 @@ complete. In this case it still instructs some of the other nodes in the
 cluster to attempt to read the blob, but all of these reads must fail to find
 the blob.
 
+Linearizable registers are special blobs that {es} manipulates using an atomic
+compare-and-exchange operation. This operation ensures correct and
+strongly-consistent behavior even when the blob is accessed by multiple nodes
+at the same time. The detailed implementation of the compare-and-exchange
+operation on linearizable registers varies by repository type. Repository
+analysis verifies that that uncontended compare-and-exchange operations on a
+linearizable register blob always succeed. Repository analysis also verifies
+that contended operations either succeed or report the contention but do not
+return incorrect results. If an operation fails due to contention, {es} retries
+the operation until it succeeds. Most of the compare-and-exchange operations
+performed by repository analysis atomically increment a counter which is
+represented as an 8-byte blob. Some operations also verify the behavior on
+small blobs with sizes other than 8 bytes.
+
 [[repo-analysis-api-path-params]]
 ==== {api-path-parms-title}
 
@@ -188,6 +216,11 @@ this to at least `2gb`.
 (Optional, <<size-units, size units>>) An upper limit on the total size of all
 the blobs written during the test. Defaults to `1gb`. For realistic experiments
 you should set this to at least `1tb`.
+
+`register_operation_count`::
+(Optional, integer) The minimum number of linearizable register operations to
+perform in total. Defaults to `10`. For realistic experiments you should set
+this to at least `100`.
 
 `timeout`::
 (Optional, <<time-units, time units>>) Specifies the period of time to wait for

@@ -10,6 +10,7 @@ package org.elasticsearch.common.util;
 
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefIterator;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -22,7 +23,7 @@ import java.io.IOException;
 /**
  * Compact serializable container for ByteRefs
  */
-public class BytesRefArray implements Accountable, Releasable, Writeable {
+public final class BytesRefArray implements Accountable, Releasable, Writeable {
 
     // base size of the bytes ref array
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(BytesRefArray.class);
@@ -64,10 +65,7 @@ public class BytesRefArray implements Accountable, Releasable, Writeable {
             // bytes
             long sizeOfBytes = in.readVLong();
             bytes = bigArrays.newByteArray(sizeOfBytes, false);
-
-            for (long i = 0; i < sizeOfBytes; ++i) {
-                bytes.set(i, in.readByte());
-            }
+            bytes.fillWith(in);
 
             success = true;
         } finally {
@@ -149,16 +147,29 @@ public class BytesRefArray implements Accountable, Releasable, Writeable {
         }
 
         // bytes might be overallocated, the last bucket of startOffsets contains the real size
-        long sizeOfBytes = startOffsets.get(size);
+        final long sizeOfBytes = startOffsets.get(size);
         out.writeVLong(sizeOfBytes);
-        for (long i = 0; i < sizeOfBytes; ++i) {
-            out.writeByte(bytes.get(i));
+        final BytesRefIterator bytesIt = bytes.iterator();
+        BytesRef bytesRef;
+        long remained = sizeOfBytes;
+        while (remained > 0 && (bytesRef = bytesIt.next()) != null) {
+            int length = Math.toIntExact(Math.min(remained, bytesRef.length));
+            remained -= length;
+            out.writeBytes(bytesRef.bytes, bytesRef.offset, length);
         }
+        assert remained == 0 : remained;
     }
 
     @Override
     public long ramBytesUsed() {
-        return BASE_RAM_BYTES_USED + startOffsets.ramBytesUsed() + bytes.ramBytesUsed();
+        return BASE_RAM_BYTES_USED + bigArraysRamBytesUsed();
+    }
+
+    /**
+     * Memory used by the {@link BigArrays} portion of this {@link BytesRefArray}.
+     */
+    public long bigArraysRamBytesUsed() {
+        return startOffsets.ramBytesUsed() + bytes.ramBytesUsed();
     }
 
 }

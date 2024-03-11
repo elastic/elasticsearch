@@ -50,6 +50,9 @@ using metrics.
   `adaptive_selection`::
       Statistics about <<search-adaptive-replica,adaptive replica selection>>.
 
+  `allocations`::
+      Statistics about allocated shards
+
   `breaker`::
       Statistics about the field data circuit breaker.
 
@@ -121,6 +124,7 @@ using metrics.
     * `store`
     * `translog`
     * `warmer`
+    * `dense_vector`
 --
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=node-id]
@@ -682,12 +686,11 @@ Number of query cache misses.
 
 `cache_size`::
 (integer)
-Size, in bytes, of the query cache.
+Current number of cached queries.
 
 `cache_count`::
 (integer)
-Count of queries
-in the query cache.
+Total number of all queries that have been cached.
 
 `evictions`::
 (integer)
@@ -1004,6 +1007,18 @@ Estimated heap overhead of mappings on this node, which allows for 1kiB of heap 
 Estimated heap overhead, in bytes, of mappings on this node, which allows for 1kiB of heap for every mapped field.
 =======
 
+`dense_vector`::
+(object)
+Contains statistics about dense_vector across all shards assigned to the node.
++
+.Properties of `dense_vector`
+[%collapsible%open]
+=======
+`value_count`::
+(integer)
+Total number of dense vector indexed across all shards assigned
+to the node.
+=======
 ======
 
 [[cluster-nodes-stats-api-response-body-os]]
@@ -1780,14 +1795,14 @@ Total number of unallocated bytes in all file stores.
 `available`::
 (<<byte-units,byte value>>)
 Total disk space available to this Java virtual machine on all file
-stores. Depending on OS or process level restrictions, this might appear
+stores. Depending on OS or process level restrictions (e.g. XFS quotas), this might appear
 less than `free`. This is the actual amount of free disk
 space the {es} node can utilise.
 
 `available_in_bytes`::
 (integer)
 Total number of bytes available to this Java virtual machine on all file
-stores. Depending on OS or process level restrictions, this might appear
+stores. Depending on OS or process level restrictions (e.g. XFS quotas), this might appear
 less than `free_in_bytes`. This is the actual amount of free disk
 space the {es} node can utilise.
 =======
@@ -2789,6 +2804,44 @@ search requests on the keyed node.
 (string)
 The rank of this node; used for shard selection when routing search
 requests.
+======
+
+[[cluster-nodes-stats-api-response-body-allocations]]
+`allocations`::
+(object)
+Contains allocations statistics for the node.
++
+.Properties of `allocations`
+[%collapsible%open]
+======
+`shards`::
+(integer)
+The number of shards currently allocated to this node
+
+`undesired_shards`::
+(integer)
+The amount of shards that are scheduled to be moved elsewhere in the cluster
+or -1 other than desired balance allocator is used
+
+`forecasted_ingest_load`::
+(double)
+Total forecasted ingest load of all shards assigned to this node
+
+`forecasted_disk_usage`::
+(<<byte-units,byte value>>)
+Forecasted size of all shards assigned to the node
+
+`forecasted_disk_usage_bytes`::
+(integer)
+Forecasted size, in bytes, of all shards assigned to the node
+
+`current_disk_usage`::
+(<<byte-units,byte value>>)
+Current size of all shards assigned to the node
+
+`current_disk_usage_bytes`::
+(integer)
+Current size, in bytes, of all shards assigned to the node
 ======
 =====
 ====

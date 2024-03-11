@@ -9,7 +9,6 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
@@ -24,7 +23,7 @@ public class IdFieldTypeTests extends ESTestCase {
     public void testRangeQuery() {
         MappedFieldType ft = randomBoolean()
             ? new ProvidedIdFieldMapper.IdFieldType(() -> false)
-            : new TsidExtractingIdFieldMapper.IdFieldType();
+            : TsidExtractingIdFieldMapper.INSTANCE.fieldType();
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> ft.rangeQuery(null, null, randomBoolean(), randomBoolean(), null, null, null, null)
@@ -35,7 +34,7 @@ public class IdFieldTypeTests extends ESTestCase {
     public void testTermsQuery() {
         SearchExecutionContext context = Mockito.mock(SearchExecutionContext.class);
 
-        Settings.Builder indexSettings = indexSettings(Version.CURRENT, 1, 0).put(
+        Settings.Builder indexSettings = indexSettings(IndexVersion.current(), 1, 0).put(
             IndexMetadata.SETTING_INDEX_UUID,
             UUIDs.randomBase64UUID()
         );
@@ -59,7 +58,6 @@ public class IdFieldTypeTests extends ESTestCase {
         ft = new ProvidedIdFieldMapper.IdFieldType(() -> true);
         assertTrue(ft.isAggregatable());
 
-        ft = new TsidExtractingIdFieldMapper.IdFieldType();
-        assertFalse(ft.isAggregatable());
+        assertFalse(TsidExtractingIdFieldMapper.INSTANCE.fieldType().isAggregatable());
     }
 }

@@ -19,7 +19,6 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.plugins.PluginTestUtil;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
 import org.junit.Before;
 
 import java.io.BufferedReader;
@@ -138,19 +137,6 @@ public class RemovePluginActionTests extends ESTestCase {
         removePlugin("other", home, randomBoolean());
         assertFalse(Files.exists(env.pluginsFile().resolve("fake")));
         assertFalse(Files.exists(env.pluginsFile().resolve("other")));
-        assertRemoveCleaned(env);
-    }
-
-    public void testRemoveOldVersion() throws Exception {
-        Version previous = VersionUtils.getPreviousVersion();
-        if (previous.before(Version.CURRENT.minimumIndexCompatibilityVersion())) {
-            // Can happen when bumping majors: 8.0 is only compat back to 7.0, but that's not released yet
-            // In this case, ignore what's released and just find that latest version before current
-            previous = VersionUtils.allVersions().stream().filter(v -> v.before(Version.CURRENT)).max(Version::compareTo).get();
-        }
-        createPlugin("fake", VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumIndexCompatibilityVersion(), previous));
-        removePlugin("fake", home, randomBoolean());
-        assertThat(Files.exists(env.pluginsFile().resolve("fake")), equalTo(false));
         assertRemoveCleaned(env);
     }
 

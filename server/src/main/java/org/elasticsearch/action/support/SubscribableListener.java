@@ -12,31 +12,126 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
+import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 
 /**
  * An {@link ActionListener} to which other {@link ActionListener} instances can subscribe, such that when this listener is completed it
  * fans-out its result to the subscribed listeners.
+ * <p>
+ * Exceptions are passed to subscribed listeners without modification. {@link ListenableActionFuture} and {@link ListenableFuture} are child
+ * classes that provide additional exception handling.
+ * <p>
+ * A sequence of async steps can be chained together using a series of {@link SubscribableListener}s, similar to {@link CompletionStage}
+ * (without the {@code catch (Throwable t)}). Listeners can be created for each step, where the next step subscribes to the result of the
+ * previous, using utilities like {@link #andThen(CheckedBiConsumer)}. The following example demonstrates how this might be used:
+ * <pre>{@code
+ * private void exampleAsyncMethod(String request, List<Long> items, ActionListener<Boolean> finalListener) {
+ *     SubscribableListener
  *
- * Similar to {@link ListenableActionFuture} and {@link ListenableFuture} except for its handling of exceptions: if this listener is
- * completed exceptionally then the exception is passed to subscribed listeners without modification.
+ *         // Start the chain and run the first step by creating a SubscribableListener using newForked():
+ *         .<String>newForked(l -> firstAsyncStep(request, l))
+ *
+ *         // Run a second step when the first step completes using andThen(); if the first step fails then the exception falls through to
+ *         // the end without executing the intervening steps.
+ *         .<Integer>andThen((l, firstStepResult) -> secondAsyncStep(request, firstStepResult, l))
+ *
+ *         // Run another step when the second step completes with another andThen() call; as above this only runs if the first two steps
+ *         // succeed.
+ *         .<Boolean>andThen((l, secondStepResult) -> {
+ *             if (condition) {
+ *                 // Steps are exception-safe: an exception thrown here will be passed to the listener rather than escaping to the
+ *                 // caller.
+ *                 throw new IOException("failure");
+ *             }
+ *
+ *             // Steps can fan out to multiple subsidiary async actions using utilities like RefCountingListener.
+ *             final var result = new AtomicBoolean();
+ *             try (var listeners = new RefCountingListener(l.map(v -> result.get()))) {
+ *                 for (final var item : items) {
+ *                     thirdAsyncStep(secondStepResult, item, listeners.acquire());
+ *                 }
+ *             }
+ *         })
+ *
+ *         // Synchronous (non-forking) steps which do not return a result can be expressed using andThenAccept() with a consumer:
+ *         .andThenAccept(thirdStepResult -> {
+ *             if (condition) {
+ *                 // andThenAccept() is also exception-safe
+ *                 throw new ElasticsearchException("some other problem");
+ *             }
+ *             consumeThirdStepResult(thirdStepResult);
+ *         })
+ *
+ *         // Synchronous (non-forking) steps which do return a result can be expressed using andThenApply() with a function:
+ *         .andThenApply(voidFromStep4 -> {
+ *             if (condition) {
+ *                 // andThenApply() is also exception-safe
+ *                 throw new IllegalArgumentException("failure");
+ *             }
+ *             return computeFifthStepResult();
+ *         })
+ *
+ *         // To complete the chain, add the outer listener which will be completed with the result of the previous step if all steps were
+ *         // successful, or the exception if any step failed.
+ *         .addListener(finalListener);
+ * }
+ * }</pre>
  */
 public class SubscribableListener<T> implements ActionListener<T> {
 
     private static final Logger logger = LogManager.getLogger(SubscribableListener.class);
     private static final Object EMPTY = new Object();
+
+    /**
+     * Create a {@link SubscribableListener} which is incomplete.
+     */
+    public SubscribableListener() {
+        this(EMPTY);
+    }
+
+    /**
+     * Create a {@link SubscribableListener} which has already succeeded with the given result.
+     */
+    public static <T> SubscribableListener<T> newSucceeded(T result) {
+        return new SubscribableListener<>(new SuccessResult<>(result));
+    }
+
+    /**
+     * Create a {@link SubscribableListener} which has already failed with the given exception.
+     */
+    public static <T> SubscribableListener<T> newFailed(Exception exception) {
+        return new SubscribableListener<>(new FailureResult(exception, exception));
+    }
+
+    /**
+     * Create a {@link SubscribableListener}, fork a computation to complete it, and return the listener. If the forking itself throws an
+     * exception then the exception is caught and fed to the returned listener.
+     */
+    public static <T> SubscribableListener<T> newForked(CheckedConsumer<ActionListener<T>, ? extends Exception> fork) {
+        final var listener = new SubscribableListener<T>();
+        ActionListener.run(listener, fork::accept);
+        return listener;
+    }
+
+    private SubscribableListener(Object initialState) {
+        state = initialState;
+    }
 
     /**
      * If we are incomplete, {@code state} may be one of the following depending on how many waiting subscribers there are:
@@ -50,15 +145,14 @@ public class SubscribableListener<T> implements ActionListener<T> {
      * subsequent subscribers.
      */
     @SuppressWarnings("FieldMayBeFinal") // updated via VH_STATE_FIELD (and _only_ via VH_STATE_FIELD)
-    private volatile Object state = EMPTY;
+    private volatile Object state;
 
     /**
      * Add a listener to this listener's collection of subscribers. If this listener is complete, this method completes the subscribing
      * listener immediately with the result with which this listener was completed. Otherwise, the subscribing listener is retained and
      * completed when this listener is completed.
      * <p>
-     * Subscribed listeners must not throw any exceptions. Use {@link ActionListener#wrap(ActionListener)} if you have a listener for which
-     * exceptions from its {@link ActionListener#onResponse} method should be handled by its own {@link ActionListener#onFailure} method.
+     * Subscribed listeners must not throw any exceptions.
      * <p>
      * Listeners added strictly before this listener is completed will themselves be completed in the order in which their subscriptions
      * were received. However, there are no guarantees about the ordering of the completions of listeners which are added concurrently with
@@ -76,8 +170,7 @@ public class SubscribableListener<T> implements ActionListener<T> {
      * listener immediately with the result with which this listener was completed. Otherwise, the subscribing listener is retained and
      * completed when this listener is completed.
      * <p>
-     * Subscribed listeners must not throw any exceptions. Use {@link ActionListener#wrap(ActionListener)} if you have a listener for which
-     * exceptions from its {@link ActionListener#onResponse} method should be handled by its own {@link ActionListener#onFailure} method.
+     * Subscribed listeners must not throw any exceptions.
      * <p>
      * Listeners added strictly before this listener is completed will themselves be completed in the order in which their subscriptions
      * were received. However, there are no guarantees about the ordering of the completions of listeners which are added concurrently with
@@ -298,6 +391,88 @@ public class SubscribableListener<T> implements ActionListener<T> {
     }
 
     /**
+     * Creates and returns a new {@link SubscribableListener} {@code L} and subscribes {@code nextStep} to this listener such that if this
+     * listener is completed successfully with result {@code R} then {@code nextStep} is invoked with arguments {@code L} and {@code R}. If
+     * this listener is completed with exception {@code E} then so is {@code L}.
+     * <p>
+     * This can be used to construct a sequence of async actions, each invoked with the result of the previous one:
+     * <pre>
+     * l.andThen((l1, o1) -> forkAction1(o1, args1, l1)).andThen((l2, o2) -> forkAction2(o2, args2, l2)).addListener(finalListener);
+     * </pre>
+     * After creating this chain, completing {@code l} with a successful response will pass the response to {@code forkAction1}, which will
+     * on completion pass its response to {@code forkAction2}, which will in turn pass its response to {@code finalListener}. A failure of
+     * any step will bypass the remaining steps and ultimately fail {@code finalListener}.
+     * <p>
+     * The threading of the {@code nextStep} callback is the same as for listeners added with {@link #addListener}: if this listener is
+     * already complete then {@code nextStep} is invoked on the thread calling {@link #andThen} and in its thread context, but if this
+     * listener is incomplete then {@code nextStep} is invoked on the completing thread and in its thread context.
+     */
+    public <U> SubscribableListener<U> andThen(CheckedBiConsumer<ActionListener<U>, T, ? extends Exception> nextStep) {
+        return andThen(EsExecutors.DIRECT_EXECUTOR_SERVICE, null, nextStep);
+    }
+
+    /**
+     * Creates and returns a new {@link SubscribableListener} {@code L} and subscribes {@code nextStep} to this listener such that if this
+     * listener is completed successfully with result {@code R} then {@code nextStep} is invoked with arguments {@code L} and {@code R}. If
+     * this listener is completed with exception {@code E} then so is {@code L}.
+     * <p>
+     * This can be used to construct a sequence of async actions, each invoked with the result of the previous one:
+     * <pre>
+     * l.andThen(x, t, (l1,o1) -> forkAction1(o1,args1,l1)).andThen(x, t, (l2,o2) -> forkAction2(o2,args2,l2)).addListener(finalListener);
+     * </pre>
+     * After creating this chain, completing {@code l} with a successful response will pass the response to {@code forkAction1}, which will
+     * on completion pass its response to {@code forkAction2}, which will in turn pass its response to {@code finalListener}. A failure of
+     * any step will bypass the remaining steps and ultimately fail {@code finalListener}.
+     * <p>
+     * The threading of the {@code nextStep} callback is the same as for listeners added with {@link #addListener}: if this listener is
+     * already complete then {@code nextStep} is invoked on the thread calling {@link #andThen} and in its thread context, but if this
+     * listener is incomplete then {@code nextStep} is invoked using {@code executor}, in a thread context captured when {@link #andThen}
+     * was called.
+     */
+    public <U> SubscribableListener<U> andThen(
+        Executor executor,
+        @Nullable ThreadContext threadContext,
+        CheckedBiConsumer<ActionListener<U>, T, ? extends Exception> nextStep
+    ) {
+        return newForked(l -> addListener(l.delegateFailureAndWrap(nextStep), executor, threadContext));
+    }
+
+    /**
+     * Creates and returns a new {@link SubscribableListener} {@code L} such that if this listener is completed successfully with result
+     * {@code R} then {@code fn} is invoked with argument {@code R}, and {@code L} is completed with the result of that invocation. If this
+     * listener is completed exceptionally, or {@code fn} throws an exception, then {@code L} is completed with that exception.
+     * <p>
+     * This is essentially a shorthand for a call to {@link #andThen} with a {@code nextStep} argument that is fully synchronous.
+     * <p>
+     * The threading of the {@code fn} invocation is the same as for listeners added with {@link #addListener}: if this listener is
+     * already complete then {@code fn} is invoked on the thread calling {@link #andThenApply} and in its thread context, but if this
+     * listener is incomplete then {@code fn} is invoked on the thread, and in the thread context, on which this listener is completed.
+     */
+    public <U> SubscribableListener<U> andThenApply(CheckedFunction<T, U, Exception> fn) {
+        return newForked(l -> addListener(l.map(fn)));
+    }
+
+    /**
+     * Creates and returns a new {@link SubscribableListener} {@code L} such that if this listener is completed successfully with result
+     * {@code R} then {@code consumer} is applied to argument {@code R}, and {@code L} is completed with {@code null} when {@code
+     * consumer} returns. If this listener is completed exceptionally, or {@code consumer} throws an exception, then {@code L} is
+     * completed with that exception.
+     * <p>
+     * This is essentially a shorthand for a call to {@link #andThen} with a {@code nextStep} argument that is fully synchronous.
+     * <p>
+     * The threading of the {@code consumer} invocation is the same as for listeners added with {@link #addListener}: if this listener is
+     * already complete then {@code consumer} is invoked on the thread calling {@link #andThenAccept} and in its thread context, but if
+     * this listener is incomplete then {@code consumer} is invoked on the thread, and in the thread context, on which this listener is
+     * completed.
+     */
+    public SubscribableListener<Void> andThenAccept(CheckedConsumer<T, Exception> consumer) {
+        return newForked(l -> addListener(l.map(r -> {
+            consumer.accept(r);
+            return null;
+        })));
+    }
+
+    /**
      * Adds a timeout to this listener, such that if the timeout elapses before the listener is completed then it will be completed with an
      * {@link ElasticsearchTimeoutException}.
      * <p>
@@ -305,14 +480,14 @@ public class SubscribableListener<T> implements ActionListener<T> {
      * work. For instance, it could check that the race is not lost by calling {@link #isDone} whenever appropriate, or it could subscribe
      * another listener which performs any necessary cleanup steps.
      */
-    public void addTimeout(TimeValue timeout, ThreadPool threadPool, String timeoutExecutor) {
+    public void addTimeout(TimeValue timeout, ThreadPool threadPool, Executor timeoutExecutor) {
         if (isDone()) {
             return;
         }
         addListener(ActionListener.running(scheduleTimeout(timeout, threadPool, timeoutExecutor)));
     }
 
-    private Runnable scheduleTimeout(TimeValue timeout, ThreadPool threadPool, String timeoutExecutor) {
+    private Runnable scheduleTimeout(TimeValue timeout, ThreadPool threadPool, Executor timeoutExecutor) {
         try {
             final var cancellable = threadPool.schedule(
                 () -> onFailure(new ElasticsearchTimeoutException(Strings.format("timed out after [%s/%dms]", timeout, timeout.millis()))),

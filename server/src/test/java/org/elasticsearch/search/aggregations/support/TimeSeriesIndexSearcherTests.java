@@ -40,7 +40,6 @@ import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.index.IndexSortConfig.TIME_SERIES_SORT;
@@ -52,7 +51,7 @@ public class TimeSeriesIndexSearcherTests extends ESTestCase {
     // Open a searcher over a set of leaves
     // Collection should be in order
 
-    public void testCollectInOrderAcrossSegments() throws IOException, InterruptedException {
+    public void testCollectInOrderAcrossSegments() throws IOException {
         Directory dir = newDirectory();
         RandomIndexWriter iw = getIndexWriter(dir);
 
@@ -61,29 +60,31 @@ public class TimeSeriesIndexSearcherTests extends ESTestCase {
         final int THREADS = 5;
         final int DOC_COUNTS = 500;
         ExecutorService indexer = Executors.newFixedThreadPool(THREADS);
-        for (int i = 0; i < THREADS; i++) {
-            indexer.submit(() -> {
-                Document doc = new Document();
-                for (int j = 0; j < DOC_COUNTS; j++) {
-                    String tsid = "tsid" + randomIntBetween(0, 30);
-                    long time = clock.addAndGet(randomIntBetween(0, 10));
-                    doc.clear();
-                    doc.add(new SortedDocValuesField(TimeSeriesIdFieldMapper.NAME, new BytesRef(tsid)));
-                    doc.add(new NumericDocValuesField(DataStream.TIMESTAMP_FIELD_NAME, time));
-                    try {
-                        iw.addDocument(doc);
-                    } catch (IOException e) {
-                        throw new UncheckedIOException(e);
+        try {
+            for (int i = 0; i < THREADS; i++) {
+                indexer.submit(() -> {
+                    Document doc = new Document();
+                    for (int j = 0; j < DOC_COUNTS; j++) {
+                        String tsid = "tsid" + randomIntBetween(0, 30);
+                        long time = clock.addAndGet(randomIntBetween(0, 10));
+                        doc.clear();
+                        doc.add(new SortedDocValuesField(TimeSeriesIdFieldMapper.NAME, new BytesRef(tsid)));
+                        doc.add(new NumericDocValuesField(DataStream.TIMESTAMP_FIELD_NAME, time));
+                        try {
+                            iw.addDocument(doc);
+                        } catch (IOException e) {
+                            throw new UncheckedIOException(e);
+                        }
                     }
-                }
-            });
+                });
+            }
+        } finally {
+            terminate(indexer);
         }
-        indexer.shutdown();
-        assertTrue(indexer.awaitTermination(30, TimeUnit.SECONDS));
         iw.close();
 
         IndexReader reader = DirectoryReader.open(dir);
-        IndexSearcher searcher = new IndexSearcher(reader);
+        IndexSearcher searcher = newSearcher(reader);
 
         TimeSeriesIndexSearcher indexSearcher = new TimeSeriesIndexSearcher(searcher, List.of());
 
@@ -96,7 +97,7 @@ public class TimeSeriesIndexSearcherTests extends ESTestCase {
         dir.close();
     }
 
-    public void testCollectMinScoreAcrossSegments() throws IOException, InterruptedException {
+    public void testCollectMinScoreAcrossSegments() throws IOException {
         Directory dir = newDirectory();
         RandomIndexWriter iw = getIndexWriter(dir);
 
@@ -119,7 +120,7 @@ public class TimeSeriesIndexSearcherTests extends ESTestCase {
         iw.close();
 
         IndexReader reader = DirectoryReader.open(dir);
-        IndexSearcher searcher = new IndexSearcher(reader);
+        IndexSearcher searcher = newSearcher(reader);
 
         TimeSeriesIndexSearcher indexSearcher = new TimeSeriesIndexSearcher(searcher, List.of());
         indexSearcher.setMinimumScore(2f);
@@ -192,7 +193,7 @@ public class TimeSeriesIndexSearcherTests extends ESTestCase {
 
         iw.close();
         IndexReader reader = DirectoryReader.open(dir);
-        IndexSearcher searcher = new IndexSearcher(reader);
+        IndexSearcher searcher = newSearcher(reader);
 
         TimeSeriesIndexSearcher indexSearcher = new TimeSeriesIndexSearcher(searcher, List.of());
 
@@ -241,7 +242,7 @@ public class TimeSeriesIndexSearcherTests extends ESTestCase {
                         assertTrue(timestamp.advanceExact(doc));
                         BytesRef latestTSID = tsid.lookupOrd(tsid.ordValue());
                         long latestTimestamp = timestamp.longValue();
-                        assertEquals(latestTSID, aggCtx.getTsid());
+                        assertEquals(latestTSID, aggCtx.getTsidHash());
                         assertEquals(latestTimestamp, aggCtx.getTimestamp());
 
                         if (currentTSID != null) {
@@ -254,14 +255,14 @@ public class TimeSeriesIndexSearcherTests extends ESTestCase {
                                     currentTimestamp + "->" + latestTimestamp,
                                     timestampReverse ? latestTimestamp <= currentTimestamp : latestTimestamp >= currentTimestamp
                                 );
-                                assertEquals(currentTSIDord, aggCtx.getTsidOrd());
+                                assertEquals(currentTSIDord, aggCtx.getTsidHashOrd());
                             } else {
-                                assertThat(aggCtx.getTsidOrd(), greaterThan(currentTSIDord));
+                                assertThat(aggCtx.getTsidHashOrd(), greaterThan(currentTSIDord));
                             }
                         }
                         currentTimestamp = latestTimestamp;
                         currentTSID = BytesRef.deepCopyOf(latestTSID);
-                        currentTSIDord = aggCtx.getTsidOrd();
+                        currentTSIDord = aggCtx.getTsidHashOrd();
                         total++;
                     }
                 };

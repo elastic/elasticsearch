@@ -23,12 +23,12 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
-public class WriteField implements Field<Object> {
-    protected String path;
-    protected Supplier<Map<String, Object>> rootSupplier;
+public final class WriteField implements Field<Object> {
+    private String path;
+    private Supplier<Map<String, Object>> rootSupplier;
 
-    protected Map<String, Object> container;
-    protected String leaf;
+    private Map<String, Object> container;
+    private String leaf;
 
     private static final Object MISSING = new Object();
 
@@ -500,7 +500,7 @@ public class WriteField implements Field<Object> {
      * If there is a value that is not a List or a Map, {@throws IllegalStateException}.
      */
     @SuppressWarnings("unchecked")
-    protected List<Map<String, Object>> getDocsAsList() {
+    private List<Map<String, Object>> getDocsAsList() {
         Object value = get(MISSING);
         if (value == MISSING) {
             return null;
@@ -603,7 +603,7 @@ public class WriteField implements Field<Object> {
      * Change the path and clear the existing resolution by setting {@link #leaf} and {@link #container} to null.
      * Caller needs to re-resolve after this call.
      */
-    protected void setPath(String path) {
+    private void setPath(String path) {
         this.path = path;
         this.leaf = null;
         this.container = null;
@@ -612,7 +612,7 @@ public class WriteField implements Field<Object> {
     /**
      * Get the path to a leaf or create it if one does not exist.
      */
-    protected void setLeaf() {
+    private void setLeaf() {
         if (leaf == null) {
             resolveDepthFlat();
         }
@@ -635,7 +635,7 @@ public class WriteField implements Field<Object> {
      * {@link #container} and {@link #leaf} and non-null if resolved.
      */
     @SuppressWarnings("unchecked")
-    protected void resolveDepthFlat() {
+    private void resolveDepthFlat() {
         container = rootSupplier.get();
 
         int index = path.indexOf('.');
@@ -669,7 +669,7 @@ public class WriteField implements Field<Object> {
      * @throws IllegalArgumentException if a non-leaf segment maps to a non-Map Object.
      */
     @SuppressWarnings("unchecked")
-    protected void createDepth() {
+    private void createDepth() {
         container = rootSupplier.get();
 
         String[] segments = path.split("\\.");
@@ -691,7 +691,7 @@ public class WriteField implements Field<Object> {
         leaf = segments[segments.length - 1];
     }
 
-    protected String typeName(Object value) {
+    private String typeName(Object value) {
         return value != null ? value.getClass().getName() : "null";
     }
 }

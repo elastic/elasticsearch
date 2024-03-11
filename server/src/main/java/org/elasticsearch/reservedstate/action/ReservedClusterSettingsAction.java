@@ -12,13 +12,13 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsUpdater;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.reservedstate.TransformState;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -48,22 +48,18 @@ public class ReservedClusterSettingsAction implements ReservedClusterStateHandle
     }
 
     @SuppressWarnings("unchecked")
-    private ClusterUpdateSettingsRequest prepare(Object input, Set<String> previouslySet) {
-        final ClusterUpdateSettingsRequest clusterUpdateSettingsRequest = new ClusterUpdateSettingsRequest();
+    private static ClusterUpdateSettingsRequest prepare(Object input, Set<String> previouslySet) {
+        // load the new settings into a builder so their paths are normalized
+        @SuppressWarnings("unchecked")
+        Settings.Builder newSettings = Settings.builder().loadFromMap((Map<String, ?>) input);
 
-        Map<String, Object> persistentSettings = new HashMap<>();
+        // now the new and old settings can be compared to find which are missing for deletion
         Set<String> toDelete = new HashSet<>(previouslySet);
+        toDelete.removeAll(newSettings.keys());
+        toDelete.forEach(k -> newSettings.put(k, (String) null));
 
-        Map<String, Object> settings = (Map<String, Object>) input;
-
-        settings.forEach((k, v) -> {
-            persistentSettings.put(k, v);
-            toDelete.remove(k);
-        });
-
-        toDelete.forEach(k -> persistentSettings.put(k, null));
-
-        clusterUpdateSettingsRequest.persistentSettings(persistentSettings);
+        final ClusterUpdateSettingsRequest clusterUpdateSettingsRequest = new ClusterUpdateSettingsRequest();
+        clusterUpdateSettingsRequest.persistentSettings(newSettings);
         return clusterUpdateSettingsRequest;
     }
 

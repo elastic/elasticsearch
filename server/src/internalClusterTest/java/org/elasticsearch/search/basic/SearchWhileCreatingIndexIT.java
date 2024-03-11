@@ -8,14 +8,14 @@
 
 package org.elasticsearch.search.basic;
 
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
-import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 /**
@@ -54,8 +54,8 @@ public class SearchWhileCreatingIndexIT extends ESIntegTestCase {
         if (createIndex) {
             createIndex("test");
         }
-        client().prepareIndex("test").setId(id).setSource("field", "test").get();
-        RefreshResponse refreshResponse = indicesAdmin().prepareRefresh("test").get();
+        prepareIndex("test").setId(id).setSource("field", "test").get();
+        BroadcastResponse refreshResponse = indicesAdmin().prepareRefresh("test").get();
         // at least one shard should be successful when refreshing
         assertThat(refreshResponse.getSuccessfulShards(), greaterThanOrEqualTo(1));
 
@@ -64,35 +64,39 @@ public class SearchWhileCreatingIndexIT extends ESIntegTestCase {
         ClusterHealthStatus status = clusterAdmin().prepareHealth("test").get().getStatus();
         while (status != ClusterHealthStatus.GREEN) {
             // first, verify that search normal search works
-            SearchResponse searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.termQuery("field", "test")).get();
-            assertHitCount(searchResponse, 1);
+            assertHitCount(prepareSearch("test").setQuery(QueryBuilders.termQuery("field", "test")), 1);
             Client client = client();
-            searchResponse = client.prepareSearch("test")
-                .setPreference(preference + Integer.toString(counter++))
-                .setQuery(QueryBuilders.termQuery("field", "test"))
-                .get();
-            if (searchResponse.getHits().getTotalHits().value != 1) {
-                refresh();
-                SearchResponse searchResponseAfterRefresh = client.prepareSearch("test")
-                    .setPreference(preference)
-                    .setQuery(QueryBuilders.termQuery("field", "test"))
-                    .get();
-                logger.info(
-                    "hits count mismatch on any shard search failed, post explicit refresh hits are {}",
-                    searchResponseAfterRefresh.getHits().getTotalHits().value
-                );
-                ensureGreen();
-                SearchResponse searchResponseAfterGreen = client.prepareSearch("test")
-                    .setPreference(preference)
-                    .setQuery(QueryBuilders.termQuery("field", "test"))
-                    .get();
-                logger.info(
-                    "hits count mismatch on any shard search failed, post explicit wait for green hits are {}",
-                    searchResponseAfterGreen.getHits().getTotalHits().value
-                );
-                assertHitCount(searchResponse, 1);
-            }
-            assertHitCount(searchResponse, 1);
+            assertResponse(
+                client.prepareSearch("test")
+                    .setPreference(preference + Integer.toString(counter++))
+                    .setQuery(QueryBuilders.termQuery("field", "test")),
+                searchResponse -> {
+                    if (searchResponse.getHits().getTotalHits().value != 1) {
+                        refresh();
+                        assertResponse(
+                            client.prepareSearch("test").setPreference(preference).setQuery(QueryBuilders.termQuery("field", "test")),
+                            searchResponseAfterRefresh -> {
+                                logger.info(
+                                    "hits count mismatch on any shard search failed, post explicit refresh hits are {}",
+                                    searchResponseAfterRefresh.getHits().getTotalHits().value
+                                );
+                                ensureGreen();
+                                assertResponse(
+                                    client.prepareSearch("test")
+                                        .setPreference(preference)
+                                        .setQuery(QueryBuilders.termQuery("field", "test")),
+                                    searchResponseAfterGreen -> logger.info(
+                                        "hits count mismatch on any shard search failed, post explicit wait for green hits are {}",
+                                        searchResponseAfterGreen.getHits().getTotalHits().value
+                                    )
+                                );
+                            }
+                        );
+                        assertHitCount(searchResponse, 1);
+                    }
+                    assertHitCount(searchResponse, 1);
+                }
+            );
             status = clusterAdmin().prepareHealth("test").get().getStatus();
             internalCluster().ensureAtLeastNumDataNodes(numberOfReplicas + 1);
         }

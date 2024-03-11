@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.enrich.action;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
@@ -42,18 +41,18 @@ public class EnrichCoordinatorStatsAction extends ActionType<EnrichCoordinatorSt
     public static final String NAME = "cluster:monitor/xpack/enrich/coordinator_stats";
 
     private EnrichCoordinatorStatsAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
     // This always executes on all ingest nodes, hence no node ids need to be provided.
     public static class Request extends BaseNodesRequest<Request> {
-
         public Request() {
             super(new String[0]);
         }
 
-        Request(StreamInput in) throws IOException {
-            super(in);
+        @Override
+        public void writeTo(StreamOutput out) {
+            org.elasticsearch.action.support.TransportAction.localOnly();
         }
     }
 
@@ -69,22 +68,18 @@ public class EnrichCoordinatorStatsAction extends ActionType<EnrichCoordinatorSt
 
     public static class Response extends BaseNodesResponse<NodeResponse> {
 
-        Response(StreamInput in) throws IOException {
-            super(in);
-        }
-
         Response(ClusterName clusterName, List<NodeResponse> nodes, List<FailedNodeException> failures) {
             super(clusterName, nodes, failures);
         }
 
         @Override
         protected List<NodeResponse> readNodesFrom(StreamInput in) throws IOException {
-            return in.readList(NodeResponse::new);
+            return org.elasticsearch.action.support.TransportAction.localOnly();
         }
 
         @Override
         protected void writeNodesTo(StreamOutput out, List<NodeResponse> nodes) throws IOException {
-            out.writeList(nodes);
+            org.elasticsearch.action.support.TransportAction.localOnly();
         }
     }
 
@@ -101,9 +96,7 @@ public class EnrichCoordinatorStatsAction extends ActionType<EnrichCoordinatorSt
 
         NodeResponse(StreamInput in) throws IOException {
             super(in);
-            this.cacheStats = in.getTransportVersion().onOrAfter(TransportVersion.V_7_16_0)
-                ? new EnrichStatsAction.Response.CacheStats(in)
-                : null;
+            this.cacheStats = new EnrichStatsAction.Response.CacheStats(in);
             this.coordinatorStats = new CoordinatorStats(in);
         }
 
@@ -118,9 +111,7 @@ public class EnrichCoordinatorStatsAction extends ActionType<EnrichCoordinatorSt
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_16_0)) {
-                cacheStats.writeTo(out);
-            }
+            cacheStats.writeTo(out);
             coordinatorStats.writeTo(out);
         }
     }
@@ -139,16 +130,7 @@ public class EnrichCoordinatorStatsAction extends ActionType<EnrichCoordinatorSt
             EnrichCache enrichCache,
             EnrichCoordinatorProxyAction.Coordinator coordinator
         ) {
-            super(
-                NAME,
-                threadPool,
-                clusterService,
-                transportService,
-                actionFilters,
-                Request::new,
-                NodeRequest::new,
-                ThreadPool.Names.GENERIC
-            );
+            super(NAME, clusterService, transportService, actionFilters, NodeRequest::new, threadPool.executor(ThreadPool.Names.GENERIC));
             this.enrichCache = enrichCache;
             this.coordinator = coordinator;
         }

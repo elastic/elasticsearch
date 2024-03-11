@@ -25,7 +25,6 @@ import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.CustomAnalyzer;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
-import org.elasticsearch.synonyms.SynonymsAPI;
 import org.elasticsearch.synonyms.SynonymsManagementAPIService;
 
 import java.io.Reader;
@@ -161,7 +160,7 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
                 sb.append(line).append(System.lineSeparator());
             }
             return new ReaderWithOrigin(new StringReader(sb.toString()), "'" + name() + "' analyzer settings");
-        } else if ((settings.get("synonyms_set") != null) && SynonymsAPI.isEnabled()) {
+        } else if (settings.get("synonyms_set") != null) {
             if (analysisMode != AnalysisMode.SEARCH_TIME) {
                 throw new IllegalArgumentException(
                     "Can't apply [synonyms_set]! " + "Loading synonyms from index is supported only for search time synonyms!"
@@ -186,8 +185,7 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
             String synonyms_path = settings.get("synonyms_path", null);
             return new ReaderWithOrigin(Analysis.getReaderFromFile(env, synonyms_path, "synonyms_path"), synonyms_path);
         } else {
-            String err = SynonymsAPI.isEnabled() ? "`synonyms_set`," : "";
-            throw new IllegalArgumentException("synonym requires either `synonyms`," + err + " or `synonyms_path` to be configured");
+            throw new IllegalArgumentException("synonym requires either `synonyms`, `synonyms_set` or `synonyms_path` to be configured");
         }
     }
 

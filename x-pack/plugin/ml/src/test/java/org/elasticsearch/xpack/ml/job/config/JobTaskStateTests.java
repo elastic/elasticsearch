@@ -16,7 +16,7 @@ public class JobTaskStateTests extends AbstractXContentSerializingTestCase<JobTa
 
     @Override
     protected JobTaskState createTestInstance() {
-        return new JobTaskState(randomFrom(JobState.values()), randomLong(), randomAlphaOfLength(10));
+        return new JobTaskState(randomFrom(JobState.values()), randomLong(), randomAlphaOfLength(10), randomInstant());
     }
 
     @Override

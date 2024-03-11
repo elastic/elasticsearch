@@ -14,6 +14,7 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -52,9 +53,11 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
     public static final String NAME = "pinned";
     public static final int MAX_NUM_PINNED_HITS = 100;
 
-    private static final ParseField IDS_FIELD = new ParseField("ids");
-    private static final ParseField DOCS_FIELD = new ParseField("docs");
+    public static final ParseField IDS_FIELD = new ParseField("ids");
+    public static final ParseField DOCS_FIELD = new ParseField("docs");
     public static final ParseField ORGANIC_QUERY_FIELD = new ParseField("organic");
+
+    private static final TransportVersion OPTIONAL_INDEX_IN_DOCS_VERSION = TransportVersions.V_8_11_X;
 
     private final List<String> ids;
     private final List<Item> docs;
@@ -70,8 +73,8 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
     public static final class Item implements ToXContentObject, Writeable {
         public static final String NAME = "item";
 
-        private static final ParseField INDEX_FIELD = new ParseField("_index");
-        private static final ParseField ID_FIELD = new ParseField("_id");
+        public static final ParseField INDEX_FIELD = new ParseField("_index");
+        public static final ParseField ID_FIELD = new ParseField("_id");
 
         private final String index;
         private final String id;
@@ -83,10 +86,7 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
          * @param id and its id
          */
         public Item(String index, String id) {
-            if (index == null) {
-                throw new IllegalArgumentException("Item requires index to be non-null");
-            }
-            if (Regex.isSimpleMatchPattern(index)) {
+            if (index != null && Regex.isSimpleMatchPattern(index)) {
                 throw new IllegalArgumentException("Item index cannot contain wildcard expressions");
             }
             if (id == null) {
@@ -104,21 +104,36 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
         /**
          * Read from a stream.
          */
-        Item(StreamInput in) throws IOException {
-            index = in.readString();
+        public Item(StreamInput in) throws IOException {
+            if (in.getTransportVersion().onOrAfter(OPTIONAL_INDEX_IN_DOCS_VERSION)) {
+                index = in.readOptionalString();
+            } else {
+                index = in.readString();
+            }
             id = in.readString();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(index);
+            if (out.getTransportVersion().onOrAfter(OPTIONAL_INDEX_IN_DOCS_VERSION)) {
+                out.writeOptionalString(index);
+            } else {
+                if (index == null) {
+                    throw new IllegalArgumentException(
+                        "[_index] needs to be specified for docs elements when cluster nodes are not in the same version"
+                    );
+                }
+                out.writeString(index);
+            }
             out.writeString(id);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field(INDEX_FIELD.getPreferredName(), this.index);
+            if (this.index != null) {
+                builder.field(INDEX_FIELD.getPreferredName(), this.index);
+            }
             builder.field(ID_FIELD.getPreferredName(), this.id);
             return builder.endObject();
         }
@@ -129,7 +144,7 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
         );
 
         static {
-            PARSER.declareString(constructorArg(), INDEX_FIELD);
+            PARSER.declareString(optionalConstructorArg(), INDEX_FIELD);
             PARSER.declareString(constructorArg(), ID_FIELD);
         }
 
@@ -219,19 +234,19 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
      */
     public PinnedQueryBuilder(StreamInput in) throws IOException {
         super(in);
-        if (in.getTransportVersion().before(TransportVersion.V_7_15_0)) {
-            ids = in.readStringList();
+        if (in.getTransportVersion().before(TransportVersions.V_7_15_0)) {
+            ids = in.readStringCollectionAsList();
             docs = null;
         } else {
-            ids = in.readOptionalStringList();
-            docs = in.readBoolean() ? in.readList(Item::new) : null;
+            ids = in.readOptionalStringCollectionAsList();
+            docs = in.readBoolean() ? in.readCollectionAsList(Item::new) : null;
         }
         organicQuery = in.readNamedWriteable(QueryBuilder.class);
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().before(TransportVersion.V_7_15_0)) {
+        if (out.getTransportVersion().before(TransportVersions.V_7_15_0)) {
             out.writeStringCollection(this.ids);
         } else {
             out.writeOptionalStringCollection(this.ids);
@@ -239,7 +254,7 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
                 out.writeBoolean(false);
             } else {
                 out.writeBoolean(true);
-                out.writeList(docs);
+                out.writeCollection(docs);
             }
         }
         out.writeNamedWriteable(organicQuery);
@@ -390,6 +405,6 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.V_7_4_0;
+        return TransportVersions.V_7_4_0;
     }
 }

@@ -24,7 +24,10 @@ import org.elasticsearch.transport.RawIndexingDataTransportRequest;
 import java.io.IOException;
 import java.util.Set;
 
-public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> implements Accountable, RawIndexingDataTransportRequest {
+public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest>
+    implements
+        Accountable,
+        RawIndexingDataTransportRequest {
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(BulkShardRequest.class);
 

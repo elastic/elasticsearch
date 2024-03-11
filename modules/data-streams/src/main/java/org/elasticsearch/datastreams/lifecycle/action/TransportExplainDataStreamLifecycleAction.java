@@ -53,7 +53,7 @@ public class TransportExplainDataStreamLifecycleAction extends TransportMasterNo
         DataStreamLifecycleErrorStore dataLifecycleServiceErrorStore
     ) {
         super(
-            ExplainDataStreamLifecycleAction.NAME,
+            ExplainDataStreamLifecycleAction.INSTANCE.name(),
             transportService,
             clusterService,
             threadPool,
@@ -61,7 +61,7 @@ public class TransportExplainDataStreamLifecycleAction extends TransportMasterNo
             ExplainDataStreamLifecycleAction.Request::new,
             indexNameExpressionResolver,
             ExplainDataStreamLifecycleAction.Response::new,
-            ThreadPool.Names.MANAGEMENT
+            threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.errorStore = dataLifecycleServiceErrorStore;
     }
@@ -111,9 +111,7 @@ public class TransportExplainDataStreamLifecycleAction extends TransportMasterNo
         listener.onResponse(
             new ExplainDataStreamLifecycleAction.Response(
                 explainIndices,
-                request.includeDefaults() && DataStreamLifecycle.isEnabled()
-                    ? clusterSettings.get(DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING)
-                    : null
+                request.includeDefaults() ? clusterSettings.get(DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING) : null
             )
         );
     }

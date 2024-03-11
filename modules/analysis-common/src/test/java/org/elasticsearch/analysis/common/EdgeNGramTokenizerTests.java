@@ -9,7 +9,6 @@
 package org.elasticsearch.analysis.common;
 
 import org.apache.lucene.analysis.Tokenizer;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -17,13 +16,15 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService.IndexCreationContext;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.test.ESTokenStreamTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.index.IndexVersionUtils;
 
 import java.io.IOException;
 import java.io.StringReader;
@@ -31,7 +32,7 @@ import java.util.Collections;
 
 public class EdgeNGramTokenizerTests extends ESTokenStreamTestCase {
 
-    private IndexAnalyzers buildAnalyzers(Version version, String tokenizer) throws IOException {
+    private IndexAnalyzers buildAnalyzers(IndexVersion version, String tokenizer) throws IOException {
         Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
         Settings indexSettings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, version)
@@ -49,10 +50,10 @@ public class EdgeNGramTokenizerTests extends ESTokenStreamTestCase {
 
         // Before 7.3 we return ngrams of length 1 only
         {
-            Version version = VersionUtils.randomVersionBetween(
+            IndexVersion version = IndexVersionUtils.randomVersionBetween(
                 random(),
-                Version.V_7_0_0,
-                VersionUtils.getPreviousVersion(Version.V_7_3_0)
+                IndexVersions.V_7_0_0,
+                IndexVersionUtils.getPreviousVersion(IndexVersions.V_7_3_0)
             );
             try (IndexAnalyzers indexAnalyzers = buildAnalyzers(version, "edge_ngram")) {
                 NamedAnalyzer analyzer = indexAnalyzers.get("my_analyzer");
@@ -63,10 +64,10 @@ public class EdgeNGramTokenizerTests extends ESTokenStreamTestCase {
 
         // Check deprecated name as well
         {
-            Version version = VersionUtils.randomVersionBetween(
+            IndexVersion version = IndexVersionUtils.randomVersionBetween(
                 random(),
-                Version.V_7_0_0,
-                VersionUtils.getPreviousVersion(Version.V_7_3_0)
+                IndexVersions.V_7_0_0,
+                IndexVersionUtils.getPreviousVersion(IndexVersions.V_7_3_0)
             );
             try (IndexAnalyzers indexAnalyzers = buildAnalyzers(version, "edgeNGram")) {
                 NamedAnalyzer analyzer = indexAnalyzers.get("my_analyzer");
@@ -77,7 +78,7 @@ public class EdgeNGramTokenizerTests extends ESTokenStreamTestCase {
 
         // Afterwards, we return ngrams of length 1 and 2, to match the default factory settings
         {
-            try (IndexAnalyzers indexAnalyzers = buildAnalyzers(Version.CURRENT, "edge_ngram")) {
+            try (IndexAnalyzers indexAnalyzers = buildAnalyzers(IndexVersion.current(), "edge_ngram")) {
                 NamedAnalyzer analyzer = indexAnalyzers.get("my_analyzer");
                 assertNotNull(analyzer);
                 assertAnalyzesTo(analyzer, "test", new String[] { "t", "te" });
@@ -88,7 +89,11 @@ public class EdgeNGramTokenizerTests extends ESTokenStreamTestCase {
         {
             try (
                 IndexAnalyzers indexAnalyzers = buildAnalyzers(
-                    VersionUtils.randomVersionBetween(random(), Version.V_7_3_0, VersionUtils.getPreviousVersion(Version.V_8_0_0)),
+                    IndexVersionUtils.randomVersionBetween(
+                        random(),
+                        IndexVersions.V_7_3_0,
+                        IndexVersionUtils.getPreviousVersion(IndexVersions.V_8_0_0)
+                    ),
                     "edgeNGram"
                 )
             ) {

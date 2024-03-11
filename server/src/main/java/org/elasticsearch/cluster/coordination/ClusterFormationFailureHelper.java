@@ -9,6 +9,7 @@ package org.elasticsearch.cluster.coordination;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
 import org.elasticsearch.cluster.coordination.CoordinationState.VoteCollection;
@@ -36,6 +37,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING;
@@ -53,6 +55,7 @@ public class ClusterFormationFailureHelper {
 
     private final Supplier<ClusterFormationState> clusterFormationStateSupplier;
     private final ThreadPool threadPool;
+    private final Executor clusterCoordinationExecutor;
     private final TimeValue clusterFormationWarningTimeout;
     private final Runnable logLastFailedJoinAttempt;
     @Nullable // if no warning is scheduled
@@ -66,6 +69,7 @@ public class ClusterFormationFailureHelper {
     ) {
         this.clusterFormationStateSupplier = clusterFormationStateSupplier;
         this.threadPool = threadPool;
+        this.clusterCoordinationExecutor = threadPool.executor(Names.CLUSTER_COORDINATION);
         this.clusterFormationWarningTimeout = DISCOVERY_CLUSTER_FORMATION_WARNING_TIMEOUT_SETTING.get(settings);
         this.logLastFailedJoinAttempt = logLastFailedJoinAttempt;
     }
@@ -91,7 +95,7 @@ public class ClusterFormationFailureHelper {
         }
 
         void scheduleNextWarning() {
-            threadPool.scheduleUnlessShuttingDown(clusterFormationWarningTimeout, Names.CLUSTER_COORDINATION, new AbstractRunnable() {
+            threadPool.scheduleUnlessShuttingDown(clusterFormationWarningTimeout, clusterCoordinationExecutor, new AbstractRunnable() {
                 @Override
                 public void onFailure(Exception e) {
                     logger.debug("unexpected exception scheduling cluster formation warning", e);
@@ -137,6 +141,7 @@ public class ClusterFormationFailureHelper {
         VotingConfiguration lastCommittedConfiguration,
         List<TransportAddress> resolvedAddresses,
         List<DiscoveryNode> foundPeers,
+        Set<DiscoveryNode> mastersOfPeers,
         long currentTerm,
         boolean hasDiscoveredQuorum,
         StatusInfo statusInfo,
@@ -148,6 +153,7 @@ public class ClusterFormationFailureHelper {
             ClusterState clusterState,
             List<TransportAddress> resolvedAddresses,
             List<DiscoveryNode> foundPeers,
+            Set<DiscoveryNode> mastersOfPeers,
             long currentTerm,
             ElectionStrategy electionStrategy,
             StatusInfo statusInfo,
@@ -163,6 +169,7 @@ public class ClusterFormationFailureHelper {
                 clusterState.getLastCommittedConfiguration(),
                 resolvedAddresses,
                 foundPeers,
+                mastersOfPeers,
                 currentTerm,
                 calculateHasDiscoveredQuorum(
                     foundPeers,
@@ -204,19 +211,22 @@ public class ClusterFormationFailureHelper {
 
         public ClusterFormationState(StreamInput in) throws IOException {
             this(
-                in.readStringList(),
+                in.readStringCollectionAsList(),
                 new DiscoveryNode(in),
                 in.readMap(DiscoveryNode::new),
                 in.readLong(),
                 in.readLong(),
                 new VotingConfiguration(in),
                 new VotingConfiguration(in),
-                in.readImmutableList(TransportAddress::new),
-                in.readImmutableList(DiscoveryNode::new),
+                in.readCollectionAsImmutableList(TransportAddress::new),
+                in.readCollectionAsImmutableList(DiscoveryNode::new),
+                in.getTransportVersion().onOrAfter(TransportVersions.PEERFINDER_REPORTS_PEERS_MASTERS)
+                    ? in.readCollectionAsImmutableSet(DiscoveryNode::new)
+                    : Set.of(),
                 in.readLong(),
                 in.readBoolean(),
                 new StatusInfo(in),
-                in.readList(JoinStatus::new)
+                in.readCollectionAsList(JoinStatus::new)
             );
         }
 
@@ -247,12 +257,19 @@ public class ClusterFormationFailureHelper {
                 acceptedTerm
             );
 
-            final StringBuilder foundPeersDescription = new StringBuilder();
+            final StringBuilder foundPeersDescription = new StringBuilder("[");
             DiscoveryNodes.addCommaSeparatedNodesWithoutAttributes(foundPeers.iterator(), foundPeersDescription);
+            if (mastersOfPeers.isEmpty()) {
+                foundPeersDescription.append(']');
+            } else {
+                foundPeersDescription.append("] who claim current master to be [");
+                DiscoveryNodes.addCommaSeparatedNodesWithoutAttributes(mastersOfPeers.iterator(), foundPeersDescription);
+                foundPeersDescription.append(']');
+            }
 
             final String discoveryStateIgnoringQuorum = String.format(
                 Locale.ROOT,
-                "have discovered [%s]; %s",
+                "have discovered %s; %s",
                 foundPeersDescription,
                 discoveryWillContinueDescription
             );
@@ -288,7 +305,7 @@ public class ClusterFormationFailureHelper {
             if (lastCommittedConfiguration.equals(VotingConfiguration.MUST_JOIN_ELECTED_MASTER)) {
                 return String.format(
                     Locale.ROOT,
-                    "master not discovered yet and this node was detached from its previous cluster, have discovered [%s]; %s",
+                    "master not discovered yet and this node was detached from its previous cluster, have discovered %s; %s",
                     foundPeersDescription,
                     discoveryWillContinueDescription
                 );
@@ -307,7 +324,7 @@ public class ClusterFormationFailureHelper {
 
             return String.format(
                 Locale.ROOT,
-                "master not discovered or elected yet, an election requires %s, %s [%s]; %s",
+                "master not discovered or elected yet, an election requires %s, %s %s; %s",
                 quorumDescription,
                 haveDiscoveredQuorum,
                 foundPeersDescription,
@@ -378,13 +395,16 @@ public class ClusterFormationFailureHelper {
         public void writeTo(StreamOutput out) throws IOException {
             out.writeStringCollection(initialMasterNodesSetting);
             localNode.writeTo(out);
-            out.writeMap(masterEligibleNodes, StreamOutput::writeString, (streamOutput, node) -> node.writeTo(streamOutput));
+            out.writeMap(masterEligibleNodes, StreamOutput::writeWriteable);
             out.writeLong(clusterStateVersion);
             out.writeLong(acceptedTerm);
             lastAcceptedConfiguration.writeTo(out);
             lastCommittedConfiguration.writeTo(out);
-            out.writeList(resolvedAddresses);
-            out.writeList(foundPeers);
+            out.writeCollection(resolvedAddresses);
+            out.writeCollection(foundPeers);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.PEERFINDER_REPORTS_PEERS_MASTERS)) {
+                out.writeCollection(mastersOfPeers);
+            }
             out.writeLong(currentTerm);
             out.writeBoolean(hasDiscoveredQuorum);
             statusInfo.writeTo(out);

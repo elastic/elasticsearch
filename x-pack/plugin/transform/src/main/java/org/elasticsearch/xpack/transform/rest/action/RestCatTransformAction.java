@@ -62,7 +62,7 @@ public class RestCatTransformAction extends AbstractCatAction {
         GetTransformAction.Request request = new GetTransformAction.Request(id);
         request.setAllowNoResources(restRequest.paramAsBoolean(ALLOW_NO_MATCH.getPreferredName(), true));
 
-        GetTransformStatsAction.Request statsRequest = new GetTransformStatsAction.Request(id, null);
+        GetTransformStatsAction.Request statsRequest = new GetTransformStatsAction.Request(id, null, false);
         statsRequest.setAllowNoMatch(restRequest.paramAsBoolean(ALLOW_NO_MATCH.getPreferredName(), true));
 
         if (restRequest.hasParam(PageParams.FROM.getPreferredName()) || restRequest.hasParam(PageParams.SIZE.getPreferredName())) {
@@ -211,7 +211,7 @@ public class RestCatTransformAction extends AbstractCatAction {
             .endHeaders();
     }
 
-    private Table buildTable(GetTransformAction.Response response, GetTransformStatsAction.Response statsResponse) {
+    private static Table buildTable(GetTransformAction.Response response, GetTransformStatsAction.Response statsResponse) {
         Table table = getTableWithHeader();
         Map<String, TransformStats> statsById = statsResponse.getTransformsStats()
             .stream()

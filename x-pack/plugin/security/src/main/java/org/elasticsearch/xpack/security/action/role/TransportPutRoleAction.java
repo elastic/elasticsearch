@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -33,7 +34,7 @@ public class TransportPutRoleAction extends HandledTransportAction<PutRoleReques
         TransportService transportService,
         NamedXContentRegistry xContentRegistry
     ) {
-        super(PutRoleAction.NAME, transportService, actionFilters, PutRoleRequest::new);
+        super(PutRoleAction.NAME, transportService, actionFilters, PutRoleRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.rolesStore = rolesStore;
         this.xContentRegistry = xContentRegistry;
     }
@@ -56,6 +57,7 @@ public class TransportPutRoleAction extends HandledTransportAction<PutRoleReques
     }
 
     private Exception validateRequest(final PutRoleRequest request) {
+        // TODO we can remove this -- `execute()` already calls `request.validate()` before `doExecute()`
         ActionRequestValidationException validationException = request.validate();
         if (validationException != null) {
             return validationException;

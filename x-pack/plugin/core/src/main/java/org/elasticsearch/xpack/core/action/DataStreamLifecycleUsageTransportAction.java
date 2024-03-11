@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -24,7 +25,6 @@ import org.elasticsearch.xpack.core.datastreams.DataStreamLifecycleFeatureSetUsa
 
 import java.util.Collection;
 import java.util.LongSummaryStatistics;
-import java.util.stream.Collectors;
 
 public class DataStreamLifecycleUsageTransportAction extends XPackUsageFeatureTransportAction {
 
@@ -53,31 +53,43 @@ public class DataStreamLifecycleUsageTransportAction extends XPackUsageFeatureTr
         ClusterState state,
         ActionListener<XPackUsageFeatureResponse> listener
     ) {
-        if (DataStreamLifecycle.isEnabled() == false) {
-            listener.onResponse(new XPackUsageFeatureResponse(DataStreamLifecycleFeatureSetUsage.DISABLED));
-            return;
-        }
-
         final Collection<DataStream> dataStreams = state.metadata().dataStreams().values();
-        LongSummaryStatistics retentionStats = dataStreams.stream()
-            .filter(ds -> ds.getLifecycle() != null)
-            .collect(Collectors.summarizingLong(ds -> ds.getLifecycle().getEffectiveDataRetention().getMillis()));
-        long dataStreamsWithLifecycles = retentionStats.getCount();
-        long minRetention = dataStreamsWithLifecycles == 0 ? 0 : retentionStats.getMin();
-        long maxRetention = dataStreamsWithLifecycles == 0 ? 0 : retentionStats.getMax();
-        double averageRetention = retentionStats.getAverage();
+        Tuple<Long, LongSummaryStatistics> stats = calculateStats(dataStreams);
+
+        long minRetention = stats.v2().getCount() == 0 ? 0 : stats.v2().getMin();
+        long maxRetention = stats.v2().getCount() == 0 ? 0 : stats.v2().getMax();
+        double averageRetention = stats.v2().getAverage();
         RolloverConfiguration rolloverConfiguration = clusterService.getClusterSettings()
             .get(DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING);
         String rolloverConfigString = rolloverConfiguration.toString();
-        final DataStreamLifecycleFeatureSetUsage.LifecycleStats stats = new DataStreamLifecycleFeatureSetUsage.LifecycleStats(
-            dataStreamsWithLifecycles,
+        final DataStreamLifecycleFeatureSetUsage.LifecycleStats lifecycleStats = new DataStreamLifecycleFeatureSetUsage.LifecycleStats(
+            stats.v1(),
             minRetention,
             maxRetention,
             averageRetention,
             DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING.getDefault(null).toString().equals(rolloverConfigString)
         );
 
-        final DataStreamLifecycleFeatureSetUsage usage = new DataStreamLifecycleFeatureSetUsage(stats);
+        final DataStreamLifecycleFeatureSetUsage usage = new DataStreamLifecycleFeatureSetUsage(lifecycleStats);
         listener.onResponse(new XPackUsageFeatureResponse(usage));
+    }
+
+    /**
+     * Counts the number of data streams that have a lifecycle configured (and enabled) and for
+     * the data streams that have a lifecycle it computes the min/max/average summary of the effective
+     * configured retention.
+     */
+    public static Tuple<Long, LongSummaryStatistics> calculateStats(Collection<DataStream> dataStreams) {
+        long dataStreamsWithLifecycles = 0;
+        LongSummaryStatistics retentionStats = new LongSummaryStatistics();
+        for (DataStream dataStream : dataStreams) {
+            if (dataStream.getLifecycle() != null && dataStream.getLifecycle().isEnabled()) {
+                dataStreamsWithLifecycles++;
+                if (dataStream.getLifecycle().getEffectiveDataRetention() != null) {
+                    retentionStats.accept(dataStream.getLifecycle().getEffectiveDataRetention().getMillis());
+                }
+            }
+        }
+        return new Tuple<>(dataStreamsWithLifecycles, retentionStats);
     }
 }

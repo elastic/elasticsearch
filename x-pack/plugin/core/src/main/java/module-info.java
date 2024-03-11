@@ -21,6 +21,8 @@ module org.elasticsearch.xcore {
     requires org.apache.lucene.join;
     requires unboundid.ldapsdk;
     requires org.elasticsearch.tdigest;
+    requires org.elasticsearch.xcore.templates;
+    requires com.nimbusds.jose.jwt;
 
     exports org.elasticsearch.index.engine.frozen;
     exports org.elasticsearch.license;
@@ -41,6 +43,7 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.core.aggregatemetric;
     exports org.elasticsearch.xpack.core.analytics.action;
     exports org.elasticsearch.xpack.core.analytics;
+    exports org.elasticsearch.xpack.core.api.filtering;
     exports org.elasticsearch.xpack.core.application;
     exports org.elasticsearch.xpack.core.archive;
     exports org.elasticsearch.xpack.core.async;
@@ -55,11 +58,13 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.core.common.validation;
     exports org.elasticsearch.xpack.core.common;
     exports org.elasticsearch.xpack.core.datastreams;
+    exports org.elasticsearch.xpack.core.datatiers;
     exports org.elasticsearch.xpack.core.deprecation;
     exports org.elasticsearch.xpack.core.downsample;
     exports org.elasticsearch.xpack.core.enrich.action;
     exports org.elasticsearch.xpack.core.enrich;
     exports org.elasticsearch.xpack.core.eql;
+    exports org.elasticsearch.xpack.core.esql;
     exports org.elasticsearch.xpack.core.frozen.action;
     exports org.elasticsearch.xpack.core.frozen;
     exports org.elasticsearch.xpack.core.graph.action;
@@ -68,12 +73,14 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.core.ilm.step.info;
     exports org.elasticsearch.xpack.core.ilm;
     exports org.elasticsearch.xpack.core.indexing;
+    exports org.elasticsearch.xpack.core.inference.action;
+    exports org.elasticsearch.xpack.core.inference.results;
+    exports org.elasticsearch.xpack.core.inference;
     exports org.elasticsearch.xpack.core.logstash;
     exports org.elasticsearch.xpack.core.ml.action;
     exports org.elasticsearch.xpack.core.ml.annotations;
     exports org.elasticsearch.xpack.core.ml.autoscaling;
     exports org.elasticsearch.xpack.core.ml.calendars;
-    exports org.elasticsearch.xpack.core.ml.datafeed.extractor;
     exports org.elasticsearch.xpack.core.ml.datafeed;
     exports org.elasticsearch.xpack.core.ml.dataframe.analyses;
     exports org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification;
@@ -96,6 +103,7 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble;
     exports org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference;
     exports org.elasticsearch.xpack.core.ml.inference.trainedmodel.langident;
+    exports org.elasticsearch.xpack.core.ml.inference.trainedmodel.ltr;
     exports org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata;
     exports org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree;
     exports org.elasticsearch.xpack.core.ml.inference.trainedmodel;
@@ -138,6 +146,7 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.core.security.action.service;
     exports org.elasticsearch.xpack.core.security.action.token;
     exports org.elasticsearch.xpack.core.security.action.user;
+    exports org.elasticsearch.xpack.core.security.action.settings;
     exports org.elasticsearch.xpack.core.security.action;
     exports org.elasticsearch.xpack.core.security.authc.esnative;
     exports org.elasticsearch.xpack.core.security.authc.file;
@@ -216,4 +225,12 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.core.watcher.trigger;
     exports org.elasticsearch.xpack.core.watcher.watch;
     exports org.elasticsearch.xpack.core.watcher;
+    exports org.elasticsearch.xpack.core.ml.ltr;
+
+    provides org.elasticsearch.action.admin.cluster.node.info.ComponentVersionNumber
+        with
+            org.elasticsearch.xpack.core.ml.MlConfigVersionComponent,
+            org.elasticsearch.xpack.core.transform.TransformConfigVersionComponent;
+
+    provides org.elasticsearch.features.FeatureSpecification with org.elasticsearch.xpack.core.XPackFeatures;
 }

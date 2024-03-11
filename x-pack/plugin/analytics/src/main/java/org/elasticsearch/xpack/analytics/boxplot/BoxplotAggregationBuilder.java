@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.analytics.boxplot;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -82,10 +83,8 @@ public class BoxplotAggregationBuilder extends ValuesSourceAggregationBuilder.Me
     public BoxplotAggregationBuilder(StreamInput in) throws IOException {
         super(in);
         compression = in.readDouble();
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_018)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
             executionHint = in.readOptionalWriteable(TDigestExecutionHint::readFrom);
-        } else if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_014)) {
-            executionHint = TDigestExecutionHint.readFrom(in);
         } else {
             executionHint = TDigestExecutionHint.HIGH_ACCURACY;
         }
@@ -99,10 +98,8 @@ public class BoxplotAggregationBuilder extends ValuesSourceAggregationBuilder.Me
     @Override
     protected void innerWriteTo(StreamOutput out) throws IOException {
         out.writeDouble(compression);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_018)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
             out.writeOptionalWriteable(executionHint);
-        } else if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_014)) {
-            (executionHint == null ? TDigestExecutionHint.DEFAULT : executionHint).writeTo(out);
         }
     }
 
@@ -191,17 +188,12 @@ public class BoxplotAggregationBuilder extends ValuesSourceAggregationBuilder.Me
     }
 
     @Override
-    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
-        return REGISTRY_KEY;
-    }
-
-    @Override
     public Optional<Set<String>> getOutputFieldNames() {
         return Optional.of(InternalBoxplot.METRIC_NAMES);
     }
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.V_7_7_0;
+        return TransportVersions.V_7_7_0;
     }
 }

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xcontent.XContentParser;
@@ -19,7 +20,6 @@ import java.util.Map;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigTestScaffolding.cloneWithNewTruncation;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigTestScaffolding.createTokenizationUpdate;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.sameInstance;
 
 public class PassThroughConfigUpdateTests extends AbstractNlpConfigUpdateTestCase<PassThroughConfigUpdate> {
 
@@ -35,7 +35,7 @@ public class PassThroughConfigUpdateTests extends AbstractNlpConfigUpdateTestCas
     }
 
     public static PassThroughConfigUpdate mutateForVersion(PassThroughConfigUpdate instance, TransportVersion version) {
-        if (version.before(TransportVersion.V_8_1_0)) {
+        if (version.before(TransportVersions.V_8_1_0)) {
             return new PassThroughConfigUpdate(instance.getResultsField(), null);
         }
         return instance;
@@ -60,11 +60,11 @@ public class PassThroughConfigUpdateTests extends AbstractNlpConfigUpdateTestCas
     public void testApply() {
         PassThroughConfig originalConfig = PassThroughConfigTests.createRandom();
 
-        assertThat(originalConfig, sameInstance(new PassThroughConfigUpdate.Builder().build().apply(originalConfig)));
+        assertEquals(originalConfig, originalConfig.apply(new PassThroughConfigUpdate.Builder().build()));
 
         assertThat(
             new PassThroughConfig(originalConfig.getVocabularyConfig(), originalConfig.getTokenization(), "ml-results"),
-            equalTo(new PassThroughConfigUpdate.Builder().setResultsField("ml-results").build().apply(originalConfig))
+            equalTo(originalConfig.apply(new PassThroughConfigUpdate.Builder().setResultsField("ml-results").build()))
         );
 
         Tokenization.Truncate truncate = randomFrom(Tokenization.Truncate.values());
@@ -72,9 +72,11 @@ public class PassThroughConfigUpdateTests extends AbstractNlpConfigUpdateTestCas
         assertThat(
             new PassThroughConfig(originalConfig.getVocabularyConfig(), tokenization, originalConfig.getResultsField()),
             equalTo(
-                new PassThroughConfigUpdate.Builder().setTokenizationUpdate(
-                    createTokenizationUpdate(originalConfig.getTokenization(), truncate, null)
-                ).build().apply(originalConfig)
+                originalConfig.apply(
+                    new PassThroughConfigUpdate.Builder().setTokenizationUpdate(
+                        createTokenizationUpdate(originalConfig.getTokenization(), truncate, null)
+                    ).build()
+                )
             )
         );
     }

@@ -10,6 +10,7 @@ package org.elasticsearch.action.support;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelHelper;
@@ -30,7 +31,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -80,9 +83,32 @@ public class CancellableFanOutTests extends ESTestCase {
                     return "completed";
                 }
             }
-        }.run(task, List.of("a", "b", "c").iterator(), future);
 
-        itemListeners.remove("a").onResponse("a-response");
+            @Override
+            public String toString() {
+                return "testFanOutWithoutCancellation$CancellableFanOut";
+            }
+        }.run(task, List.of("a", "b", "c").iterator(), new DelegatingActionListener<>(future) {
+            @Override
+            public void onResponse(String s) {
+                future.onResponse(s);
+            }
+
+            @Override
+            public String toString() {
+                return "testFanOutWithoutCancellation$listener";
+            }
+        });
+
+        final var itemListenerA = itemListeners.remove("a");
+        assertThat(
+            itemListenerA.toString(),
+            allOf(
+                containsString("[testFanOutWithoutCancellation$CancellableFanOut][testFanOutWithoutCancellation$listener][a]"),
+                containsString("SubtasksCompletionHandler[testFanOutWithoutCancellation$listener]")
+            )
+        );
+        itemListenerA.onResponse("a-response");
         assertFalse(future.isDone());
         itemListeners.remove("b").onFailure(new ElasticsearchException("b-response"));
         assertFalse(future.isDone());

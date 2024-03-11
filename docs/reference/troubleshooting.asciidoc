@@ -43,23 +43,29 @@ fix problems that an {es} deployment might encounter.
 [[troubleshooting-snapshot]]
 === Snapshot and restore
 * <<restore-from-snapshot,Restore data from snapshot>>
-* <<add-repository,Multiple deployments writing to the same snapshot repository>>
+* <<add-repository,Troubleshooting broken repositories>>
 * <<repeated-snapshot-failures,Troubleshooting repeated snapshot failures>>
 
 [discrete]
 [[troubleshooting-others]]
-=== Others
-* <<cluster-fault-detection-troubleshooting,Troubleshooting an unstable cluster>>
+=== Other issues
+* <<troubleshooting-unstable-cluster,Troubleshooting an unstable cluster>>
 * <<discovery-troubleshooting,Troubleshooting discovery>>
 * <<monitoring-troubleshooting,Troubleshooting monitoring>>
 * <<transform-troubleshooting,Troubleshooting transforms>>
 * <<watcher-troubleshooting,Troubleshooting Watcher>>
 * <<troubleshooting-searches,Troubleshooting searches>>
-* <<troubleshooting-shards-capacity-issues, Troubleshoot shards capacity>>
+* <<troubleshooting-shards-capacity-issues,Troubleshooting shards capacity>>
+* <<remote-clusters-troubleshooting,Troubleshooting remote clusters>>
 
-If none of these solutions relate to your issue, you can still get help:
+[discrete]
+[[troubleshooting-contact-support]]
+=== Contact us
 
-* For users with an active subscription, you can get help in several ways:
+If none of these guides relate to your issue, or you need further assistance,
+then you can contact us as follows:
+
+* If you have an active subscription, you have several options:
 
 ** Go directly to the http://support.elastic.co[Support Portal]
 
@@ -116,13 +122,15 @@ include::troubleshooting/snapshot/add-repository.asciidoc[]
 
 include::troubleshooting/snapshot/repeated-snapshot-failures.asciidoc[]
 
+include::troubleshooting/troubleshooting-unstable-cluster.asciidoc[]
+
 include::troubleshooting/discovery-issues.asciidoc[]
 
 include::monitoring/troubleshooting.asciidoc[]
 
 include::transform/troubleshooting.asciidoc[leveloffset=+1]
 
-include::../../x-pack/docs/en/watcher/troubleshooting.asciidoc[]
+include::watcher/troubleshooting.asciidoc[]
 
 include::troubleshooting/troubleshooting-searches.asciidoc[]
 

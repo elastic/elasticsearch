@@ -21,11 +21,16 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.component.Lifecycle;
+import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.scheduler.SchedulerEngine;
 import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.telemetry.metric.LongGaugeMetric;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -34,15 +39,20 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.health.HealthStatus.GREEN;
+import static org.elasticsearch.health.HealthStatus.RED;
 import static org.elasticsearch.health.HealthStatus.YELLOW;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.hamcrest.Matchers.equalTo;
@@ -51,9 +61,9 @@ import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.spy;
 
 public class HealthPeriodicLoggerTests extends ESTestCase {
     private ThreadPool threadPool;
@@ -62,7 +72,12 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
     private ClusterService clusterService;
 
     private HealthPeriodicLogger testHealthPeriodicLogger;
-    private ClusterService testClusterService;
+    private ClusterSettings clusterSettings;
+    private final DiscoveryNode node1 = DiscoveryNodeUtils.builder("node_1").roles(Set.of(DiscoveryNodeRole.MASTER_ROLE)).build();
+    private final DiscoveryNode node2 = DiscoveryNodeUtils.builder("node_2")
+        .roles(Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE))
+        .build();
+    private ClusterState stateWithLocalHealthNode;
 
     private NodeClient getTestClient() {
         return mock(NodeClient.class);
@@ -72,42 +87,36 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
         return mock(HealthService.class);
     }
 
+    private MeterRegistry getMockedMeterRegistry() {
+        return mock(MeterRegistry.class);
+    }
+
+    private TelemetryProvider getMockedTelemetryProvider() {
+        return mock(TelemetryProvider.class);
+    }
+
     @Before
     public void setupServices() {
         threadPool = new TestThreadPool(getTestName());
-
-        Set<Setting<?>> builtInClusterSettings = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        builtInClusterSettings.add(HealthPeriodicLogger.HEALTH_PERIODIC_LOGGER_POLL_INTERVAL_SETTING);
-        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, builtInClusterSettings);
-        this.clusterService = createClusterService(this.threadPool, clusterSettings);
-
+        stateWithLocalHealthNode = ClusterStateCreationUtils.state(node2, node1, node2, new DiscoveryNode[] { node1, node2 });
+        this.clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        this.clusterService = createClusterService(stateWithLocalHealthNode, this.threadPool, clusterSettings);
         this.client = getTestClient();
-
     }
 
     @After
     public void cleanup() {
         clusterService.close();
-        if (testClusterService != null) {
-            testClusterService.close();
-        }
         if (testHealthPeriodicLogger != null) {
-            testHealthPeriodicLogger.close();
+            if (testHealthPeriodicLogger.lifecycleState() == Lifecycle.State.STARTED) {
+                testHealthPeriodicLogger.stop();
+            }
+            if (testHealthPeriodicLogger.lifecycleState() == Lifecycle.State.INITIALIZED
+                || testHealthPeriodicLogger.lifecycleState() == Lifecycle.State.STOPPED) {
+                testHealthPeriodicLogger.close();
+            }
         }
         threadPool.shutdownNow();
-        client.close();
-    }
-
-    private List<HealthIndicatorResult> getTestIndicatorResults() {
-        var networkLatency = new HealthIndicatorResult("network_latency", GREEN, null, null, null, null);
-        var slowTasks = new HealthIndicatorResult("slow_task_assignment", YELLOW, null, null, null, null);
-        var shardsAvailable = new HealthIndicatorResult("shards_availability", GREEN, null, null, null, null);
-
-        return List.of(networkLatency, slowTasks, shardsAvailable);
-    }
-
-    private String makeHealthStatusString(String key) {
-        return String.format(Locale.ROOT, "%s.%s.status", HealthPeriodicLogger.HEALTH_FIELD_PREFIX, key);
     }
 
     public void testConvertToLoggedFields() {
@@ -116,15 +125,22 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
 
         Map<String, Object> loggerResults = HealthPeriodicLogger.convertToLoggedFields(results);
 
-        assertThat(loggerResults.size(), equalTo(results.size() + 1));
+        // verify that the number of fields is the number of indicators + 2 (for overall and for message)
+        assertThat(loggerResults.size(), equalTo(results.size() + 2));
 
         // test indicator status
-        assertThat(loggerResults.get(makeHealthStatusString("network_latency")), equalTo("green"));
-        assertThat(loggerResults.get(makeHealthStatusString("slow_task_assignment")), equalTo("yellow"));
-        assertThat(loggerResults.get(makeHealthStatusString("shards_availability")), equalTo("green"));
+        assertThat(loggerResults.get(makeHealthStatusString("master_is_stable")), equalTo("green"));
+        assertThat(loggerResults.get(makeHealthStatusString("disk")), equalTo("yellow"));
+        assertThat(loggerResults.get(makeHealthStatusString("shards_availability")), equalTo("yellow"));
 
         // test calculated overall status
         assertThat(loggerResults.get(makeHealthStatusString("overall")), equalTo(overallStatus.xContentValue()));
+
+        // test calculated message
+        assertThat(
+            loggerResults.get(HealthPeriodicLogger.MESSAGE_FIELD),
+            equalTo(String.format(Locale.ROOT, "health=%s [disk,shards_availability]", overallStatus.xContentValue()))
+        );
 
         // test empty results
         {
@@ -133,87 +149,193 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
 
             assertThat(emptyResults.size(), equalTo(0));
         }
+
+        // test all-green results
+        {
+            results = getTestIndicatorResultsAllGreen();
+            loggerResults = HealthPeriodicLogger.convertToLoggedFields(results);
+            overallStatus = HealthStatus.merge(results.stream().map(HealthIndicatorResult::status));
+
+            // test calculated message
+            assertThat(
+                loggerResults.get(HealthPeriodicLogger.MESSAGE_FIELD),
+                equalTo(String.format(Locale.ROOT, "health=%s", overallStatus.xContentValue()))
+            );
+        }
     }
 
     public void testHealthNodeIsSelected() {
         HealthService testHealthService = this.getMockedHealthService();
-
-        // create a cluster topology
-        final DiscoveryNode node1 = DiscoveryNodeUtils.builder("node_1").roles(Set.of(DiscoveryNodeRole.MASTER_ROLE)).build();
-        final DiscoveryNode node2 = DiscoveryNodeUtils.builder("node_2")
-            .roles(Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE))
-            .build();
-        ClusterState current = ClusterStateCreationUtils.state(node2, node1, node2, new DiscoveryNode[] { node1, node2 });
-
-        testClusterService = createClusterService(current, this.threadPool);
-        testHealthPeriodicLogger = new HealthPeriodicLogger(Settings.EMPTY, testClusterService, client, testHealthService);
-        testHealthPeriodicLogger.init();
+        testHealthPeriodicLogger = createAndInitHealthPeriodicLogger(clusterService, testHealthService, randomBoolean());
 
         // test that it knows that it's not initially the health node
-        assertFalse(testHealthPeriodicLogger.isHealthNode);
+        assertFalse(testHealthPeriodicLogger.isHealthNode());
 
         // trigger a cluster change and recheck
-        testHealthPeriodicLogger.clusterChanged(new ClusterChangedEvent("test", current, ClusterState.EMPTY_STATE));
-        assertTrue(testHealthPeriodicLogger.isHealthNode);
+        testHealthPeriodicLogger.clusterChanged(new ClusterChangedEvent("test", stateWithLocalHealthNode, ClusterState.EMPTY_STATE));
+        assertTrue(testHealthPeriodicLogger.isHealthNode());
     }
 
-    public void testJobScheduling() {
+    public void testJobScheduling() throws Exception {
         HealthService testHealthService = this.getMockedHealthService();
 
-        // create a cluster topology
-        final DiscoveryNode node1 = DiscoveryNodeUtils.builder("node_1").roles(Set.of(DiscoveryNodeRole.MASTER_ROLE)).build();
-        final DiscoveryNode node2 = DiscoveryNodeUtils.builder("node_2")
-            .roles(Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE))
-            .build();
-        ClusterState current = ClusterStateCreationUtils.state(node2, node1, node2, new DiscoveryNode[] { node1, node2 });
+        testHealthPeriodicLogger = createAndInitHealthPeriodicLogger(clusterService, testHealthService, false);
 
-        testClusterService = createClusterService(current, this.threadPool);
-        testHealthPeriodicLogger = new HealthPeriodicLogger(Settings.EMPTY, testClusterService, client, testHealthService);
-        testHealthPeriodicLogger.init();
+        testHealthPeriodicLogger.clusterChanged(new ClusterChangedEvent("test", stateWithLocalHealthNode, ClusterState.EMPTY_STATE));
+        assertTrue("local node should be the health node", testHealthPeriodicLogger.isHealthNode());
+        assertTrue("health logger should be enabled", testHealthPeriodicLogger.enabled());
 
-        testHealthPeriodicLogger.clusterChanged(new ClusterChangedEvent("test", current, ClusterState.EMPTY_STATE));
-        assertTrue(testHealthPeriodicLogger.isHealthNode);
+        // Even if this is the health node, we do not schedule a job because the service is not started yet
+        assertNull(testHealthPeriodicLogger.getScheduler());
+        // Starting the service should schedule a try to schedule a run
+        testHealthPeriodicLogger.start();
+        AtomicReference<SchedulerEngine> scheduler = new AtomicReference<>();
+        assertBusy(() -> {
+            var s = testHealthPeriodicLogger.getScheduler();
+            assertNotNull(s);
+            scheduler.set(s);
+        });
+        assertTrue(scheduler.get().scheduledJobIds().contains(HealthPeriodicLogger.HEALTH_PERIODIC_LOGGER_JOB_NAME));
 
-        SchedulerEngine scheduler = testHealthPeriodicLogger.getScheduler();
-        assertTrue(scheduler.scheduledJobIds().contains(HealthPeriodicLogger.HEALTH_PERIODIC_LOGGER_JOB_NAME));
-
+        // Changing the health node should cancel the run
         ClusterState noHealthNode = ClusterStateCreationUtils.state(node2, node1, new DiscoveryNode[] { node1, node2 });
-        testHealthPeriodicLogger.clusterChanged(new ClusterChangedEvent("test", noHealthNode, current));
-        assertFalse(testHealthPeriodicLogger.isHealthNode);
-        assertFalse(scheduler.scheduledJobIds().contains(HealthPeriodicLogger.HEALTH_PERIODIC_LOGGER_JOB_NAME));
+        testHealthPeriodicLogger.clusterChanged(new ClusterChangedEvent("test", noHealthNode, stateWithLocalHealthNode));
+        assertFalse(testHealthPeriodicLogger.isHealthNode());
+        assertFalse(scheduler.get().scheduledJobIds().contains(HealthPeriodicLogger.HEALTH_PERIODIC_LOGGER_JOB_NAME));
+    }
+
+    public void testEnabled() {
+        HealthService testHealthService = this.getMockedHealthService();
+        testHealthPeriodicLogger = createAndInitHealthPeriodicLogger(clusterService, testHealthService, true);
+
+        testHealthPeriodicLogger.clusterChanged(new ClusterChangedEvent("test", stateWithLocalHealthNode, ClusterState.EMPTY_STATE));
+        verifyLoggerIsReadyToRun(testHealthPeriodicLogger);
+
+        // disable it and then verify that the job is gone
+        {
+            this.clusterSettings.applySettings(Settings.builder().put(HealthPeriodicLogger.ENABLED_SETTING.getKey(), false).build());
+            assertFalse(testHealthPeriodicLogger.enabled());
+            assertFalse(
+                testHealthPeriodicLogger.getScheduler().scheduledJobIds().contains(HealthPeriodicLogger.HEALTH_PERIODIC_LOGGER_JOB_NAME)
+            );
+        }
+
+        // enable it and then verify that the job is created
+        {
+            this.clusterSettings.applySettings(Settings.builder().put(HealthPeriodicLogger.ENABLED_SETTING.getKey(), true).build());
+            assertTrue(testHealthPeriodicLogger.enabled());
+            assertTrue(
+                testHealthPeriodicLogger.getScheduler().scheduledJobIds().contains(HealthPeriodicLogger.HEALTH_PERIODIC_LOGGER_JOB_NAME)
+            );
+        }
+        // ensure the job is not recreated during enabling if the service has stopped
+        {
+            testHealthPeriodicLogger.stop();
+            assertFalse(
+                testHealthPeriodicLogger.getScheduler().scheduledJobIds().contains(HealthPeriodicLogger.HEALTH_PERIODIC_LOGGER_JOB_NAME)
+            );
+            this.clusterSettings.applySettings(Settings.builder().put(HealthPeriodicLogger.ENABLED_SETTING.getKey(), true).build());
+            assertTrue(testHealthPeriodicLogger.enabled());
+            assertFalse(
+                testHealthPeriodicLogger.getScheduler().scheduledJobIds().contains(HealthPeriodicLogger.HEALTH_PERIODIC_LOGGER_JOB_NAME)
+            );
+        }
+    }
+
+    public void testUpdatePollInterval() {
+        HealthService testHealthService = this.getMockedHealthService();
+        testHealthPeriodicLogger = createAndInitHealthPeriodicLogger(clusterService, testHealthService, false);
+        testHealthPeriodicLogger.clusterChanged(new ClusterChangedEvent("test", stateWithLocalHealthNode, ClusterState.EMPTY_STATE));
+        assertTrue("local node should be the health node", testHealthPeriodicLogger.isHealthNode());
+        assertTrue("health logger should be enabled", testHealthPeriodicLogger.enabled());
+        // Ensure updating the poll interval won't trigger a job when service not started
+        {
+            TimeValue pollInterval = TimeValue.timeValueSeconds(randomIntBetween(15, 59));
+            this.clusterSettings.applySettings(
+                Settings.builder()
+                    .put(HealthPeriodicLogger.POLL_INTERVAL_SETTING.getKey(), pollInterval)
+                    // Since the default value of enabled is false, if we do not set it here it disable it
+                    .put(HealthPeriodicLogger.ENABLED_SETTING.getKey(), true)
+                    .build()
+            );
+            assertTrue("health logger should be enabled", testHealthPeriodicLogger.enabled());
+            assertEquals(pollInterval, testHealthPeriodicLogger.getPollInterval());
+            assertNull(testHealthPeriodicLogger.getScheduler());
+        }
+
+        testHealthPeriodicLogger.start();
+        // Start the service and check it's scheduled
+        {
+            TimeValue pollInterval = TimeValue.timeValueSeconds(randomIntBetween(15, 59));
+            this.clusterSettings.applySettings(
+                Settings.builder()
+                    .put(HealthPeriodicLogger.POLL_INTERVAL_SETTING.getKey(), pollInterval)
+                    // Since the default value of enabled is false, if we do not set it here it disable it
+                    .put(HealthPeriodicLogger.ENABLED_SETTING.getKey(), true)
+                    .build()
+            );
+            assertEquals(pollInterval, testHealthPeriodicLogger.getPollInterval());
+            verifyLoggerIsReadyToRun(testHealthPeriodicLogger);
+            assertNotNull(testHealthPeriodicLogger.getScheduler());
+            assertTrue(
+                testHealthPeriodicLogger.getScheduler().scheduledJobIds().contains(HealthPeriodicLogger.HEALTH_PERIODIC_LOGGER_JOB_NAME)
+            );
+        }
+
+        // Poll interval doesn't schedule a job when disabled
+        {
+            TimeValue pollInterval = TimeValue.timeValueSeconds(randomIntBetween(15, 59));
+            this.clusterSettings.applySettings(
+                Settings.builder()
+                    .put(HealthPeriodicLogger.POLL_INTERVAL_SETTING.getKey(), pollInterval)
+                    .put(HealthPeriodicLogger.ENABLED_SETTING.getKey(), false)
+                    .build()
+            );
+            assertFalse(testHealthPeriodicLogger.enabled());
+            assertEquals(pollInterval, testHealthPeriodicLogger.getPollInterval());
+            assertFalse(
+                testHealthPeriodicLogger.getScheduler().scheduledJobIds().contains(HealthPeriodicLogger.HEALTH_PERIODIC_LOGGER_JOB_NAME)
+            );
+            // Re-enable
+            this.clusterSettings.applySettings(
+                Settings.builder().put(HealthPeriodicLogger.POLL_INTERVAL_SETTING.getKey(), pollInterval).build()
+            );
+        }
+
+        testHealthPeriodicLogger.stop();
+        // verify that updating the polling interval doesn't schedule the job if it's stopped
+        {
+            this.clusterSettings.applySettings(
+                Settings.builder()
+                    .put(HealthPeriodicLogger.POLL_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(30))
+                    .put(HealthPeriodicLogger.ENABLED_SETTING.getKey(), true)
+                    .build()
+            );
+            assertTrue("health logger should be enabled", testHealthPeriodicLogger.enabled());
+            assertFalse(
+                testHealthPeriodicLogger.getScheduler().scheduledJobIds().contains(HealthPeriodicLogger.HEALTH_PERIODIC_LOGGER_JOB_NAME)
+            );
+        }
     }
 
     public void testTriggeredJobCallsTryToLogHealth() throws Exception {
-        AtomicBoolean listenerCalled = new AtomicBoolean(false);
-        AtomicBoolean failureCalled = new AtomicBoolean(false);
-        ActionListener<List<HealthIndicatorResult>> testListener = new ActionListener<>() {
-            @Override
-            public void onResponse(List<HealthIndicatorResult> indicatorResults) {
-                listenerCalled.set(true);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                failureCalled.set(true);
-            }
-        };
+        AtomicBoolean calledGetHealth = new AtomicBoolean();
         HealthService testHealthService = this.getMockedHealthService();
-
-        testHealthPeriodicLogger = new HealthPeriodicLogger(Settings.EMPTY, clusterService, client, testHealthService);
-        testHealthPeriodicLogger.init();
-
-        HealthPeriodicLogger spyHealthPeriodicLogger = spy(testHealthPeriodicLogger);
-        spyHealthPeriodicLogger.isHealthNode = true;
         doAnswer(invocation -> {
-            testListener.onResponse(getTestIndicatorResults());
+            ActionListener<List<HealthIndicatorResult>> listener = invocation.getArgument(4);
+            assertNotNull(listener);
+            calledGetHealth.set(true);
+            listener.onResponse(getTestIndicatorResults());
             return null;
-        }).when(spyHealthPeriodicLogger).tryToLogHealth();
+        }).when(testHealthService).getHealth(any(), isNull(), anyBoolean(), anyInt(), any());
+        testHealthPeriodicLogger = createAndInitHealthPeriodicLogger(this.clusterService, testHealthService, true);
+        testHealthPeriodicLogger.clusterChanged(new ClusterChangedEvent("test", stateWithLocalHealthNode, ClusterState.EMPTY_STATE));
+
+        verifyLoggerIsReadyToRun(testHealthPeriodicLogger);
 
         SchedulerEngine.Event event = new SchedulerEngine.Event(HealthPeriodicLogger.HEALTH_PERIODIC_LOGGER_JOB_NAME, 0, 0);
-        spyHealthPeriodicLogger.triggered(event);
-
-        assertBusy(() -> assertFalse(failureCalled.get()));
-        assertBusy(() -> assertTrue(listenerCalled.get()));
+        testHealthPeriodicLogger.triggered(event);
+        assertBusy(() -> assertTrue(calledGetHealth.get()));
     }
 
     public void testResultFailureHandling() throws Exception {
@@ -221,11 +343,9 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
 
         HealthService testHealthService = this.getMockedHealthService();
 
-        testHealthPeriodicLogger = new HealthPeriodicLogger(Settings.EMPTY, clusterService, client, testHealthService);
-        testHealthPeriodicLogger.init();
-
-        HealthPeriodicLogger spyHealthPeriodicLogger = spy(testHealthPeriodicLogger);
-        spyHealthPeriodicLogger.isHealthNode = true;
+        testHealthPeriodicLogger = createAndInitHealthPeriodicLogger(this.clusterService, testHealthService, true);
+        testHealthPeriodicLogger.clusterChanged(new ClusterChangedEvent("test", stateWithLocalHealthNode, ClusterState.EMPTY_STATE));
+        assertTrue("local node should be the health node", testHealthPeriodicLogger.isHealthNode());
 
         SchedulerEngine.Event event = new SchedulerEngine.Event(HealthPeriodicLogger.HEALTH_PERIODIC_LOGGER_JOB_NAME, 0, 0);
 
@@ -237,7 +357,7 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
                 getHealthCalled.incrementAndGet();
                 return null;
             }).when(testHealthService).getHealth(any(), isNull(), anyBoolean(), anyInt(), any());
-            spyHealthPeriodicLogger.triggered(event);
+            testHealthPeriodicLogger.triggered(event);
             assertBusy(() -> assertThat(getHealthCalled.get(), equalTo(1)));
         }
 
@@ -249,7 +369,7 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
                 getHealthCalled.incrementAndGet();
                 return null;
             }).when(testHealthService).getHealth(any(), isNull(), anyBoolean(), anyInt(), any());
-            spyHealthPeriodicLogger.triggered(event);
+            testHealthPeriodicLogger.triggered(event);
             assertBusy(() -> assertThat(getHealthCalled.get(), equalTo(2)));
         }
     }
@@ -257,32 +377,41 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
     public void testTryToLogHealthConcurrencyControlWithResults() throws Exception {
         AtomicInteger getHealthCalled = new AtomicInteger(0);
 
+        CountDownLatch waitForSecondRun = new CountDownLatch(1);
+        CountDownLatch waitForRelease = new CountDownLatch(1);
         HealthService testHealthService = this.getMockedHealthService();
         doAnswer(invocation -> {
             // get and call the results listener provided to getHealth
             ActionListener<List<HealthIndicatorResult>> listener = invocation.getArgument(4);
-            listener.onResponse(getTestIndicatorResults());
             getHealthCalled.incrementAndGet();
+            waitForSecondRun.await();
+            listener.onResponse(getTestIndicatorResults());
+            waitForRelease.countDown();
             return null;
         }).when(testHealthService).getHealth(any(), isNull(), anyBoolean(), anyInt(), any());
 
-        testHealthPeriodicLogger = new HealthPeriodicLogger(Settings.EMPTY, clusterService, client, testHealthService);
-        testHealthPeriodicLogger.init();
-
-        HealthPeriodicLogger spyHealthPeriodicLogger = spy(testHealthPeriodicLogger);
-        spyHealthPeriodicLogger.isHealthNode = true;
+        testHealthPeriodicLogger = createAndInitHealthPeriodicLogger(this.clusterService, testHealthService, true);
+        testHealthPeriodicLogger.clusterChanged(new ClusterChangedEvent("test", stateWithLocalHealthNode, ClusterState.EMPTY_STATE));
+        verifyLoggerIsReadyToRun(testHealthPeriodicLogger);
 
         SchedulerEngine.Event event = new SchedulerEngine.Event(HealthPeriodicLogger.HEALTH_PERIODIC_LOGGER_JOB_NAME, 0, 0);
 
         // run it once, verify getHealth is called
         {
-            spyHealthPeriodicLogger.triggered(event);
+            Thread logHealthThread = new Thread(() -> testHealthPeriodicLogger.triggered(event));
+            logHealthThread.start();
+            // We wait to verify that the triggered even is in progress, then we block, so it will rename in progress
             assertBusy(() -> assertThat(getHealthCalled.get(), equalTo(1)));
+            // We try to log again while it's in progress, we expect this run to be skipped
+            assertFalse(testHealthPeriodicLogger.tryToLogHealth());
+            // Unblock the first execution
+            waitForSecondRun.countDown();
         }
 
         // run it again, verify getHealth is called, because we are calling the results listener
         {
-            spyHealthPeriodicLogger.triggered(event);
+            waitForRelease.await();
+            testHealthPeriodicLogger.triggered(event);
             assertBusy(() -> assertThat(getHealthCalled.get(), equalTo(2)));
         }
     }
@@ -290,37 +419,51 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
     public void testTryToLogHealthConcurrencyControl() throws Exception {
         AtomicInteger getHealthCalled = new AtomicInteger(0);
 
+        CountDownLatch waitForSecondRun = new CountDownLatch(1);
+        CountDownLatch waitForRelease = new CountDownLatch(1);
+
         HealthService testHealthService = this.getMockedHealthService();
         doAnswer(invocation -> {
-            // get but do not call the provided listener
+            // get but do not call the provided listener immediately
             ActionListener<List<HealthIndicatorResult>> listener = invocation.getArgument(4);
             assertNotNull(listener);
 
             // note that we received the getHealth call
             getHealthCalled.incrementAndGet();
+
+            // wait for the next run that should be skipped
+            waitForSecondRun.await();
+            // we can continue now
+            listener.onResponse(getTestIndicatorResults());
+            waitForRelease.countDown();
             return null;
         }).when(testHealthService).getHealth(any(), isNull(), anyBoolean(), anyInt(), any());
 
-        testHealthPeriodicLogger = new HealthPeriodicLogger(Settings.EMPTY, clusterService, client, testHealthService);
-        testHealthPeriodicLogger.init();
-
-        HealthPeriodicLogger spyHealthPeriodicLogger = spy(testHealthPeriodicLogger);
-        spyHealthPeriodicLogger.isHealthNode = true;
+        testHealthPeriodicLogger = createAndInitHealthPeriodicLogger(this.clusterService, testHealthService, false);
+        testHealthPeriodicLogger.clusterChanged(new ClusterChangedEvent("test", stateWithLocalHealthNode, ClusterState.EMPTY_STATE));
+        assertTrue("local node should be the health node", testHealthPeriodicLogger.isHealthNode());
 
         SchedulerEngine.Event event = new SchedulerEngine.Event(HealthPeriodicLogger.HEALTH_PERIODIC_LOGGER_JOB_NAME, 0, 0);
 
-        // call it once, and verify that getHealth is called
+        // call it and verify that getHealth is called
         {
-            spyHealthPeriodicLogger.triggered(event);
+            Thread logHealthThread = new Thread(() -> testHealthPeriodicLogger.triggered(event));
+            logHealthThread.start();
             assertBusy(() -> assertThat(getHealthCalled.get(), equalTo(1)));
         }
 
-        // trigger it again, and verify that getHealth is not called
-        // it's not called because the results listener was never called by getHealth
-        // this is simulating a double invocation of getHealth, due perhaps to a lengthy getHealth call
+        // run it again, verify that it's skipped because the other one is in progress
         {
-            spyHealthPeriodicLogger.triggered(event);
-            assertBusy(() -> assertThat(getHealthCalled.get(), equalTo(1)));
+            assertFalse(testHealthPeriodicLogger.tryToLogHealth());
+            // Unblock the first execution
+            waitForSecondRun.countDown();
+        }
+
+        // run it again, verify getHealth is called, because we are calling the results listener
+        {
+            waitForRelease.await();
+            testHealthPeriodicLogger.triggered(event);
+            assertBusy(() -> assertThat(getHealthCalled.get(), equalTo(2)));
         }
     }
 
@@ -329,11 +472,9 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
 
         HealthService testHealthService = this.getMockedHealthService();
 
-        testHealthPeriodicLogger = new HealthPeriodicLogger(Settings.EMPTY, clusterService, client, testHealthService);
-        testHealthPeriodicLogger.init();
-
-        HealthPeriodicLogger spyHealthPeriodicLogger = spy(testHealthPeriodicLogger);
-        spyHealthPeriodicLogger.isHealthNode = true;
+        testHealthPeriodicLogger = createAndInitHealthPeriodicLogger(this.clusterService, testHealthService, false);
+        testHealthPeriodicLogger.clusterChanged(new ClusterChangedEvent("test", stateWithLocalHealthNode, ClusterState.EMPTY_STATE));
+        assertTrue("local node should be the health node", testHealthPeriodicLogger.isHealthNode());
 
         SchedulerEngine.Event event = new SchedulerEngine.Event(HealthPeriodicLogger.HEALTH_PERIODIC_LOGGER_JOB_NAME, 0, 0);
 
@@ -341,7 +482,7 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
         {
             doThrow(new ResourceNotFoundException("No preflight indicators")).when(testHealthService)
                 .getHealth(any(), isNull(), anyBoolean(), anyInt(), any());
-            spyHealthPeriodicLogger.triggered(event);
+            testHealthPeriodicLogger.triggered(event);
             assertBusy(() -> assertThat(getHealthCalled.get(), equalTo(0)));
         }
 
@@ -353,8 +494,99 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
                 getHealthCalled.incrementAndGet();
                 return null;
             }).when(testHealthService).getHealth(any(), isNull(), anyBoolean(), anyInt(), any());
-            spyHealthPeriodicLogger.triggered(event);
+            testHealthPeriodicLogger.triggered(event);
             assertBusy(() -> assertThat(getHealthCalled.get(), equalTo(1)));
+        }
+    }
+
+    public void testClosingWhenRunInProgress() throws Exception {
+        // Check that closing will still happen even if the run doesn't finish
+        {
+            AtomicInteger getHealthCalled = new AtomicInteger(0);
+
+            HealthService testHealthService = this.getMockedHealthService();
+            doAnswer(invocation -> {
+                ActionListener<List<HealthIndicatorResult>> listener = invocation.getArgument(4);
+                assertNotNull(listener);
+
+                // note that we received the getHealth call
+                getHealthCalled.incrementAndGet();
+                return null;
+            }).when(testHealthService).getHealth(any(), isNull(), anyBoolean(), anyInt(), any());
+
+            HealthPeriodicLogger healthLoggerThatWillNotFinish = createAndInitHealthPeriodicLogger(
+                this.clusterService,
+                testHealthService,
+                true
+            );
+            healthLoggerThatWillNotFinish.clusterChanged(
+                new ClusterChangedEvent("test", stateWithLocalHealthNode, ClusterState.EMPTY_STATE)
+            );
+            assertTrue("local node should be the health node", healthLoggerThatWillNotFinish.isHealthNode());
+            assertTrue("health logger should be enabled", healthLoggerThatWillNotFinish.enabled());
+
+            SchedulerEngine.Event event = new SchedulerEngine.Event(HealthPeriodicLogger.HEALTH_PERIODIC_LOGGER_JOB_NAME, 0, 0);
+
+            // call it and verify that it's in progress
+            {
+                healthLoggerThatWillNotFinish.triggered(event);
+                assertBusy(() -> assertThat(getHealthCalled.get(), equalTo(1)));
+            }
+            healthLoggerThatWillNotFinish.stop();
+            assertEquals(Lifecycle.State.STOPPED, healthLoggerThatWillNotFinish.lifecycleState());
+            // Close and wait out the timeout
+            healthLoggerThatWillNotFinish.close();
+            assertBusy(() -> assertEquals(Lifecycle.State.CLOSED, healthLoggerThatWillNotFinish.lifecycleState()), 5, TimeUnit.SECONDS);
+        }
+
+        // Ensure it will wait until it finishes before it closes
+        {
+            AtomicInteger getHealthCalled = new AtomicInteger(0);
+
+            CountDownLatch waitForCloseToBeTriggered = new CountDownLatch(1);
+            CountDownLatch waitForRelease = new CountDownLatch(1);
+
+            HealthService testHealthService = this.getMockedHealthService();
+            doAnswer(invocation -> {
+                // get but do not call the provided listener immediately
+                ActionListener<List<HealthIndicatorResult>> listener = invocation.getArgument(4);
+                assertNotNull(listener);
+
+                // note that we received the getHealth call
+                getHealthCalled.incrementAndGet();
+
+                // wait for the close signal
+                waitForCloseToBeTriggered.await();
+                // we can continue now
+                listener.onResponse(getTestIndicatorResults());
+                waitForRelease.countDown();
+                return null;
+            }).when(testHealthService).getHealth(any(), isNull(), anyBoolean(), anyInt(), any());
+
+            testHealthPeriodicLogger = createAndInitHealthPeriodicLogger(this.clusterService, testHealthService, true);
+            testHealthPeriodicLogger.clusterChanged(new ClusterChangedEvent("test", stateWithLocalHealthNode, ClusterState.EMPTY_STATE));
+            verifyLoggerIsReadyToRun(testHealthPeriodicLogger);
+
+            SchedulerEngine.Event event = new SchedulerEngine.Event(HealthPeriodicLogger.HEALTH_PERIODIC_LOGGER_JOB_NAME, 0, 0);
+
+            // call it and verify that getHealth is called
+            {
+                Thread logHealthThread = new Thread(() -> testHealthPeriodicLogger.triggered(event));
+                logHealthThread.start();
+                assertBusy(() -> assertTrue(testHealthPeriodicLogger.currentlyRunning()));
+            }
+
+            // stop and close it
+            {
+                testHealthPeriodicLogger.stop();
+                assertEquals(Lifecycle.State.STOPPED, testHealthPeriodicLogger.lifecycleState());
+                assertTrue(testHealthPeriodicLogger.currentlyRunning());
+                Thread closeHealthLogger = new Thread(() -> testHealthPeriodicLogger.close());
+                closeHealthLogger.start();
+                assertBusy(() -> assertTrue(testHealthPeriodicLogger.waitingToFinishCurrentRun()));
+                waitForCloseToBeTriggered.countDown();
+                assertBusy(() -> assertEquals(Lifecycle.State.CLOSED, testHealthPeriodicLogger.lifecycleState()));
+            }
         }
     }
 
@@ -371,18 +603,18 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
         );
         mockAppender.addExpectation(
             new MockLogAppender.SeenEventExpectation(
-                "network_latency",
+                "master_is_stable",
                 HealthPeriodicLogger.class.getCanonicalName(),
                 Level.INFO,
-                String.format(Locale.ROOT, "%s=\"green\"", makeHealthStatusString("network_latency"))
+                String.format(Locale.ROOT, "%s=\"green\"", makeHealthStatusString("master_is_stable"))
             )
         );
         mockAppender.addExpectation(
             new MockLogAppender.SeenEventExpectation(
-                "slow_task_assignment",
+                "disk",
                 HealthPeriodicLogger.class.getCanonicalName(),
                 Level.INFO,
-                String.format(Locale.ROOT, "%s=\"yellow\"", makeHealthStatusString("slow_task_assignment"))
+                String.format(Locale.ROOT, "%s=\"yellow\"", makeHealthStatusString("disk"))
             )
         );
         mockAppender.addExpectation(
@@ -397,19 +629,26 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
         Loggers.addAppender(periodicLoggerLogger, mockAppender);
 
         HealthService testHealthService = this.getMockedHealthService();
-
-        testHealthPeriodicLogger = new HealthPeriodicLogger(Settings.EMPTY, clusterService, client, testHealthService);
-        testHealthPeriodicLogger.init();
-
-        HealthPeriodicLogger spyHealthPeriodicLogger = spy(testHealthPeriodicLogger);
-        spyHealthPeriodicLogger.isHealthNode = true;
         doAnswer(invocation -> {
-            spyHealthPeriodicLogger.resultsListener.onResponse(getTestIndicatorResults());
+            ActionListener<List<HealthIndicatorResult>> listener = invocation.getArgument(4);
+            assertNotNull(listener);
+            listener.onResponse(getTestIndicatorResults());
             return null;
-        }).when(spyHealthPeriodicLogger).tryToLogHealth();
+        }).when(testHealthService).getHealth(any(), isNull(), anyBoolean(), anyInt(), any());
+        testHealthPeriodicLogger = createAndInitHealthPeriodicLogger(this.clusterService, testHealthService, false);
+
+        // switch to Log only mode
+        this.clusterSettings.applySettings(
+            Settings.builder()
+                .put(HealthPeriodicLogger.OUTPUT_MODE_SETTING.getKey(), HealthPeriodicLogger.OutputMode.LOGS)
+                .put(HealthPeriodicLogger.ENABLED_SETTING.getKey(), true)
+                .build()
+        );
+        testHealthPeriodicLogger.clusterChanged(new ClusterChangedEvent("test", stateWithLocalHealthNode, ClusterState.EMPTY_STATE));
+        assertTrue("local node should be the health node", testHealthPeriodicLogger.isHealthNode());
 
         SchedulerEngine.Event event = new SchedulerEngine.Event(HealthPeriodicLogger.HEALTH_PERIODIC_LOGGER_JOB_NAME, 0, 0);
-        spyHealthPeriodicLogger.triggered(event);
+        testHealthPeriodicLogger.triggered(event);
 
         try {
             mockAppender.assertAllExpectationsMatched();
@@ -417,7 +656,188 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
             Loggers.removeAppender(periodicLoggerLogger, mockAppender);
             mockAppender.stop();
         }
-
     }
 
+    public void testOutputModeNoLogging() {
+        MockLogAppender mockAppender = new MockLogAppender();
+        mockAppender.start();
+        mockAppender.addExpectation(
+            new MockLogAppender.UnseenEventExpectation(
+                "overall",
+                HealthPeriodicLogger.class.getCanonicalName(),
+                Level.INFO,
+                String.format(Locale.ROOT, "%s=\"yellow\"", makeHealthStatusString("overall"))
+            )
+        );
+        mockAppender.addExpectation(
+            new MockLogAppender.UnseenEventExpectation(
+                "master_is_stable",
+                HealthPeriodicLogger.class.getCanonicalName(),
+                Level.INFO,
+                String.format(Locale.ROOT, "%s=\"green\"", makeHealthStatusString("master_is_stable"))
+            )
+        );
+        mockAppender.addExpectation(
+            new MockLogAppender.UnseenEventExpectation(
+                "disk",
+                HealthPeriodicLogger.class.getCanonicalName(),
+                Level.INFO,
+                String.format(Locale.ROOT, "%s=\"yellow\"", makeHealthStatusString("disk"))
+            )
+        );
+        Logger periodicLoggerLogger = LogManager.getLogger(HealthPeriodicLogger.class);
+        Loggers.addAppender(periodicLoggerLogger, mockAppender);
+
+        HealthService testHealthService = this.getMockedHealthService();
+        doAnswer(invocation -> {
+            ActionListener<List<HealthIndicatorResult>> listener = invocation.getArgument(4);
+            assertNotNull(listener);
+            listener.onResponse(getTestIndicatorResults());
+            return null;
+        }).when(testHealthService).getHealth(any(), isNull(), anyBoolean(), anyInt(), any());
+        testHealthPeriodicLogger = createAndInitHealthPeriodicLogger(this.clusterService, testHealthService, false);
+
+        // switch to Metrics only mode
+        this.clusterSettings.applySettings(
+            Settings.builder()
+                .put(HealthPeriodicLogger.OUTPUT_MODE_SETTING.getKey(), HealthPeriodicLogger.OutputMode.METRICS)
+                .put(HealthPeriodicLogger.ENABLED_SETTING.getKey(), true)
+                .build()
+        );
+        testHealthPeriodicLogger.clusterChanged(new ClusterChangedEvent("test", stateWithLocalHealthNode, ClusterState.EMPTY_STATE));
+        assertTrue("local node should be the health node", testHealthPeriodicLogger.isHealthNode());
+
+        SchedulerEngine.Event event = new SchedulerEngine.Event(HealthPeriodicLogger.HEALTH_PERIODIC_LOGGER_JOB_NAME, 0, 0);
+        testHealthPeriodicLogger.triggered(event);
+
+        try {
+            mockAppender.assertAllExpectationsMatched();
+        } finally {
+            Loggers.removeAppender(periodicLoggerLogger, mockAppender);
+            mockAppender.stop();
+        }
+    }
+
+    public void testMetricsMode() {
+        List<String> logs = new ArrayList<>();
+        List<Long> metrics = new ArrayList<>();
+
+        BiConsumer<LongGaugeMetric, Long> metricWriter = (metric, value) -> metrics.add(value);
+        Consumer<ESLogMessage> logWriter = msg -> logs.add(msg.asString());
+        List<HealthIndicatorResult> results = getTestIndicatorResultsWithRed();
+        HealthService testHealthService = this.getMockedHealthService();
+        doAnswer(invocation -> {
+            ActionListener<List<HealthIndicatorResult>> listener = invocation.getArgument(4);
+            assertNotNull(listener);
+            listener.onResponse(results);
+            return null;
+        }).when(testHealthService).getHealth(any(), isNull(), anyBoolean(), anyInt(), any());
+        testHealthPeriodicLogger = createAndInitHealthPeriodicLogger(
+            this.clusterService,
+            testHealthService,
+            false,
+            metricWriter,
+            logWriter
+        );
+
+        // switch to Metrics only mode
+        this.clusterSettings.applySettings(
+            Settings.builder()
+                .put(HealthPeriodicLogger.OUTPUT_MODE_SETTING.getKey(), HealthPeriodicLogger.OutputMode.METRICS)
+                .put(HealthPeriodicLogger.ENABLED_SETTING.getKey(), true)
+                .build()
+        );
+        testHealthPeriodicLogger.clusterChanged(new ClusterChangedEvent("test", stateWithLocalHealthNode, ClusterState.EMPTY_STATE));
+        assertTrue("local node should be the health node", testHealthPeriodicLogger.isHealthNode());
+
+        assertEquals(0, metrics.size());
+
+        SchedulerEngine.Event event = new SchedulerEngine.Event(HealthPeriodicLogger.HEALTH_PERIODIC_LOGGER_JOB_NAME, 0, 0);
+        testHealthPeriodicLogger.triggered(event);
+
+        assertEquals(0, logs.size());
+        assertEquals(4, metrics.size());
+    }
+
+    private void verifyLoggerIsReadyToRun(HealthPeriodicLogger healthPeriodicLogger) {
+        assertTrue("local node should be the health node", healthPeriodicLogger.isHealthNode());
+        assertTrue("health logger should be enabled", healthPeriodicLogger.enabled());
+        assertEquals("health logger is started", Lifecycle.State.STARTED, healthPeriodicLogger.lifecycleState());
+    }
+
+    private List<HealthIndicatorResult> getTestIndicatorResults() {
+        var networkLatency = new HealthIndicatorResult("master_is_stable", GREEN, null, null, null, null);
+        var slowTasks = new HealthIndicatorResult("disk", YELLOW, null, null, null, null);
+        var shardsAvailable = new HealthIndicatorResult("shards_availability", YELLOW, null, null, null, null);
+
+        return List.of(networkLatency, slowTasks, shardsAvailable);
+    }
+
+    private List<HealthIndicatorResult> getTestIndicatorResultsAllGreen() {
+        var networkLatency = new HealthIndicatorResult("master_is_stable", GREEN, null, null, null, null);
+        var slowTasks = new HealthIndicatorResult("disk", GREEN, null, null, null, null);
+        var shardsAvailable = new HealthIndicatorResult("shards_availability", GREEN, null, null, null, null);
+
+        return List.of(networkLatency, slowTasks, shardsAvailable);
+    }
+
+    private List<HealthIndicatorResult> getTestIndicatorResultsWithRed() {
+        var networkLatency = new HealthIndicatorResult("master_is_stable", GREEN, null, null, null, null);
+        var slowTasks = new HealthIndicatorResult("disk", GREEN, null, null, null, null);
+        var shardsAvailable = new HealthIndicatorResult("shards_availability", RED, null, null, null, null);
+
+        return List.of(networkLatency, slowTasks, shardsAvailable);
+    }
+
+    private String makeHealthStatusString(String key) {
+        return String.format(Locale.ROOT, "%s.%s.status", HealthPeriodicLogger.HEALTH_FIELD_PREFIX, key);
+    }
+
+    private HealthPeriodicLogger createAndInitHealthPeriodicLogger(
+        ClusterService clusterService,
+        HealthService testHealthService,
+        boolean started
+    ) {
+        return createAndInitHealthPeriodicLogger(clusterService, testHealthService, started, null, null);
+    }
+
+    private HealthPeriodicLogger createAndInitHealthPeriodicLogger(
+        ClusterService clusterService,
+        HealthService testHealthService,
+        boolean started,
+        BiConsumer<LongGaugeMetric, Long> metricWriter,
+        Consumer<ESLogMessage> logWriter
+    ) {
+        var provider = getMockedTelemetryProvider();
+        var registry = getMockedMeterRegistry();
+        doReturn(registry).when(provider).getMeterRegistry();
+        if (metricWriter != null || logWriter != null) {
+            testHealthPeriodicLogger = HealthPeriodicLogger.create(
+                Settings.EMPTY,
+                clusterService,
+                this.client,
+                testHealthService,
+                provider,
+                metricWriter,
+                logWriter
+            );
+        } else {
+            testHealthPeriodicLogger = HealthPeriodicLogger.create(
+                Settings.EMPTY,
+                clusterService,
+                this.client,
+                testHealthService,
+                provider
+            );
+        }
+        if (started) {
+            testHealthPeriodicLogger.start();
+        }
+        // Reset cluster setting
+        clusterSettings.applySettings(Settings.EMPTY);
+        // enable
+        clusterSettings.applySettings(Settings.builder().put(HealthPeriodicLogger.ENABLED_SETTING.getKey(), true).build());
+
+        return testHealthPeriodicLogger;
+    }
 }

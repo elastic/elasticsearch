@@ -27,7 +27,7 @@ public class ValidateTransformAction extends ActionType<ValidateTransformAction.
     public static final String NAME = "cluster:admin/transform/validate";
 
     private ValidateTransformAction() {
-        super(NAME, ValidateTransformAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<Request> {
@@ -110,7 +110,7 @@ public class ValidateTransformAction extends ActionType<ValidateTransformAction.
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeMap(destIndexMappings, StreamOutput::writeString, StreamOutput::writeString);
+            out.writeMap(destIndexMappings, StreamOutput::writeString);
         }
 
         public Map<String, String> getDestIndexMappings() {

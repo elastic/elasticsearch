@@ -20,6 +20,8 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.TransportVersions.LAZY_ROLLOVER_ADDED;
+
 /**
  * Response object for {@link RolloverRequest} API
  *
@@ -32,6 +34,7 @@ public final class RolloverResponse extends ShardsAcknowledgedResponse implement
     private static final ParseField OLD_INDEX = new ParseField("old_index");
     private static final ParseField DRY_RUN = new ParseField("dry_run");
     private static final ParseField ROLLED_OVER = new ParseField("rolled_over");
+    private static final ParseField LAZY = new ParseField("lazy");
     private static final ParseField CONDITIONS = new ParseField("conditions");
 
     private final String oldIndex;
@@ -39,9 +42,10 @@ public final class RolloverResponse extends ShardsAcknowledgedResponse implement
     private final Map<String, Boolean> conditionStatus;
     private final boolean dryRun;
     private final boolean rolledOver;
-    // Needs to be duplicated, because shardsAcknowledged gets (de)serailized as last field whereas
-    // in other subclasses of ShardsAcknowledgedResponse this field (de)serailized as first field.
+    // Needs to be duplicated, because shardsAcknowledged gets (de)serialized as last field whereas
+    // in other subclasses of ShardsAcknowledgedResponse this field (de)serialized as first field.
     private final boolean shardsAcknowledged;
+    private final boolean lazy;
 
     RolloverResponse(StreamInput in) throws IOException {
         super(in, false);
@@ -55,6 +59,11 @@ public final class RolloverResponse extends ShardsAcknowledgedResponse implement
         dryRun = in.readBoolean();
         rolledOver = in.readBoolean();
         shardsAcknowledged = in.readBoolean();
+        if (in.getTransportVersion().onOrAfter(LAZY_ROLLOVER_ADDED)) {
+            lazy = in.readBoolean();
+        } else {
+            lazy = false;
+        }
     }
 
     public RolloverResponse(
@@ -64,7 +73,8 @@ public final class RolloverResponse extends ShardsAcknowledgedResponse implement
         boolean dryRun,
         boolean rolledOver,
         boolean acknowledged,
-        boolean shardsAcknowledged
+        boolean shardsAcknowledged,
+        boolean lazy
     ) {
         super(acknowledged, shardsAcknowledged);
         this.oldIndex = oldIndex;
@@ -73,6 +83,7 @@ public final class RolloverResponse extends ShardsAcknowledgedResponse implement
         this.rolledOver = rolledOver;
         this.conditionStatus = conditionResults;
         this.shardsAcknowledged = shardsAcknowledged;
+        this.lazy = lazy;
     }
 
     /**
@@ -115,15 +126,25 @@ public final class RolloverResponse extends ShardsAcknowledgedResponse implement
         return shardsAcknowledged;
     }
 
+    /**
+     * Returns true if the rollover has been lazily applied, meaning the target will rollover when the next document will get indexed.
+     */
+    public boolean isLazy() {
+        return lazy;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(oldIndex);
         out.writeString(newIndex);
-        out.writeMap(conditionStatus, StreamOutput::writeString, StreamOutput::writeBoolean);
+        out.writeMap(conditionStatus, StreamOutput::writeBoolean);
         out.writeBoolean(dryRun);
         out.writeBoolean(rolledOver);
         out.writeBoolean(shardsAcknowledged);
+        if (out.getTransportVersion().onOrAfter(LAZY_ROLLOVER_ADDED)) {
+            out.writeBoolean(lazy);
+        }
     }
 
     @Override
@@ -133,6 +154,7 @@ public final class RolloverResponse extends ShardsAcknowledgedResponse implement
         builder.field(NEW_INDEX.getPreferredName(), newIndex);
         builder.field(ROLLED_OVER.getPreferredName(), rolledOver);
         builder.field(DRY_RUN.getPreferredName(), dryRun);
+        builder.field(LAZY.getPreferredName(), lazy);
         builder.startObject(CONDITIONS.getPreferredName());
         for (Map.Entry<String, Boolean> entry : conditionStatus.entrySet()) {
             builder.field(entry.getKey(), entry.getValue());
@@ -146,6 +168,7 @@ public final class RolloverResponse extends ShardsAcknowledgedResponse implement
             RolloverResponse that = (RolloverResponse) o;
             return dryRun == that.dryRun
                 && rolledOver == that.rolledOver
+                && lazy == that.lazy
                 && Objects.equals(oldIndex, that.oldIndex)
                 && Objects.equals(newIndex, that.newIndex)
                 && Objects.equals(conditionStatus, that.conditionStatus);
@@ -155,6 +178,6 @@ public final class RolloverResponse extends ShardsAcknowledgedResponse implement
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), oldIndex, newIndex, conditionStatus, dryRun, rolledOver);
+        return Objects.hash(super.hashCode(), oldIndex, newIndex, conditionStatus, dryRun, rolledOver, lazy);
     }
 }

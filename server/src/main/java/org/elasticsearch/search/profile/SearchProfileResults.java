@@ -10,7 +10,6 @@ package org.elasticsearch.search.profile;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -49,29 +48,19 @@ public final class SearchProfileResults implements Writeable, ToXContentFragment
     public static final String PROFILE_FIELD = "profile";
 
     // map key is the composite "id" of form [nodeId][(clusterName:)indexName][shardId] created from SearchShardTarget.toString
-    private Map<String, SearchProfileShardResult> shardResults;
+    private final Map<String, SearchProfileShardResult> shardResults;
 
     public SearchProfileResults(Map<String, SearchProfileShardResult> shardResults) {
         this.shardResults = Collections.unmodifiableMap(shardResults);
     }
 
     public SearchProfileResults(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_16_0)) {
-            shardResults = in.readMap(SearchProfileShardResult::new);
-        } else {
-            // Before 8.0.0 we only send the query phase result
-            shardResults = in.readMap(i -> new SearchProfileShardResult(new SearchProfileQueryPhaseResult(i), null));
-        }
+        shardResults = in.readMap(SearchProfileShardResult::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_16_0)) {
-            out.writeMap(shardResults, StreamOutput::writeString, (o, r) -> r.writeTo(o));
-        } else {
-            // Before 8.0.0 we only send the query phase
-            out.writeMap(shardResults, StreamOutput::writeString, (o, r) -> r.getQueryPhase().writeTo(o));
-        }
+        out.writeMap(shardResults, StreamOutput::writeWriteable);
     }
 
     public Map<String, SearchProfileShardResult> getShardResults() {
@@ -207,7 +196,7 @@ public final class SearchProfileResults implements Writeable, ToXContentFragment
      */
     record ShardProfileId(String nodeId, String indexName, int shardId, @Nullable String clusterName) {}
 
-    private static Pattern SHARD_ID_DECOMPOSITION = Pattern.compile("\\[([^]]+)\\]\\[([^]]+)\\]\\[(\\d+)\\]");
+    private static final Pattern SHARD_ID_DECOMPOSITION = Pattern.compile("\\[([^]]+)\\]\\[([^]]+)\\]\\[(\\d+)\\]");
 
     /**
      * Parse the composite "shard id" from the profiles output, which comes from the

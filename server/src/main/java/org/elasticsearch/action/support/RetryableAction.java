@@ -18,6 +18,7 @@ import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayDeque;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.core.Strings.format;
@@ -39,7 +40,7 @@ public abstract class RetryableAction<Response> {
     private final long timeoutMillis;
     private final long startMillis;
     private final ActionListener<Response> finalListener;
-    private final String executor;
+    private final Executor executor;
 
     private volatile Scheduler.ScheduledCancellable retryTask;
 
@@ -48,18 +49,8 @@ public abstract class RetryableAction<Response> {
         ThreadPool threadPool,
         TimeValue initialDelay,
         TimeValue timeoutValue,
-        ActionListener<Response> listener
-    ) {
-        this(logger, threadPool, initialDelay, timeoutValue, listener, ThreadPool.Names.SAME);
-    }
-
-    public RetryableAction(
-        Logger logger,
-        ThreadPool threadPool,
-        TimeValue initialDelay,
-        TimeValue timeoutValue,
         ActionListener<Response> listener,
-        String executor
+        Executor executor
     ) {
         this(logger, threadPool, initialDelay, TimeValue.MAX_VALUE, timeoutValue, listener, executor);
     }
@@ -70,19 +61,8 @@ public abstract class RetryableAction<Response> {
         TimeValue initialDelay,
         TimeValue maxDelayBound,
         TimeValue timeoutValue,
-        ActionListener<Response> listener
-    ) {
-        this(logger, threadPool, initialDelay, maxDelayBound, timeoutValue, listener, ThreadPool.Names.SAME);
-    }
-
-    public RetryableAction(
-        Logger logger,
-        ThreadPool threadPool,
-        TimeValue initialDelay,
-        TimeValue maxDelayBound,
-        TimeValue timeoutValue,
         ActionListener<Response> listener,
-        String executor
+        Executor executor
     ) {
         this.logger = logger;
         this.threadPool = threadPool;
@@ -106,7 +86,7 @@ public abstract class RetryableAction<Response> {
     public void run() {
         final RetryingListener retryingListener = new RetryingListener(initialDelayMillis, null);
         final Runnable runnable = createRunnable(retryingListener);
-        threadPool.executor(executor).execute(runnable);
+        executor.execute(runnable);
     }
 
     public void cancel(Exception e) {

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.sql.qa.mixed_node;
 
 import org.apache.http.HttpHost;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -37,6 +38,8 @@ import static org.elasticsearch.xpack.ql.TestUtils.buildNodeAndVersions;
 
 public class SqlCompatIT extends BaseRestSqlTestCase {
 
+    private static final String BWC_NODES_VERSION = System.getProperty("tests.bwc_nodes_version");
+
     private static RestClient newNodesClient;
     private static RestClient oldNodesClient;
     private static TransportVersion bwcVersion;
@@ -46,7 +49,7 @@ public class SqlCompatIT extends BaseRestSqlTestCase {
         if (newNodesClient == null) {
             assertNull(oldNodesClient);
 
-            TestNodes nodes = buildNodeAndVersions(client());
+            TestNodes nodes = buildNodeAndVersions(client(), BWC_NODES_VERSION);
             bwcVersion = nodes.getBWCTransportVersion();
             newNodesClient = buildClient(
                 restClientSettings(),
@@ -129,7 +132,7 @@ public class SqlCompatIT extends BaseRestSqlTestCase {
     }
 
     public void testHistoricCursorFromOldNodeFailsOnNewNode() throws IOException {
-        assumeTrue("BwC checks only enabled for <=8.7.0", bwcVersion.before(TransportVersion.V_8_8_0));
+        assumeTrue("BwC checks only enabled for <=8.7.0", bwcVersion.before(TransportVersions.V_8_8_0));
         assertCursorNotCompatibleAcrossVersions(bwcVersion, oldNodesClient, TransportVersion.current(), newNodesClient);
     }
 

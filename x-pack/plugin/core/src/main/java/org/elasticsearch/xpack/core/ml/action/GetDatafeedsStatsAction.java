@@ -54,7 +54,7 @@ public class GetDatafeedsStatsAction extends ActionType<GetDatafeedsStatsAction.
     private static final String RUNNING_STATE = "running_state";
 
     private GetDatafeedsStatsAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
     // This needs to be a MasterNodeReadRequest even though the corresponding transport
@@ -184,6 +184,10 @@ public class GetDatafeedsStatsAction extends ActionType<GetDatafeedsStatsAction.
 
             public DatafeedTimingStats getTimingStats() {
                 return timingStats;
+            }
+
+            public RunningState getRunningState() {
+                return runningState;
             }
 
             @Override

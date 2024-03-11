@@ -22,7 +22,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
@@ -31,7 +30,6 @@ import org.apache.lucene.util.BitSet;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexSettings;
@@ -603,7 +601,6 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
                 shardId.id(),
                 0,
                 indexSettings,
-                ClusterSettings.createBuiltInClusterSettings(),
                 null,
                 null,
                 null,
@@ -613,7 +610,7 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
                 parserConfig(),
                 writableRegistry(),
                 client,
-                new IndexSearcher(directoryReader),
+                newSearcher(directoryReader),
                 () -> nowInMillis,
                 null,
                 null,

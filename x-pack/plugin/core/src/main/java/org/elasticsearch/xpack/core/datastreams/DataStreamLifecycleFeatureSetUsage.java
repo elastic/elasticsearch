@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.datastreams;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -47,7 +48,7 @@ public class DataStreamLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.V_8_500_006;
+        return TransportVersions.V_8_9_X;
     }
 
     @Override
@@ -111,7 +112,7 @@ public class DataStreamLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
         }
 
         public static LifecycleStats read(StreamInput in) throws IOException {
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_006)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
                 return new LifecycleStats(in.readVLong(), in.readVLong(), in.readVLong(), in.readDouble(), in.readBoolean());
             } else {
                 return INITIAL;
@@ -120,7 +121,7 @@ public class DataStreamLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_006)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
                 out.writeVLong(dataStreamsWithLifecyclesCount);
                 out.writeVLong(minRetentionMillis);
                 out.writeVLong(maxRetentionMillis);

@@ -7,10 +7,12 @@
 package org.elasticsearch.xpack.watcher.test.integration;
 
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
-import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.xpack.core.watcher.history.HistoryStoreField;
 import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchRequestBuilder;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
@@ -21,11 +23,13 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.loggingAction;
 import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBuilder;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.simpleInput;
 import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interval;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 
@@ -58,11 +62,15 @@ public class SingleNodeTests extends AbstractWatcherIntegrationTestCase {
             )
             .get();
         assertThat(putWatchResponse.isCreated(), is(true));
+        ensureGreen(HistoryStoreField.DATA_STREAM);
 
         assertBusy(() -> {
-            indicesAdmin().prepareRefresh(".watcher-history*").get();
-            SearchResponse searchResponse = client().prepareSearch(".watcher-history*").setSize(0).get();
-            assertThat(searchResponse.getHits().getTotalHits().value, is(greaterThanOrEqualTo(1L)));
+            BroadcastResponse refreshResponse = indicesAdmin().prepareRefresh(".watcher-history*").get();
+            assertThat(refreshResponse.getStatus(), equalTo(RestStatus.OK));
+            assertResponse(
+                prepareSearch(".watcher-history*").setSize(0),
+                searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value, is(greaterThanOrEqualTo(1L)))
+            );
         }, 30, TimeUnit.SECONDS);
     }
 

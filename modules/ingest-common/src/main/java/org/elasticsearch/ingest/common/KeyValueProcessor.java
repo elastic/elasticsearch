@@ -8,6 +8,10 @@
 
 package org.elasticsearch.ingest.common;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
@@ -27,6 +31,8 @@ import java.util.regex.Pattern;
  * The KeyValueProcessor parses and extracts messages of the `key=value` variety into fields with values of the keys.
  */
 public final class KeyValueProcessor extends AbstractProcessor {
+
+    private static final Logger logger = LogManager.getLogger(KeyValueProcessor.class);
 
     public static final String TYPE = "kv";
 
@@ -95,7 +101,7 @@ public final class KeyValueProcessor extends AbstractProcessor {
         final Predicate<String> keyFilter;
         if (includeKeys == null) {
             if (excludeKeys == null) {
-                keyFilter = key -> true;
+                keyFilter = Predicates.always();
             } else {
                 keyFilter = key -> excludeKeys.contains(key) == false;
             }
@@ -164,12 +170,40 @@ public final class KeyValueProcessor extends AbstractProcessor {
         };
     }
 
+    /**
+     * Helper method for buildTrimmer and buildSplitter.
+     * <p>
+     * If trace logging is enabled, then we should log the stacktrace (and so the message can be slightly simpler).
+     * On the other hand if trace logging isn't enabled, then we'll need to log some context on the original issue (but not a stacktrace).
+     * <p>
+     * Regardless of the logging level, we should throw an exception that has the context in its message, which this method builds.
+     */
+    private static ElasticsearchException logAndBuildException(String message, Throwable error) {
+        String cause = error.getClass().getName();
+        if (error.getMessage() != null) {
+            cause += ": " + error.getMessage();
+        }
+        String longMessage = message + ": " + cause;
+        if (logger.isTraceEnabled()) {
+            logger.trace(message, error);
+        } else {
+            logger.warn(longMessage);
+        }
+        return new ElasticsearchException(longMessage);
+    }
+
     private static Function<String, String> buildTrimmer(String trim) {
         if (trim == null) {
             return val -> val;
         } else {
             Pattern pattern = Pattern.compile("(^([" + trim + "]+))|([" + trim + "]+$)");
-            return val -> pattern.matcher(val).replaceAll("");
+            return val -> {
+                try {
+                    return pattern.matcher(val).replaceAll("");
+                } catch (Exception | StackOverflowError error) {
+                    throw logAndBuildException("Error trimming [" + val + "] using pattern [" + trim + "]", error);
+                }
+            };
         }
     }
 
@@ -177,7 +211,13 @@ public final class KeyValueProcessor extends AbstractProcessor {
         int limit = fields ? 0 : 2;
         if (split.length() > 2 || split.length() == 2 && split.charAt(0) != '\\') {
             Pattern splitPattern = Pattern.compile(split);
-            return val -> splitPattern.split(val, limit);
+            return val -> {
+                try {
+                    return splitPattern.split(val, limit);
+                } catch (Exception | StackOverflowError error) {
+                    throw logAndBuildException("Error splitting [" + val + "] using pattern [" + split + "]", error);
+                }
+            };
         } else {
             return val -> val.split(split, limit);
         }

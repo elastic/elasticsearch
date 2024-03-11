@@ -8,7 +8,7 @@
 
 package org.elasticsearch.action.admin.indices.template.post;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.cluster.metadata.Template;
@@ -68,12 +68,12 @@ public class SimulateIndexTemplateResponse extends ActionResponse implements ToX
             overlappingTemplates = Maps.newMapWithExpectedSize(overlappingTemplatesCount);
             for (int i = 0; i < overlappingTemplatesCount; i++) {
                 String templateName = in.readString();
-                overlappingTemplates.put(templateName, in.readStringList());
+                overlappingTemplates.put(templateName, in.readStringCollectionAsList());
             }
         } else {
             this.overlappingTemplates = null;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_007)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
             rolloverConfiguration = in.readOptionalWriteable(RolloverConfiguration::new);
         }
     }
@@ -91,7 +91,7 @@ public class SimulateIndexTemplateResponse extends ActionResponse implements ToX
         } else {
             out.writeBoolean(false);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_007)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
             out.writeOptionalWriteable(rolloverConfiguration);
         }
     }

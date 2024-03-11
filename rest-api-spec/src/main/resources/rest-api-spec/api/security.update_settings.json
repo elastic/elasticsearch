@@ -1,0 +1,27 @@
+{
+  "security.update_settings":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-update-settings.html",
+      "description":"Update settings for the security system index"
+    },
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_security/settings",
+          "methods":["PUT"]
+        }
+      ]
+    },
+    "params":{},
+    "body":{
+      "description": "An object with the new settings for each index, if any",
+      "required": true
+    }
+  }
+}

@@ -13,12 +13,12 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState.Builder;
+import org.elasticsearch.common.IndexNameGenerator;
 import org.elasticsearch.index.Index;
 
 import java.util.Objects;
 import java.util.function.BiFunction;
 
-import static org.elasticsearch.common.IndexNameGenerator.generateValidIndexName;
 import static org.elasticsearch.common.IndexNameGenerator.validateGeneratedIndexName;
 
 /**
@@ -73,7 +73,7 @@ public class GenerateUniqueIndexNameStep extends ClusterStateActionStep {
 
         Builder newLifecycleState = LifecycleExecutionState.builder(lifecycleState);
         String policyName = indexMetadata.getLifecyclePolicyName();
-        String generatedIndexName = generateValidIndexName(prefix, index.getName());
+        String generatedIndexName = generateIndexName(prefix, index.getName());
         ActionRequestValidationException validationException = validateGeneratedIndexName(generatedIndexName, clusterState);
         if (validationException != null) {
             logger.warn(
@@ -110,4 +110,7 @@ public class GenerateUniqueIndexNameStep extends ClusterStateActionStep {
         return Objects.hash(super.hashCode(), prefix);
     }
 
+    public String generateIndexName(final String prefix, final String indexName) {
+        return IndexNameGenerator.generateValidIndexName(prefix, indexName);
+    }
 }

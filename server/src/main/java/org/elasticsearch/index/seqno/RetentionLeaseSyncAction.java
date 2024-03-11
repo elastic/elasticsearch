@@ -49,6 +49,7 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.Executor;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -123,6 +124,11 @@ public class RetentionLeaseSyncAction extends TransportWriteAction<
                         @Override
                         public ReplicationResponse read(StreamInput in) throws IOException {
                             return newResponseInstance(in);
+                        }
+
+                        @Override
+                        public Executor executor() {
+                            return TransportResponseHandler.TRANSPORT_WORKER;
                         }
 
                         @Override

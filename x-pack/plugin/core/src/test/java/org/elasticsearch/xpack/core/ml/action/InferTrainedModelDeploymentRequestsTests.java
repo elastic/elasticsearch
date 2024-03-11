@@ -13,6 +13,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelPrefixStrings;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.EmptyConfigUpdateTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ZeroShotClassificationConfigUpdateTests;
@@ -36,9 +37,10 @@ public class InferTrainedModelDeploymentRequestsTests extends AbstractWireSerial
     @Override
     protected InferTrainedModelDeploymentAction.Request createTestInstance() {
         boolean createQueryStringRequest = randomBoolean();
+        InferTrainedModelDeploymentAction.Request request;
 
         if (createQueryStringRequest) {
-            return InferTrainedModelDeploymentAction.Request.forTextInput(
+            request = InferTrainedModelDeploymentAction.Request.forTextInput(
                 randomAlphaOfLength(4),
                 randomBoolean() ? null : randomInferenceConfigUpdate(),
                 Arrays.asList(generateRandomStringArray(4, 7, false)),
@@ -50,13 +52,17 @@ public class InferTrainedModelDeploymentRequestsTests extends AbstractWireSerial
                 () -> randomMap(1, 3, () -> Tuple.tuple(randomAlphaOfLength(7), randomAlphaOfLength(7)))
             );
 
-            return InferTrainedModelDeploymentAction.Request.forDocs(
+            request = InferTrainedModelDeploymentAction.Request.forDocs(
                 randomAlphaOfLength(4),
                 randomBoolean() ? null : randomInferenceConfigUpdate(),
                 docs,
                 randomBoolean() ? null : TimeValue.parseTimeValue(randomTimeValue(), "timeout")
             );
         }
+        request.setHighPriority(randomBoolean());
+        request.setPrefixType(randomFrom(TrainedModelPrefixStrings.PrefixType.values()));
+        request.setChunkResults(randomBoolean());
+        return request;
     }
 
     @Override
@@ -66,8 +72,7 @@ public class InferTrainedModelDeploymentRequestsTests extends AbstractWireSerial
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
-        entries.addAll(new MlInferenceNamedXContentProvider().getNamedWriteables());
+        List<NamedWriteableRegistry.Entry> entries = new ArrayList<>(new MlInferenceNamedXContentProvider().getNamedWriteables());
         return new NamedWriteableRegistry(entries);
     }
 

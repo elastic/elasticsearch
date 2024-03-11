@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.ilm.action;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
@@ -36,7 +35,7 @@ public class GetLifecycleAction extends ActionType<GetLifecycleAction.Response> 
     public static final String NAME = "cluster:admin/ilm/get";
 
     protected GetLifecycleAction() {
-        super(NAME, GetLifecycleAction.Response::new);
+        super(NAME);
     }
 
     public static class Response extends ActionResponse implements ChunkedToXContentObject {
@@ -45,7 +44,7 @@ public class GetLifecycleAction extends ActionType<GetLifecycleAction.Response> 
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            this.policies = in.readList(LifecyclePolicyResponseItem::new);
+            this.policies = in.readCollectionAsList(LifecyclePolicyResponseItem::new);
         }
 
         public Response(List<LifecyclePolicyResponseItem> policies) {
@@ -58,7 +57,7 @@ public class GetLifecycleAction extends ActionType<GetLifecycleAction.Response> 
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeList(policies);
+            out.writeCollection(policies);
         }
 
         @Override
@@ -84,11 +83,10 @@ public class GetLifecycleAction extends ActionType<GetLifecycleAction.Response> 
         }
 
         @Override
-        @SuppressWarnings("unchecked")
-        public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params outerParams) {
+        public Iterator<ToXContent> toXContentChunked(ToXContent.Params outerParams) {
             return Iterators.concat(
                 Iterators.single((builder, params) -> builder.startObject()),
-                policies.stream().map(policy -> (ToXContent) (b, p) -> {
+                Iterators.map(policies.iterator(), policy -> (b, p) -> {
                     b.startObject(policy.getLifecyclePolicy().getName());
                     b.field("version", policy.getVersion());
                     b.field("modified_date", policy.getModifiedDate());
@@ -96,7 +94,7 @@ public class GetLifecycleAction extends ActionType<GetLifecycleAction.Response> 
                     b.field("in_use_by", policy.getUsage());
                     b.endObject();
                     return b;
-                }).iterator(),
+                }),
                 Iterators.single((b, p) -> b.endObject())
             );
         }
@@ -128,11 +126,6 @@ public class GetLifecycleAction extends ActionType<GetLifecycleAction.Response> 
 
         public String[] getPolicyNames() {
             return policyNames;
-        }
-
-        @Override
-        public ActionRequestValidationException validate() {
-            return null;
         }
 
         @Override

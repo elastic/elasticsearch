@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.datastreams;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.rollover.Condition;
 import org.elasticsearch.action.admin.indices.rollover.MaxDocsCondition;
@@ -25,9 +24,12 @@ import org.elasticsearch.cluster.metadata.IndexWriteLoad;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.MapperTestUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -36,12 +38,14 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_UUID;
 import static org.elasticsearch.datastreams.DataStreamIndexSettingsProvider.FORMATTER;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -67,7 +71,8 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
             false,
             IndexMode.TIME_SERIES
         );
-        ComposableIndexTemplate template = new ComposableIndexTemplate.Builder().indexPatterns(List.of(dataStream.getName() + "*"))
+        ComposableIndexTemplate template = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of(dataStream.getName() + "*"))
             .template(
                 new Template(Settings.builder().put("index.mode", "time_series").put("index.routing_path", "uid").build(), null, null)
             )
@@ -78,8 +83,7 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
         builder.put(
             IndexMetadata.builder(dataStream.getWriteIndex().getName())
                 .settings(
-                    ESTestCase.settings(Version.CURRENT)
-                        .put("index.hidden", true)
+                    settings(IndexVersion.current()).put("index.hidden", true)
                         .put(SETTING_INDEX_UUID, dataStream.getWriteIndex().getUUID())
                         .put("index.mode", "time_series")
                         .put("index.routing_path", "uid")
@@ -173,7 +177,8 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
             false,
             dsIndexMode
         );
-        ComposableIndexTemplate template = new ComposableIndexTemplate.Builder().indexPatterns(List.of(dataStream.getName() + "*"))
+        ComposableIndexTemplate template = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of(dataStream.getName() + "*"))
             .template(
                 new Template(Settings.builder().put("index.mode", "time_series").put("index.routing_path", "uid").build(), null, null)
             )
@@ -181,8 +186,7 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
             .build();
         Metadata.Builder builder = Metadata.builder();
         builder.put("template", template);
-        Settings.Builder indexSettings = ESTestCase.settings(Version.CURRENT)
-            .put("index.hidden", true)
+        Settings.Builder indexSettings = settings(IndexVersion.current()).put("index.hidden", true)
             .put(SETTING_INDEX_UUID, dataStream.getWriteIndex().getUUID());
         if (dsIndexMode != null) {
             indexSettings.put("index.mode", dsIndexMode.getName());
@@ -240,7 +244,7 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
             Instant endTime = IndexSettings.TIME_SERIES_END_TIME.get(im.getSettings());
             assertThat(startTime.isBefore(endTime), is(true));
             assertThat(startTime, equalTo(now.minus(2, ChronoUnit.HOURS)));
-            assertThat(endTime, equalTo(now.plus(2, ChronoUnit.HOURS)));
+            assertThat(endTime, equalTo(now.plus(30, ChronoUnit.MINUTES)));
         } finally {
             testThreadPool.shutdown();
         }
@@ -260,7 +264,8 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
             false,
             IndexMode.TIME_SERIES
         );
-        ComposableIndexTemplate template = new ComposableIndexTemplate.Builder().indexPatterns(List.of(dataStream.getName() + "*"))
+        ComposableIndexTemplate template = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of(dataStream.getName() + "*"))
             .template(
                 new Template(Settings.builder().put("index.mode", "time_series").put("index.routing_path", "uid").build(), null, null)
             )
@@ -271,8 +276,7 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
         builder.put(
             IndexMetadata.builder(dataStream.getWriteIndex().getName())
                 .settings(
-                    ESTestCase.settings(Version.CURRENT)
-                        .put("index.hidden", true)
+                    settings(IndexVersion.current()).put("index.hidden", true)
                         .put(SETTING_INDEX_UUID, dataStream.getWriteIndex().getUUID())
                         .put("index.mode", "time_series")
                         .put("index.routing_path", "uid")
@@ -335,10 +339,169 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
             endTime = IndexSettings.TIME_SERIES_END_TIME.get(im.getSettings());
             assertThat(startTime.isBefore(endTime), is(true));
             assertThat(startTime, equalTo(now.minus(2, ChronoUnit.HOURS)));
-            assertThat(endTime, equalTo(now.plus(2, ChronoUnit.HOURS)));
+            assertThat(endTime, equalTo(now.plus(30, ChronoUnit.MINUTES)));
         } finally {
             testThreadPool.shutdown();
         }
+    }
+
+    public void testRolloverClusterStateWithBrokenOlderTsdbDataStream() throws Exception {
+        Instant now = Instant.now();
+        String dataStreamName = "metrics-my-app";
+        int numberOfBackingIndices = randomIntBetween(1, 3);
+        ClusterState clusterState = createClusterState(dataStreamName, numberOfBackingIndices, now, true);
+        DataStream dataStream = clusterState.metadata().dataStreams().get(dataStreamName);
+
+        ThreadPool testThreadPool = new TestThreadPool(getTestName());
+        try {
+            MetadataRolloverService rolloverService = DataStreamTestHelper.getMetadataRolloverService(
+                dataStream,
+                testThreadPool,
+                Set.of(createSettingsProvider(xContentRegistry())),
+                xContentRegistry()
+            );
+            MaxDocsCondition condition = new MaxDocsCondition(randomNonNegativeLong());
+            List<Condition<?>> metConditions = Collections.singletonList(condition);
+            CreateIndexRequest createIndexRequest = new CreateIndexRequest("_na_");
+            IndexMetadataStats indexStats = new IndexMetadataStats(IndexWriteLoad.builder(1).build(), 10, 10);
+
+            long before = testThreadPool.absoluteTimeInMillis();
+            MetadataRolloverService.RolloverResult rolloverResult = rolloverService.rolloverClusterState(
+                clusterState,
+                dataStream.getName(),
+                null,
+                createIndexRequest,
+                metConditions,
+                now,
+                randomBoolean(),
+                false,
+                indexStats
+            );
+            long after = testThreadPool.absoluteTimeInMillis();
+
+            String sourceIndexName = DataStream.getDefaultBackingIndexName(dataStream.getName(), dataStream.getGeneration());
+            String newIndexName = DataStream.getDefaultBackingIndexName(dataStream.getName(), dataStream.getGeneration() + 1);
+            assertEquals(sourceIndexName, rolloverResult.sourceIndexName());
+            assertEquals(newIndexName, rolloverResult.rolloverIndexName());
+            Metadata rolloverMetadata = rolloverResult.clusterState().metadata();
+            assertEquals(dataStream.getIndices().size() + 1, rolloverMetadata.indices().size());
+            IndexMetadata rolloverIndexMetadata = rolloverMetadata.index(newIndexName);
+
+            IndexAbstraction ds = rolloverMetadata.getIndicesLookup().get(dataStream.getName());
+            assertThat(ds.getType(), equalTo(IndexAbstraction.Type.DATA_STREAM));
+            assertThat(ds.getIndices(), hasSize(dataStream.getIndices().size() + 1));
+            assertThat(ds.getIndices(), hasItem(rolloverMetadata.index(sourceIndexName).getIndex()));
+            assertThat(ds.getIndices(), hasItem(rolloverIndexMetadata.getIndex()));
+            assertThat(ds.getWriteIndex(), equalTo(rolloverIndexMetadata.getIndex()));
+            assertThat(((DataStream) ds).getIndexMode(), equalTo(IndexMode.TIME_SERIES));
+
+            RolloverInfo info = rolloverMetadata.index(sourceIndexName).getRolloverInfos().get(dataStream.getName());
+            assertThat(info.getTime(), lessThanOrEqualTo(after));
+            assertThat(info.getTime(), greaterThanOrEqualTo(before));
+            assertThat(info.getMetConditions(), hasSize(1));
+            assertThat(info.getMetConditions().get(0).value(), equalTo(condition.value()));
+
+            for (int i = 0; i < numberOfBackingIndices; i++) {
+                var im = rolloverMetadata.index(rolloverMetadata.dataStreams().get(dataStreamName).getIndices().get(i));
+                var startTime1 = IndexSettings.TIME_SERIES_START_TIME.get(im.getSettings());
+                var endTime1 = IndexSettings.TIME_SERIES_END_TIME.get(im.getSettings());
+                assertThat(startTime1.toEpochMilli(), equalTo(DateUtils.MAX_MILLIS_BEFORE_MINUS_9999));
+                assertThat(endTime1.toEpochMilli(), equalTo(DateUtils.MAX_MILLIS_BEFORE_9999));
+                assertThat(im.getIndexMode(), equalTo(null));
+            }
+            {
+                var im = rolloverMetadata.index(
+                    rolloverMetadata.dataStreams().get(dataStreamName).getIndices().get(numberOfBackingIndices)
+                );
+                var lastStartTime = IndexSettings.TIME_SERIES_START_TIME.get(im.getSettings());
+                var kastEndTime = IndexSettings.TIME_SERIES_END_TIME.get(im.getSettings());
+                assertThat(lastStartTime, equalTo(now.minus(2, ChronoUnit.HOURS).truncatedTo(ChronoUnit.SECONDS)));
+                assertThat(kastEndTime, equalTo(now.plus(30, ChronoUnit.MINUTES).truncatedTo(ChronoUnit.SECONDS)));
+                assertThat(im.getIndexMode(), equalTo(IndexMode.TIME_SERIES));
+            }
+        } finally {
+            testThreadPool.shutdown();
+        }
+    }
+
+    public void testRolloverClusterStateWithBrokenTsdbDataStream() throws Exception {
+        Instant now = Instant.now();
+        String dataStreamName = "metrics-my-app";
+        int numberOfBackingIndices = randomIntBetween(1, 3);
+        ClusterState clusterState = createClusterState(dataStreamName, numberOfBackingIndices, now, false);
+        DataStream dataStream = clusterState.metadata().dataStreams().get(dataStreamName);
+
+        ThreadPool testThreadPool = new TestThreadPool(getTestName());
+        try {
+            MetadataRolloverService rolloverService = DataStreamTestHelper.getMetadataRolloverService(
+                dataStream,
+                testThreadPool,
+                Set.of(createSettingsProvider(xContentRegistry())),
+                xContentRegistry()
+            );
+            MaxDocsCondition condition = new MaxDocsCondition(randomNonNegativeLong());
+            List<Condition<?>> metConditions = Collections.singletonList(condition);
+            CreateIndexRequest createIndexRequest = new CreateIndexRequest("_na_");
+            IndexMetadataStats indexStats = new IndexMetadataStats(IndexWriteLoad.builder(1).build(), 10, 10);
+
+            Exception e = expectThrows(
+                IllegalArgumentException.class,
+                () -> rolloverService.rolloverClusterState(
+                    clusterState,
+                    dataStream.getName(),
+                    null,
+                    createIndexRequest,
+                    metConditions,
+                    now,
+                    randomBoolean(),
+                    false,
+                    indexStats
+                )
+            );
+            assertThat(e.getMessage(), containsString("is overlapping with backing index"));
+        } finally {
+            testThreadPool.shutdown();
+        }
+    }
+
+    private static ClusterState createClusterState(String dataStreamName, int numberOfBackingIndices, Instant now, boolean includeVersion) {
+        List<Index> backingIndices = new ArrayList<>(numberOfBackingIndices);
+        for (int i = 1; i <= numberOfBackingIndices; i++) {
+            backingIndices.add(new Index(DataStream.getDefaultBackingIndexName(dataStreamName, i, now.toEpochMilli()), "uuid" + i));
+        }
+        final DataStream dataStream = new DataStream(
+            dataStreamName,
+            backingIndices,
+            numberOfBackingIndices,
+            null,
+            false,
+            false,
+            false,
+            false,
+            null
+        );
+        ComposableIndexTemplate template = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of(dataStream.getName() + "*"))
+            .template(
+                new Template(Settings.builder().put("index.mode", "time_series").put("index.routing_path", "uid").build(), null, null)
+            )
+            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
+            .build();
+        Metadata.Builder builder = Metadata.builder();
+        builder.put("template", template);
+
+        for (Index backingIndex : backingIndices) {
+            var settings = settings(IndexVersion.current()).put("index.hidden", true)
+                .put(SETTING_INDEX_UUID, backingIndex.getUUID())
+                .put("index.mode", "time_series")
+                .put("index.routing_path", "uid");
+            if (includeVersion) {
+                settings.put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersions.V_8_9_0);
+            }
+            builder.put(IndexMetadata.builder(backingIndex.getName()).settings(settings).numberOfShards(1).numberOfReplicas(0));
+        }
+        builder.put(dataStream);
+        return ClusterState.builder(new ClusterName("test")).metadata(builder).build();
     }
 
     static DataStreamIndexSettingsProvider createSettingsProvider(NamedXContentRegistry xContentRegistry) {

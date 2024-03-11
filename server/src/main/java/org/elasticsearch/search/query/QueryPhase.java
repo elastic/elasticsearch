@@ -36,8 +36,6 @@ import org.elasticsearch.search.aggregations.AggregationPhase;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.ScrollContext;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.profile.query.InternalProfileCollector;
-import org.elasticsearch.search.profile.query.InternalProfileCollectorManager;
 import org.elasticsearch.search.rank.RankSearchContext;
 import org.elasticsearch.search.rank.RankShardContext;
 import org.elasticsearch.search.rescore.RescorePhase;
@@ -45,14 +43,11 @@ import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestPhase;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 
 import static org.elasticsearch.search.internal.SearchContext.TRACK_TOTAL_HITS_DISABLED;
-import static org.elasticsearch.search.profile.query.CollectorResult.REASON_SEARCH_QUERY_PHASE;
-import static org.elasticsearch.search.query.TopDocsCollectorManagerFactory.createTopDocsCollectorFactory;
 
 /**
  * Query phase of a search request, used to run the query and get back from each shard information about the matching documents
@@ -99,13 +94,14 @@ public class QueryPhase {
             if (searchTimedOut) {
                 break;
             }
-            RankSearchContext rankSearchContext = new RankSearchContext(searchContext, rankQuery, rankShardContext.windowSize());
-            QueryPhase.addCollectorsAndSearch(rankSearchContext);
-            QuerySearchResult rrfQuerySearchResult = rankSearchContext.queryResult();
-            rrfRankResults.add(rrfQuerySearchResult.topDocs().topDocs);
-            serviceTimeEWMA += rrfQuerySearchResult.serviceTimeEWMA();
-            nodeQueueSize = Math.max(nodeQueueSize, rrfQuerySearchResult.nodeQueueSize());
-            searchTimedOut = rrfQuerySearchResult.searchTimedOut();
+            try (RankSearchContext rankSearchContext = new RankSearchContext(searchContext, rankQuery, rankShardContext.windowSize())) {
+                QueryPhase.addCollectorsAndSearch(rankSearchContext);
+                QuerySearchResult rrfQuerySearchResult = rankSearchContext.queryResult();
+                rrfRankResults.add(rrfQuerySearchResult.topDocs().topDocs);
+                serviceTimeEWMA += rrfQuerySearchResult.serviceTimeEWMA();
+                nodeQueueSize = Math.max(nodeQueueSize, rrfQuerySearchResult.nodeQueueSize());
+                searchTimedOut = rrfQuerySearchResult.searchTimedOut();
+            }
         }
 
         querySearchResult.setRankShardResult(rankShardContext.combine(rrfRankResults));
@@ -140,7 +136,6 @@ public class QueryPhase {
 
         RescorePhase.execute(searchContext);
         SuggestPhase.execute(searchContext);
-        AggregationPhase.execute(searchContext);
 
         if (searchContext.getProfilers() != null) {
             searchContext.queryResult().profileResults(searchContext.getProfilers().buildQueryPhaseResults());
@@ -184,24 +179,9 @@ public class QueryPhase {
                 }
             }
 
-            final TopDocsCollectorManagerFactory topDocsFactory = createTopDocsCollectorFactory(
-                searchContext,
-                searchContext.parsedPostFilter() != null || searchContext.minimumScore() != null
-            );
+            final boolean hasFilterCollector = searchContext.parsedPostFilter() != null || searchContext.minimumScore() != null;
 
-            CollectorManager<Collector, Void> topDocsCollectorManager = topDocsFactory.collectorManager();
-            if (searchContext.getProfilers() != null) {
-                Collector topDocsCollector = topDocsCollectorManager.newCollector();
-                InternalProfileCollector profileCollector = new InternalProfileCollector(topDocsCollector, topDocsFactory.profilerName);
-                topDocsCollectorManager = new InternalProfileCollectorManager(profileCollector);
-            }
-
-            Collector topDocsCollector = topDocsCollectorManager.newCollector();
-            Collector aggsCollector = null;
             Weight postFilterWeight = null;
-            if (searchContext.aggregations() != null) {
-                aggsCollector = searchContext.aggregations().getAggsCollectorManager().newCollector();
-            }
             if (searchContext.parsedPostFilter() != null) {
                 postFilterWeight = searcher.createWeight(
                     searcher.rewrite(searchContext.parsedPostFilter().query()),
@@ -209,92 +189,44 @@ public class QueryPhase {
                     1f
                 );
             }
-            QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(
-                topDocsCollector,
-                postFilterWeight,
-                searchContext.terminateAfter(),
-                aggsCollector,
-                searchContext.minimumScore()
-            );
 
-            SingleThreadCollectorManager collectorManager;
-            if (searchContext.getProfilers() == null) {
-                collectorManager = new SingleThreadCollectorManager(queryPhaseCollector);
-            } else {
-                InternalProfileCollector profileCollector;
-                if (aggsCollector == null) {
-                    profileCollector = new InternalProfileCollector(
-                        queryPhaseCollector,
-                        REASON_SEARCH_QUERY_PHASE,
-                        (InternalProfileCollector) topDocsCollector
-                    );
-                } else {
-                    profileCollector = new InternalProfileCollector(
-                        queryPhaseCollector,
-                        REASON_SEARCH_QUERY_PHASE,
-                        (InternalProfileCollector) topDocsCollector,
-                        (InternalProfileCollector) aggsCollector
-                    );
-                }
-                collectorManager = new InternalProfileCollectorManager(profileCollector);
-            }
+            CollectorManager<Collector, QueryPhaseResult> collectorManager = QueryPhaseCollectorManager.createQueryPhaseCollectorManager(
+                postFilterWeight,
+                searchContext.aggregations() == null ? null : searchContext.aggregations().getAggsCollectorManager(),
+                searchContext,
+                hasFilterCollector
+            );
 
             final Runnable timeoutRunnable = getTimeoutCheck(searchContext);
             if (timeoutRunnable != null) {
                 searcher.addQueryCancellation(timeoutRunnable);
             }
 
-            try {
-                searchWithCollectorManager(searchContext, searcher, query, collectorManager, timeoutRunnable != null);
-                if (queryPhaseCollector.isTerminatedAfter()) {
-                    queryResult.terminatedEarly(true);
+            QueryPhaseResult queryPhaseResult = searcher.search(query, collectorManager);
+            if (searchContext.getProfilers() != null) {
+                searchContext.getProfilers().getCurrentQueryProfiler().setCollectorResult(queryPhaseResult.collectorResult());
+            }
+            queryResult.topDocs(queryPhaseResult.topDocsAndMaxScore(), queryPhaseResult.sortValueFormats());
+            if (searcher.timeExceeded()) {
+                assert timeoutRunnable != null : "TimeExceededException thrown even though timeout wasn't set";
+                if (searchContext.request().allowPartialSearchResults() == false) {
+                    throw new SearchTimeoutException(searchContext.shardTarget(), "Time exceeded");
                 }
-                queryResult.topDocs(topDocsFactory.topDocsAndMaxScore(), topDocsFactory.sortValueFormats);
-                ExecutorService executor = searchContext.indexShard().getThreadPool().executor(ThreadPool.Names.SEARCH);
-                assert executor instanceof TaskExecutionTimeTrackingEsThreadPoolExecutor
-                    || (executor instanceof EsThreadPoolExecutor == false /* in case thread pool is mocked out in tests */)
-                    : "SEARCH threadpool should have an executor that exposes EWMA metrics, but is of type " + executor.getClass();
-                if (executor instanceof TaskExecutionTimeTrackingEsThreadPoolExecutor rExecutor) {
-                    queryResult.nodeQueueSize(rExecutor.getCurrentQueueSize());
-                    queryResult.serviceTimeEWMA((long) rExecutor.getTaskExecutionEWMA());
-                }
-            } finally {
-                // Search phase has finished, no longer need to check for timeout
-                // otherwise aggregation phase might get cancelled.
-                if (timeoutRunnable != null) {
-                    searcher.removeQueryCancellation(timeoutRunnable);
-                }
+                queryResult.searchTimedOut(true);
+            }
+            if (searchContext.terminateAfter() != SearchContext.DEFAULT_TERMINATE_AFTER) {
+                queryResult.terminatedEarly(queryPhaseResult.terminatedAfter());
+            }
+            ExecutorService executor = searchContext.indexShard().getThreadPool().executor(ThreadPool.Names.SEARCH);
+            assert executor instanceof TaskExecutionTimeTrackingEsThreadPoolExecutor
+                || (executor instanceof EsThreadPoolExecutor == false /* in case thread pool is mocked out in tests */)
+                : "SEARCH threadpool should have an executor that exposes EWMA metrics, but is of type " + executor.getClass();
+            if (executor instanceof TaskExecutionTimeTrackingEsThreadPoolExecutor rExecutor) {
+                queryResult.nodeQueueSize(rExecutor.getCurrentQueueSize());
+                queryResult.serviceTimeEWMA((long) rExecutor.getTaskExecutionEWMA());
             }
         } catch (Exception e) {
             throw new QueryPhaseExecutionException(searchContext.shardTarget(), "Failed to execute main query", e);
-        }
-    }
-
-    private static void searchWithCollectorManager(
-        SearchContext searchContext,
-        ContextIndexSearcher searcher,
-        Query query,
-        CollectorManager<Collector, Void> collectorManager,
-        boolean timeoutSet
-    ) throws IOException {
-        if (searchContext.getProfilers() != null) {
-            searchContext.getProfilers()
-                .getCurrentQueryProfiler()
-                .setCollectorManager(((InternalProfileCollectorManager) collectorManager)::getCollectorTree);
-        }
-        QuerySearchResult queryResult = searchContext.queryResult();
-        try {
-            searcher.search(query, collectorManager);
-        } catch (TimeExceededException e) {
-            assert timeoutSet : "TimeExceededException thrown even though timeout wasn't set";
-            if (searchContext.request().allowPartialSearchResults() == false) {
-                // Can't rethrow TimeExceededException because not serializable
-                throw new QueryPhaseExecutionException(searchContext.shardTarget(), "Time exceeded");
-            }
-            queryResult.searchTimedOut(true);
-        }
-        if (searchContext.terminateAfter() != SearchContext.DEFAULT_TERMINATE_AFTER && queryResult.terminatedEarly() == null) {
-            queryResult.terminatedEarly(false);
         }
     }
 
@@ -328,20 +260,11 @@ public class QueryPhase {
             return () -> {
                 final long time = searchContext.getRelativeTimeInMillis();
                 if (time > maxTime) {
-                    throw new TimeExceededException();
+                    searchContext.searcher().throwTimeExceededException();
                 }
             };
         } else {
             return null;
-        }
-    }
-
-    private static class TimeExceededException extends RuntimeException {
-
-        @Override
-        public Throwable fillInStackTrace() {
-            // never re-thrown so we can save the expensive stacktrace
-            return this;
         }
     }
 }

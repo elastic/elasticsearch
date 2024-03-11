@@ -17,5 +17,5 @@ public class KnownIndexVersions {
     /**
      * A sorted list of all known transport versions
      */
-    public static final List<IndexVersion> ALL_VERSIONS = List.copyOf(IndexVersion.getAllVersions());
+    public static final List<IndexVersion> ALL_VERSIONS = List.copyOf(IndexVersions.getAllVersions());
 }

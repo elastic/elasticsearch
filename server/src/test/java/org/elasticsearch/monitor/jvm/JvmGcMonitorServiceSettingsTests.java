@@ -18,6 +18,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.AbstractMap;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
@@ -30,7 +31,7 @@ public class JvmGcMonitorServiceSettingsTests extends ESTestCase {
 
     public void testEmptySettingsAreOkay() throws InterruptedException {
         AtomicBoolean scheduled = new AtomicBoolean();
-        execute(Settings.EMPTY, (command, interval, name) -> {
+        execute(Settings.EMPTY, (command, interval, executor) -> {
             scheduled.set(true);
             return new MockCancellable();
         }, () -> assertTrue(scheduled.get()));
@@ -39,7 +40,7 @@ public class JvmGcMonitorServiceSettingsTests extends ESTestCase {
     public void testDisabledSetting() throws InterruptedException {
         Settings settings = Settings.builder().put("monitor.jvm.gc.enabled", "false").build();
         AtomicBoolean scheduled = new AtomicBoolean();
-        execute(settings, (command, interval, name) -> {
+        execute(settings, (command, interval, executor) -> {
             scheduled.set(true);
             return new MockCancellable();
         }, () -> assertFalse(scheduled.get()));
@@ -166,14 +167,14 @@ public class JvmGcMonitorServiceSettingsTests extends ESTestCase {
         }, true, null);
     }
 
-    private static void execute(Settings settings, TriFunction<Runnable, TimeValue, String, Cancellable> scheduler, Runnable asserts)
+    private static void execute(Settings settings, TriFunction<Runnable, TimeValue, Executor, Cancellable> scheduler, Runnable asserts)
         throws InterruptedException {
         execute(settings, scheduler, null, false, asserts);
     }
 
     private static void execute(
         Settings settings,
-        TriFunction<Runnable, TimeValue, String, Cancellable> scheduler,
+        TriFunction<Runnable, TimeValue, Executor, Cancellable> scheduler,
         Consumer<Throwable> consumer,
         boolean constructionShouldFail,
         Runnable asserts
@@ -184,8 +185,8 @@ public class JvmGcMonitorServiceSettingsTests extends ESTestCase {
         try {
             threadPool = new TestThreadPool(JvmGcMonitorServiceSettingsTests.class.getCanonicalName()) {
                 @Override
-                public Cancellable scheduleWithFixedDelay(Runnable command, TimeValue interval, String name) {
-                    return scheduler.apply(command, interval, name);
+                public Cancellable scheduleWithFixedDelay(Runnable command, TimeValue interval, Executor executor) {
+                    return scheduler.apply(command, interval, executor);
                 }
             };
             try {

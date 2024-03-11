@@ -14,6 +14,7 @@ import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -36,6 +37,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -44,19 +46,21 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.logging.DeprecatedMessage.KEY_FIELD_NAME;
 import static org.elasticsearch.common.logging.DeprecatedMessage.X_OPAQUE_ID_FIELD_NAME;
-import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.matchesRegex;
 
 /**
  * Tests that deprecation message are returned via response headers, and can be indexed into a data stream.
  */
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/101596")
 public class DeprecationHttpIT extends ESRestTestCase {
 
     @Before
@@ -108,8 +112,13 @@ public class DeprecationHttpIT extends ESRestTestCase {
             } catch (Exception e) {
                 throw new AssertionError(e);
             }
-
         }, 30, TimeUnit.SECONDS);
+
+        assertBusy(() -> {
+            // wait for the data stream to really be deleted
+            var response = ESRestTestCase.entityAsMap(client().performRequest(new Request("GET", "/_data_stream")));
+            assertThat((Collection<?>) response.get("data_streams"), empty());
+        });
     }
 
     /**
@@ -143,7 +152,7 @@ public class DeprecationHttpIT extends ESRestTestCase {
             final Response response = client().performRequest(request);
 
             final List<String> deprecatedWarnings = getWarningHeaders(response.getHeaders());
-            assertThat(deprecatedWarnings, everyItem(matches(HeaderWarning.WARNING_HEADER_PATTERN.pattern())));
+            assertThat(deprecatedWarnings, everyItem(matchesRegex(HeaderWarning.WARNING_HEADER_PATTERN)));
 
             final List<String> actualWarningValues = deprecatedWarnings.stream()
                 .map(s -> HeaderWarning.extractWarningValueFromWarningHeader(s, true))
@@ -286,7 +295,7 @@ public class DeprecationHttpIT extends ESRestTestCase {
             headerMatchers.add(equalTo(TestDeprecationHeaderRestAction.DEPRECATED_USAGE));
         }
 
-        assertThat(deprecatedWarnings, everyItem(matches(HeaderWarning.WARNING_HEADER_PATTERN.pattern())));
+        assertThat(deprecatedWarnings, everyItem(matchesRegex(HeaderWarning.WARNING_HEADER_PATTERN)));
         final List<String> actualWarningValues = deprecatedWarnings.stream()
             .map(s -> HeaderWarning.extractWarningValueFromWarningHeader(s, true))
             .collect(Collectors.toList());

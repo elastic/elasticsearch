@@ -35,7 +35,7 @@ public class ClusterBlockException extends ElasticsearchException {
 
     public ClusterBlockException(StreamInput in) throws IOException {
         super(in);
-        this.blocks = in.readImmutableSet(ClusterBlock::new);
+        this.blocks = in.readCollectionAsImmutableSet(ClusterBlock::new);
     }
 
     @Override

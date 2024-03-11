@@ -7,8 +7,6 @@
  */
 package org.elasticsearch.gateway;
 
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -19,10 +17,12 @@ import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.version.CompatibilityVersionsUtils;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
@@ -46,7 +46,9 @@ public class ClusterStateUpdatersTests extends ESTestCase {
 
     private IndexMetadata createIndexMetadata(final String name, final Settings settings) {
         return IndexMetadata.builder(name)
-            .settings(indexSettings(Version.CURRENT, 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID()).put(settings))
+            .settings(
+                indexSettings(IndexVersion.current(), 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID()).put(settings)
+            )
             .build();
     }
 
@@ -215,7 +217,7 @@ public class ClusterStateUpdatersTests extends ESTestCase {
         final ClusterState initialState = ClusterState.builder(ClusterState.EMPTY_STATE).metadata(metadata).build();
         final DiscoveryNode localNode = DiscoveryNodeUtils.builder("node1").roles(Sets.newHashSet(DiscoveryNodeRole.MASTER_ROLE)).build();
 
-        final ClusterState updatedState = setLocalNode(initialState, localNode, TransportVersion.current());
+        final ClusterState updatedState = setLocalNode(initialState, localNode, CompatibilityVersionsUtils.staticCurrent());
 
         assertMetadataEquals(initialState, updatedState);
         assertThat(updatedState.nodes().getLocalNode(), equalTo(localNode));
@@ -259,7 +261,7 @@ public class ClusterStateUpdatersTests extends ESTestCase {
             .build();
         final DiscoveryNode localNode = DiscoveryNodeUtils.builder("node1").roles(Sets.newHashSet(DiscoveryNodeRole.MASTER_ROLE)).build();
         final ClusterState updatedState = Function.<ClusterState>identity()
-            .andThen(state -> setLocalNode(state, localNode, TransportVersion.current()))
+            .andThen(state -> setLocalNode(state, localNode, CompatibilityVersionsUtils.staticCurrent()))
             .andThen(ClusterStateUpdaters::recoverClusterBlocks)
             .apply(initialState);
 

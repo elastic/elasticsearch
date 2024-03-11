@@ -1,0 +1,6 @@
+pr: 102207
+summary: Fix disk computation when initializing unassigned shards in desired balance
+  computation
+area: Allocation
+type: bug
+issues: []

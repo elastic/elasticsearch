@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
+import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -67,24 +68,32 @@ public class MountSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
         String indexName = indexMetadata.getIndex().getName();
 
         LifecycleExecutionState lifecycleState = indexMetadata.getLifecycleExecutionState();
+        SearchableSnapshotAction.SearchableSnapshotMetadata searchableSnapshotMetadata = SearchableSnapshotAction
+            .extractSearchableSnapshotFromSettings(indexMetadata);
 
         String policyName = indexMetadata.getLifecyclePolicyName();
-        final String snapshotRepository = lifecycleState.snapshotRepository();
+        String snapshotRepository = lifecycleState.snapshotRepository();
         if (Strings.hasText(snapshotRepository) == false) {
-            listener.onFailure(
-                new IllegalStateException(
-                    "snapshot repository is not present for policy [" + policyName + "] and index [" + indexName + "]"
-                )
-            );
-            return;
+            if (searchableSnapshotMetadata == null) {
+                listener.onFailure(
+                    new IllegalStateException(
+                        "snapshot repository is not present for policy [" + policyName + "] and index [" + indexName + "]"
+                    )
+                );
+                return;
+            } else {
+                snapshotRepository = searchableSnapshotMetadata.repositoryName();
+            }
         }
 
-        final String snapshotName = lifecycleState.snapshotName();
-        if (Strings.hasText(snapshotName) == false) {
+        String snapshotName = lifecycleState.snapshotName();
+        if (Strings.hasText(snapshotName) == false && searchableSnapshotMetadata == null) {
             listener.onFailure(
                 new IllegalStateException("snapshot name was not generated for policy [" + policyName + "] and index [" + indexName + "]")
             );
             return;
+        } else if (searchableSnapshotMetadata != null) {
+            snapshotName = searchableSnapshotMetadata.snapshotName();
         }
 
         String mountedIndexName = restoredIndexPrefix + indexName;
@@ -101,16 +110,20 @@ public class MountSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
 
         final String snapshotIndexName = lifecycleState.snapshotIndexName();
         if (snapshotIndexName == null) {
-            // This index had its searchable snapshot created prior to a version where we captured
-            // the original index name, so make our best guess at the name
-            indexName = bestEffortIndexNameResolution(indexName);
-            logger.debug(
-                "index [{}] using policy [{}] does not have a stored snapshot index name, "
-                    + "using our best effort guess of [{}] for the original snapshotted index name",
-                indexMetadata.getIndex().getName(),
-                policyName,
-                indexName
-            );
+            if (searchableSnapshotMetadata == null) {
+                // This index had its searchable snapshot created prior to a version where we captured
+                // the original index name, so make our best guess at the name
+                indexName = bestEffortIndexNameResolution(indexName);
+                logger.debug(
+                    "index [{}] using policy [{}] does not have a stored snapshot index name, "
+                        + "using our best effort guess of [{}] for the original snapshotted index name",
+                    indexMetadata.getIndex().getName(),
+                    policyName,
+                    indexName
+                );
+            } else {
+                indexName = searchableSnapshotMetadata.sourceIndex();
+            }
         } else {
             // Use the name of the snapshot as specified in the metadata, because the current index
             // name not might not reflect the name of the index actually in the snapshot
@@ -134,12 +147,7 @@ public class MountSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
             snapshotName,
             indexName,
             settingsBuilder.build(),
-            // we captured the index metadata when we took the snapshot. the index likely had the ILM execution state in the metadata.
-            // if we were to restore the lifecycle.name setting, the restored index would be captured by the ILM runner and,
-            // depending on what ILM execution state was captured at snapshot time, make it's way forward from _that_ step forward in
-            // the ILM policy.
-            // we'll re-set this setting on the restored index at a later step once we restored a deterministic execution state
-            new String[] { LifecycleSettings.LIFECYCLE_NAME },
+            ignoredIndexSettings(this.getKey().phase()),
             // we'll not wait for the snapshot to complete in this step as the async steps are executed from threads that shouldn't
             // perform expensive operations (ie. clusterStateProcessed)
             false,
@@ -182,6 +190,26 @@ public class MountSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
             return Optional.of(DataTier.DATA_HOT);
         }
         return Optional.empty();
+    }
+
+    /**
+     * This method returns the settings that need to be ignored when we mount the searchable snapshot. Currently, it returns:
+     * - index.lifecycle.name: The index likely had the ILM execution state in the metadata. If we were to restore the lifecycle.name
+     * setting, the restored index would be captured by the ILM runner and, depending on what ILM execution state was captured at snapshot
+     * time, make it's way forward from _that_ step forward in the ILM policy. We'll re-set this setting on the restored index at a later
+     * step once we restored a deterministic execution state
+     * - index.routing.allocation.total_shards_per_node: It is  likely that frozen tier has fewer nodes than the hot tier.
+     * Keeping this setting runs the risk that we will not have enough nodes to allocate all the shards in the
+     * frozen tier and the user does not have any way of fixing this. For this reason, we ignore this setting when moving to frozen.
+     */
+    static String[] ignoredIndexSettings(String phase) {
+        // if we are mounting a searchable snapshot in the hot phase, then we should not change the total_shards_per_node setting
+        if (TimeseriesLifecycleType.FROZEN_PHASE.equals(phase)) {
+            return new String[] {
+                LifecycleSettings.LIFECYCLE_NAME,
+                ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey() };
+        }
+        return new String[] { LifecycleSettings.LIFECYCLE_NAME };
     }
 
     @Override

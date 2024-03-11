@@ -10,7 +10,6 @@ package org.elasticsearch.action.ingest;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.client.internal.Client;
@@ -22,12 +21,14 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.ingest.FakeProcessor;
 import org.elasticsearch.ingest.IngestInfo;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.ProcessorInfo;
 import org.elasticsearch.plugins.IngestPlugin;
+import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.reservedstate.TransformState;
 import org.elasticsearch.reservedstate.service.FileSettingsService;
 import org.elasticsearch.reservedstate.service.ReservedClusterStateService;
@@ -88,7 +89,8 @@ public class ReservedPipelineActionTests extends ESTestCase {
             null,
             Collections.singletonList(DUMMY_PLUGIN),
             client,
-            null
+            null,
+            DocumentParsingProvider.EMPTY_INSTANCE
         );
         Map<String, Processor.Factory> factories = ingestService.getProcessorFactories();
         assertTrue(factories.containsKey("set"));
@@ -97,8 +99,10 @@ public class ReservedPipelineActionTests extends ESTestCase {
         DiscoveryNode discoveryNode = DiscoveryNodeUtils.builder("_node_id").roles(emptySet()).build();
 
         NodeInfo nodeInfo = new NodeInfo(
-            Version.CURRENT,
+            Build.current().version(),
             TransportVersion.current(),
+            IndexVersion.current(),
+            Map.of(),
             Build.current(),
             discoveryNode,
             Settings.EMPTY,

@@ -100,7 +100,7 @@ import java.util.function.Function;
  *
  * the mapper will produce untokenized string fields with the name "field" and values
  * "some value" and "true", as well as string fields called "field._keyed" with values
- * "key\0some value" and "key2.key3\0true". Note that \0 is used as a reserved separator
+ * "key1\0some value" and "key2.key3\0true". Note that \0 is used as a reserved separator
  *  character (see {@link FlattenedFieldParser#SEPARATOR}).
  */
 public final class FlattenedFieldMapper extends FieldMapper {
@@ -111,10 +111,6 @@ public final class FlattenedFieldMapper extends FieldMapper {
 
     private static class Defaults {
         public static final int DEPTH_LIMIT = 20;
-    }
-
-    private static FlattenedFieldMapper toType(FieldMapper in) {
-        return (FlattenedFieldMapper) in;
     }
 
     private static Builder builder(Mapper in) {
@@ -206,14 +202,13 @@ public final class FlattenedFieldMapper extends FieldMapper {
         public FlattenedFieldMapper build(MapperBuilderContext context) {
             MultiFields multiFields = multiFieldsBuilder.build(this, context);
             if (multiFields.iterator().hasNext()) {
-                throw new IllegalArgumentException(CONTENT_TYPE + " field [" + name + "] does not support [fields]");
+                throw new IllegalArgumentException(CONTENT_TYPE + " field [" + name() + "] does not support [fields]");
             }
-            CopyTo copyTo = this.copyTo.build();
             if (copyTo.copyToFields().isEmpty() == false) {
-                throw new IllegalArgumentException(CONTENT_TYPE + " field [" + name + "] does not support [copy_to]");
+                throw new IllegalArgumentException(CONTENT_TYPE + " field [" + name() + "] does not support [copy_to]");
             }
             MappedFieldType ft = new RootFlattenedFieldType(
-                context.buildFullName(name),
+                context.buildFullName(name()),
                 indexed.get(),
                 hasDocValues.get(),
                 meta.get(),
@@ -221,7 +216,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
                 eagerGlobalOrdinals.get(),
                 dimensions.get()
             );
-            return new FlattenedFieldMapper(name, ft, this);
+            return new FlattenedFieldMapper(name(), ft, this);
         }
     }
 
@@ -794,6 +789,11 @@ public final class FlattenedFieldMapper extends FieldMapper {
     @Override
     public RootFlattenedFieldType fieldType() {
         return (RootFlattenedFieldType) super.fieldType();
+    }
+
+    @Override
+    protected boolean supportsParsingObject() {
+        return true;
     }
 
     @Override

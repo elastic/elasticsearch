@@ -95,11 +95,14 @@ class MultiTermsAggregator extends DeferableBucketAggregator {
         partiallyBuiltBucketComparator = order == null ? null : order.partiallyBuiltBucketComparator(b -> b.bucketOrd, this);
         this.formats = formats;
         this.showTermDocCountError = showTermDocCountError;
-        if (subAggsNeedScore() && descendsFromNestedAggregator(parent)) {
+        if (subAggsNeedScore() && descendsFromNestedAggregator(parent) || context.isInSortOrderExecutionRequired()) {
             /**
              * Force the execution to depth_first because we need to access the score of
              * nested documents in a sub-aggregation and we are not able to generate this score
              * while replaying deferred documents.
+             *
+             * We also force depth_first for time-series aggs executions since they need to be visited in a particular order (index
+             * sort order) which might be changed by the breadth_first execution.
              */
             this.collectMode = SubAggCollectionMode.DEPTH_FIRST;
         } else {
@@ -144,7 +147,7 @@ class MultiTermsAggregator extends DeferableBucketAggregator {
         return termValuesList;
     }
 
-    List<List<Object>> docTerms(List<TermValues> termValuesList, int doc) throws IOException {
+    static List<List<Object>> docTerms(List<TermValues> termValuesList, int doc) throws IOException {
         List<List<Object>> terms = new ArrayList<>();
         for (TermValues termValues : termValuesList) {
             List<Object> collectValues = termValues.collectValues(doc);
@@ -177,7 +180,7 @@ class MultiTermsAggregator extends DeferableBucketAggregator {
      */
     static List<Object> unpackTerms(BytesRef termsBytes) {
         try (StreamInput input = new BytesArray(termsBytes).streamInput()) {
-            return input.readList(StreamInput::readGenericValue);
+            return input.readCollectionAsList(StreamInput::readGenericValue);
         } catch (IOException ex) {
             throw ExceptionsHelper.convertToRuntime(ex);
         }

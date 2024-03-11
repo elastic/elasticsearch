@@ -9,6 +9,7 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -95,9 +96,9 @@ public class OpenPointInTimeRequestTests extends AbstractWireSerializingTestCase
     }
 
     public void testUseDefaultConcurrentForOldVersion() throws Exception {
-        TransportVersion previousVersion = TransportVersionUtils.getPreviousVersion(TransportVersion.V_8_500_017);
+        TransportVersion previousVersion = TransportVersionUtils.getPreviousVersion(TransportVersions.V_8_9_X);
         try (BytesStreamOutput output = new BytesStreamOutput()) {
-            TransportVersion version = TransportVersionUtils.randomVersionBetween(random(), TransportVersion.V_8_0_0, previousVersion);
+            TransportVersion version = TransportVersionUtils.randomVersionBetween(random(), TransportVersions.V_8_0_0, previousVersion);
             output.setTransportVersion(version);
             OpenPointInTimeRequest original = createTestInstance();
             original.writeTo(output);

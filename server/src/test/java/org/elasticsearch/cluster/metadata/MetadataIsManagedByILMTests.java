@@ -8,9 +8,9 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
@@ -102,7 +102,7 @@ public class MetadataIsManagedByILMTests extends ESTestCase {
 
     public static IndexMetadata.Builder createIndexMetadataBuilderForIndex(String index, Settings settings) {
         return IndexMetadata.builder(index)
-            .settings(Settings.builder().put(settings).put(ESTestCase.settings(Version.CURRENT).build()))
+            .settings(Settings.builder().put(settings).put(settings(IndexVersion.current()).build()))
             .numberOfShards(1)
             .numberOfReplicas(1);
     }

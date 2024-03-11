@@ -8,6 +8,7 @@
 
 package org.elasticsearch.readiness;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -29,6 +30,7 @@ import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.HttpStats;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.readiness.ReadinessClientProbe;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -112,27 +114,6 @@ public class ReadinessServiceTests extends ESTestCase implements ReadinessClient
         }
     }
 
-    public void testBoundPortDoesntChange() throws Exception {
-        Environment tempEnv = newEnvironment(Settings.builder().put(ReadinessService.PORT.getKey(), 0).build());
-        ReadinessService tempService = new ReadinessService(clusterService, tempEnv);
-        tempService.start();
-        tempService.startListener();
-
-        ServerSocketChannel channel = tempService.serverChannel();
-        assertTrue(channel.isOpen());
-        assertTrue(tempService.boundAddress().publishAddress().getPort() > 0);
-
-        int port = tempService.boundAddress().publishAddress().getPort();
-
-        tempService.stop();
-        assertNull(tempService.serverChannel());
-        tempService.start();
-        tempService.startListener();
-        assertEquals(port, ((InetSocketAddress) tempService.serverChannel().getLocalAddress()).getPort());
-        tempService.stop();
-        tempService.close();
-    }
-
     public void testSocketChannelCreation() throws Exception {
         try (ServerSocketChannel channel = readinessService.setupSocket()) {
             assertTrue(channel.isOpen());
@@ -161,13 +142,12 @@ public class ReadinessServiceTests extends ESTestCase implements ReadinessClient
         readinessService.close();
     }
 
-    public void testStopWithoutStart() {
+    public void testCloseWithoutStart() {
         assertTrue(ReadinessService.enabled(env));
         assertFalse(readinessService.ready());
         assertNull(readinessService.serverChannel());
-        readinessService.stop();
-        assertFalse(readinessService.ready());
         readinessService.close();
+        assertFalse(readinessService.ready());
     }
 
     public void testTCPProbe() throws Exception {
@@ -181,8 +161,7 @@ public class ReadinessServiceTests extends ESTestCase implements ReadinessClient
         // mocking a cluster change event, with a master down
         ClusterState previousState = ClusterState.builder(new ClusterName("cluster"))
             .nodes(
-                DiscoveryNodes.builder()
-                    .add(DiscoveryNode.createLocal(Settings.EMPTY, new TransportAddress(TransportAddress.META_ADDRESS, 9201), "node2"))
+                DiscoveryNodes.builder().add(DiscoveryNodeUtils.create("node2", new TransportAddress(TransportAddress.META_ADDRESS, 9201)))
             )
             .build();
 
@@ -215,8 +194,7 @@ public class ReadinessServiceTests extends ESTestCase implements ReadinessClient
 
         ClusterState previousState = ClusterState.builder(new ClusterName("cluster"))
             .nodes(
-                DiscoveryNodes.builder()
-                    .add(DiscoveryNode.createLocal(Settings.EMPTY, new TransportAddress(TransportAddress.META_ADDRESS, 9201), "node2"))
+                DiscoveryNodes.builder().add(DiscoveryNodeUtils.create("node2", new TransportAddress(TransportAddress.META_ADDRESS, 9201)))
             )
             .build();
 
@@ -271,7 +249,30 @@ public class ReadinessServiceTests extends ESTestCase implements ReadinessClient
             .build();
 
         event = new ClusterChangedEvent("test", newState, previousState);
-        readinessService.clusterChanged(event);
+        var mockAppender = new MockLogAppender();
+        try (var ignored = mockAppender.capturing(ReadinessService.class)) {
+            mockAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "node shutting down logged",
+                    ReadinessService.class.getCanonicalName(),
+                    Level.INFO,
+                    "marking node as not ready because it's shutting down"
+                )
+            );
+            readinessService.clusterChanged(event);
+            mockAppender.assertAllExpectationsMatched();
+
+            mockAppender.addExpectation(
+                new MockLogAppender.UnseenEventExpectation(
+                    "node shutting down not logged twice",
+                    ReadinessService.class.getCanonicalName(),
+                    Level.INFO,
+                    "marking node as not ready because it's shutting down"
+                )
+            );
+            readinessService.clusterChanged(event);
+            mockAppender.assertAllExpectationsMatched();
+        }
         assertFalse(readinessService.ready());
         tcpReadinessProbeFalse(readinessService);
 

@@ -15,6 +15,7 @@ import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
+import org.elasticsearch.index.mapper.IdLoader;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -58,11 +59,13 @@ public class RankSearchContext extends SearchContext {
     private final int windowSize;
     private final QuerySearchResult querySearchResult;
 
+    @SuppressWarnings("this-escape")
     public RankSearchContext(SearchContext parent, Query rankQuery, int windowSize) {
         this.parent = parent;
         this.rankQuery = parent.buildFilteredQuery(rankQuery);
         this.windowSize = windowSize;
         this.querySearchResult = new QuerySearchResult(parent.readerContext().id(), parent.shardTarget(), parent.request());
+        this.addReleasable(querySearchResult::decRef);
     }
 
     @Override
@@ -320,11 +323,6 @@ public class RankSearchContext extends SearchContext {
     }
 
     @Override
-    public boolean hasFetchSourceContext() {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
     public FetchSourceContext fetchSourceContext() {
         throw new UnsupportedOperationException();
     }
@@ -485,16 +483,6 @@ public class RankSearchContext extends SearchContext {
     }
 
     @Override
-    public int[] docIdsToLoad() {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public SearchContext docIdsToLoad(int[] docIdsToLoad) {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
     public DfsSearchResult dfsResult() {
         throw new UnsupportedOperationException();
     }
@@ -546,6 +534,11 @@ public class RankSearchContext extends SearchContext {
 
     @Override
     public SourceLoader newSourceLoader() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public IdLoader newIdLoader() {
         throw new UnsupportedOperationException();
     }
 }

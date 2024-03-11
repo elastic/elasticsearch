@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.security.authz.store;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionFuture;
-import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsAction;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.internal.Client;
@@ -25,12 +24,10 @@ import org.elasticsearch.xpack.core.security.action.privilege.GetPrivilegesReque
 import org.elasticsearch.xpack.core.security.action.privilege.GetPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.action.privilege.PutPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.privilege.PutPrivilegesRequest;
-import org.elasticsearch.xpack.core.security.action.role.PutRoleAction;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateAction;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateRequest;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateResponse;
-import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.action.user.PutUserRequestBuilder;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
@@ -46,6 +43,9 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.NONE;
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.WAIT_UNTIL;
 import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 import static org.elasticsearch.test.SecuritySettingsSourceField.TEST_PASSWORD;
 import static org.elasticsearch.test.SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING;
@@ -77,9 +77,9 @@ public class NativePrivilegeStoreSingleNodeTests extends SecuritySingleNodeTestC
 
     public void testResolvePrivilegesWorkWhenExpensiveQueriesAreDisabled() throws IOException {
         // Disable expensive query
-        new ClusterUpdateSettingsRequestBuilder(client(), ClusterUpdateSettingsAction.INSTANCE).setTransientSettings(
+        new ClusterUpdateSettingsRequestBuilder(client()).setTransientSettings(
             Settings.builder().put(ALLOW_EXPENSIVE_QUERIES.getKey(), false)
-        ).execute().actionGet();
+        ).get();
 
         try {
             // Prove that expensive queries are indeed disabled
@@ -93,9 +93,7 @@ public class NativePrivilegeStoreSingleNodeTests extends SecuritySingleNodeTestC
             );
 
             // Get privileges work with wildcard application name
-            final GetPrivilegesResponse getPrivilegesResponse = new GetPrivilegesRequestBuilder(client()).application("yourapp*")
-                .execute()
-                .actionGet();
+            final GetPrivilegesResponse getPrivilegesResponse = new GetPrivilegesRequestBuilder(client()).application("yourapp*").get();
             assertThat(getPrivilegesResponse.privileges(), arrayWithSize(4));
             assertThat(
                 Arrays.stream(getPrivilegesResponse.privileges())
@@ -105,7 +103,7 @@ public class NativePrivilegeStoreSingleNodeTests extends SecuritySingleNodeTestC
             );
 
             // User role resolution works with wildcard application name
-            new PutRoleRequestBuilder(client(), PutRoleAction.INSTANCE).source("app_user_role", new BytesArray("""
+            new PutRoleRequestBuilder(client()).source("app_user_role", new BytesArray("""
                 {
                   "cluster": ["manage_own_api_key"],
                   "applications": [
@@ -121,13 +119,12 @@ public class NativePrivilegeStoreSingleNodeTests extends SecuritySingleNodeTestC
                     }
                   ]
                 }
-                """), XContentType.JSON).execute().actionGet();
+                """), XContentType.JSON).get();
 
-            new PutUserRequestBuilder(client(), PutUserAction.INSTANCE).username("app_user")
+            new PutUserRequestBuilder(client()).username("app_user")
                 .password(TEST_PASSWORD_SECURE_STRING, getFastStoredHashAlgoForTests())
                 .roles("app_user_role")
-                .execute()
-                .actionGet();
+                .get();
 
             Client appUserClient;
             appUserClient = client().filterWithHeader(
@@ -139,6 +136,7 @@ public class NativePrivilegeStoreSingleNodeTests extends SecuritySingleNodeTestC
             if (randomBoolean()) {
                 final var createApiKeyRequest = new CreateApiKeyRequest();
                 createApiKeyRequest.setName(randomAlphaOfLength(5));
+                createApiKeyRequest.setRefreshPolicy(randomFrom(NONE, IMMEDIATE, WAIT_UNTIL));
                 if (randomBoolean()) {
                     createApiKeyRequest.setRoleDescriptors(
                         List.of(
@@ -186,9 +184,9 @@ public class NativePrivilegeStoreSingleNodeTests extends SecuritySingleNodeTestC
             assertThat(authenticateResponse.authentication().getEffectiveSubject().getUser().principal(), equalTo("app_user"));
         } finally {
             // Reset setting since test suite expects things in a clean slate
-            new ClusterUpdateSettingsRequestBuilder(client(), ClusterUpdateSettingsAction.INSTANCE).setTransientSettings(
+            new ClusterUpdateSettingsRequestBuilder(client()).setTransientSettings(
                 Settings.builder().putNull(ALLOW_EXPENSIVE_QUERIES.getKey())
-            ).execute().actionGet();
+            ).get();
         }
     }
 }

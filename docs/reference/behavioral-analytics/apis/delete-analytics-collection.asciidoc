@@ -8,6 +8,15 @@ beta::[]
 <titleabbrev>Delete Analytics Collection</titleabbrev>
 ++++
 
+////
+[source,console]
+----
+PUT _application/analytics/my_analytics_collection
+----
+// TESTSETUP
+
+////
+
 Removes an Analytics Collection and its associated data stream.
 
 [[delete-analytics-collection-request]]
@@ -44,4 +53,3 @@ The following example deletes the Analytics Collection named `my_analytics_colle
 ----
 DELETE _application/analytics/my_analytics_collection/
 ----
-// TEST[skip:TBD]

@@ -31,6 +31,7 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.search.internal.FilterStoredFieldVisitor;
 
 import java.io.IOException;
@@ -39,18 +40,27 @@ import java.util.Objects;
 import java.util.function.Supplier;
 
 final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
-    RecoverySourcePruneMergePolicy(String recoverySourceField, Supplier<Query> retainSourceQuerySupplier, MergePolicy in) {
+    RecoverySourcePruneMergePolicy(
+        String recoverySourceField,
+        boolean pruneIdField,
+        Supplier<Query> retainSourceQuerySupplier,
+        MergePolicy in
+    ) {
         super(in, toWrap -> new OneMerge(toWrap.segments) {
             @Override
             public CodecReader wrapForMerge(CodecReader reader) throws IOException {
                 CodecReader wrapped = toWrap.wrapForMerge(reader);
-                return wrapReader(recoverySourceField, wrapped, retainSourceQuerySupplier);
+                return wrapReader(recoverySourceField, pruneIdField, wrapped, retainSourceQuerySupplier);
             }
         });
     }
 
-    private static CodecReader wrapReader(String recoverySourceField, CodecReader reader, Supplier<Query> retainSourceQuerySupplier)
-        throws IOException {
+    private static CodecReader wrapReader(
+        String recoverySourceField,
+        boolean pruneIdField,
+        CodecReader reader,
+        Supplier<Query> retainSourceQuerySupplier
+    ) throws IOException {
         NumericDocValues recoverySource = reader.getNumericDocValues(recoverySourceField);
         if (recoverySource == null || recoverySource.nextDoc() == DocIdSetIterator.NO_MORE_DOCS) {
             return reader; // early terminate - nothing to do here since non of the docs has a recovery source anymore.
@@ -66,20 +76,22 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
             if (recoverySourceToKeep.cardinality() == reader.maxDoc()) {
                 return reader; // keep all source
             }
-            return new SourcePruningFilterCodecReader(recoverySourceField, reader, recoverySourceToKeep);
+            return new SourcePruningFilterCodecReader(recoverySourceField, pruneIdField, reader, recoverySourceToKeep);
         } else {
-            return new SourcePruningFilterCodecReader(recoverySourceField, reader, null);
+            return new SourcePruningFilterCodecReader(recoverySourceField, pruneIdField, reader, null);
         }
     }
 
     private static class SourcePruningFilterCodecReader extends FilterCodecReader {
         private final BitSet recoverySourceToKeep;
         private final String recoverySourceField;
+        private final boolean pruneIdField;
 
-        SourcePruningFilterCodecReader(String recoverySourceField, CodecReader reader, BitSet recoverySourceToKeep) {
+        SourcePruningFilterCodecReader(String recoverySourceField, boolean pruneIdField, CodecReader reader, BitSet recoverySourceToKeep) {
             super(reader);
             this.recoverySourceField = recoverySourceField;
             this.recoverySourceToKeep = recoverySourceToKeep;
+            this.pruneIdField = pruneIdField;
         }
 
         @Override
@@ -125,7 +137,12 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
 
         @Override
         public StoredFieldsReader getFieldsReader() {
-            return new RecoverySourcePruningStoredFieldsReader(super.getFieldsReader(), recoverySourceToKeep, recoverySourceField);
+            return new RecoverySourcePruningStoredFieldsReader(
+                super.getFieldsReader(),
+                recoverySourceToKeep,
+                recoverySourceField,
+                pruneIdField
+            );
         }
 
         @Override
@@ -212,11 +229,18 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
 
             private final BitSet recoverySourceToKeep;
             private final String recoverySourceField;
+            private final boolean pruneIdField;
 
-            RecoverySourcePruningStoredFieldsReader(StoredFieldsReader in, BitSet recoverySourceToKeep, String recoverySourceField) {
+            RecoverySourcePruningStoredFieldsReader(
+                StoredFieldsReader in,
+                BitSet recoverySourceToKeep,
+                String recoverySourceField,
+                boolean pruneIdField
+            ) {
                 super(in);
                 this.recoverySourceToKeep = recoverySourceToKeep;
                 this.recoverySourceField = Objects.requireNonNull(recoverySourceField);
+                this.pruneIdField = pruneIdField;
             }
 
             @Override
@@ -230,6 +254,9 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
                             if (recoverySourceField.equals(fieldInfo.name)) {
                                 return Status.NO;
                             }
+                            if (pruneIdField && IdFieldMapper.NAME.equals(fieldInfo.name)) {
+                                return Status.NO;
+                            }
                             return super.needsField(fieldInfo);
                         }
                     });
@@ -238,12 +265,17 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
 
             @Override
             public StoredFieldsReader getMergeInstance() {
-                return new RecoverySourcePruningStoredFieldsReader(in.getMergeInstance(), recoverySourceToKeep, recoverySourceField);
+                return new RecoverySourcePruningStoredFieldsReader(
+                    in.getMergeInstance(),
+                    recoverySourceToKeep,
+                    recoverySourceField,
+                    pruneIdField
+                );
             }
 
             @Override
             public StoredFieldsReader clone() {
-                return new RecoverySourcePruningStoredFieldsReader(in.clone(), recoverySourceToKeep, recoverySourceField);
+                return new RecoverySourcePruningStoredFieldsReader(in.clone(), recoverySourceToKeep, recoverySourceField, pruneIdField);
             }
 
         }

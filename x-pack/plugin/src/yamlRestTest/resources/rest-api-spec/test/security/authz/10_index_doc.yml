@@ -37,7 +37,7 @@ setup:
           settings:
             index:
               number_of_shards:   1
-              number_of_replicas: 0
+              number_of_replicas: 1
           mappings:
             properties:
               name:
@@ -50,7 +50,7 @@ setup:
           settings:
             index:
               number_of_shards:   1
-              number_of_replicas: 0
+              number_of_replicas: 1
           mappings:
             properties:
               name:
@@ -62,7 +62,7 @@ setup:
           settings:
             index:
               number_of_shards:   1
-              number_of_replicas: 0
+              number_of_replicas: 1
           mappings:
             properties:
               name:
@@ -75,7 +75,7 @@ setup:
           settings:
             index:
               number_of_shards:   1
-              number_of_replicas: 0
+              number_of_replicas: 1
           mappings:
             properties:
               name:
@@ -235,7 +235,6 @@ teardown:
   - do:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       bulk:
-        refresh: true
         body:
             - '{"index": {"_index": "only_read", "_id": "13"}}'
             - '{"name": "doc13"}'
@@ -245,6 +244,10 @@ teardown:
   - match: { items.0.index.status: 403 }
   - match: { items.0.index.error.type: "security_exception" }
   - match: { items.1.index.status: 201 }
+
+  - do: # superuser
+      indices.refresh:
+        index: only_index
 
   - do: # superuser
       search:

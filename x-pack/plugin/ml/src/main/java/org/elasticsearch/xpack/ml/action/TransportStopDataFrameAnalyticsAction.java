@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -24,12 +23,14 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.action.util.ExpandedIdsMatcher;
 import org.elasticsearch.xpack.core.ml.MlTasks;
@@ -45,6 +46,7 @@ import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsTask;
 import org.elasticsearch.xpack.ml.dataframe.persistence.DataFrameAnalyticsConfigProvider;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -54,6 +56,8 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import static org.elasticsearch.xpack.ml.utils.ExceptionCollectionHandling.exceptionArrayToStatusException;
 
 /**
  * Stops the persistent task for running data frame analytics.
@@ -89,7 +93,7 @@ public class TransportStopDataFrameAnalyticsAction extends TransportTasksAction<
             StopDataFrameAnalyticsAction.Request::new,
             StopDataFrameAnalyticsAction.Response::new,
             StopDataFrameAnalyticsAction.Response::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.threadPool = threadPool;
         this.persistentTasksService = persistentTasksService;
@@ -256,7 +260,7 @@ public class TransportStopDataFrameAnalyticsAction extends TransportTasksAction<
         for (String analyticsId : nonStoppedAnalytics) {
             PersistentTasksCustomMetadata.PersistentTask<?> analyticsTask = MlTasks.getDataFrameAnalyticsTask(analyticsId, tasks);
             if (analyticsTask != null) {
-                persistentTasksService.sendRemoveRequest(analyticsTask.getId(), ActionListener.wrap(removedTask -> {
+                persistentTasksService.sendRemoveRequest(analyticsTask.getId(), null, ActionListener.wrap(removedTask -> {
                     auditor.info(analyticsId, Messages.DATA_FRAME_ANALYTICS_AUDIT_FORCE_STOPPED);
                     if (counter.incrementAndGet() == nonStoppedAnalytics.size()) {
                         sendResponseOrFailure(request.getId(), listener, failures);
@@ -288,13 +292,13 @@ public class TransportStopDataFrameAnalyticsAction extends TransportTasksAction<
         }
     }
 
-    private void sendResponseOrFailure(
+    private static void sendResponseOrFailure(
         String analyticsId,
         ActionListener<StopDataFrameAnalyticsAction.Response> listener,
         AtomicArray<Exception> failures
     ) {
         List<Exception> caughtExceptions = failures.asList();
-        if (caughtExceptions.size() == 0) {
+        if (caughtExceptions.isEmpty()) {
             listener.onResponse(new StopDataFrameAnalyticsAction.Response(true));
             return;
         }
@@ -303,11 +307,11 @@ public class TransportStopDataFrameAnalyticsAction extends TransportTasksAction<
             + analyticsId
             + "] with ["
             + caughtExceptions.size()
-            + "] failures, rethrowing last, all Exceptions: ["
+            + "] failures, rethrowing first. All Exceptions: ["
             + caughtExceptions.stream().map(Exception::getMessage).collect(Collectors.joining(", "))
             + "]";
 
-        ElasticsearchException e = new ElasticsearchException(msg, caughtExceptions.get(0));
+        ElasticsearchStatusException e = exceptionArrayToStatusException(failures, msg);
         listener.onFailure(e);
     }
 
@@ -325,7 +329,7 @@ public class TransportStopDataFrameAnalyticsAction extends TransportTasksAction<
                 // This means the task has not been assigned to a node yet so
                 // we can stop it by removing its persistent task.
                 // The listener is a no-op as we're already going to wait for the task to be removed.
-                persistentTasksService.sendRemoveRequest(task.getId(), ActionListener.noop());
+                persistentTasksService.sendRemoveRequest(task.getId(), null, ActionListener.noop());
             }
         }
         return nodes.toArray(new String[0]);
@@ -343,7 +347,11 @@ public class TransportStopDataFrameAnalyticsAction extends TransportTasksAction<
                 masterNode,
                 actionName,
                 request,
-                new ActionListenerResponseHandler<>(listener, StopDataFrameAnalyticsAction.Response::new)
+                new ActionListenerResponseHandler<>(
+                    listener,
+                    StopDataFrameAnalyticsAction.Response::new,
+                    TransportResponseHandler.TRANSPORT_WORKER
+                )
             );
         }
     }
@@ -379,7 +387,8 @@ public class TransportStopDataFrameAnalyticsAction extends TransportTasksAction<
         DataFrameAnalyticsTaskState stoppingState = new DataFrameAnalyticsTaskState(
             DataFrameAnalyticsState.STOPPING,
             task.getAllocationId(),
-            null
+            null,
+            Instant.now()
         );
         task.updatePersistentTaskState(stoppingState, ActionListener.wrap(pTask -> {
             threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(new AbstractRunnable() {

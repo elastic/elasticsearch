@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -33,9 +34,9 @@ import static org.elasticsearch.core.Strings.format;
  */
 public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShutdownMetadata>, ToXContentObject {
 
-    public static final TransportVersion REPLACE_SHUTDOWN_TYPE_ADDED_VERSION = TransportVersion.V_7_16_0;
-    public static final TransportVersion SIGTERM_ADDED_VERSION = TransportVersion.V_8_9_0;
-    public static final TransportVersion GRACE_PERIOD_ADDED_VERSION = TransportVersion.V_8_500_003;
+    public static final TransportVersion REPLACE_SHUTDOWN_TYPE_ADDED_VERSION = TransportVersions.V_7_16_0;
+    public static final TransportVersion SIGTERM_ADDED_VERSION = TransportVersions.V_8_9_X;
+    public static final TransportVersion GRACE_PERIOD_ADDED_VERSION = TransportVersions.V_8_9_X;
 
     public static final ParseField NODE_ID_FIELD = new ParseField("node_id");
     public static final ParseField TYPE_FIELD = new ParseField("type");
@@ -465,6 +466,16 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
                 case "replace" -> REPLACE;
                 case "sigterm" -> SIGTERM;
                 default -> throw new IllegalArgumentException("unknown shutdown type: " + type);
+            };
+        }
+
+        /**
+         * @return True if this shutdown type indicates that the node will be permanently removed from the cluster, false otherwise.
+         */
+        public boolean isRemovalType() {
+            return switch (this) {
+                case REMOVE, SIGTERM, REPLACE -> true;
+                case RESTART -> false;
             };
         }
     }

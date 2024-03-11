@@ -8,9 +8,9 @@
 
 package org.elasticsearch.test.disruption;
 
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
 import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
@@ -31,6 +31,7 @@ import java.util.HashSet;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -142,7 +143,7 @@ public class NetworkDisruptionIT extends ESIntegTestCase {
         assertEquals("All requests must respond, requests: " + requests, 0, latch.getCount());
     }
 
-    private Tuple<TransportService, TransportService> findDisruptedPair(NetworkDisruption.DisruptedLinks disruptedLinks) {
+    private static Tuple<TransportService, TransportService> findDisruptedPair(NetworkDisruption.DisruptedLinks disruptedLinks) {
         Optional<Tuple<TransportService, TransportService>> disruptedPair = disruptedLinks.nodes()
             .stream()
             .flatMap(n1 -> disruptedLinks.nodes().stream().map(n2 -> Tuple.tuple(n1, n2)))
@@ -159,26 +160,36 @@ public class NetworkDisruptionIT extends ESIntegTestCase {
         return disruptedPair.get();
     }
 
-    private void sendRequest(TransportService source, TransportService target, CountDownLatch latch) {
-        source.sendRequest(target.getLocalNode(), ClusterHealthAction.NAME, new ClusterHealthRequest(), new TransportResponseHandler<>() {
-            private AtomicBoolean responded = new AtomicBoolean();
+    private static void sendRequest(TransportService source, TransportService target, CountDownLatch latch) {
+        source.sendRequest(
+            target.getLocalNode(),
+            TransportClusterHealthAction.NAME,
+            new ClusterHealthRequest(),
+            new TransportResponseHandler<>() {
+                private AtomicBoolean responded = new AtomicBoolean();
 
-            @Override
-            public void handleResponse(TransportResponse response) {
-                assertTrue(responded.compareAndSet(false, true));
-                latch.countDown();
-            }
+                @Override
+                public Executor executor() {
+                    return TransportResponseHandler.TRANSPORT_WORKER;
+                }
 
-            @Override
-            public void handleException(TransportException exp) {
-                assertTrue(responded.compareAndSet(false, true));
-                latch.countDown();
-            }
+                @Override
+                public void handleResponse(TransportResponse response) {
+                    assertTrue(responded.compareAndSet(false, true));
+                    latch.countDown();
+                }
 
-            @Override
-            public TransportResponse read(StreamInput in) throws IOException {
-                return ClusterHealthResponse.readResponseFrom(in);
+                @Override
+                public void handleException(TransportException exp) {
+                    assertTrue(responded.compareAndSet(false, true));
+                    latch.countDown();
+                }
+
+                @Override
+                public TransportResponse read(StreamInput in) throws IOException {
+                    return ClusterHealthResponse.readResponseFrom(in);
+                }
             }
-        });
+        );
     }
 }

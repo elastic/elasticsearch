@@ -10,7 +10,7 @@ package org.elasticsearch.search.fetch.subphase.highlight;
 
 import org.apache.lucene.search.highlight.SimpleFragmenter;
 import org.apache.lucene.search.highlight.SimpleSpanFragmenter;
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -131,6 +131,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
     /**
      * Read from a stream.
      */
+    @SuppressWarnings("this-escape")
     protected AbstractHighlighterBuilder(StreamInput in) throws IOException {
         preTags(in.readOptionalStringArray());
         postTags(in.readOptionalStringArray());
@@ -143,7 +144,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         }
         order(in.readOptionalWriteable(Order::readFromStream));
         highlightFilter(in.readOptionalBoolean());
-        if (in.getTransportVersion().before(TransportVersion.V_8_8_0)) {
+        if (in.getTransportVersion().before(TransportVersions.V_8_8_0)) {
             in.readOptionalBoolean();   // force_source, now deprecated
         }
         boundaryScannerType(in.readOptionalWriteable(BoundaryScannerType::readFromStream));
@@ -157,12 +158,10 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         noMatchSize(in.readOptionalVInt());
         phraseLimit(in.readOptionalVInt());
         if (in.readBoolean()) {
-            options(in.readMap());
+            options(in.readGenericMap());
         }
         requireFieldMatch(in.readOptionalBoolean());
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_12_0)) {
-            maxAnalyzedOffset(in.readOptionalInt());
-        }
+        maxAnalyzedOffset(in.readOptionalInt());
     }
 
     /**
@@ -183,7 +182,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         }
         out.writeOptionalWriteable(order);
         out.writeOptionalBoolean(highlightFilter);
-        if (out.getTransportVersion().before(TransportVersion.V_8_8_0)) {
+        if (out.getTransportVersion().before(TransportVersions.V_8_8_0)) {
             out.writeOptionalBoolean(false);
         }
         out.writeOptionalWriteable(boundaryScannerType);
@@ -206,9 +205,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
             out.writeGenericMap(options);
         }
         out.writeOptionalBoolean(requireFieldMatch);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_12_0)) {
-            out.writeOptionalInt(maxAnalyzedOffset);
-        }
+        out.writeOptionalInt(maxAnalyzedOffset);
         doWriteTo(out);
     }
 
@@ -448,13 +445,6 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
             this.boundaryScannerLocale = Locale.forLanguageTag(boundaryScannerLocale);
         }
         return (HB) this;
-    }
-
-    /**
-     * @return the value set by {@link #boundaryScannerLocale(String)}
-     */
-    public Locale boundaryScannerLocale() {
-        return this.boundaryScannerLocale;
     }
 
     /**

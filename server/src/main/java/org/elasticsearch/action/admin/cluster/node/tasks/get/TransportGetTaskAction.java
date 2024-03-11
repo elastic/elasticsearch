@@ -24,6 +24,7 @@ import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
@@ -75,7 +76,7 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
         Client client,
         NamedXContentRegistry xContentRegistry
     ) {
-        super(GetTaskAction.NAME, transportService, actionFilters, GetTaskRequest::new);
+        super(GetTaskAction.NAME, transportService, actionFilters, GetTaskRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.transportService = transportService;
@@ -122,7 +123,7 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
             GetTaskAction.NAME,
             nodeRequest,
             TransportRequestOptions.timeout(request.getTimeout()),
-            new ActionListenerResponseHandler<>(listener, GetTaskResponse::new, ThreadPool.Names.SAME)
+            new ActionListenerResponseHandler<>(listener, GetTaskResponse::new, EsExecutors.DIRECT_EXECUTOR_SERVICE)
         );
     }
 
@@ -165,7 +166,7 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
                 future.addTimeout(
                     requireNonNullElse(request.getTimeout(), DEFAULT_WAIT_FOR_COMPLETION_TIMEOUT),
                     threadPool,
-                    ThreadPool.Names.SAME
+                    EsExecutors.DIRECT_EXECUTOR_SERVICE
                 );
             } else {
                 TaskInfo info = runningTask.taskInfo(clusterService.localNode().getId(), true);
@@ -208,7 +209,7 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
 
         client.get(get, ActionListener.wrap(r -> onGetFinishedTaskFromIndex(r, listener), e -> {
             if (ExceptionsHelper.unwrap(e, IndexNotFoundException.class) != null) {
-                // We haven't yet created the index for the task results so it can't be found.
+                // We haven't yet created the index for the task results, so it can't be found.
                 listener.onFailure(
                     new ResourceNotFoundException("task [{}] isn't running and hasn't stored its results", e, request.getTaskId())
                 );

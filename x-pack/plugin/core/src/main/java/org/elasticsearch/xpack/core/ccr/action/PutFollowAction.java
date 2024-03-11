@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.ccr.action;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -37,10 +37,10 @@ public final class PutFollowAction extends ActionType<PutFollowAction.Response> 
     public static final String NAME = "indices:admin/xpack/ccr/put_follow";
 
     private PutFollowAction() {
-        super(NAME, PutFollowAction.Response::new);
+        super(NAME);
     }
 
-    public static class Request extends AcknowledgedRequest<Request> implements IndicesRequest, ToXContentObject {
+    public static final class Request extends AcknowledgedRequest<Request> implements IndicesRequest, ToXContentObject {
 
         private static final ParseField REMOTE_CLUSTER_FIELD = new ParseField("remote_cluster");
         private static final ParseField LEADER_INDEX_FIELD = new ParseField("leader_index");
@@ -193,12 +193,12 @@ public final class PutFollowAction extends ActionType<PutFollowAction.Response> 
             this.remoteCluster = in.readString();
             this.leaderIndex = in.readString();
             this.followerIndex = in.readString();
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_9_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_9_0)) {
                 this.settings = Settings.readSettingsFromStream(in);
             }
             this.parameters = new FollowParameters(in);
             waitForActiveShards(ActiveShardCount.readFrom(in));
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
                 this.dataStreamName = in.readOptionalString();
             }
         }
@@ -209,12 +209,12 @@ public final class PutFollowAction extends ActionType<PutFollowAction.Response> 
             out.writeString(remoteCluster);
             out.writeString(leaderIndex);
             out.writeString(followerIndex);
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_9_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_9_0)) {
                 settings.writeTo(out);
             }
             parameters.writeTo(out);
             waitForActiveShards.writeTo(out);
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
                 out.writeOptionalString(this.dataStreamName);
             }
         }

@@ -17,10 +17,12 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiPhraseQuery;
+import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.StringHelper;
+import org.apache.lucene.util.automaton.CompiledAutomaton;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -124,8 +126,9 @@ public class MultiPhrasePrefixQuery extends Query {
      */
     public int[] getPositions() {
         int[] result = new int[positions.size()];
-        for (int i = 0; i < positions.size(); i++)
+        for (int i = 0; i < positions.size(); i++) {
             result[i] = positions.get(i);
+        }
         return result;
     }
 
@@ -295,20 +298,12 @@ public class MultiPhrasePrefixQuery extends Query {
                     shouldVisitor.consumeTerms(this, termArrays.get(i));
                 }
             }
-            /* We don't report automata here because this breaks the unified highlighter,
-               which extracts automata separately from phrases. MPPQ gets rewritten to a
-               SpanMTQQuery by the PhraseHelper in any case, so highlighting is taken
-               care of there instead.  If we extract automata here then the trailing prefix
-               word will be highlighted wherever it appears in the document, instead of only
-               as part of a phrase. This can be re-instated once we switch to using Matches
-               to highlight.
             for (Term prefixTerm : termArrays.get(termArrays.size() - 1)) {
                 visitor.consumeTermsMatching(this, field, () -> {
                     CompiledAutomaton ca = new CompiledAutomaton(PrefixQuery.toAutomaton(prefixTerm.bytes()));
                     return ca.runAutomaton;
                 });
             }
-            */
         }
     }
 }

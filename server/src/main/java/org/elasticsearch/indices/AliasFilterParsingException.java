@@ -14,7 +14,7 @@ import org.elasticsearch.index.Index;
 
 import java.io.IOException;
 
-public class AliasFilterParsingException extends ElasticsearchException {
+public final class AliasFilterParsingException extends ElasticsearchException {
 
     public AliasFilterParsingException(Index index, String name, String desc, Throwable ex) {
         super("[" + name + "], " + desc, ex);

@@ -108,7 +108,7 @@ public class TransformDeleteIT extends TransformRestTestCase {
         assertTrue(indexExists(transformDest));
         assertTrue(aliasExists(transformDestAlias));
 
-        deleteTransform(transformId, true);
+        deleteTransform(transformId, false, true);
         assertFalse(indexExists(transformDest));
         assertFalse(aliasExists(transformDest));
     }
@@ -134,7 +134,7 @@ public class TransformDeleteIT extends TransformRestTestCase {
         assertTrue(indexExists(transformDest));
         assertTrue(aliasExists(transformDestAlias));
 
-        deleteTransform(transformId, true);
+        deleteTransform(transformId, false, true);
         assertFalse(indexExists(transformDest));
         assertFalse(aliasExists(transformDestAlias));
     }
@@ -158,7 +158,7 @@ public class TransformDeleteIT extends TransformRestTestCase {
         assertTrue(indexExists(transformDest));
         assertTrue(aliasExists(transformDestAlias));
 
-        ResponseException e = expectThrows(ResponseException.class, () -> deleteTransform(transformId, true));
+        ResponseException e = expectThrows(ResponseException.class, () -> deleteTransform(transformId, false, true));
         assertThat(
             e.getMessage(),
             containsString(
@@ -168,6 +168,21 @@ public class TransformDeleteIT extends TransformRestTestCase {
                 )
             )
         );
+    }
+
+    public void testDeleteDestinationIndexIsNoOpWhenNoDestinationIndexExists() throws Exception {
+        String transformId = "transform-5";
+        String transformDest = transformId + "_idx";
+        String transformDestAlias = transformId + "_alias";
+        setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, transformDest, transformDestAlias);
+
+        createTransform(transformId, transformDest, transformDestAlias);
+        assertFalse(indexExists(transformDest));
+        assertFalse(aliasExists(transformDestAlias));
+
+        deleteTransform(transformId, false, true);
+        assertFalse(indexExists(transformDest));
+        assertFalse(aliasExists(transformDestAlias));
     }
 
     private void createTransform(String transformId, String destIndex, String destAlias) throws IOException {

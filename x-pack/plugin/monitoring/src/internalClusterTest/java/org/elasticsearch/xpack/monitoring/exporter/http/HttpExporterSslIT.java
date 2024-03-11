@@ -53,11 +53,6 @@ public class HttpExporterSslIT extends MonitoringIntegTestCase {
     }
 
     @Override
-    protected boolean ignoreExternalCluster() {
-        return true;
-    }
-
-    @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         final Path truststore = getDataPath("/org/elasticsearch/xpack/monitoring/exporter/http/testnode.jks");
         assertThat(Files.exists(truststore), CoreMatchers.is(true));

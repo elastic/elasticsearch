@@ -6,18 +6,19 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.client.NoOpClient;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
 import java.util.Map;
@@ -57,7 +58,7 @@ public class CleanupShrinkIndexStepTests extends AbstractStepTestCase<CleanupShr
         String policyName = "test-ilm-policy";
 
         IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexName)
-            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5));
 
@@ -90,7 +91,7 @@ public class CleanupShrinkIndexStepTests extends AbstractStepTestCase<CleanupShr
         Map<String, String> ilmCustom = Map.of("shrink_index_name", shrinkIndexName);
 
         IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexName)
-            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
             .putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY, ilmCustom)
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5));
@@ -100,7 +101,8 @@ public class CleanupShrinkIndexStepTests extends AbstractStepTestCase<CleanupShr
             .metadata(Metadata.builder().put(indexMetadata, true).build())
             .build();
 
-        try (NoOpClient client = getDeleteIndexRequestAssertingClient(shrinkIndexName)) {
+        try (var threadPool = createThreadPool()) {
+            final var client = getDeleteIndexRequestAssertingClient(threadPool, shrinkIndexName);
             CleanupShrinkIndexStep step = new CleanupShrinkIndexStep(randomStepKey(), randomStepKey(), client);
             step.performAction(indexMetadata, clusterState, null, ActionListener.noop());
         }
@@ -114,7 +116,7 @@ public class CleanupShrinkIndexStepTests extends AbstractStepTestCase<CleanupShr
 
         IndexMetadata.Builder shrunkIndexMetadataBuilder = IndexMetadata.builder(shrinkIndexName)
             .settings(
-                settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName)
+                settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policyName)
                     .put(IndexMetadata.INDEX_RESIZE_SOURCE_NAME_KEY, sourceIndex)
             )
             .putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY, ilmCustom)
@@ -126,29 +128,30 @@ public class CleanupShrinkIndexStepTests extends AbstractStepTestCase<CleanupShr
             .metadata(Metadata.builder().put(shrunkIndexMetadata, true).build())
             .build();
 
-        try (NoOpClient client = getFailingIfCalledClient()) {
+        try (var threadPool = createThreadPool()) {
+            final var client = getFailingIfCalledClient(threadPool);
             CleanupShrinkIndexStep step = new CleanupShrinkIndexStep(randomStepKey(), randomStepKey(), client);
             step.performAction(shrunkIndexMetadata, clusterState, null, ActionListener.noop());
         }
     }
 
-    private NoOpClient getDeleteIndexRequestAssertingClient(String shrinkIndexName) {
-        return new NoOpClient(getTestName()) {
+    private NoOpClient getDeleteIndexRequestAssertingClient(ThreadPool threadPool, String shrinkIndexName) {
+        return new NoOpClient(threadPool) {
             @Override
             protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
                 ActionType<Response> action,
                 Request request,
                 ActionListener<Response> listener
             ) {
-                assertThat(action.name(), is(DeleteIndexAction.NAME));
+                assertThat(action.name(), is(TransportDeleteIndexAction.TYPE.name()));
                 assertTrue(request instanceof DeleteIndexRequest);
                 assertThat(((DeleteIndexRequest) request).indices(), arrayContaining(shrinkIndexName));
             }
         };
     }
 
-    private NoOpClient getFailingIfCalledClient() {
-        return new NoOpClient(getTestName()) {
+    private NoOpClient getFailingIfCalledClient(ThreadPool threadPool) {
+        return new NoOpClient(threadPool) {
             @Override
             protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
                 ActionType<Response> action,

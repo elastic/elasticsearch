@@ -41,13 +41,17 @@ dependencies {
   api "org.apache.httpcomponents:httpcore:${versions.httpcore}"
   api "org.apache.httpcomponents:httpcore-nio:${versions.httpcore}"
   api "org.apache.httpcomponents:httpasyncclient:${versions.httpasyncclient}"
-
   api "commons-logging:commons-logging:${versions.commonslogging}"
   api "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
   api "commons-codec:commons-codec:${versions.commonscodec}"
+  testImplementation project(path: ':modules:aggregations')
+  testImplementation project(path: ':modules:data-streams')
 
   // security deps
   api 'com.unboundid:unboundid-ldapsdk:6.0.3'
+  api "com.nimbusds:nimbus-jose-jwt:9.23"
+
+  implementation project(":x-pack:plugin:core:template-resources")
 
   testImplementation "org.elasticsearch:mocksocket:${versions.mocksocket}"
   testImplementation "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}" // this might suffer from https://github.com/elastic/elasticsearch/issues/93714
@@ -57,9 +61,9 @@ dependencies {
   testImplementation project(path: ':modules:lang-mustache')
   testImplementation project(path: ':modules:analysis-common')
   testImplementation project(path: ':modules:rest-root')
-  testImplementation project(":client:rest-high-level")
+  testImplementation project(path: ':modules:health-shards-availability')
   // Needed for Fips140ProviderVerificationTests
-  testCompileOnly('org.bouncycastle:bc-fips:1.0.2')
+  testCompileOnly('org.bouncycastle:bc-fips:1.0.2.4')
 
   testImplementation(project(':x-pack:license-tools')) {
     transitive = false
@@ -128,7 +132,27 @@ tasks.named("thirdPartyAudit").configure {
           //commons-logging provided dependencies
           'javax.servlet.ServletContextEvent',
           'javax.servlet.ServletContextListener',
-          'javax.jms.Message'
+          'javax.jms.Message',
+          // Optional dependency of nimbus-jose-jwt for handling Ed25519 signatures and ECDH with X25519 (RFC 8037)
+          'com.google.crypto.tink.subtle.Ed25519Sign',
+          'com.google.crypto.tink.subtle.Ed25519Sign$KeyPair',
+          'com.google.crypto.tink.subtle.Ed25519Verify',
+          'com.google.crypto.tink.subtle.X25519',
+          'com.google.crypto.tink.subtle.XChaCha20Poly1305',
+          // optional dependencies for nimbus-jose-jwt
+          'org.bouncycastle.asn1.pkcs.PrivateKeyInfo',
+          'org.bouncycastle.asn1.x509.AlgorithmIdentifier',
+          'org.bouncycastle.asn1.x509.SubjectPublicKeyInfo',
+          'org.bouncycastle.cert.X509CertificateHolder',
+          'org.bouncycastle.cert.jcajce.JcaX509CertificateHolder',
+          'org.bouncycastle.crypto.InvalidCipherTextException',
+          'org.bouncycastle.crypto.engines.AESEngine',
+          'org.bouncycastle.crypto.modes.GCMBlockCipher',
+          'org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider',
+          'org.bouncycastle.jce.provider.BouncyCastleProvider',
+          'org.bouncycastle.openssl.PEMKeyPair',
+          'org.bouncycastle.openssl.PEMParser',
+          'org.bouncycastle.openssl.jcajce.JcaPEMKeyConverter'
   )
 }
 
@@ -151,10 +175,4 @@ testClusters.configureEach {
 if (BuildParams.inFipsJvm){
   // Test clusters run with security disabled
   tasks.named("javaRestTest").configure{enabled = false }
-}
-
-if (BuildParams.isSnapshotBuild() == false) {
-  tasks.named("test").configure {
-    systemProperty 'es.untrusted_remote_cluster_feature_flag_registered', 'true'
-  }
 }

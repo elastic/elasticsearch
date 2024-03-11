@@ -82,7 +82,15 @@ public interface PainlessScript {
                 scriptStack.add(element.toString());
             }
         }
-        ScriptException scriptException = new ScriptException("runtime error", t, scriptStack, getName(), PainlessScriptEngine.NAME, pos);
+        Throwable cause = ErrorCauseWrapper.maybeWrap(t);
+        ScriptException scriptException = new ScriptException(
+            "runtime error",
+            cause,
+            scriptStack,
+            getName(),
+            PainlessScriptEngine.NAME,
+            pos
+        );
         for (Map.Entry<String, List<String>> entry : extraMetadata.entrySet()) {
             scriptException.addMetadata(entry.getKey(), entry.getValue());
         }

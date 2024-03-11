@@ -10,12 +10,13 @@ package org.elasticsearch.search.fetch;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.RefCounted;
+import org.elasticsearch.core.SimpleRefCounted;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.query.QuerySearchResult;
+import org.elasticsearch.transport.LeakTracker;
 
 import java.io.IOException;
 
@@ -25,27 +26,22 @@ public final class QueryFetchSearchResult extends SearchPhaseResult {
     private final FetchSearchResult fetchResult;
     private final RefCounted refCounted;
 
-    public QueryFetchSearchResult(StreamInput in) throws IOException {
-        super(in);
-        // These get a ref count of 1 when we create them, so we don't need to incRef here
-        queryResult = new QuerySearchResult(in);
-        fetchResult = new FetchSearchResult(in);
-        refCounted = AbstractRefCounted.of(() -> {
-            queryResult.decRef();
-            fetchResult.decRef();
-        });
+    public static QueryFetchSearchResult of(QuerySearchResult queryResult, FetchSearchResult fetchResult) {
+        // We're acquiring a copy, we should incRef it
+        queryResult.incRef();
+        fetchResult.incRef();
+        return new QueryFetchSearchResult(queryResult, fetchResult);
     }
 
-    public QueryFetchSearchResult(QuerySearchResult queryResult, FetchSearchResult fetchResult) {
+    public QueryFetchSearchResult(StreamInput in) throws IOException {
+        // These get a ref count of 1 when we create them, so we don't need to incRef here
+        this(new QuerySearchResult(in), new FetchSearchResult(in));
+    }
+
+    private QueryFetchSearchResult(QuerySearchResult queryResult, FetchSearchResult fetchResult) {
         this.queryResult = queryResult;
         this.fetchResult = fetchResult;
-        // We're acquiring a copy, we should incRef it
-        this.queryResult.incRef();
-        this.fetchResult.incRef();
-        refCounted = AbstractRefCounted.of(() -> {
-            queryResult.decRef();
-            fetchResult.decRef();
-        });
+        refCounted = LeakTracker.wrap(new SimpleRefCounted());
     }
 
     @Override
@@ -100,7 +96,16 @@ public final class QueryFetchSearchResult extends SearchPhaseResult {
 
     @Override
     public boolean decRef() {
-        return refCounted.decRef();
+        if (refCounted.decRef()) {
+            deallocate();
+            return true;
+        }
+        return false;
+    }
+
+    private void deallocate() {
+        queryResult.decRef();
+        fetchResult.decRef();
     }
 
     @Override

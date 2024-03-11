@@ -117,8 +117,8 @@
 ---
 "Add data stream lifecycle":
   - skip:
-      version: " - 8.8.99"
-      reason: "Data stream lifecycle template was added after 8.8"
+      version: " - 8.10.99"
+      reason: "Data stream lifecycle was available from 8.11"
 
   - do:
       cluster.put_component_template:
@@ -139,13 +139,14 @@
 
   - match: {component_templates.0.name: test-lifecycle}
   - match: {component_templates.0.component_template.version: 1}
-  - match: {component_templates.0.component_template.template.lifecycle: {data_retention: "10d"}}
+  - match: {component_templates.0.component_template.template.lifecycle.enabled: true}
+  - match: {component_templates.0.component_template.template.lifecycle.data_retention: "10d"}
 
 ---
 "Get data stream lifecycle with default rollover":
   - skip:
-      version: " - 8.8.99"
-      reason: "Data stream lifecycle template was added after 8.8"
+      version: " - 8.10.99"
+      reason: "Data stream lifecycle was available from 8.11"
 
   - do:
       cluster.put_component_template:
@@ -167,5 +168,6 @@
 
   - match: {component_templates.0.name: test-lifecycle}
   - match: {component_templates.0.component_template.version: 1}
+  - match: {component_templates.0.component_template.template.lifecycle.enabled: true}
   - match: {component_templates.0.component_template.template.lifecycle.data_retention: "10d"}
   - is_true: component_templates.0.component_template.template.lifecycle.rollover

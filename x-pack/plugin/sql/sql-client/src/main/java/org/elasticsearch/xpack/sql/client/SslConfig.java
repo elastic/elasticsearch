@@ -130,7 +130,7 @@ public class SslConfig {
         return kmFactory.getKeyManagers();
     }
 
-    private KeyStore loadKeyStore(String source, char[] pass, String keyStoreType) throws GeneralSecurityException, IOException {
+    private static KeyStore loadKeyStore(String source, char[] pass, String keyStoreType) throws GeneralSecurityException, IOException {
         KeyStore keyStore = KeyStore.getInstance(keyStoreType);
         Path path = Paths.get(source);
 

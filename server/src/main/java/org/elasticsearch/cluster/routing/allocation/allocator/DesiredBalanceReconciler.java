@@ -18,28 +18,32 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
-import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.gateway.PriorityComparator;
-import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.telemetry.metric.DoubleGauge;
+import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
+import org.elasticsearch.telemetry.metric.LongGaugeMetric;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.Collections;
 import java.util.Comparator;
-import java.util.List;
+import java.util.Iterator;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Type.REPLACE;
+import static org.elasticsearch.cluster.routing.ExpectedShardSizeEstimator.getExpectedShardSize;
 
 /**
  * Given the current allocation of shards and the desired balance, performs the next (legal) shard movements towards the goal.
@@ -69,12 +73,56 @@ public class DesiredBalanceReconciler {
     private final NodeAllocationOrdering allocationOrdering = new NodeAllocationOrdering();
     private final NodeAllocationOrdering moveOrdering = new NodeAllocationOrdering();
 
-    public DesiredBalanceReconciler(ClusterSettings clusterSettings, ThreadPool threadPool) {
+    // stats
+    /**
+     * Number of unassigned shards during last reconciliation
+     */
+    protected final LongGaugeMetric unassignedShards;
+    /**
+     * Total number of assigned shards during last reconciliation
+     */
+    protected final LongGaugeMetric totalAllocations;
+    /**
+     * Number of assigned shards during last reconciliation that are not allocated on desired node and need to be moved
+     */
+    protected final LongGaugeMetric undesiredAllocations;
+    private final DoubleGauge undesiredAllocationsRatio;
+
+    public DesiredBalanceReconciler(ClusterSettings clusterSettings, ThreadPool threadPool, MeterRegistry meterRegistry) {
         this.undesiredAllocationLogInterval = new FrequencyCappedAction(threadPool);
         clusterSettings.initializeAndWatch(UNDESIRED_ALLOCATIONS_LOG_INTERVAL_SETTING, this.undesiredAllocationLogInterval::setMinInterval);
         clusterSettings.initializeAndWatch(
             UNDESIRED_ALLOCATIONS_LOG_THRESHOLD_SETTING,
             value -> this.undesiredAllocationsLogThreshold = value
+        );
+
+        unassignedShards = LongGaugeMetric.create(
+            meterRegistry,
+            "es.allocator.desired_balance.shards.unassigned.current",
+            "Current number of unassigned shards",
+            "{shard}"
+        );
+        totalAllocations = LongGaugeMetric.create(
+            meterRegistry,
+            "es.allocator.desired_balance.shards.current",
+            "Total number of shards",
+            "{shard}"
+        );
+        undesiredAllocations = LongGaugeMetric.create(
+            meterRegistry,
+            "es.allocator.desired_balance.allocations.undesired.current",
+            "Total number of shards allocated on undesired nodes",
+            "{shard}"
+        );
+        undesiredAllocationsRatio = meterRegistry.registerDoubleGauge(
+            "es.allocator.desired_balance.allocations.undesired.ratio",
+            "Ratio of undesired allocations to shard count",
+            "1",
+            () -> {
+                var total = totalAllocations.get();
+                var undesired = undesiredAllocations.get();
+                return new DoubleWithAttributes(total != 0 ? (double) undesired / total : 0.0);
+            }
         );
     }
 
@@ -145,7 +193,7 @@ public class DesiredBalanceReconciler {
 
             final var shardCounts = allocation.metadata().stream().filter(indexMetadata ->
             // skip any pre-7.2 closed indices which have no routing table entries at all
-            indexMetadata.getCreationVersion().onOrAfter(IndexVersion.V_7_2_0)
+            indexMetadata.getCreationVersion().onOrAfter(IndexVersions.V_7_2_0)
                 || indexMetadata.getState() == IndexMetadata.State.OPEN
                 || MetadataIndexStateService.isIndexVerifiedBeforeClosed(indexMetadata))
                 .flatMap(
@@ -178,7 +226,7 @@ public class DesiredBalanceReconciler {
             while (unassignedIterator.hasNext()) {
                 final ShardRouting shardRouting = unassignedIterator.next();
                 final UnassignedInfo unassignedInfo = shardRouting.unassignedInfo();
-                if (shardRouting.primary() && unassignedInfo.getLastAllocationStatus() == UnassignedInfo.AllocationStatus.NO_ATTEMPT) {
+                if (shardRouting.primary() && unassignedInfo.getLastAllocationStatus() == AllocationStatus.NO_ATTEMPT) {
                     unassignedIterator.updateUnassigned(
                         new UnassignedInfo(
                             unassignedInfo.getReason(),
@@ -188,7 +236,7 @@ public class DesiredBalanceReconciler {
                             unassignedInfo.getUnassignedTimeInNanos(),
                             unassignedInfo.getUnassignedTimeInMillis(),
                             unassignedInfo.isDelayed(),
-                            UnassignedInfo.AllocationStatus.DECIDERS_NO,
+                            AllocationStatus.DECIDERS_NO,
                             unassignedInfo.getFailedNodeIds(),
                             unassignedInfo.getLastAllocatedNodeId()
                         ),
@@ -247,69 +295,60 @@ public class DesiredBalanceReconciler {
                 nextShard: for (int i = 0; i < primaryLength; i++) {
                     final var shard = primary[i];
                     final var assignment = desiredBalance.getAssignment(shard.shardId());
-                    final var isThrottled = new AtomicBoolean(false);
-                    if (assignment != null) {
-
-                        for (final var nodeIdIterator : List.of(
-                            getDesiredNodesIds(shard, assignment),
-                            getFallbackNodeIds(shard, isThrottled)
-                        )) {
-                            for (final var desiredNodeId : nodeIdIterator) {
-                                final var routingNode = routingNodes.node(desiredNodeId);
-                                if (routingNode == null) {
-                                    // desired node no longer exists
-                                    continue;
+                    final boolean ignored = assignment == null || isIgnored(routingNodes, shard, assignment);
+                    AllocationStatus unallocatedStatus;
+                    if (ignored) {
+                        unallocatedStatus = AllocationStatus.NO_ATTEMPT;
+                    } else {
+                        unallocatedStatus = AllocationStatus.DECIDERS_NO;
+                        final var nodeIdsIterator = new NodeIdsIterator(shard, assignment);
+                        while (nodeIdsIterator.hasNext()) {
+                            final var nodeId = nodeIdsIterator.next();
+                            final var routingNode = routingNodes.node(nodeId);
+                            if (routingNode == null) {
+                                // desired node no longer exists
+                                continue;
+                            }
+                            if (routingNode.getByShardId(shard.shardId()) != null) {
+                                // node already contains same shard.
+                                // Skipping it allows us to exclude NO decisions from SameShardAllocationDecider and only log more relevant
+                                // NO or THROTTLE decisions of the preventing shard from starting on assigned node
+                                continue;
+                            }
+                            final var decision = allocation.deciders().canAllocate(shard, routingNode, allocation);
+                            switch (decision.type()) {
+                                case YES -> {
+                                    logger.debug("Assigning shard [{}] to {} [{}]", shard, nodeIdsIterator.source, nodeId);
+                                    long shardSize = getExpectedShardSize(shard, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE, allocation);
+                                    routingNodes.initializeShard(shard, nodeId, null, shardSize, allocation.changes());
+                                    allocationOrdering.recordAllocation(nodeId);
+                                    if (shard.primary() == false) {
+                                        // copy over the same replica shards to the secondary array so they will get allocated
+                                        // in a subsequent iteration, allowing replicas of other shards to be allocated first
+                                        while (i < primaryLength - 1 && comparator.compare(primary[i], primary[i + 1]) == 0) {
+                                            secondary[secondaryLength++] = primary[++i];
+                                        }
+                                    }
+                                    continue nextShard;
                                 }
-                                final var decision = allocation.deciders().canAllocate(shard, routingNode, allocation);
-                                switch (decision.type()) {
-                                    case YES -> {
-                                        logger.debug("Assigning shard [{}] to [{}]", shard, desiredNodeId);
-                                        final long shardSize = DiskThresholdDecider.getExpectedShardSize(
-                                            shard,
-                                            ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE,
-                                            allocation.clusterInfo(),
-                                            allocation.snapshotShardSizeInfo(),
-                                            allocation.metadata(),
-                                            allocation.routingTable()
-                                        );
-                                        routingNodes.initializeShard(shard, desiredNodeId, null, shardSize, allocation.changes());
-                                        allocationOrdering.recordAllocation(desiredNodeId);
-                                        if (shard.primary() == false) {
-                                            // copy over the same replica shards to the secondary array so they will get allocated
-                                            // in a subsequent iteration, allowing replicas of other shards to be allocated first
-                                            while (i < primaryLength - 1 && comparator.compare(primary[i], primary[i + 1]) == 0) {
-                                                secondary[secondaryLength++] = primary[++i];
-                                            }
-                                        }
-                                        continue nextShard;
-                                    }
-                                    case THROTTLE -> isThrottled.set(true);
-                                    case NO -> {
-                                        if (logger.isTraceEnabled()) {
-                                            logger.trace("Couldn't assign shard [{}] to [{}]", shard.shardId(), desiredNodeId);
-                                        }
-                                    }
+                                case THROTTLE -> {
+                                    nodeIdsIterator.wasThrottled = true;
+                                    unallocatedStatus = AllocationStatus.DECIDERS_THROTTLED;
+                                    logger.debug("Couldn't assign shard [{}] to [{}]: {}", shard.shardId(), nodeId, decision);
+                                }
+                                case NO -> {
+                                    logger.debug("Couldn't assign shard [{}] to [{}]: {}", shard.shardId(), nodeId, decision);
                                 }
                             }
                         }
                     }
 
-                    logger.debug("No eligible node found to assign shard [{}] amongst [{}]", shard, assignment);
-
-                    final UnassignedInfo.AllocationStatus allocationStatus;
-                    if (assignment == null || assignment.isIgnored(shard.primary())) {
-                        allocationStatus = UnassignedInfo.AllocationStatus.NO_ATTEMPT;
-                    } else if (isThrottled.get()) {
-                        allocationStatus = UnassignedInfo.AllocationStatus.DECIDERS_THROTTLED;
-                    } else {
-                        allocationStatus = UnassignedInfo.AllocationStatus.DECIDERS_NO;
-                    }
-
-                    unassigned.ignoreShard(shard, allocationStatus, allocation.changes());
+                    logger.debug("No eligible node found to assign shard [{}]", shard);
+                    unassigned.ignoreShard(shard, unallocatedStatus, allocation.changes());
                     if (shard.primary() == false) {
                         // we could not allocate it and we are a replica - check if we can ignore the other replicas
                         while (i < primaryLength - 1 && comparator.compare(primary[i], primary[i + 1]) == 0) {
-                            unassigned.ignoreShard(primary[++i], allocationStatus, allocation.changes());
+                            unassigned.ignoreShard(primary[++i], unallocatedStatus, allocation.changes());
                         }
                     }
                 }
@@ -321,23 +360,82 @@ public class DesiredBalanceReconciler {
             } while (primaryLength > 0);
         }
 
-        private Iterable<String> getDesiredNodesIds(ShardRouting shard, ShardAssignment assignment) {
-            return allocationOrdering.sort(allocation.deciders().getForcedInitialShardAllocationToNodes(shard, allocation).map(forced -> {
-                logger.debug("Shard [{}] assignment is ignored. Initial allocation forced to {}", shard.shardId(), forced);
-                return forced;
-            }).orElse(assignment.nodeIds()));
+        private final class NodeIdsIterator implements Iterator<String> {
+
+            private final ShardRouting shard;
+
+            /**
+             * Contains the source of the nodeIds used for shard assignment. It could be:
+             * * desired - when using desired nodes
+             * * forced initial allocation - when initial allocation is forced to certain nodes by shrink/split/clone index operation
+             * * fallback - when assigning the primary shard is temporarily not possible on desired nodes,
+             *              and it is assigned elsewhere in the cluster
+             */
+            private NodeIdSource source;
+            private Iterator<String> nodeIds;
+
+            private boolean wasThrottled = false;
+
+            NodeIdsIterator(ShardRouting shard, ShardAssignment assignment) {
+                this.shard = shard;
+
+                var forcedInitialAllocation = allocation.deciders().getForcedInitialShardAllocationToNodes(shard, allocation);
+                if (forcedInitialAllocation.isPresent()) {
+                    logger.debug("Shard [{}] initial allocation is forced to {}", shard.shardId(), forcedInitialAllocation.get());
+                    nodeIds = allocationOrdering.sort(forcedInitialAllocation.get()).iterator();
+                    source = NodeIdSource.FORCED_INITIAL_ALLOCATION;
+                } else {
+                    nodeIds = allocationOrdering.sort(assignment.nodeIds()).iterator();
+                    source = NodeIdSource.DESIRED;
+                }
+            }
+
+            @Override
+            public boolean hasNext() {
+                if (nodeIds.hasNext() == false && source == NodeIdSource.DESIRED && shard.primary() && wasThrottled == false) {
+                    var fallbackNodeIds = allocation.routingNodes().getAllNodeIds();
+                    logger.debug("Shard [{}] assignment is temporarily not possible. Falling back to {}", shard.shardId(), fallbackNodeIds);
+                    nodeIds = allocationOrdering.sort(fallbackNodeIds).iterator();
+                    source = NodeIdSource.FALLBACK;
+                }
+                return nodeIds.hasNext();
+            }
+
+            @Override
+            public String next() {
+                return nodeIds.next();
+            }
         }
 
-        private Iterable<String> getFallbackNodeIds(ShardRouting shard, AtomicBoolean isThrottled) {
-            return () -> {
-                if (shard.primary() && isThrottled.get() == false) {
-                    var fallbackNodeIds = allocation.routingNodes().getAllNodeIds();
-                    logger.debug("Shard [{}] assignment is temporary not possible. Falling back to {}", shard.shardId(), fallbackNodeIds);
-                    return allocationOrdering.sort(fallbackNodeIds).iterator();
-                } else {
-                    return Collections.emptyIterator();
+        private enum NodeIdSource {
+            DESIRED,
+            FORCED_INITIAL_ALLOCATION,
+            FALLBACK;
+        }
+
+        private boolean isIgnored(RoutingNodes routingNodes, ShardRouting shard, ShardAssignment assignment) {
+            if (assignment.ignored() == 0) {
+                // no shards are ignored
+                return false;
+            }
+            if (assignment.ignored() == assignment.total()) {
+                // all shards are ignored
+                return true;
+            }
+            if (assignment.total() - assignment.ignored() == 1) {
+                // all shard copies except primary are ignored
+                return shard.primary() == false;
+            }
+            // only some of the replicas might be ignored
+            // please note: it is not safe to use routing table here as it is not updated with changes from routing nodes yet
+            int assigned = 0;
+            for (RoutingNode routingNode : routingNodes) {
+                var assignedShard = routingNode.getByShardId(shard.shardId());
+                if (assignedShard != null && assignedShard.relocating() == false) {
+                    assigned++;
                 }
-            };
+            }
+            return assignment.total() - assignment.ignored() <= assigned;
         }
 
         private void moveShards() {
@@ -395,8 +493,9 @@ public class DesiredBalanceReconciler {
                 return;
             }
 
-            long allAllocations = 0;
-            long undesiredAllocations = 0;
+            int unassignedShards = routingNodes.unassigned().size() + routingNodes.unassigned().ignored().size();
+            int totalAllocations = 0;
+            int undesiredAllocations = 0;
 
             // Iterate over all started shards and try to move any which are on undesired nodes. In the presence of throttling shard
             // movements, the goal of this iteration order is to achieve a fairer movement of shards from the nodes that are offloading the
@@ -404,7 +503,7 @@ public class DesiredBalanceReconciler {
             for (final var iterator = OrderedShardsIterator.create(routingNodes, moveOrdering); iterator.hasNext();) {
                 final var shardRouting = iterator.next();
 
-                allAllocations++;
+                totalAllocations++;
 
                 if (shardRouting.started() == false) {
                     // can only rebalance started shards
@@ -454,18 +553,25 @@ public class DesiredBalanceReconciler {
                 }
             }
 
-            maybeLogUndesiredAllocationsWarning(allAllocations, undesiredAllocations);
+            DesiredBalanceReconciler.this.unassignedShards.set(unassignedShards);
+            DesiredBalanceReconciler.this.undesiredAllocations.set(undesiredAllocations);
+            DesiredBalanceReconciler.this.totalAllocations.set(totalAllocations);
+
+            maybeLogUndesiredAllocationsWarning(totalAllocations, undesiredAllocations, routingNodes.size());
         }
 
-        private void maybeLogUndesiredAllocationsWarning(long allAllocations, long undesiredAllocations) {
-            if (allAllocations > 0 && undesiredAllocations > undesiredAllocationsLogThreshold * allAllocations) {
+        private void maybeLogUndesiredAllocationsWarning(int allAllocations, int undesiredAllocations, int nodeCount) {
+            // more shards than cluster can relocate with one reroute
+            final boolean nonEmptyRelocationBacklog = undesiredAllocations > 2L * nodeCount;
+            final boolean warningThresholdReached = undesiredAllocations > undesiredAllocationsLogThreshold * allAllocations;
+            if (allAllocations > 0 && nonEmptyRelocationBacklog && warningThresholdReached) {
                 undesiredAllocationLogInterval.maybeExecute(
                     () -> logger.warn(
-                        "[{}%] of assigned shards ({}/{}) are not on their desired nodes, which exceeds the warn threshold of [{}%]",
-                        100.0 * undesiredAllocations / allAllocations,
+                        "[{}] of assigned shards ({}/{}) are not on their desired nodes, which exceeds the warn threshold of [{}]",
+                        Strings.format1Decimals(100.0 * undesiredAllocations / allAllocations, "%"),
                         undesiredAllocations,
                         allAllocations,
-                        100.0 * undesiredAllocationsLogThreshold
+                        Strings.format1Decimals(100.0 * undesiredAllocationsLogThreshold, "%")
                     )
                 );
             }

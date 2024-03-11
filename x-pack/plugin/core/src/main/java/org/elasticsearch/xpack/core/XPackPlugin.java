@@ -12,16 +12,12 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.TransportAction;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -37,20 +33,40 @@ import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
-import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.license.ClusterStateLicenseService;
+import org.elasticsearch.license.GetBasicStatusAction;
+import org.elasticsearch.license.GetLicenseAction;
+import org.elasticsearch.license.GetTrialStatusAction;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.LicensesMetadata;
-import org.elasticsearch.license.Licensing;
+import org.elasticsearch.license.PostStartBasicAction;
+import org.elasticsearch.license.PostStartTrialAction;
+import org.elasticsearch.license.PutLicenseAction;
+import org.elasticsearch.license.RestDeleteLicenseAction;
+import org.elasticsearch.license.RestGetBasicStatus;
+import org.elasticsearch.license.RestGetFeatureUsageAction;
+import org.elasticsearch.license.RestGetLicenseAction;
+import org.elasticsearch.license.RestGetTrialStatus;
+import org.elasticsearch.license.RestPostStartBasicLicense;
+import org.elasticsearch.license.RestPostStartTrialLicense;
+import org.elasticsearch.license.RestPutLicenseAction;
+import org.elasticsearch.license.TransportDeleteLicenseAction;
+import org.elasticsearch.license.TransportGetBasicStatusAction;
+import org.elasticsearch.license.TransportGetFeatureUsageAction;
+import org.elasticsearch.license.TransportGetLicenseAction;
+import org.elasticsearch.license.TransportGetTrialStatusAction;
+import org.elasticsearch.license.TransportPostStartBasicAction;
+import org.elasticsearch.license.TransportPostStartTrialAction;
+import org.elasticsearch.license.TransportPutLicenseAction;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.internal.MutableLicenseService;
 import org.elasticsearch.license.internal.XPackLicenseStatus;
@@ -63,14 +79,11 @@ import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
-import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.snapshots.sourceonly.SourceOnlySnapshotRepository;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
@@ -85,8 +98,10 @@ import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageResponse;
-import org.elasticsearch.xpack.core.async.DeleteAsyncResultAction;
 import org.elasticsearch.xpack.core.async.TransportDeleteAsyncResultAction;
+import org.elasticsearch.xpack.core.datatiers.DataTiersInfoTransportAction;
+import org.elasticsearch.xpack.core.datatiers.DataTiersUsageTransportAction;
+import org.elasticsearch.xpack.core.datatiers.NodesDataTiersUsageTransportAction;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.rest.action.RestXPackInfoAction;
 import org.elasticsearch.xpack.core.rest.action.RestXPackUsageAction;
@@ -111,6 +126,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.LongSupplier;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -160,8 +176,6 @@ public class XPackPlugin extends XPackClientPlugin
     }
 
     protected final Settings settings;
-    // private final Environment env;
-    protected final Licensing licensing;
     // These should not be directly accessed as they cannot be overridden in tests. Please use the getters so they can be overridden.
     private static final SetOnce<SSLService> sslService = new SetOnce<>();
     // non-final to allow for testing
@@ -177,8 +191,6 @@ public class XPackPlugin extends XPackClientPlugin
         licenseState = new SetOnce<>();
         licenseService = new SetOnce<>();
         epochMillisSupplier = new SetOnce<>();
-
-        this.licensing = new Licensing(settings);
     }
 
     // overridable by tests
@@ -305,33 +317,24 @@ public class XPackPlugin extends XPackClientPlugin
     }
 
     @Override
-    public Collection<Object> createComponents(
-        Client client,
-        ClusterService clusterService,
-        ThreadPool threadPool,
-        ResourceWatcherService resourceWatcherService,
-        ScriptService scriptService,
-        NamedXContentRegistry xContentRegistry,
-        Environment environment,
-        NodeEnvironment nodeEnvironment,
-        NamedWriteableRegistry namedWriteableRegistry,
-        IndexNameExpressionResolver expressionResolver,
-        Supplier<RepositoriesService> repositoriesServiceSupplier,
-        Tracer tracer,
-        AllocationService allocationService,
-        IndicesService indicesService
-    ) {
+    public Collection<?> createComponents(PluginServices services) {
         List<Object> components = new ArrayList<>();
 
-        final SSLService sslService = createSSLService(environment, resourceWatcherService);
+        final SSLService sslService = createSSLService(services.environment(), services.resourceWatcherService());
 
         LicenseService licenseService = getLicenseService();
         if (licenseService == null) {
-            licenseService = new ClusterStateLicenseService(settings, threadPool, clusterService, getClock(), getLicenseState());
+            licenseService = new ClusterStateLicenseService(
+                settings,
+                services.threadPool(),
+                services.clusterService(),
+                getClock(),
+                getLicenseState()
+            );
             setLicenseService(licenseService);
         }
 
-        setEpochMillisSupplier(threadPool::absoluteTimeInMillis);
+        setEpochMillisSupplier(services.threadPool()::absoluteTimeInMillis);
 
         // It is useful to override these as they are what guice is injecting into actions
         components.add(sslService);
@@ -347,9 +350,16 @@ public class XPackPlugin extends XPackClientPlugin
         List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> actions = new ArrayList<>();
         actions.add(new ActionHandler<>(XPackInfoAction.INSTANCE, getInfoAction()));
         actions.add(new ActionHandler<>(XPackUsageAction.INSTANCE, getUsageAction()));
-        actions.addAll(licensing.getActions());
+        actions.add(new ActionHandler<>(PutLicenseAction.INSTANCE, TransportPutLicenseAction.class));
+        actions.add(new ActionHandler<>(GetLicenseAction.INSTANCE, TransportGetLicenseAction.class));
+        actions.add(new ActionHandler<>(TransportDeleteLicenseAction.TYPE, TransportDeleteLicenseAction.class));
+        actions.add(new ActionHandler<>(PostStartTrialAction.INSTANCE, TransportPostStartTrialAction.class));
+        actions.add(new ActionHandler<>(GetTrialStatusAction.INSTANCE, TransportGetTrialStatusAction.class));
+        actions.add(new ActionHandler<>(PostStartBasicAction.INSTANCE, TransportPostStartBasicAction.class));
+        actions.add(new ActionHandler<>(GetBasicStatusAction.INSTANCE, TransportGetBasicStatusAction.class));
+        actions.add(new ActionHandler<>(TransportGetFeatureUsageAction.TYPE, TransportGetFeatureUsageAction.class));
         actions.add(new ActionHandler<>(TermsEnumAction.INSTANCE, TransportTermsEnumAction.class));
-        actions.add(new ActionHandler<>(DeleteAsyncResultAction.INSTANCE, TransportDeleteAsyncResultAction.class));
+        actions.add(new ActionHandler<>(TransportDeleteAsyncResultAction.TYPE, TransportDeleteAsyncResultAction.class));
         actions.add(new ActionHandler<>(XPackInfoFeatureAction.DATA_TIERS, DataTiersInfoTransportAction.class));
         actions.add(new ActionHandler<>(XPackUsageFeatureAction.DATA_TIERS, DataTiersUsageTransportAction.class));
         actions.add(new ActionHandler<>(XPackUsageFeatureAction.DATA_STREAMS, DataStreamUsageTransportAction.class));
@@ -357,6 +367,7 @@ public class XPackPlugin extends XPackClientPlugin
         actions.add(new ActionHandler<>(XPackUsageFeatureAction.DATA_STREAM_LIFECYCLE, DataStreamLifecycleUsageTransportAction.class));
         actions.add(new ActionHandler<>(XPackUsageFeatureAction.HEALTH, HealthApiUsageTransportAction.class));
         actions.add(new ActionHandler<>(XPackUsageFeatureAction.REMOTE_CLUSTERS, RemoteClusterUsageTransportAction.class));
+        actions.add(new ActionHandler<>(NodesDataTiersUsageTransportAction.TYPE, NodesDataTiersUsageTransportAction.class));
         return actions;
     }
 
@@ -371,45 +382,29 @@ public class XPackPlugin extends XPackClientPlugin
     }
 
     @Override
-    public List<ActionType<? extends ActionResponse>> getClientActions() {
-        List<ActionType<? extends ActionResponse>> actions = new ArrayList<>();
-        actions.addAll(licensing.getClientActions());
-        actions.addAll(super.getClientActions());
-        return actions;
-    }
-
-    @Override
-    public List<ActionFilter> getActionFilters() {
-        List<ActionFilter> filters = new ArrayList<>();
-        filters.addAll(licensing.getActionFilters());
-        return filters;
-    }
-
-    @Override
     public List<RestHandler> getRestHandlers(
         Settings settings,
+        NamedWriteableRegistry namedWriteableRegistry,
         RestController restController,
         ClusterSettings clusterSettings,
         IndexScopedSettings indexScopedSettings,
         SettingsFilter settingsFilter,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<DiscoveryNodes> nodesInCluster
+        Supplier<DiscoveryNodes> nodesInCluster,
+        Predicate<NodeFeature> clusterSupportsFeature
     ) {
         List<RestHandler> handlers = new ArrayList<>();
         handlers.add(new RestXPackInfoAction());
         handlers.add(new RestXPackUsageAction());
         handlers.add(new RestTermsEnumAction());
-        handlers.addAll(
-            licensing.getRestHandlers(
-                settings,
-                restController,
-                clusterSettings,
-                indexScopedSettings,
-                settingsFilter,
-                indexNameExpressionResolver,
-                nodesInCluster
-            )
-        );
+        handlers.add(new RestGetLicenseAction());
+        handlers.add(new RestPutLicenseAction());
+        handlers.add(new RestDeleteLicenseAction());
+        handlers.add(new RestGetTrialStatus());
+        handlers.add(new RestGetBasicStatus());
+        handlers.add(new RestPostStartTrialLicense());
+        handlers.add(new RestPostStartBasicLicense());
+        handlers.add(new RestGetFeatureUsageAction());
         return handlers;
     }
 
@@ -440,7 +435,8 @@ public class XPackPlugin extends XPackClientPlugin
         NamedXContentRegistry namedXContentRegistry,
         ClusterService clusterService,
         BigArrays bigArrays,
-        RecoverySettings recoverySettings
+        RecoverySettings recoverySettings,
+        RepositoriesMetrics repositoriesMetrics
     ) {
         return Collections.singletonMap("source", SourceOnlySnapshotRepository.newRepositoryFactory());
     }

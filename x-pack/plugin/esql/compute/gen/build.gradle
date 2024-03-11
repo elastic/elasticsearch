@@ -1,0 +1,11 @@
+apply plugin: 'elasticsearch.build'
+
+dependencies {
+  api project(':x-pack:plugin:esql:compute:ann')
+  api 'com.squareup:javapoet:1.13.0'
+}
+
+tasks.named('forbiddenApisMain').configure {
+  // doesn't depend on core
+  replaceSignatureFiles 'jdk-signatures'
+}

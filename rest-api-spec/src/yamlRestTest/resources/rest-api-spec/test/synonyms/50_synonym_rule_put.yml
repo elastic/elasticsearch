@@ -1,10 +1,10 @@
 setup:
   - skip:
-      version: " - 8.8.99"
-      reason: Introduced in 8.9.0
+      version: " - 8.9.99"
+      reason: Introduced in 8.10.0
   - do:
-      synonyms.put:
-        synonyms_set: test-synonyms
+      synonyms.put_synonym:
+        id: test-synonyms
         body:
           synonyms_set:
             - synonyms: "hello, hi"
@@ -18,9 +18,9 @@ setup:
 ---
 "Update a synonyms rule":
   - do:
-      synonym_rule.put:
-        synonyms_set: "test-synonyms"
-        synonym_rule: "test-id-2"
+      synonyms.put_synonym_rule:
+        set_id: "test-synonyms"
+        rule_id: "test-id-2"
         body:
           synonyms: "bye, goodbye, seeya"
 
@@ -29,8 +29,8 @@ setup:
   - length: { reload_analyzers_details.reload_details: 0 }
 
   - do:
-      synonyms.get:
-        synonyms_set: test-synonyms
+      synonyms.get_synonym:
+        id: test-synonyms
 
   - match:
       synonyms_set:
@@ -45,9 +45,9 @@ setup:
 ---
 "Create a new synonym rule":
   - do:
-      synonym_rule.put:
-        synonyms_set: "test-synonyms"
-        synonym_rule: "test-id-0"
+      synonyms.put_synonym_rule:
+        set_id: "test-synonyms"
+        rule_id: "test-id-0"
         body:
           synonyms: "i-phone, iphone"
 
@@ -56,8 +56,8 @@ setup:
   - length: { reload_analyzers_details.reload_details: 0 }
 
   - do:
-      synonyms.get:
-        synonyms_set: test-synonyms
+      synonyms.get_synonym:
+        id: test-synonyms
 
   - match:
       synonyms_set:
@@ -75,8 +75,8 @@ setup:
 
   - do:
       catch: missing
-      synonym_rule.put:
-        synonyms_set: "test-synonyms-non-existent"
-        synonym_rule: "test-id-0"
+      synonyms.put_synonym_rule:
+        set_id: "test-synonyms-non-existent"
+        rule_id: "test-id-0"
         body:
           synonyms: "i-phone, iphone"

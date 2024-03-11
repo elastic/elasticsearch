@@ -12,15 +12,15 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.Realm;
@@ -41,7 +41,9 @@ import org.elasticsearch.xpack.security.authc.support.CachingUsernamePasswordRea
 import org.elasticsearch.xpack.security.authc.support.DelegatedAuthorizationSupport;
 import org.elasticsearch.xpack.security.authc.support.mapper.CompositeRoleMapper;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
+import org.elasticsearch.xpack.security.support.ReloadableSecurityComponent;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -57,7 +59,7 @@ import static org.elasticsearch.xpack.security.authc.ldap.LdapUserSearchSessionF
 /**
  * Authenticates username/password tokens against ldap, locates groups and maps them to roles.
  */
-public final class LdapRealm extends CachingUsernamePasswordRealm {
+public final class LdapRealm extends CachingUsernamePasswordRealm implements ReloadableSecurityComponent {
 
     private final SessionFactory sessionFactory;
     private final UserRoleMapper roleMapper;
@@ -159,7 +161,7 @@ public final class LdapRealm extends CachingUsernamePasswordRealm {
             logger
         );
         threadPool.generic().execute(cancellableLdapRunnable);
-        threadPool.schedule(cancellableLdapRunnable::maybeTimeout, executionTimeout, Names.SAME);
+        threadPool.schedule(cancellableLdapRunnable::maybeTimeout, executionTimeout, EsExecutors.DIRECT_EXECUTOR_SERVICE);
     }
 
     @Override
@@ -181,7 +183,7 @@ public final class LdapRealm extends CachingUsernamePasswordRealm {
                 logger
             );
             threadPool.generic().execute(cancellableLdapRunnable);
-            threadPool.schedule(cancellableLdapRunnable::maybeTimeout, executionTimeout, Names.SAME);
+            threadPool.schedule(cancellableLdapRunnable::maybeTimeout, executionTimeout, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         } else {
             userActionListener.onResponse(null);
         }
@@ -215,6 +217,11 @@ public final class LdapRealm extends CachingUsernamePasswordRealm {
             usage.put("user_search", false == configuredUserSearchSettings(config).isEmpty());
             listener.onResponse(usage);
         }, listener::onFailure));
+    }
+
+    @Override
+    public void reload(Settings settings) {
+        this.sessionFactory.reload(settings);
     }
 
     private static void buildUser(
@@ -256,16 +263,18 @@ public final class LdapRealm extends CachingUsernamePasswordRealm {
                 listener.onFailure(e);
             };
             session.resolve(ActionListener.wrap((ldapData) -> {
-                final Map<String, Object> metadata = MapBuilder.<String, Object>newMapBuilder()
-                    .put("ldap_dn", session.userDn())
-                    .put("ldap_groups", ldapData.groups)
-                    .putAll(ldapData.metadata)
-                    .map();
+                final Map<String, Object> metadata = new HashMap<>();
+                metadata.put("ldap_dn", session.userDn());
+                metadata.put("ldap_groups", ldapData.groups);
+                metadata.putAll(ldapData.metadata);
                 final UserData user = new UserData(username, session.userDn(), ldapData.groups, metadata, session.realm());
+
                 roleMapper.resolveRoles(user, ActionListener.wrap(roles -> {
                     IOUtils.close(session);
                     String[] rolesArray = roles.toArray(new String[roles.size()]);
-                    listener.onResponse(AuthenticationResult.success(new User(username, rolesArray, null, null, metadata, true)));
+                    listener.onResponse(
+                        AuthenticationResult.success(new User(username, rolesArray, ldapData.fullName, ldapData.email, metadata, true))
+                    );
                 }, onFailure));
             }, onFailure));
             loadingGroups = true;

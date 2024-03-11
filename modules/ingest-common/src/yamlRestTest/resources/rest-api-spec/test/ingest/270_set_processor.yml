@@ -227,3 +227,71 @@ teardown:
   - match: { _source.foo: "hello" }
   - match: { _source.method_call_is_ignored: "" }
   - match: { _source.missing_method_is_ignored: "" }
+
+---
+"Test set processor with mustache edge cases":
+  - do:
+      ingest.put_pipeline:
+        id: "1"
+        body:  >
+          {
+            "processors" : [
+              {
+                "script": {
+                  "description": "Set a field 'foo' with a value of '{{bar}}' -- no mustache here, just strings",
+                  "lang": "painless",
+                  "source": "ctx.foo = '{{bar}}'"
+                }
+              },
+              {
+                "set": {
+                  "description": "Dereference the foo field via actual mustache",
+                  "field": "result_1",
+                  "value": "{{foo}}"
+                }
+              },
+              {
+                "set": {
+                  "description": "Dereference the foo field via copy_from",
+                  "field": "result_2",
+                  "copy_from": "foo"
+                }
+              },
+              {
+                "set": {
+                  "description": "Copy the original bar value into old_bar",
+                  "field": "old_bar",
+                  "copy_from": "bar"
+                }
+              },
+              {
+                "set": {
+                  "description": "Set whatever field value_bar refers to (it's bar) to 3",
+                  "field": "{{value_bar}}",
+                  "value": 3
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        pipeline: "1"
+        body: {
+          foo: 1,
+          bar: 2,
+          value_bar: "bar"
+        }
+
+  - do:
+      get:
+        index: test
+        id: "1"
+  - match: { _source.foo: "{{bar}}" }
+  - match: { _source.result_1: "{{bar}}" }
+  - match: { _source.result_2: "{{bar}}" }
+  - match: { _source.old_bar: 2 }
+  - match: { _source.bar: 3 }

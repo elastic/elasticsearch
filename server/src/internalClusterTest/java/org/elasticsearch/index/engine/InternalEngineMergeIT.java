@@ -41,7 +41,7 @@ public class InternalEngineMergeIT extends ESIntegTestCase {
                         .source(jsonBuilder().startObject().field("l", randomLong()).endObject())
                 );
             }
-            BulkResponse response = request.execute().actionGet();
+            BulkResponse response = request.get();
             refresh();
             assertNoFailures(response);
             IndicesStatsResponse stats = indicesAdmin().prepareStats("test").setSegments(true).setMerge(true).get();

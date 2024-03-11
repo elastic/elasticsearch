@@ -1,0 +1,5 @@
+pr: 104406
+summary: Support patch transport version from 8.12
+area: Downsampling
+type: enhancement
+issues: []

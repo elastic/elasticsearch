@@ -60,7 +60,8 @@ public class BulkItemRequest implements Writeable, Accountable {
         return request.indices()[0];
     }
 
-    BulkItemResponse getPrimaryResponse() {
+    // public for tests
+    public BulkItemResponse getPrimaryResponse() {
         return primaryResponse;
     }
 

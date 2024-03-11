@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.ssl;
 
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.bootstrap.BootstrapContext;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.xpack.core.XPackSettings;
 
 /**
@@ -26,5 +27,10 @@ public final class TransportTLSBootstrapCheck implements BootstrapCheck {
             );
         }
         return BootstrapCheckResult.success();
+    }
+
+    @Override
+    public ReferenceDocs referenceDocs() {
+        return ReferenceDocs.BOOTSTRAP_CHECK_TLS;
     }
 }

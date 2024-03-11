@@ -10,7 +10,6 @@ package org.elasticsearch.datastreams.rest;
 import org.elasticsearch.action.datastreams.GetDataStreamAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -40,9 +39,7 @@ public class RestGetDataStreamsAction extends BaseRestHandler {
         GetDataStreamAction.Request getDataStreamsRequest = new GetDataStreamAction.Request(
             Strings.splitStringByCommaToArray(request.param("name"))
         );
-        if (DataStreamLifecycle.isEnabled()) {
-            getDataStreamsRequest.includeDefaults(request.paramAsBoolean("include_defaults", false));
-        }
+        getDataStreamsRequest.includeDefaults(request.paramAsBoolean("include_defaults", false));
         getDataStreamsRequest.indicesOptions(IndicesOptions.fromRequest(request, getDataStreamsRequest.indicesOptions()));
         return channel -> client.execute(GetDataStreamAction.INSTANCE, getDataStreamsRequest, new RestToXContentListener<>(channel));
     }

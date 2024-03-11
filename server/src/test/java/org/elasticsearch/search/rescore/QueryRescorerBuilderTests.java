@@ -10,13 +10,12 @@ package org.elasticsearch.search.rescore;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MappingLookup;
@@ -30,6 +29,7 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.rescore.QueryRescorer.QueryRescoreContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.usage.SearchUsage;
 import org.elasticsearch.xcontent.NamedObjectNotFoundException;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
@@ -43,11 +43,13 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
+import java.util.Set;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 
 public class QueryRescorerBuilderTests extends ESTestCase {
 
@@ -113,13 +115,15 @@ public class QueryRescorerBuilderTests extends ESTestCase {
             }
             rescoreBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
             XContentBuilder shuffled = shuffleXContent(builder);
+            SearchUsage searchUsage = new SearchUsage();
 
             try (XContentParser parser = createParser(shuffled)) {
                 parser.nextToken();
-                RescorerBuilder<?> secondRescoreBuilder = RescorerBuilder.parseFromXContent(parser);
+                RescorerBuilder<?> secondRescoreBuilder = RescorerBuilder.parseFromXContent(parser, searchUsage::trackRescorerUsage);
                 assertNotSame(rescoreBuilder, secondRescoreBuilder);
                 assertEquals(rescoreBuilder, secondRescoreBuilder);
                 assertEquals(rescoreBuilder.hashCode(), secondRescoreBuilder.hashCode());
+                assertEquals(searchUsage.getRescorerUsage(), Set.of("query"));
             }
         }
     }
@@ -130,14 +134,13 @@ public class QueryRescorerBuilderTests extends ESTestCase {
      */
     public void testBuildRescoreSearchContext() throws ElasticsearchParseException, IOException {
         final long nowInMillis = randomNonNegativeLong();
-        Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
+        Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(randomAlphaOfLengthBetween(1, 10), indexSettings);
         // shard context will only need indicesQueriesRegistry for building Query objects nested in query rescorer
         SearchExecutionContext mockContext = new SearchExecutionContext(
             0,
             0,
             idxSettings,
-            ClusterSettings.createBuiltInClusterSettings(),
             null,
             null,
             null,
@@ -158,7 +161,7 @@ public class QueryRescorerBuilderTests extends ESTestCase {
             @Override
             public MappedFieldType getFieldType(String name) {
                 TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name, createDefaultIndexAnalyzers());
-                return builder.build(MapperBuilderContext.root(false)).fieldType();
+                return builder.build(MapperBuilderContext.root(false, false)).fieldType();
             }
         };
 
@@ -193,14 +196,13 @@ public class QueryRescorerBuilderTests extends ESTestCase {
     public void testRewritingKeepsSettings() throws IOException {
 
         final long nowInMillis = randomNonNegativeLong();
-        Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
+        Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(randomAlphaOfLengthBetween(1, 10), indexSettings);
         // shard context will only need indicesQueriesRegistry for building Query objects nested in query rescorer
         SearchExecutionContext mockContext = new SearchExecutionContext(
             0,
             0,
             idxSettings,
-            ClusterSettings.createBuiltInClusterSettings(),
             null,
             null,
             null,
@@ -221,7 +223,7 @@ public class QueryRescorerBuilderTests extends ESTestCase {
             @Override
             public MappedFieldType getFieldType(String name) {
                 TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name, createDefaultIndexAnalyzers());
-                return builder.build(MapperBuilderContext.root(false)).fieldType();
+                return builder.build(MapperBuilderContext.root(false, false)).fieldType();
             }
         };
 
@@ -246,6 +248,7 @@ public class QueryRescorerBuilderTests extends ESTestCase {
      * test parsing exceptions for incorrect rescorer syntax
      */
     public void testUnknownFieldsExpection() throws IOException {
+        SearchUsage searchUsage = new SearchUsage();
 
         String rescoreElement = """
             {
@@ -254,8 +257,12 @@ public class QueryRescorerBuilderTests extends ESTestCase {
             }
             """;
         try (XContentParser parser = createParser(rescoreElement)) {
-            Exception e = expectThrows(NamedObjectNotFoundException.class, () -> RescorerBuilder.parseFromXContent(parser));
+            Exception e = expectThrows(
+                NamedObjectNotFoundException.class,
+                () -> RescorerBuilder.parseFromXContent(parser, searchUsage::trackRescorerUsage)
+            );
             assertEquals("[3:27] unknown field [bad_rescorer_name]", e.getMessage());
+            assertThat(searchUsage.getRescorerUsage(), empty());
         }
         rescoreElement = """
             {
@@ -263,8 +270,12 @@ public class QueryRescorerBuilderTests extends ESTestCase {
             }
             """;
         try (XContentParser parser = createParser(rescoreElement)) {
-            Exception e = expectThrows(ParsingException.class, () -> RescorerBuilder.parseFromXContent(parser));
+            Exception e = expectThrows(
+                ParsingException.class,
+                () -> RescorerBuilder.parseFromXContent(parser, searchUsage::trackRescorerUsage)
+            );
             assertEquals("rescore doesn't support [bad_fieldName]", e.getMessage());
+            assertThat(searchUsage.getRescorerUsage(), empty());
         }
 
         rescoreElement = """
@@ -274,14 +285,22 @@ public class QueryRescorerBuilderTests extends ESTestCase {
             }
             """;
         try (XContentParser parser = createParser(rescoreElement)) {
-            Exception e = expectThrows(ParsingException.class, () -> RescorerBuilder.parseFromXContent(parser));
+            Exception e = expectThrows(
+                ParsingException.class,
+                () -> RescorerBuilder.parseFromXContent(parser, searchUsage::trackRescorerUsage)
+            );
             assertEquals("unexpected token [START_ARRAY] after [query]", e.getMessage());
+            assertThat(searchUsage.getRescorerUsage(), empty());
         }
 
         rescoreElement = "{ }";
         try (XContentParser parser = createParser(rescoreElement)) {
-            Exception e = expectThrows(ParsingException.class, () -> RescorerBuilder.parseFromXContent(parser));
+            Exception e = expectThrows(
+                ParsingException.class,
+                () -> RescorerBuilder.parseFromXContent(parser, searchUsage::trackRescorerUsage)
+            );
             assertEquals("missing rescore type", e.getMessage());
+            assertThat(searchUsage.getRescorerUsage(), empty());
         }
 
         rescoreElement = """
@@ -291,8 +310,12 @@ public class QueryRescorerBuilderTests extends ESTestCase {
             }
             """;
         try (XContentParser parser = createParser(rescoreElement)) {
-            XContentParseException e = expectThrows(XContentParseException.class, () -> RescorerBuilder.parseFromXContent(parser));
+            XContentParseException e = expectThrows(
+                XContentParseException.class,
+                () -> RescorerBuilder.parseFromXContent(parser, searchUsage::trackRescorerUsage)
+            );
             assertEquals("[3:17] [query] unknown field [bad_fieldname]", e.getMessage());
+            assertThat(searchUsage.getRescorerUsage(), empty());
         }
 
         rescoreElement = """
@@ -302,8 +325,12 @@ public class QueryRescorerBuilderTests extends ESTestCase {
             }
             """;
         try (XContentParser parser = createParser(rescoreElement)) {
-            Exception e = expectThrows(XContentParseException.class, () -> RescorerBuilder.parseFromXContent(parser));
+            Exception e = expectThrows(
+                XContentParseException.class,
+                () -> RescorerBuilder.parseFromXContent(parser, searchUsage::trackRescorerUsage)
+            );
             assertThat(e.getMessage(), containsString("[query] failed to parse field [rescore_query]"));
+            assertThat(searchUsage.getRescorerUsage(), empty());
         }
 
         rescoreElement = """
@@ -313,7 +340,7 @@ public class QueryRescorerBuilderTests extends ESTestCase {
             }
             """;
         try (XContentParser parser = createParser(rescoreElement)) {
-            RescorerBuilder.parseFromXContent(parser);
+            RescorerBuilder.parseFromXContent(parser, searchUsage::trackRescorerUsage);
         }
     }
 

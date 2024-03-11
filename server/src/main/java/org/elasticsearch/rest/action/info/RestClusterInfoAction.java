@@ -40,10 +40,10 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest.Metric.HTTP;
-import static org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest.Metric.INGEST;
-import static org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest.Metric.SCRIPT;
-import static org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest.Metric.THREAD_POOL;
+import static org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequestParameters.Metric.HTTP;
+import static org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequestParameters.Metric.INGEST;
+import static org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequestParameters.Metric.SCRIPT;
+import static org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequestParameters.Metric.THREAD_POOL;
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 
 @ServerlessScope(Scope.PUBLIC)
@@ -86,6 +86,7 @@ public class RestClusterInfoAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         var nodesStatsRequest = new NodesStatsRequest().clear();
+        nodesStatsRequest.setIncludeShardsStats(false);
         var targets = Strings.tokenizeByCommaToSet(request.param("target"));
 
         if (targets.size() == 1 && targets.contains("_all")) {
@@ -119,7 +120,7 @@ public class RestClusterInfoAction extends BaseRestHandler {
                 public RestResponse buildResponse(NodesStatsResponse response) throws Exception {
                     var chunkedResponses = targets.stream().map(RESPONSE_MAPPER::get).map(mapper -> mapper.apply(response)).iterator();
 
-                    return new RestResponse(
+                    return RestResponse.chunked(
                         RestStatus.OK,
                         ChunkedRestResponseBody.fromXContent(
                             outerParams -> Iterators.concat(
@@ -130,7 +131,8 @@ public class RestClusterInfoAction extends BaseRestHandler {
                             ),
                             EMPTY_PARAMS,
                             channel
-                        )
+                        ),
+                        null
                     );
                 }
             });

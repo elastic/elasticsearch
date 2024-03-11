@@ -101,6 +101,7 @@ teardown:
         id: "$api_key_id_0"
   - match: { "api_keys.0.id": "$api_key_id_0" }
   - match: { "api_keys.0.role_descriptors": { } }
+  - is_false: api_keys.0.access
   - is_false: api_keys.0.limited_by
 
   - do:
@@ -123,6 +124,7 @@ teardown:
         id: "$api_key_id_1"
   - match: { "api_keys.0.id": "$api_key_id_1" }
   - match: { "api_keys.0.role_descriptors": { } }
+  - is_false: api_keys.0.access
   - is_false: api_keys.0.limited_by
 
   - do:
@@ -179,6 +181,7 @@ teardown:
     }
   }
   }
+  - is_false: api_keys.0.access
   - is_false: api_keys.0.limited_by
 
   - do:
@@ -267,6 +270,7 @@ teardown:
     }
   }
   }
+  - is_false: api_keys.0.access
   - is_false: api_keys.0.limited_by
 
   # Query API keys
@@ -282,6 +286,7 @@ teardown:
   - match: { count: 4 }
   - match: { "api_keys.0.name": "key-0-with-implicit-inherit" }
   - match: { "api_keys.0.role_descriptors": { } }
+  - is_false: api_keys.0.access
   - is_false: api_keys.0.limited_by
   - match: { "api_keys.1.name": "key-1-with-explicit-inherit" }
   - match: { "api_keys.1.role_descriptors": { } }
@@ -399,6 +404,7 @@ teardown:
         with_limited_by: true
   - match: { "api_keys.0.id": "$api_key_id_0" }
   - is_true: api_keys.0.role_descriptors
+  - is_false: api_keys.0.access
   - length: { "api_keys.0.limited_by": 1 }
   - match: { "api_keys.0.limited_by.0": {
     "user_role" : {
@@ -431,6 +437,7 @@ teardown:
   - match: { "api_keys.0.name": "key-0-limited-by-api-key-user" }
   - match: { "api_keys.0.id": "$api_key_id_0" }
   - is_true: api_keys.0.role_descriptors
+  - is_false: api_keys.0.access
   - length: { "api_keys.0.limited_by": 1 }
   - match: { "api_keys.0.limited_by.0": {
     "user_role" : {
@@ -470,6 +477,7 @@ teardown:
         with_limited_by: true
   - match: { "api_keys.0.id": "$api_key_id_1" }
   - is_true: api_keys.0.role_descriptors
+  - is_false: api_keys.0.access
   - length: { "api_keys.0.limited_by": 1 }
   - match: { "api_keys.0.limited_by.0": {
     "admin_role" : {

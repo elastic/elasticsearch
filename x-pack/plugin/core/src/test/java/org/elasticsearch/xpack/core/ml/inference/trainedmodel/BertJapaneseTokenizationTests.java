@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
@@ -20,7 +21,7 @@ public class BertJapaneseTokenizationTests extends AbstractBWCSerializationTestC
     private boolean lenient;
 
     public static BertJapaneseTokenization mutateForVersion(BertJapaneseTokenization instance, TransportVersion version) {
-        if (version.before(TransportVersion.V_8_2_0)) {
+        if (version.before(TransportVersions.V_8_2_0)) {
             return new BertJapaneseTokenization(
                 instance.doLowerCase,
                 instance.withSpecialTokens,
@@ -60,6 +61,13 @@ public class BertJapaneseTokenizationTests extends AbstractBWCSerializationTestC
     @Override
     protected BertJapaneseTokenization mutateInstanceForVersion(BertJapaneseTokenization instance, TransportVersion version) {
         return mutateForVersion(instance, version);
+    }
+
+    public void testsBuildUpdatedTokenization() {
+        var update = new BertJapaneseTokenization(true, true, 100, Tokenization.Truncate.FIRST, -1).buildWindowingTokenization(50, 20);
+        assertEquals(Tokenization.Truncate.NONE, update.getTruncate());
+        assertEquals(50, update.maxSequenceLength());
+        assertEquals(20, update.getSpan());
     }
 
     public static BertJapaneseTokenization createRandom() {

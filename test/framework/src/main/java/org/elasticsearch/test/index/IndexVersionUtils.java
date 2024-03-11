@@ -10,6 +10,7 @@ package org.elasticsearch.test.index;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.KnownIndexVersions;
 import org.elasticsearch.test.ESTestCase;
 
@@ -92,6 +93,10 @@ public class IndexVersionUtils {
         return ALL_VERSIONS.get(place - 1);
     }
 
+    public static IndexVersion getPreviousMajorVersion(IndexVersion version) {
+        return IndexVersion.getMinimumCompatibleIndexVersion(version.id());
+    }
+
     public static IndexVersion getNextVersion(IndexVersion version) {
         int place = Collections.binarySearch(ALL_VERSIONS, version);
         if (place < 0) {
@@ -110,11 +115,11 @@ public class IndexVersionUtils {
 
     /** Returns a random {@code IndexVersion} that is compatible with {@link IndexVersion#current()} */
     public static IndexVersion randomCompatibleVersion(Random random) {
-        return randomVersionBetween(random, IndexVersion.MINIMUM_COMPATIBLE, IndexVersion.current());
+        return randomVersionBetween(random, IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current());
     }
 
     /** Returns a random {@code IndexVersion} that is compatible with the previous version to {@code version} */
     public static IndexVersion randomPreviousCompatibleVersion(Random random, IndexVersion version) {
-        return randomVersionBetween(random, IndexVersion.MINIMUM_COMPATIBLE, getPreviousVersion(version));
+        return randomVersionBetween(random, IndexVersions.MINIMUM_COMPATIBLE, getPreviousVersion(version));
     }
 }

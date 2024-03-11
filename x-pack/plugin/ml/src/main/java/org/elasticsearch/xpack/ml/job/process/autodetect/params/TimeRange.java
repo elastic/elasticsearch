@@ -80,7 +80,7 @@ public class TimeRange {
             return createTimeRange(start, end);
         }
 
-        private TimeRange createTimeRange(String start, String end) {
+        private static TimeRange createTimeRange(String start, String end) {
             Long epochStart = null;
             Long epochEnd = null;
             if (start.isEmpty() == false) {
@@ -104,7 +104,7 @@ public class TimeRange {
         /**
          * Returns epoch milli seconds
          */
-        private long paramToEpochIfValidOrThrow(String paramName, String date) {
+        private static long paramToEpochIfValidOrThrow(String paramName, String date) {
             if (NOW.equals(date)) {
                 return System.currentTimeMillis();
             }

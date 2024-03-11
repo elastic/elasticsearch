@@ -21,6 +21,7 @@ import java.io.IOException;
 
 public class XLMRobertaTokenization extends Tokenization {
     public static final String NAME = "xlm_roberta";
+    public static final String MASK_TOKEN = "<mask>";
 
     public static ConstructingObjectParser<XLMRobertaTokenization, Void> createParser(boolean ignoreUnknownFields) {
         ConstructingObjectParser<XLMRobertaTokenization, Void> parser = new ConstructingObjectParser<>(
@@ -72,6 +73,11 @@ public class XLMRobertaTokenization extends Tokenization {
     }
 
     @Override
+    protected Tokenization buildWindowingTokenization(int maxSeqLength, int span) {
+        return new XLMRobertaTokenization(withSpecialTokens, maxSeqLength, Truncate.NONE, span);
+    }
+
+    @Override
     public String getWriteableName() {
         return NAME;
     }
@@ -79,6 +85,11 @@ public class XLMRobertaTokenization extends Tokenization {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
+    }
+
+    @Override
+    public String getMaskToken() {
+        return MASK_TOKEN;
     }
 
     @Override

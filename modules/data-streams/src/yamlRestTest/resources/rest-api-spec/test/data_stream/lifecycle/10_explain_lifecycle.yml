@@ -1,8 +1,8 @@
 ---
 "Explain backing index lifecycle":
   - skip:
-      version: " - 8.8.99"
-      reason: "Explain data stream lifecycle API was added in 8.9"
+      version: " - 8.10.99"
+      reason: "Data stream lifecycle was released as tech preview in 8.11"
       features: allowed_warnings
   - do:
       allowed_warnings:
@@ -37,6 +37,7 @@
         index: $backing_index
   - match: { indices.$backing_index.managed_by_lifecycle: true }
   - match: { indices.$backing_index.lifecycle.data_retention: '30d' }
+  - match: { indices.$backing_index.lifecycle.enabled: true }
   - is_false: indices.$backing_index.lifecycle.rollover
 
 

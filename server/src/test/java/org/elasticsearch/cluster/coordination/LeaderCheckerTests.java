@@ -26,7 +26,6 @@ import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.elasticsearch.test.EqualsHashCodeTestUtils.CopyFunction;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.test.transport.MockTransport;
-import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.AbstractSimpleTransportTestCase;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.ReceiveTimeoutTransportException;
@@ -38,6 +37,7 @@ import org.elasticsearch.transport.TransportResponse.Empty;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -485,6 +485,7 @@ public class LeaderCheckerTests extends ESTestCase {
         );
         transportService.start();
         transportService.acceptIncomingRequests();
+        final var executor = transportService.getThreadPool().generic();
 
         final LeaderChecker leaderChecker = new LeaderChecker(
             settings,
@@ -502,7 +503,7 @@ public class LeaderCheckerTests extends ESTestCase {
         {
             leaderChecker.setCurrentNodes(discoveryNodes);
 
-            final CapturingTransportResponseHandler handler = new CapturingTransportResponseHandler();
+            final CapturingTransportResponseHandler handler = new CapturingTransportResponseHandler(executor);
             transportService.sendRequest(localNode, LEADER_CHECK_ACTION_NAME, new LeaderCheckRequest(otherNode), handler);
             deterministicTaskQueue.runAllTasks();
 
@@ -517,7 +518,7 @@ public class LeaderCheckerTests extends ESTestCase {
         {
             leaderChecker.setCurrentNodes(discoveryNodes);
 
-            final CapturingTransportResponseHandler handler = new CapturingTransportResponseHandler();
+            final CapturingTransportResponseHandler handler = new CapturingTransportResponseHandler(executor);
             transportService.sendRequest(localNode, LEADER_CHECK_ACTION_NAME, new LeaderCheckRequest(otherNode), handler);
             deterministicTaskQueue.runAllTasks();
 
@@ -530,7 +531,7 @@ public class LeaderCheckerTests extends ESTestCase {
         {
             leaderChecker.setCurrentNodes(DiscoveryNodes.builder(discoveryNodes).add(otherNode).build());
 
-            final CapturingTransportResponseHandler handler = new CapturingTransportResponseHandler();
+            final CapturingTransportResponseHandler handler = new CapturingTransportResponseHandler(executor);
             transportService.sendRequest(localNode, LEADER_CHECK_ACTION_NAME, new LeaderCheckRequest(otherNode), handler);
             deterministicTaskQueue.runAllTasks();
 
@@ -541,7 +542,7 @@ public class LeaderCheckerTests extends ESTestCase {
         {
             leaderChecker.setCurrentNodes(DiscoveryNodes.builder(discoveryNodes).add(otherNode).masterNodeId(null).build());
 
-            final CapturingTransportResponseHandler handler = new CapturingTransportResponseHandler();
+            final CapturingTransportResponseHandler handler = new CapturingTransportResponseHandler(executor);
             transportService.sendRequest(localNode, LEADER_CHECK_ACTION_NAME, new LeaderCheckRequest(otherNode), handler);
             deterministicTaskQueue.runAllTasks();
 
@@ -556,6 +557,11 @@ public class LeaderCheckerTests extends ESTestCase {
 
         TransportException transportException;
         boolean successfulResponseReceived;
+        final Executor executor;
+
+        private CapturingTransportResponseHandler(Executor executor) {
+            this.executor = executor;
+        }
 
         @Override
         public void handleResponse(TransportResponse.Empty response) {
@@ -568,8 +574,8 @@ public class LeaderCheckerTests extends ESTestCase {
         }
 
         @Override
-        public String executor() {
-            return Names.GENERIC;
+        public Executor executor() {
+            return executor;
         }
 
         @Override

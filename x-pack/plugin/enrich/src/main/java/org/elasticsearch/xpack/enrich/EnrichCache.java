@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction;
 
@@ -88,10 +89,13 @@ public final class EnrichCache {
     private String getEnrichIndexKey(SearchRequest searchRequest) {
         String alias = searchRequest.indices()[0];
         IndexAbstraction ia = metadata.getIndicesLookup().get(alias);
+        if (ia == null) {
+            throw new IndexNotFoundException("no generated enrich index [" + alias + "]");
+        }
         return ia.getIndices().get(0).getName();
     }
 
-    List<Map<?, ?>> toCacheValue(SearchResponse response) {
+    static List<Map<?, ?>> toCacheValue(SearchResponse response) {
         List<Map<?, ?>> result = new ArrayList<>(response.getHits().getHits().length);
         for (SearchHit hit : response.getHits()) {
             result.add(deepCopy(hit.getSourceAsMap(), true));

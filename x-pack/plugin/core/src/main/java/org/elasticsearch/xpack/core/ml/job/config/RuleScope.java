@@ -73,7 +73,7 @@ public class RuleScope implements ToXContentObject, Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(scope, StreamOutput::writeString, (out1, value) -> value.writeTo(out1));
+        out.writeMap(scope, StreamOutput::writeWriteable);
     }
 
     @Override

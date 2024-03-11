@@ -31,6 +31,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -57,12 +58,13 @@ import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.core.Strings.format;
 
-public class IndicesStore implements ClusterStateListener, Closeable {
+public final class IndicesStore implements ClusterStateListener, Closeable {
 
     private static final Logger logger = LogManager.getLogger(IndicesStore.class);
 
@@ -101,7 +103,7 @@ public class IndicesStore implements ClusterStateListener, Closeable {
         this.threadPool = threadPool;
         transportService.registerRequestHandler(
             ACTION_SHARD_EXISTS,
-            ThreadPool.Names.SAME,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
             ShardActiveRequest::new,
             new ShardActiveRequestHandler()
         );
@@ -255,6 +257,11 @@ public class IndicesStore implements ClusterStateListener, Closeable {
         }
 
         @Override
+        public Executor executor() {
+            return TransportResponseHandler.TRANSPORT_WORKER;
+        }
+
+        @Override
         public void handleResponse(ShardActiveResponse response) {
             logger.trace("{} is {}active on node {}", shardId, response.shardActive ? "" : "not ", response.node);
             if (response.shardActive) {
@@ -330,7 +337,7 @@ public class IndicesStore implements ClusterStateListener, Closeable {
     private class ShardActiveRequestHandler implements TransportRequestHandler<ShardActiveRequest> {
 
         @Override
-        public void messageReceived(final ShardActiveRequest request, final TransportChannel channel, Task task) throws Exception {
+        public void messageReceived(final ShardActiveRequest request, final TransportChannel channel, Task task) {
             IndexShard indexShard = getShard(request);
 
             // make sure shard is really there before register cluster state observer
@@ -374,7 +381,7 @@ public class IndicesStore implements ClusterStateListener, Closeable {
                         public void sendResult(boolean shardActive) {
                             try {
                                 channel.sendResponse(new ShardActiveResponse(shardActive, clusterService.localNode()));
-                            } catch (IOException | EsRejectedExecutionException e) {
+                            } catch (EsRejectedExecutionException e) {
                                 logger.error(
                                     () -> format(
                                         "failed send response for shard active while trying to "

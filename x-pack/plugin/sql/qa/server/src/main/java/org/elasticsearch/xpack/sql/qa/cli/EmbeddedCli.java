@@ -66,6 +66,7 @@ public class EmbeddedCli implements Closeable {
      */
     private boolean closed = false;
 
+    @SuppressWarnings("this-escape")
     public EmbeddedCli(String elasticsearchAddress, boolean checkConnectionOnStartup, @Nullable SecurityConfig security)
         throws IOException {
         PipedOutputStream outgoing = new PipedOutputStream();
@@ -273,7 +274,7 @@ public class EmbeddedCli implements Closeable {
      * Create the "echo" that we expect jLine to send to the terminal
      * while we're typing a command.
      */
-    private List<String> expectedCommandEchos(String command) {
+    private static List<String> expectedCommandEchos(String command) {
         List<String> commandLines = Arrays.stream(command.split("\n")).filter(s -> s.isEmpty() == false).toList();
         List<String> result = new ArrayList<>(commandLines.size() * 2);
         result.add("[?1h=[?2004h[33msql> [0m" + commandLines.get(0));

@@ -13,6 +13,7 @@ import org.elasticsearch.core.Booleans;
 
 import java.io.InputStream;
 import java.security.GeneralSecurityException;
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.Set;
 
@@ -35,7 +36,7 @@ public abstract class SecureSetting<T> extends Setting<T> {
     private static final Property[] FIXED_PROPERTIES = { Property.NodeScope };
 
     private SecureSetting(String key, Property... properties) {
-        super(key, (String) null, null, ArrayUtils.concat(properties, FIXED_PROPERTIES, Property.class));
+        super(key, (String) null, null, ArrayUtils.concat(properties, FIXED_PROPERTIES));
         assert assertAllowedProperties(properties);
         KeyStoreWrapper.validateSettingName(key);
     }
@@ -67,7 +68,13 @@ public abstract class SecureSetting<T> extends Setting<T> {
     @Override
     public boolean exists(Settings settings) {
         final SecureSettings secureSettings = settings.getSecureSettings();
-        return secureSettings != null && secureSettings.getSettingNames().contains(getKey());
+        return secureSettings != null && getRawKey().exists(secureSettings.getSettingNames(), Collections.emptySet());
+    }
+
+    @Override
+    public boolean exists(Settings.Builder builder) {
+        final SecureSettings secureSettings = builder.getSecureSettings();
+        return secureSettings != null && getRawKey().exists(secureSettings.getSettingNames(), Collections.emptySet());
     }
 
     @Override

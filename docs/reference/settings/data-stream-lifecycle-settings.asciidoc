@@ -15,7 +15,7 @@ These are the settings available for configuring <<data-stream-lifecycle, data s
 [[data-streams-lifecycle-poll-interval]]
 `data_streams.lifecycle.poll_interval`::
 (<<dynamic-cluster-setting,Dynamic>>, <<time-units, time unit value>>)
-How often {es} checks what is the next action for all data streams with a built-in lifecycle. Defaults to `10m`.
+How often {es} checks what is the next action for all data streams with a built-in lifecycle. Defaults to `5m`.
 
 [[cluster-lifecycle-default-rollover]]
 `cluster.lifecycle.default.rollover`::
@@ -29,6 +29,38 @@ this means that your data stream will rollover if any of the following condition
 * or any primary shard contains 200.000.000 documents
 * or the index reaches a certain age which depends on the retention time of your data stream,
 * **and** has at least one document.
+
+[[data-streams-lifecycle-target-merge-factor]]
+`data_streams.lifecycle.target.merge.policy.merge_factor`::
+(<<dynamic-cluster-setting,Dynamic>>, integer)
+Data stream lifecycle implements <<data-streams-lifecycle-how-it-works, tail merging>> by
+updating the lucene merge policy factor for the target backing index. The merge factor 
+is both the number of segments that should be merged together, and the maximum number 
+of segments that we expect to find on a given tier.
+This setting controls what value does <<data-stream-lifecycle, Data stream lifecycle>>
+configures on the target index. It defaults to `16`. 
+The value will be visible under the `index.merge.policy.merge_factor` index setting 
+on the target index.
+
+[[data-streams-lifecycle-target-floor-segment]]
+`data_streams.lifecycle.target.merge.policy.floor_segment`::
+(<<dynamic-cluster-setting,Dynamic>>)
+Data stream lifecycle implements <<data-streams-lifecycle-how-it-works, tail merging>> by
+updating the lucene merge policy floor segment for the target backing index. This floor 
+segment size is a way to prevent indices from having a long tail of very small segments. 
+This setting controls what value does <<data-stream-lifecycle, data stream lifecycle>>
+configures on the target index. It defaults to `100MB`.
+
+[[data-streams-lifecycle-signalling-error-retry-interval]]
+`data_streams.lifecycle.signalling.error_retry_interval`::
+(<<dynamic-cluster-setting,Dynamic>>, integer)
+Represents the number of retries data stream lifecycle has to perform for an index
+in an error step in order to signal that the index is not progressing (i.e. it's 
+stuck in an error step).
+The current signalling mechanism is a log statement at the `error` level however,
+the signalling mechanism can be extended in the future.
+Defaults to 10 retries.
+
 
 ==== Index level settings
 The following index-level settings are typically configured on the backing indices of a data stream.

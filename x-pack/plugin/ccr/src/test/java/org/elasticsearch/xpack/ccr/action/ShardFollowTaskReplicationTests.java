@@ -32,6 +32,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -90,6 +91,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTestCase {
 
@@ -296,6 +298,10 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
     }
 
     public void testRetryBulkShardOperations() throws Exception {
+        final var threadpool = mock(ThreadPool.class);
+        final var transportService = mock(TransportService.class);
+        when(transportService.getThreadPool()).thenReturn(threadpool);
+
         try (ReplicationGroup leaderGroup = createLeaderGroup(between(0, 1))) {
             leaderGroup.startAll();
             try (ReplicationGroup followerGroup = createFollowGroup(leaderGroup, between(1, 3))) {
@@ -345,7 +351,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                             leadingPrimary.getMaxSeqNoOfUpdatesOrDeletes(),
                             followingPrimary,
                             logger,
-                            new PostWriteRefresh(mock(TransportService.class))
+                            new PostWriteRefresh(transportService)
                         );
                     for (IndexShard replica : randomSubsetOf(followerGroup.getReplicas())) {
                         final PlainActionFuture<Releasable> permitFuture = new PlainActionFuture<>();
@@ -354,7 +360,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                             followingPrimary.getLastKnownGlobalCheckpoint(),
                             followingPrimary.getMaxSeqNoOfUpdatesOrDeletes(),
                             permitFuture,
-                            ThreadPool.Names.SAME
+                            EsExecutors.DIRECT_EXECUTOR_SERVICE
                         );
                         try (Releasable ignored = permitFuture.get()) {
                             TransportBulkShardOperationsAction.shardOperationOnReplica(primaryResult.replicaRequest(), replica, logger);
@@ -428,7 +434,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                     // operations between the local checkpoint and max_seq_no which the recovering replica is waiting for.
                     recoveryFuture = group.asyncRecoverReplica(
                         newReplica,
-                        (shard, sourceNode) -> new RecoveryTarget(shard, sourceNode, null, null, recoveryListener) {
+                        (shard, sourceNode) -> new RecoveryTarget(shard, sourceNode, 0L, null, null, recoveryListener) {
                         }
                     );
                 }
@@ -521,7 +527,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                     )
                 );
                 primaryShard.markAsRecovering("remote recovery from leader", new RecoveryState(routing, localNode, null));
-                final PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
+                final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
                 primaryShard.restoreFromRepository(new RestoreOnlyRepository(index.getName()) {
                     @Override
                     public void restoreShard(
@@ -576,7 +582,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
         );
         final String recordedLeaderIndexHistoryUUID = leaderGroup.getPrimary().getHistoryUUID();
 
-        BiConsumer<TimeValue, Runnable> scheduler = (delay, task) -> threadPool.schedule(task, delay, ThreadPool.Names.GENERIC);
+        BiConsumer<TimeValue, Runnable> scheduler = (delay, task) -> threadPool.schedule(task, delay, threadPool.generic());
         AtomicBoolean stopped = new AtomicBoolean(false);
         Set<Long> fetchOperations = new HashSet<>();
         return new ShardFollowNodeTask(
@@ -720,7 +726,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                 return threadPool.scheduleWithFixedDelay(
                     () -> leaderGroup.renewRetentionLease(retentionLeaseId, followerGlobalCheckpoint.getAsLong(), "ccr"),
                     CcrRetentionLeases.RETENTION_LEASE_RENEW_INTERVAL_SETTING.get(followerGroup.getPrimary().indexSettings().getSettings()),
-                    ThreadPool.Names.GENERIC
+                    threadPool.generic()
                 );
             }
 
@@ -797,8 +803,11 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
         @Override
         protected void performOnPrimary(IndexShard primary, BulkShardOperationsRequest request, ActionListener<PrimaryResult> listener) {
             final PlainActionFuture<Releasable> permitFuture = new PlainActionFuture<>();
-            primary.acquirePrimaryOperationPermit(permitFuture, ThreadPool.Names.SAME);
+            primary.acquirePrimaryOperationPermit(permitFuture, EsExecutors.DIRECT_EXECUTOR_SERVICE);
             final TransportWriteAction.WritePrimaryResult<BulkShardOperationsRequest, BulkShardOperationsResponse> ccrResult;
+            final var threadpool = mock(ThreadPool.class);
+            final var transportService = mock(TransportService.class);
+            when(transportService.getThreadPool()).thenReturn(threadpool);
             try (Releasable ignored = permitFuture.get()) {
                 ccrResult = TransportBulkShardOperationsAction.shardOperationOnPrimary(
                     primary.shardId(),
@@ -807,7 +816,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                     request.getMaxSeqNoOfUpdatesOrDeletes(),
                     primary,
                     logger,
-                    new PostWriteRefresh(mock(TransportService.class))
+                    new PostWriteRefresh(transportService)
                 );
                 TransportWriteActionTestHelper.performPostWriteActions(primary, request, ccrResult.location, logger);
             } catch (InterruptedException | ExecutionException | IOException e) {
@@ -830,7 +839,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                         getPrimaryShard().getLastKnownGlobalCheckpoint(),
                         getPrimaryShard().getMaxSeqNoOfUpdatesOrDeletes(),
                         f,
-                        ThreadPool.Names.SAME
+                        EsExecutors.DIRECT_EXECUTOR_SERVICE
                     )
                 )
             ) {

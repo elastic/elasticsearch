@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.get;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.RoutingMissingException;
@@ -20,7 +19,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -30,6 +29,7 @@ import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.IndicesService;
@@ -77,11 +77,10 @@ public class TransportMultiGetActionTests extends ESTestCase {
             mock(Transport.class),
             threadPool,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-            boundAddress -> DiscoveryNode.createLocal(
-                Settings.builder().put("node.name", "node1").build(),
-                boundAddress.publishAddress(),
-                randomBase64UUID()
-            ),
+            boundAddress -> DiscoveryNodeUtils.builder(randomBase64UUID())
+                .applySettings(Settings.builder().put("node.name", "node1").build())
+                .address(boundAddress.publishAddress())
+                .build(),
             null,
             emptySet()
         );
@@ -92,7 +91,7 @@ public class TransportMultiGetActionTests extends ESTestCase {
             .metadata(
                 new Metadata.Builder().put(
                     new IndexMetadata.Builder(index1.getName()).settings(
-                        indexSettings(Version.CURRENT, 1, 1).put(IndexMetadata.SETTING_INDEX_UUID, index1.getUUID())
+                        indexSettings(IndexVersion.current(), 1, 1).put(IndexMetadata.SETTING_INDEX_UUID, index1.getUUID())
                     )
                         .putMapping(
                             XContentHelper.convertToJson(
@@ -113,7 +112,7 @@ public class TransportMultiGetActionTests extends ESTestCase {
                 )
                     .put(
                         new IndexMetadata.Builder(index2.getName()).settings(
-                            indexSettings(Version.CURRENT, 1, 1).put(IndexMetadata.SETTING_INDEX_UUID, index1.getUUID())
+                            indexSettings(IndexVersion.current(), 1, 1).put(IndexMetadata.SETTING_INDEX_UUID, index1.getUUID())
                         )
                             .putMapping(
                                 XContentHelper.convertToJson(
@@ -189,7 +188,7 @@ public class TransportMultiGetActionTests extends ESTestCase {
     public void testTransportMultiGetAction() {
         final Task task = createTask();
         final NodeClient client = new NodeClient(Settings.EMPTY, threadPool);
-        final MultiGetRequestBuilder request = new MultiGetRequestBuilder(client, MultiGetAction.INSTANCE);
+        final MultiGetRequestBuilder request = new MultiGetRequestBuilder(client);
         request.add(new MultiGetRequest.Item("index1", "1"));
         request.add(new MultiGetRequest.Item("index1", "2"));
 
@@ -222,7 +221,7 @@ public class TransportMultiGetActionTests extends ESTestCase {
     public void testTransportMultiGetAction_withMissingRouting() {
         final Task task = createTask();
         final NodeClient client = new NodeClient(Settings.EMPTY, threadPool);
-        final MultiGetRequestBuilder request = new MultiGetRequestBuilder(client, MultiGetAction.INSTANCE);
+        final MultiGetRequestBuilder request = new MultiGetRequestBuilder(client);
         request.add(new MultiGetRequest.Item("index2", "1").routing("1"));
         request.add(new MultiGetRequest.Item("index2", "2"));
 
@@ -258,7 +257,7 @@ public class TransportMultiGetActionTests extends ESTestCase {
         return new Task(
             randomLong(),
             "transport",
-            MultiGetAction.NAME,
+            TransportMultiGetAction.NAME,
             "description",
             new TaskId(randomLong() + ":" + randomLong()),
             emptyMap()

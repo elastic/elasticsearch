@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.metadata.ShutdownPersistentTasksStatus;
 import org.elasticsearch.cluster.metadata.ShutdownPluginsStatus;
@@ -35,9 +36,14 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.shutdown.PluginShutdownService;
 import org.elasticsearch.snapshots.SnapshotsInfoService;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.Transports;
+import org.elasticsearch.xpack.core.ilm.ErrorStep;
+import org.elasticsearch.xpack.core.ilm.OperationMode;
+import org.elasticsearch.xpack.core.ilm.ShrinkAction;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -50,6 +56,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.ShutdownShardMigrationStatus.NODE_ALLOCATION_DECISION_KEY;
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.core.ilm.LifecycleOperationMetadata.currentILMMode;
 
 public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
     GetShutdownStatusAction.Request,
@@ -84,7 +91,7 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
             GetShutdownStatusAction.Request::readFrom,
             indexNameExpressionResolver,
             GetShutdownStatusAction.Response::new,
-            ThreadPool.Names.SAME
+            threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.allocationService = allocationService;
         this.allocationDeciders = allocationDeciders;
@@ -99,7 +106,8 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
         GetShutdownStatusAction.Request request,
         ClusterState state,
         ActionListener<GetShutdownStatusAction.Response> listener
-    ) throws Exception {
+    ) {
+        CancellableTask cancellableTask = (CancellableTask) task;
         NodesShutdownMetadata nodesShutdownMetadata = state.metadata().custom(NodesShutdownMetadata.TYPE);
 
         GetShutdownStatusAction.Response response;
@@ -113,6 +121,7 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
                     ns -> new SingleNodeShutdownStatus(
                         ns,
                         shardMigrationStatus(
+                            cancellableTask,
                             state,
                             ns.getNodeId(),
                             ns.getType(),
@@ -137,6 +146,7 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
                     ns -> new SingleNodeShutdownStatus(
                         ns,
                         shardMigrationStatus(
+                            cancellableTask,
                             state,
                             ns.getNodeId(),
                             ns.getType(),
@@ -160,6 +170,7 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
 
     // pkg-private for testing
     static ShutdownShardMigrationStatus shardMigrationStatus(
+        CancellableTask cancellableTask,
         ClusterState currentState,
         String nodeId,
         SingleNodeShutdownMetadata.Type shutdownType,
@@ -169,12 +180,15 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
         AllocationService allocationService,
         AllocationDeciders allocationDeciders
     ) {
+        assert Transports.assertNotTransportThread("doing O(#shards) work must be forked");
+
         // Only REMOVE-type shutdowns will try to move shards, so RESTART-type shutdowns should immediately complete
         if (SingleNodeShutdownMetadata.Type.RESTART.equals(shutdownType)) {
             return new ShutdownShardMigrationStatus(
                 SingleNodeShutdownMetadata.Status.COMPLETE,
                 0,
-                "no shard relocation is necessary for a node restart"
+                "no shard relocation is necessary for a node restart",
+                null
             );
         }
 
@@ -183,7 +197,8 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
             return new ShutdownShardMigrationStatus(
                 SingleNodeShutdownMetadata.Status.NOT_STARTED,
                 0,
-                "node is not currently part of the cluster"
+                "node is not currently part of the cluster",
+                null
             );
         }
 
@@ -203,6 +218,7 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
         var unassignedShards = currentState.getRoutingNodes()
             .unassigned()
             .stream()
+            .peek(s -> cancellableTask.ensureNotCancelled())
             .filter(s -> Objects.equals(s.unassignedInfo().getLastAllocatedNodeId(), nodeId))
             .filter(s -> s.primary() || hasShardCopyOnAnotherNode(currentState, s, shuttingDownNodes) == false)
             .toList();
@@ -228,7 +244,7 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
         // The node is in `DiscoveryNodes`, but not `RoutingNodes` - so there are no shards assigned to it. We're done.
         if (currentState.getRoutingNodes().node(nodeId) == null) {
             // We don't know about that node
-            return new ShutdownShardMigrationStatus(SingleNodeShutdownMetadata.Status.COMPLETE, 0);
+            return new ShutdownShardMigrationStatus(SingleNodeShutdownMetadata.Status.COMPLETE, 0, 0, 0);
         }
 
         // Check if there are any shards currently on this node, and if there are any relocating shards
@@ -242,12 +258,14 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
             SingleNodeShutdownMetadata.Status shardStatus = totalRemainingShards == 0
                 ? SingleNodeShutdownMetadata.Status.COMPLETE
                 : SingleNodeShutdownMetadata.Status.IN_PROGRESS;
-            return new ShutdownShardMigrationStatus(shardStatus, totalRemainingShards);
+            return new ShutdownShardMigrationStatus(shardStatus, startedShards, relocatingShards, initializingShards);
         } else if (initializingShards > 0 && relocatingShards == 0 && startedShards == 0) {
             // If there's only initializing shards left, return now with a note that only initializing shards are left
             return new ShutdownShardMigrationStatus(
                 SingleNodeShutdownMetadata.Status.IN_PROGRESS,
-                totalRemainingShards,
+                startedShards,
+                relocatingShards,
+                initializingShards,
                 "all remaining shards are currently INITIALIZING and must finish before they can be moved off this node"
             );
         }
@@ -259,6 +277,7 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
         Optional<Tuple<ShardRouting, ShardAllocationDecision>> unmovableShard = currentState.getRoutingNodes()
             .node(nodeId)
             .shardsWithState(ShardRoutingState.STARTED)
+            .peek(s -> cancellableTask.ensureNotCancelled())
             .map(shardRouting -> new Tuple<>(shardRouting, allocationService.explainShardAllocation(shardRouting, allocation)))
             // Given that we're checking the status of a node that's shutting down, no shards should be allowed to remain
             .filter(pair -> {
@@ -278,8 +297,10 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
                 }
                 return hasShardCopyOnOtherNode == false;
             })
-            .peek(pair -> {
-                logger.debug(
+            // If ILM is shrinking the index this shard is part of, it'll look like it's unmovable, but we can just wait for ILM to finish
+            .filter(pair -> isIlmRestrictingShardMovement(currentState, pair.v1()) == false)
+            .peek(
+                pair -> logger.debug(
                     "node [{}] shutdown of type [{}] stalled: found shard [{}][{}] from index [{}] with negative decision: [{}]",
                     nodeId,
                     shutdownType,
@@ -287,8 +308,8 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
                     pair.v1().primary() ? "primary" : "replica",
                     pair.v1().shardId().getIndexName(),
                     Strings.toString(pair.v2())
-                );
-            })
+                )
+            )
             .findFirst();
 
         if (totalRemainingShards == shardsToIgnoreForFinalStatus.get() && unmovableShard.isEmpty()) {
@@ -297,7 +318,8 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
                 0,
                 "["
                     + shardsToIgnoreForFinalStatus.get()
-                    + "] shards cannot be moved away from this node but have at least one copy on another node in the cluster"
+                    + "] shards cannot be moved away from this node but have at least one copy on another node in the cluster",
+                null
             );
         } else if (unmovableShard.isPresent()) {
             // We found a shard that can't be moved, so shard relocation is stalled. Blame the unmovable shard.
@@ -317,8 +339,36 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
                 decision
             );
         } else {
-            return new ShutdownShardMigrationStatus(SingleNodeShutdownMetadata.Status.IN_PROGRESS, totalRemainingShards);
+            return new ShutdownShardMigrationStatus(
+                SingleNodeShutdownMetadata.Status.IN_PROGRESS,
+                startedShards,
+                relocatingShards,
+                initializingShards
+            );
         }
+    }
+
+    private static boolean isIlmRestrictingShardMovement(ClusterState currentState, ShardRouting pair) {
+        if (OperationMode.STOPPED.equals(currentILMMode(currentState)) == false) {
+            LifecycleExecutionState ilmState = currentState.metadata().index(pair.index()).getLifecycleExecutionState();
+            // Specifically, if 1) ILM is running, 2) ILM is currently shrinking the index this shard is part of, and 3) it hasn't
+            // errored out, we can disregard this shard under the assumption that ILM will get it movable eventually
+            boolean ilmWillMoveShardEventually = ilmState != null
+                && ShrinkAction.NAME.equals(ilmState.action())
+                && ErrorStep.NAME.equals(ilmState.step()) == false;
+            if (ilmWillMoveShardEventually) {
+                logger.debug(
+                    format(
+                        "shard [%s] [%s] of index [%s] cannot move, but ILM is shrinking that index so assuming it will move",
+                        pair.shardId().getId(),
+                        pair.primary() ? "primary" : "replica",
+                        pair.index().getName()
+                    )
+                );
+            }
+            return ilmWillMoveShardEventually;
+        }
+        return false;
     }
 
     private static boolean hasShardCopyOnAnotherNode(ClusterState clusterState, ShardRouting shardRouting, Set<String> shuttingDownNodes) {
@@ -326,6 +376,7 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
             .allShards(shardRouting.index().getName())
             .stream()
             .filter(sr -> sr.id() == shardRouting.id())
+            .filter(sr -> sr.role().equals(shardRouting.role()))
             // If any shards are both 1) `STARTED` and 2) are not on a node that's shutting down, we have at least one copy
             // of this shard safely on a node that's not shutting down, so we don't want to report `STALLED` because of this shard.
             .filter(ShardRouting::started)

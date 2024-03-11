@@ -9,7 +9,6 @@
 package org.elasticsearch.cluster.coordination;
 
 import org.apache.logging.log4j.Level;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -27,7 +26,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -69,13 +67,8 @@ public class NodeLeftExecutorTests extends ESTestCase {
         final AtomicReference<ClusterState> remainingNodesClusterState = new AtomicReference<>();
         final NodeLeftExecutor executor = new NodeLeftExecutor(allocationService) {
             @Override
-            protected ClusterState remainingNodesClusterState(
-                ClusterState currentState,
-                DiscoveryNodes.Builder remainingNodesBuilder,
-                Map<String, TransportVersion> transportVersions
-            ) {
-                remainingNodesClusterState.set(super.remainingNodesClusterState(currentState, remainingNodesBuilder, transportVersions));
-                return remainingNodesClusterState.get();
+            void remainingNodesClusterState(ClusterState state) {
+                remainingNodesClusterState.set(state);
             }
         };
 

@@ -13,7 +13,6 @@ import com.carrotsearch.randomizedtesting.SeedUtils;
 
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.util.Accountable;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.get.GetRequest;
@@ -39,6 +38,7 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService.IndexCreationContext;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
@@ -75,6 +75,7 @@ import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -217,7 +218,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
 
     protected Settings createTestIndexSettings() {
         // we have to prefer CURRENT since with the range of versions we support it's rather unlikely to get the current actually.
-        Version indexVersionCreated = randomBoolean() ? Version.CURRENT : VersionUtils.randomIndexCompatibleVersion(random());
+        IndexVersion indexVersionCreated = randomBoolean() ? IndexVersion.current() : IndexVersionUtils.randomCompatibleVersion(random());
         return Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, indexVersionCreated).build();
     }
 
@@ -323,7 +324,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
      * @return a new {@link SearchExecutionContext} with the provided searcher
      */
     protected static SearchExecutionContext createSearchExecutionContext(IndexSearcher searcher) {
-        return serviceHolder.createShardContext(searcher, null);
+        return serviceHolder.createShardContext(searcher);
     }
 
     protected static CoordinatorRewriteContext createCoordinatorRewriteContext(
@@ -342,7 +343,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
      * @return a new {@link SearchExecutionContext} based on an index with no type registered
      */
     protected static SearchExecutionContext createShardContextWithNoType() {
-        return serviceHolderWithNoType.createShardContext(null, null);
+        return serviceHolderWithNoType.createShardContext(null);
     }
 
     /**
@@ -432,14 +433,14 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 new Class<?>[] { Client.class },
                 clientInvocationHandler
             );
-            ScriptModule scriptModule = createScriptModule(pluginsService.filterPlugins(ScriptPlugin.class));
+            ScriptModule scriptModule = createScriptModule(pluginsService.filterPlugins(ScriptPlugin.class).toList());
             SettingsModule settingsModule = new SettingsModule(
                 nodeSettings,
                 pluginsService.flatMap(Plugin::getSettings).toList(),
                 pluginsService.flatMap(Plugin::getSettingsFilter).toList()
             );
-            searchModule = new SearchModule(nodeSettings, pluginsService.filterPlugins(SearchPlugin.class));
-            IndicesModule indicesModule = new IndicesModule(pluginsService.filterPlugins(MapperPlugin.class));
+            searchModule = new SearchModule(nodeSettings, pluginsService.filterPlugins(SearchPlugin.class).toList());
+            IndicesModule indicesModule = new IndicesModule(pluginsService.filterPlugins(MapperPlugin.class).toList());
             List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
             entries.addAll(IndicesModule.getNamedWriteables());
             entries.addAll(searchModule.getNamedWriteables());
@@ -467,7 +468,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 parserConfiguration,
                 similarityService,
                 mapperRegistry,
-                () -> createShardContext(null, clusterService.getClusterSettings()),
+                () -> createShardContext(null),
                 idxSettings.getMode().idFieldMapperWithoutFieldData(),
                 ScriptCompiler.NONE
             );
@@ -558,12 +559,11 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
         @Override
         public void close() throws IOException {}
 
-        SearchExecutionContext createShardContext(IndexSearcher searcher, ClusterSettings clusterSettings) {
+        SearchExecutionContext createShardContext(IndexSearcher searcher) {
             return new SearchExecutionContext(
                 0,
                 0,
                 idxSettings,
-                clusterSettings == null ? ClusterSettings.createBuiltInClusterSettings() : clusterSettings,
                 bitsetFilterCache,
                 indexFieldDataService::getForField,
                 mapperService,

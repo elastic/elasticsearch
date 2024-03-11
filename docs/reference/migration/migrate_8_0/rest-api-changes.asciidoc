@@ -2,10 +2,6 @@
 [[breaking_80_rest_api_changes]]
 ==== REST API changes
 
-//NOTE: The notable-breaking-changes tagged regions are re-used in the
-//Installation and Upgrade Guide
-
-//tag::notable-breaking-changes[]
 .REST API endpoints containing `_xpack` have been removed.
 [%collapsible]
 ====
@@ -1140,4 +1136,3 @@ for both cases.
 *Impact* +
 To detect a server timeout, check the `timed_out` field of the JSON response.
 ====
-//end::notable-breaking-changes[]

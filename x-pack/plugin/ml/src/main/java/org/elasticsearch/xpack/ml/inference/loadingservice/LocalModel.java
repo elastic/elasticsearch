@@ -8,10 +8,10 @@ package org.elasticsearch.xpack.ml.inference.loadingservice;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.license.License;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelType;
-import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpdate;
@@ -175,7 +175,10 @@ public class LocalModel implements Closeable {
                 listener.onResponse(new WarningInferenceResults(Messages.getMessage(INFERENCE_WARNING_ALL_FIELDS_MISSING, modelId)));
                 return;
             }
-            InferenceResults inferenceResults = trainedModelDefinition.infer(flattenedFields, update.apply(inferenceConfig));
+            InferenceResults inferenceResults = trainedModelDefinition.infer(
+                flattenedFields,
+                update.isEmpty() ? inferenceConfig : inferenceConfig.apply(update)
+            );
             if (shouldPersistStats) {
                 persistStats(false);
             }
@@ -197,6 +200,25 @@ public class LocalModel implements Closeable {
         }
 
         return result.get();
+    }
+
+    public InferenceResults inferLtr(Map<String, Object> fields, InferenceConfig config) {
+        statsAccumulator.incInference();
+        currentInferenceCount.increment();
+
+        // We should never have nested maps in a LTR context as we retrieve values from source value extractor, queries, or doc_values
+        assert fields.values().stream().noneMatch(o -> o instanceof Map<?, ?>);
+        // might resolve fields to their appropriate name
+        LocalModel.mapFieldsIfNecessary(fields, defaultFieldMap);
+        boolean shouldPersistStats = ((currentInferenceCount.sum() + 1) % persistenceQuotient == 0);
+        if (fields.isEmpty()) {
+            statsAccumulator.incMissingFields();
+        }
+        InferenceResults inferenceResults = trainedModelDefinition.infer(fields, config);
+        if (shouldPersistStats) {
+            persistStats(false);
+        }
+        return inferenceResults;
     }
 
     /**

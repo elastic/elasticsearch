@@ -4,41 +4,68 @@
 <titleabbrev>Synonym</titleabbrev>
 ++++
 
-The `synonym` token filter allows to easily handle synonyms during the
-analysis process. Synonyms are configured using a configuration file.
-Here is an example:
+The `synonym` token filter allows to easily handle <<search-with-synonyms,synonyms>> during the
+analysis process.
 
-[source,console]
---------------------------------------------------
-PUT /test_index
-{
-  "settings": {
-    "index": {
-      "analysis": {
-        "analyzer": {
-          "synonym": {
-            "tokenizer": "whitespace",
-            "filter": [ "synonym" ]
-          }
-        },
-        "filter": {
-          "synonym": {
-            "type": "synonym",
-            "synonyms_path": "analysis/synonym.txt"
-          }
-        }
-      }
+[discrete]
+[[analysis-synonym-define-synonyms]]
+==== Define synonyms sets
+
+include::synonyms-format.asciidoc[]
+
+[discrete]
+[[analysis-synonym-configure-sets]]
+==== Configure synonyms sets
+
+Synonyms can be configured using the <<synonyms-store-synonyms-api,synonyms API>>, a <<synonyms-store-synonyms-file,synonyms file>>, or directly <<synonyms-store-synonyms-inline,inlined>> in the token filter configuration.
+See <<synonyms-store-synonyms,store your synonyms set>> for more details on each option.
+
+Use `synonyms_set` configuration option to provide a synonym set created via Synonyms Management APIs:
+
+[source,JSON]
+----
+  "filter": {
+    "synonyms_filter": {
+      "type": "synonym",
+      "synonyms_set": "my-synonym-set",
+      "updateable": true
     }
   }
-}
---------------------------------------------------
+----
+
+[WARNING]
+======
+Synonyms sets must exist before they can be added to indices.
+If an index is created referencing a nonexistent synonyms set, the index will remain in a partially created and inoperable state.
+The only way to recover from this scenario is to ensure the synonyms set exists then either delete and re-create the index, or close and re-open the index.
+======
+
+Use `synonyms_path` to provide a synonym file :
+
+[source,JSON]
+----
+  "filter": {
+    "synonyms_filter": {
+      "type": "synonym",
+      "synonyms_path": "analysis/synonym-set.txt"
+    }
+  }
+----
 
 The above configures a `synonym` filter, with a path of
-`analysis/synonym.txt` (relative to the `config` location). The
-`synonym` analyzer is then configured with the filter.
+`analysis/synonym-set.txt` (relative to the `config` location).
 
-This filter tokenizes synonyms with whatever tokenizer and token filters
-appear before it in the chain.
+Use `synonyms` to define inline synonyms:
+
+[source,JSON]
+----
+  "filter": {
+    "synonyms_filter": {
+      "type": "synonym",
+      "synonyms": ["pc => personal computer", "computer, pc, laptop"]
+    }
+  }
+----
 
 Additional settings are:
 
@@ -90,98 +117,45 @@ stop word.
 
 [discrete]
 [[synonym-tokenizer-ignore_case-deprecated]]
-==== `tokenizer` and `ignore_case` are deprecated
+===== `tokenizer` and `ignore_case` are deprecated
 
 The `tokenizer` parameter controls the tokenizers that will be used to
 tokenize the synonym, this parameter is for backwards compatibility for indices that created before 6.0.
 The `ignore_case` parameter works with `tokenizer` parameter only.
 
-Two synonym formats are supported: Solr, WordNet.
-
 [discrete]
-==== Solr synonyms
+[[analysis-synonym-analizers-configure]]
+==== Configure analyzers with synonym token filters
 
-The following is a sample format of the file:
+To apply synonyms, you will need to include a synonym token filters into an analyzer:
 
-[source,synonyms]
---------------------------------------------------
-include::{es-test-dir}/cluster/config/analysis/synonym.txt[]
---------------------------------------------------
-
-You can also define synonyms for the filter directly in the
-configuration file (note use of `synonyms` instead of `synonyms_path`):
-
-[source,console]
---------------------------------------------------
-PUT /test_index
-{
-  "settings": {
-    "index": {
-      "analysis": {
-        "filter": {
-          "synonym": {
-            "type": "synonym",
-            "synonyms": [
-              "i-pod, i pod => ipod",
-              "universe, cosmos"
-            ]
-          }
+[source,JSON]
+----
+      "analyzer": {
+        "my_analyzer": {
+          "type": "custom",
+          "tokenizer": "standard",
+          "filter": ["stemmer", "synonym_graph"]
         }
       }
-    }
-  }
-}
---------------------------------------------------
-
-However, it is recommended to define large synonyms set in a file using
-`synonyms_path`, because specifying them inline increases cluster size unnecessarily.
+----
 
 [discrete]
-==== WordNet synonyms
+[[analysis-synonym-token-order]]
+===== Token filters ordering
 
-Synonyms based on https://wordnet.princeton.edu/[WordNet] format can be
-declared using `format`:
+Order is important for your token filters.
+Text will be processed first through filters preceding the synonym filter before being processed by the synonym filter.
 
-[source,console]
---------------------------------------------------
-PUT /test_index
-{
-  "settings": {
-    "index": {
-      "analysis": {
-        "filter": {
-          "synonym": {
-            "type": "synonym",
-            "format": "wordnet",
-            "synonyms": [
-              "s(100000001,1,'abstain',v,1,0).",
-              "s(100000001,2,'refrain',v,1,0).",
-              "s(100000001,3,'desist',v,1,0)."
-            ]
-          }
-        }
-      }
-    }
-  }
-}
---------------------------------------------------
+{es} will also use the token filters preceding the synonym filter in a tokenizer chain to parse the entries in a synonym file or synonym set.
+In the above example, the synonyms graph token filter is placed after a stemmer. The stemmer will also be applied to the synonym entries.
 
-Using `synonyms_path` to define WordNet synonyms in a file is supported
-as well.
+The synonym rules should not contain words that are removed by a filter that appears later in the chain (like a `stop` filter).
+Removing a term from a synonym rule means there will be no matching for it at query time.
 
-[discrete]
-=== Parsing synonym files
+Because entries in the synonym map cannot have stacked positions, some token filters may cause issues here.
+Token filters that produce multiple versions of a token may choose which version of the token to emit when parsing synonyms.
+For example, `asciifolding` will only produce the folded version of the token.
+Others, like `multiplexer`, `word_delimiter_graph` or `ngram` will throw an error.
 
-Elasticsearch will use the token filters preceding the synonym filter
-in a tokenizer chain to parse the entries in a synonym file. So, for example, if a
-synonym filter is placed after a stemmer, then the stemmer will also be applied
-to the synonym entries. Because entries in the synonym map cannot have stacked
-positions, some token filters may cause issues here. Token filters that produce
-multiple versions of a token may choose which version of the token to emit when
-parsing synonyms, e.g. `asciifolding` will only produce the folded version of the
-token. Others, e.g. `multiplexer`, `word_delimiter_graph` or `ngram` will throw an
-error.
-
-If you need to build analyzers that include both multi-token filters and synonym
-filters, consider using the <<analysis-multiplexer-tokenfilter,multiplexer>> filter,
-with the multi-token filters in one branch and the synonym filter in the other.
+If you need to build analyzers that include both multi-token filters and synonym filters, consider using the <<analysis-multiplexer-tokenfilter,multiplexer>> filter, with the multi-token filters in one branch and the synonym filter in the other.

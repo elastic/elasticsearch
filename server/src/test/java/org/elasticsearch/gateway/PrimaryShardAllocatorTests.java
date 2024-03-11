@@ -9,7 +9,7 @@
 package org.elasticsearch.gateway;
 
 import org.apache.lucene.index.CorruptIndexException;
-import org.elasticsearch.Version;
+import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
@@ -462,7 +462,7 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
         Metadata metadata = Metadata.builder()
             .put(
                 IndexMetadata.builder(shardId.getIndexName())
-                    .settings(settings(Version.CURRENT))
+                    .settings(settings(IndexVersion.current()))
                     .numberOfShards(1)
                     .numberOfReplicas(0)
                     .putInSyncAllocationIds(0, Sets.newHashSet(allocIds))
@@ -502,7 +502,7 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
         Metadata metadata = Metadata.builder()
             .put(
                 IndexMetadata.builder(shardId.getIndexName())
-                    .settings(settings(Version.CURRENT))
+                    .settings(settings(IndexVersion.current()))
                     .numberOfShards(1)
                     .numberOfReplicas(0)
                     .putInSyncAllocationIds(shardId.id(), Sets.newHashSet(activeAllocationIds))
@@ -520,7 +520,14 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
             .routingTable(routingTableBuilder.build())
             .nodes(DiscoveryNodes.builder().add(node1).add(node2).add(node3))
             .build();
-        return new RoutingAllocation(deciders, state.mutableRoutingNodes(), state, null, null, System.nanoTime());
+        return new RoutingAllocation(
+            deciders,
+            state.mutableRoutingNodes(),
+            state,
+            ClusterInfo.EMPTY,
+            SnapshotShardSizeInfo.EMPTY,
+            System.nanoTime()
+        );
     }
 
     private void assertClusterHealthStatus(RoutingAllocation allocation, ClusterHealthStatus expectedStatus) {

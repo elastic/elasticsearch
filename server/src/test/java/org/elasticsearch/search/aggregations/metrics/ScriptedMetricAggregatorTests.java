@@ -286,7 +286,7 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
             try (DirectoryReader indexReader = DirectoryReader.open(directory)) {
                 ScriptedMetricAggregationBuilder aggregationBuilder = new ScriptedMetricAggregationBuilder(AGG_NAME);
                 aggregationBuilder.mapScript(MAP_SCRIPT).combineScript(COMBINE_SCRIPT_NOOP).reduceScript(REDUCE_SCRIPT);
-                ScriptedMetric scriptedMetric = searchAndReduce(newIndexSearcher(indexReader), new AggTestConfig(aggregationBuilder));
+                ScriptedMetric scriptedMetric = searchAndReduce(indexReader, new AggTestConfig(aggregationBuilder));
                 assertEquals(AGG_NAME, scriptedMetric.getName());
                 assertNotNull(scriptedMetric.aggregation());
                 assertEquals(0, scriptedMetric.aggregation());
@@ -306,7 +306,7 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
                 ScriptedMetricAggregationBuilder aggregationBuilder = new ScriptedMetricAggregationBuilder(AGG_NAME);
                 aggregationBuilder.initScript(INIT_SCRIPT).mapScript(MAP_SCRIPT).reduceScript(REDUCE_SCRIPT);
                 IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> {
-                    searchAndReduce(newIndexSearcher(indexReader), new AggTestConfig(aggregationBuilder));
+                    searchAndReduce(indexReader, new AggTestConfig(aggregationBuilder));
                 });
                 assertEquals(exception.getMessage(), "[combineScript] must not be null: [scriptedMetric]");
             }
@@ -325,7 +325,7 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
                 ScriptedMetricAggregationBuilder aggregationBuilder = new ScriptedMetricAggregationBuilder(AGG_NAME);
                 aggregationBuilder.initScript(INIT_SCRIPT).mapScript(MAP_SCRIPT).combineScript(COMBINE_SCRIPT);
                 IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> {
-                    searchAndReduce(newIndexSearcher(indexReader), new AggTestConfig(aggregationBuilder));
+                    searchAndReduce(indexReader, new AggTestConfig(aggregationBuilder));
                 });
                 assertEquals(exception.getMessage(), "[reduceScript] must not be null: [scriptedMetric]");
             }
@@ -346,7 +346,7 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
             try (DirectoryReader indexReader = DirectoryReader.open(directory)) {
                 ScriptedMetricAggregationBuilder aggregationBuilder = new ScriptedMetricAggregationBuilder(AGG_NAME);
                 aggregationBuilder.initScript(INIT_SCRIPT).mapScript(MAP_SCRIPT).combineScript(COMBINE_SCRIPT).reduceScript(REDUCE_SCRIPT);
-                ScriptedMetric scriptedMetric = searchAndReduce(newIndexSearcher(indexReader), new AggTestConfig(aggregationBuilder));
+                ScriptedMetric scriptedMetric = searchAndReduce(indexReader, new AggTestConfig(aggregationBuilder));
                 assertEquals(AGG_NAME, scriptedMetric.getName());
                 assertNotNull(scriptedMetric.aggregation());
                 assertEquals(numDocs, scriptedMetric.aggregation());
@@ -371,7 +371,7 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
                     .mapScript(MAP_SCRIPT_SCORE)
                     .combineScript(COMBINE_SCRIPT_SCORE)
                     .reduceScript(REDUCE_SCRIPT);
-                ScriptedMetric scriptedMetric = searchAndReduce(newIndexSearcher(indexReader), new AggTestConfig(aggregationBuilder));
+                ScriptedMetric scriptedMetric = searchAndReduce(indexReader, new AggTestConfig(aggregationBuilder));
                 assertEquals(AGG_NAME, scriptedMetric.getName());
                 assertNotNull(scriptedMetric.aggregation());
                 // all documents have score of 1.0
@@ -396,7 +396,7 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
                     .mapScript(MAP_SCRIPT_PARAMS)
                     .combineScript(COMBINE_SCRIPT_PARAMS)
                     .reduceScript(REDUCE_SCRIPT);
-                ScriptedMetric scriptedMetric = searchAndReduce(newIndexSearcher(indexReader), new AggTestConfig(aggregationBuilder));
+                ScriptedMetric scriptedMetric = searchAndReduce(indexReader, new AggTestConfig(aggregationBuilder));
 
                 // The result value depends on the script params.
                 assertEquals(4896, scriptedMetric.aggregation());
@@ -423,10 +423,7 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
                     .mapScript(MAP_SCRIPT_PARAMS)
                     .combineScript(COMBINE_SCRIPT_PARAMS)
                     .reduceScript(REDUCE_SCRIPT_PARAMS);
-                ScriptedMetric scriptedMetric = searchAndReduce(
-                    newIndexSearcher(indexReader),
-                    new AggTestConfig(aggregationBuilder).withMaxBuckets(0)
-                );
+                ScriptedMetric scriptedMetric = searchAndReduce(indexReader, new AggTestConfig(aggregationBuilder).withMaxBuckets(0));
 
                 // The result value depends on the script params.
                 assertEquals(4803, scriptedMetric.aggregation());
@@ -452,7 +449,7 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
                     .reduceScript(REDUCE_SCRIPT);
 
                 IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> {
-                    searchAndReduce(newIndexSearcher(indexReader), new AggTestConfig(aggregationBuilder));
+                    searchAndReduce(indexReader, new AggTestConfig(aggregationBuilder));
                 });
                 assertEquals(
                     "Parameter name \"" + CONFLICTING_PARAM_NAME + "\" used in both aggregation and script parameters",
@@ -475,7 +472,7 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
                     .reduceScript(REDUCE_SCRIPT);
 
                 IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> {
-                    searchAndReduce(newIndexSearcher(indexReader), new AggTestConfig(aggregationBuilder));
+                    searchAndReduce(indexReader, new AggTestConfig(aggregationBuilder));
                 });
                 assertEquals("Iterable object is self-referencing itself (Scripted metric aggs init script)", ex.getMessage());
             }
@@ -498,7 +495,7 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
                     .reduceScript(REDUCE_SCRIPT);
 
                 IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> {
-                    searchAndReduce(newIndexSearcher(indexReader), new AggTestConfig(aggregationBuilder));
+                    searchAndReduce(indexReader, new AggTestConfig(aggregationBuilder));
                 });
                 assertEquals("Iterable object is self-referencing itself (Scripted metric aggs map script)", ex.getMessage());
             }
@@ -518,7 +515,7 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
                     .reduceScript(REDUCE_SCRIPT);
 
                 IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> {
-                    searchAndReduce(newIndexSearcher(indexReader), new AggTestConfig(aggregationBuilder));
+                    searchAndReduce(indexReader, new AggTestConfig(aggregationBuilder));
                 });
                 assertEquals("Iterable object is self-referencing itself (Scripted metric aggs combine script)", ex.getMessage());
             }

@@ -43,13 +43,11 @@ public class TransportEqlStatsAction extends TransportNodesAction<
     ) {
         super(
             EqlStatsAction.NAME,
-            threadPool,
             clusterService,
             transportService,
             actionFilters,
-            EqlStatsRequest::new,
             EqlStatsRequest.NodeStatsRequest::new,
-            ThreadPool.Names.MANAGEMENT
+            threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.planExecutor = planExecutor;
     }

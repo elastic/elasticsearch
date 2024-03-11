@@ -7,14 +7,15 @@
 package org.elasticsearch.xpack.ml.job.persistence;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.search.SearchAction;
+import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
@@ -57,6 +58,7 @@ import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -332,13 +334,13 @@ public class JobResultsPersisterTests extends ESTestCase {
         SearchResponse searchResponse = mock(SearchResponse.class);
         when(searchResponse.status()).thenReturn(RestStatus.OK);
         when(searchResponse.getHits()).thenReturn(searchHits);
-        doAnswer(withResponse(searchResponse)).when(client).execute(eq(SearchAction.INSTANCE), any(), any());
+        doAnswer(withResponse(searchResponse)).when(client).execute(eq(TransportSearchAction.TYPE), any(), any());
 
         Quantiles quantiles = new Quantiles("foo", new Date(), "bar");
         persister.persistQuantiles(quantiles, () -> false);
 
         InOrder inOrder = inOrder(client);
-        inOrder.verify(client).execute(eq(SearchAction.INSTANCE), any(), any());
+        inOrder.verify(client).execute(eq(TransportSearchAction.TYPE), any(), any());
         inOrder.verify(client).execute(eq(BulkAction.INSTANCE), bulkRequestCaptor.capture(), any());
         inOrder.verifyNoMoreInteractions();
 
@@ -356,10 +358,12 @@ public class JobResultsPersisterTests extends ESTestCase {
     }
 
     public void testPersistQuantilesSync_QuantilesDocumentUpdated() {
-        testPersistQuantilesSync(
-            new SearchHits(new SearchHit[] { SearchHit.createFromMap(Map.of("_index", ".ml-state-dummy")) }, null, 0.0f),
-            ".ml-state-dummy"
-        );
+        var hits = new SearchHits(new SearchHit[] { SearchHit.createFromMap(Map.of("_index", ".ml-state-dummy")) }, null, 0.0f);
+        try {
+            testPersistQuantilesSync(hits, ".ml-state-dummy");
+        } finally {
+            hits.decRef();
+        }
     }
 
     @SuppressWarnings("unchecked")
@@ -368,18 +372,18 @@ public class JobResultsPersisterTests extends ESTestCase {
 
         SearchResponse searchResponse = mock(SearchResponse.class);
         when(searchResponse.getHits()).thenReturn(searchHits);
-        doAnswer(withResponse(searchResponse)).when(client).execute(eq(SearchAction.INSTANCE), any(), any());
+        doAnswer(withResponse(searchResponse)).when(client).execute(eq(TransportSearchAction.TYPE), any(), any());
 
         IndexResponse indexResponse = mock(IndexResponse.class);
-        doAnswer(withResponse(indexResponse)).when(client).execute(eq(IndexAction.INSTANCE), any(), any());
+        doAnswer(withResponse(indexResponse)).when(client).execute(eq(TransportIndexAction.TYPE), any(), any());
 
         Quantiles quantiles = new Quantiles("foo", new Date(), "bar");
-        ActionListener<IndexResponse> indexResponseListener = mock(ActionListener.class);
+        ActionListener<DocWriteResponse> indexResponseListener = mock(ActionListener.class);
         persister.persistQuantiles(quantiles, WriteRequest.RefreshPolicy.IMMEDIATE, indexResponseListener);
 
         InOrder inOrder = inOrder(client, indexResponseListener);
-        inOrder.verify(client).execute(eq(SearchAction.INSTANCE), any(), any());
-        inOrder.verify(client).execute(eq(IndexAction.INSTANCE), indexRequestCaptor.capture(), any());
+        inOrder.verify(client).execute(eq(TransportSearchAction.TYPE), any(), any());
+        inOrder.verify(client).execute(eq(TransportIndexAction.TYPE), indexRequestCaptor.capture(), any());
         inOrder.verify(indexResponseListener).onResponse(any());
         inOrder.verifyNoMoreInteractions();
 
@@ -395,10 +399,12 @@ public class JobResultsPersisterTests extends ESTestCase {
     }
 
     public void testPersistQuantilesAsync_QuantilesDocumentUpdated() {
-        testPersistQuantilesAsync(
-            new SearchHits(new SearchHit[] { SearchHit.createFromMap(Map.of("_index", ".ml-state-dummy")) }, null, 0.0f),
-            ".ml-state-dummy"
-        );
+        var hits = new SearchHits(new SearchHit[] { SearchHit.createFromMap(Map.of("_index", ".ml-state-dummy")) }, null, 0.0f);
+        try {
+            testPersistQuantilesAsync(hits, ".ml-state-dummy");
+        } finally {
+            hits.decRef();
+        }
     }
 
     @SuppressWarnings("unchecked")
@@ -435,7 +441,7 @@ public class JobResultsPersisterTests extends ESTestCase {
         doAnswer(invocationOnMock -> {
             ((Runnable) invocationOnMock.getArguments()[0]).run();
             return null;
-        }).when(tp).schedule(any(Runnable.class), any(TimeValue.class), any(String.class));
+        }).when(tp).schedule(any(Runnable.class), any(TimeValue.class), any(Executor.class));
 
         return new ResultsPersisterService(tp, client, clusterService, Settings.EMPTY);
     }

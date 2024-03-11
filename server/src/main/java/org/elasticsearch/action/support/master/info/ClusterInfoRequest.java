@@ -8,7 +8,7 @@
 
 package org.elasticsearch.action.support.master.info;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
@@ -28,10 +28,15 @@ public abstract class ClusterInfoRequest<Request extends ClusterInfoRequest<Requ
 
     public ClusterInfoRequest() {}
 
+    // So subclasses can override the default indices options, if needed
+    protected ClusterInfoRequest(IndicesOptions indicesOptions) {
+        this.indicesOptions = indicesOptions;
+    }
+
     public ClusterInfoRequest(StreamInput in) throws IOException {
         super(in);
         indices = in.readStringArray();
-        if (in.getTransportVersion().before(TransportVersion.V_8_0_0)) {
+        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             in.readStringArray();
         }
         indicesOptions = IndicesOptions.readIndicesOptions(in);
@@ -41,7 +46,7 @@ public abstract class ClusterInfoRequest<Request extends ClusterInfoRequest<Requ
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeStringArray(indices);
-        if (out.getTransportVersion().before(TransportVersion.V_8_0_0)) {
+        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             out.writeStringArray(Strings.EMPTY_ARRAY);
         }
         indicesOptions.writeIndicesOptions(out);

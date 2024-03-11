@@ -7,31 +7,30 @@
 package org.elasticsearch.xpack.core.search.action;
 
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestActions;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.elasticsearch.rest.RestStatus.OK;
-
 /**
  * A response of an async search status request.
  */
-public class AsyncStatusResponse extends ActionResponse implements SearchStatusResponse, StatusToXContentObject {
+public class AsyncStatusResponse extends ActionResponse implements SearchStatusResponse, ToXContentObject {
     private final String id;
     private final boolean isRunning;
     private final boolean isPartial;
     private final long startTimeMillis;
     private final long expirationTimeMillis;
+    private final Long completionTimeMillis;
     private final int totalShards;
     private final int successfulShards;
     private final int skippedShards;
@@ -48,6 +47,7 @@ public class AsyncStatusResponse extends ActionResponse implements SearchStatusR
         boolean isPartial,
         long startTimeMillis,
         long expirationTimeMillis,
+        Long completionTimeMillis,
         int totalShards,
         int successfulShards,
         int skippedShards,
@@ -60,6 +60,7 @@ public class AsyncStatusResponse extends ActionResponse implements SearchStatusR
         this.isPartial = isPartial;
         this.startTimeMillis = startTimeMillis;
         this.expirationTimeMillis = expirationTimeMillis;
+        this.completionTimeMillis = completionTimeMillis;
         this.totalShards = totalShards;
         this.successfulShards = successfulShards;
         this.skippedShards = skippedShards;
@@ -112,6 +113,7 @@ public class AsyncStatusResponse extends ActionResponse implements SearchStatusR
             asyncSearchResponse.isPartial(),
             asyncSearchResponse.getStartTime(),
             expirationTimeMillis,
+            asyncSearchResponse.getCompletionTime(),
             totalShards,
             successfulShards,
             skippedShards,
@@ -132,10 +134,15 @@ public class AsyncStatusResponse extends ActionResponse implements SearchStatusR
         this.skippedShards = in.readVInt();
         this.failedShards = in.readVInt();
         this.completionStatus = (this.isRunning == false) ? RestStatus.readFrom(in) : null;
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_009)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
             this.clusters = in.readOptionalWriteable(SearchResponse.Clusters::new);
         } else {
             this.clusters = null;
+        }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)) {
+            this.completionTimeMillis = in.readOptionalVLong();
+        } else {
+            this.completionTimeMillis = null;
         }
     }
 
@@ -153,15 +160,13 @@ public class AsyncStatusResponse extends ActionResponse implements SearchStatusR
         if (isRunning == false) {
             RestStatus.writeTo(out, completionStatus);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_009)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
             // optional since only CCS uses is; it is null for local-only searches
             out.writeOptionalWriteable(clusters);
         }
-    }
-
-    @Override
-    public RestStatus status() {
-        return OK;
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)) {
+            out.writeOptionalVLong(completionTimeMillis);
+        }
     }
 
     @Override
@@ -172,9 +177,12 @@ public class AsyncStatusResponse extends ActionResponse implements SearchStatusR
         builder.field("is_partial", isPartial);
         builder.timeField("start_time_in_millis", "start_time", startTimeMillis);
         builder.timeField("expiration_time_in_millis", "expiration_time", expirationTimeMillis);
+        if (completionTimeMillis != null) {
+            builder.timeField("completion_time_in_millis", "completion_time", completionTimeMillis);
+        }
         RestActions.buildBroadcastShardsHeader(builder, params, totalShards, successfulShards, skippedShards, failedShards, null);
         if (clusters != null) {
-            builder = clusters.toXContent(builder, null);
+            builder = clusters.toXContent(builder, params);
         }
         if (isRunning == false) { // completion status information is only available for a completed search
             builder.field("completion_status", completionStatus.getStatus());
@@ -255,6 +263,13 @@ public class AsyncStatusResponse extends ActionResponse implements SearchStatusR
     @Override
     public long getExpirationTime() {
         return expirationTimeMillis;
+    }
+
+    /**
+     * @return completion_time_in_millis if set, otherwise null
+     */
+    public Long getCompletionTime() {
+        return completionTimeMillis;
     }
 
     /**

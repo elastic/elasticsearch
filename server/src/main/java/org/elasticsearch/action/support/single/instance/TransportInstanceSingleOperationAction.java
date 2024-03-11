@@ -11,8 +11,10 @@ package org.elasticsearch.action.support.single.instance;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
@@ -25,7 +27,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -33,12 +35,11 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
-import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -56,6 +57,7 @@ public abstract class TransportInstanceSingleOperationAction<
 
     final String shardActionName;
 
+    @SuppressWarnings("this-escape")
     protected TransportInstanceSingleOperationAction(
         String actionName,
         ThreadPool threadPool,
@@ -65,13 +67,13 @@ public abstract class TransportInstanceSingleOperationAction<
         IndexNameExpressionResolver indexNameExpressionResolver,
         Writeable.Reader<Request> request
     ) {
-        super(actionName, transportService, actionFilters, request);
+        super(actionName, transportService, actionFilters, request, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.shardActionName = actionName + "[s]";
-        transportService.registerRequestHandler(shardActionName, Names.SAME, request, new ShardTransportHandler());
+        transportService.registerRequestHandler(shardActionName, EsExecutors.DIRECT_EXECUTOR_SERVICE, request, this::handleShardRequest);
     }
 
     @Override
@@ -189,7 +191,11 @@ public abstract class TransportInstanceSingleOperationAction<
                 shardActionName,
                 request,
                 transportOptions(),
-                new ActionListenerResponseHandler<>(listener, TransportInstanceSingleOperationAction.this::newResponse) {
+                new ActionListenerResponseHandler<>(
+                    listener,
+                    TransportInstanceSingleOperationAction.this::newResponse,
+                    TransportResponseHandler.TRANSPORT_WORKER
+                ) {
                     @Override
                     public void handleException(TransportException exp) {
                         final Throwable cause = exp.unwrapCause();
@@ -252,26 +258,8 @@ public abstract class TransportInstanceSingleOperationAction<
         }
     }
 
-    private class ShardTransportHandler implements TransportRequestHandler<Request> {
-
-        @Override
-        public void messageReceived(final Request request, final TransportChannel channel, Task task) throws Exception {
-            threadPool.executor(executor(request.shardId)).execute(new AbstractRunnable() {
-                @Override
-                public void onFailure(Exception e) {
-                    try {
-                        channel.sendResponse(e);
-                    } catch (Exception inner) {
-                        inner.addSuppressed(e);
-                        logger.warn("failed to send response for " + shardActionName, inner);
-                    }
-                }
-
-                @Override
-                protected void doRun() {
-                    shardOperation(request, ActionListener.wrap(channel::sendResponse, this::onFailure));
-                }
-            });
-        }
+    private void handleShardRequest(Request request, TransportChannel channel, Task task) {
+        threadPool.executor(executor(request.shardId))
+            .execute(ActionRunnable.wrap(new ChannelActionListener<Response>(channel), l -> shardOperation(request, l)));
     }
 }

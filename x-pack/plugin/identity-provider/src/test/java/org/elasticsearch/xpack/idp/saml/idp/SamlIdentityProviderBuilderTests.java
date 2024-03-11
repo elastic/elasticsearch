@@ -21,8 +21,10 @@ import org.elasticsearch.xpack.idp.saml.sp.WildcardServiceProviderResolver;
 import org.elasticsearch.xpack.idp.saml.test.IdpSamlTestCase;
 import org.hamcrest.Matchers;
 import org.mockito.Mockito;
+import org.opensaml.saml.saml2.core.NameID;
 import org.opensaml.security.x509.X509Credential;
 
+import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.PrivateKey;
@@ -43,13 +45,16 @@ import static org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProviderBuilder.I
 import static org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProviderBuilder.IDP_SLO_REDIRECT_ENDPOINT;
 import static org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProviderBuilder.IDP_SSO_POST_ENDPOINT;
 import static org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProviderBuilder.IDP_SSO_REDIRECT_ENDPOINT;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.opensaml.saml.common.xml.SAMLConstants.SAML2_POST_BINDING_URI;
 import static org.opensaml.saml.common.xml.SAMLConstants.SAML2_REDIRECT_BINDING_URI;
+import static org.opensaml.saml.saml2.core.NameIDType.EMAIL;
 import static org.opensaml.saml.saml2.core.NameIDType.PERSISTENT;
 import static org.opensaml.saml.saml2.core.NameIDType.TRANSIENT;
 
@@ -590,6 +595,41 @@ public class SamlIdentityProviderBuilderTests extends IdpSamlTestCase {
                     + " - There is no private key available for this credential"
             )
         );
+    }
+
+    public void testCreateViaMethodCalls() throws Exception {
+        final String entityId = randomAlphaOfLength(4) + ":" + randomAlphaOfLength(6) + "/" + randomAlphaOfLengthBetween(4, 12);
+        final URL redirectUrl = new URL(
+            randomFrom("http", "https")
+                + "://"
+                + String.join(".", randomArray(2, 5, String[]::new, () -> randomAlphaOfLengthBetween(3, 6)))
+                + "/"
+                + String.join("/", randomArray(1, 3, String[]::new, () -> randomAlphaOfLengthBetween(2, 4)))
+        );
+
+        final X509Credential credential = readCredentials("RSA", randomFrom(1024, 2048));
+        final String nameIdFormat = randomFrom(NameID.TRANSIENT, PERSISTENT, EMAIL);
+
+        final SamlServiceProviderResolver serviceResolver = Mockito.mock(SamlServiceProviderResolver.class);
+        final WildcardServiceProviderResolver wildcardResolver = Mockito.mock(WildcardServiceProviderResolver.class);
+        final ServiceProviderDefaults spDefaults = new ServiceProviderDefaults(
+            randomAlphaOfLength(2),
+            nameIdFormat,
+            Duration.ofMinutes(randomIntBetween(1, 10))
+        );
+        final SamlIdentityProvider idp = SamlIdentityProvider.builder(serviceResolver, wildcardResolver)
+            .entityId(entityId)
+            .singleSignOnEndpoint(SAML2_REDIRECT_BINDING_URI, redirectUrl)
+            .signingCredential(credential)
+            .serviceProviderDefaults(spDefaults)
+            .allowedNameIdFormat(nameIdFormat)
+            .build();
+
+        assertThat(idp.getEntityId(), is(entityId));
+        assertThat(idp.getSingleSignOnEndpoint(SAML2_REDIRECT_BINDING_URI), is(redirectUrl));
+        assertThat(idp.getSigningCredential(), is(credential));
+        assertThat(idp.getServiceProviderDefaults(), is(spDefaults));
+        assertThat(idp.getAllowedNameIdFormats(), contains(nameIdFormat));
     }
 
 }

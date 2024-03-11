@@ -11,6 +11,7 @@ package org.elasticsearch.action.admin.indices.analyze;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.broadcast.node.TransportBroadcastByNodeAction;
 import org.elasticsearch.cluster.ClusterState;
@@ -50,6 +51,7 @@ public class TransportReloadAnalyzersAction extends TransportBroadcastByNodeActi
     ReloadAnalyzersResponse,
     TransportReloadAnalyzersAction.ReloadResult> {
 
+    public static final ActionType<ReloadAnalyzersResponse> TYPE = new ActionType<>("indices:admin/reload_analyzers");
     private static final Logger logger = LogManager.getLogger(TransportReloadAnalyzersAction.class);
     private final IndicesService indicesService;
 
@@ -62,13 +64,13 @@ public class TransportReloadAnalyzersAction extends TransportBroadcastByNodeActi
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
-            ReloadAnalyzerAction.NAME,
+            TYPE.name(),
             clusterService,
             transportService,
             actionFilters,
             indexNameExpressionResolver,
             ReloadAnalyzersRequest::new,
-            ThreadPool.Names.MANAGEMENT,
+            transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT),
             false
         );
         this.indicesService = indicesService;
@@ -125,7 +127,7 @@ public class TransportReloadAnalyzersAction extends TransportBroadcastByNodeActi
             logger.info("reloading analyzers for index shard " + shardRouting);
             IndexService indexService = indicesService.indexService(shardRouting.index());
             List<String> reloadedSearchAnalyzers = indexService.mapperService()
-                .reloadSearchAnalyzers(indicesService.getAnalysis(), request.resource());
+                .reloadSearchAnalyzers(indicesService.getAnalysis(), request.resource(), request.preview());
             return new ReloadResult(shardRouting.index().getName(), shardRouting.currentNodeId(), reloadedSearchAnalyzers);
         });
     }
@@ -144,7 +146,7 @@ public class TransportReloadAnalyzersAction extends TransportBroadcastByNodeActi
         private ReloadResult(StreamInput in) throws IOException {
             this.index = in.readString();
             this.nodeId = in.readString();
-            this.reloadedSearchAnalyzers = in.readStringList();
+            this.reloadedSearchAnalyzers = in.readStringCollectionAsList();
         }
 
         @Override

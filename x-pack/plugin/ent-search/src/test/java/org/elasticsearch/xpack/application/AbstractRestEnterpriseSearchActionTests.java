@@ -7,13 +7,13 @@
 
 package org.elasticsearch.xpack.application;
 
-import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpNodeClient;
 import org.elasticsearch.test.rest.FakeRestChannel;
 import org.elasticsearch.test.rest.FakeRestRequest;
+import org.elasticsearch.xpack.application.utils.LicenseUtils;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -21,18 +21,20 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Mockito.mock;
 
 public abstract class AbstractRestEnterpriseSearchActionTests extends ESTestCase {
-    protected void checkLicenseForRequest(FakeRestRequest request) throws Exception {
+    protected void checkLicenseForRequest(FakeRestRequest request, LicenseUtils.Product product) throws Exception {
         final XPackLicenseState licenseState = mock(XPackLicenseState.class);
         final EnterpriseSearchBaseRestHandler action = getRestAction(licenseState);
 
         final FakeRestChannel channel = new FakeRestChannel(request, true, 1);
 
-        try (NodeClient nodeClient = new NoOpNodeClient(this.getTestName())) {
+        try (var threadPool = createThreadPool()) {
+            final var nodeClient = new NoOpNodeClient(threadPool);
             action.handleRequest(request, channel, nodeClient);
         }
         assertThat(channel.capturedResponse(), notNullValue());
         assertThat(channel.capturedResponse().status(), equalTo(RestStatus.FORBIDDEN));
         assertThat(channel.capturedResponse().content().utf8ToString(), containsString("Current license is non-compliant"));
+        assertThat(channel.capturedResponse().content().utf8ToString(), containsString(product.getName()));
     }
 
     protected abstract EnterpriseSearchBaseRestHandler getRestAction(XPackLicenseState licenseState);

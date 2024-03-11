@@ -64,9 +64,9 @@ import java.util.Objects;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
@@ -714,7 +714,7 @@ public class MasterService extends AbstractLifecycleComponent {
             } else if (countDown.countDown()) {
                 finish();
             } else {
-                this.ackTimeoutCallback = threadPool.schedule(this::onTimeout, timeLeft, ThreadPool.Names.GENERIC);
+                this.ackTimeoutCallback = threadPool.schedule(this::onTimeout, timeLeft, threadPool.generic());
                 // re-check if onNodeAck has not completed while we were scheduling the timeout
                 if (countDown.isCountedDown()) {
                     ackTimeoutCallback.cancel();
@@ -1425,18 +1425,16 @@ public class MasterService extends AbstractLifecycleComponent {
         );
     }
 
-    private static class TaskTimeoutHandler extends AbstractRunnable {
+    private static class TaskTimeoutHandler<T extends ClusterStateTaskListener> extends AbstractRunnable {
 
         private final TimeValue timeout;
         private final String source;
-        private final AtomicBoolean executed;
-        private final ClusterStateTaskListener listener;
+        private final AtomicReference<T> taskHolder; // atomically read and set to null by at most one of {execute, timeout}
 
-        private TaskTimeoutHandler(TimeValue timeout, String source, AtomicBoolean executed, ClusterStateTaskListener listener) {
+        private TaskTimeoutHandler(TimeValue timeout, String source, AtomicReference<T> taskHolder) {
             this.timeout = timeout;
             this.source = source;
-            this.executed = executed;
-            this.listener = listener;
+            this.taskHolder = taskHolder;
         }
 
         @Override
@@ -1463,10 +1461,22 @@ public class MasterService extends AbstractLifecycleComponent {
         }
 
         private void completeTask(Exception e) {
-            if (executed.compareAndSet(false, true)) {
-                listener.onFailure(e);
+            final var task = taskHolder.getAndSet(null);
+            if (task != null) {
+                logger.trace("timing out [{}][{}] after [{}]", source, task, timeout);
+                task.onFailure(e);
             }
         }
+
+        @Override
+        public String toString() {
+            return getTimeoutTaskDescription(source, taskHolder.get(), timeout);
+        }
+
+    }
+
+    static String getTimeoutTaskDescription(String source, Object task, TimeValue timeout) {
+        return Strings.format("master service timeout handler for [%s][%s] after [%s]", source, task, timeout);
     }
 
     /**
@@ -1514,14 +1524,28 @@ public class MasterService extends AbstractLifecycleComponent {
 
         @Override
         public void submitTask(String source, T task, @Nullable TimeValue timeout) {
-            final var executed = new AtomicBoolean(false);
+            final var taskHolder = new AtomicReference<>(task);
             final Scheduler.Cancellable timeoutCancellable;
             if (timeout != null && timeout.millis() > 0) {
-                timeoutCancellable = threadPool.schedule(
-                    new TaskTimeoutHandler(timeout, source, executed, task),
-                    timeout,
-                    ThreadPool.Names.GENERIC
-                );
+                try {
+                    timeoutCancellable = threadPool.schedule(
+                        new TaskTimeoutHandler<>(timeout, source, taskHolder),
+                        timeout,
+                        threadPool.generic()
+                    );
+                } catch (Exception e) {
+                    assert e instanceof EsRejectedExecutionException esre && esre.isExecutorShutdown() : e;
+                    task.onFailure(
+                        new FailedToCommitClusterStateException(
+                            "could not schedule timeout handler for [%s][%s] on queue [%s]",
+                            e,
+                            source,
+                            task,
+                            name
+                        )
+                    );
+                    return;
+                }
             } else {
                 timeoutCancellable = null;
             }
@@ -1529,10 +1553,9 @@ public class MasterService extends AbstractLifecycleComponent {
             queue.add(
                 new Entry<>(
                     source,
-                    task,
+                    taskHolder,
                     insertionIndexSupplier.getAsLong(),
                     threadPool.relativeTimeInMillis(),
-                    executed,
                     threadPool.getThreadContext().newRestorableContext(true),
                     timeoutCancellable
                 )
@@ -1550,26 +1573,23 @@ public class MasterService extends AbstractLifecycleComponent {
 
         private record Entry<T extends ClusterStateTaskListener>(
             String source,
-            T task,
+            AtomicReference<T> taskHolder,
             long insertionIndex,
             long insertionTimeMillis,
-            AtomicBoolean executed,
             Supplier<ThreadContext.StoredContext> storedContextSupplier,
             @Nullable Scheduler.Cancellable timeoutCancellable
         ) {
-            boolean acquireForExecution() {
-                if (executed.compareAndSet(false, true) == false) {
-                    return false;
-                }
-
-                if (timeoutCancellable != null) {
+            T acquireForExecution() {
+                final var task = taskHolder.getAndSet(null);
+                if (task != null && timeoutCancellable != null) {
                     timeoutCancellable.cancel();
                 }
-                return true;
+                return task;
             }
 
             void onRejection(FailedToCommitClusterStateException e) {
-                if (acquireForExecution()) {
+                final var task = acquireForExecution();
+                if (task != null) {
                     try (var ignored = storedContextSupplier.get()) {
                         task.onFailure(e);
                     } catch (Exception e2) {
@@ -1578,6 +1598,10 @@ public class MasterService extends AbstractLifecycleComponent {
                         assert false : e2;
                     }
                 }
+            }
+
+            boolean isPending() {
+                return taskHolder().get() != null;
             }
         }
 
@@ -1597,12 +1621,17 @@ public class MasterService extends AbstractLifecycleComponent {
                 assert executing.isEmpty() : executing;
                 final var entryCount = queueSize.getAndSet(0);
                 var taskCount = 0;
+                final var tasks = new ArrayList<ExecutionResult<T>>(entryCount);
                 for (int i = 0; i < entryCount; i++) {
                     final var entry = queue.poll();
                     assert entry != null;
-                    if (entry.acquireForExecution()) {
+                    final var task = entry.acquireForExecution();
+                    if (task != null) {
                         taskCount += 1;
                         executing.add(entry);
+                        tasks.add(
+                            new ExecutionResult<>(entry.source(), task, threadPool.getThreadContext(), entry.storedContextSupplier())
+                        );
                     }
                 }
                 if (taskCount == 0) {
@@ -1610,12 +1639,6 @@ public class MasterService extends AbstractLifecycleComponent {
                     return;
                 }
                 final var finalTaskCount = taskCount;
-                final var tasks = new ArrayList<ExecutionResult<T>>(finalTaskCount);
-                for (final var entry : executing) {
-                    tasks.add(
-                        new ExecutionResult<>(entry.source(), entry.task(), threadPool.getThreadContext(), entry.storedContextSupplier())
-                    );
-                }
                 ActionListener.run(ActionListener.runBefore(listener, () -> {
                     assert executing.size() == finalTaskCount;
                     executing.clear();
@@ -1643,9 +1666,7 @@ public class MasterService extends AbstractLifecycleComponent {
             public Stream<PendingClusterTask> getPending(long currentTimeMillis) {
                 return Stream.concat(
                     executing.stream().map(entry -> makePendingTask(entry, currentTimeMillis, true)),
-                    queue.stream()
-                        .filter(entry -> entry.executed().get() == false)
-                        .map(entry -> makePendingTask(entry, currentTimeMillis, false))
+                    queue.stream().filter(Entry::isPending).map(entry -> makePendingTask(entry, currentTimeMillis, false))
                 );
             }
 
@@ -1664,7 +1685,7 @@ public class MasterService extends AbstractLifecycleComponent {
             public int getPendingCount() {
                 int count = executing.size();
                 for (final var entry : queue) {
-                    if (entry.executed().get() == false) {
+                    if (entry.isPending()) {
                         count += 1;
                     }
                 }
@@ -1673,7 +1694,7 @@ public class MasterService extends AbstractLifecycleComponent {
 
             @Override
             public long getCreationTimeMillis() {
-                return Stream.concat(executing.stream(), queue.stream().filter(entry -> entry.executed().get() == false))
+                return Stream.concat(executing.stream(), queue.stream().filter(Entry::isPending))
                     .mapToLong(Entry::insertionTimeMillis)
                     .min()
                     .orElse(Long.MAX_VALUE);

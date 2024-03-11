@@ -78,7 +78,7 @@ public class ScriptScoreBenchmark {
         null,
         Path.of(System.getProperty("plugins.dir"))
     );
-    private final ScriptModule scriptModule = new ScriptModule(Settings.EMPTY, pluginsService.filterPlugins(ScriptPlugin.class));
+    private final ScriptModule scriptModule = new ScriptModule(Settings.EMPTY, pluginsService.filterPlugins(ScriptPlugin.class).toList());
 
     private final Map<String, MappedFieldType> fieldTypes = Map.ofEntries(
         Map.entry("n", new NumberFieldType("n", NumberType.LONG, false, false, true, true, null, Map.of(), null, false, null, null))

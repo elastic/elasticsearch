@@ -14,7 +14,6 @@ import org.apache.lucene.analysis.hunspell.Dictionary;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.analysis.MockTokenizer;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -22,6 +21,7 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.IndexService.IndexCreationContext;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.Analysis;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.CharFilterFactory;
@@ -42,7 +42,6 @@ import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
-import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentType;
 import org.hamcrest.MatcherAssert;
@@ -100,7 +99,7 @@ public class AnalysisModuleTests extends ESTestCase {
     private Settings loadFromClasspath(String path) throws IOException {
         return Settings.builder()
             .loadFromStream(path, getClass().getResourceAsStream(path), false)
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
             .build();
 
@@ -193,7 +192,7 @@ public class AnalysisModuleTests extends ESTestCase {
         // cacheing bug meant that it was still possible to create indexes using a standard
         // filter until 7.6
         {
-            Version version = VersionUtils.randomVersionBetween(random(), Version.V_7_6_0, Version.CURRENT);
+            IndexVersion version = IndexVersionUtils.randomVersionBetween(random(), IndexVersions.V_7_6_0, IndexVersion.current());
             final Settings settings = Settings.builder()
                 .put("index.analysis.analyzer.my_standard.tokenizer", "standard")
                 .put("index.analysis.analyzer.my_standard.filter", "standard")
@@ -204,7 +203,7 @@ public class AnalysisModuleTests extends ESTestCase {
             assertThat(exc.getMessage(), equalTo("The [standard] token filter has been removed."));
         }
         {
-            Version version = VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.V_7_5_2);
+            IndexVersion version = IndexVersionUtils.randomVersionBetween(random(), IndexVersions.V_7_0_0, IndexVersions.V_7_5_2);
             final Settings settings = Settings.builder()
                 .put("index.analysis.analyzer.my_standard.tokenizer", "standard")
                 .put("index.analysis.analyzer.my_standard.filter", "standard")
@@ -273,7 +272,7 @@ public class AnalysisModuleTests extends ESTestCase {
                 .put("index.analysis.analyzer.lucene_version.char_filter", "lucene_version")
                 .put("index.analysis.analyzer.index_version.tokenizer", "keyword")
                 .put("index.analysis.analyzer.index_version.char_filter", "index_version")
-                .put(IndexMetadata.SETTING_VERSION_CREATED, version.id())
+                .put(IndexMetadata.SETTING_VERSION_CREATED, version)
                 .build()
         );
         assertTokenStreamContents(analyzers.get("no_version").tokenStream("", "test"), new String[] { "testno_version" });
@@ -342,7 +341,7 @@ public class AnalysisModuleTests extends ESTestCase {
                 .put("index.analysis.analyzer.lucene_version.filter", "lucene_version")
                 .put("index.analysis.analyzer.index_version.tokenizer", "standard")
                 .put("index.analysis.analyzer.index_version.filter", "index_version")
-                .put(IndexMetadata.SETTING_VERSION_CREATED, version.id())
+                .put(IndexMetadata.SETTING_VERSION_CREATED, version)
                 .build()
         );
         assertTokenStreamContents(analyzers.get("no_version").tokenStream("", "test"), new String[] { "testno_version" });
@@ -426,7 +425,7 @@ public class AnalysisModuleTests extends ESTestCase {
                 .put("index.analysis.analyzer.no_version.tokenizer", "no_version")
                 .put("index.analysis.analyzer.lucene_version.tokenizer", "lucene_version")
                 .put("index.analysis.analyzer.index_version.tokenizer", "index_version")
-                .put(IndexMetadata.SETTING_VERSION_CREATED, version.id())
+                .put(IndexMetadata.SETTING_VERSION_CREATED, version)
                 .build()
         );
         assertTokenStreamContents(analyzers.get("no_version").tokenStream("", "test"), new String[] { "no_version" });
@@ -448,7 +447,7 @@ public class AnalysisModuleTests extends ESTestCase {
     public void testRegisterHunspellDictionary() throws Exception {
         Settings settings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .build();
         Environment environment = TestEnvironment.newEnvironment(settings);
         InputStream aff = getClass().getResourceAsStream("/indices/analyze/conf_dir/hunspell/en_US/en_US.aff");

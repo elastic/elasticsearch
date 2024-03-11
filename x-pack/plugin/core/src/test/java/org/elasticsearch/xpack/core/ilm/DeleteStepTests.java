@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -16,12 +15,17 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.mockito.Mockito;
 
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.hamcrest.Matchers.is;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 
 public class DeleteStepTests extends AbstractStepTestCase<DeleteStep> {
 
@@ -54,7 +58,7 @@ public class DeleteStepTests extends AbstractStepTestCase<DeleteStep> {
 
     private static IndexMetadata getIndexMetadata() {
         return IndexMetadata.builder(randomAlphaOfLength(10))
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
@@ -76,7 +80,7 @@ public class DeleteStepTests extends AbstractStepTestCase<DeleteStep> {
             assertEquals(indexMetadata.getIndex().getName(), request.indices()[0]);
             listener.onResponse(null);
             return null;
-        }).when(indicesClient).delete(Mockito.any(), Mockito.any());
+        }).when(indicesClient).delete(any(), any());
 
         DeleteStep step = createRandomInstance();
         ClusterState clusterState = ClusterState.builder(emptyClusterState())
@@ -86,7 +90,7 @@ public class DeleteStepTests extends AbstractStepTestCase<DeleteStep> {
 
         Mockito.verify(client, Mockito.only()).admin();
         Mockito.verify(adminClient, Mockito.only()).indices();
-        Mockito.verify(indicesClient, Mockito.only()).delete(Mockito.any(), Mockito.any());
+        Mockito.verify(indicesClient, Mockito.only()).delete(any(), any());
     }
 
     public void testExceptionThrown() {
@@ -102,7 +106,7 @@ public class DeleteStepTests extends AbstractStepTestCase<DeleteStep> {
             assertEquals(indexMetadata.getIndex().getName(), request.indices()[0]);
             listener.onFailure(exception);
             return null;
-        }).when(indicesClient).delete(Mockito.any(), Mockito.any());
+        }).when(indicesClient).delete(any(), any());
 
         DeleteStep step = createRandomInstance();
         ClusterState clusterState = ClusterState.builder(emptyClusterState())
@@ -117,7 +121,13 @@ public class DeleteStepTests extends AbstractStepTestCase<DeleteStep> {
         );
     }
 
-    public void testPerformActionThrowsExceptionIfIndexIsTheDataStreamWriteIndex() {
+    public void testPerformActionCallsFailureListenerIfIndexIsTheDataStreamWriteIndex() {
+        doThrow(
+            new IllegalStateException(
+                "the client must not be called in this test as we should fail in the step validation phase before we call the delete API"
+            )
+        ).when(indicesClient).delete(any(DeleteIndexRequest.class), anyActionListener());
+
         String policyName = "test-ilm-policy";
         String dataStreamName = randomAlphaOfLength(10);
 
@@ -125,7 +135,7 @@ public class DeleteStepTests extends AbstractStepTestCase<DeleteStep> {
         {
             String indexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
             index1 = IndexMetadata.builder(indexName)
-                .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+                .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
                 .numberOfShards(randomIntBetween(1, 5))
                 .numberOfReplicas(randomIntBetween(0, 5))
                 .build();
@@ -135,7 +145,7 @@ public class DeleteStepTests extends AbstractStepTestCase<DeleteStep> {
 
             String indexName = DataStream.getDefaultBackingIndexName(dataStreamName, 2);
             sourceIndexMetadata = IndexMetadata.builder(indexName)
-                .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+                .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
                 .numberOfShards(randomIntBetween(1, 5))
                 .numberOfReplicas(randomIntBetween(0, 5))
                 .build();
@@ -149,31 +159,32 @@ public class DeleteStepTests extends AbstractStepTestCase<DeleteStep> {
             .metadata(Metadata.builder().put(index1, false).put(sourceIndexMetadata, false).put(dataStream).build())
             .build();
 
-        IllegalStateException illegalStateException = expectThrows(
-            IllegalStateException.class,
-            () -> createRandomInstance().performDuringNoSnapshot(sourceIndexMetadata, clusterState, new ActionListener<>() {
-                @Override
-                public void onResponse(Void complete) {
-                    fail("unexpected listener callback");
-                }
+        AtomicBoolean listenerCalled = new AtomicBoolean(false);
+        createRandomInstance().performDuringNoSnapshot(sourceIndexMetadata, clusterState, new ActionListener<>() {
+            @Override
+            public void onResponse(Void complete) {
+                listenerCalled.set(true);
+                fail("unexpected listener callback");
+            }
 
-                @Override
-                public void onFailure(Exception e) {
-                    fail("unexpected listener callback");
-                }
-            })
-        );
-        assertThat(
-            illegalStateException.getMessage(),
-            is(
-                "index ["
-                    + sourceIndexMetadata.getIndex().getName()
-                    + "] is the write index for data stream ["
-                    + dataStreamName
-                    + "]. stopping execution of lifecycle [test-ilm-policy] as a data stream's write index cannot be deleted. "
-                    + "manually rolling over the index will resume the execution of the policy as the index will not be the "
-                    + "data stream's write index anymore"
-            )
-        );
+            @Override
+            public void onFailure(Exception e) {
+                listenerCalled.set(true);
+                assertThat(
+                    e.getMessage(),
+                    is(
+                        "index ["
+                            + sourceIndexMetadata.getIndex().getName()
+                            + "] is the write index for data stream ["
+                            + dataStreamName
+                            + "]. stopping execution of lifecycle [test-ilm-policy] as a data stream's write index cannot be deleted. "
+                            + "manually rolling over the index will resume the execution of the policy as the index will not be the "
+                            + "data stream's write index anymore"
+                    )
+                );
+            }
+        });
+
+        assertThat(listenerCalled.get(), is(true));
     }
 }

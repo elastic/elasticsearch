@@ -13,6 +13,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterInfoService;
+import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -24,6 +25,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.NodeRoles;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.autoscaling.action.GetAutoscalingCapacityAction;
 import org.elasticsearch.xpack.autoscaling.action.PutAutoscalingPolicyAction;
@@ -67,7 +69,7 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
         indexRandom(
             true,
             IntStream.range(1, 100)
-                .mapToObj(i -> client().prepareIndex(indexName).setSource("field", randomAlphaOfLength(50)))
+                .mapToObj(i -> prepareIndex(indexName).setSource("field", randomAlphaOfLength(50)))
                 .toArray(IndexRequestBuilder[]::new)
         );
         forceMerge();
@@ -77,7 +79,7 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
         capacity();
 
         IndicesStatsResponse stats = indicesAdmin().prepareStats(indexName).clear().setStore(true).get();
-        long used = stats.getTotal().getStore().getSizeInBytes();
+        long used = stats.getTotal().getStore().sizeInBytes();
         long minShardSize = Arrays.stream(stats.getShards()).mapToLong(s -> s.getStats().getStore().sizeInBytes()).min().orElseThrow();
         long maxShardSize = Arrays.stream(stats.getShards()).mapToLong(s -> s.getStats().getStore().sizeInBytes()).max().orElseThrow();
         long enoughSpace = used + HIGH_WATERMARK_BYTES + 1;
@@ -266,21 +268,21 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
         indexRandom(
             true,
             IntStream.range(1, 100)
-                .mapToObj(i -> client().prepareIndex(indexName).setSource("field", randomAlphaOfLength(50)))
+                .mapToObj(i -> prepareIndex(indexName).setSource("field", randomAlphaOfLength(50)))
                 .toArray(IndexRequestBuilder[]::new)
         );
         forceMerge();
         refresh();
 
         IndicesStatsResponse stats = indicesAdmin().prepareStats(indexName).clear().setStore(true).get();
-        long used = stats.getTotal().getStore().getSizeInBytes();
+        long used = stats.getTotal().getStore().sizeInBytes();
         long maxShardSize = Arrays.stream(stats.getShards()).mapToLong(s -> s.getStats().getStore().sizeInBytes()).max().orElseThrow();
 
         Map<String, Long> byNode = Arrays.stream(stats.getShards())
             .collect(
                 Collectors.groupingBy(
                     s -> s.getShardRouting().currentNodeId(),
-                    Collectors.summingLong(s -> s.getStats().getStore().getSizeInBytes())
+                    Collectors.summingLong(s -> s.getStats().getStore().sizeInBytes())
                 )
             );
 
@@ -336,7 +338,8 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
         assertBusy(() -> {
             refreshClusterInfo();
             final ClusterInfo clusterInfo = getClusterInfo();
-            final long freeBytes = clusterInfo.getNodeMostAvailableDiskUsages().get(dataNode2Id).getFreeBytes();
+            DiskUsage usage = clusterInfo.getNodeMostAvailableDiskUsages().get(dataNode2Id);
+            final long freeBytes = usage.freeBytes();
             assertThat(freeBytes, is(equalTo(enoughSpaceForColocation)));
         });
 
@@ -350,7 +353,6 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
                         .build()
                 )
                 .setWaitForActiveShards(ActiveShardCount.NONE)
-                .get()
         );
 
         // * 2 since worst case is no hard links, see DiskThresholdDecider.getExpectedShardSize.
@@ -394,6 +396,12 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
         );
     }
 
+    @TestLogging(
+        reason = "Debugging https://github.com/elastic/elasticsearch/issues/96764",
+        value = "org.elasticsearch.cluster.InternalClusterInfoService:TRACE"
+            + ",org.elasticsearch.xpack.autoscaling.action:TRACE"
+            + ",org.elasticsearch.cluster.routing.allocation:DEBUG"
+    )
     public void testScaleDuringSplitOrClone() throws Exception {
         internalCluster().startMasterOnlyNode();
         final String dataNode1Name = internalCluster().startDataOnlyNode();
@@ -414,14 +422,14 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
         indexRandom(
             true,
             IntStream.range(1, 100)
-                .mapToObj(i -> client().prepareIndex(indexName).setSource("field", randomAlphaOfLength(50)))
+                .mapToObj(i -> prepareIndex(indexName).setSource("field", randomAlphaOfLength(50)))
                 .toArray(IndexRequestBuilder[]::new)
         );
         forceMerge();
         refresh();
 
         IndicesStatsResponse stats = indicesAdmin().prepareStats(indexName).clear().setStore(true).get();
-        long used = stats.getTotal().getStore().getSizeInBytes();
+        long used = stats.getTotal().getStore().sizeInBytes();
 
         long enoughSpace = used + HIGH_WATERMARK_BYTES + 1;
 
@@ -461,7 +469,6 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
                 )
                 .setWaitForActiveShards(ActiveShardCount.NONE)
                 .setResizeType(resizeType)
-                .get()
         );
 
         // * 2 since worst case is no hard links, see DiskThresholdDecider.getExpectedShardSize.

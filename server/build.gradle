@@ -67,6 +67,8 @@ dependencies {
   api "org.apache.logging.log4j:log4j-api:${versions.log4j}"
   api "org.apache.logging.log4j:log4j-core:${versions.log4j}"
 
+  // access to native functions
+  implementation project(':libs:elasticsearch-native')
   api "net.java.dev.jna:jna:${versions.jna}"
 
   api "co.elastic.logging:log4j2-ecs-layout:${versions.ecsLogging}"
@@ -141,16 +143,16 @@ sourceSets.main.compiledBy(generateModulesList, generatePluginsList)
 if (BuildParams.isSnapshotBuild() == false) {
     tasks.named("test").configure {
         systemProperty 'es.index_mode_feature_flag_registered', 'true'
-        systemProperty 'es.dlm_feature_flag_enabled', 'true'
+        systemProperty 'es.failure_store_feature_flag_enabled', 'true'
     }
     tasks.named("internalClusterTest").configure {
         systemProperty 'es.index_mode_feature_flag_registered', 'true'
-        systemProperty 'es.dlm_feature_flag_enabled', 'true'
+        systemProperty 'es.failure_store_feature_flag_enabled', 'true'
     }
 }
 
 tasks.named("test").configure {
-    systemProperty 'es.insecure_network_trace_enabled', 'true'
+  systemProperty 'es.insecure_network_trace_enabled', 'true'
 }
 
 tasks.named("thirdPartyAudit").configure {

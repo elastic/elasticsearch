@@ -9,7 +9,7 @@
 package org.elasticsearch.search.internal;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
@@ -23,6 +23,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.RandomQueryBuilder;
@@ -55,7 +56,7 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class ShardSearchRequestTests extends AbstractSearchTestCase {
     private static final IndexMetadata BASE_METADATA = IndexMetadata.builder("test")
-        .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build())
+        .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build())
         .numberOfShards(1)
         .numberOfReplicas(1)
         .build();
@@ -227,16 +228,16 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
         for (int i = 0; i < iterations; i++) {
             TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random());
             if (request.isForceSyntheticSource()) {
-                version = TransportVersionUtils.randomVersionBetween(random(), TransportVersion.V_8_4_0, TransportVersion.current());
+                version = TransportVersionUtils.randomVersionBetween(random(), TransportVersions.V_8_4_0, TransportVersion.current());
             }
             if (Optional.ofNullable(request.source()).map(SearchSourceBuilder::knnSearch).map(List::size).orElse(0) > 1) {
-                version = TransportVersionUtils.randomVersionBetween(random(), TransportVersion.V_8_7_0, TransportVersion.current());
+                version = TransportVersionUtils.randomVersionBetween(random(), TransportVersions.V_8_7_0, TransportVersion.current());
             }
             if (request.source() != null && request.source().rankBuilder() != null) {
-                version = TransportVersionUtils.randomVersionBetween(random(), TransportVersion.V_8_8_0, TransportVersion.current());
+                version = TransportVersionUtils.randomVersionBetween(random(), TransportVersions.V_8_8_0, TransportVersion.current());
             }
             if (request.source() != null && request.source().subSearches().size() >= 2) {
-                version = TransportVersionUtils.randomVersionBetween(random(), TransportVersion.V_8_500_013, TransportVersion.current());
+                version = TransportVersionUtils.randomVersionBetween(random(), TransportVersions.V_8_9_X, TransportVersion.current());
             }
             request = copyWriteable(request, namedWriteableRegistry, ShardSearchRequest::new, version);
             channelVersion = TransportVersion.min(channelVersion, version);
@@ -269,7 +270,7 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
         request.setForceSyntheticSource(true);
         ShardSearchRequest shardRequest = createShardSearchReqest(request);
         StreamOutput out = new BytesStreamOutput();
-        out.setTransportVersion(TransportVersion.V_8_3_0);
+        out.setTransportVersion(TransportVersions.V_8_3_0);
         Exception e = expectThrows(IllegalArgumentException.class, () -> shardRequest.writeTo(out));
         assertEquals(e.getMessage(), "force_synthetic_source is not supported before 8.4.0");
     }

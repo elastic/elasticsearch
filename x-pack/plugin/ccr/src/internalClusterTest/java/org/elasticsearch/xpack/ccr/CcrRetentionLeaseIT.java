@@ -263,9 +263,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
 
         final RestoreInfo restoreInfo = future.actionGet();
 
-        assertEquals(restoreInfo.totalShards(), restoreInfo.
-
-            successfulShards());
+        assertEquals(restoreInfo.totalShards(), restoreInfo.successfulShards());
 
         assertEquals(0, restoreInfo.failedShards());
         for (int i = 0; i < numberOfDocuments; i++) {
@@ -440,8 +438,8 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                     senderNode.getName()
                 );
                 senderTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
-                    if (RetentionLeaseActions.Remove.ACTION_NAME.equals(action)
-                        || TransportActionProxy.getProxyAction(RetentionLeaseActions.Remove.ACTION_NAME).equals(action)) {
+                    if (RetentionLeaseActions.REMOVE.name().equals(action)
+                        || TransportActionProxy.getProxyAction(RetentionLeaseActions.REMOVE.name()).equals(action)) {
                         final RetentionLeaseActions.RemoveRequest removeRequest = (RetentionLeaseActions.RemoveRequest) request;
                         if (shardIds.contains(removeRequest.getShardId().id())) {
                             final String primaryShardNodeId = getLeaderCluster().clusterService()
@@ -528,8 +526,8 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                     senderNode.getName()
                 );
                 senderTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
-                    if (RetentionLeaseActions.Remove.ACTION_NAME.equals(action)
-                        || TransportActionProxy.getProxyAction(RetentionLeaseActions.Remove.ACTION_NAME).equals(action)) {
+                    if (RetentionLeaseActions.REMOVE.name().equals(action)
+                        || TransportActionProxy.getProxyAction(RetentionLeaseActions.REMOVE.name()).equals(action)) {
                         final RetentionLeaseActions.RemoveRequest removeRequest = (RetentionLeaseActions.RemoveRequest) request;
                         if (shardIds.contains(removeRequest.getShardId().id())) {
                             throw randomBoolean()
@@ -849,8 +847,8 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                     senderNode.getName()
                 );
                 senderTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
-                    if (RetentionLeaseActions.Renew.ACTION_NAME.equals(action)
-                        || TransportActionProxy.getProxyAction(RetentionLeaseActions.Renew.ACTION_NAME).equals(action)) {
+                    if (RetentionLeaseActions.RENEW.name().equals(action)
+                        || TransportActionProxy.getProxyAction(RetentionLeaseActions.RENEW.name()).equals(action)) {
                         final RetentionLeaseActions.RenewRequest renewRequest = (RetentionLeaseActions.RenewRequest) request;
                         final String retentionLeaseId = getRetentionLeaseId(followerIndex, leaderIndex);
                         if (retentionLeaseId.equals(renewRequest.getId())) {
@@ -959,8 +957,8 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                     senderNode.getName()
                 );
                 senderTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
-                    if (RetentionLeaseActions.Renew.ACTION_NAME.equals(action)
-                        || TransportActionProxy.getProxyAction(RetentionLeaseActions.Renew.ACTION_NAME).equals(action)) {
+                    if (RetentionLeaseActions.RENEW.name().equals(action)
+                        || TransportActionProxy.getProxyAction(RetentionLeaseActions.RENEW.name()).equals(action)) {
                         final String retentionLeaseId = getRetentionLeaseId(followerIndex, leaderIndex);
                         logger.info("--> blocking renewal request for retention lease [{}] until unfollowed", retentionLeaseId);
                         try {

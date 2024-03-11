@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
@@ -37,6 +38,7 @@ import org.elasticsearch.xpack.transform.utils.SourceDestValidations;
 
 import java.util.Map;
 
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.core.Strings.format;
 
 public class TransportValidateTransformAction extends HandledTransportAction<Request, Response> {
@@ -57,7 +59,7 @@ public class TransportValidateTransformAction extends HandledTransportAction<Req
         Settings settings,
         IngestService ingestService
     ) {
-        super(ValidateTransformAction.NAME, transportService, actionFilters, Request::new);
+        super(ValidateTransformAction.NAME, transportService, actionFilters, Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.client = client;
         this.clusterService = clusterService;
         this.transportService = transportService;
@@ -126,9 +128,9 @@ public class TransportValidateTransformAction extends HandledTransportAction<Req
         // <4> Deduce destination index mappings
         ActionListener<Boolean> validateQueryListener = ActionListener.wrap(validateQueryResponse -> {
             if (request.isDeferValidation()) {
-                deduceMappingsListener.onResponse(null);
+                deduceMappingsListener.onResponse(emptyMap());
             } else {
-                function.deduceMappings(client, config.getHeaders(), config.getSource(), deduceMappingsListener);
+                function.deduceMappings(client, config.getHeaders(), config.getId(), config.getSource(), deduceMappingsListener);
             }
         }, listener::onFailure);
 

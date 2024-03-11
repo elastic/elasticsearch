@@ -22,6 +22,7 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.IndexingSlowLog;
 import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.MergeSchedulerConfig;
@@ -72,7 +73,10 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         IndexMetadata.INDEX_FORMAT_SETTING,
         IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME,
         IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_UUID,
+        IndexMetadata.INDEX_DOWNSAMPLE_ORIGIN_NAME,
+        IndexMetadata.INDEX_DOWNSAMPLE_ORIGIN_UUID,
         IndexMetadata.INDEX_DOWNSAMPLE_STATUS,
+        IndexMetadata.INDEX_DOWNSAMPLE_INTERVAL,
         SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_DEBUG_SETTING,
         SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_WARN_SETTING,
         SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_INFO_SETTING,
@@ -81,12 +85,14 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_DEBUG_SETTING,
         SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_INFO_SETTING,
         SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_TRACE_SETTING,
+        SearchSlowLog.INDEX_SEARCH_SLOWLOG_INCLUDE_USER_SETTING,
         IndexingSlowLog.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_WARN_SETTING,
         IndexingSlowLog.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_DEBUG_SETTING,
         IndexingSlowLog.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_INFO_SETTING,
         IndexingSlowLog.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_TRACE_SETTING,
         IndexingSlowLog.INDEX_INDEXING_SLOWLOG_REFORMAT_SETTING,
         IndexingSlowLog.INDEX_INDEXING_SLOWLOG_MAX_SOURCE_CHARS_TO_LOG_SETTING,
+        IndexingSlowLog.INDEX_INDEXING_SLOWLOG_INCLUDE_USER_SETTING,
         MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING,
         MergePolicyConfig.INDEX_MERGE_POLICY_TYPE_SETTING,
         MergePolicyConfig.INDEX_MERGE_POLICY_DELETES_PCT_ALLOWED_SETTING,
@@ -114,6 +120,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         IndexSettings.MAX_SHINGLE_DIFF_SETTING,
         IndexSettings.MAX_RESCORE_WINDOW_SETTING,
         IndexSettings.MAX_ANALYZED_OFFSET_SETTING,
+        IndexSettings.WEIGHT_MATCHES_MODE_ENABLED_SETTING,
         IndexSettings.MAX_TERMS_COUNT_SETTING,
         IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING,
         IndexSettings.DEFAULT_FIELD_SETTING,
@@ -146,6 +153,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         Store.INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING,
         MapperService.INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING,
         MapperService.INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING,
+        MapperService.INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_LIMIT_SETTING,
         MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING,
         MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING,
         MapperService.INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING,
@@ -181,8 +189,9 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                     );
                 }
             }
-        }, Property.IndexScope), // this allows similarity settings to be passed
-        Setting.groupSetting("index.analysis.", Property.IndexScope), // this allows analysis settings to be passed
+        }, Property.IndexScope, Property.ServerlessPublic), // this allows similarity settings to be passed
+        Setting.groupSetting("index.analysis.", Property.IndexScope, Property.ServerlessPublic), // this allows analysis settings to be
+                                                                                                 // passed
 
         // TSDB index settings
         IndexSettings.MODE,
@@ -250,8 +259,8 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         // IndexMetadata at hand, in which case the setting version will be empty. We don't want to
         // error out on those validations, we will check with the creation version present at index
         // creation time, as well as on index update settings.
-        if (indexVersion.equals(IndexVersion.ZERO) == false
-            && (indexVersion.before(IndexVersion.V_7_0_0) || indexVersion.onOrAfter(IndexVersion.V_8_0_0))) {
+        if (indexVersion.equals(IndexVersions.ZERO) == false
+            && (indexVersion.before(IndexVersions.V_7_0_0) || indexVersion.onOrAfter(IndexVersions.V_8_0_0))) {
             throw new IllegalArgumentException("unknown setting [" + setting.getKey() + "]");
         }
     }

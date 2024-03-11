@@ -1,0 +1,50 @@
+setup:
+  - skip:
+      version: " - 8.11.99"
+      reason: Introduced in 8.12.0
+      features: is_after
+  - do:
+      connector.put:
+        connector_id: test-connector
+        body:
+          index_name: search-test
+          name: my-connector
+          language: de
+          is_native: false
+          service_type: super-connector
+
+---
+"Check in a Connector Sync Job":
+  - do:
+      connector_sync_job.post:
+        body:
+          id: test-connector
+          job_type: full
+          trigger_method: on_demand
+
+  - set: { id: sync-job-id-to-check-in }
+
+  - do:
+      connector_sync_job.get:
+        connector_sync_job_id: $sync-job-id-to-check-in
+
+  - set: { last_seen: last_seen_before_check_in }
+
+  - do:
+      connector_sync_job.check_in:
+        connector_sync_job_id: $sync-job-id-to-check-in
+
+  - match: { result: updated }
+
+  - do:
+      connector_sync_job.get:
+        connector_sync_job_id: $sync-job-id-to-check-in
+
+  - is_after: { last_seen: $last_seen_before_check_in }
+
+---
+"Check in a Connector Sync Job - Connector Sync Job does not exist":
+  - do:
+      connector_sync_job.check_in:
+        connector_sync_job_id: test-nonexistent-connector-sync-job-id
+      catch: missing

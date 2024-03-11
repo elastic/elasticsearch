@@ -13,6 +13,7 @@ import com.unboundid.ldap.sdk.SimpleBindRequest;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.core.IOUtils;
@@ -120,13 +121,18 @@ public class LdapSessionFactory extends SessionFactory {
         }
     }
 
+    @Override
+    public void reload(Settings settings) {
+        // nothing to reload in DN template mode
+    }
+
     /**
      * Securely escapes the username and inserts it into the template using MessageFormat
      *
      * @param username username to insert into the DN template.  Any commas, equals or plus will be escaped.
      * @return DN (distinguished name) build from the template.
      */
-    String buildDnFromTemplate(String username, String template) {
+    static String buildDnFromTemplate(String username, String template) {
         // this value must be escaped to avoid manipulation of the template DN.
         String escapedUsername = escapedRDNValue(username);
         return new MessageFormat(template, Locale.ROOT).format(new Object[] { escapedUsername }, new StringBuffer(), null).toString();

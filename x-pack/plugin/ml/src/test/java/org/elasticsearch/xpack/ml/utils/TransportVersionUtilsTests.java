@@ -7,8 +7,11 @@
 package org.elasticsearch.xpack.ml.utils;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.utils.TransportVersionUtils;
 
@@ -18,15 +21,15 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class TransportVersionUtilsTests extends ESTestCase {
 
-    private static final Map<String, TransportVersion> transportVersions = Map.of(
+    private static final Map<String, CompatibilityVersions> transportVersions = Map.of(
         "Alfredo",
-        TransportVersion.V_7_0_0,
+        new CompatibilityVersions(TransportVersions.V_7_0_0, Map.of()),
         "Bertram",
-        TransportVersion.V_7_0_1,
+        new CompatibilityVersions(TransportVersions.V_7_0_1, Map.of()),
         "Charles",
-        TransportVersion.V_8_500_003,
+        new CompatibilityVersions(TransportVersions.V_8_9_X, Map.of()),
         "Dominic",
-        TransportVersion.V_8_0_0
+        new CompatibilityVersions(TransportVersions.V_8_0_0, Map.of())
     );
 
     private static final ClusterState state = new ClusterState(
@@ -38,19 +41,23 @@ public class TransportVersionUtilsTests extends ESTestCase {
         null,
         transportVersions,
         null,
+        ClusterBlocks.EMPTY_CLUSTER_BLOCK,
         null,
         false,
         null
     );
 
     public void testGetMinTransportVersion() {
-        assertThat(TransportVersionUtils.getMinTransportVersion(state), equalTo(TransportVersion.V_7_0_0));
+        assertThat(TransportVersionUtils.getMinTransportVersion(state), equalTo(TransportVersions.V_7_0_0));
     }
 
     public void testIsMinTransformVersionSameAsCurrent() {
         assertThat(TransportVersionUtils.isMinTransportVersionSameAsCurrent(state), equalTo(false));
 
-        Map<String, TransportVersion> transportVersions1 = Map.of("Eugene", TransportVersion.current());
+        Map<String, CompatibilityVersions> transportVersions1 = Map.of(
+            "Eugene",
+            new CompatibilityVersions(TransportVersion.current(), Map.of())
+        );
 
         ClusterState state1 = new ClusterState(
             new ClusterName("harry"),
@@ -61,6 +68,7 @@ public class TransportVersionUtilsTests extends ESTestCase {
             null,
             transportVersions1,
             null,
+            ClusterBlocks.EMPTY_CLUSTER_BLOCK,
             null,
             false,
             null
@@ -70,7 +78,7 @@ public class TransportVersionUtilsTests extends ESTestCase {
     }
 
     public void testIsMinTransportVersionOnOrAfter() {
-        assertThat(TransportVersionUtils.isMinTransportVersionOnOrAfter(state, TransportVersion.V_7_0_0), equalTo(true));
-        assertThat(TransportVersionUtils.isMinTransportVersionOnOrAfter(state, TransportVersion.V_8_9_0), equalTo(false));
+        assertThat(TransportVersionUtils.isMinTransportVersionOnOrAfter(state, TransportVersions.V_7_0_0), equalTo(true));
+        assertThat(TransportVersionUtils.isMinTransportVersionOnOrAfter(state, TransportVersions.V_8_9_X), equalTo(false));
     }
 }

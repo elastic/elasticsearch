@@ -56,7 +56,8 @@ public class DataTierMigrationRoutedStep extends ClusterStateWaitStep {
         Optional<String> availableDestinationTier = DataTierAllocationDecider.preferredAvailableTier(
             preferredTierConfiguration,
             clusterState.getNodes(),
-            DesiredNodes.latestFromClusterState(clusterState)
+            DesiredNodes.latestFromClusterState(clusterState),
+            clusterState.metadata().nodeShutdowns()
         );
 
         if (ActiveShardCount.ALL.enoughShardsActive(clusterState, index.getName()) == false) {

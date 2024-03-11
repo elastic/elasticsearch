@@ -187,7 +187,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
             NamedAnalyzer searchAnalyzer = analyzers.getSearchAnalyzer();
 
             SearchAsYouTypeFieldType ft = new SearchAsYouTypeFieldType(
-                context.buildFullName(name),
+                context.buildFullName(name()),
                 fieldType,
                 similarity.getValue(),
                 analyzers.getSearchAnalyzer(),
@@ -202,7 +202,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
             prefixft.setIndexOptions(fieldType.indexOptions());
             prefixft.setOmitNorms(true);
             prefixft.setStored(false);
-            final String fullName = context.buildFullName(name);
+            final String fullName = context.buildFullName(name());
             // wrap the root field's index analyzer with shingles and edge ngrams
             final Analyzer prefixIndexWrapper = SearchAsYouTypeAnalyzer.withShingleAndPrefix(
                 indexAnalyzer.analyzer(),
@@ -228,7 +228,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
                 final int shingleSize = i + 2;
                 FieldType shingleft = new FieldType(fieldType);
                 shingleft.setStored(false);
-                String fieldName = getShingleFieldName(context.buildFullName(name), shingleSize);
+                String fieldName = getShingleFieldName(context.buildFullName(name()), shingleSize);
                 // wrap the root field's index, search, and search quote analyzers with shingles
                 final SearchAsYouTypeAnalyzer shingleIndexWrapper = SearchAsYouTypeAnalyzer.withShingle(
                     indexAnalyzer.analyzer(),
@@ -260,9 +260,9 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
             ft.setPrefixField(prefixFieldType);
             ft.setShingleFields(shingleFieldTypes);
             return new SearchAsYouTypeFieldMapper(
-                name,
+                name(),
                 ft,
-                copyTo.build(),
+                copyTo,
                 indexAnalyzers,
                 prefixFieldMapper,
                 shingleFieldMappers,
@@ -312,7 +312,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
                 new TextSearchInfo(fieldType, similarity, searchAnalyzer, searchQuoteAnalyzer),
                 meta
             );
-            this.fieldType = fieldType;
+            this.fieldType = freezeAndDeduplicateFieldType(fieldType);
         }
 
         public void setPrefixField(PrefixFieldType prefixField) {
@@ -499,7 +499,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
 
         PrefixFieldMapper(FieldType fieldType, PrefixFieldType mappedFieldType) {
             super(mappedFieldType.name(), mappedFieldType, MultiFields.empty(), CopyTo.empty());
-            this.fieldType = fieldType;
+            this.fieldType = Mapper.freezeAndDeduplicateFieldType(fieldType);
         }
 
         @Override
@@ -538,7 +538,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
 
         ShingleFieldMapper(FieldType fieldType, ShingleFieldType mappedFieldtype) {
             super(mappedFieldtype.name(), mappedFieldtype, MultiFields.empty(), CopyTo.empty());
-            this.fieldType = fieldType;
+            this.fieldType = freezeAndDeduplicateFieldType(fieldType);
         }
 
         FieldType getLuceneFieldType() {
@@ -747,12 +747,19 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
 
     @Override
     public Iterator<Mapper> iterator() {
+        return subfieldsAndMultifieldsIterator();
+    }
+
+    private Iterator<Mapper> subfieldsAndMultifieldsIterator() {
         List<Mapper> subIterators = new ArrayList<>();
         subIterators.add(prefixField);
         subIterators.addAll(Arrays.asList(shingleFields));
-        @SuppressWarnings("unchecked")
-        Iterator<Mapper> concat = Iterators.concat(super.iterator(), subIterators.iterator());
-        return concat;
+        return Iterators.concat(multiFieldsIterator(), subIterators.iterator());
+    }
+
+    @Override
+    public Iterator<Mapper> sourcePathUsedBy() {
+        return subfieldsAndMultifieldsIterator();
     }
 
     /**

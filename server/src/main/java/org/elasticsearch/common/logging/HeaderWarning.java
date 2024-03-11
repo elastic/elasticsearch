@@ -9,7 +9,6 @@
 package org.elasticsearch.common.logging;
 
 import org.elasticsearch.Build;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.tasks.Task;
 
@@ -32,28 +31,63 @@ import java.util.stream.Stream;
  * The result will be returned as HTTP response headers.
  */
 public class HeaderWarning {
+
+    private static final String semanticVersionPattern = "\\d+\\.\\d+\\.\\d+(?:-(?:alpha|beta|rc)\\d+)?(?:-SNAPSHOT)?";
+
+    /**
+     * Detects if Build.current().version() returns a semantic version (major.minor.revision) or not
+     */
+    private static final boolean hasSemanticVersion = Pattern.matches(semanticVersionPattern, Build.current().version());
+
     /**
      * Regular expression to test if a string matches the RFC7234 specification for warning headers. This pattern assumes that the warn code
      * is always 299. Further, this pattern assumes that the warn agent represents a version of Elasticsearch including the build
-     * hash.
+     * hash and (optionally) the build version.
+     * Build version is optional as Build.current().version() is extensible and may not be semantic in downstream projects or future
+     * releases. See {@link org.elasticsearch.internal.BuildExtension}.
      */
-    public static final Pattern WARNING_HEADER_PATTERN = Pattern.compile("299 " + // log level code
-        "Elasticsearch-" + // warn agent
-        "\\d+\\.\\d+\\.\\d+(?:-(?:alpha|beta|rc)\\d+)?(?:-SNAPSHOT)?-" + // warn agent
-        "(?:[a-f0-9]{7}(?:[a-f0-9]{33})?|unknown) " + // warn agent
-        // quoted warning value, captured. Do not add more greedy qualifiers later to avoid excessive backtracking
-        "\"(?<quotedStringValue>.*)\"( " +
-        // quoted RFC 1123 date format
-        "\"" + // opening quote
-        "(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun), " + // weekday
-        "\\d{2} " + // 2-digit day
-        "(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) " + // month
-        "\\d{4} " + // 4-digit year
-        "\\d{2}:\\d{2}:\\d{2} " + // (two-digit hour):(two-digit minute):(two-digit second)
-        "GMT" + // GMT
-        "\")?",// closing quote (optional, since an older version can still send a warn-date)
-        Pattern.DOTALL
-    ); // in order to parse new line inside the qdText
+    public static final Pattern WARNING_HEADER_PATTERN = hasSemanticVersion
+        ? getPatternWithSemanticVersion()
+        : getPatternWithoutSemanticVersion();
+
+    static Pattern getPatternWithSemanticVersion() {
+        return Pattern.compile("299 " + // log level code
+            "Elasticsearch-" + // warn agent
+            semanticVersionPattern + "-" + // warn agent: semantic version
+            "(?:[a-f0-9]{7}(?:[a-f0-9]{33})?|unknown) " + // warn agent: hash
+            // quoted warning value, captured. Do not add more greedy qualifiers later to avoid excessive backtracking
+            "\"(?<quotedStringValue>.*)\"( " +
+            // quoted RFC 1123 date format
+            "\"" + // opening quote
+            "(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun), " + // weekday
+            "\\d{2} " + // 2-digit day
+            "(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) " + // month
+            "\\d{4} " + // 4-digit year
+            "\\d{2}:\\d{2}:\\d{2} " + // (two-digit hour):(two-digit minute):(two-digit second)
+            "GMT" + // GMT
+            "\")?",// closing quote (optional, since an older version can still send a warn-date)
+            Pattern.DOTALL
+        ); // in order to parse new line inside the qdText
+    }
+
+    static Pattern getPatternWithoutSemanticVersion() {
+        return Pattern.compile("299 " + // log level code
+            "Elasticsearch-" + // warn agent
+            "(?:[a-f0-9]{7}(?:[a-f0-9]{33})?|unknown) " + // warn agent: hash
+            // quoted warning value, captured. Do not add more greedy qualifiers later to avoid excessive backtracking
+            "\"(?<quotedStringValue>.*)\"( " +
+            // quoted RFC 1123 date format
+            "\"" + // opening quote
+            "(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun), " + // weekday
+            "\\d{2} " + // 2-digit day
+            "(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) " + // month
+            "\\d{4} " + // 4-digit year
+            "\\d{2}:\\d{2}:\\d{2} " + // (two-digit hour):(two-digit minute):(two-digit second)
+            "GMT" + // GMT
+            "\")?",// closing quote (optional, since an older version can still send a warn-date)
+            Pattern.DOTALL
+        ); // in order to parse new line inside the qdText
+    }
 
     /**
      * quoted-string is defined in https://datatracker.ietf.org/doc/html/rfc7230#section-3.2.6
@@ -82,16 +116,18 @@ public class HeaderWarning {
      * RFC7234 specifies the warning format as warn-code <space> warn-agent <space> "warn-text" [<space> "warn-date"]. Here, warn-code is a
      * three-digit number with various standard warn codes specified. The warn code 299 is apt for our purposes as it represents a
      * miscellaneous persistent warning (can be presented to a human, or logged, and must not be removed by a cache). The warn-agent is an
-     * arbitrary token; here we use the Elasticsearch version and build hash. The warn text must be quoted. The warn-date is an optional
-     * quoted field that can be in a variety of specified date formats; here we use RFC 1123 format.
+     * arbitrary token; here we use the Elasticsearch version and build hash, if the version is semantic, or just the hash, if it is not
+     * semantic (e.g. overridden with an arbitrary string by a org.elasticsearch.internal.BuildExtension implementation).
+     * The warn text must be quoted. The warn-date is an optional quoted field that can be in a variety of specified date formats; here we
+     * use RFC 1123 format.
      */
-    private static final String WARNING_PREFIX = String.format(
-        Locale.ROOT,
-        "299 Elasticsearch-%s%s-%s",
-        Version.CURRENT.toString(),
-        Build.current().isSnapshot() ? "-SNAPSHOT" : "",
-        Build.current().hash()
-    );
+    private static final String WARNING_PREFIX = buildWarningPrefix();
+
+    private static String buildWarningPrefix() {
+        return hasSemanticVersion
+            ? String.format(Locale.ROOT, "299 Elasticsearch-%s-%s", Build.current().version(), Build.current().hash())
+            : String.format(Locale.ROOT, "299 Elasticsearch-%s", Build.current().hash());
+    }
 
     private static BitSet doesNotNeedEncoding;
 
@@ -170,6 +206,7 @@ public class HeaderWarning {
      * {@code 299 Elasticsearch-6.0.0 "warning value"}, the return value of this method would be {@code warning value}.
      *
      * @param s the value of a warning header formatted according to RFC 7234.
+     * @param stripXContentPosition whether to remove XContent location information or not
      * @return the extracted warning value
      */
     public static String extractWarningValueFromWarningHeader(final String s, boolean stripXContentPosition) {
@@ -226,8 +263,8 @@ public class HeaderWarning {
     }
 
     private static boolean matchesQuotedString(String qdtext) {
-        qdtext = qdtext.replaceAll("\\\\\"", "");
-        qdtext = qdtext.replaceAll("\\\\", "");
+        qdtext = qdtext.replace("\"", "");
+        qdtext = qdtext.replace("\\", "");
         return qdtext.chars().allMatch(c -> qdTextChars.get(c));
     }
 

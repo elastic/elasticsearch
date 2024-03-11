@@ -8,17 +8,20 @@
 package org.elasticsearch.xpack.application.search.action;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.script.ScriptService;
@@ -28,6 +31,8 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.application.search.SearchApplicationIndexService;
 import org.elasticsearch.xpack.application.search.SearchApplicationTemplateService;
+
+import java.util.function.Predicate;
 
 public class TransportQuerySearchApplicationAction extends HandledTransportAction<SearchApplicationSearchRequest, SearchResponse> {
 
@@ -46,11 +51,22 @@ public class TransportQuerySearchApplicationAction extends HandledTransportActio
         NamedWriteableRegistry namedWriteableRegistry,
         BigArrays bigArrays,
         ScriptService scriptService,
-        NamedXContentRegistry xContentRegistry
+        NamedXContentRegistry xContentRegistry,
+        FeatureService featureService
     ) {
-        super(QuerySearchApplicationAction.NAME, transportService, actionFilters, SearchApplicationSearchRequest::new);
+        super(
+            QuerySearchApplicationAction.NAME,
+            transportService,
+            actionFilters,
+            SearchApplicationSearchRequest::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         this.client = client;
-        this.templateService = new SearchApplicationTemplateService(scriptService, xContentRegistry);
+        Predicate<NodeFeature> clusterSupportsFeature = f -> {
+            ClusterState state = clusterService.state();
+            return state.clusterRecovered() && featureService.clusterHasFeature(state, f);
+        };
+        this.templateService = new SearchApplicationTemplateService(scriptService, xContentRegistry, clusterSupportsFeature);
         this.systemIndexService = new SearchApplicationIndexService(client, clusterService, namedWriteableRegistry, bigArrays);
     }
 
@@ -61,12 +77,11 @@ public class TransportQuerySearchApplicationAction extends HandledTransportActio
                 SearchSourceBuilder sourceBuilder = templateService.renderQuery(searchApplication, request.queryParams());
                 SearchRequest searchRequest = new SearchRequest(searchApplication.name()).source(sourceBuilder);
 
-                systemIndexService.checkAliasConsistency(searchApplication, l.delegateFailure((l2, inconsistentIndices) -> {
-                    for (String key : inconsistentIndices.keySet()) {
-                        HeaderWarning.addWarning(key + " " + inconsistentIndices.get(key));
-                    }
-                    client.execute(SearchAction.INSTANCE, searchRequest, l2);
-                }));
+                client.execute(
+                    TransportSearchAction.TYPE,
+                    searchRequest,
+                    listener.delegateFailure((l2, searchResponse) -> l2.onResponse(searchResponse))
+                );
             } catch (Exception e) {
                 l.onFailure(e);
             }

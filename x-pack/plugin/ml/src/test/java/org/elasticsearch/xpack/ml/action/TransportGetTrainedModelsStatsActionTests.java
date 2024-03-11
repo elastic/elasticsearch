@@ -24,10 +24,11 @@ import org.elasticsearch.ingest.IngestStats;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.plugins.IngestPlugin;
+import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
-import org.elasticsearch.xpack.ml.inference.ModelAliasMetadata;
+import org.elasticsearch.xpack.core.ml.inference.ModelAliasMetadata;
 import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
 import org.junit.Before;
 
@@ -133,7 +134,8 @@ public class TransportGetTrainedModelsStatsActionTests extends ESTestCase {
             null,
             Collections.singletonList(SKINNY_INGEST_PLUGIN),
             client,
-            null
+            null,
+            DocumentParsingProvider.EMPTY_INSTANCE
         );
     }
 
@@ -269,6 +271,7 @@ public class TransportGetTrainedModelsStatsActionTests extends ESTestCase {
             null,
             null,
             ingestStats,
+            null,
             null,
             null,
             null,

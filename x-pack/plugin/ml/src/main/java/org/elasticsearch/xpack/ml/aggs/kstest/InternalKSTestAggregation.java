@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.ml.aggs.kstest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
+import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -40,7 +41,7 @@ public class InternalKSTestAggregation extends InternalAggregation {
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeMap(modeValues, StreamOutput::writeString, StreamOutput::writeDouble);
+        out.writeMap(modeValues, StreamOutput::writeDouble);
     }
 
     Map<String, Double> getModeValues() {
@@ -48,7 +49,7 @@ public class InternalKSTestAggregation extends InternalAggregation {
     }
 
     @Override
-    public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
+    protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
         throw new UnsupportedOperationException("Reducing a bucket_count_ks_test aggregation is not supported");
     }
 

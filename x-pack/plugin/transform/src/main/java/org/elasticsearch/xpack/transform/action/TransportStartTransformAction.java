@@ -23,6 +23,8 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -37,9 +39,11 @@ import org.elasticsearch.xpack.core.transform.action.StartTransformAction;
 import org.elasticsearch.xpack.core.transform.action.ValidateTransformAction;
 import org.elasticsearch.xpack.core.transform.transforms.AuthorizationState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformEffectiveSettings;
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskParams;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
+import org.elasticsearch.xpack.transform.TransformExtensionHolder;
 import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.AuthorizationStatePersistenceUtils;
@@ -62,6 +66,7 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
     private final PersistentTasksService persistentTasksService;
     private final Client client;
     private final TransformAuditor auditor;
+    private final Settings destIndexSettings;
 
     @Inject
     public TransportStartTransformAction(
@@ -72,7 +77,8 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
         IndexNameExpressionResolver indexNameExpressionResolver,
         TransformServices transformServices,
         PersistentTasksService persistentTasksService,
-        Client client
+        Client client,
+        TransformExtensionHolder transformExtensionHolder
     ) {
         this(
             StartTransformAction.NAME,
@@ -83,7 +89,8 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
             indexNameExpressionResolver,
             transformServices,
             persistentTasksService,
-            client
+            client,
+            transformExtensionHolder
         );
     }
 
@@ -96,7 +103,8 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
         IndexNameExpressionResolver indexNameExpressionResolver,
         TransformServices transformServices,
         PersistentTasksService persistentTasksService,
-        Client client
+        Client client,
+        TransformExtensionHolder transformExtensionHolder
     ) {
         super(
             name,
@@ -107,12 +115,13 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
             StartTransformAction.Request::new,
             indexNameExpressionResolver,
             StartTransformAction.Response::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.transformConfigManager = transformServices.getConfigManager();
         this.persistentTasksService = persistentTasksService;
         this.client = client;
         this.auditor = transformServices.getAuditor();
+        this.destIndexSettings = transformExtensionHolder.getTransformExtension().getTransformDestinationIndexSettings();
     }
 
     @Override
@@ -151,11 +160,12 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
                     transformTask.getId(),
                     TransformTaskParams.NAME,
                     transformTask,
+                    null,
                     newPersistentTaskActionListener
                 );
             } else {
                 TransformState transformState = (TransformState) existingTask.getState();
-                if (transformState.getTaskState() == TransformTaskState.FAILED) {
+                if (transformState != null && transformState.getTaskState() == TransformTaskState.FAILED) {
                     listener.onFailure(
                         new ElasticsearchStatusException(
                             TransformMessages.getMessage(CANNOT_START_FAILED_TRANSFORM, request.getId(), transformState.getReason()),
@@ -178,7 +188,7 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
 
         // <3> If the destination index exists, start the task, otherwise deduce our mappings for the destination index and create it
         ActionListener<ValidateTransformAction.Response> validationListener = ActionListener.wrap(validationResponse -> {
-            if (Boolean.TRUE.equals(transformConfigHolder.get().getSettings().getUnattended())) {
+            if (TransformEffectiveSettings.isUnattended(transformConfigHolder.get().getSettings())) {
                 logger.debug(
                     () -> format("[%s] Skip dest index creation as this is an unattended transform", transformConfigHolder.get().getId())
                 );
@@ -191,11 +201,12 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
                 indexNameExpressionResolver,
                 state,
                 transformConfigHolder.get(),
+                destIndexSettings,
                 validationResponse.getDestIndexMappings(),
                 createOrGetIndexListener
             );
         }, e -> {
-            if (Boolean.TRUE.equals(transformConfigHolder.get().getSettings().getUnattended())) {
+            if (TransformEffectiveSettings.isUnattended(transformConfigHolder.get().getSettings())) {
                 logger.debug(
                     () -> format("[%s] Skip dest index creation as this is an unattended transform", transformConfigHolder.get().getId())
                 );
@@ -258,7 +269,7 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
         ActionListener<TransformConfig> getTransformListener = ActionListener.wrap(config -> {
             transformConfigHolder.set(config);
 
-            if (Boolean.TRUE.equals(config.getSettings().getUnattended())) {
+            if (TransformEffectiveSettings.isUnattended(config.getSettings())) {
                 // We do not fail the _start request of the unattended transform due to permission issues,
                 // we just let it run
                 fetchAuthStateListener.onResponse(null);
@@ -277,7 +288,7 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
     }
 
     private void cancelTransformTask(String taskId, String transformId, Exception exception, Consumer<Exception> onFailure) {
-        persistentTasksService.sendRemoveRequest(taskId, new ActionListener<>() {
+        persistentTasksService.sendRemoveRequest(taskId, null, new ActionListener<>() {
             @Override
             public void onResponse(PersistentTasksCustomMetadata.PersistentTask<?> task) {
                 // We succeeded in canceling the persistent task, but the
@@ -375,7 +386,7 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
         // checking for `isNotStopped` as the state COULD be marked as failed for any number of reasons
         // But if it is in a failed state, _stats will show as much and give good reason to the user.
         // If it is not able to be assigned to a node all together, we should just close the task completely
-        private boolean isNotStopped(PersistentTasksCustomMetadata.PersistentTask<?> task) {
+        private static boolean isNotStopped(PersistentTasksCustomMetadata.PersistentTask<?> task) {
             TransformState state = (TransformState) task.getState();
             return state != null && state.getTaskState().equals(TransformTaskState.STOPPED) == false;
         }

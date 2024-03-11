@@ -7,7 +7,6 @@
 package org.elasticsearch.upgrades;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -16,6 +15,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.test.rest.XPackRestTestConstants;
 import org.junit.BeforeClass;
 
@@ -38,7 +38,6 @@ import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
-@SuppressWarnings("removal")
 public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
 
     private static final String JOB_ID = "ml-snapshots-upgrade-job";
@@ -66,6 +65,7 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
      * The purpose of this test is to ensure that when a job is open through a rolling upgrade we upgrade the results
      * index mappings when it is assigned to an upgraded node even if no other ML endpoint is called after the upgrade
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/98560")
     public void testSnapshotUpgrader() throws Exception {
         Request adjustLoggingLevels = new Request("PUT", "/_cluster/settings");
         adjustLoggingLevels.setJsonEntity("""
@@ -74,7 +74,7 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
         switch (CLUSTER_TYPE) {
             case OLD -> createJobAndSnapshots();
             case MIXED -> {
-                assumeTrue("We should only test if old cluster is before new cluster", UPGRADE_FROM_VERSION.before(Version.CURRENT));
+                assumeTrue("We should only test if old cluster is before new cluster", isOriginalClusterCurrent() == false);
                 ensureHealth((request -> {
                     request.addParameter("timeout", "70s");
                     request.addParameter("wait_for_nodes", "3");
@@ -83,7 +83,7 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
                 testSnapshotUpgradeFailsOnMixedCluster();
             }
             case UPGRADED -> {
-                assumeTrue("We should only test if old cluster is before new cluster", UPGRADE_FROM_VERSION.before(Version.CURRENT));
+                assumeTrue("We should only test if old cluster is before new cluster", isOriginalClusterCurrent() == false);
                 ensureHealth((request -> {
                     request.addParameter("timeout", "70s");
                     request.addParameter("wait_for_nodes", "3");
@@ -122,8 +122,11 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
         Response getSnapshotsResponse = getModelSnapshots(JOB_ID);
         List<Map<String, Object>> snapshots = (List<Map<String, Object>>) entityAsMap(getSnapshotsResponse).get("model_snapshots");
         assertThat(snapshots, hasSize(2));
-        assertThat(Integer.parseInt(snapshots.get(0).get("min_version").toString(), 0, 1, 10), equalTo((int) UPGRADE_FROM_VERSION.major));
-        assertThat(Integer.parseInt(snapshots.get(1).get("min_version").toString(), 0, 1, 10), equalTo((int) UPGRADE_FROM_VERSION.major));
+        MlConfigVersion snapshotConfigVersion = MlConfigVersion.fromString(snapshots.get(0).get("min_version").toString());
+        assertTrue(
+            "Expected " + snapshotConfigVersion + " not greater than " + MlConfigVersion.CURRENT,
+            snapshotConfigVersion.onOrBefore(MlConfigVersion.CURRENT)
+        );
 
         Map<String, Object> snapshotToUpgrade = snapshots.stream()
             .filter(s -> s.get("snapshot_id").equals(currentSnapshotId) == false)
@@ -231,8 +234,11 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
         var modelSnapshots = entityAsMap(getModelSnapshots(JOB_ID));
         var snapshots = (List<Map<String, Object>>) modelSnapshots.get("model_snapshots");
         assertThat(snapshots, hasSize(2));
-        assertThat(Integer.parseInt(snapshots.get(0).get("min_version").toString(), 0, 1, 10), equalTo((int) UPGRADE_FROM_VERSION.major));
-        assertThat(Integer.parseInt(snapshots.get(1).get("min_version").toString(), 0, 1, 10), equalTo((int) UPGRADE_FROM_VERSION.major));
+        MlConfigVersion snapshotConfigVersion = MlConfigVersion.fromString(snapshots.get(0).get("min_version").toString());
+        assertTrue(
+            "Expected " + snapshotConfigVersion + " not greater than " + MlConfigVersion.CURRENT,
+            snapshotConfigVersion.onOrBefore(MlConfigVersion.CURRENT)
+        );
     }
 
     private Response buildAndPutJob(String jobId, TimeValue bucketSpan) throws Exception {

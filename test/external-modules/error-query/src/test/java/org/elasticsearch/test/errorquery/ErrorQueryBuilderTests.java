@@ -37,9 +37,8 @@ public class ErrorQueryBuilderTests extends AbstractQueryTestCase<ErrorQueryBuil
             for (int j = 0; j < numShards; j++) {
                 shardIds[j] = j;
             }
-            indices.add(
-                new IndexError(indexName, shardIds, randomFrom(IndexError.ERROR_TYPE.values()), randomAlphaOfLengthBetween(5, 100))
-            );
+            String message = randomBoolean() ? "" : randomAlphaOfLengthBetween(5, 100);
+            indices.add(new IndexError(indexName, shardIds, randomFrom(IndexError.ERROR_TYPE.values()), message, 0));
         }
 
         return new ErrorQueryBuilder(indices);

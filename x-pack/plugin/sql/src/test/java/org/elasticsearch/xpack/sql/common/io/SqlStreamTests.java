@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.sql.common.io;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.test.ESTestCase;
@@ -68,7 +69,7 @@ public class SqlStreamTests extends ESTestCase {
     }
 
     public void testVersionCanBeReadByOldNodes() throws IOException {
-        TransportVersion version = randomFrom(TransportVersion.V_7_0_0, TransportVersion.V_7_2_1, TransportVersion.V_8_1_0);
+        TransportVersion version = randomFrom(TransportVersions.V_7_0_0, TransportVersions.V_7_2_1, TransportVersions.V_8_1_0);
         SqlStreamOutput out = SqlStreamOutput.create(version, randomZone());
         out.writeString("payload");
         out.close();

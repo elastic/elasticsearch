@@ -526,6 +526,15 @@ For instance, when testing you may want to base64 encode username and password f
 
 Stashed values can be used as described in the `set` section
 
+=== `is_after`
+
+Used to compare two variables (both need to be of type String, which can be parsed to an Instant) and check, whether
+the first one is after the other one.
+
+....
+    - is_after: { result.some_field: 2023-05-25T12:30:00.000Z }
+....
+
 === `is_true`
 
 The specified key exists and has a true value (ie not `0`, `false`, `undefined`, `null`
@@ -604,4 +613,12 @@ This depends on the data type of the value being examined, eg:
     - length: { _id: 22    }   # the `_id` string is 22 chars long
     - length: { _tokens: 3 }   # the `_tokens` array has 3 elements
     - length: { _source: 5 }   # the `_source` hash has 5 keys
+....
+
+=== `exists`
+
+Checks if specified path exists with any value (empty string/list/object is permitted).
+
+....
+    - exists:  fields._source  # checks if the fields._source exist
 ....

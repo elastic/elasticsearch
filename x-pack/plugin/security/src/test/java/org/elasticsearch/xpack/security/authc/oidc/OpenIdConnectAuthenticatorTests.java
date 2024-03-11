@@ -935,7 +935,7 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
         final PlainActionFuture<JWTClaimsSet> future = new PlainActionFuture<>();
 
         this.authenticator = buildAuthenticator();
-        this.authenticator.handleUserinfoResponse(response, idClaims, future);
+        OpenIdConnectAuthenticator.handleUserinfoResponse(response, idClaims, future);
 
         final JWTClaimsSet finalClaims = future.get();
         assertThat(finalClaims.getSubject(), equalTo(sub));
@@ -957,7 +957,7 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
         final PlainActionFuture<JWTClaimsSet> future = new PlainActionFuture<>();
 
         this.authenticator = buildAuthenticator();
-        this.authenticator.handleUserinfoResponse(response, idClaims, future);
+        OpenIdConnectAuthenticator.handleUserinfoResponse(response, idClaims, future);
 
         final ElasticsearchSecurityException exception = expectThrows(ElasticsearchSecurityException.class, future::actionGet);
         assertThat(
@@ -1065,6 +1065,7 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
         final MockLogAppender appender = new MockLogAppender();
         appender.start();
         Loggers.addAppender(logger, appender);
+        // Note: Setting an org.apache.http logger to DEBUG requires es.insecure_network_trace_enabled=true
         Loggers.setLevel(logger, Level.DEBUG);
         try {
             appender.addExpectation(

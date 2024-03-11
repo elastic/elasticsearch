@@ -25,7 +25,7 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.termvectors.TermVectorsRequest.Flag;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -105,11 +105,11 @@ public class TermVectorsUnitTests extends ESTestCase {
         writer.commit();
         writer.close();
         DirectoryReader dr = DirectoryReader.open(dir);
-        IndexSearcher s = new IndexSearcher(dr);
+        IndexSearcher s = newSearcher(dr);
         TopDocs search = s.search(new TermQuery(new Term("id", "abc")), 1);
         ScoreDoc[] scoreDocs = search.scoreDocs;
         int doc = scoreDocs[0].doc;
-        Fields fields = dr.getTermVectors(doc);
+        Fields fields = s.getIndexReader().termVectors().get(doc);
         EnumSet<Flag> flags = EnumSet.of(Flag.Positions, Flag.Offsets);
         outResponse.setFields(fields, null, flags, fields);
         outResponse.setExists(true);
@@ -140,11 +140,11 @@ public class TermVectorsUnitTests extends ESTestCase {
         writer.commit();
         writer.close();
         DirectoryReader dr = DirectoryReader.open(dir);
-        IndexSearcher s = new IndexSearcher(dr);
+        IndexSearcher s = newSearcher(dr);
         TopDocs search = s.search(new TermQuery(new Term("id", "abc")), 1);
         ScoreDoc[] scoreDocs = search.scoreDocs;
         int doc = scoreDocs[0].doc;
-        Fields termVectors = dr.getTermVectors(doc);
+        Fields termVectors = s.getIndexReader().termVectors().get(doc);
         EnumSet<Flag> flags = EnumSet.of(Flag.Positions, Flag.Offsets);
         outResponse.setFields(termVectors, null, flags, termVectors);
         dr.close();
@@ -261,7 +261,7 @@ public class TermVectorsUnitTests extends ESTestCase {
             // write using older version which contains types
             ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
             OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
-            out.setTransportVersion(TransportVersion.V_7_2_0);
+            out.setTransportVersion(TransportVersions.V_7_2_0);
             request.writeTo(out);
 
             // First check the type on the stream was written as "_doc" by manually parsing the stream until the type
@@ -277,7 +277,7 @@ public class TermVectorsUnitTests extends ESTestCase {
             // now read the stream as normal to check it is parsed correct if received from an older node
             esInBuffer = new ByteArrayInputStream(outBuffer.toByteArray());
             esBuffer = new InputStreamStreamInput(esInBuffer);
-            esBuffer.setTransportVersion(TransportVersion.V_7_2_0);
+            esBuffer.setTransportVersion(TransportVersions.V_7_2_0);
             TermVectorsRequest req2 = new TermVectorsRequest(esBuffer);
 
             assertThat(request.offsets(), equalTo(req2.offsets()));
@@ -294,17 +294,18 @@ public class TermVectorsUnitTests extends ESTestCase {
 
     public void testMultiParser() throws Exception {
         byte[] bytes = StreamsUtils.copyToBytesFromClasspath("/org/elasticsearch/action/termvectors/multiRequest1.json");
-        XContentParser data = createParser(JsonXContent.jsonXContent, bytes);
-        MultiTermVectorsRequest request = new MultiTermVectorsRequest();
-        request.add(new TermVectorsRequest(), data);
-        checkParsedParameters(request);
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, bytes)) {
+            MultiTermVectorsRequest request = new MultiTermVectorsRequest();
+            request.add(new TermVectorsRequest(), parser);
+            checkParsedParameters(request);
+        }
 
         bytes = StreamsUtils.copyToBytesFromClasspath("/org/elasticsearch/action/termvectors/multiRequest2.json");
-        data = createParser(JsonXContent.jsonXContent, new BytesArray(bytes));
-        request = new MultiTermVectorsRequest();
-        request.add(new TermVectorsRequest(), data);
-
-        checkParsedParameters(request);
+        try (var parser = createParser(JsonXContent.jsonXContent, new BytesArray(bytes))) {
+            MultiTermVectorsRequest request = new MultiTermVectorsRequest();
+            request.add(new TermVectorsRequest(), parser);
+            checkParsedParameters(request);
+        }
     }
 
     void checkParsedParameters(MultiTermVectorsRequest request) {

@@ -8,6 +8,7 @@
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
 import org.elasticsearch.cluster.block.ClusterBlock;
@@ -21,23 +22,32 @@ import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.IndexWriteLoad;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.MetadataTests;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.health.metadata.HealthMetadata;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
@@ -51,9 +61,10 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
 
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singletonMap;
@@ -132,12 +143,7 @@ public class ClusterStateTests extends ESTestCase {
 
         XContentBuilder builder = JsonXContent.contentBuilder();
         builder.startObject();
-        writeChunks(
-            clusterState,
-            builder,
-            new ToXContent.MapParams(singletonMap(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_API)),
-            37
-        );
+        writeChunks(clusterState, builder, new ToXContent.MapParams(singletonMap(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_API)));
         builder.endObject();
 
         assertEquals(
@@ -151,7 +157,7 @@ public class ClusterStateTests extends ESTestCase {
                           "master_node": "nodeId1",
                           "blocks": {
                             "global": {
-                              "1": {
+                              "3": {
                                 "description": "description",
                                 "retryable": true,
                                 "disable_state_persistence": true,
@@ -206,10 +212,22 @@ public class ClusterStateTests extends ESTestCase {
                               "max_index_version":%s
                             }
                           },
-                          "transport_versions" : [
+                          "nodes_versions" : [
                             {
                               "node_id" : "nodeId1",
-                              "transport_version" : "%s"
+                              "transport_version" : "%s",
+                              "mappings_versions" : {
+                                ".tasks" : {
+                                  "version" : 1,
+                                  "hash" : 1
+                                }
+                              }
+                            }
+                          ],
+                          "nodes_features" : [
+                            {
+                              "node_id" : "nodeId1",
+                              "features" : [ "f1", "f2" ]
                             }
                           ],
                           "metadata": {
@@ -362,7 +380,7 @@ public class ClusterStateTests extends ESTestCase {
                         }""",
                     ephemeralId,
                     Version.CURRENT,
-                    IndexVersion.MINIMUM_COMPATIBLE,
+                    IndexVersions.MINIMUM_COMPATIBLE,
                     IndexVersion.current(),
                     TransportVersion.current(),
                     IndexVersion.current(),
@@ -377,13 +395,14 @@ public class ClusterStateTests extends ESTestCase {
     }
 
     public void testToXContent_FlatSettingTrue_ReduceMappingFalse() throws IOException {
-        Map<String, String> mapParams = new HashMap<>() {
-            {
-                put("flat_settings", "true");
-                put("reduce_mappings", "false");
-                put(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_API);
-            }
-        };
+        Map<String, String> mapParams = Map.of(
+            "flat_settings",
+            "true",
+            "reduce_mappings",
+            "false",
+            Metadata.CONTEXT_MODE_PARAM,
+            Metadata.CONTEXT_MODE_API
+        );
 
         final ClusterState clusterState = buildClusterState();
         IndexRoutingTable index = clusterState.getRoutingTable().getIndicesRouting().get("index");
@@ -393,7 +412,7 @@ public class ClusterStateTests extends ESTestCase {
 
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
         builder.startObject();
-        writeChunks(clusterState, builder, new ToXContent.MapParams(mapParams), 37);
+        writeChunks(clusterState, builder, new ToXContent.MapParams(mapParams));
         builder.endObject();
 
         assertEquals(
@@ -406,7 +425,7 @@ public class ClusterStateTests extends ESTestCase {
                       "master_node" : "nodeId1",
                       "blocks" : {
                         "global" : {
-                          "1" : {
+                          "3" : {
                             "description" : "description",
                             "retryable" : true,
                             "disable_state_persistence" : true,
@@ -461,10 +480,25 @@ public class ClusterStateTests extends ESTestCase {
                           "max_index_version" : %s
                         }
                       },
-                      "transport_versions" : [
+                      "nodes_versions" : [
                         {
                           "node_id" : "nodeId1",
-                          "transport_version" : "%s"
+                          "transport_version" : "%s",
+                          "mappings_versions" : {
+                            ".tasks" : {
+                              "version" : 1,
+                              "hash" : 1
+                            }
+                          }
+                        }
+                      ],
+                      "nodes_features" : [
+                        {
+                          "node_id" : "nodeId1",
+                          "features" : [
+                            "f1",
+                            "f2"
+                          ]
                         }
                       ],
                       "metadata" : {
@@ -613,7 +647,7 @@ public class ClusterStateTests extends ESTestCase {
                     }""",
                 ephemeralId,
                 Version.CURRENT,
-                IndexVersion.MINIMUM_COMPATIBLE,
+                IndexVersions.MINIMUM_COMPATIBLE,
                 IndexVersion.current(),
                 TransportVersion.current(),
                 IndexVersion.current(),
@@ -627,13 +661,14 @@ public class ClusterStateTests extends ESTestCase {
     }
 
     public void testToXContent_FlatSettingFalse_ReduceMappingTrue() throws IOException {
-        Map<String, String> mapParams = new HashMap<>() {
-            {
-                put("flat_settings", "false");
-                put("reduce_mappings", "true");
-                put(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_API);
-            }
-        };
+        Map<String, String> mapParams = Map.of(
+            "flat_settings",
+            "false",
+            "reduce_mappings",
+            "true",
+            Metadata.CONTEXT_MODE_PARAM,
+            Metadata.CONTEXT_MODE_API
+        );
 
         final ClusterState clusterState = buildClusterState();
 
@@ -644,7 +679,7 @@ public class ClusterStateTests extends ESTestCase {
 
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
         builder.startObject();
-        writeChunks(clusterState, builder, new ToXContent.MapParams(mapParams), 37);
+        writeChunks(clusterState, builder, new ToXContent.MapParams(mapParams));
         builder.endObject();
 
         assertEquals(
@@ -657,7 +692,7 @@ public class ClusterStateTests extends ESTestCase {
                       "master_node" : "nodeId1",
                       "blocks" : {
                         "global" : {
-                          "1" : {
+                          "3" : {
                             "description" : "description",
                             "retryable" : true,
                             "disable_state_persistence" : true,
@@ -712,10 +747,25 @@ public class ClusterStateTests extends ESTestCase {
                           "max_index_version" : %s
                         }
                       },
-                      "transport_versions" : [
+                      "nodes_versions" : [
                         {
                           "node_id" : "nodeId1",
-                          "transport_version" : "%s"
+                          "transport_version" : "%s",
+                          "mappings_versions" : {
+                            ".tasks" : {
+                              "version" : 1,
+                              "hash" : 1
+                            }
+                          }
+                        }
+                      ],
+                      "nodes_features" : [
+                        {
+                          "node_id" : "nodeId1",
+                          "features" : [
+                            "f1",
+                            "f2"
+                          ]
                         }
                       ],
                       "metadata" : {
@@ -870,7 +920,7 @@ public class ClusterStateTests extends ESTestCase {
                     }""",
                 ephemeralId,
                 Version.CURRENT,
-                IndexVersion.MINIMUM_COMPATIBLE,
+                IndexVersions.MINIMUM_COMPATIBLE,
                 IndexVersion.current(),
                 TransportVersion.current(),
                 IndexVersion.current(),
@@ -893,21 +943,13 @@ public class ClusterStateTests extends ESTestCase {
                     .put(
                         IndexMetadata.builder("index")
                             .state(IndexMetadata.State.OPEN)
-                            .settings(Settings.builder().put(SETTING_VERSION_CREATED, Version.CURRENT.id))
+                            .settings(Settings.builder().put(SETTING_VERSION_CREATED, IndexVersion.current()))
                             .putMapping(
                                 new MappingMetadata(
                                     "type",
                                     // the type name is the root value,
                                     // the original logic in ClusterState.toXContent will reduce
-                                    new HashMap<>() {
-                                        {
-                                            put("type", new HashMap<String, Object>() {
-                                                {
-                                                    put("key", "value");
-                                                }
-                                            });
-                                        }
-                                    }
+                                    Map.of("type", Map.of("key", "value"))
                                 )
                             )
                             .numberOfShards(1)
@@ -919,7 +961,7 @@ public class ClusterStateTests extends ESTestCase {
 
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
         builder.startObject();
-        writeChunks(clusterState, builder, ToXContent.EMPTY_PARAMS, 27);
+        writeChunks(clusterState, builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
 
         assertEquals(Strings.format("""
@@ -930,7 +972,8 @@ public class ClusterStateTests extends ESTestCase {
               "master_node" : null,
               "blocks" : { },
               "nodes" : { },
-              "transport_versions" : [ ],
+              "nodes_versions" : [ ],
+              "nodes_features" : [ ],
               "metadata" : {
                 "cluster_uuid" : "clusterUUID",
                 "cluster_uuid_committed" : false,
@@ -989,30 +1032,58 @@ public class ClusterStateTests extends ESTestCase {
                 "unassigned" : [ ],
                 "nodes" : { }
               }
-            }""", Version.CURRENT.id), Strings.toString(builder));
+            }""", IndexVersion.current()), Strings.toString(builder));
+    }
+
+    public void testNodeFeaturesSorted() throws IOException {
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodeFeatures(Map.of("node2", Set.of("nf1", "f2", "nf2"), "node1", Set.of("f3", "f2", "f1"), "node3", Set.of()))
+            .build();
+
+        XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
+        builder.startObject();
+        writeChunks(clusterState, builder, new ToXContent.MapParams(Map.of("metric", ClusterState.Metric.NODES.toString())));
+        builder.endObject();
+
+        assertThat(Strings.toString(builder), equalTo("""
+            {
+              "cluster_uuid" : "_na_",
+              "nodes" : { },
+              "nodes_versions" : [ ],
+              "nodes_features" : [
+                {
+                  "node_id" : "node1",
+                  "features" : [
+                    "f1",
+                    "f2",
+                    "f3"
+                  ]
+                },
+                {
+                  "node_id" : "node2",
+                  "features" : [
+                    "f2",
+                    "nf1",
+                    "nf2"
+                  ]
+                },
+                {
+                  "node_id" : "node3",
+                  "features" : [ ]
+                }
+              ]
+            }"""));
     }
 
     private ClusterState buildClusterState() throws IOException {
         IndexMetadata indexMetadata = IndexMetadata.builder("index")
             .state(IndexMetadata.State.OPEN)
-            .settings(Settings.builder().put(SETTING_VERSION_CREATED, Version.CURRENT.id))
-            .putMapping(new MappingMetadata("type", new HashMap<>() {
-                {
-                    put("type1", new HashMap<String, Object>() {
-                        {
-                            put("key", "value");
-                        }
-                    });
-                }
-            }))
+            .settings(Settings.builder().put(SETTING_VERSION_CREATED, IndexVersion.current()))
+            .putMapping(new MappingMetadata("type", Map.of("type1", Map.of("key", "value"))))
             .putAlias(AliasMetadata.builder("alias").indexRouting("indexRouting").build())
             .numberOfShards(1)
             .primaryTerm(0, 1L)
-            .putInSyncAllocationIds(0, new HashSet<>() {
-                {
-                    add("allocationId");
-                }
-            })
+            .putInSyncAllocationIds(0, Set.of("allocationId"))
             .numberOfReplicas(2)
             .putRolloverInfo(new RolloverInfo("rolloveAlias", new ArrayList<>(), 1L))
             .stats(new IndexMetadataStats(IndexWriteLoad.builder(1).build(), 120, 1))
@@ -1027,11 +1098,17 @@ public class ClusterStateTests extends ESTestCase {
                     .add(DiscoveryNodeUtils.create("nodeId1", new TransportAddress(InetAddress.getByName("127.0.0.1"), 111)))
                     .build()
             )
-            .putTransportVersion("nodeId1", TransportVersion.current())
+            .nodeIdsToCompatibilityVersions(
+                Map.of(
+                    "nodeId1",
+                    new CompatibilityVersions(TransportVersion.current(), Map.of(".tasks", new SystemIndexDescriptor.MappingsVersion(1, 1)))
+                )
+            )
+            .nodeFeatures(Map.of("nodeId1", Set.of("f1", "f2")))
             .blocks(
                 ClusterBlocks.builder()
                     .addGlobalBlock(
-                        new ClusterBlock(1, "description", true, true, true, RestStatus.ACCEPTED, EnumSet.allOf((ClusterBlockLevel.class)))
+                        new ClusterBlock(3, "description", true, true, true, RestStatus.ACCEPTED, EnumSet.allOf((ClusterBlockLevel.class)))
                     )
                     .addBlocks(indexMetadata)
                     .addIndexBlock(
@@ -1054,27 +1131,19 @@ public class ClusterStateTests extends ESTestCase {
                     .coordinationMetadata(
                         CoordinationMetadata.builder()
                             .term(1)
-                            .lastCommittedConfiguration(new CoordinationMetadata.VotingConfiguration(new HashSet<>() {
-                                {
-                                    add("commitedConfigurationNodeId");
-                                }
-                            }))
-                            .lastAcceptedConfiguration(new CoordinationMetadata.VotingConfiguration(new HashSet<>() {
-                                {
-                                    add("acceptedConfigurationNodeId");
-                                }
-                            }))
+                            .lastCommittedConfiguration(new CoordinationMetadata.VotingConfiguration(Set.of("commitedConfigurationNodeId")))
+                            .lastAcceptedConfiguration(new CoordinationMetadata.VotingConfiguration(Set.of("acceptedConfigurationNodeId")))
                             .addVotingConfigExclusion(new CoordinationMetadata.VotingConfigExclusion("exlucdedNodeId", "excludedNodeName"))
                             .build()
                     )
-                    .persistentSettings(Settings.builder().put(SETTING_VERSION_CREATED, Version.CURRENT.id).build())
-                    .transientSettings(Settings.builder().put(SETTING_VERSION_CREATED, Version.CURRENT.id).build())
+                    .persistentSettings(Settings.builder().put(SETTING_VERSION_CREATED, IndexVersion.current()).build())
+                    .transientSettings(Settings.builder().put(SETTING_VERSION_CREATED, IndexVersion.current()).build())
                     .put(indexMetadata, false)
                     .put(
                         IndexTemplateMetadata.builder("template")
                             .patterns(List.of("pattern1", "pattern2"))
                             .order(0)
-                            .settings(Settings.builder().put(SETTING_VERSION_CREATED, Version.CURRENT.id))
+                            .settings(Settings.builder().put(SETTING_VERSION_CREATED, IndexVersion.current()))
                             .putMapping("type", "{ \"key1\": {} }")
                             .build()
                     )
@@ -1113,29 +1182,177 @@ public class ClusterStateTests extends ESTestCase {
         assertEquals(DiscoveryNodes.EMPTY_NODES, notRecoveredState.nodesIfRecovered());
     }
 
-    private static void writeChunks(ClusterState clusterState, XContentBuilder builder, ToXContent.Params params, int expectedChunks)
-        throws IOException {
+    private static void writeChunks(ClusterState clusterState, XContentBuilder builder, ToXContent.Params params) throws IOException {
         final var iterator = clusterState.toXContentChunked(params);
         int chunks = 0;
         while (iterator.hasNext()) {
             iterator.next().toXContent(builder, params);
             chunks += 1;
         }
-        assertEquals(expectedChunks, chunks);
+        assertEquals(expectedChunkCount(params, clusterState), chunks);
     }
 
     public void testGetMinTransportVersion() throws IOException {
+        assertEquals(TransportVersions.MINIMUM_COMPATIBLE, ClusterState.EMPTY_STATE.getMinTransportVersion());
+
         var builder = ClusterState.builder(buildClusterState());
         int numNodes = randomIntBetween(2, 20);
         TransportVersion minVersion = TransportVersion.current();
 
         for (int i = 0; i < numNodes; i++) {
             TransportVersion tv = TransportVersionUtils.randomVersion();
-            builder.putTransportVersion("nodeTv" + i, tv);
+            builder.putCompatibilityVersions("nodeTv" + i, tv, SystemIndices.SERVER_SYSTEM_MAPPINGS_VERSIONS);
             minVersion = Collections.min(List.of(minVersion, tv));
         }
 
         var newState = builder.build();
         assertThat(newState.getMinTransportVersion(), equalTo(minVersion));
+
+        assertEquals(
+            TransportVersions.MINIMUM_COMPATIBLE,
+            ClusterState.builder(newState)
+                .blocks(ClusterBlocks.builder().addGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK))
+                .build()
+                .getMinTransportVersion()
+        );
+    }
+
+    public void testHasMixedSystemIndexVersions() throws IOException {
+        // equal mappings versions
+        {
+            var builder = ClusterState.builder(buildClusterState());
+            builder.nodeIdsToCompatibilityVersions(
+                Map.of(
+                    "node1",
+                    new CompatibilityVersions(
+                        TransportVersion.current(),
+                        Map.of(".system-index", new SystemIndexDescriptor.MappingsVersion(1, 0))
+                    ),
+                    "node2",
+                    new CompatibilityVersions(
+                        TransportVersion.current(),
+                        Map.of(".system-index", new SystemIndexDescriptor.MappingsVersion(1, 0))
+                    )
+                )
+            );
+            assertFalse(builder.build().hasMixedSystemIndexVersions());
+        }
+
+        // unequal mappings versions
+        {
+            var builder = ClusterState.builder(buildClusterState());
+            builder.nodeIdsToCompatibilityVersions(
+                Map.of(
+                    "node1",
+                    new CompatibilityVersions(
+                        TransportVersion.current(),
+                        Map.of(".system-index", new SystemIndexDescriptor.MappingsVersion(1, 0))
+                    ),
+                    "node2",
+                    new CompatibilityVersions(
+                        TransportVersion.current(),
+                        Map.of(".system-index", new SystemIndexDescriptor.MappingsVersion(2, 0))
+                    )
+                )
+            );
+            assertTrue(builder.build().hasMixedSystemIndexVersions());
+        }
+
+        // one node has a mappings version that the other is missing
+        {
+            var builder = ClusterState.builder(buildClusterState());
+            builder.nodeIdsToCompatibilityVersions(
+                Map.of(
+                    "node1",
+                    new CompatibilityVersions(
+                        TransportVersion.current(),
+                        Map.of(
+                            ".system-index",
+                            new SystemIndexDescriptor.MappingsVersion(1, 0),
+                            ".another-system-index",
+                            new SystemIndexDescriptor.MappingsVersion(1, 0)
+                        )
+                    ),
+                    "node2",
+                    new CompatibilityVersions(
+                        TransportVersion.current(),
+                        Map.of(".system-index", new SystemIndexDescriptor.MappingsVersion(1, 0))
+                    )
+                )
+            );
+            assertTrue(builder.build().hasMixedSystemIndexVersions());
+        }
+    }
+
+    public static int expectedChunkCount(ToXContent.Params params, ClusterState clusterState) {
+        final var metrics = ClusterState.Metric.parseString(params.param("metric", "_all"), true);
+
+        long chunkCount = 0;
+
+        // header chunk
+        chunkCount += 1;
+
+        // blocks
+        if (metrics.contains(ClusterState.Metric.BLOCKS)) {
+            chunkCount += 2 + clusterState.blocks().indices().size();
+        }
+
+        // nodes, nodes_versions, nodes_features
+        if (metrics.contains(ClusterState.Metric.NODES)) {
+            chunkCount += 7 + clusterState.nodes().size() + clusterState.compatibilityVersions().size() + clusterState.clusterFeatures()
+                .nodeFeatures()
+                .size();
+        }
+
+        // metadata
+        if (metrics.contains(ClusterState.Metric.METADATA)) {
+            chunkCount += MetadataTests.expectedChunkCount(params, clusterState.metadata());
+        }
+
+        // routing table
+        if (metrics.contains(ClusterState.Metric.ROUTING_TABLE)) {
+            chunkCount += 2;
+            for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
+                chunkCount += 2;
+                for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
+                    chunkCount += 2 + indexRoutingTable.shard(shardId).size();
+                }
+            }
+        }
+
+        // routing nodes
+        if (metrics.contains(ClusterState.Metric.ROUTING_NODES)) {
+            final var routingNodes = clusterState.getRoutingNodes();
+            chunkCount += 4 + routingNodes.unassigned().size();
+            for (RoutingNode routingNode : routingNodes) {
+                chunkCount += 2 + routingNode.size();
+            }
+        }
+
+        // customs
+        if (metrics.contains(ClusterState.Metric.CUSTOMS)) {
+            for (ClusterState.Custom custom : clusterState.customs().values()) {
+                chunkCount += 2;
+
+                if (custom instanceof HealthMetadata) {
+                    chunkCount += 1;
+                } else if (custom instanceof RepositoryCleanupInProgress repositoryCleanupInProgress) {
+                    chunkCount += 2 + repositoryCleanupInProgress.entries().size();
+                } else if (custom instanceof RestoreInProgress restoreInProgress) {
+                    chunkCount += 2 + Iterables.size(restoreInProgress);
+                } else if (custom instanceof SnapshotDeletionsInProgress snapshotDeletionsInProgress) {
+                    chunkCount += 2 + snapshotDeletionsInProgress.getEntries().size();
+                } else if (custom instanceof SnapshotsInProgress snapshotsInProgress) {
+                    chunkCount += 2 + snapshotsInProgress.asStream().count();
+                } else {
+                    // could be anything, we have to just try it
+                    chunkCount += Iterables.size(
+                        (Iterable<ToXContent>) (() -> Iterators.map(custom.toXContentChunked(params), Function.identity()))
+                    );
+                }
+            }
+        }
+
+        return Math.toIntExact(chunkCount);
     }
 }

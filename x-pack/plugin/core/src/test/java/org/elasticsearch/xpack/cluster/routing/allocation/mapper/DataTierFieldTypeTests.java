@@ -7,14 +7,16 @@
 
 package org.elasticsearch.xpack.cluster.routing.allocation.mapper;
 
+import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.ValueFetcher;
@@ -103,7 +105,7 @@ public class DataTierFieldTypeTests extends MapperServiceTestCase {
         IndexMetadata indexMetadata = IndexMetadata.builder("index")
             .settings(
                 Settings.builder()
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                     // Tier can be an ordered list of preferences - starting with primary and followed by fallbacks.
                     .put(DataTier.TIER_PREFERENCE, "data_warm,data_hot")
             )
@@ -118,11 +120,26 @@ public class DataTierFieldTypeTests extends MapperServiceTestCase {
 
     private SearchExecutionContext createContextWithoutSetting() {
         IndexMetadata indexMetadata = IndexMetadata.builder("index")
-            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build())
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build())
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
         IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
         return SearchExecutionContextHelper.createSimple(indexSettings, parserConfig(), writableRegistry());
+    }
+
+    @Override
+    public void testFieldHasValue() {
+        assertTrue(getMappedFieldType().fieldHasValue(new FieldInfos(new FieldInfo[] { getFieldInfoWithName(randomAlphaOfLength(5)) })));
+    }
+
+    @Override
+    public void testFieldHasValueWithEmptyFieldInfos() {
+        assertTrue(getMappedFieldType().fieldHasValue(FieldInfos.EMPTY));
+    }
+
+    @Override
+    public MappedFieldType getMappedFieldType() {
+        return DataTierFieldMapper.DataTierFieldType.INSTANCE;
     }
 }

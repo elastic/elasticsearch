@@ -8,11 +8,11 @@
 package org.elasticsearch.action.admin.cluster.allocation;
 
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterInfoService;
+import org.elasticsearch.cluster.ClusterInfoTests;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
@@ -37,64 +37,87 @@ import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
+import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.mockito.ArgumentCaptor;
+import org.junit.Before;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.ClusterModule.BALANCED_ALLOCATOR;
 import static org.elasticsearch.cluster.ClusterModule.DESIRED_BALANCE_ALLOCATOR;
 import static org.elasticsearch.cluster.ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING;
+import static org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceStatsTests.randomDesiredBalanceStats;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class TransportGetDesiredBalanceActionTests extends ESAllocationTestCase {
 
     private final DesiredBalanceShardsAllocator desiredBalanceShardsAllocator = mock(DesiredBalanceShardsAllocator.class);
     private final ClusterInfoService clusterInfoService = mock(ClusterInfoService.class);
-    private final TransportGetDesiredBalanceAction transportGetDesiredBalanceAction = new TransportGetDesiredBalanceAction(
-        mock(TransportService.class),
-        mock(ClusterService.class),
-        mock(ThreadPool.class),
-        mock(ActionFilters.class),
-        mock(IndexNameExpressionResolver.class),
-        desiredBalanceShardsAllocator,
-        clusterInfoService,
-        TEST_WRITE_LOAD_FORECASTER
-    );
-    @SuppressWarnings("unchecked")
-    private final ActionListener<DesiredBalanceResponse> listener = mock(ActionListener.class);
+    private ThreadPool threadPool = mock(ThreadPool.class);
+    private TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
+    private TransportGetDesiredBalanceAction transportGetDesiredBalanceAction;
+
+    @Before
+    public void initialize() {
+        transportGetDesiredBalanceAction = new TransportGetDesiredBalanceAction(
+            transportService,
+            mock(ClusterService.class),
+            threadPool,
+            mock(ActionFilters.class),
+            mock(IndexNameExpressionResolver.class),
+            desiredBalanceShardsAllocator,
+            clusterInfoService,
+            TEST_WRITE_LOAD_FORECASTER
+        );
+    }
+
+    private static DesiredBalanceResponse execute(TransportGetDesiredBalanceAction action, ClusterState clusterState) throws Exception {
+        return PlainActionFuture.get(
+            future -> action.masterOperation(
+                new Task(1, "test", TransportGetDesiredBalanceAction.TYPE.name(), "", TaskId.EMPTY_TASK_ID, Map.of()),
+                new DesiredBalanceRequest(),
+                clusterState,
+                future
+            ),
+            10,
+            TimeUnit.SECONDS
+        );
+    }
+
+    private DesiredBalanceResponse executeAction(ClusterState clusterState) throws Exception {
+        return execute(transportGetDesiredBalanceAction, clusterState);
+    }
 
     public void testReturnsErrorIfAllocatorIsNotDesiredBalanced() throws Exception {
         var clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadataWithConfiguredAllocator(BALANCED_ALLOCATOR)).build();
-
-        new TransportGetDesiredBalanceAction(
-            mock(TransportService.class),
+        final var action = new TransportGetDesiredBalanceAction(
+            transportService,
             mock(ClusterService.class),
-            mock(ThreadPool.class),
+            threadPool,
             mock(ActionFilters.class),
             mock(IndexNameExpressionResolver.class),
             mock(ShardsAllocator.class),
             mock(ClusterInfoService.class),
             mock(WriteLoadForecaster.class)
-        ).masterOperation(mock(Task.class), mock(DesiredBalanceRequest.class), clusterState, listener);
+        );
 
-        ArgumentCaptor<ResourceNotFoundException> exceptionArgumentCaptor = ArgumentCaptor.forClass(ResourceNotFoundException.class);
-        verify(listener).onFailure(exceptionArgumentCaptor.capture());
-
-        final var exception = exceptionArgumentCaptor.getValue();
+        final var exception = expectThrows(ResourceNotFoundException.class, () -> execute(action, clusterState));
         assertEquals("Desired balance allocator is not in use, no desired balance found", exception.getMessage());
         assertThat(exception.status(), equalTo(RestStatus.NOT_FOUND));
     }
@@ -104,12 +127,10 @@ public class TransportGetDesiredBalanceActionTests extends ESAllocationTestCase 
             .metadata(metadataWithConfiguredAllocator(DESIRED_BALANCE_ALLOCATOR))
             .build();
 
-        transportGetDesiredBalanceAction.masterOperation(mock(Task.class), mock(DesiredBalanceRequest.class), clusterState, listener);
-
-        ArgumentCaptor<ResourceNotFoundException> exceptionArgumentCaptor = ArgumentCaptor.forClass(ResourceNotFoundException.class);
-        verify(listener).onFailure(exceptionArgumentCaptor.capture());
-
-        assertEquals("Desired balance is not computed yet", exceptionArgumentCaptor.getValue().getMessage());
+        assertEquals(
+            "Desired balance is not computed yet",
+            expectThrows(ResourceNotFoundException.class, () -> executeAction(clusterState)).getMessage()
+        );
     }
 
     public void testGetDesiredBalance() throws Exception {
@@ -122,7 +143,7 @@ public class TransportGetDesiredBalanceActionTests extends ESAllocationTestCase 
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
         for (int i = 0; i < randomInt(8); i++) {
             String indexName = randomAlphaOfLength(8);
-            Settings.Builder settings = indexSettings(Version.CURRENT, 1, 0);
+            Settings.Builder settings = indexSettings(IndexVersion.current(), 1, 0);
             if (randomBoolean()) {
                 settings.put(DataTier.TIER_PREFERENCE_SETTING.getKey(), randomFrom("data_hot", "data_warm", "data_cold"));
             }
@@ -169,8 +190,7 @@ public class TransportGetDesiredBalanceActionTests extends ESAllocationTestCase 
                             ShardRoutingState.STARTED
                         );
                         if (nodeIds.size() > 1) {
-                            shard = TestShardRouting.relocate(
-                                shard,
+                            shard = shard.relocate(
                                 randomValueOtherThan(nodeId, () -> randomFrom(nodeIds)),
                                 ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE
                             );
@@ -199,17 +219,7 @@ public class TransportGetDesiredBalanceActionTests extends ESAllocationTestCase 
         }
 
         when(desiredBalanceShardsAllocator.getDesiredBalance()).thenReturn(new DesiredBalance(randomInt(1024), shardAssignments));
-        DesiredBalanceStats desiredBalanceStats = new DesiredBalanceStats(
-            randomInt(Integer.MAX_VALUE),
-            randomBoolean(),
-            randomInt(Integer.MAX_VALUE),
-            randomInt(Integer.MAX_VALUE),
-            randomInt(Integer.MAX_VALUE),
-            randomInt(Integer.MAX_VALUE),
-            randomInt(Integer.MAX_VALUE),
-            randomInt(Integer.MAX_VALUE),
-            randomInt(Integer.MAX_VALUE)
-        );
+        DesiredBalanceStats desiredBalanceStats = randomDesiredBalanceStats();
         when(desiredBalanceShardsAllocator.getStats()).thenReturn(desiredBalanceStats);
         ClusterInfo clusterInfo = ClusterInfo.EMPTY;
         when(clusterInfoService.getClusterInfo()).thenReturn(clusterInfo);
@@ -220,15 +230,22 @@ public class TransportGetDesiredBalanceActionTests extends ESAllocationTestCase 
             .routingTable(routingTable)
             .build();
 
-        transportGetDesiredBalanceAction.masterOperation(mock(Task.class), mock(DesiredBalanceRequest.class), clusterState, listener);
-
-        ArgumentCaptor<DesiredBalanceResponse> desiredBalanceResponseCaptor = ArgumentCaptor.forClass(DesiredBalanceResponse.class);
-        verify(listener).onResponse(desiredBalanceResponseCaptor.capture());
-        DesiredBalanceResponse desiredBalanceResponse = desiredBalanceResponseCaptor.getValue();
+        final var desiredBalanceResponse = executeAction(clusterState);
         assertThat(desiredBalanceResponse.getStats(), equalTo(desiredBalanceStats));
         assertThat(desiredBalanceResponse.getClusterBalanceStats(), notNullValue());
         assertThat(desiredBalanceResponse.getClusterInfo(), equalTo(clusterInfo));
         assertEquals(indexShards.keySet(), desiredBalanceResponse.getRoutingTable().keySet());
+
+        assertEquals(desiredBalanceResponse, copyWriteable(desiredBalanceResponse, writableRegistry(), DesiredBalanceResponse::from));
+        AbstractChunkedSerializingTestCase.assertChunkCount(
+            desiredBalanceResponse,
+            response -> 3 + ClusterInfoTests.getChunkCount(response.getClusterInfo()) + response.getRoutingTable()
+                .values()
+                .stream()
+                .mapToInt(indexEntry -> 2 + indexEntry.values().stream().mapToInt(shardEntry -> 3 + shardEntry.current().size()).sum())
+                .sum()
+        );
+
         for (var e : desiredBalanceResponse.getRoutingTable().entrySet()) {
             String index = e.getKey();
             Map<Integer, DesiredBalanceResponse.DesiredShards> shardsMap = e.getValue();
@@ -267,14 +284,14 @@ public class TransportGetDesiredBalanceActionTests extends ESAllocationTestCase 
                     );
                     assertEquals(indexMetadata.getTierPreference(), shardView.tierPreference());
                 }
-                Optional<ShardAssignment> shardAssignment = Optional.ofNullable(shardAssignments.get(indexShardRoutingTable.shardId()));
-                if (shardAssignment.isPresent()) {
-                    assertEquals(shardAssignment.get().nodeIds(), desiredShard.desired().nodeIds());
-                    assertEquals(shardAssignment.get().total(), desiredShard.desired().total());
-                    assertEquals(shardAssignment.get().unassigned(), desiredShard.desired().unassigned());
-                    assertEquals(shardAssignment.get().ignored(), desiredShard.desired().ignored());
+                final var shardAssignment = shardAssignments.get(indexShardRoutingTable.shardId());
+                if (shardAssignment == null) {
+                    assertSame(desiredShard.desired(), DesiredBalanceResponse.ShardAssignmentView.EMPTY);
                 } else {
-                    assertNull(desiredShard.desired());
+                    assertEquals(shardAssignment.nodeIds(), desiredShard.desired().nodeIds());
+                    assertEquals(shardAssignment.total(), desiredShard.desired().total());
+                    assertEquals(shardAssignment.unassigned(), desiredShard.desired().unassigned());
+                    assertEquals(shardAssignment.ignored(), desiredShard.desired().ignored());
                 }
             }
         }

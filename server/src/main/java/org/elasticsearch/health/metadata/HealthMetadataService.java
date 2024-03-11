@@ -11,7 +11,6 @@ package org.elasticsearch.health.metadata;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -26,7 +25,9 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.health.HealthFeatures;
 
 import java.util.List;
 import java.util.stream.Stream;
@@ -49,6 +50,7 @@ public class HealthMetadataService {
     private static final Logger logger = LogManager.getLogger(HealthMetadataService.class);
 
     private final ClusterService clusterService;
+    private final FeatureService featureService;
     private final ClusterStateListener clusterStateListener;
     private final MasterServiceTaskQueue<UpsertHealthMetadataTask> taskQueue;
     private volatile boolean enabled;
@@ -62,20 +64,17 @@ public class HealthMetadataService {
     // ClusterState to maintain an up-to-date version of it across the cluster.
     private volatile HealthMetadata localHealthMetadata;
 
-    private HealthMetadataService(ClusterService clusterService, Settings settings) {
+    private HealthMetadataService(ClusterService clusterService, FeatureService featureService, Settings settings) {
         this.clusterService = clusterService;
+        this.featureService = featureService;
         this.clusterStateListener = this::updateOnClusterStateChange;
         this.enabled = ENABLED_SETTING.get(settings);
         this.localHealthMetadata = initialHealthMetadata(settings);
-        this.taskQueue = clusterService.createTaskQueue(
-            "health metadata service",
-            Priority.NORMAL,
-            new UpsertHealthMetadataTask.Executor()
-        );
+        this.taskQueue = clusterService.createTaskQueue("health metadata service", Priority.NORMAL, new Executor());
     }
 
-    public static HealthMetadataService create(ClusterService clusterService, Settings settings) {
-        HealthMetadataService healthMetadataService = new HealthMetadataService(clusterService, settings);
+    public static HealthMetadataService create(ClusterService clusterService, FeatureService featureService, Settings settings) {
+        HealthMetadataService healthMetadataService = new HealthMetadataService(clusterService, featureService, settings);
         healthMetadataService.registerListeners();
         return healthMetadataService;
     }
@@ -128,7 +127,7 @@ public class HealthMetadataService {
             clusterService.addListener(clusterStateListener);
 
             if (canPostClusterStateUpdates(clusterService.state())) {
-                taskQueue.submitTask("health-node-enabled", () -> this.localHealthMetadata, null);
+                taskQueue.submitTask("health-node-enabled", new UpsertHealthMetadataTask(), null);
             }
         } else {
             clusterService.removeListener(clusterStateListener);
@@ -136,8 +135,8 @@ public class HealthMetadataService {
     }
 
     private boolean canPostClusterStateUpdates(ClusterState state) {
-        // Wait until every node in the cluster is upgraded to 8.5.0 or later
-        return isMaster && state.nodesIfRecovered().getMinNodeVersion().onOrAfter(Version.V_8_5_0);
+        // Wait until every node in the cluster supports health checks
+        return isMaster && state.clusterRecovered() && featureService.clusterHasFeature(state, HealthFeatures.SUPPORTS_HEALTH);
     }
 
     private void updateOnClusterStateChange(ClusterChangedEvent event) {
@@ -151,8 +150,8 @@ public class HealthMetadataService {
             this.isMaster = event.localNodeMaster();
         }
         if (canPostClusterStateUpdates(event.state())) {
-            if (this.localHealthMetadata.equals(HealthMetadata.getFromClusterState(event.state())) == false) {
-                taskQueue.submitTask("store-local-health-metadata", () -> this.localHealthMetadata, null);
+            if (localHealthMetadata.equals(HealthMetadata.getFromClusterState(event.state())) == false) {
+                taskQueue.submitTask("store-local-health-metadata", new UpsertHealthMetadataTask(), null);
             }
         }
     }
@@ -167,36 +166,36 @@ public class HealthMetadataService {
     /**
      * A base class for health metadata cluster state update tasks.
      */
-    interface UpsertHealthMetadataTask extends ClusterStateTaskListener {
-
+    private static class UpsertHealthMetadataTask implements ClusterStateTaskListener {
         @Override
-        default void onFailure(@Nullable Exception e) {
+        public void onFailure(@Nullable Exception e) {
             logger.log(
                 MasterService.isPublishFailureException(e) ? Level.DEBUG : Level.WARN,
                 () -> "failure during health metadata update",
                 e
             );
         }
+    }
 
-        default ClusterState execute(ClusterState currentState) {
-            var initialHealthMetadata = HealthMetadata.getFromClusterState(currentState);
-            var finalHealthMetadata = latestLocalMetadata();
-            return finalHealthMetadata.equals(initialHealthMetadata)
-                ? currentState
-                : currentState.copyAndUpdate(b -> b.putCustom(HealthMetadata.TYPE, finalHealthMetadata));
+    private class Executor extends SimpleBatchedExecutor<UpsertHealthMetadataTask, Void> {
+        @Override
+        public Tuple<ClusterState, Void> executeTask(UpsertHealthMetadataTask task, ClusterState clusterState) {
+            final var initialHealthMetadata = HealthMetadata.getFromClusterState(clusterState);
+            final var finalHealthMetadata = localHealthMetadata; // single volatile read
+            return Tuple.tuple(
+                finalHealthMetadata.equals(initialHealthMetadata)
+                    ? clusterState
+                    : clusterState.copyAndUpdate(b -> b.putCustom(HealthMetadata.TYPE, finalHealthMetadata)),
+                null
+            );
         }
 
-        HealthMetadata latestLocalMetadata();
+        @Override
+        public void taskSucceeded(UpsertHealthMetadataTask task, Void unused) {}
 
-        class Executor extends SimpleBatchedExecutor<UpsertHealthMetadataTask, Void> {
-
-            @Override
-            public Tuple<ClusterState, Void> executeTask(UpsertHealthMetadataTask task, ClusterState clusterState) {
-                return Tuple.tuple(task.execute(clusterState), null);
-            }
-
-            @Override
-            public void taskSucceeded(UpsertHealthMetadataTask task, Void unused) {}
+        @Override
+        public String describeTasks(List<UpsertHealthMetadataTask> tasks) {
+            return ""; // tasks are equivalent and idempotent, no need to list them out
         }
     }
 

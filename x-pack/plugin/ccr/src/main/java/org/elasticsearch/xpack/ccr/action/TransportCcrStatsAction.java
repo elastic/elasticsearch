@@ -55,7 +55,7 @@ public class TransportCcrStatsAction extends TransportMasterNodeAction<CcrStatsA
             CcrStatsAction.Request::new,
             indexNameExpressionResolver,
             CcrStatsAction.Response::new,
-            Ccr.CCR_THREAD_POOL_NAME
+            threadPool.executor(Ccr.CCR_THREAD_POOL_NAME)
         );
         this.client = client;
         this.ccrLicenseChecker = Objects.requireNonNull(ccrLicenseChecker);

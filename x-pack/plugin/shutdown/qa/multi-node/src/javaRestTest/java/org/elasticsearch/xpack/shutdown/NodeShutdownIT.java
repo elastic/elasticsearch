@@ -15,7 +15,6 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.test.readiness.ReadinessClientProbe;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -38,7 +37,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class NodeShutdownIT extends ESRestTestCase implements ReadinessClientProbe {
+public class NodeShutdownIT extends ESRestTestCase {
 
     public void testRestartCRUD() throws Exception {
         checkCRUD(randomFrom("restart", "RESTART"), randomPositiveTimeValue(), null, null);
@@ -96,55 +95,6 @@ public class NodeShutdownIT extends ESRestTestCase implements ReadinessClientPro
             assertOK(client().performRequest(deleteRequest));
             assertNoShuttingDownNodes(nodeIdToShutdown);
         }
-    }
-
-    @SuppressWarnings("unchecked")
-    public void testShutdownReadinessService() throws Exception {
-        // Get a node from the cluster and find its readiness port
-        Request getNodes = new Request("GET", "_nodes");
-        Map<String, Object> nodesResponse = responseAsMap(client().performRequest(getNodes));
-        Map<String, Object> nodesObject = (Map<String, Object>) nodesResponse.get("nodes");
-
-        String nodeId = nodesObject.keySet().iterator().next();
-        Map<String, Object> nodeObject = (Map<String, Object>) nodesObject.get(nodeId);
-        Map<String, Object> httpObject = (Map<String, Object>) nodeObject.get("http");
-        String publishAddress = (String) httpObject.get("publish_address");
-
-        String readinessPorts = this.getTestReadinessPorts();
-        String restPorts = this.getTestRestCluster();
-
-        String[] restAddresses = restPorts.split(",");
-        int nodeIndex = 0;
-        for (String restAddress : restAddresses) {
-            // skip ipv6 if any
-            if (restAddress.startsWith("[")) {
-                continue;
-            }
-            if (restAddress.equals(publishAddress)) {
-                break;
-            }
-            nodeIndex++;
-        }
-
-        String[] readinessAddresses = readinessPorts.split(",");
-        String readinessAddress = readinessAddresses[nodeIndex];
-
-        String portStr = readinessAddress.substring(readinessAddress.lastIndexOf(':') + 1);
-        Integer port = Integer.parseInt(portStr);
-
-        // Once we have the right port, check to see if it's ready, has to be for a properly started cluster
-        tcpReadinessProbeTrue(port);
-
-        // Mark the node for shutdown and check that it's not ready
-        checkCRUD(nodeId, randomFrom("restart", "RESTART"), "1ms", null, false, null);
-        tcpReadinessProbeFalse(port);
-
-        // Delete the shutdown request and verify that the node is ready again
-        Request deleteRequest = new Request("DELETE", "_nodes/" + nodeId + "/shutdown");
-        assertOK(client().performRequest(deleteRequest));
-        assertNoShuttingDownNodes(nodeId);
-
-        tcpReadinessProbeTrue(port);
     }
 
     public void testPutShutdownIsIdempotentForRestart() throws Exception {
@@ -269,7 +219,6 @@ public class NodeShutdownIT extends ESRestTestCase implements ReadinessClientPro
      * 2) Ensures the status properly comes to rest at COMPLETE after the shards have moved.
      */
     @SuppressWarnings("unchecked")
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/77488")
     public void testShardsMoveOffRemovingNode() throws Exception {
         String nodeIdToShutdown = getRandomNodeId();
 

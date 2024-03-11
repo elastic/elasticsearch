@@ -10,7 +10,7 @@ package org.elasticsearch.common.xcontent;
 
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -20,6 +20,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.plugins.internal.DocumentSizeObserver;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
@@ -73,8 +74,24 @@ public class XContentHelper {
             final XContentType contentType = XContentFactory.xContentType(compressedInput);
             return XContentFactory.xContent(contentType).createParser(config, compressedInput);
         } else {
-            return XContentFactory.xContent(xContentType(bytes)).createParser(config, bytes.streamInput());
+            return createParserNotCompressed(config, bytes, xContentType(bytes));
         }
+    }
+
+    /**
+     * Same as {@link #createParser(XContentParserConfiguration, BytesReference, XContentType)} but only supports uncompressed
+     * {@code bytes}.
+     */
+    public static XContentParser createParserNotCompressed(
+        XContentParserConfiguration config,
+        BytesReference bytes,
+        XContentType xContentType
+    ) throws IOException {
+        XContent xContent = xContentType.xContent();
+        if (bytes.hasArray()) {
+            return xContent.createParser(config, bytes.array(), bytes.arrayOffset(), bytes.length());
+        }
+        return xContent.createParser(config, bytes.streamInput());
     }
 
     /**
@@ -103,17 +120,10 @@ public class XContentHelper {
         Objects.requireNonNull(xContentType);
         Compressor compressor = CompressorFactory.compressor(bytes);
         if (compressor != null) {
-            InputStream compressedInput = compressor.threadLocalInputStream(bytes.streamInput());
-            if (compressedInput.markSupported() == false) {
-                compressedInput = new BufferedInputStream(compressedInput);
-            }
-            return XContentFactory.xContent(xContentType).createParser(config, compressedInput);
+            return XContentFactory.xContent(xContentType).createParser(config, compressor.threadLocalInputStream(bytes.streamInput()));
         } else {
-            // TODO now that we have config we make a method on bytes to do this building wihout needing this check everywhere
-            if (bytes.hasArray()) {
-                return xContentType.xContent().createParser(config, bytes.array(), bytes.arrayOffset(), bytes.length());
-            }
-            return xContentType.xContent().createParser(config, bytes.streamInput());
+            // TODO now that we have config we make a method on bytes to do this building without needing this check everywhere
+            return createParserNotCompressed(config, bytes, xContentType);
         }
     }
 
@@ -138,6 +148,21 @@ public class XContentHelper {
      * Exactly the same as {@link XContentHelper#convertToMap(BytesReference, boolean, XContentType, Set, Set)} but
      * none of the fields are filtered
      */
+    public static Tuple<XContentType, Map<String, Object>> convertToMap(
+        BytesReference bytes,
+        boolean ordered,
+        XContentType xContentType,
+        DocumentSizeObserver documentSizeObserver
+    ) {
+        return parseToType(
+            ordered ? XContentParser::mapOrdered : XContentParser::map,
+            bytes,
+            xContentType,
+            XContentParserConfiguration.EMPTY,
+            documentSizeObserver
+        );
+    }
+
     public static Tuple<XContentType, Map<String, Object>> convertToMap(BytesReference bytes, boolean ordered, XContentType xContentType) {
         return parseToType(
             ordered ? XContentParser::mapOrdered : XContentParser::map,
@@ -182,9 +207,24 @@ public class XContentHelper {
         @Nullable XContentType xContentType,
         @Nullable XContentParserConfiguration config
     ) throws ElasticsearchParseException {
+        return parseToType(extractor, bytes, xContentType, config, DocumentSizeObserver.EMPTY_INSTANCE);
+    }
+
+    public static <T> Tuple<XContentType, T> parseToType(
+        CheckedFunction<XContentParser, T, IOException> extractor,
+        BytesReference bytes,
+        @Nullable XContentType xContentType,
+        @Nullable XContentParserConfiguration config,
+        DocumentSizeObserver documentSizeObserver
+    ) throws ElasticsearchParseException {
         config = config != null ? config : XContentParserConfiguration.EMPTY;
-        try (XContentParser parser = xContentType != null ? createParser(config, bytes, xContentType) : createParser(config, bytes)) {
-            return new Tuple<>(parser.contentType(), extractor.apply(parser));
+        try (
+            XContentParser parser = documentSizeObserver.wrapParser(
+                xContentType != null ? createParser(config, bytes, xContentType) : createParser(config, bytes)
+            )
+        ) {
+            Tuple<XContentType, T> xContentTypeTTuple = new Tuple<>(parser.contentType(), extractor.apply(parser));
+            return xContentTypeTTuple;
         } catch (IOException e) {
             throw new ElasticsearchParseException("Failed to parse content to type", e);
         }
@@ -279,7 +319,7 @@ public class XContentHelper {
 
     @Deprecated
     public static String convertToJson(BytesReference bytes, boolean reformatJson, boolean prettyPrint) throws IOException {
-        return convertToJson(bytes, reformatJson, prettyPrint, XContentFactory.xContentType(bytes.toBytesRef().bytes));
+        return convertToJson(bytes, reformatJson, prettyPrint, xContentType(bytes));
     }
 
     public static String convertToJson(BytesReference bytes, boolean reformatJson, XContentType xContentType) throws IOException {
@@ -306,20 +346,8 @@ public class XContentHelper {
             return bytes.utf8ToString();
         }
 
-        if (bytes.hasArray()) {
-            try (
-                XContentParser parser = XContentFactory.xContent(xContentType)
-                    .createParser(XContentParserConfiguration.EMPTY, bytes.array(), bytes.arrayOffset(), bytes.length())
-            ) {
-                return toJsonString(prettyPrint, parser);
-            }
-        } else {
-            try (
-                InputStream stream = bytes.streamInput();
-                XContentParser parser = XContentFactory.xContent(xContentType).createParser(XContentParserConfiguration.EMPTY, stream)
-            ) {
-                return toJsonString(prettyPrint, parser);
-            }
+        try (var parser = createParserNotCompressed(XContentParserConfiguration.EMPTY, bytes, xContentType)) {
+            return toJsonString(prettyPrint, parser);
         }
     }
 
@@ -377,53 +405,110 @@ public class XContentHelper {
     }
 
     /**
-     * Merges the defaults provided as the second parameter into the content of the first. Only does recursive merge
-     * for inner maps.
+     * Merges the defaults provided as the second parameter into the content of the first. Only does recursive merge for inner maps.
      */
     public static void mergeDefaults(Map<String, Object> content, Map<String, Object> defaults) {
-        for (Map.Entry<String, Object> defaultEntry : defaults.entrySet()) {
-            if (content.containsKey(defaultEntry.getKey()) == false) {
-                // copy it over, it does not exists in the content
-                content.put(defaultEntry.getKey(), defaultEntry.getValue());
-            } else {
-                // in the content and in the default, only merge compound ones (maps)
-                if (content.get(defaultEntry.getKey()) instanceof Map && defaultEntry.getValue() instanceof Map) {
-                    mergeDefaults((Map<String, Object>) content.get(defaultEntry.getKey()), (Map<String, Object>) defaultEntry.getValue());
-                } else if (content.get(defaultEntry.getKey()) instanceof List && defaultEntry.getValue() instanceof List) {
-                    List<Object> defaultList = (List<Object>) defaultEntry.getValue();
-                    List<Object> contentList = (List<Object>) content.get(defaultEntry.getKey());
+        merge(content, defaults, null);
+    }
 
-                    if (allListValuesAreMapsOfOne(defaultList) && allListValuesAreMapsOfOne(contentList)) {
+    /**
+     * Merges the map provided as the second parameter into the content of the first. Only does recursive merge for inner maps.
+     * If a non-null {@link CustomMerge} is provided, it is applied whenever a merge is required, meaning - whenever both the first and
+     * the second map has values for the same key. Otherwise, values from the first map will always have precedence, meaning - if the
+     * first map contains a key, its value will not be overriden.
+     * @param first the map which serves as the merge base
+     * @param second the map of which contents are merged into the base map
+     * @param customMerge a custom merge rule to apply whenever a key has concrete values (i.e. not a map or a collection) in both maps
+     */
+    public static void merge(Map<String, Object> first, Map<String, Object> second, @Nullable CustomMerge customMerge) {
+        merge(null, first, second, customMerge);
+    }
+
+    /**
+     * Merges the map provided as the second parameter into the content of the first. Only does recursive merge for inner maps.
+     * If a non-null {@link CustomMerge} is provided, it is applied whenever a merge is required, meaning - whenever both the first and
+     * the second map has values for the same key. Otherwise, values from the first map will always have precedence, meaning - if the
+     * first map contains a key, its value will not be overridden.
+     *
+     * @param parent      used for recursion to maintain knowledge about the common parent of the currently merged sub-maps, if such exists
+     * @param first       the map which serves as the merge base
+     * @param second      the map of which contents are merged into the base map
+     * @param customMerge a custom merge rule to apply whenever a key has concrete values (i.e. not a map or a collection) in both maps
+     */
+    public static void merge(
+        @Nullable String parent,
+        Map<String, Object> first,
+        Map<String, Object> second,
+        @Nullable CustomMerge customMerge
+    ) {
+        for (Map.Entry<String, Object> toMergeEntry : second.entrySet()) {
+            if (first.containsKey(toMergeEntry.getKey()) == false) {
+                // copy it over, it does not exist in the content
+                first.put(toMergeEntry.getKey(), toMergeEntry.getValue());
+            } else {
+                // has values in both maps, merge compound ones (maps)
+                Object baseValue = first.get(toMergeEntry.getKey());
+                if (baseValue instanceof Map && toMergeEntry.getValue() instanceof Map) {
+                    Map<String, Object> mergedValue = null;
+                    if (customMerge != null) {
+                        Object tmp = customMerge.merge(parent, toMergeEntry.getKey(), baseValue, toMergeEntry.getValue());
+                        if (tmp != null && tmp instanceof Map == false) {
+                            throw new IllegalStateException("merging of values for [" + toMergeEntry.getKey() + "] must yield a map");
+                        }
+                        mergedValue = (Map<String, Object>) tmp;
+                    }
+                    if (mergedValue != null) {
+                        first.put(toMergeEntry.getKey(), mergedValue);
+                    } else {
+                        // if custom merge does not yield a value to be used, continue recursive merge
+                        merge(
+                            toMergeEntry.getKey(),
+                            (Map<String, Object>) baseValue,
+                            (Map<String, Object>) toMergeEntry.getValue(),
+                            customMerge
+                        );
+                    }
+                } else if (baseValue instanceof List && toMergeEntry.getValue() instanceof List) {
+                    List<Object> listToMerge = (List<Object>) toMergeEntry.getValue();
+                    List<Object> baseList = (List<Object>) baseValue;
+
+                    if (allListValuesAreMapsOfOne(listToMerge) && allListValuesAreMapsOfOne(baseList)) {
                         // all are in the form of [ {"key1" : {}}, {"key2" : {}} ], merge based on keys
                         Map<String, Map<String, Object>> processed = new LinkedHashMap<>();
-                        for (Object o : contentList) {
+                        for (Object o : baseList) {
                             Map<String, Object> map = (Map<String, Object>) o;
                             Map.Entry<String, Object> entry = map.entrySet().iterator().next();
                             processed.put(entry.getKey(), map);
                         }
-                        for (Object o : defaultList) {
+                        for (Object o : listToMerge) {
                             Map<String, Object> map = (Map<String, Object>) o;
                             Map.Entry<String, Object> entry = map.entrySet().iterator().next();
                             if (processed.containsKey(entry.getKey())) {
-                                mergeDefaults(processed.get(entry.getKey()), map);
+                                merge(toMergeEntry.getKey(), processed.get(entry.getKey()), map, customMerge);
                             } else {
-                                // put the default entries after the content ones.
+                                // append the second list's entries after the first list's entries.
                                 processed.put(entry.getKey(), map);
                             }
                         }
 
-                        content.put(defaultEntry.getKey(), new ArrayList<>(processed.values()));
+                        first.put(toMergeEntry.getKey(), new ArrayList<>(processed.values()));
                     } else {
-                        // if both are lists, simply combine them, first the defaults, then the content
+                        // if both are lists, simply combine them, first the second list's values, then the first's
                         // just make sure not to add the same value twice
-                        List<Object> mergedList = new ArrayList<>(defaultList);
+                        // custom merge is not applicable here
+                        List<Object> mergedList = new ArrayList<>(listToMerge);
 
-                        for (Object o : contentList) {
+                        for (Object o : baseList) {
                             if (mergedList.contains(o) == false) {
                                 mergedList.add(o);
                             }
                         }
-                        content.put(defaultEntry.getKey(), mergedList);
+                        first.put(toMergeEntry.getKey(), mergedList);
+                    }
+                } else if (customMerge != null) {
+                    Object mergedValue = customMerge.merge(parent, toMergeEntry.getKey(), baseValue, toMergeEntry.getValue());
+                    if (mergedValue != null) {
+                        first.put(toMergeEntry.getKey(), mergedValue);
                     }
                 }
             }
@@ -440,6 +525,33 @@ public class XContentHelper {
             }
         }
         return true;
+    }
+
+    /**
+     * A {@code FunctionalInterface} that can be used in order to customize map merges.
+     */
+    @FunctionalInterface
+    public interface CustomMerge {
+        /**
+         * Based on the provided arguments, compute a value to use for the given key as a merge result.
+         * If this method returns a non-{@code null} value, then the merge result will replace the original value of the provided key in
+         * the base map.
+         * If this method returns {@code null}, then:
+         * <ul>
+         *     <li> if the values are of map type, the old and new values will be merged recursively
+         *     <li> otherwise, the original value will be maintained
+         * </ul>
+         * This method doesn't throw a checked exception, but it is expected that illegal merges will result in a {@link RuntimeException}.
+         * @param parent merged field's parent
+         * @param key merged field's name
+         * @param oldValue original value of the provided key
+         * @param newValue the new value of the provided key which is to be merged with the original
+         * @return the merged value to use for the given key, or {@code null} if there is no custom merge result for it. If {@code null}
+         * is returned, the algorithm will live the original value as is, unless it is a map, in which case the new map will be merged
+         * into the old map recursively.
+         */
+        @Nullable
+        Object merge(String parent, String key, Object oldValue, Object newValue);
     }
 
     /**
@@ -612,7 +724,7 @@ public class XContentHelper {
      * @param xContentType an instance to serialize
      */
     public static void writeTo(StreamOutput out, XContentType xContentType) throws IOException {
-        if (out.getTransportVersion().before(TransportVersion.V_8_0_0)) {
+        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             // when sending an enumeration to <v8 node it does not have new VND_ XContentType instances
             out.writeVInt(xContentType.canonical().ordinal());
         } else {
@@ -631,7 +743,7 @@ public class XContentHelper {
     public static XContentParser mapToXContentParser(XContentParserConfiguration config, Map<String, ?> source) {
         try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
             builder.map(source);
-            return XContentFactory.xContent(builder.contentType()).createParser(config, Strings.toString(builder));
+            return createParserNotCompressed(config, BytesReference.bytes(builder), builder.contentType());
         } catch (IOException e) {
             throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
         }

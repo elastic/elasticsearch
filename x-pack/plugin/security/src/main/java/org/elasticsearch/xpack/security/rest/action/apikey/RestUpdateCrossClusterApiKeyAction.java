@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.rest.action.apikey;
 
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
@@ -32,12 +33,17 @@ public final class RestUpdateCrossClusterApiKeyAction extends ApiKeyBaseRestHand
     @SuppressWarnings("unchecked")
     static final ConstructingObjectParser<Payload, Void> PARSER = new ConstructingObjectParser<>(
         "update_cross_cluster_api_key_request_payload",
-        a -> new Payload((CrossClusterApiKeyRoleDescriptorBuilder) a[0], (Map<String, Object>) a[1])
+        a -> new Payload(
+            (CrossClusterApiKeyRoleDescriptorBuilder) a[0],
+            (Map<String, Object>) a[1],
+            TimeValue.parseTimeValue((String) a[2], null, "expiration")
+        )
     );
 
     static {
         PARSER.declareObject(optionalConstructorArg(), CrossClusterApiKeyRoleDescriptorBuilder.PARSER, new ParseField("access"));
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> p.map(), new ParseField("metadata"));
+        PARSER.declareString(optionalConstructorArg(), new ParseField("expiration"));
     }
 
     public RestUpdateCrossClusterApiKeyAction(final Settings settings, final XPackLicenseState licenseState) {
@@ -61,22 +67,19 @@ public final class RestUpdateCrossClusterApiKeyAction extends ApiKeyBaseRestHand
 
         return channel -> client.execute(
             UpdateCrossClusterApiKeyAction.INSTANCE,
-            new UpdateCrossClusterApiKeyRequest(apiKeyId, payload.builder, payload.metadata),
+            new UpdateCrossClusterApiKeyRequest(apiKeyId, payload.builder, payload.metadata, payload.expiration),
             new RestToXContentListener<>(channel)
         );
     }
 
     @Override
-    protected Exception checkFeatureAvailable(RestRequest request) {
-        final Exception failedFeature = super.checkFeatureAvailable(request);
-        if (failedFeature != null) {
-            return failedFeature;
-        } else if (ADVANCED_REMOTE_CLUSTER_SECURITY_FEATURE.checkWithoutTracking(licenseState)) {
+    protected Exception innerCheckFeatureAvailable(RestRequest request) {
+        if (ADVANCED_REMOTE_CLUSTER_SECURITY_FEATURE.checkWithoutTracking(licenseState)) {
             return null;
         } else {
             return LicenseUtils.newComplianceException(ADVANCED_REMOTE_CLUSTER_SECURITY_FEATURE.getName());
         }
     }
 
-    record Payload(CrossClusterApiKeyRoleDescriptorBuilder builder, Map<String, Object> metadata) {}
+    record Payload(CrossClusterApiKeyRoleDescriptorBuilder builder, Map<String, Object> metadata, TimeValue expiration) {}
 }

@@ -38,7 +38,6 @@ import org.apache.lucene.tests.mockfile.FilterSeekableByteChannel;
 import org.apache.lucene.tests.search.CheckHits;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -620,7 +619,7 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
                 final SnapshotId snapshotId = new SnapshotId("_snapshot", UUIDs.randomBase64UUID(random()));
                 final IndexId indexId = new IndexId(indexSettings.getIndex().getName(), UUIDs.randomBase64UUID(random()));
 
-                final PlainActionFuture<ShardSnapshotResult> future = PlainActionFuture.newFuture();
+                final PlainActionFuture<ShardSnapshotResult> future = new PlainActionFuture<>();
                 threadPool.generic().submit(() -> {
                     IndexShardSnapshotStatus snapshotStatus = IndexShardSnapshotStatus.newInitializing(null);
                     repository.snapshotShard(
@@ -675,7 +674,7 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
                         sharedBlobCacheService
                     )
                 ) {
-                    final PlainActionFuture<Void> f = PlainActionFuture.newFuture();
+                    final PlainActionFuture<Void> f = new PlainActionFuture<>();
                     final boolean loaded = snapshotDirectory.loadSnapshot(recoveryState, store::isClosing, f);
                     try {
                         f.get();
@@ -780,7 +779,7 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
                 )
             ) {
                 final RecoveryState recoveryState = createRecoveryState(randomBoolean());
-                final PlainActionFuture<Void> f = PlainActionFuture.newFuture();
+                final PlainActionFuture<Void> f = new PlainActionFuture<>();
                 final boolean loaded = directory.loadSnapshot(recoveryState, () -> false, f);
                 f.get();
                 assertThat("Failed to load snapshot", loaded, is(true));
@@ -826,7 +825,7 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
         );
 
         for (int i = 0; i < requiredSettings.size(); i++) {
-            final Settings.Builder settings = indexSettings(Version.CURRENT, 1, 0);
+            final Settings.Builder settings = indexSettings(IndexVersion.current(), 1, 0);
             for (int j = 0; j < requiredSettings.size(); j++) {
                 if (i != j) {
                     settings.put(requiredSettings.get(j).getKey(), randomAlphaOfLength(10));
@@ -973,7 +972,7 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
             "_index",
             Settings.builder()
                 .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID(random()))
-                .put(IndexMetadata.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT)
+                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                 .build()
         );
     }

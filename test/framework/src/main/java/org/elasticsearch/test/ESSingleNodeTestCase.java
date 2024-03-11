@@ -13,9 +13,10 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
-import org.elasticsearch.action.admin.indices.template.delete.DeleteComponentTemplateAction;
-import org.elasticsearch.action.admin.indices.template.delete.DeleteComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.delete.TransportDeleteComponentTemplateAction;
+import org.elasticsearch.action.admin.indices.template.delete.TransportDeleteComposableIndexTemplateAction;
 import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.AdminClient;
@@ -45,6 +46,7 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeValidationException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptService;
+import org.elasticsearch.search.ConcurrentSearchTestPlugin;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -132,7 +134,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         var deleteDataStreamsRequest = new DeleteDataStreamAction.Request("*");
         deleteDataStreamsRequest.indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN);
         try {
-            assertAcked(client().execute(DeleteDataStreamAction.INSTANCE, deleteDataStreamsRequest).actionGet());
+            assertAcked(client().execute(DeleteDataStreamAction.INSTANCE, deleteDataStreamsRequest));
         } catch (IllegalStateException e) {
             // Ignore if action isn't registered, because data streams is a module and
             // if the delete action isn't registered then there no data streams to delete.
@@ -140,10 +142,10 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
                 throw e;
             }
         }
-        var deleteComposableIndexTemplateRequest = new DeleteComposableIndexTemplateAction.Request("*");
-        assertAcked(client().execute(DeleteComposableIndexTemplateAction.INSTANCE, deleteComposableIndexTemplateRequest).actionGet());
-        var deleteComponentTemplateRequest = new DeleteComponentTemplateAction.Request("*");
-        assertAcked(client().execute(DeleteComponentTemplateAction.INSTANCE, deleteComponentTemplateRequest).actionGet());
+        var deleteComposableIndexTemplateRequest = new TransportDeleteComposableIndexTemplateAction.Request("*");
+        assertAcked(client().execute(TransportDeleteComposableIndexTemplateAction.TYPE, deleteComposableIndexTemplateRequest).actionGet());
+        var deleteComponentTemplateRequest = new TransportDeleteComponentTemplateAction.Request("*");
+        assertAcked(client().execute(TransportDeleteComponentTemplateAction.TYPE, deleteComponentTemplateRequest).actionGet());
         assertAcked(indicesAdmin().prepareDelete("*").setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN).get());
         Metadata metadata = clusterAdmin().prepareState().get().getState().getMetadata();
         assertThat(
@@ -226,8 +228,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
     private Node newNode() {
         final Path tempDir = createTempDir();
         final String nodeName = nodeSettings().get(Node.NODE_NAME_SETTING.getKey(), "node_s_0");
-
-        Settings settings = Settings.builder()
+        Settings.Builder settingBuilder = Settings.builder()
             .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), InternalTestCluster.clusterName("single-node-cluster", random().nextLong()))
             .put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), false)
             .put(Environment.PATH_HOME_SETTING.getKey(), tempDir)
@@ -250,8 +251,15 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), false)
             .putList(DISCOVERY_SEED_HOSTS_SETTING.getKey()) // empty list disables a port scan for other nodes
             .putList(INITIAL_MASTER_NODES_SETTING.getKey(), nodeName)
-            .put(nodeSettings()) // allow test cases to provide their own settings or override these
-            .build();
+            .put(nodeSettings());// allow test cases to provide their own settings or override these
+
+        boolean enableConcurrentSearch = enableConcurrentSearch();
+        if (enableConcurrentSearch) {
+            settingBuilder.put(SearchService.MINIMUM_DOCS_PER_SLICE.getKey(), 1);
+        } else {
+            settingBuilder.put(SearchService.QUERY_PHASE_PARALLEL_COLLECTION_ENABLED.getKey(), false);
+        }
+        Settings settings = settingBuilder.build();
 
         Collection<Class<? extends Plugin>> plugins = new ArrayList<>(getPlugins());
         if (plugins.contains(getTestTransportPlugin()) == false) {
@@ -259,6 +267,9 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         }
         if (addMockHttpTransport()) {
             plugins.add(MockHttpTransport.TestPlugin.class);
+        }
+        if (enableConcurrentSearch) {
+            plugins.add(ConcurrentSearchTestPlugin.class);
         }
         plugins.add(MockScriptService.TestPlugin.class);
         Node node = new MockNode(settings, plugins, forbidPrivateIndexSettings());
@@ -372,6 +383,10 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         return new Index(index, uuid);
     }
 
+    protected IndexRequestBuilder prepareIndex(String index) {
+        return client().prepareIndex(index);
+    }
+
     /**
      * Create a new search context.
      */
@@ -406,7 +421,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             logger.info(
                 "ensureGreen timed out, cluster state:\n{}\n{}",
                 clusterAdmin().prepareState().get().getState(),
-                clusterAdmin().preparePendingClusterTasks().get()
+                ESIntegTestCase.getClusterPendingTasks(client())
             );
             assertThat("timed out waiting for green state", actionGet.isTimedOut(), equalTo(false));
         }
@@ -436,4 +451,12 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         assertFalse("timed out waiting for shards to initialize", actionGet.isTimedOut());
     }
 
+    /**
+     * Whether we'd like to enable inter-segment search concurrency and increase the likelihood of leveraging it, by creating multiple
+     * slices with a low amount of documents in them, which would not be allowed in production.
+     * Default is true, can be disabled if it causes problems in specific tests.
+     */
+    protected boolean enableConcurrentSearch() {
+        return true;
+    }
 }

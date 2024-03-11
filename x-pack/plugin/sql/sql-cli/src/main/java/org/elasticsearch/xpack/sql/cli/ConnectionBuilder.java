@@ -101,7 +101,7 @@ public class ConnectionBuilder {
     }
 
     @SuppressForbidden(reason = "cli application shouldn't depend on ES")
-    private Path getKeystorePath(String keystoreLocation) {
+    private static Path getKeystorePath(String keystoreLocation) {
         return Paths.get(keystoreLocation);
     }
 

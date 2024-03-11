@@ -28,6 +28,7 @@ public abstract class DeferableBucketAggregator extends BucketsAggregator {
      */
     private DeferringBucketCollector deferringCollector;
     private List<String> deferredAggregationNames;
+    private final boolean inSortOrderExecutionRequired;
 
     protected DeferableBucketAggregator(
         String name,
@@ -38,6 +39,7 @@ public abstract class DeferableBucketAggregator extends BucketsAggregator {
     ) throws IOException {
         // Assumes that we're collecting MANY buckets.
         super(name, factories, context, parent, CardinalityUpperBound.MANY, metadata);
+        this.inSortOrderExecutionRequired = context.isInSortOrderExecutionRequired();
     }
 
     @Override
@@ -46,6 +48,15 @@ public abstract class DeferableBucketAggregator extends BucketsAggregator {
         List<BucketCollector> deferredAggregations = null;
         for (int i = 0; i < subAggregators.length; ++i) {
             if (shouldDefer(subAggregators[i])) {
+                // Deferred collection isn't possible with TimeSeriesIndexSearcher,
+                // this will always result in incorrect results. The is caused by
+                // the fact that tsid will not be correctly recorded, because when
+                // deferred collection occurs the TimeSeriesIndexSearcher already
+                // completed execution.
+                if (inSortOrderExecutionRequired) {
+                    throw new IllegalArgumentException("[" + name + "] aggregation is incompatible with time series execution mode");
+                }
+
                 if (deferringCollector == null) {
                     deferringCollector = buildDeferringCollector();
                     deferredAggregations = new ArrayList<>(subAggregators.length);

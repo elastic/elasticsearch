@@ -10,25 +10,42 @@ package org.elasticsearch.transport;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.threadpool.FixedExecutorBuilder;
+import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.IOException;
 import java.util.Random;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.startsWith;
 
 public class TransportServiceLifecycleTests extends ESTestCase {
 
@@ -50,11 +67,7 @@ public class TransportServiceLifecycleTests extends ESTestCase {
                 for (int i = 0; i < threads.length; i++) {
                     final var seed = randomLong();
                     threads[i] = new Thread(() -> {
-                        try {
-                            startBarrier.await(10, TimeUnit.SECONDS);
-                        } catch (Exception e) {
-                            throw new AssertionError(e);
-                        }
+                        safeAwait(startBarrier);
                         final var random = new Random(seed);
                         while (keepGoing.get() && requestPermits.tryAcquire()) {
                             nodeB.transportService.sendRequest(
@@ -85,8 +98,8 @@ public class TransportServiceLifecycleTests extends ESTestCase {
                                     }
 
                                     @Override
-                                    public String executor() {
-                                        return executor;
+                                    public Executor executor() {
+                                        return nodeB.transportService.getThreadPool().executor(executor);
                                     }
                                 }
                             );
@@ -110,14 +123,127 @@ public class TransportServiceLifecycleTests extends ESTestCase {
         }
     }
 
+    public void testInternalSendExceptionForksToHandlerExecutor() {
+        final var deterministicTaskQueue = new DeterministicTaskQueue();
+
+        try (var nodeA = new TestNode("node-A")) {
+            final var future = new PlainActionFuture<TransportResponse.Empty>();
+            nodeA.transportService.sendRequest(
+                nodeA.getThrowingConnection(),
+                TestNode.ACTION_NAME_PREFIX + randomFrom(TestNode.EXECUTOR_NAMES),
+                new TransportRequest.Empty(),
+                TransportRequestOptions.EMPTY,
+                new ActionListenerResponseHandler<>(future, unusedReader(), deterministicTaskQueue::scheduleNow)
+            );
+
+            assertFalse(future.isDone());
+            assertTrue(deterministicTaskQueue.hasRunnableTasks());
+            deterministicTaskQueue.runAllRunnableTasks();
+            assertTrue(future.isDone());
+            assertEquals("simulated exception in sendRequest", getSendRequestException(future, IOException.class).getMessage());
+        }
+    }
+
+    public void testInternalSendExceptionForksToGenericIfHandlerDoesNotFork() {
+        try (var nodeA = new TestNode("node-A")) {
+            final var future = new PlainActionFuture<TransportResponse.Empty>();
+            nodeA.transportService.sendRequest(
+                nodeA.getThrowingConnection(),
+                TestNode.ACTION_NAME_PREFIX + randomFrom(TestNode.EXECUTOR_NAMES),
+                new TransportRequest.Empty(),
+                TransportRequestOptions.EMPTY,
+                new ActionListenerResponseHandler<>(future.delegateResponse((l, e) -> {
+                    assertThat(Thread.currentThread().getName(), containsString("[" + ThreadPool.Names.GENERIC + "]"));
+                    l.onFailure(e);
+                }), unusedReader(), EsExecutors.DIRECT_EXECUTOR_SERVICE)
+            );
+
+            assertEquals("simulated exception in sendRequest", getSendRequestException(future, IOException.class).getMessage());
+        }
+    }
+
+    public void testInternalSendExceptionForcesExecutionOnHandlerExecutor() {
+        try (var nodeA = new TestNode("node-A")) {
+            final var blockingLatch = new CountDownLatch(1);
+            final var executor = nodeA.threadPool.executor(Executors.FIXED_BOUNDED_QUEUE);
+            while (true) {
+                try {
+                    executor.execute(() -> safeAwait(blockingLatch));
+                } catch (EsRejectedExecutionException e) {
+                    break;
+                }
+            }
+
+            final var future = new PlainActionFuture<TransportResponse.Empty>();
+            try {
+                nodeA.transportService.sendRequest(
+                    nodeA.getThrowingConnection(),
+                    TestNode.ACTION_NAME_PREFIX + randomFrom(TestNode.EXECUTOR_NAMES),
+                    new TransportRequest.Empty(),
+                    TransportRequestOptions.EMPTY,
+                    new ActionListenerResponseHandler<>(future.delegateResponse((l, e) -> {
+                        assertThat(Thread.currentThread().getName(), containsString("[" + Executors.FIXED_BOUNDED_QUEUE + "]"));
+                        l.onFailure(e);
+                    }), unusedReader(), executor)
+                );
+
+                assertFalse(future.isDone());
+            } finally {
+                blockingLatch.countDown();
+            }
+            assertEquals("simulated exception in sendRequest", getSendRequestException(future, IOException.class).getMessage());
+        }
+    }
+
+    public void testInternalSendExceptionCompletesHandlerOnCallingThreadIfTransportServiceClosed() {
+        final var nodeA = new TestNode("node-A");
+        final var executor = nodeA.threadPool.executor(randomFrom(TestNode.EXECUTOR_NAMES));
+        nodeA.close();
+
+        final var testThread = Thread.currentThread();
+        final var future = new PlainActionFuture<TransportResponse.Empty>();
+        nodeA.transportService.sendRequest(
+            nodeA.getThrowingConnection(),
+            TestNode.ACTION_NAME_PREFIX + randomFrom(TestNode.EXECUTOR_NAMES),
+            new TransportRequest.Empty(),
+            TransportRequestOptions.EMPTY,
+            new ActionListenerResponseHandler<>(future.delegateResponse((l, e) -> {
+                assertSame(testThread, Thread.currentThread());
+                l.onFailure(e);
+            }), unusedReader(), executor)
+        );
+
+        assertTrue(future.isDone());
+        assertThat(getSendRequestException(future, NodeClosedException.class).getMessage(), startsWith("node closed"));
+    }
+
+    private static <T> Writeable.Reader<T> unusedReader() {
+        return in -> fail(null, "should not be used");
+    }
+
+    private static <E extends Exception> E getSendRequestException(Future<?> future, Class<E> exceptionClass) {
+        return asInstanceOf(
+            exceptionClass,
+            expectThrows(ExecutionException.class, SendRequestTransportException.class, () -> future.get(10, TimeUnit.SECONDS)).getCause()
+        );
+    }
+
+    private static class Executors {
+        static final String SCALING_DROP_ON_SHUTDOWN = "scaling-drop-on-shutdown";
+        static final String SCALING_REJECT_ON_SHUTDOWN = "scaling-reject-on-shutdown";
+        static final String FIXED_BOUNDED_QUEUE = "fixed-bounded-queue";
+        static final String FIXED_UNBOUNDED_QUEUE = "fixed-unbounded-queue";
+    }
+
     private static class TestNode implements Releasable {
 
         static final String ACTION_NAME_PREFIX = "internal:test/";
         static final String[] EXECUTOR_NAMES = new String[] {
             ThreadPool.Names.SAME,
-            ThreadPool.Names.GENERIC,
-            ThreadPool.Names.CLUSTER_COORDINATION,
-            ThreadPool.Names.SEARCH };
+            Executors.SCALING_DROP_ON_SHUTDOWN,
+            Executors.SCALING_REJECT_ON_SHUTDOWN,
+            Executors.FIXED_BOUNDED_QUEUE,
+            Executors.FIXED_UNBOUNDED_QUEUE };
 
         final ThreadPool threadPool;
         final TransportService transportService;
@@ -125,8 +251,24 @@ public class TransportServiceLifecycleTests extends ESTestCase {
         TestNode(String nodeName) {
             threadPool = new TestThreadPool(
                 nodeName,
-                // tiny search thread pool & queue to trigger non-shutdown-related rejections
-                Settings.builder().put("thread_pool.search.size", 2).put("thread_pool.search.queue_size", 5).build()
+                new ScalingExecutorBuilder(Executors.SCALING_DROP_ON_SHUTDOWN, 3, 3, TimeValue.timeValueSeconds(60), false),
+                new ScalingExecutorBuilder(Executors.SCALING_REJECT_ON_SHUTDOWN, 3, 3, TimeValue.timeValueSeconds(60), true),
+                new FixedExecutorBuilder(
+                    Settings.EMPTY,
+                    Executors.FIXED_BOUNDED_QUEUE,
+                    2,
+                    5,
+                    Executors.FIXED_BOUNDED_QUEUE,
+                    randomFrom(EsExecutors.TaskTrackingConfig.DO_NOT_TRACK, EsExecutors.TaskTrackingConfig.DEFAULT)
+                ),
+                new FixedExecutorBuilder(
+                    Settings.EMPTY,
+                    Executors.FIXED_UNBOUNDED_QUEUE,
+                    2,
+                    -1,
+                    Executors.FIXED_UNBOUNDED_QUEUE,
+                    randomFrom(EsExecutors.TaskTrackingConfig.DO_NOT_TRACK, EsExecutors.TaskTrackingConfig.DEFAULT)
+                )
             ) {
                 @Override
                 public ExecutorService executor(String name) {
@@ -154,7 +296,7 @@ public class TransportServiceLifecycleTests extends ESTestCase {
             for (final var executor : EXECUTOR_NAMES) {
                 transportService.registerRequestHandler(
                     ACTION_NAME_PREFIX + executor,
-                    executor,
+                    threadPool.executor(executor),
                     TransportRequest.Empty::new,
                     (request, channel, task) -> {
                         if (randomBoolean()) {
@@ -174,6 +316,26 @@ public class TransportServiceLifecycleTests extends ESTestCase {
             transportService.stop();
             transportService.close();
             ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
+        }
+
+        Transport.Connection getThrowingConnection() {
+            return new CloseableConnection() {
+                @Override
+                public DiscoveryNode getNode() {
+                    return transportService.getLocalNode();
+                }
+
+                @Override
+                public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
+                    throws IOException, TransportException {
+                    throw new IOException("simulated exception in sendRequest");
+                }
+
+                @Override
+                public TransportVersion getTransportVersion() {
+                    return TransportVersion.current();
+                }
+            };
         }
     }
 

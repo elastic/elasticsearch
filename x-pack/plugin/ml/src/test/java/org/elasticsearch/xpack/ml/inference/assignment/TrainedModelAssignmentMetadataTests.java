@@ -14,6 +14,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.inference.assignment.Priority;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
+import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentTests;
 
 import java.io.IOException;
@@ -113,7 +114,9 @@ public class TrainedModelAssignmentMetadataTests extends AbstractChunkedSerializ
             randomIntBetween(1, 8),
             randomIntBetween(1, 10000),
             randomBoolean() ? null : ByteSizeValue.ofBytes(randomNonNegativeLong()),
-            randomFrom(Priority.values())
+            randomFrom(Priority.values()),
+            randomNonNegativeLong(),
+            randomNonNegativeLong()
         );
     }
 }

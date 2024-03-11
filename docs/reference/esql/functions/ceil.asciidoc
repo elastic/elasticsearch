@@ -1,0 +1,37 @@
+[discrete]
+[[esql-ceil]]
+=== `CEIL`
+
+*Syntax*
+
+[.text-center]
+image::esql/functions/signature/ceil.svg[Embedded,opts=inline]
+
+*Parameters*
+
+`n`::
+Numeric expression. If `null`, the function returns `null`.
+
+*Description*
+
+Round a number up to the nearest integer.
+
+NOTE: This is a noop for `long` (including unsigned) and `integer`.
+      For `double` this picks the closest `double` value to the integer 
+      similar to {javadoc}/java.base/java/lang/Math.html#ceil(double)[Math.ceil].
+
+*Supported types*
+
+include::types/ceil.asciidoc[]
+
+
+*Example*
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/math.csv-spec[tag=ceil]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/math.csv-spec[tag=ceil-result]
+|===

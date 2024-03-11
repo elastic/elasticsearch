@@ -37,6 +37,7 @@
             "Distributed",
             "Downsampling",
             "EQL",
+            "ES|QL",
             "Engine",
             "FIPS",
             "Features",
@@ -58,6 +59,7 @@
             "Infra/Scripting",
             "Infra/Settings",
             "Infra/Transport API",
+            "Infra/Metrics",
             "Ingest",
             "Ingest Node",
             "Java High Level REST Client",
@@ -74,6 +76,7 @@
             "Ranking",
             "Recovery",
             "Reindex",
+            "Rollup",
             "SQL",
             "Search",
             "Security",
@@ -276,6 +279,7 @@
         "Packaging",
         "Painless",
         "REST API",
+        "Rollup",
         "System requirement",
         "Transform"
       ]

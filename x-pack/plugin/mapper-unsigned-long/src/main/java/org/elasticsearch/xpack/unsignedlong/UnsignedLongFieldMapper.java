@@ -24,6 +24,9 @@ import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
+import org.elasticsearch.index.mapper.BlockDocValuesReader;
+import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.BlockSourceReader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -73,7 +76,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
         return (UnsignedLongFieldMapper) in;
     }
 
-    public static class Builder extends FieldMapper.Builder {
+    public static final class Builder extends FieldMapper.Builder {
         private final Parameter<Boolean> indexed;
         private final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, true);
         private final Parameter<Boolean> stored = Parameter.storeParam(m -> toType(m).stored, false);
@@ -192,8 +195,11 @@ public class UnsignedLongFieldMapper extends FieldMapper {
 
         @Override
         public UnsignedLongFieldMapper build(MapperBuilderContext context) {
+            if (context.parentObjectContainsDimensions()) {
+                dimension.setValue(true);
+            }
             UnsignedLongFieldType fieldType = new UnsignedLongFieldType(
-                context.buildFullName(name),
+                context.buildFullName(name()),
                 indexed.getValue(),
                 stored.getValue(),
                 hasDocValues.getValue(),
@@ -203,7 +209,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                 metric.getValue(),
                 indexMode
             );
-            return new UnsignedLongFieldMapper(name, fieldType, multiFieldsBuilder.build(this, context), copyTo.build(), this);
+            return new UnsignedLongFieldMapper(name(), fieldType, multiFieldsBuilder.build(this, context), copyTo, this);
         }
     }
 
@@ -313,6 +319,30 @@ public class UnsignedLongFieldMapper extends FieldMapper {
         }
 
         @Override
+        public BlockLoader blockLoader(BlockLoaderContext blContext) {
+            if (indexMode == IndexMode.TIME_SERIES && metricType == TimeSeriesParams.MetricType.COUNTER) {
+                // Counters are not supported by ESQL so we load them in null
+                return BlockLoader.CONSTANT_NULLS;
+            }
+            if (hasDocValues()) {
+                return new BlockDocValuesReader.LongsBlockLoader(name());
+            }
+            ValueFetcher valueFetcher = new SourceValueFetcher(blContext.sourcePaths(name()), nullValueFormatted) {
+                @Override
+                protected Object parseSourceValue(Object value) {
+                    if (value.equals("")) {
+                        return nullValueFormatted;
+                    }
+                    return unsignedToSortableSignedLong(parseUnsignedLong(value));
+                }
+            };
+            BlockSourceReader.LeafIteratorLookup lookup = isStored() || isIndexed()
+                ? BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name())
+                : BlockSourceReader.lookupMatchingAll();
+            return new BlockSourceReader.LongsBlockLoader(valueFetcher, lookup);
+        }
+
+        @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             FielddataOperation operation = fieldDataContext.fielddataOperation();
 
@@ -414,7 +444,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
          *         null, if a value represents some other number
          *         throws an exception if a value is wrongly formatted number
          */
-        protected static Long parseTerm(Object value) {
+        static Long parseTerm(Object value) {
             if (value instanceof Number) {
                 if ((value instanceof Long) || (value instanceof Integer) || (value instanceof Short) || (value instanceof Byte)) {
                     long lv = ((Number) value).longValue();
@@ -448,7 +478,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
          *      null, if value is higher than the maximum allowed value for unsigned long
          *      throws an exception is value represents wrongly formatted number
          */
-        protected static Long parseLowerRangeTerm(Object value, boolean include) {
+        static Long parseLowerRangeTerm(Object value, boolean include) {
             if ((value instanceof Long) || (value instanceof Integer) || (value instanceof Short) || (value instanceof Byte)) {
                 long longValue = ((Number) value).longValue();
                 if (longValue < 0) return 0L; // limit lowerTerm to min value for unsigned long: 0
@@ -460,8 +490,8 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             }
             String stringValue = (value instanceof BytesRef) ? ((BytesRef) value).utf8ToString() : value.toString();
             final BigDecimal bigDecimalValue = new BigDecimal(stringValue);  // throws an exception if it is an improper number
-            if (bigDecimalValue.compareTo(BigDecimal.ZERO) <= 0) {
-                return 0L; // for values <=0, set lowerTerm to 0
+            if (bigDecimalValue.compareTo(BigDecimal.ZERO) < 0) {
+                return 0L; // for values < 0, set lowerTerm to 0
             }
             int c = bigDecimalValue.compareTo(BIGDECIMAL_2_64_MINUS_ONE);
             if (c > 0 || (c == 0 && include == false)) {
@@ -485,7 +515,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
          *      -1 (unsigned long of 18446744073709551615) for values greater than 18446744073709551615
          *      throws an exception is value represents wrongly formatted number
          */
-        protected static Long parseUpperRangeTerm(Object value, boolean include) {
+        static Long parseUpperRangeTerm(Object value, boolean include) {
             if ((value instanceof Long) || (value instanceof Integer) || (value instanceof Short) || (value instanceof Byte)) {
                 long longValue = ((Number) value).longValue();
                 if ((longValue < 0) || (longValue == 0 && include == false)) return null; // upperTerm is below minimum
@@ -610,7 +640,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
         }
 
         if (dimension && numericValue != null) {
-            context.getDimensions().addUnsignedLong(fieldType().name(), numericValue);
+            context.getDimensions().addUnsignedLong(fieldType().name(), numericValue).validate(context.indexSettings());
         }
 
         List<Field> fields = new ArrayList<>();

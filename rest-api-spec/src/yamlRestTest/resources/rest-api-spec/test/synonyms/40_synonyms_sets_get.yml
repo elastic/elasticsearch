@@ -1,33 +1,46 @@
 setup:
   - skip:
-      version: " - 8.8.99"
-      reason: Introduced in 8.9.0
+      version: " - 8.9.99"
+      reason: Introduced in 8.10.0
   - do:
-      synonyms.put:
-        synonyms_set: test-synonyms-3
+      synonyms.put_synonym:
+        id: test-synonyms-3
         body:
           synonyms_set:
             - synonyms: "hello, hi"
             - synonyms: "goodbye, bye"
   - do:
-      synonyms.put:
-        synonyms_set: test-synonyms-1
+      synonyms.put_synonym:
+        id: test-synonyms-1
         body:
           synonyms_set:
             - synonyms: "test, check"
             - synonyms: "good, great"
             - synonyms: "bad, evil"
   - do:
-      synonyms.put:
-        synonyms_set: test-synonyms-2
+      synonyms.put_synonym:
+        id: test-synonyms-2
         body:
           synonyms_set:
             - synonyms: "pc, computer"
+  # set logging to debug for issue: https://github.com/elastic/elasticsearch/issues/102261
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            logger.org.elasticsearch.synonyms: DEBUG
 
+---
+teardown:
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            logger.org.elasticsearch.synonyms: null
 ---
 "List synonyms set":
   - do:
-      synonyms_sets.get: { }
+      synonyms.get_synonyms_sets: { }
 
   - match:
       count: 3
@@ -44,7 +57,7 @@ setup:
 ---
 "Pagination - size":
   - do:
-      synonyms_sets.get:
+      synonyms.get_synonyms_sets:
         size: 2
 
   - match:
@@ -59,7 +72,7 @@ setup:
 ---
 "Pagination - from":
   - do:
-      synonyms_sets.get:
+      synonyms.get_synonyms_sets:
         from: 1
 
   - match:
@@ -75,19 +88,19 @@ setup:
 "No synonym sets":
 
   - do:
-      synonyms.delete:
-        synonyms_set: test-synonyms-1
+      synonyms.delete_synonym:
+        id: test-synonyms-1
 
   - do:
-      synonyms.delete:
-        synonyms_set: test-synonyms-2
+      synonyms.delete_synonym:
+        id: test-synonyms-2
 
   - do:
-      synonyms.delete:
-        synonyms_set: test-synonyms-3
+      synonyms.delete_synonym:
+        id: test-synonyms-3
 
   - do:
-      synonyms_sets.get: { }
+      synonyms.get_synonyms_sets: { }
 
   - match:
       count: 0
@@ -98,61 +111,61 @@ setup:
 "More than 10 synonym sets":
 
   - do:
-      synonyms.put:
-        synonyms_set: test-synonyms-4
+      synonyms.put_synonym:
+        id: test-synonyms-4
         body:
           synonyms_set:
             - synonyms: "test, check"
   - do:
-      synonyms.put:
-        synonyms_set: test-synonyms-5
+      synonyms.put_synonym:
+        id: test-synonyms-5
         body:
           synonyms_set:
             - synonyms: "test, check"
   - do:
-      synonyms.put:
-        synonyms_set: test-synonyms-6
+      synonyms.put_synonym:
+        id: test-synonyms-6
         body:
           synonyms_set:
             - synonyms: "test, check"
   - do:
-      synonyms.put:
-        synonyms_set: test-synonyms-7
+      synonyms.put_synonym:
+        id: test-synonyms-7
         body:
           synonyms_set:
             - synonyms: "test, check"
   - do:
-      synonyms.put:
-        synonyms_set: test-synonyms-8
+      synonyms.put_synonym:
+        id: test-synonyms-8
         body:
           synonyms_set:
             - synonyms: "test, check"
   - do:
-      synonyms.put:
-        synonyms_set: test-synonyms-9
+      synonyms.put_synonym:
+        id: test-synonyms-9
         body:
           synonyms_set:
             - synonyms: "test, check"
   - do:
-      synonyms.put:
-        synonyms_set: test-synonyms-10
+      synonyms.put_synonym:
+        id: test-synonyms-10
         body:
           synonyms_set:
             - synonyms: "test, check"
   - do:
-      synonyms.put:
-        synonyms_set: test-synonyms-11
+      synonyms.put_synonym:
+        id: test-synonyms-11
         body:
           synonyms_set:
             - synonyms: "test, check"
   - do:
-      synonyms.put:
-        synonyms_set: test-synonyms-12
+      synonyms.put_synonym:
+        id: test-synonyms-12
         body:
           synonyms_set:
             - synonyms: "test, check"
   - do:
-      synonyms_sets.get: { }
+      synonyms.get_synonyms_sets: { }
 
   - match:
       count: 12

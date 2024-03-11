@@ -21,6 +21,7 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.bytes.AbstractBytesReference;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -418,7 +419,7 @@ public class IndicesRequestCacheTests extends ESTestCase {
         @Override
         public BytesReference get() {
             try (BytesStreamOutput out = new BytesStreamOutput()) {
-                IndexSearcher searcher = new IndexSearcher(reader);
+                IndexSearcher searcher = newSearcher(reader);
                 TopDocs topDocs = searcher.search(new TermQuery(new Term("id", Integer.toString(id))), 1);
                 assertEquals(1, topDocs.totalHits.value);
                 Document document = reader.document(topDocs.scoreDocs[0].doc);
@@ -596,6 +597,11 @@ public class IndicesRequestCacheTests extends ESTestCase {
         @Override
         public BytesRef toBytesRef() {
             return null;
+        }
+
+        @Override
+        public BytesRefIterator iterator() {
+            return BytesRefIterator.EMPTY;
         }
 
         @Override

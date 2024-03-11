@@ -10,9 +10,9 @@ package org.elasticsearch.search.profile.query;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.search.profile.AbstractProfiler;
+import org.elasticsearch.search.profile.Timer;
 
-import java.util.Objects;
-import java.util.function.Supplier;
+import static java.util.Objects.requireNonNull;
 
 /**
  * This class acts as a thread-local storage for profiling a query.  It also
@@ -28,28 +28,38 @@ import java.util.function.Supplier;
 public final class QueryProfiler extends AbstractProfiler<QueryProfileBreakdown, Query> {
 
     /**
-     * The root Collector used in the search
+     * The root CollectorResult used in the search
      */
-    private Supplier<CollectorResult> collectorResultSupplier;
+    private CollectorResult collectorResult;
+
+    private long vectorOpsCount;
 
     public QueryProfiler() {
         super(new InternalQueryProfileTree());
     }
 
-    /** Set the collector manager that is associated with this profiler. */
-    public void setCollectorManager(Supplier<CollectorResult> collectorResultSupplier) {
-        if (this.collectorResultSupplier != null) {
-            throw new IllegalStateException("The collector result supplier can only be set once.");
+    public void setVectorOpsCount(long vectorOpsCount) {
+        this.vectorOpsCount = vectorOpsCount;
+    }
+
+    public long getVectorOpsCount() {
+        return this.vectorOpsCount;
+    }
+
+    /** Set the collector result that is associated with this profiler. */
+    public void setCollectorResult(CollectorResult collectorResult) {
+        if (this.collectorResult != null) {
+            throw new IllegalStateException("The collector result can only be set once.");
         }
-        this.collectorResultSupplier = Objects.requireNonNull(collectorResultSupplier);
+        this.collectorResult = requireNonNull(collectorResult);
     }
 
     /**
      * Begin timing the rewrite phase of a request.  All rewrites are accumulated together into a
      * single metric
      */
-    public void startRewriteTime() {
-        ((InternalQueryProfileTree) profileTree).startRewriteTime();
+    public Timer startRewriteTime() {
+        return ((InternalQueryProfileTree) profileTree).startRewriteTime();
     }
 
     /**
@@ -58,8 +68,8 @@ public final class QueryProfiler extends AbstractProfiler<QueryProfileBreakdown,
      *
      * @return cumulative rewrite time
      */
-    public long stopAndAddRewriteTime() {
-        return ((InternalQueryProfileTree) profileTree).stopAndAddRewriteTime();
+    public long stopAndAddRewriteTime(Timer rewriteTimer) {
+        return ((InternalQueryProfileTree) profileTree).stopAndAddRewriteTime(requireNonNull(rewriteTimer));
     }
 
     /**
@@ -73,7 +83,7 @@ public final class QueryProfiler extends AbstractProfiler<QueryProfileBreakdown,
      * Return the current root Collector for this search
      */
     public CollectorResult getCollectorResult() {
-        return this.collectorResultSupplier.get();
+        return this.collectorResult;
     }
 
 }

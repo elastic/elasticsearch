@@ -68,7 +68,7 @@ returns, the follower index will resume fetching operations from the leader inde
 
 [[ccr-post-resume-follow-request-body]]
 ==== {api-request-body-title}
-include::../follow-request-body.asciidoc[]
+include::../follow-request-body.asciidoc[tag=ccr-resume-follow-request-body]
 
 [[ccr-post-resume-follow-examples]]
 ==== {api-examples-title}

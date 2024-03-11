@@ -11,6 +11,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.analysis.PreBuiltAnalyzers;
@@ -51,7 +52,7 @@ public class PreBuiltAnalyzerTests extends ESSingleNodeTestCase {
     public void testThatInstancesAreTheSameAlwaysForKeywordAnalyzer() {
         assertThat(
             PreBuiltAnalyzers.KEYWORD.getAnalyzer(IndexVersion.current()),
-            is(PreBuiltAnalyzers.KEYWORD.getAnalyzer(IndexVersion.MINIMUM_COMPATIBLE))
+            is(PreBuiltAnalyzers.KEYWORD.getAnalyzer(IndexVersions.MINIMUM_COMPATIBLE))
         );
     }
 
@@ -69,7 +70,9 @@ public class PreBuiltAnalyzerTests extends ESSingleNodeTestCase {
         );
 
         // Same Lucene version should be cached:
-        assertSame(PreBuiltAnalyzers.STOP.getAnalyzer(IndexVersion.V_8_0_0), PreBuiltAnalyzers.STOP.getAnalyzer(IndexVersion.V_8_0_1));
+        IndexVersion v1 = IndexVersionUtils.randomVersion(random());
+        IndexVersion v2 = new IndexVersion(v1.id() - 1, v1.luceneVersion());
+        assertSame(PreBuiltAnalyzers.STOP.getAnalyzer(v1), PreBuiltAnalyzers.STOP.getAnalyzer(v2));
     }
 
     public void testThatAnalyzersAreUsedInMapping() throws IOException {
@@ -78,7 +81,7 @@ public class PreBuiltAnalyzerTests extends ESSingleNodeTestCase {
         String analyzerName = randomPreBuiltAnalyzer.name().toLowerCase(Locale.ROOT);
 
         IndexVersion randomVersion = IndexVersionUtils.randomVersion(random());
-        Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, randomVersion.id()).build();
+        Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, randomVersion).build();
 
         NamedAnalyzer namedAnalyzer = new PreBuiltAnalyzerProvider(
             analyzerName,

@@ -34,7 +34,7 @@ public class EstimateModelMemoryAction extends ActionType<EstimateModelMemoryAct
     public static final String NAME = "cluster:admin/xpack/ml/job/estimate_model_memory";
 
     private EstimateModelMemoryAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
     public static class Request extends ActionRequest {
@@ -87,8 +87,8 @@ public class EstimateModelMemoryAction extends ActionType<EstimateModelMemoryAct
             } else {
                 out.writeBoolean(false);
             }
-            out.writeMap(overallCardinality, StreamOutput::writeString, StreamOutput::writeVLong);
-            out.writeMap(maxBucketCardinality, StreamOutput::writeString, StreamOutput::writeVLong);
+            out.writeMap(overallCardinality, StreamOutput::writeVLong);
+            out.writeMap(maxBucketCardinality, StreamOutput::writeVLong);
         }
 
         @Override

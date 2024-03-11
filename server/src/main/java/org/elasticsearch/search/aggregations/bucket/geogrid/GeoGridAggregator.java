@@ -42,6 +42,7 @@ public abstract class GeoGridAggregator<T extends InternalGeoGrid<?>> extends Bu
     protected final ValuesSource.Numeric valuesSource;
     protected final LongKeyedBucketOrds bucketOrds;
 
+    @SuppressWarnings("this-escape")
     protected GeoGridAggregator(
         String name,
         AggregatorFactories factories,

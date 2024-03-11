@@ -27,7 +27,9 @@ import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
@@ -47,9 +49,12 @@ import org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
+import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
+import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.junit.Before;
 import org.mockito.Mockito;
 
@@ -70,6 +75,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.contains;
@@ -79,6 +85,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -1029,6 +1036,59 @@ public class RealmsTests extends ESTestCase {
         // check that disabled realms are not included in unlicensed realms
         allowOnlyNativeRealms();
         assertThat(realms.getUnlicensedRealms(), hasSize(orderToIndex.size()));
+    }
+
+    public void testNativeRealmNotAddedWhenNativeUsersDisabled() throws Exception {
+        Settings settings = Settings.builder()
+            .put("path.home", createTempDir())
+            .put(NativeRealmSettings.NATIVE_USERS_ENABLED, false)
+            .build();
+        Environment env = TestEnvironment.newEnvironment(settings);
+        Realms realms = new Realms(settings, env, factories, licenseState, threadContext, reservedRealm);
+        Iterator<Realm> iterator = realms.iterator();
+        Realm realm = iterator.next();
+        assertThat(realm, is(reservedRealm));
+        assertImplicitlyAddedBasicRealms(iterator, false, true);
+
+        if (iterator.hasNext()) {
+            fail("Expected no more realms, but found [" + iterator.next() + "]");
+        }
+
+        final RealmConfig.RealmIdentifier realmId = new RealmConfig.RealmIdentifier(
+            NativeRealmSettings.TYPE,
+            NativeRealmSettings.DEFAULT_NAME
+        );
+
+        // We still want a ref to the native realm so that transport actions can reference it (but the realm is disabled)
+        assertThat(realms.getRealmRefs(), hasKey(realmId));
+    }
+
+    public void testNativeRealmNotAvailableWhenNativeUsersDisabled() throws Exception {
+        Settings settings = Settings.builder()
+            .put("path.home", createTempDir())
+            .put(NativeRealmSettings.NATIVE_USERS_ENABLED, false)
+            .put("xpack.security.authc.realms.native.my_native.order", 1)
+            .build();
+        final ThreadPool threadPool = new TestThreadPool(getTestName(), settings);
+        try {
+            final Map<String, Realm.Factory> realFactories = InternalRealms.getFactories(
+                threadPool,
+                settings,
+                mock(ResourceWatcherService.class),
+                mock(SSLService.class),
+                mock(NativeUsersStore.class),
+                mock(NativeRoleMappingStore.class),
+                mock(SecurityIndexManager.class)
+            );
+            Environment env = TestEnvironment.newEnvironment(settings);
+            final IllegalArgumentException exception = expectThrows(
+                IllegalArgumentException.class,
+                () -> new Realms(settings, env, realFactories, licenseState, threadContext, reservedRealm)
+            );
+            assertThat(exception, throwableWithMessage(containsString(NativeRealmSettings.NATIVE_USERS_ENABLED)));
+        } finally {
+            threadPool.shutdown();
+        }
     }
 
     @SuppressWarnings("unchecked")

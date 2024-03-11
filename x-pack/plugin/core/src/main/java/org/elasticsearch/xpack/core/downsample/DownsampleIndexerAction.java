@@ -6,10 +6,12 @@
  */
 package org.elasticsearch.xpack.core.downsample;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.downsample.DownsampleAction;
 import org.elasticsearch.action.downsample.DownsampleConfig;
+import org.elasticsearch.action.downsample.DownsampleTask;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.broadcast.BroadcastRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
@@ -23,7 +25,6 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.rollup.action.RollupShardTask;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -36,7 +37,7 @@ public class DownsampleIndexerAction extends ActionType<DownsampleIndexerAction.
     public static final String NAME = "indices:admin/xpack/downsample_indexer";
 
     private DownsampleIndexerAction() {
-        super(NAME, DownsampleIndexerAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends BroadcastRequest<Request> implements IndicesRequest, ToXContentObject {
@@ -68,7 +69,7 @@ public class DownsampleIndexerAction extends ActionType<DownsampleIndexerAction.
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_030) && in.readBoolean()) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X) && in.readBoolean()) {
                 this.indexStartTimeMillis = in.readVLong();
                 this.indexEndTimeMillis = in.readVLong();
             } else {
@@ -131,7 +132,7 @@ public class DownsampleIndexerAction extends ActionType<DownsampleIndexerAction.
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_030)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)) {
                 out.writeBoolean(true);
                 out.writeVLong(indexStartTimeMillis);
                 out.writeVLong(indexEndTimeMillis);
@@ -249,7 +250,7 @@ public class DownsampleIndexerAction extends ActionType<DownsampleIndexerAction.
             this.request = request;
         }
 
-        public String getRollupIndex() {
+        public String getDownsampleIndex() {
             return request.getDownsampleRequest().getTargetIndex();
         }
 
@@ -277,7 +278,7 @@ public class DownsampleIndexerAction extends ActionType<DownsampleIndexerAction.
 
         @Override
         public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-            return new RollupShardTask(
+            return new DownsampleShardTask(
                 id,
                 type,
                 action,

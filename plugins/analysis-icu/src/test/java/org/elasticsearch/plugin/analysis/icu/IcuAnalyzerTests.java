@@ -10,9 +10,9 @@ package org.elasticsearch.plugin.analysis.icu;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.tests.analysis.BaseTokenStreamTestCase;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexVersion;
 
 import java.io.IOException;
 
@@ -50,7 +50,10 @@ public class IcuAnalyzerTests extends BaseTokenStreamTestCase {
 
     public void testBadSettings() {
 
-        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).put("mode", "wrong").build();
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+            .put("mode", "wrong")
+            .build();
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,

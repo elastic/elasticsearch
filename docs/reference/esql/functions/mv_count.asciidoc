@@ -1,0 +1,33 @@
+[discrete]
+[[esql-mv_count]]
+=== `MV_COUNT`
+
+*Syntax*
+
+[.text-center]
+image::esql/functions/signature/mv_count.svg[Embedded,opts=inline]
+
+*Parameters*
+
+`v`::
+Multivalue expression.
+
+*Description*
+
+Converts a multivalued expression into a single valued column containing a count
+of the number of values.
+
+*Supported types*
+
+include::types/mv_count.asciidoc[]
+
+*Example*
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/string.csv-spec[tag=mv_count]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/string.csv-spec[tag=mv_count-result]
+|===

@@ -47,8 +47,8 @@ public final class SearchShardsResponse extends ActionResponse {
 
     public SearchShardsResponse(StreamInput in) throws IOException {
         super(in);
-        this.groups = in.readList(SearchShardsGroup::new);
-        this.nodes = in.readList(DiscoveryNode::new);
+        this.groups = in.readCollectionAsList(SearchShardsGroup::new);
+        this.nodes = in.readCollectionAsList(DiscoveryNode::new);
         this.aliasFilters = in.readMap(AliasFilter::readFrom);
     }
 
@@ -56,7 +56,7 @@ public final class SearchShardsResponse extends ActionResponse {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeCollection(groups);
         out.writeCollection(nodes);
-        out.writeMap(aliasFilters, StreamOutput::writeString, (o, v) -> v.writeTo(o));
+        out.writeMap(aliasFilters, StreamOutput::writeWriteable);
     }
 
     /**
@@ -108,5 +108,10 @@ public final class SearchShardsResponse extends ActionResponse {
         List<SearchShardsGroup> groups = Arrays.stream(oldResp.getGroups()).map(SearchShardsGroup::new).toList();
         assert groups.stream().noneMatch(SearchShardsGroup::preFiltered) : "legacy responses must not have preFiltered set";
         return new SearchShardsResponse(groups, Arrays.asList(oldResp.getNodes()), aliasFilters);
+    }
+
+    @Override
+    public String toString() {
+        return "SearchShardsResponse{" + "groups=" + groups + ", nodes=" + nodes + ", aliasFilters=" + aliasFilters + '}';
     }
 }

@@ -1,5 +1,9 @@
 ---
 setup:
+  - skip:
+      version: " - 8.12.99"
+      reason: _tsid hashing introduced in 8.13
+
   - do:
       snapshot.create_repository:
         repository: test_repo
@@ -126,15 +130,11 @@ teardown:
         snapshot: test_restore_tsdb
         wait_for_completion: true
 
-  # Check recovery stats
+  # Verify that the index is healthy
   - do:
-      indices.recovery:
-        index: test_index
-
-  - match: { test_index.shards.0.type: SNAPSHOT }
-  - match: { test_index.shards.0.stage: DONE }
-  - match: { test_index.shards.0.index.files.recovered: 1}
-  - gt:    { test_index.shards.0.index.size.recovered_in_bytes: 0}
+      cluster.health:
+        wait_for_status: green
+  - match: { status: green }
 
   - do:
       search:
@@ -148,5 +148,5 @@ teardown:
 
   - match: {hits.total.value: 1}
   - match: {hits.hits.0._source.k8s.pod.uid: 947e4ced-1786-4e53-9e0c-5c447e959507}
-  - match: {hits.hits.0.fields._tsid: [ { k8s.pod.uid: 947e4ced-1786-4e53-9e0c-5c447e959507, metricset: pod } ] }
+  - match: {hits.hits.0.fields._tsid: ["KCjEJ9R_BgO8TRX2QOd6dpR12oDh--qoyNZRQPy43y34Qdy2dpsyG0o"]}
 

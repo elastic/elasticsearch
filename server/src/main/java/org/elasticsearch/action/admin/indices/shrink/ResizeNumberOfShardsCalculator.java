@@ -69,7 +69,7 @@ public interface ResizeNumberOfShardsCalculator {
                 }
             } else if (maxPrimaryShardSize != null) {
                 int sourceIndexShardsNum = sourceMetadata.getNumberOfShards();
-                long sourceIndexStorageBytes = indexStoreStats.getSizeInBytes();
+                long sourceIndexStorageBytes = indexStoreStats.sizeInBytes();
                 long maxPrimaryShardSizeBytes = maxPrimaryShardSize.getBytes();
                 long minShardsNum = sourceIndexStorageBytes / maxPrimaryShardSizeBytes;
                 if (minShardsNum * maxPrimaryShardSizeBytes < sourceIndexStorageBytes) {

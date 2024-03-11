@@ -84,6 +84,7 @@ import org.elasticsearch.index.mapper.TestDocumentParserContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.lucene.queries.BlendedTermQuery;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -215,93 +216,95 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         }
         Collections.sort(intValues);
 
-        SearchExecutionContext context = createSearchContext(indexService).getSearchExecutionContext();
-        MappedFieldType intFieldType = mapperService.fieldType("int_field");
+        try (SearchContext searchContext = createSearchContext(indexService)) {
+            SearchExecutionContext context = searchContext.getSearchExecutionContext();
+            MappedFieldType intFieldType = mapperService.fieldType("int_field");
 
-        List<Supplier<Query>> queryFunctions = new ArrayList<>();
-        queryFunctions.add(MatchNoDocsQuery::new);
-        queryFunctions.add(MatchAllDocsQuery::new);
-        queryFunctions.add(() -> new TermQuery(new Term("unknown_field", "value")));
-        String field1 = randomFrom(stringFields);
-        queryFunctions.add(() -> new TermQuery(new Term(field1, randomFrom(stringContent.get(field1)))));
-        String field2 = randomFrom(stringFields);
-        queryFunctions.add(() -> new TermQuery(new Term(field2, randomFrom(stringContent.get(field2)))));
-        queryFunctions.add(() -> intFieldType.termQuery(randomFrom(intValues), context));
-        queryFunctions.add(() -> intFieldType.termsQuery(Arrays.asList(randomFrom(intValues), randomFrom(intValues)), context));
-        queryFunctions.add(
-            () -> intFieldType.rangeQuery(
-                intValues.get(4),
-                intValues.get(intValues.size() - 4),
-                true,
-                true,
-                ShapeRelation.WITHIN,
-                null,
-                null,
-                context
-            )
-        );
-        queryFunctions.add(
-            () -> new TermInSetQuery(
-                field1,
-                new BytesRef(randomFrom(stringContent.get(field1))),
-                new BytesRef(randomFrom(stringContent.get(field1)))
-            )
-        );
-        queryFunctions.add(
-            () -> new TermInSetQuery(
-                field2,
-                new BytesRef(randomFrom(stringContent.get(field1))),
-                new BytesRef(randomFrom(stringContent.get(field1)))
-            )
-        );
-        // many iterations with boolean queries, which are the most complex queries to deal with when nested
-        int numRandomBoolQueries = 1000;
-        for (int i = 0; i < numRandomBoolQueries; i++) {
-            queryFunctions.add(() -> createRandomBooleanQuery(1, stringFields, stringContent, intFieldType, intValues, context));
-        }
-        queryFunctions.add(() -> {
-            int numClauses = randomIntBetween(1, 1 << randomIntBetween(2, 4));
-            List<Query> clauses = new ArrayList<>();
-            for (int i = 0; i < numClauses; i++) {
-                String field = randomFrom(stringFields);
-                clauses.add(new TermQuery(new Term(field, randomFrom(stringContent.get(field)))));
+            List<Supplier<Query>> queryFunctions = new ArrayList<>();
+            queryFunctions.add(MatchNoDocsQuery::new);
+            queryFunctions.add(MatchAllDocsQuery::new);
+            queryFunctions.add(() -> new TermQuery(new Term("unknown_field", "value")));
+            String field1 = randomFrom(stringFields);
+            queryFunctions.add(() -> new TermQuery(new Term(field1, randomFrom(stringContent.get(field1)))));
+            String field2 = randomFrom(stringFields);
+            queryFunctions.add(() -> new TermQuery(new Term(field2, randomFrom(stringContent.get(field2)))));
+            queryFunctions.add(() -> intFieldType.termQuery(randomFrom(intValues), context));
+            queryFunctions.add(() -> intFieldType.termsQuery(Arrays.asList(randomFrom(intValues), randomFrom(intValues)), context));
+            queryFunctions.add(
+                () -> intFieldType.rangeQuery(
+                    intValues.get(4),
+                    intValues.get(intValues.size() - 4),
+                    true,
+                    true,
+                    ShapeRelation.WITHIN,
+                    null,
+                    null,
+                    context
+                )
+            );
+            queryFunctions.add(
+                () -> new TermInSetQuery(
+                    field1,
+                    new BytesRef(randomFrom(stringContent.get(field1))),
+                    new BytesRef(randomFrom(stringContent.get(field1)))
+                )
+            );
+            queryFunctions.add(
+                () -> new TermInSetQuery(
+                    field2,
+                    new BytesRef(randomFrom(stringContent.get(field1))),
+                    new BytesRef(randomFrom(stringContent.get(field1)))
+                )
+            );
+            // many iterations with boolean queries, which are the most complex queries to deal with when nested
+            int numRandomBoolQueries = 1000;
+            for (int i = 0; i < numRandomBoolQueries; i++) {
+                queryFunctions.add(() -> createRandomBooleanQuery(1, stringFields, stringContent, intFieldType, intValues, context));
             }
-            return new DisjunctionMaxQuery(clauses, 0.01f);
-        });
-        queryFunctions.add(() -> {
-            Float minScore = randomBoolean() ? null : (float) randomIntBetween(1, 1000);
-            Query innerQuery;
-            if (randomBoolean()) {
-                innerQuery = new TermQuery(new Term(field1, randomFrom(stringContent.get(field1))));
-            } else {
-                innerQuery = new PhraseQuery(field1, randomFrom(stringContent.get(field1)), randomFrom(stringContent.get(field1)));
+            queryFunctions.add(() -> {
+                int numClauses = randomIntBetween(1, 1 << randomIntBetween(2, 4));
+                List<Query> clauses = new ArrayList<>();
+                for (int i = 0; i < numClauses; i++) {
+                    String field = randomFrom(stringFields);
+                    clauses.add(new TermQuery(new Term(field, randomFrom(stringContent.get(field)))));
+                }
+                return new DisjunctionMaxQuery(clauses, 0.01f);
+            });
+            queryFunctions.add(() -> {
+                Float minScore = randomBoolean() ? null : (float) randomIntBetween(1, 1000);
+                Query innerQuery;
+                if (randomBoolean()) {
+                    innerQuery = new TermQuery(new Term(field1, randomFrom(stringContent.get(field1))));
+                } else {
+                    innerQuery = new PhraseQuery(field1, randomFrom(stringContent.get(field1)), randomFrom(stringContent.get(field1)));
+                }
+                return new FunctionScoreQuery(innerQuery, minScore, 1f);
+            });
+
+            List<LuceneDocument> documents = new ArrayList<>();
+            for (Supplier<Query> queryFunction : queryFunctions) {
+                Query query = queryFunction.get();
+                addQuery(query, documents);
             }
-            return new FunctionScoreQuery(innerQuery, minScore, 1f);
-        });
 
-        List<LuceneDocument> documents = new ArrayList<>();
-        for (Supplier<Query> queryFunction : queryFunctions) {
-            Query query = queryFunction.get();
-            addQuery(query, documents);
-        }
+            indexWriter.addDocuments(documents);
+            indexWriter.close();
+            directoryReader = DirectoryReader.open(directory);
+            IndexSearcher shardSearcher = newSearcher(directoryReader);
+            // Disable query cache, because ControlQuery cannot be cached...
+            shardSearcher.setQueryCache(null);
 
-        indexWriter.addDocuments(documents);
-        indexWriter.close();
-        directoryReader = DirectoryReader.open(directory);
-        IndexSearcher shardSearcher = newSearcher(directoryReader);
-        // Disable query cache, because ControlQuery cannot be cached...
-        shardSearcher.setQueryCache(null);
-
-        LuceneDocument document = new LuceneDocument();
-        for (Map.Entry<String, List<String>> entry : stringContent.entrySet()) {
-            String value = entry.getValue().stream().collect(Collectors.joining(" "));
-            document.add(new TextField(entry.getKey(), value, Field.Store.NO));
+            LuceneDocument document = new LuceneDocument();
+            for (Map.Entry<String, List<String>> entry : stringContent.entrySet()) {
+                String value = entry.getValue().stream().collect(Collectors.joining(" "));
+                document.add(new TextField(entry.getKey(), value, Field.Store.NO));
+            }
+            for (Integer intValue : intValues) {
+                NumberFieldMapper.NumberType.INTEGER.addFields(document, "int_field", intValue, true, true, false);
+            }
+            MemoryIndex memoryIndex = MemoryIndex.fromDocument(document, new WhitespaceAnalyzer());
+            duelRun(queryStore, memoryIndex, shardSearcher);
         }
-        for (Integer intValue : intValues) {
-            NumberFieldMapper.NumberType.INTEGER.addFields(document, "int_field", intValue, true, true, false);
-        }
-        MemoryIndex memoryIndex = MemoryIndex.fromDocument(document, new WhitespaceAnalyzer());
-        duelRun(queryStore, memoryIndex, shardSearcher);
     }
 
     private BooleanQuery createRandomBooleanQuery(
@@ -376,53 +379,55 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         ranges.add(new int[] { 0, 10 });
         ranges.add(new int[] { 15, 50 });
 
-        SearchExecutionContext context = createSearchContext(indexService).getSearchExecutionContext();
-        List<LuceneDocument> documents = new ArrayList<>();
-        {
-            addQuery(new TermQuery(new Term("string_field", randomFrom(stringValues))), documents);
-        }
-        {
-            addQuery(new PhraseQuery(0, "string_field", stringValues.toArray(new String[0])), documents);
-        }
-        {
-            int[] range = randomFrom(ranges);
-            Query rangeQuery = intFieldType.rangeQuery(range[0], range[1], true, true, null, null, null, context);
-            addQuery(rangeQuery, documents);
-        }
-        {
-            int numBooleanQueries = randomIntBetween(1, 5);
-            for (int i = 0; i < numBooleanQueries; i++) {
-                Query randomBQ = randomBQ(1, stringValues, ranges, intFieldType, context);
-                addQuery(randomBQ, documents);
+        try (SearchContext searchContext = createSearchContext(indexService)) {
+            SearchExecutionContext context = searchContext.getSearchExecutionContext();
+            List<LuceneDocument> documents = new ArrayList<>();
+            {
+                addQuery(new TermQuery(new Term("string_field", randomFrom(stringValues))), documents);
             }
-        }
-        {
-            addQuery(new MatchNoDocsQuery(), documents);
-        }
-        {
-            addQuery(new MatchAllDocsQuery(), documents);
-        }
+            {
+                addQuery(new PhraseQuery(0, "string_field", stringValues.toArray(new String[0])), documents);
+            }
+            {
+                int[] range = randomFrom(ranges);
+                Query rangeQuery = intFieldType.rangeQuery(range[0], range[1], true, true, null, null, null, context);
+                addQuery(rangeQuery, documents);
+            }
+            {
+                int numBooleanQueries = randomIntBetween(1, 5);
+                for (int i = 0; i < numBooleanQueries; i++) {
+                    Query randomBQ = randomBQ(1, stringValues, ranges, intFieldType, context);
+                    addQuery(randomBQ, documents);
+                }
+            }
+            {
+                addQuery(new MatchNoDocsQuery(), documents);
+            }
+            {
+                addQuery(new MatchAllDocsQuery(), documents);
+            }
 
-        indexWriter.addDocuments(documents);
-        indexWriter.close();
-        directoryReader = DirectoryReader.open(directory);
-        IndexSearcher shardSearcher = newSearcher(directoryReader);
-        // Disable query cache, because ControlQuery cannot be cached...
-        shardSearcher.setQueryCache(null);
+            indexWriter.addDocuments(documents);
+            indexWriter.close();
+            directoryReader = DirectoryReader.open(directory);
+            IndexSearcher shardSearcher = newSearcher(directoryReader);
+            // Disable query cache, because ControlQuery cannot be cached...
+            shardSearcher.setQueryCache(null);
 
-        LuceneDocument document = new LuceneDocument();
-        for (String value : stringValues) {
-            document.add(new TextField("string_field", value, Field.Store.NO));
-            logger.info("Test with document: {}" + document);
-            MemoryIndex memoryIndex = MemoryIndex.fromDocument(document, new WhitespaceAnalyzer());
-            duelRun(queryStore, memoryIndex, shardSearcher);
-        }
+            LuceneDocument document = new LuceneDocument();
+            for (String value : stringValues) {
+                document.add(new TextField("string_field", value, Field.Store.NO));
+                logger.info("Test with document: {}" + document);
+                MemoryIndex memoryIndex = MemoryIndex.fromDocument(document, new WhitespaceAnalyzer());
+                duelRun(queryStore, memoryIndex, shardSearcher);
+            }
 
-        for (int[] range : ranges) {
-            NumberFieldMapper.NumberType.INTEGER.addFields(document, "int_field", between(range[0], range[1]), true, true, false);
-            logger.info("Test with document: {}" + document);
-            MemoryIndex memoryIndex = MemoryIndex.fromDocument(document, new WhitespaceAnalyzer());
-            duelRun(queryStore, memoryIndex, shardSearcher);
+            for (int[] range : ranges) {
+                NumberFieldMapper.NumberType.INTEGER.addFields(document, "int_field", between(range[0], range[1]), true, true, false);
+                logger.info("Test with document: {}" + document);
+                MemoryIndex memoryIndex = MemoryIndex.fromDocument(document, new WhitespaceAnalyzer());
+                duelRun(queryStore, memoryIndex, shardSearcher);
+            }
         }
     }
 
@@ -915,7 +920,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
                 iw.addDocuments(documents); // IW#addDocuments(...) ensures we end up with a single segment
             }
             try (IndexReader ir = DirectoryReader.open(directory)) {
-                IndexSearcher percolateSearcher = new IndexSearcher(ir);
+                IndexSearcher percolateSearcher = newSearcher(ir);
                 PercolateQuery query = (PercolateQuery) fieldType.percolateQuery(
                     "_name",
                     queryStore,
@@ -954,7 +959,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
                 iw.addDocument(document);
             }
             try (IndexReader ir = DirectoryReader.open(directory)) {
-                IndexSearcher percolateSearcher = new IndexSearcher(ir);
+                IndexSearcher percolateSearcher = newSearcher(ir);
                 PercolateQuery query = (PercolateQuery) fieldType.percolateQuery(
                     "_name",
                     queryStore,

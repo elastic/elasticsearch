@@ -740,11 +740,7 @@ public final class XContentBuilder implements Closeable, Flushable {
         if (values == null) {
             return nullValue();
         }
-        startArray();
-        for (String s : values) {
-            value(s);
-        }
-        endArray();
+        generator.writeStringArray(values);
         return this;
     }
 
@@ -884,6 +880,14 @@ public final class XContentBuilder implements Closeable, Flushable {
         return field(name).value(value);
     }
 
+    public XContentBuilder field(String name, Collection<String> value) throws IOException {
+        return stringListField(name, value);
+    }
+
+    public XContentBuilder field(String name, String[] value) throws IOException {
+        return array(name, value);
+    }
+
     public XContentBuilder field(String name, Number value) throws IOException {
         field(name);
         if (value instanceof Short) {
@@ -964,11 +968,15 @@ public final class XContentBuilder implements Closeable, Flushable {
         return field(name).value(value, params);
     }
 
-    private XContentBuilder value(ToXContent value) throws IOException {
+    public XContentBuilder value(ToXContent value) throws IOException {
         return value(value, ToXContent.EMPTY_PARAMS);
     }
 
-    private XContentBuilder value(ToXContent value, ToXContent.Params params) throws IOException {
+    public XContentBuilder value(Map<String, ?> map) throws IOException {
+        return map(map);
+    }
+
+    public XContentBuilder value(ToXContent value, ToXContent.Params params) throws IOException {
         if (value == null) {
             return nullValue();
         }
@@ -1036,7 +1044,7 @@ public final class XContentBuilder implements Closeable, Flushable {
         return this;
     }
 
-    public XContentBuilder field(String name, Map<String, Object> values) throws IOException {
+    public XContentBuilder field(String name, Map<String, ?> values) throws IOException {
         return field(name).map(values);
     }
 
@@ -1055,8 +1063,7 @@ public final class XContentBuilder implements Closeable, Flushable {
         }
         startObject();
         for (Map.Entry<String, String> value : values.entrySet()) {
-            field(value.getKey());
-            value(value.getValue());
+            generator.writeStringField(value.getKey(), value.getValue());
         }
         return endObject();
     }
@@ -1202,6 +1209,14 @@ public final class XContentBuilder implements Closeable, Flushable {
      */
     public XContentBuilder rawValue(InputStream stream, XContentType contentType) throws IOException {
         generator.writeRawValue(stream, contentType);
+        return this;
+    }
+
+    /**
+     * Writes a value with the source coming directly from a pre-rendered string representation
+     */
+    public XContentBuilder rawValue(String value) throws IOException {
+        generator.writeRawValue(value);
         return this;
     }
 

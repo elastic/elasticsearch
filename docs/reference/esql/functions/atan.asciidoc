@@ -1,0 +1,33 @@
+[discrete]
+[[esql-atan]]
+=== `ATAN`
+
+*Syntax*
+
+[.text-center]
+image::esql/functions/signature/atan.svg[Embedded,opts=inline]
+
+*Parameters*
+
+`n`::
+Numeric expression. If `null`, the function returns `null`.
+
+*Description*
+
+Returns the {wikipedia}/Inverse_trigonometric_functions[arctangent] of the input
+numeric expression as an angle, expressed in radians.
+
+*Supported types*
+
+include::types/atan.asciidoc[]
+
+*Example*
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/floats.csv-spec[tag=atan]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/floats.csv-spec[tag=atan-result]
+|===

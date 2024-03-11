@@ -8,6 +8,7 @@
 
 package org.elasticsearch.tasks;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -40,6 +41,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 public record TaskInfo(
     TaskId taskId,
     String type,
+    String node,
     String action,
     String description,
     Task.Status status,
@@ -61,9 +63,11 @@ public record TaskInfo(
      * Read from a stream.
      */
     public static TaskInfo from(StreamInput in) throws IOException {
+        TaskId taskId = TaskId.readFromStream(in);
         return new TaskInfo(
-            TaskId.readFromStream(in),
+            taskId,
             in.readString(),
+            in.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X) ? in.readString() : taskId.getNodeId(),
             in.readString(),
             in.readOptionalString(),
             in.readOptionalNamedWriteable(Task.Status.class),
@@ -80,6 +84,9 @@ public record TaskInfo(
     public void writeTo(StreamOutput out) throws IOException {
         taskId.writeTo(out);
         out.writeString(type);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)) {
+            out.writeString(node);
+        }
         out.writeString(action);
         out.writeOptionalString(description);
         out.writeOptionalNamedWriteable(status);
@@ -88,7 +95,7 @@ public record TaskInfo(
         out.writeBoolean(cancellable);
         out.writeBoolean(cancelled);
         parentTaskId.writeTo(out);
-        out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeString);
+        out.writeMap(headers, StreamOutput::writeString);
     }
 
     public long id() {
@@ -97,7 +104,7 @@ public record TaskInfo(
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field("node", taskId.getNodeId());
+        builder.field("node", node);
         builder.field("id", taskId.getId());
         builder.field("type", type);
         builder.field("action", action);
@@ -136,7 +143,8 @@ public record TaskInfo(
 
     public static final ConstructingObjectParser<TaskInfo, Void> PARSER = new ConstructingObjectParser<>("task_info", true, a -> {
         int i = 0;
-        TaskId id = new TaskId((String) a[i++], (Long) a[i++]);
+        String node = (String) a[i++];
+        TaskId id = new TaskId(node, (Long) a[i++]);
         String type = (String) a[i++];
         String action = (String) a[i++];
         String description = (String) a[i++];
@@ -157,6 +165,7 @@ public record TaskInfo(
         return new TaskInfo(
             id,
             type,
+            node,
             action,
             description,
             status,

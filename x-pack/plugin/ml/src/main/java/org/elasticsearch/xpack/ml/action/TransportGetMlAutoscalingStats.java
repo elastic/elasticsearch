@@ -7,23 +7,18 @@
 
 package org.elasticsearch.xpack.ml.action;
 
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.ListenerTimeouts;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
-import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
-import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.GetMlAutoscalingStats;
@@ -37,8 +32,8 @@ import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
  */
 public class TransportGetMlAutoscalingStats extends TransportMasterNodeAction<Request, Response> {
 
-    private final Client client;
     private final MlMemoryTracker mlMemoryTracker;
+    private final Settings settings;
 
     @Inject
     public TransportGetMlAutoscalingStats(
@@ -47,7 +42,7 @@ public class TransportGetMlAutoscalingStats extends TransportMasterNodeAction<Re
         ThreadPool threadPool,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        Client client,
+        Settings settings,
         MlMemoryTracker mlMemoryTracker
     ) {
         super(
@@ -59,60 +54,32 @@ public class TransportGetMlAutoscalingStats extends TransportMasterNodeAction<Re
             Request::new,
             indexNameExpressionResolver,
             Response::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
-        this.client = client;
         this.mlMemoryTracker = mlMemoryTracker;
+        this.settings = settings;
     }
 
     @Override
     protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) {
-        TaskId parentTaskId = new TaskId(clusterService.localNode().getId(), task.getId());
-        ParentTaskAssigningClient parentTaskAssigningClient = new ParentTaskAssigningClient(client, parentTaskId);
 
-        if (mlMemoryTracker.isRecentlyRefreshed()) {
-            MlAutoscalingResourceTracker.getMlAutoscalingStats(
-                state,
-                parentTaskAssigningClient,
-                request.timeout(),
-                mlMemoryTracker,
-                ActionListener.wrap(autoscalingResources -> listener.onResponse(new Response(autoscalingResources)), listener::onFailure)
-            );
-        } else {
-            // recent memory statistics aren't available at the moment, trigger a refresh,
-            // if a refresh has been triggered before, this will wait until refresh has happened
-            // on busy cluster with many jobs this could take a while, therefore timeout and return a 408 in case
-            mlMemoryTracker.refresh(
-                state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE),
-                ListenerTimeouts.wrapWithTimeout(
-                    threadPool,
-                    request.timeout(),
-                    ThreadPool.Names.GENERIC,
-                    ActionListener.wrap(
-                        ignored -> MlAutoscalingResourceTracker.getMlAutoscalingStats(
-                            state,
-                            parentTaskAssigningClient,
-                            request.timeout(),
-                            mlMemoryTracker,
-                            ActionListener.wrap(
-                                autoscalingResources -> listener.onResponse(new Response(autoscalingResources)),
-                                listener::onFailure
-                            )
-                        ),
-                        listener::onFailure
-                    ),
-                    timeoutTrigger -> {
-                        // Timeout triggered
-                        listener.onFailure(
-                            new ElasticsearchStatusException(
-                                "ML autoscaling metrics could not be retrieved in time, but should be available shortly.",
-                                RestStatus.REQUEST_TIMEOUT
-                            )
-                        );
-                    }
-                )
-            );
+        if (mlMemoryTracker.isRecentlyRefreshed() == false) {
+            // Recent memory statistics aren't available at the moment, trigger a refresh in the background.
+            // (If a refresh is already in progress, this won't trigger a new one.) We still proceed to return a
+            // scaling response in this case. This API gets called every 5 seconds, so the memory info is likely only
+            // a few seconds stale, and still good enough. If it gets _really_ badly out of date, or has never been
+            // populated in the first place then there are places in MlAutoscalingResourceTracker.getMlAutoscalingStats
+            // that will return a no-scale.
+            mlMemoryTracker.asyncRefresh();
         }
+
+        MlAutoscalingResourceTracker.getMlAutoscalingStats(
+            state,
+            clusterService.getClusterSettings(),
+            mlMemoryTracker,
+            settings,
+            listener.delegateFailureAndWrap((l, autoscalingResources) -> l.onResponse(new Response(autoscalingResources)))
+        );
     }
 
     @Override

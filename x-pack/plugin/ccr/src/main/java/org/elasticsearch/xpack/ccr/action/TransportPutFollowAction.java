@@ -29,6 +29,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.license.LicenseUtils;
@@ -49,10 +50,13 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.concurrent.Executor;
 import java.util.function.BiConsumer;
+import java.util.regex.Matcher;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.DataStream.BACKING_INDEX_PREFIX;
+import static org.elasticsearch.xpack.ccr.Ccr.CCR_THREAD_POOL_NAME;
 
 public final class TransportPutFollowAction extends TransportMasterNodeAction<PutFollowAction.Request, PutFollowAction.Response> {
 
@@ -60,6 +64,7 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
 
     private final IndexScopedSettings indexScopedSettings;
     private final Client client;
+    private final Executor remoteClientResponseExecutor;
     private final RestoreService restoreService;
     private final CcrLicenseChecker ccrLicenseChecker;
 
@@ -84,10 +89,11 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
             PutFollowAction.Request::new,
             indexNameExpressionResolver,
             PutFollowAction.Response::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.indexScopedSettings = indexScopedSettings;
         this.client = client;
+        this.remoteClientResponseExecutor = threadPool.executor(CCR_THREAD_POOL_NAME);
         this.restoreService = restoreService;
         this.ccrLicenseChecker = Objects.requireNonNull(ccrLicenseChecker);
     }
@@ -105,7 +111,7 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
         }
         String remoteCluster = request.getRemoteCluster();
         // Validates whether the leader cluster has been configured properly:
-        client.getRemoteClusterClient(remoteCluster);
+        client.getRemoteClusterClient(remoteCluster, remoteClientResponseExecutor);
 
         String leaderIndex = request.getLeaderIndex();
         ccrLicenseChecker.checkRemoteClusterLicenseAndFetchLeaderIndexMetadataAndHistoryUUIDs(
@@ -181,7 +187,7 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
         )
             .indicesOptions(request.indicesOptions())
             .renamePattern("^(.*)$")
-            .renameReplacement(request.getFollowerIndex())
+            .renameReplacement(Matcher.quoteReplacement(request.getFollowerIndex()))
             .masterNodeTimeout(request.masterNodeTimeout())
             .indexSettings(overrideSettings)
             .quiet(true);
@@ -326,7 +332,10 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
                 remoteDataStream.isSystem(),
                 remoteDataStream.isAllowCustomRouting(),
                 remoteDataStream.getIndexMode(),
-                remoteDataStream.getLifecycle()
+                remoteDataStream.getLifecycle(),
+                remoteDataStream.isFailureStore(),
+                remoteDataStream.getFailureIndices(),
+                remoteDataStream.getAutoShardingEvent()
             );
         } else {
             if (localDataStream.isReplicated() == false) {
@@ -377,7 +386,10 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
                 localDataStream.isSystem(),
                 localDataStream.isAllowCustomRouting(),
                 localDataStream.getIndexMode(),
-                localDataStream.getLifecycle()
+                localDataStream.getLifecycle(),
+                localDataStream.isFailureStore(),
+                localDataStream.getFailureIndices(),
+                localDataStream.getAutoShardingEvent()
             );
         }
     }

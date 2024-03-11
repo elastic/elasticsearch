@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.cluster.serialization;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -21,6 +20,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.index.IndexVersion;
 
 import java.util.Arrays;
 
@@ -30,7 +30,7 @@ import static org.hamcrest.Matchers.containsString;
 public class ClusterStateToStringTests extends ESAllocationTestCase {
     public void testClusterStateSerialization() throws Exception {
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("test_idx").settings(settings(Version.CURRENT)).numberOfShards(10).numberOfReplicas(1))
+            .put(IndexMetadata.builder("test_idx").settings(settings(IndexVersion.current())).numberOfShards(10).numberOfReplicas(1))
             .put(
                 IndexTemplateMetadata.builder("test_template")
                     .patterns(Arrays.asList(generateRandomStringArray(10, 100, false, false)))

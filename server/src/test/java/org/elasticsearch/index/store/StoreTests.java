@@ -49,6 +49,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.store.FilterIndexOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.IOUtils;
@@ -57,6 +58,7 @@ import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.RetentionLease;
@@ -82,6 +84,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongUnaryOperator;
 
 import static java.util.Collections.emptyList;
@@ -107,9 +110,9 @@ public class StoreTests extends ESTestCase {
 
     private static final IndexSettings INDEX_SETTINGS = IndexSettingsModule.newIndexSettings(
         "index",
-        Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT).build()
+        Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build()
     );
-    private static final Version MIN_SUPPORTED_LUCENE_VERSION = IndexVersion.MINIMUM_COMPATIBLE.luceneVersion();
+    private static final Version MIN_SUPPORTED_LUCENE_VERSION = IndexVersions.MINIMUM_COMPATIBLE.luceneVersion();
 
     public void testRefCount() {
         final ShardId shardId = new ShardId("index", "_na_", 1);
@@ -755,7 +758,7 @@ public class StoreTests extends ESTestCase {
     public void testStoreStats() throws IOException {
         final ShardId shardId = new ShardId("index", "_na_", 1);
         Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put(Store.INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.timeValueMinutes(0))
             .build();
         Store store = new Store(
@@ -772,22 +775,22 @@ public class StoreTests extends ESTestCase {
         final long localStoreSizeDelta = randomLongBetween(-initialStoreSize, initialStoreSize);
         final long reservedBytes = randomBoolean() ? StoreStats.UNKNOWN_RESERVED_BYTES : randomLongBetween(0L, Integer.MAX_VALUE);
         StoreStats stats = store.stats(reservedBytes, size -> size + localStoreSizeDelta);
-        assertEquals(initialStoreSize, stats.totalDataSetSize().getBytes());
-        assertEquals(initialStoreSize + localStoreSizeDelta, stats.getSize().getBytes());
-        assertEquals(reservedBytes, stats.getReservedSize().getBytes());
+        assertEquals(initialStoreSize, stats.totalDataSetSizeInBytes());
+        assertEquals(initialStoreSize + localStoreSizeDelta, stats.sizeInBytes());
+        assertEquals(reservedBytes, stats.reservedSizeInBytes());
 
         stats.add(null);
-        assertEquals(initialStoreSize, stats.totalDataSetSize().getBytes());
-        assertEquals(initialStoreSize + localStoreSizeDelta, stats.getSize().getBytes());
-        assertEquals(reservedBytes, stats.getReservedSize().getBytes());
+        assertEquals(initialStoreSize, stats.totalDataSetSizeInBytes());
+        assertEquals(initialStoreSize + localStoreSizeDelta, stats.sizeInBytes());
+        assertEquals(reservedBytes, stats.reservedSizeInBytes());
 
         final long otherStatsDataSetBytes = randomLongBetween(0L, Integer.MAX_VALUE);
         final long otherStatsLocalBytes = randomLongBetween(0L, Integer.MAX_VALUE);
         final long otherStatsReservedBytes = randomBoolean() ? StoreStats.UNKNOWN_RESERVED_BYTES : randomLongBetween(0L, Integer.MAX_VALUE);
         stats.add(new StoreStats(otherStatsLocalBytes, otherStatsDataSetBytes, otherStatsReservedBytes));
-        assertEquals(initialStoreSize + otherStatsDataSetBytes, stats.totalDataSetSize().getBytes());
-        assertEquals(initialStoreSize + otherStatsLocalBytes + localStoreSizeDelta, stats.getSize().getBytes());
-        assertEquals(Math.max(reservedBytes, 0L) + Math.max(otherStatsReservedBytes, 0L), stats.getReservedSize().getBytes());
+        assertEquals(initialStoreSize + otherStatsDataSetBytes, stats.totalDataSetSizeInBytes());
+        assertEquals(initialStoreSize + otherStatsLocalBytes + localStoreSizeDelta, stats.sizeInBytes());
+        assertEquals(Math.max(reservedBytes, 0L) + Math.max(otherStatsReservedBytes, 0L), stats.reservedSizeInBytes());
 
         Directory dir = store.directory();
         final long length;
@@ -802,8 +805,110 @@ public class StoreTests extends ESTestCase {
 
         assertTrue(numNonExtraFiles(store) > 0);
         stats = store.stats(0L, size -> size + localStoreSizeDelta);
-        assertEquals(initialStoreSize + length, stats.totalDataSetSize().getBytes());
-        assertEquals(initialStoreSize + localStoreSizeDelta + length, stats.getSizeInBytes());
+        assertEquals(initialStoreSize + length, stats.totalDataSetSizeInBytes());
+        assertEquals(initialStoreSize + localStoreSizeDelta + length, stats.sizeInBytes());
+
+        deleteContent(store.directory());
+        IOUtils.close(store);
+    }
+
+    public void testStoreSizes() throws IOException {
+        // directory that returns total written bytes as the data set size
+        final var directory = new ByteSizeDirectory(StoreTests.newDirectory(random())) {
+
+            final AtomicLong dataSetBytes = new AtomicLong(estimateSizeInBytes(getDelegate()));
+
+            @Override
+            public long estimateSizeInBytes() throws IOException {
+                return estimateSizeInBytes(getDelegate());
+            }
+
+            @Override
+            public long estimateDataSetSizeInBytes() {
+                return dataSetBytes.get();
+            }
+
+            @Override
+            public IndexOutput createOutput(String name, IOContext context) throws IOException {
+                return wrap(super.createOutput(name, context));
+            }
+
+            @Override
+            public IndexOutput createTempOutput(String prefix, String suffix, IOContext context) throws IOException {
+                return wrap(super.createTempOutput(prefix, suffix, context));
+            }
+
+            private IndexOutput wrap(IndexOutput output) {
+                return new FilterIndexOutput("wrapper", output) {
+                    @Override
+                    public void writeByte(byte b) throws IOException {
+                        super.writeByte(b);
+                        dataSetBytes.incrementAndGet();
+                    }
+
+                    @Override
+                    public void writeBytes(byte[] b, int offset, int length) throws IOException {
+                        super.writeBytes(b, offset, length);
+                        dataSetBytes.addAndGet(length);
+                    }
+                };
+            }
+        };
+
+        final ShardId shardId = new ShardId("index", "_na_", 1);
+        final Store store = new Store(
+            shardId,
+            IndexSettingsModule.newIndexSettings(
+                "index",
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                    .put(Store.INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.timeValueMinutes(0))
+                    .build()
+            ),
+            directory,
+            new DummyShardLock(shardId)
+        );
+        long initialStoreSize = 0L;
+        for (String extraFiles : store.directory().listAll()) {
+            assertTrue("expected extraFS file but got: " + extraFiles, extraFiles.startsWith("extra"));
+            initialStoreSize += store.directory().fileLength(extraFiles);
+        }
+
+        StoreStats stats = store.stats(0L, LongUnaryOperator.identity());
+        assertThat(stats.sizeInBytes(), equalTo(initialStoreSize));
+        assertThat(stats.totalDataSetSizeInBytes(), equalTo(initialStoreSize));
+
+        long additionalStoreSize = 0L;
+
+        int iters = randomIntBetween(1, 10);
+        for (int i = 0; i < iters; i++) {
+            try (IndexOutput output = directory.createOutput(i + ".bar", IOContext.DEFAULT)) {
+                BytesRef bytesRef = new BytesRef(TestUtil.randomRealisticUnicodeString(random(), 10, 1024));
+                output.writeBytes(bytesRef.bytes, bytesRef.offset, bytesRef.length);
+                additionalStoreSize += output.getFilePointer();
+            }
+        }
+
+        stats = store.stats(0L, LongUnaryOperator.identity());
+        assertThat(stats.sizeInBytes(), equalTo(initialStoreSize + additionalStoreSize));
+        assertThat(stats.totalDataSetSizeInBytes(), equalTo(initialStoreSize + additionalStoreSize));
+
+        long deletionsStoreSize = 0L;
+
+        var randomFiles = randomSubsetOf(Arrays.asList(directory.listAll()));
+        for (String randomFile : randomFiles) {
+            try {
+                long length = directory.fileLength(randomFile);
+                directory.deleteFile(randomFile);
+                deletionsStoreSize += length;
+            } catch (NoSuchFileException | FileNotFoundException e) {
+                // ignore
+            }
+        }
+
+        stats = store.stats(0L, LongUnaryOperator.identity());
+        assertThat(stats.sizeInBytes(), equalTo(initialStoreSize + additionalStoreSize - deletionsStoreSize));
+        assertThat(stats.totalDataSetSizeInBytes(), equalTo(initialStoreSize + additionalStoreSize));
 
         deleteContent(store.directory());
         IOUtils.close(store);
@@ -1108,7 +1213,7 @@ public class StoreTests extends ESTestCase {
 
             SegmentInfos segmentInfos = Lucene.readSegmentInfos(store.directory());
             assertThat(segmentInfos.getUserData(), hasKey(Engine.ES_VERSION));
-            assertThat(segmentInfos.getUserData().get(Engine.ES_VERSION), is(equalTo(org.elasticsearch.Version.CURRENT.toString())));
+            assertThat(segmentInfos.getUserData().get(Engine.ES_VERSION), is(equalTo(IndexVersion.current().toString())));
         }
     }
 

@@ -8,7 +8,6 @@
 
 package org.elasticsearch.cluster.routing.allocation.decider;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
@@ -28,6 +27,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.util.Arrays;
@@ -66,7 +66,7 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
     private final String idxName = "test-idx";
     private final String idxUuid = "test-idx-uuid";
     private final IndexMetadata indexMetadata = IndexMetadata.builder(idxName)
-        .settings(indexSettings(Version.CURRENT, 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, idxUuid))
+        .settings(indexSettings(IndexVersion.current(), 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, idxUuid))
         .build();
 
     public void testNoReplacements() {
@@ -186,7 +186,7 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
     public void testShouldNotAutoExpandReplicasDuringUnrelatedNodeReplacement() {
 
         var indexMetadata = IndexMetadata.builder(idxName)
-            .settings(indexSettings(Version.CURRENT, 1, 0).put(SETTING_AUTO_EXPAND_REPLICAS, "0-1"))
+            .settings(indexSettings(IndexVersion.current(), 1, 0).put(SETTING_AUTO_EXPAND_REPLICAS, "0-1"))
             .build();
         var shardId = new ShardId(indexMetadata.getIndex(), 0);
 
@@ -267,7 +267,7 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
     public void testShouldNotContractAutoExpandReplicasDuringNodeReplacement() {
 
         var indexMetadata = IndexMetadata.builder(idxName)
-            .settings(indexSettings(Version.CURRENT, 1, 0).put(SETTING_AUTO_EXPAND_REPLICAS, "0-1"))
+            .settings(indexSettings(IndexVersion.current(), 1, 0).put(SETTING_AUTO_EXPAND_REPLICAS, "0-1"))
             .build();
         var shardId = new ShardId(indexMetadata.getIndex(), 0);
 

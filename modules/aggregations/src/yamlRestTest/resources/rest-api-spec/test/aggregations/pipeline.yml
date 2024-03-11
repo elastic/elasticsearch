@@ -7,8 +7,6 @@ setup:
       indices.create:
           index: test_1
           body:
-            settings:
-              number_of_replicas: 0
             mappings:
               properties:
                 int_field:
@@ -389,7 +387,6 @@ setup:
         index: test
         body:
           settings:
-            number_of_replicas: 0
             number_of_shards: 3
   - do:
       bulk:

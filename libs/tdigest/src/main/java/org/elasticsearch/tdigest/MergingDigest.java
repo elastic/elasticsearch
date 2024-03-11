@@ -216,7 +216,7 @@ public class MergingDigest extends AbstractTDigest {
     }
 
     @Override
-    public void add(double x, int w) {
+    public void add(double x, long w) {
         checkValue(x);
         if (tempUsed >= tempWeight.length - lastUsedCell - 1) {
             mergeNewValues();
@@ -514,7 +514,7 @@ public class MergingDigest extends AbstractTDigest {
 
                     @Override
                     public Centroid next() {
-                        Centroid rc = new Centroid(mean[i], (int) weight[i]);
+                        Centroid rc = new Centroid(mean[i], (long) weight[i]);
                         i++;
                         return rc;
                     }

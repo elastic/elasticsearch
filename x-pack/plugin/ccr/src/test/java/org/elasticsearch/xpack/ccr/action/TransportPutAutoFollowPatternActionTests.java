@@ -6,12 +6,12 @@
  */
 package org.elasticsearch.xpack.ccr.action;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata.AutoFollowPattern;
@@ -90,15 +90,17 @@ public class TransportPutAutoFollowPatternActionTests extends ESTestCase {
         Metadata.Builder mdBuilder = Metadata.builder();
         for (int i = 0; i < numLeaderIndices; i++) {
             mdBuilder.put(
-                IndexMetadata.builder("transactions-" + i).settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0)
+                IndexMetadata.builder("transactions-" + i).settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(0)
             );
         }
         for (int i = 0; i < numMatchingLeaderIndices; i++) {
-            mdBuilder.put(IndexMetadata.builder("logs-" + i).settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0));
+            mdBuilder.put(
+                IndexMetadata.builder("logs-" + i).settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(0)
+            );
         }
         for (int i = 0; i < numExcludedLeaderIndices; i++) {
             mdBuilder.put(
-                IndexMetadata.builder("logs-excluded-" + i).settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0)
+                IndexMetadata.builder("logs-excluded-" + i).settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(0)
             );
         }
 
@@ -180,12 +182,14 @@ public class TransportPutAutoFollowPatternActionTests extends ESTestCase {
         int numLeaderIndices = randomIntBetween(1, 8);
         Metadata.Builder mdBuilder = Metadata.builder();
         for (int i = 0; i < numLeaderIndices; i++) {
-            mdBuilder.put(IndexMetadata.builder("logs-" + i).settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0));
+            mdBuilder.put(
+                IndexMetadata.builder("logs-" + i).settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(0)
+            );
         }
         int numExcludedLeaderIndices = randomIntBetween(1, 8);
         for (int i = 0; i < numExcludedLeaderIndices; i++) {
             mdBuilder.put(
-                IndexMetadata.builder("logs-excluded-" + i).settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0)
+                IndexMetadata.builder("logs-excluded-" + i).settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(0)
             );
         }
 

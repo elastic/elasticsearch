@@ -8,15 +8,17 @@
 
 package org.elasticsearch.search.fetch;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.RefCounted;
+import org.elasticsearch.core.SimpleRefCounted;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.profile.ProfileResult;
+import org.elasticsearch.transport.LeakTracker;
 
 import java.io.IOException;
 
@@ -28,6 +30,8 @@ public final class FetchSearchResult extends SearchPhaseResult {
 
     private ProfileResult profileResult;
 
+    private final RefCounted refCounted = LeakTracker.wrap(new SimpleRefCounted());
+
     public FetchSearchResult() {}
 
     public FetchSearchResult(ShardSearchContextId id, SearchShardTarget shardTarget) {
@@ -38,21 +42,16 @@ public final class FetchSearchResult extends SearchPhaseResult {
     public FetchSearchResult(StreamInput in) throws IOException {
         super(in);
         contextId = new ShardSearchContextId(in);
-        hits = new SearchHits(in);
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_16_0)) {
-            profileResult = in.readOptionalWriteable(ProfileResult::new);
-        } else {
-            profileResult = null;
-        }
+        hits = SearchHits.readFrom(in, true);
+        profileResult = in.readOptionalWriteable(ProfileResult::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        assert hasReferences();
         contextId.writeTo(out);
         hits.writeTo(out);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_16_0)) {
-            out.writeOptionalWriteable(profileResult);
-        }
+        out.writeOptionalWriteable(profileResult);
     }
 
     @Override
@@ -63,6 +62,7 @@ public final class FetchSearchResult extends SearchPhaseResult {
     public void shardResult(SearchHits hits, ProfileResult profileResult) {
         assert assertNoSearchTarget(hits);
         this.hits = hits;
+        hits.incRef();
         assert this.profileResult == null;
         this.profileResult = profileResult;
     }
@@ -75,6 +75,7 @@ public final class FetchSearchResult extends SearchPhaseResult {
     }
 
     public SearchHits hits() {
+        assert hasReferences();
         return hits;
     }
 
@@ -89,5 +90,36 @@ public final class FetchSearchResult extends SearchPhaseResult {
 
     public ProfileResult profileResult() {
         return profileResult;
+    }
+
+    @Override
+    public void incRef() {
+        refCounted.incRef();
+    }
+
+    @Override
+    public boolean tryIncRef() {
+        return refCounted.tryIncRef();
+    }
+
+    @Override
+    public boolean decRef() {
+        if (refCounted.decRef()) {
+            deallocate();
+            return true;
+        }
+        return false;
+    }
+
+    private void deallocate() {
+        if (hits != null) {
+            hits.decRef();
+            hits = null;
+        }
+    }
+
+    @Override
+    public boolean hasReferences() {
+        return refCounted.hasReferences();
     }
 }

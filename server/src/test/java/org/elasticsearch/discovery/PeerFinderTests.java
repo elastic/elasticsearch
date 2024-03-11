@@ -22,6 +22,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -29,7 +30,6 @@ import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.test.transport.CapturingTransport.CapturedRequest;
 import org.elasticsearch.test.transport.StubbableConnectionManager;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.ClusterConnectionManager;
 import org.elasticsearch.transport.ConnectionManager;
 import org.elasticsearch.transport.TransportException;
@@ -49,6 +49,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -249,6 +250,7 @@ public class PeerFinderTests extends ESTestCase {
     @After
     public void deactivateAndRunRemainingTasks() {
         peerFinder.deactivate(localNode);
+        peerFinder.closePeers();
         deterministicTaskQueue.runAllRunnableTasks();
         assertThat(connectedNodes, empty());
     }
@@ -357,7 +359,7 @@ public class PeerFinderTests extends ESTestCase {
         assertFoundPeers(otherNode);
     }
 
-    public void testDeactivationClearsPastKnowledge() {
+    public void testDeactivationRetainsPastKnowledgeUntilClosed() {
         final DiscoveryNode otherNode = newDiscoveryNode("node-from-hosts-list");
         providedAddresses.add(otherNode.getAddress());
         transportAddressConnector.addReachableNode(otherNode);
@@ -368,12 +370,40 @@ public class PeerFinderTests extends ESTestCase {
         assertFoundPeers(otherNode);
 
         peerFinder.deactivate(localNode);
+        assertFoundPeers();
+        assertEquals(Set.of(otherNode), connectedNodes);
+
+        peerFinder.activate(DiscoveryNodes.EMPTY_NODES);
+        assertFoundPeers(otherNode);
+
+        peerFinder.deactivate(localNode);
+        assertFoundPeers();
+        assertEquals(Set.of(otherNode), connectedNodes);
+        peerFinder.closePeers();
         assertThat(connectedNodes, empty());
 
         providedAddresses.clear();
         peerFinder.activate(lastAcceptedNodes);
         runAllRunnableTasks();
         assertFoundPeers();
+    }
+
+    public void testDeactivationDuringConnectionAttemptReleasesPeer() {
+        final DiscoveryNode otherNode = newDiscoveryNode("node-from-hosts-list");
+        providedAddresses.add(otherNode.getAddress());
+        transportAddressConnector.addReachableNode(otherNode);
+
+        deterministicTaskQueue.setExecutionDelayVariabilityMillis(10000);
+        peerFinder.activate(lastAcceptedNodes);
+        deterministicTaskQueue.scheduleAt(deterministicTaskQueue.getCurrentTimeMillis() + 1, () -> peerFinder.deactivate(localNode));
+        do {
+            deterministicTaskQueue.advanceTime();
+            deterministicTaskQueue.runAllRunnableTasks(); // mainly verifying that this doesn't trip an assertion
+        } while (deterministicTaskQueue.hasDeferredTasks());
+        assertFoundPeers();
+
+        peerFinder.closePeers();
+        assertThat(connectedNodes, empty());
     }
 
     public void testAddsReachableNodesFromClusterState() {
@@ -512,6 +542,11 @@ public class PeerFinderTests extends ESTestCase {
                 }
 
                 @Override
+                public Executor executor() {
+                    return TransportResponseHandler.TRANSPORT_WORKER;
+                }
+
+                @Override
                 public void handleResponse(PeersResponse response) {
                     assertTrue(responseReceived.compareAndSet(false, true));
                     assertFalse(response.getMasterNode().isPresent());
@@ -521,7 +556,7 @@ public class PeerFinderTests extends ESTestCase {
 
                 @Override
                 public void handleException(TransportException exp) {
-                    throw new AssertionError("unexpected", exp);
+                    fail(exp);
                 }
             }
         );
@@ -846,6 +881,48 @@ public class PeerFinderTests extends ESTestCase {
             }
             appender.assertAllExpectationsMatched();
         }
+    }
+
+    @TestLogging(reason = "testing logging at WARN level", value = "org.elasticsearch.discovery:WARN")
+    public void testEventuallyLogsIfReturnedMasterIsUnreachable() {
+        final DiscoveryNode otherNode = newDiscoveryNode("node-from-hosts-list");
+        providedAddresses.add(otherNode.getAddress());
+        transportAddressConnector.addReachableNode(otherNode);
+
+        peerFinder.activate(lastAcceptedNodes);
+        final long endTime = deterministicTaskQueue.getCurrentTimeMillis() + VERBOSITY_INCREASE_TIMEOUT_SETTING.get(Settings.EMPTY).millis()
+            + PeerFinder.DISCOVERY_FIND_PEERS_INTERVAL_SETTING.get(Settings.EMPTY).millis();
+
+        runAllRunnableTasks();
+
+        assertFoundPeers(otherNode);
+        final DiscoveryNode unreachableMaster = newDiscoveryNode("unreachable-master");
+        transportAddressConnector.unreachableAddresses.add(unreachableMaster.getAddress());
+
+        MockLogAppender.assertThatLogger(() -> {
+            while (deterministicTaskQueue.getCurrentTimeMillis() <= endTime) {
+                deterministicTaskQueue.advanceTime();
+                runAllRunnableTasks();
+                respondToRequests(node -> {
+                    assertThat(node, is(otherNode));
+                    return new PeersResponse(Optional.of(unreachableMaster), emptyList(), randomNonNegativeLong());
+                });
+            }
+        },
+            PeerFinder.class,
+            new MockLogAppender.SeenEventExpectation(
+                "discovery result",
+                "org.elasticsearch.discovery.PeerFinder",
+                Level.WARN,
+                "address ["
+                    + unreachableMaster.getAddress()
+                    + "]* [current master according to *node-from-hosts-list*ClusterFormationFailureHelper*discovery-troubleshooting.html*"
+            )
+        );
+
+        assertFoundPeers(otherNode);
+        assertThat(peerFinder.discoveredMasterNode, nullValue());
+        assertFalse(peerFinder.discoveredMasterTerm.isPresent());
     }
 
     public void testReconnectsToDisconnectedNodes() {

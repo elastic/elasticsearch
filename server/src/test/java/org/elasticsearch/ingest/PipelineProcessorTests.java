@@ -20,6 +20,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.function.LongSupplier;
 
+import static org.elasticsearch.ingest.IngestDocumentMatcher.assertIngestDocument;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -60,7 +61,7 @@ public class PipelineProcessorTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("name", pipelineId);
         factory.create(Map.of(), null, null, config).execute(testIngestDocument, (result, e) -> {});
-        assertEquals(testIngestDocument, invoked.get());
+        assertIngestDocument(testIngestDocument, invoked.get());
     }
 
     public void testThrowsOnMissingPipeline() throws Exception {
@@ -156,7 +157,15 @@ public class PipelineProcessorTests extends ESTestCase {
 
         LongSupplier relativeTimeProvider = mock(LongSupplier.class);
         when(relativeTimeProvider.getAsLong()).thenReturn(0L);
-        Pipeline pipeline1 = new Pipeline(pipeline1Id, null, null, null, new CompoundProcessor(pipeline1Processor), relativeTimeProvider);
+        Pipeline pipeline1 = new Pipeline(
+            pipeline1Id,
+            null,
+            null,
+            null,
+            new CompoundProcessor(pipeline1Processor),
+            relativeTimeProvider,
+            null
+        );
 
         String key1 = randomAlphaOfLength(10);
         relativeTimeProvider = mock(LongSupplier.class);
@@ -169,13 +178,14 @@ public class PipelineProcessorTests extends ESTestCase {
             new CompoundProcessor(true, List.of(new TestProcessor(ingestDocument -> {
                 ingestDocument.setFieldValue(key1, randomInt());
             }), pipeline2Processor), List.of()),
-            relativeTimeProvider
+            relativeTimeProvider,
+            null
         );
         relativeTimeProvider = mock(LongSupplier.class);
         when(relativeTimeProvider.getAsLong()).thenReturn(0L, TimeUnit.MILLISECONDS.toNanos(2));
         Pipeline pipeline3 = new Pipeline(pipeline3Id, null, null, null, new CompoundProcessor(new TestProcessor(ingestDocument -> {
             throw new RuntimeException("error");
-        })), relativeTimeProvider);
+        })), relativeTimeProvider, null);
         when(ingestService.getPipeline(pipeline1Id)).thenReturn(pipeline1);
         when(ingestService.getPipeline(pipeline2Id)).thenReturn(pipeline2);
         when(ingestService.getPipeline(pipeline3Id)).thenReturn(pipeline3);

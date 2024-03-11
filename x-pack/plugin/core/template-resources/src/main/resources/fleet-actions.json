@@ -1,0 +1,63 @@
+{
+  "settings": {
+    "auto_expand_replicas": "0-1"
+  },
+  "mappings": {
+    "_doc" : {
+      "dynamic": false,
+      "_meta": {
+        "version": "${fleet.version}",
+        "managed_index_mappings_version": ${fleet.managed.index.version}
+      },
+      "properties": {
+        "action_id": {
+          "type": "keyword"
+        },
+        "agents": {
+          "type": "keyword"
+        },
+        "data": {
+          "enabled": false,
+          "type": "object"
+        },
+        "expiration": {
+          "type": "date"
+        },
+        "start_time": {
+          "type": "date"
+        },
+        "minimum_execution_duration": {
+          "type": "integer"
+        },
+        "rollout_duration_seconds": {
+          "type": "integer"
+        },
+        "input_type": {
+          "type": "keyword"
+        },
+        "timeout": {
+          "type": "integer"
+        },
+        "@timestamp": {
+          "type": "date"
+        },
+        "type": {
+          "type": "keyword"
+        },
+        "user_id" : {
+          "type": "keyword"
+        },
+        "signed" : {
+          "properties": {
+            "data" : {
+              "type": "binary"
+            },
+            "signature" : {
+              "type": "binary"
+            }
+          }
+        }
+      }
+    }
+  }
+}

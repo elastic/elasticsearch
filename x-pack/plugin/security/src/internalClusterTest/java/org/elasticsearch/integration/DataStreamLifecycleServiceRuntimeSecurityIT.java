@@ -9,12 +9,13 @@ package org.elasticsearch.integration;
 
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
-import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.datastreams.GetDataStreamAction;
+import org.elasticsearch.action.datastreams.lifecycle.ErrorEntry;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -23,12 +24,12 @@ import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleErrorStore;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.indices.ExecutorNames;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.plugins.Plugin;
@@ -38,6 +39,7 @@ import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
+import org.elasticsearch.xpack.wildcard.Wildcard;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -46,6 +48,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.backingIndexEqualTo;
@@ -70,7 +73,13 @@ public class DataStreamLifecycleServiceRuntimeSecurityIT extends SecurityIntegTe
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(LocalStateSecurity.class, DataStreamsPlugin.class, SystemDataStreamTestPlugin.class);
+        return List.of(
+            LocalStateSecurity.class,
+            DataStreamsPlugin.class,
+            SystemDataStreamTestPlugin.class,
+            MapperExtrasPlugin.class,
+            Wildcard.class
+        );
     }
 
     @Override
@@ -107,7 +116,7 @@ public class DataStreamLifecycleServiceRuntimeSecurityIT extends SecurityIntegTe
 
     public void testRolloverAndRetentionAuthorized() throws Exception {
         String dataStreamName = randomDataStreamName();
-        prepareDataStreamAndIndex(dataStreamName, new DataStreamLifecycle(TimeValue.timeValueMillis(0)));
+        prepareDataStreamAndIndex(dataStreamName, DataStreamLifecycle.newBuilder().dataRetention(0).build());
 
         assertBusy(() -> {
             assertNoAuthzErrors();
@@ -160,9 +169,12 @@ public class DataStreamLifecycleServiceRuntimeSecurityIT extends SecurityIntegTe
         Map<String, String> indicesAndErrors = new HashMap<>();
         for (DataStreamLifecycleService lifecycleService : lifecycleServices) {
             DataStreamLifecycleErrorStore errorStore = lifecycleService.getErrorStore();
-            List<String> allIndices = errorStore.getAllIndices();
+            Set<String> allIndices = errorStore.getAllIndices();
             for (var index : allIndices) {
-                indicesAndErrors.put(index, errorStore.getError(index));
+                ErrorEntry error = errorStore.getError(index);
+                if (error != null) {
+                    indicesAndErrors.put(index, error.error());
+                }
             }
         }
         return indicesAndErrors;
@@ -204,20 +216,16 @@ public class DataStreamLifecycleServiceRuntimeSecurityIT extends SecurityIntegTe
         @Nullable Map<String, Object> metadata,
         @Nullable DataStreamLifecycle lifecycle
     ) throws IOException {
-        PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request(id);
+        TransportPutComposableIndexTemplateAction.Request request = new TransportPutComposableIndexTemplateAction.Request(id);
         request.indexTemplate(
-            new ComposableIndexTemplate(
-                patterns,
-                new Template(settings, mappings == null ? null : CompressedXContent.fromJSON(mappings), null, lifecycle),
-                null,
-                null,
-                null,
-                metadata,
-                new ComposableIndexTemplate.DataStreamTemplate(),
-                null
-            )
+            ComposableIndexTemplate.builder()
+                .indexPatterns(patterns)
+                .template(new Template(settings, mappings == null ? null : CompressedXContent.fromJSON(mappings), null, lifecycle))
+                .metadata(metadata)
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                .build()
         );
-        client().execute(PutComposableIndexTemplateAction.INSTANCE, request).actionGet();
+        client().execute(TransportPutComposableIndexTemplateAction.TYPE, request).actionGet();
     }
 
     private static void indexDoc(String dataStream) {
@@ -249,15 +257,11 @@ public class DataStreamLifecycleServiceRuntimeSecurityIT extends SecurityIntegTe
                     SYSTEM_DATA_STREAM_NAME,
                     "a system data stream for testing",
                     SystemDataStreamDescriptor.Type.EXTERNAL,
-                    new ComposableIndexTemplate(
-                        List.of(SYSTEM_DATA_STREAM_NAME),
-                        new Template(Settings.EMPTY, null, null, new DataStreamLifecycle(0)),
-                        null,
-                        null,
-                        null,
-                        null,
-                        new ComposableIndexTemplate.DataStreamTemplate()
-                    ),
+                    ComposableIndexTemplate.builder()
+                        .indexPatterns(List.of(SYSTEM_DATA_STREAM_NAME))
+                        .template(new Template(Settings.EMPTY, null, null, DataStreamLifecycle.newBuilder().dataRetention(0).build()))
+                        .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                        .build(),
                     Map.of(),
                     Collections.singletonList("test"),
                     new ExecutorNames(ThreadPool.Names.SYSTEM_CRITICAL_READ, ThreadPool.Names.SYSTEM_READ, ThreadPool.Names.SYSTEM_WRITE)

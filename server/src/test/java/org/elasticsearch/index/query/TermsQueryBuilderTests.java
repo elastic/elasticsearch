@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -35,6 +36,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 
 import static org.hamcrest.Matchers.containsString;
@@ -71,7 +73,7 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
                     || choice.equals(INT_RANGE_FIELD_NAME)
                     || choice.equals(DATE_RANGE_FIELD_NAME)
                     || choice.equals(DATE_NANOS_FIELD_NAME), // TODO: needs testing for date_nanos type
-                () -> getRandomFieldName()
+                AbstractQueryTestCase::getRandomFieldName
             );
             Object[] values = new Object[randomInt(5)];
             for (int i = 0; i < values.length; i++) {
@@ -95,7 +97,7 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
     protected void doAssertLuceneQuery(TermsQueryBuilder queryBuilder, Query query, SearchExecutionContext context) throws IOException {
         if (queryBuilder.termsLookup() == null && (queryBuilder.values() == null || queryBuilder.values().isEmpty())) {
             assertThat(query, instanceOf(MatchNoDocsQuery.class));
-        } else if (queryBuilder.termsLookup() != null && randomTerms.size() == 0) {
+        } else if (queryBuilder.termsLookup() != null && randomTerms.isEmpty()) {
             assertThat(query, instanceOf(MatchNoDocsQuery.class));
         } else {
             assertThat(
@@ -138,14 +140,14 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         }
     }
 
-    public void testEmtpyFieldName() {
+    public void testEmptyFieldName() {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new TermsQueryBuilder(null, "term"));
         assertEquals("field name cannot be null.", e.getMessage());
         e = expectThrows(IllegalArgumentException.class, () -> new TermsQueryBuilder("", "term"));
         assertEquals("field name cannot be null.", e.getMessage());
     }
 
-    public void testEmtpyTermsLookup() {
+    public void testEmptyTermsLookup() {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new TermsQueryBuilder("field", (TermsLookup) null));
         assertEquals("No value or termsLookup specified for terms query", e.getMessage());
     }
@@ -162,8 +164,6 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         e = expectThrows(IllegalArgumentException.class, () -> new TermsQueryBuilder("field", (double[]) null));
         assertThat(e.getMessage(), containsString("No value specified for terms query"));
         e = expectThrows(IllegalArgumentException.class, () -> new TermsQueryBuilder("field", (Object[]) null));
-        assertThat(e.getMessage(), containsString("No value specified for terms query"));
-        e = expectThrows(IllegalArgumentException.class, () -> new TermsQueryBuilder("field", (Iterable<?>) null));
         assertThat(e.getMessage(), containsString("No value specified for terms query"));
     }
 
@@ -194,7 +194,7 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         try {
             XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
             builder.startObject();
-            builder.array(termsPath, randomTerms.toArray(new Object[randomTerms.size()]));
+            builder.array(termsPath, randomTerms.toArray(Object[]::new));
             builder.endObject();
             json = Strings.toString(builder);
         } catch (IOException ex) {
@@ -262,7 +262,7 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         assertEquals("query must be rewritten first", e.getMessage());
 
         // terms lookup removes null values
-        List<Object> nonNullTerms = randomTerms.stream().filter(x -> x != null).toList();
+        List<Object> nonNullTerms = randomTerms.stream().filter(Objects::nonNull).toList();
         QueryBuilder expected;
         if (nonNullTerms.isEmpty()) {
             expected = new MatchNoneQueryBuilder();
@@ -293,17 +293,26 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
 
     public void testRewriteIndexQueryToMatchNone() throws IOException {
         TermsQueryBuilder query = new TermsQueryBuilder("_index", "does_not_exist", "also_does_not_exist");
-        SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
-        QueryBuilder rewritten = query.rewrite(searchExecutionContext);
-        assertThat(rewritten, instanceOf(MatchNoneQueryBuilder.class));
+        for (QueryRewriteContext context : new QueryRewriteContext[] { createSearchExecutionContext(), createQueryRewriteContext() }) {
+            QueryBuilder rewritten = query.rewrite(context);
+            assertThat(rewritten, instanceOf(MatchNoneQueryBuilder.class));
+        }
     }
 
     public void testRewriteIndexQueryToNotMatchNone() throws IOException {
         // At least one name is good
         TermsQueryBuilder query = new TermsQueryBuilder("_index", "does_not_exist", getIndex().getName());
-        SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
-        QueryBuilder rewritten = query.rewrite(searchExecutionContext);
-        assertThat(rewritten, instanceOf(MatchAllQueryBuilder.class));
+        for (QueryRewriteContext context : new QueryRewriteContext[] { createSearchExecutionContext(), createQueryRewriteContext() }) {
+            QueryBuilder rewritten = query.rewrite(context);
+            assertThat(rewritten, instanceOf(MatchAllQueryBuilder.class));
+        }
+    }
+
+    public void testLongTerm() throws IOException {
+        String longTerm = "a".repeat(IndexWriter.MAX_TERM_LENGTH + 1);
+        Exception e = expectThrows(IllegalArgumentException.class, () -> parseQuery(String.format(Locale.getDefault(), """
+            { "terms" : { "foo" : [ "q", "%s" ] } }""", longTerm)));
+        assertThat(e.getMessage(), containsString("term starting with [aaaaa"));
     }
 
     @Override

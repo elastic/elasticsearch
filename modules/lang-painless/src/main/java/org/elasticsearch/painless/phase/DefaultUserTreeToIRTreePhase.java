@@ -479,7 +479,7 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
      * @param irStoreNode The store node if this is a write.
      * @return The root node for this assignment.
      */
-    protected ExpressionNode buildLoadStore(
+    protected static ExpressionNode buildLoadStore(
         int accessDepth,
         Location location,
         boolean isNullSafe,
@@ -1076,7 +1076,7 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
             irBinaryMathNode.attachDecoration(new IRDOperation(operation));
 
             if (operation == Operation.MATCH || operation == Operation.FIND) {
-                irBinaryMathNode.attachDecoration(new IRDRegexLimit(scriptScope.getCompilerSettings().getRegexLimitFactor()));
+                irBinaryMathNode.attachDecoration(new IRDRegexLimit(scriptScope.getCompilerSettings().getAppliedRegexLimitFactor()));
             }
 
             irBinaryMathNode.attachDecoration(new IRDBinaryType(binaryType));

@@ -341,7 +341,7 @@ public class DatafeedRunner {
                         doDatafeedRealtime(nextDelayInMsSinceEpoch, jobId, holder);
                     }
                 }
-            }, delay, MachineLearning.DATAFEED_THREAD_POOL_NAME);
+            }, delay, threadPool.executor(MachineLearning.DATAFEED_THREAD_POOL_NAME));
         }
     }
 
@@ -356,7 +356,7 @@ public class DatafeedRunner {
         return holder.getJobId();
     }
 
-    private JobState getJobState(PersistentTasksCustomMetadata tasks, String jobId) {
+    private static JobState getJobState(PersistentTasksCustomMetadata tasks, String jobId) {
         return MlTasks.getJobStateModifiedForReassignments(jobId, tasks);
     }
 

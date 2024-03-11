@@ -23,7 +23,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportException;
-import org.elasticsearch.transport.TransportResponse;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -123,7 +122,7 @@ public class PublicationTests extends ESTestCase {
         boolean committed;
 
         Map<DiscoveryNode, ActionListener<PublishWithJoinResponse>> pendingPublications = new LinkedHashMap<>();
-        Map<DiscoveryNode, ActionListener<TransportResponse.Empty>> pendingCommits = new LinkedHashMap<>();
+        Map<DiscoveryNode, ActionListener<Void>> pendingCommits = new LinkedHashMap<>();
         Map<DiscoveryNode, Join> joins = new HashMap<>();
         Set<DiscoveryNode> missingJoins = new HashSet<>();
 
@@ -141,7 +140,7 @@ public class PublicationTests extends ESTestCase {
 
         @Override
         protected void onJoin(Join join) {
-            assertNull(joins.put(join.getSourceNode(), join));
+            assertNull(joins.put(join.votingNode(), join));
         }
 
         @Override
@@ -163,7 +162,7 @@ public class PublicationTests extends ESTestCase {
         protected void sendApplyCommit(
             DiscoveryNode destination,
             ApplyCommitRequest applyCommit,
-            ActionListener<TransportResponse.Empty> responseActionListener
+            ActionListener<Void> responseActionListener
         ) {
             if (this.applyCommit == null) {
                 this.applyCommit = applyCommit;
@@ -262,7 +261,7 @@ public class PublicationTests extends ESTestCase {
             assertFalse(publication.completed);
             assertFalse(publication.committed);
             nodeResolver.apply(e.getKey()).coordinationState.handleCommit(publication.applyCommit);
-            e.getValue().onResponse(TransportResponse.Empty.INSTANCE);
+            e.getValue().onResponse(null);
         });
 
         if (delayProcessingNode2PublishResponse) {
@@ -275,7 +274,7 @@ public class PublicationTests extends ESTestCase {
             assertFalse(publication.completed);
             assertFalse(publication.committed);
             assertThat(publication.completedNodes(), containsInAnyOrder(n1, n3));
-            publication.pendingCommits.get(n2).onResponse(TransportResponse.Empty.INSTANCE);
+            publication.pendingCommits.get(n2).onResponse(null);
         }
 
         assertTrue(publication.completed);
@@ -319,7 +318,7 @@ public class PublicationTests extends ESTestCase {
 
         publication.pendingCommits.entrySet().stream().collect(shuffle()).forEach(e -> {
             nodeResolver.apply(e.getKey()).coordinationState.handleCommit(publication.applyCommit);
-            e.getValue().onResponse(TransportResponse.Empty.INSTANCE);
+            e.getValue().onResponse(null);
         });
 
         assertTrue(publication.completed);
@@ -370,7 +369,7 @@ public class PublicationTests extends ESTestCase {
             }
             if (e.getKey().equals(n2) == false || randomBoolean()) {
                 nodeResolver.apply(e.getKey()).coordinationState.handleCommit(publication.applyCommit);
-                e.getValue().onResponse(TransportResponse.Empty.INSTANCE);
+                e.getValue().onResponse(null);
             }
         });
 
@@ -492,7 +491,7 @@ public class PublicationTests extends ESTestCase {
         publication.pendingCommits.entrySet().stream().collect(shuffle()).forEach(e -> {
             if (committingNodes.contains(e.getKey())) {
                 nodeResolver.apply(e.getKey()).coordinationState.handleCommit(publication.applyCommit);
-                e.getValue().onResponse(TransportResponse.Empty.INSTANCE);
+                e.getValue().onResponse(null);
             }
         });
 
@@ -513,9 +512,7 @@ public class PublicationTests extends ESTestCase {
 
         Set<DiscoveryNode> nonCommittedNodes = Sets.difference(discoNodes, committingNodes);
         logger.info("Non-committed nodes: {}", nonCommittedNodes);
-        nonCommittedNodes.stream()
-            .collect(shuffle())
-            .forEach(n -> publication.pendingCommits.get(n).onResponse(TransportResponse.Empty.INSTANCE));
+        nonCommittedNodes.stream().collect(shuffle()).forEach(n -> publication.pendingCommits.get(n).onResponse(null));
 
         assertEquals(discoNodes, ackListener.await(0L, TimeUnit.SECONDS));
     }

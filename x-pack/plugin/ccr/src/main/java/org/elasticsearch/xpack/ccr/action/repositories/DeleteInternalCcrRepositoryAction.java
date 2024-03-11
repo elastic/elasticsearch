@@ -23,7 +23,7 @@ public class DeleteInternalCcrRepositoryAction extends ActionType<ActionResponse
     public static final String NAME = "internal:admin/ccr/internal_repository/delete";
 
     private DeleteInternalCcrRepositoryAction() {
-        super(NAME, in -> ActionResponse.Empty.INSTANCE);
+        super(NAME);
     }
 
     public static class TransportDeleteInternalRepositoryAction extends TransportAction<

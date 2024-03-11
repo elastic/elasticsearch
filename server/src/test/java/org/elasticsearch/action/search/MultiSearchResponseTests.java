@@ -8,7 +8,8 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.search.internal.InternalSearchResponse;
+import org.elasticsearch.core.RefCounted;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
@@ -37,18 +38,15 @@ public class MultiSearchResponseTests extends ESTestCase {
             int totalShards = randomIntBetween(1, Integer.MAX_VALUE);
             int successfulShards = randomIntBetween(0, totalShards);
             int skippedShards = totalShards - successfulShards;
-            SearchResponse.Clusters clusters = SearchResponseTests.randomClusters();
-            InternalSearchResponse internalSearchResponse = InternalSearchResponse.EMPTY_WITH_TOTAL_HITS;
-            SearchResponse searchResponse = new SearchResponse(
-                internalSearchResponse,
+            SearchResponse.Clusters clusters = SearchResponseTests.randomSimpleClusters();
+            SearchResponse searchResponse = SearchResponseUtils.emptyWithTotalHits(
                 null,
                 totalShards,
                 successfulShards,
                 skippedShards,
                 tookInMillis,
                 ShardSearchFailure.EMPTY_ARRAY,
-                clusters,
-                null
+                clusters
             );
             items[i] = new MultiSearchResponse.Item(searchResponse, null);
         }
@@ -65,18 +63,15 @@ public class MultiSearchResponseTests extends ESTestCase {
                 int totalShards = randomIntBetween(1, Integer.MAX_VALUE);
                 int successfulShards = randomIntBetween(0, totalShards);
                 int skippedShards = totalShards - successfulShards;
-                SearchResponse.Clusters clusters = SearchResponseTests.randomClusters();
-                InternalSearchResponse internalSearchResponse = InternalSearchResponse.EMPTY_WITH_TOTAL_HITS;
-                SearchResponse searchResponse = new SearchResponse(
-                    internalSearchResponse,
+                SearchResponse.Clusters clusters = SearchResponseTests.randomSimpleClusters();
+                SearchResponse searchResponse = SearchResponseUtils.emptyWithTotalHits(
                     null,
                     totalShards,
                     successfulShards,
                     skippedShards,
                     tookInMillis,
                     ShardSearchFailure.EMPTY_ARRAY,
-                    clusters,
-                    null
+                    clusters
                 );
                 items[i] = new MultiSearchResponse.Item(searchResponse, null);
             } else {
@@ -87,7 +82,7 @@ public class MultiSearchResponseTests extends ESTestCase {
     }
 
     private MultiSearchResponse doParseInstance(XContentParser parser) throws IOException {
-        return MultiSearchResponse.fromXContext(parser);
+        return SearchResponseUtils.parseMultiSearchResponse(parser);
     }
 
     private void assertEqualInstances(MultiSearchResponse expected, MultiSearchResponse actual) {
@@ -119,6 +114,7 @@ public class MultiSearchResponseTests extends ESTestCase {
             .numberOfTestRuns(20)
             .supportsUnknownFields(supportsUnknownFields())
             .assertEqualsConsumer(this::assertEqualInstances)
+            .dispose(RefCounted::decRef)
             .test();
     }
 
@@ -138,6 +134,7 @@ public class MultiSearchResponseTests extends ESTestCase {
             // exceptions are not of the same type whenever parsed back
             .assertToXContentEquivalence(false)
             .assertEqualsConsumer(this::assertEqualInstances)
+            .dispose(RefCounted::decRef)
             .test();
     }
 

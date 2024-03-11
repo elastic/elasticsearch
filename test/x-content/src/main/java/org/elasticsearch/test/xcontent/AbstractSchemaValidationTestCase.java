@@ -129,7 +129,7 @@ public abstract class AbstractSchemaValidationTestCase<T extends ToXContent> ext
      * Note: we might not catch all places, but at least it works for nested objects and
      * array items.
      */
-    private void assertSchemaStrictness(Collection<JsonValidator> validatorSet, String path) {
+    private static void assertSchemaStrictness(Collection<JsonValidator> validatorSet, String path) {
         boolean additionalPropertiesValidatorFound = false;
         boolean subSchemaFound = false;
 

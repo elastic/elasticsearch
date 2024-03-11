@@ -8,7 +8,7 @@
 
 package org.elasticsearch.cluster.node;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.SimpleDiffable;
@@ -21,6 +21,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -28,6 +29,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -37,6 +39,8 @@ import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import static org.elasticsearch.cluster.routing.allocation.DataTier.ALL_DATA_TIERS;
 
 /**
  * This class holds all {@link DiscoveryNode} in the cluster and provides convenience methods to
@@ -66,7 +70,7 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
     private final IndexVersion maxDataNodeCompatibleIndexVersion;
     private final IndexVersion minSupportedIndexVersion;
 
-    private final Set<String> availableRoles;
+    private final Map<String, Set<String>> tiersToNodeIds;
 
     private DiscoveryNodes(
         long nodeLeftGeneration,
@@ -81,7 +85,7 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
         Version minNodeVersion,
         IndexVersion maxDataNodeCompatibleIndexVersion,
         IndexVersion minSupportedIndexVersion,
-        Set<String> availableRoles
+        Map<String, Set<String>> tiersToNodeIds
     ) {
         this.nodeLeftGeneration = nodeLeftGeneration;
         this.nodes = nodes;
@@ -99,7 +103,7 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
         this.maxDataNodeCompatibleIndexVersion = maxDataNodeCompatibleIndexVersion;
         this.minSupportedIndexVersion = minSupportedIndexVersion;
         assert (localNodeId == null) == (localNode == null);
-        this.availableRoles = availableRoles;
+        this.tiersToNodeIds = tiersToNodeIds;
     }
 
     public DiscoveryNodes withMasterNodeId(@Nullable String masterNodeId) {
@@ -117,7 +121,7 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
             minNodeVersion,
             maxDataNodeCompatibleIndexVersion,
             minSupportedIndexVersion,
-            availableRoles
+            tiersToNodeIds
         );
     }
 
@@ -150,13 +154,12 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
     }
 
     /**
-     * Checks if any node has the role with the given {@code roleName}.
+     * Gets a {@link Map} of node roles to node IDs which have those roles.
      *
-     * @param roleName name to check
-     * @return true if any node has the role of the given name
+     * @return {@link Map} of node roles to node IDs which have those roles.
      */
-    public boolean isRoleAvailable(String roleName) {
-        return availableRoles.contains(roleName);
+    public Map<String, Set<String>> getTiersToNodeIds() {
+        return tiersToNodeIds;
     }
 
     /**
@@ -664,7 +667,7 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalString(masterNodeId);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_9_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
             out.writeVLong(nodeLeftGeneration);
         } // else nodeLeftGeneration is zero, or we're sending this to a remote cluster which does not care about the nodeLeftGeneration
         out.writeCollection(nodes.values());
@@ -679,7 +682,7 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
             builder.localNodeId(localNode.getId());
         }
 
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_9_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
             builder.nodeLeftGeneration(in.readVLong());
         } // else nodeLeftGeneration is zero, or we're receiving this from a remote cluster so the nodeLeftGeneration does not matter to us
 
@@ -720,6 +723,7 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
         private final long oldNodeLeftGeneration;
         @Nullable // if not specified
         private Long nodeLeftGeneration;
+        private boolean resetNodeLeftGeneration;
 
         public Builder() {
             nodes = new HashMap<>();
@@ -855,7 +859,10 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
             } else if (this.nodeLeftGeneration != null) {
                 // only happens during deserialization
                 assert removedNode == false;
+                assert resetNodeLeftGeneration == false;
                 newNodeLeftGeneration = nodeLeftGeneration;
+            } else if (resetNodeLeftGeneration) {
+                newNodeLeftGeneration = 0L;
             } else if (removedNode) {
                 newNodeLeftGeneration = oldNodeLeftGeneration + 1L;
             } else {
@@ -875,13 +882,27 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
                 Objects.requireNonNullElse(maxNodeVersion, Version.CURRENT),
                 Objects.requireNonNullElse(minNodeVersion, Version.CURRENT.minimumCompatibilityVersion()),
                 Objects.requireNonNullElse(maxDataNodeCompatibleIndexVersion, IndexVersion.current()),
-                Objects.requireNonNullElse(minSupportedIndexVersion, IndexVersion.MINIMUM_COMPATIBLE),
-                dataNodes.values()
-                    .stream()
-                    .flatMap(n -> n.getRoles().stream())
-                    .map(DiscoveryNodeRole::roleName)
-                    .collect(Collectors.toUnmodifiableSet())
+                Objects.requireNonNullElse(minSupportedIndexVersion, IndexVersions.MINIMUM_COMPATIBLE),
+                computeTiersToNodesMap(dataNodes)
             );
+        }
+
+        private static Map<String, Set<String>> computeTiersToNodesMap(final Map<String, DiscoveryNode> dataNodes) {
+            Map<String, Set<String>> tiersToNodes = new HashMap<>(ALL_DATA_TIERS.size() + 1);
+            for (var node : dataNodes.values()) {
+                if (node.hasRole(DiscoveryNodeRole.DATA_ROLE.roleName())) {
+                    tiersToNodes.computeIfAbsent(DiscoveryNodeRole.DATA_ROLE.roleName(), (key) -> new HashSet<>()).add(node.getId());
+                }
+                for (var role : ALL_DATA_TIERS) {
+                    if (node.hasRole(role)) {
+                        tiersToNodes.computeIfAbsent(role, (key) -> new HashSet<>()).add(node.getId());
+                    }
+                }
+            }
+            for (var entry : tiersToNodes.entrySet()) {
+                entry.setValue(Collections.unmodifiableSet(entry.getValue()));
+            }
+            return Collections.unmodifiableMap(tiersToNodes);
         }
 
         public boolean isLocalNodeElectedMaster() {
@@ -892,6 +913,11 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
             // only for deserialization
             assert this.nodeLeftGeneration == null : nodeLeftGeneration + " vs " + this.nodeLeftGeneration;
             this.nodeLeftGeneration = nodeLeftGeneration;
+        }
+
+        public void resetNodeLeftGeneration() {
+            assert this.resetNodeLeftGeneration == false;
+            this.resetNodeLeftGeneration = true;
         }
     }
 

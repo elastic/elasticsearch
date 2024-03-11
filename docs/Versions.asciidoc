@@ -1,14 +1,16 @@
 
 include::{docs-root}/shared/versions/stack/{source_branch}.asciidoc[]
 
-:lucene_version:        9.7.0
-:lucene_version_path:   9_7_0
+:lucene_version:        9.10.0
+:lucene_version_path:   9_10_0
 :jdk:                   11.0.2
 :jdk_major:             11
 :build_type:            tar
 
-:docker-repo:     docker.elastic.co/elasticsearch/elasticsearch
-:docker-image:    {docker-repo}:{version}
+:docker-repo:       docker.elastic.co/elasticsearch/elasticsearch
+:docker-image:      {docker-repo}:{version}
+:kib-docker-repo:   docker.elastic.co/kibana/kibana
+:kib-docker-image:  {kib-docker-repo}:{version}
 :plugin_url:      https://artifacts.elastic.co/downloads/elasticsearch-plugins
 
 ///////
@@ -43,9 +45,6 @@ ifeval::["{release-state}"!="unreleased"]
 :rank-eval-client-javadoc: https://artifacts.elastic.co/javadoc/org/elasticsearch/plugin/rank-eval-client/{version}
 :version_qualified: {bare_version}
 endif::[]
-
-:javadoc-license: {rest-high-level-client-javadoc}/org/elasticsearch/protocol/xpack/license
-:javadoc-watcher: {rest-high-level-client-javadoc}/org/elasticsearch/protocol/xpack/watcher
 
 ///////
 Shared attribute values are pulled from elastic/docs

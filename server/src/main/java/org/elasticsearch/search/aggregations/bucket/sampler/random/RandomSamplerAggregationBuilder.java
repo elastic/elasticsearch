@@ -9,6 +9,7 @@
 package org.elasticsearch.search.aggregations.bucket.sampler.random;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -20,7 +21,6 @@ import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -34,6 +34,7 @@ public class RandomSamplerAggregationBuilder extends AbstractAggregationBuilder<
 
     static final ParseField PROBABILITY = new ParseField("probability");
     static final ParseField SEED = new ParseField("seed");
+    static final ParseField SHARD_SEED = new ParseField("shard_seed");
 
     public static final ObjectParser<RandomSamplerAggregationBuilder, String> PARSER = ObjectParser.fromBuilder(
         RandomSamplerAggregationBuilder.NAME,
@@ -41,14 +42,12 @@ public class RandomSamplerAggregationBuilder extends AbstractAggregationBuilder<
     );
     static {
         PARSER.declareInt(RandomSamplerAggregationBuilder::setSeed, SEED);
+        PARSER.declareInt(RandomSamplerAggregationBuilder::setShardSeed, SHARD_SEED);
         PARSER.declareDouble(RandomSamplerAggregationBuilder::setProbability, PROBABILITY);
     }
 
-    public static RandomSamplerAggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
-        return PARSER.parse(parser, new RandomSamplerAggregationBuilder(aggregationName), null);
-    }
-
     private int seed = Randomness.get().nextInt();
+    private Integer shardSeed;
     private double p;
 
     public RandomSamplerAggregationBuilder(String name) {
@@ -71,14 +70,18 @@ public class RandomSamplerAggregationBuilder extends AbstractAggregationBuilder<
         return this;
     }
 
+    public RandomSamplerAggregationBuilder setShardSeed(int shardSeed) {
+        this.shardSeed = shardSeed;
+        return this;
+    }
+
     public RandomSamplerAggregationBuilder(StreamInput in) throws IOException {
         super(in);
         this.p = in.readDouble();
         this.seed = in.readInt();
-    }
-
-    public double getProbability() {
-        return p;
+        if (in.getTransportVersion().onOrAfter(TransportVersions.RANDOM_AGG_SHARD_SEED)) {
+            this.shardSeed = in.readOptionalInt();
+        }
     }
 
     protected RandomSamplerAggregationBuilder(
@@ -89,12 +92,16 @@ public class RandomSamplerAggregationBuilder extends AbstractAggregationBuilder<
         super(clone, factoriesBuilder, metadata);
         this.p = clone.p;
         this.seed = clone.seed;
+        this.shardSeed = clone.shardSeed;
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeDouble(p);
         out.writeInt(seed);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.RANDOM_AGG_SHARD_SEED)) {
+            out.writeOptionalInt(shardSeed);
+        }
     }
 
     static void recursivelyCheckSubAggs(Collection<AggregationBuilder> builders, Consumer<AggregationBuilder> aggregationCheck) {
@@ -136,11 +143,7 @@ public class RandomSamplerAggregationBuilder extends AbstractAggregationBuilder<
                 );
             }
         });
-        return new RandomSamplerAggregatorFactory(name, seed, p, context, parent, subfactoriesBuilder, metadata);
-    }
-
-    public int getSeed() {
-        return seed;
+        return new RandomSamplerAggregatorFactory(name, seed, shardSeed, p, context, parent, subfactoriesBuilder, metadata);
     }
 
     @Override
@@ -148,6 +151,9 @@ public class RandomSamplerAggregationBuilder extends AbstractAggregationBuilder<
         builder.startObject();
         builder.field(PROBABILITY.getPreferredName(), p);
         builder.field(SEED.getPreferredName(), seed);
+        if (shardSeed != null) {
+            builder.field(SHARD_SEED.getPreferredName(), shardSeed);
+        }
         builder.endObject();
         return null;
     }
@@ -169,12 +175,12 @@ public class RandomSamplerAggregationBuilder extends AbstractAggregationBuilder<
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.V_8_2_0;
+        return TransportVersions.V_8_2_0;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), p, seed);
+        return Objects.hash(super.hashCode(), p, seed, shardSeed);
     }
 
     @Override
@@ -183,6 +189,6 @@ public class RandomSamplerAggregationBuilder extends AbstractAggregationBuilder<
         if (obj == null || getClass() != obj.getClass()) return false;
         if (super.equals(obj) == false) return false;
         RandomSamplerAggregationBuilder other = (RandomSamplerAggregationBuilder) obj;
-        return Objects.equals(p, other.p) && Objects.equals(seed, other.seed);
+        return Objects.equals(p, other.p) && Objects.equals(seed, other.seed) && Objects.equals(shardSeed, other.shardSeed);
     }
 }

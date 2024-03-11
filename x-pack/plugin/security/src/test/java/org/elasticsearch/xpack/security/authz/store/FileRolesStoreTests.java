@@ -20,7 +20,6 @@ import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -108,7 +107,7 @@ public class FileRolesStoreTests extends ESTestCase {
             xContentRegistry()
         );
         assertThat(roles, notNullValue());
-        assertThat(roles.size(), is(TcpTransport.isUntrustedRemoteClusterEnabled() ? 10 : 9));
+        assertThat(roles.size(), is(10));
 
         RoleDescriptor descriptor = roles.get("role1");
         assertNotNull(descriptor);
@@ -287,7 +286,6 @@ public class FileRolesStoreTests extends ESTestCase {
     }
 
     public void testParseFileWithRemoteIndices() throws IllegalAccessException, IOException {
-        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
         final Logger logger = CapturingLogger.newCapturingLogger(Level.ERROR, null);
         final List<String> events = CapturingLogger.output(logger.getName(), Level.ERROR);
         events.clear();
@@ -364,13 +362,13 @@ public class FileRolesStoreTests extends ESTestCase {
             xContentRegistry()
         );
         assertThat(roles, notNullValue());
-        assertThat(roles.size(), is(TcpTransport.isUntrustedRemoteClusterEnabled() ? 7 : 6));
+        assertThat(roles.size(), is(7));
         assertThat(roles.get("role_fields"), nullValue());
         assertThat(roles.get("role_query"), nullValue());
         assertThat(roles.get("role_query_fields"), nullValue());
         assertThat(roles.get("role_query_invalid"), nullValue());
 
-        assertThat(events, hasSize(TcpTransport.isUntrustedRemoteClusterEnabled() ? 4 : 5));
+        assertThat(events, hasSize(4));
         assertThat(
             events.get(0),
             startsWith(
@@ -403,9 +401,6 @@ public class FileRolesStoreTests extends ESTestCase {
                     + "]. document and field level security is not enabled."
             )
         );
-        if (false == TcpTransport.isUntrustedRemoteClusterEnabled()) {
-            assertThat(events.get(4), startsWith("failed to parse role [role_remote_indices]. unexpected field [remote_indices]"));
-        }
     }
 
     public void testParseFileWithFLSAndDLSUnlicensed() throws Exception {
@@ -417,7 +412,7 @@ public class FileRolesStoreTests extends ESTestCase {
         when(licenseState.isAllowed(DOCUMENT_LEVEL_SECURITY_FEATURE)).thenReturn(false);
         Map<String, RoleDescriptor> roles = FileRolesStore.parseFile(path, logger, Settings.EMPTY, licenseState, xContentRegistry());
         assertThat(roles, notNullValue());
-        assertThat(roles.size(), is(TcpTransport.isUntrustedRemoteClusterEnabled() ? 10 : 9));
+        assertThat(roles.size(), is(10));
         assertNotNull(roles.get("role_fields"));
         assertNotNull(roles.get("role_query"));
         assertNotNull(roles.get("role_query_fields"));
@@ -706,14 +701,43 @@ public class FileRolesStoreTests extends ESTestCase {
 
         Map<String, Object> usageStats = store.usageStats();
 
-        if (TcpTransport.isUntrustedRemoteClusterEnabled()) {
-            assertThat(usageStats.get("size"), is(flsDlsEnabled ? 10 : 7));
-            assertThat(usageStats.get("remote_indices"), is(1L));
-        } else {
-            assertThat(usageStats.get("size"), is(flsDlsEnabled ? 9 : 6));
-        }
+        assertThat(usageStats.get("size"), is(flsDlsEnabled ? 10 : 7));
+        assertThat(usageStats.get("remote_indices"), is(1L));
         assertThat(usageStats.get("fls"), is(flsDlsEnabled));
         assertThat(usageStats.get("dls"), is(flsDlsEnabled));
+    }
+
+    public void testExists() throws Exception {
+        Path path = getDataPath("roles.yml");
+        Path home = createTempDir();
+        Path tmp = home.resolve("config/roles.yml");
+        Files.createDirectories(tmp.getParent());
+        try (OutputStream stream = Files.newOutputStream(tmp)) {
+            Files.copy(path, stream);
+        }
+
+        Settings settings = Settings.builder().put("resource.reload.interval.high", "500ms").put("path.home", home).build();
+        Environment env = TestEnvironment.newEnvironment(settings);
+        FileRolesStore store = new FileRolesStore(
+            settings,
+            env,
+            mock(ResourceWatcherService.class),
+            TestUtils.newTestLicenseState(),
+            xContentRegistry()
+        );
+        Map<String, RoleDescriptor> roles = FileRolesStore.parseFile(
+            path,
+            logger,
+            Settings.builder().put(XPackSettings.DLS_FLS_ENABLED.getKey(), true).build(),
+            TestUtils.newTestLicenseState(),
+            xContentRegistry()
+        );
+        assertThat(roles, notNullValue());
+        assertThat(roles.size(), is(10));
+        for (var role : roles.keySet()) {
+            assertThat(store.exists(role), is(true));
+        }
+        assertThat(store.exists(randomValueOtherThanMany(roles::containsKey, () -> randomAlphaOfLength(20))), is(false));
     }
 
     // test that we can read a role where field permissions are stored in 2.x format (fields:...)

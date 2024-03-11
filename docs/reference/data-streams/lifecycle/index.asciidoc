@@ -18,6 +18,10 @@ and backwards incompatible mapping changes.
 * Configurable retention, which allows you to configure the time period for which your data is guaranteed to be stored.
 {es} is allowed at a later time to delete data older than this time period.
 
+A data stream lifecycle also supports downsampling the data stream backing indices.
+See <<data-streams-put-lifecycle-downsampling-example, the downsampling example>> for 
+more details.
+
 [discrete]
 [[data-streams-lifecycle-how-it-works]]
 === How does it work?
@@ -28,7 +32,16 @@ each data stream and performs the following steps:
 1. Checks if the data stream has a data stream lifecycle configured, skipping any indices not part of a managed data stream.
 2. Rolls over the write index of the data stream, if it fulfills the conditions defined by
 <<cluster-lifecycle-default-rollover,`cluster.lifecycle.default.rollover`>>.
-3. Applies retention to the remaining backing indices. This means deleting the backing indices whose
+3. After an index is not the write index anymore (i.e. the data stream has been rolled over),
+automatically tail merges the index. Data stream lifecycle executes a merge operation that only targets
+the long tail of small segments instead of the whole shard. As the segments are organised
+into tiers of exponential sizes, merging the long tail of small segments is only a 
+fraction of the cost of force merging to a single segment. The small segments would usually
+hold the most recent data so tail merging will focus the merging resources on the higher-value
+data that is most likely to keep being queried.
+4. If <<data-streams-put-lifecycle-downsampling-example, downsampling>> is configured it will execute 
+all the configured downsampling rounds.
+5. Applies retention to the remaining backing indices. This means deleting the backing indices whose
 `generation_time` is longer than the configured retention period. The `generation_time` is only applicable to rolled over backing
 indices and it is either the time since the backing index got rolled over, or the time optionally configured in the
 <<index-data-stream-lifecycle-origination-date,`index.lifecycle.origination_date`>> setting.
@@ -37,7 +50,7 @@ IMPORTANT: We use the `generation_time` instead of the creation time because thi
 index have passed the retention period. As a result, the retention period is not the exact time data gets deleted, but
 the minimum time data will be stored.
 
-NOTE: The steps `2` and `3` apply only to backing indices that are not already managed by {ilm-init}, meaning that these indices either do
+NOTE: Steps `2-4` apply only to backing indices that are not already managed by {ilm-init}, meaning that these indices either do
 not have an {ilm-init} policy defined, or if they do, they have <<index-lifecycle-prefer-ilm,`index.lifecycle.prefer_ilm`>>
 set to `false`.
 
@@ -55,6 +68,7 @@ that matches the name of your data stream (see <<tutorial-manage-new-data-stream
 with the name of your data stream reaches {es} then the data stream will be created with the respective data stream lifecycle.
 * To update the lifecycle of an existing data stream you need to use the <<data-stream-lifecycle-api, data stream lifecycle APIs>>
 to edit the lifecycle on the data stream itself (see <<tutorial-manage-existing-data-stream>>).
+* Migrate an existing {ilm-init} managed data stream to Data stream lifecycle using <<tutorial-migrate-data-stream-from-ilm-to-dsl>>.
 
 NOTE: Updating the data stream lifecycle of an existing data stream is different from updating the settings or the mapping,
 because it is applied on the data stream level and not on the individual backing indices.
@@ -62,3 +76,5 @@ because it is applied on the data stream level and not on the individual backing
 include::tutorial-manage-new-data-stream.asciidoc[]
 
 include::tutorial-manage-existing-data-stream.asciidoc[]
+
+include::tutorial-migrate-data-stream-from-ilm-to-dsl.asciidoc[]

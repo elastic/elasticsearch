@@ -8,7 +8,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Strings;
@@ -42,17 +42,6 @@ import java.util.Objects;
  */
 public class Template implements SimpleDiffable<Template>, ToXContentObject {
 
-    // This represents when the data stream lifecycle was explicitly set to be null, meaning the user wants to remove the
-    // lifecycle.
-    public static final DataStreamLifecycle NO_LIFECYCLE = new DataStreamLifecycle() {
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params, RolloverConfiguration rolloverConfiguration)
-            throws IOException {
-            return builder.nullValue();
-        }
-    };
-
     private static final ParseField SETTINGS = new ParseField("settings");
     private static final ParseField MAPPINGS = new ParseField("mappings");
     private static final ParseField ALIASES = new ParseField("aliases");
@@ -62,12 +51,7 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
     public static final ConstructingObjectParser<Template, Void> PARSER = new ConstructingObjectParser<>(
         "template",
         false,
-        a -> new Template(
-            (Settings) a[0],
-            (CompressedXContent) a[1],
-            (Map<String, AliasMetadata>) a[2],
-            DataStreamLifecycle.isEnabled() ? (DataStreamLifecycle) a[3] : null
-        )
+        a -> new Template((Settings) a[0], (CompressedXContent) a[1], (Map<String, AliasMetadata>) a[2], (DataStreamLifecycle) a[3])
     );
 
     static {
@@ -92,15 +76,7 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
             }
             return aliasMap;
         }, ALIASES);
-        // We adjust the parser to ensure that the error message will be consistent with that of an unknown field.
-        if (DataStreamLifecycle.isEnabled()) {
-            PARSER.declareObjectOrNull(
-                ConstructingObjectParser.optionalConstructorArg(),
-                (p, c) -> DataStreamLifecycle.fromXContent(p),
-                NO_LIFECYCLE,
-                LIFECYCLE
-            );
-        }
+        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> DataStreamLifecycle.fromXContent(p), LIFECYCLE);
     }
 
     @Nullable
@@ -122,11 +98,7 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
         this.settings = settings;
         this.mappings = mappings;
         this.aliases = aliases;
-        if (DataStreamLifecycle.isEnabled()) {
-            this.lifecycle = lifecycle;
-        } else {
-            this.lifecycle = null;
-        }
+        this.lifecycle = lifecycle;
     }
 
     public Template(@Nullable Settings settings, @Nullable CompressedXContent mappings, @Nullable Map<String, AliasMetadata> aliases) {
@@ -149,10 +121,12 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
         } else {
             this.aliases = null;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_007)) {
+        if (in.getTransportVersion().onOrAfter(DataStreamLifecycle.ADDED_ENABLED_FLAG_VERSION)) {
+            this.lifecycle = in.readOptionalWriteable(DataStreamLifecycle::new);
+        } else if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
             boolean isExplicitNull = in.readBoolean();
             if (isExplicitNull) {
-                this.lifecycle = NO_LIFECYCLE;
+                this.lifecycle = DataStreamLifecycle.newBuilder().enabled(false).build();
             } else {
                 this.lifecycle = in.readOptionalWriteable(DataStreamLifecycle::new);
             }
@@ -199,10 +173,12 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
             out.writeBoolean(false);
         } else {
             out.writeBoolean(true);
-            out.writeMap(this.aliases, StreamOutput::writeString, (stream, aliasMetadata) -> aliasMetadata.writeTo(stream));
+            out.writeMap(this.aliases, StreamOutput::writeWriteable);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_007)) {
-            boolean isExplicitNull = lifecycle == NO_LIFECYCLE;
+        if (out.getTransportVersion().onOrAfter(DataStreamLifecycle.ADDED_ENABLED_FLAG_VERSION)) {
+            out.writeOptionalWriteable(lifecycle);
+        } else if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
+            boolean isExplicitNull = lifecycle != null && lifecycle.isEnabled() == false;
             out.writeBoolean(isExplicitNull);
             if (isExplicitNull == false) {
                 out.writeOptionalWriteable(lifecycle);

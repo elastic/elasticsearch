@@ -10,6 +10,7 @@ package org.elasticsearch.cluster.coordination;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
@@ -26,7 +27,6 @@ import org.elasticsearch.cluster.service.BatchSummary;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.compress.Compressor;
 import org.elasticsearch.common.compress.CompressorFactory;
-import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -36,11 +36,13 @@ import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.test.transport.MockTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -86,6 +88,7 @@ public class PublicationTransportHandlerTests extends ESTestCase {
         Transport.Connection connection = mock(Transport.Connection.class);
         when(connection.getTransportVersion()).thenReturn(TransportVersion.current());
         when(transportService.getConnection(any())).thenReturn(connection);
+        when(transportService.getThreadPool()).thenReturn(mock(ThreadPool.class));
 
         final PublicationTransportHandler handler = new PublicationTransportHandler(transportService, writableRegistry(), pu -> null);
 
@@ -143,7 +146,7 @@ public class PublicationTransportHandlerTests extends ESTestCase {
                 in = request.bytes().streamInput();
                 final Compressor compressor = CompressorFactory.compressor(request.bytes());
                 if (compressor != null) {
-                    in = new InputStreamStreamInput(compressor.threadLocalInputStream(in));
+                    in = compressor.threadLocalStreamInput(in);
                 }
                 in.setTransportVersion(version);
                 return in.readBoolean() == false;
@@ -151,7 +154,7 @@ public class PublicationTransportHandlerTests extends ESTestCase {
                 IOUtils.close(in);
             }
         } catch (IOException e) {
-            throw new AssertionError("unexpected", e);
+            return fail(e);
         }
     }
 
@@ -223,12 +226,16 @@ public class PublicationTransportHandlerTests extends ESTestCase {
             final List<DiscoveryNode> allNodes = new ArrayList<>();
             while (allNodes.size() < 10) {
                 var node = DiscoveryNodeUtils.builder("node-" + allNodes.size())
-                    .version(VersionUtils.randomCompatibleVersion(random(), Version.CURRENT))
+                    .version(
+                        VersionUtils.randomCompatibleVersion(random(), Version.CURRENT),
+                        IndexVersions.MINIMUM_COMPATIBLE,
+                        IndexVersionUtils.randomCompatibleVersion(random())
+                    )
                     .build();
                 allNodes.add(node);
                 nodeTransports.put(
                     node,
-                    TransportVersionUtils.randomVersionBetween(random(), TransportVersion.MINIMUM_COMPATIBLE, TransportVersion.current())
+                    TransportVersionUtils.randomVersionBetween(random(), TransportVersions.MINIMUM_COMPATIBLE, TransportVersion.current())
                 );
             }
 
@@ -354,7 +361,11 @@ public class PublicationTransportHandlerTests extends ESTestCase {
 
         final var localNode = DiscoveryNodeUtils.create("localNode");
         final var otherNode = DiscoveryNodeUtils.builder("otherNode")
-            .version(VersionUtils.randomCompatibleVersion(random(), Version.CURRENT))
+            .version(
+                VersionUtils.randomCompatibleVersion(random(), Version.CURRENT),
+                IndexVersions.MINIMUM_COMPATIBLE,
+                IndexVersionUtils.randomCompatibleVersion(random())
+            )
             .build();
         for (final var discoveryNode : List.of(localNode, otherNode)) {
             final var transport = new MockTransport() {
@@ -375,13 +386,13 @@ public class PublicationTransportHandlerTests extends ESTestCase {
 
                                 @Override
                                 public void onFailure(Exception e) {
-                                    throw new AssertionError("unexpected", e);
+                                    fail(e);
                                 }
                             }), new Task(randomNonNegativeLong(), "test", "test", "", TaskId.EMPTY_TASK_ID, Map.of()));
                     } catch (IncompatibleClusterStateVersionException e) {
                         context.handler().handleException(new RemoteTransportException("wrapped", e));
                     } catch (Exception e) {
-                        throw new AssertionError("unexpected", e);
+                        fail(e);
                     }
                 }
             };

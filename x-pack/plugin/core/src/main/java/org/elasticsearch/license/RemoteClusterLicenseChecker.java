@@ -18,6 +18,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse;
 import org.elasticsearch.protocol.xpack.license.LicenseStatus;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.core.action.XPackInfoAction;
 
@@ -27,6 +28,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
@@ -125,8 +127,8 @@ public final class RemoteClusterLicenseChecker {
 
     }
 
-    private static final ClusterNameExpressionResolver clusterNameExpressionResolver = new ClusterNameExpressionResolver();
     private final Client client;
+    private final Executor remoteClientResponseExecutor;
     private final LicensedFeature feature;
 
     /**
@@ -139,6 +141,7 @@ public final class RemoteClusterLicenseChecker {
      */
     public RemoteClusterLicenseChecker(final Client client, @Nullable final LicensedFeature feature) {
         this.client = client;
+        this.remoteClientResponseExecutor = client.threadPool().executor(ThreadPool.Names.MANAGEMENT);
         this.feature = feature;
     }
 
@@ -217,7 +220,8 @@ public final class RemoteClusterLicenseChecker {
             final XPackInfoRequest request = new XPackInfoRequest();
             request.setCategories(EnumSet.of(XPackInfoRequest.Category.LICENSE));
             try {
-                client.getRemoteClusterClient(clusterAlias).execute(XPackInfoAction.INSTANCE, request, contextPreservingActionListener);
+                client.getRemoteClusterClient(clusterAlias, remoteClientResponseExecutor)
+                    .execute(XPackInfoAction.REMOTE_TYPE, request, contextPreservingActionListener);
             } catch (final Exception e) {
                 contextPreservingActionListener.onFailure(e);
             }

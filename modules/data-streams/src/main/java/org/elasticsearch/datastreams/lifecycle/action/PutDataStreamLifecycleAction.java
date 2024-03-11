@@ -8,17 +8,18 @@
 
 package org.elasticsearch.datastreams.lifecycle.action;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycle.Downsampling;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xcontent.AbstractObjectParser;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -30,24 +31,23 @@ import java.util.Arrays;
 import java.util.Objects;
 
 import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.DATA_RETENTION_FIELD;
+import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.DOWNSAMPLING_FIELD;
+import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.ENABLED_FIELD;
 
 /**
  * Sets the data stream lifecycle that was provided in the request to the requested data streams.
  */
-public class PutDataStreamLifecycleAction extends ActionType<AcknowledgedResponse> {
+public class PutDataStreamLifecycleAction {
 
-    public static final PutDataStreamLifecycleAction INSTANCE = new PutDataStreamLifecycleAction();
-    public static final String NAME = "indices:admin/data_stream/lifecycle/put";
+    public static final ActionType<AcknowledgedResponse> INSTANCE = new ActionType<>("indices:admin/data_stream/lifecycle/put");
 
-    private PutDataStreamLifecycleAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
-    }
+    private PutDataStreamLifecycleAction() {/* no instances */}
 
     public static final class Request extends AcknowledgedRequest<Request> implements IndicesRequest.Replaceable, ToXContentObject {
 
         public static final ConstructingObjectParser<Request, Void> PARSER = new ConstructingObjectParser<>(
             "put_data_stream_lifecycle_request",
-            args -> new Request(null, ((TimeValue) args[0]))
+            args -> new Request(null, ((TimeValue) args[0]), (Boolean) args[1], (Downsampling) args[2])
         );
 
         static {
@@ -57,6 +57,14 @@ public class PutDataStreamLifecycleAction extends ActionType<AcknowledgedRespons
                 DATA_RETENTION_FIELD,
                 ObjectParser.ValueType.STRING_OR_NULL
             );
+            PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), ENABLED_FIELD);
+            PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> {
+                if (p.currentToken() == XContentParser.Token.VALUE_NULL) {
+                    return Downsampling.NULL;
+                } else {
+                    return new Downsampling(AbstractObjectParser.parseArray(p, c, Downsampling.Round::fromXContent));
+                }
+            }, DOWNSAMPLING_FIELD, ObjectParser.ValueType.OBJECT_ARRAY_OR_NULL);
         }
 
         public static Request parseRequest(XContentParser parser) {
@@ -83,8 +91,25 @@ public class PutDataStreamLifecycleAction extends ActionType<AcknowledgedRespons
         }
 
         public Request(String[] names, @Nullable TimeValue dataRetention) {
+            this(names, dataRetention, null, null);
+        }
+
+        public Request(String[] names, DataStreamLifecycle lifecycle) {
             this.names = names;
-            this.lifecycle = new DataStreamLifecycle(dataRetention);
+            this.lifecycle = lifecycle;
+        }
+
+        public Request(String[] names, @Nullable TimeValue dataRetention, @Nullable Boolean enabled) {
+            this(names, dataRetention, enabled, null);
+        }
+
+        public Request(String[] names, @Nullable TimeValue dataRetention, @Nullable Boolean enabled, @Nullable Downsampling downsampling) {
+            this.names = names;
+            this.lifecycle = DataStreamLifecycle.newBuilder()
+                .dataRetention(dataRetention)
+                .enabled(enabled == null || enabled)
+                .downsampling(downsampling)
+                .build();
         }
 
         public String[] getNames() {
@@ -101,11 +126,6 @@ public class PutDataStreamLifecycleAction extends ActionType<AcknowledgedRespons
             builder.field("lifecycle", lifecycle);
             builder.endObject();
             return builder;
-        }
-
-        @Override
-        public ActionRequestValidationException validate() {
-            return null;
         }
 
         @Override

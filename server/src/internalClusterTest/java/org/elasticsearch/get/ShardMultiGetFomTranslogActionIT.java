@@ -48,7 +48,7 @@ public class ShardMultiGetFomTranslogActionIT extends ESIntegTestCase {
 
         // Do a single get to enable storing locations in translog. Otherwise, we could get unwanted refreshes that
         // prune the LiveVersionMap and would make the test fail/flaky.
-        var indexResponse = client().prepareIndex("test").setId("0").setSource("field1", "value2").get();
+        var indexResponse = prepareIndex("test").setId("0").setSource("field1", "value2").get();
         client().prepareGet("test", indexResponse.getId()).get();
 
         var mgetIds = List.of("1", "2", "3");
@@ -107,7 +107,7 @@ public class ShardMultiGetFomTranslogActionIT extends ESIntegTestCase {
         }
         assertThat(response.segmentGeneration(), equalTo(-1L));
 
-        indexResponse = client().prepareIndex("test").setSource("field1", "value2").get();
+        indexResponse = prepareIndex("test").setSource("field1", "value2").get();
         response = getFromTranslog(indexOrAlias(), List.of(indexResponse.getId()));
         multiGetShardResponse = response.multiGetShardResponse();
         assertThat(getLocations(multiGetShardResponse).size(), equalTo(1));
@@ -131,11 +131,11 @@ public class ShardMultiGetFomTranslogActionIT extends ESIntegTestCase {
         assertThat(response.segmentGeneration(), equalTo(-1L));
         // After two refreshes the LiveVersionMap switches back to append-only and stops tracking IDs
         // Refreshing with empty LiveVersionMap doesn't cause the switch, see {@link LiveVersionMap.Maps#shouldInheritSafeAccess()}.
-        client().prepareIndex("test").setSource("field1", "value3").get();
+        prepareIndex("test").setSource("field1", "value3").get();
         refresh("test");
         refresh("test");
         // An optimized index operation marks the maps as unsafe
-        client().prepareIndex("test").setSource("field1", "value4").get();
+        prepareIndex("test").setSource("field1", "value4").get();
         response = getFromTranslog(indexOrAlias(), List.of("non-existent"));
         multiGetShardResponse = response.multiGetShardResponse();
         assertThat(getLocations(multiGetShardResponse).size(), equalTo(1));
@@ -162,7 +162,11 @@ public class ShardMultiGetFomTranslogActionIT extends ESIntegTestCase {
             node,
             TransportShardMultiGetFomTranslogAction.NAME,
             request,
-            new ActionListenerResponseHandler<>(response, TransportShardMultiGetFomTranslogAction.Response::new, ThreadPool.Names.GET)
+            new ActionListenerResponseHandler<>(
+                response,
+                TransportShardMultiGetFomTranslogAction.Response::new,
+                transportService.getThreadPool().executor(ThreadPool.Names.GET)
+            )
         );
         return response.get();
     }

@@ -9,6 +9,7 @@
 package org.elasticsearch.action.admin.cluster.node.tasks.list;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
@@ -18,6 +19,7 @@ import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.TimeValue;
@@ -38,6 +40,9 @@ import static java.util.Objects.requireNonNullElse;
 import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 
 public class TransportListTasksAction extends TransportTasksAction<Task, ListTasksRequest, ListTasksResponse, TaskInfo> {
+
+    public static final ActionType<ListTasksResponse> TYPE = new ActionType<>("cluster:monitor/tasks/lists");
+
     public static long waitForCompletionTimeout(TimeValue timeout) {
         if (timeout == null) {
             timeout = DEFAULT_WAIT_FOR_COMPLETION_TIMEOUT;
@@ -50,14 +55,14 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
     @Inject
     public TransportListTasksAction(ClusterService clusterService, TransportService transportService, ActionFilters actionFilters) {
         super(
-            ListTasksAction.NAME,
+            TYPE.name(),
             clusterService,
             transportService,
             actionFilters,
             ListTasksRequest::new,
             ListTasksResponse::new,
             TaskInfo::from,
-            ThreadPool.Names.MANAGEMENT
+            transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT)
         );
     }
 
@@ -116,7 +121,7 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
             );
             try {
                 for (final var task : processTasks(request)) {
-                    if (task.getAction().startsWith(ListTasksAction.NAME) == false) {
+                    if (task.getAction().startsWith(TYPE.name()) == false) {
                         // It doesn't make sense to wait for List Tasks and it can cause an infinite loop of the task waiting
                         // for itself or one of its child tasks
                         matchedTasks.add(task);
@@ -142,7 +147,7 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
             future.addTimeout(
                 requireNonNullElse(request.getTimeout(), DEFAULT_WAIT_FOR_COMPLETION_TIMEOUT),
                 threadPool,
-                ThreadPool.Names.SAME
+                EsExecutors.DIRECT_EXECUTOR_SERVICE
             );
             nodeTask.addListener(() -> future.onFailure(new TaskCancelledException("task cancelled")));
         } else {

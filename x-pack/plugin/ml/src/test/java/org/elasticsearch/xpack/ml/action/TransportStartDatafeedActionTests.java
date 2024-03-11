@@ -8,8 +8,8 @@
 package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.Version;
-import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.search.SearchModule;
@@ -113,11 +113,14 @@ public class TransportStartDatafeedActionTests extends ESTestCase {
     }
 
     public void testRemoteClusterVersionCheck() {
-        Map<String, Version> clusterVersions = MapBuilder.<String, Version>newMapBuilder()
-            .put("modern_cluster_1", Version.CURRENT)
-            .put("modern_cluster_2", Version.CURRENT)
-            .put("old_cluster_1", Version.V_7_0_0)
-            .map();
+        Map<String, TransportVersion> clusterVersions = Map.of(
+            "modern_cluster_1",
+            TransportVersion.current(),
+            "modern_cluster_2",
+            TransportVersion.current(),
+            "old_cluster_1",
+            TransportVersions.V_7_0_0
+        );
 
         Map<String, Object> field = Map.of("runtime_field_foo", Map.of("type", "keyword", "script", ""));
 
@@ -126,7 +129,7 @@ public class TransportStartDatafeedActionTests extends ESTestCase {
         ).build();
         ElasticsearchStatusException ex = expectThrows(
             ElasticsearchStatusException.class,
-            () -> TransportStartDatafeedAction.checkRemoteClusterVersions(
+            () -> TransportStartDatafeedAction.checkRemoteConfigVersions(
                 config,
                 Arrays.asList("old_cluster_1", "modern_cluster_2"),
                 clusterVersions::get
@@ -135,13 +138,13 @@ public class TransportStartDatafeedActionTests extends ESTestCase {
         assertThat(
             ex.getMessage(),
             containsString(
-                "remote clusters are expected to run at least version [7.11.0] (reason: [runtime_mappings]), "
+                "remote clusters are expected to run at least transport version [7110099] (reason: [runtime_mappings]), "
                     + "but the following clusters were too old: [old_cluster_1]"
             )
         );
 
         // The rest should not throw
-        TransportStartDatafeedAction.checkRemoteClusterVersions(
+        TransportStartDatafeedAction.checkRemoteConfigVersions(
             config,
             Arrays.asList("modern_cluster_1", "modern_cluster_2"),
             clusterVersions::get
@@ -151,7 +154,7 @@ public class TransportStartDatafeedActionTests extends ESTestCase {
             .setIndices(Collections.singletonList("bar"))
             .setJobId("foo")
             .build();
-        TransportStartDatafeedAction.checkRemoteClusterVersions(
+        TransportStartDatafeedAction.checkRemoteConfigVersions(
             configWithoutRuntimeMappings,
             Arrays.asList("old_cluster_1", "modern_cluster_2"),
             clusterVersions::get

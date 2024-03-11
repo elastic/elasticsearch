@@ -125,7 +125,7 @@ public class ReloadAnalyzersResponse extends BroadcastResponse {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeMap(reloadDetails, StreamOutput::writeString, (stream, details) -> details.writeTo(stream));
+        out.writeMap(reloadDetails, StreamOutput::writeWriteable);
     }
 
     @Override
@@ -159,8 +159,8 @@ public class ReloadAnalyzersResponse extends BroadcastResponse {
 
         ReloadDetails(StreamInput in) throws IOException {
             this.indexName = in.readString();
-            this.reloadedIndicesNodes = new HashSet<>(in.readList(StreamInput::readString));
-            this.reloadedAnalyzers = new HashSet<>(in.readList(StreamInput::readString));
+            this.reloadedIndicesNodes = new HashSet<>(in.readCollectionAsList(StreamInput::readString));
+            this.reloadedAnalyzers = new HashSet<>(in.readCollectionAsList(StreamInput::readString));
         }
 
         @Override

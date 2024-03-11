@@ -56,7 +56,7 @@ public class QueryRuleset implements Writeable, ToXContentObject {
 
     public QueryRuleset(StreamInput in) throws IOException {
         this.id = in.readString();
-        this.rules = in.readList(QueryRule::new);
+        this.rules = in.readCollectionAsList(QueryRule::new);
     }
 
     private static final ConstructingObjectParser<QueryRuleset, String> PARSER = new ConstructingObjectParser<>(
@@ -133,7 +133,7 @@ public class QueryRuleset implements Writeable, ToXContentObject {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(id);
-        out.writeList(rules);
+        out.writeCollection(rules);
     }
 
     public String id() {

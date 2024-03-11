@@ -44,11 +44,7 @@ public class GetFromTranslogActionIT extends ESIntegTestCase {
         // There hasn't been any switches from unsafe to safe map
         assertThat(response.segmentGeneration(), equalTo(-1L));
 
-        var indexResponse = client().prepareIndex("test")
-            .setId("1")
-            .setSource("field1", "value1")
-            .setRefreshPolicy(RefreshPolicy.NONE)
-            .get();
+        var indexResponse = prepareIndex("test").setId("1").setSource("field1", "value1").setRefreshPolicy(RefreshPolicy.NONE).get();
         response = getFromTranslog(indexOrAlias(), "1");
         assertNotNull(response.getResult());
         assertThat(response.getResult().isExists(), equalTo(true));
@@ -61,7 +57,7 @@ public class GetFromTranslogActionIT extends ESIntegTestCase {
         assertThat(response.getResult().isExists(), equalTo(false));
         assertThat(response.segmentGeneration(), equalTo(-1L));
 
-        indexResponse = client().prepareIndex("test").setSource("field1", "value2").get();
+        indexResponse = prepareIndex("test").setSource("field1", "value2").get();
         response = getFromTranslog(indexOrAlias(), indexResponse.getId());
         assertNotNull(response.getResult());
         assertThat(response.getResult().isExists(), equalTo(true));
@@ -74,11 +70,11 @@ public class GetFromTranslogActionIT extends ESIntegTestCase {
         assertThat(response.segmentGeneration(), equalTo(-1L));
         // After two refreshes the LiveVersionMap switches back to append-only and stops tracking IDs
         // Refreshing with empty LiveVersionMap doesn't cause the switch, see {@link LiveVersionMap.Maps#shouldInheritSafeAccess()}.
-        client().prepareIndex("test").setSource("field1", "value3").get();
+        prepareIndex("test").setSource("field1", "value3").get();
         refresh("test");
         refresh("test");
         // An optimized index operation marks the maps as unsafe
-        client().prepareIndex("test").setSource("field1", "value4").get();
+        prepareIndex("test").setSource("field1", "value4").get();
         response = getFromTranslog(indexOrAlias(), "non-existent");
         assertNull(response.getResult());
         assertThat(response.segmentGeneration(), greaterThan(0L));
@@ -96,7 +92,7 @@ public class GetFromTranslogActionIT extends ESIntegTestCase {
             node,
             TransportGetFromTranslogAction.NAME,
             request,
-            new ActionListenerResponseHandler<>(response, Response::new, ThreadPool.Names.GET)
+            new ActionListenerResponseHandler<>(response, Response::new, transportService.getThreadPool().executor(ThreadPool.Names.GET))
         );
         return response.get();
     }

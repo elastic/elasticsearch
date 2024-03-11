@@ -10,12 +10,16 @@ package org.elasticsearch.action.get;
 
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -36,19 +40,18 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.Objects;
 
-// TODO(ES-5727): add a retry mechanism to TransportGetFromTranslogAction
 public class TransportGetFromTranslogAction extends HandledTransportAction<
     TransportGetFromTranslogAction.Request,
     TransportGetFromTranslogAction.Response> {
 
-    public static final String NAME = "internal:data/read/get_from_translog";
+    public static final String NAME = "indices:data/read/get_from_translog";
     public static final Logger logger = LogManager.getLogger(TransportGetFromTranslogAction.class);
 
     private final IndicesService indicesService;
 
     @Inject
     public TransportGetFromTranslogAction(TransportService transportService, IndicesService indicesService, ActionFilters actionFilters) {
-        super(NAME, transportService, actionFilters, Request::new, ThreadPool.Names.GET);
+        super(NAME, transportService, actionFilters, Request::new, transportService.getThreadPool().executor(ThreadPool.Names.GET));
         this.indicesService = indicesService;
     }
 
@@ -79,11 +82,11 @@ public class TransportGetFromTranslogAction extends HandledTransportAction<
                 }
                 segmentGeneration = ((InternalEngine) engine).getLastUnsafeSegmentGenerationForGets();
             }
-            return new Response(result, segmentGeneration);
+            return new Response(result, indexShard.getOperationPrimaryTerm(), segmentGeneration);
         });
     }
 
-    public static class Request extends ActionRequest {
+    public static class Request extends ActionRequest implements IndicesRequest {
 
         private final GetRequest getRequest;
         private final ShardId shardId;
@@ -123,28 +126,44 @@ public class TransportGetFromTranslogAction extends HandledTransportAction<
         public String toString() {
             return "GetFromTranslogRequest{" + "getRequest=" + getRequest + ", shardId=" + shardId + "}";
         }
+
+        @Override
+        public String[] indices() {
+            return getRequest.indices();
+        }
+
+        @Override
+        public IndicesOptions indicesOptions() {
+            return getRequest.indicesOptions();
+        }
     }
 
     public static class Response extends ActionResponse {
         @Nullable
         private final GetResult getResult;
+        private final long primaryTerm;
         private final long segmentGeneration;
 
-        public Response(GetResult getResult, long segmentGeneration) {
+        public Response(GetResult getResult, long primaryTerm, long segmentGeneration) {
             this.getResult = getResult;
             this.segmentGeneration = segmentGeneration;
+            this.primaryTerm = primaryTerm;
         }
 
         public Response(StreamInput in) throws IOException {
             super(in);
             segmentGeneration = in.readZLong();
             getResult = in.readOptionalWriteable(GetResult::new);
+            primaryTerm = in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0) ? in.readVLong() : Engine.UNKNOWN_PRIMARY_TERM;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeZLong(segmentGeneration);
             out.writeOptionalWriteable(getResult);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
+                out.writeVLong(primaryTerm);
+            }
         }
 
         @Nullable
@@ -161,22 +180,33 @@ public class TransportGetFromTranslogAction extends HandledTransportAction<
             return segmentGeneration;
         }
 
+        public long primaryTerm() {
+            return primaryTerm;
+        }
+
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o instanceof Response == false) return false;
-            Response other = (Response) o;
-            return segmentGeneration == other.segmentGeneration && Objects.equals(getResult, other.getResult);
+            Response response = (Response) o;
+            return segmentGeneration == response.segmentGeneration
+                && Objects.equals(getResult, response.getResult)
+                && primaryTerm == response.primaryTerm;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(segmentGeneration, getResult);
+            return Objects.hash(segmentGeneration, getResult, primaryTerm);
         }
 
         @Override
         public String toString() {
-            return "Response{" + "getResult=" + getResult + ", segmentGeneration=" + segmentGeneration + "}";
+            return Strings.format(
+                "Response{getResult=%s, primaryTerm=%d, segmentGeneration=%d}",
+                getResult,
+                primaryTerm,
+                segmentGeneration
+            );
         }
     }
 }

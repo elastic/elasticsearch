@@ -224,7 +224,7 @@ public class Detector implements ToXContentObject, Writeable {
         partitionFieldName = in.readOptionalString();
         useNull = in.readBoolean();
         excludeFrequent = in.readBoolean() ? ExcludeFrequent.readFromStream(in) : null;
-        rules = in.readImmutableList(DetectionRule::new);
+        rules = in.readCollectionAsImmutableList(DetectionRule::new);
         detectorIndex = in.readInt();
     }
 
@@ -243,7 +243,7 @@ public class Detector implements ToXContentObject, Writeable {
         } else {
             out.writeBoolean(false);
         }
-        out.writeList(rules);
+        out.writeCollection(rules);
         out.writeInt(detectorIndex);
     }
 
@@ -719,7 +719,7 @@ public class Detector implements ToXContentObject, Writeable {
             checkScoping(rule);
         }
 
-        private void checkFunctionHasRuleSupport(DetectionRule rule, DetectorFunction detectorFunction) {
+        private static void checkFunctionHasRuleSupport(DetectionRule rule, DetectorFunction detectorFunction) {
             if (ruleHasConditionOnResultValue(rule) && FUNCTIONS_WITHOUT_RULE_CONDITION_SUPPORT.contains(detectorFunction)) {
                 String msg = Messages.getMessage(Messages.JOB_CONFIG_DETECTION_RULE_NOT_SUPPORTED_BY_FUNCTION, detectorFunction);
                 throw ExceptionsHelper.badRequestException(msg);

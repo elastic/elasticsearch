@@ -33,8 +33,6 @@ import java.util.Locale;
 import java.util.Optional;
 import java.util.OptionalInt;
 
-import static org.elasticsearch.xpack.ml.inference.nlp.tokenizers.TokenizerUtils.numUtf8Bytes;
-
 /**
  * This is custom normalizer logic purpose built to replicate the logic in DoubleArray Trie System (darts)
  * object and the sentence piece normalizer.
@@ -87,19 +85,19 @@ public class PrecompiledCharMapNormalizer extends BaseCharFilter {
         this.normalizedStrUtf8Bytes = normalizedStr.getBytes(StandardCharsets.UTF_8);
     }
 
-    private boolean hasLeaf(int v) {
+    private static boolean hasLeaf(int v) {
         return ((v >>> 8) & 1) == 1;
     }
 
-    private int label(int v) {
+    private static int label(int v) {
         return (v & ((1 << 31) | 0xFF));
     }
 
-    private int value(int v) {
+    private static int value(int v) {
         return (v & ((1 << 31) - 1));
     }
 
-    private int offset(int v) {
+    private static int offset(int v) {
         return (v >>> 10) << ((v & (1 << 9)) >>> 6);
     }
 
@@ -179,19 +177,14 @@ public class PrecompiledCharMapNormalizer extends BaseCharFilter {
         b.setText(str);
         // We iterate the whole string, so b.first() is always `0`
         int startIter = b.first();
-        int codePointPos = 0;
         CharsRefBuilder strBuilder = new CharsRefBuilder();
         strBuilder.grow(strBytes.length);
         int bytePos = 0;
         int normalizedCharPos = 0;
         // Keep in mind, these break points aren't necessarily surrogate pairs, but also codepoints that contain a combining mark
         for (int end = b.next(); end != BreakIterator.DONE; startIter = end, end = b.next()) {
-            int byteLen = 0;
-            int numCp = Character.codePointCount(str, startIter, end);
-            for (int i = codePointPos; i < numCp + codePointPos; i++) {
-                byteLen += numUtf8Bytes(strCp[i]);
-            }
-            codePointPos += numCp;
+            int byteLen = UnicodeUtil.calcUTF16toUTF8Length(str, startIter, end - startIter);
+
             // The trie only go up to a depth of 5 bytes.
             // So even looking at it for graphemes (with combining, surrogate, etc.) that are 6+ bytes in length is useless.
             if (byteLen < 6) {
@@ -209,8 +202,12 @@ public class PrecompiledCharMapNormalizer extends BaseCharFilter {
                 }
             }
             int charByteIndex = 0;
-            for (int i = startIter; i < end; i++) {
-                int utf8CharBytes = numUtf8Bytes(str.charAt(i));
+            int i = startIter;
+            while (i < end) {
+                boolean isSurrogatePair = (i + 1 < end && Character.isSurrogatePair(str.charAt(i), str.charAt(i + 1)));
+                int numUtf16Chars = isSurrogatePair ? 2 : 1;
+
+                int utf8CharBytes = UnicodeUtil.calcUTF16toUTF8Length(str, i, numUtf16Chars);
                 Optional<BytesRef> maybeSubStr = normalizePart(strBytes, charByteIndex + bytePos, utf8CharBytes);
                 if (maybeSubStr.isPresent()) {
                     BytesRef subStr = maybeSubStr.get();
@@ -226,8 +223,13 @@ public class PrecompiledCharMapNormalizer extends BaseCharFilter {
                 } else {
                     normalizedCharPos += 1;
                     strBuilder.append(str.charAt(i));
+                    if (isSurrogatePair) {
+                        strBuilder.append(str.charAt(i + 1));
+                    }
                 }
                 charByteIndex += utf8CharBytes;
+
+                i = i + numUtf16Chars;
             }
             bytePos += byteLen;
         }

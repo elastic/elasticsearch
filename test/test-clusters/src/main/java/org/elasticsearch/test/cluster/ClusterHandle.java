@@ -8,8 +8,6 @@
 
 package org.elasticsearch.test.cluster;
 
-import org.elasticsearch.test.cluster.util.Version;
-
 import java.io.Closeable;
 
 /**
@@ -28,19 +26,6 @@ public interface ClusterHandle extends Closeable {
      * @param forcibly whether to forcibly terminate the cluster
      */
     void stop(boolean forcibly);
-
-    /**
-     * Stops the node at a given index.
-     * @param index of the node to stop
-     */
-    void stopNode(int index);
-
-    /**
-     * Restarts the cluster. Effectively the same as calling {@link #stop(boolean)} followed by {@link #start()}
-     *
-     * @param forcibly whether to ficibly terminate the cluster
-     */
-    void restart(boolean forcibly);
 
     /**
      * Whether the cluster is started or not. This method makes no guarantees on cluster availability, only that the node processes have
@@ -67,59 +52,8 @@ public interface ClusterHandle extends Closeable {
     String getHttpAddress(int index);
 
     /**
-     * Get the name of the node for the given index.
-     */
-    String getName(int index);
-
-    /**
-     * Returns a comma-separated list of TCP transport endpoints for cluster. If this method is called on an unstarted cluster, the cluster
-     * will be started. This method is thread-safe and subsequent calls will wait for cluster start and availability.
-     *
-     * @return cluster node TCP transport endpoints
-     */
-    String getTransportEndpoints();
-
-    /**
-     * Returns the TCP transport endpoint for the node at the given index. If this method is called on an unstarted cluster, the cluster
-     * will be started. This method is thread-safe and subsequent calls will wait for cluster start and availability.
-     *
-     * @return cluster node TCP transport endpoints
-     */
-    String getTransportEndpoint(int index);
-
-    /**
-     * Returns a comma-separated list of remote cluster server endpoints for cluster. If this method is called on an unstarted cluster,
-     * the cluster will be started. This method is thread-safe and subsequent calls will wait for cluster start and availability.
-     *
-     * @return cluster node remote cluster server endpoints
-     */
-    String getRemoteClusterServerEndpoint();
-
-    /**
-     * Returns the remote cluster server endpoint for the node at the given index. If this method is called on an unstarted cluster,
-     * the cluster will be started. This method is thread-safe and subsequent calls will wait for cluster start and availability.
-     *
-     * @return cluster node remote cluster server endpoints
-     */
-    String getRemoteClusterServerEndpoint(int index);
-
-    /**
-     * Upgrades a single node to the given version. Method blocks until the node is back up and ready to respond to requests.
-     *
-     * @param index index of node ot upgrade
-     * @param version version to upgrade to
-     */
-    void upgradeNodeToVersion(int index, Version version);
-
-    /**
-     * Performs a "full cluster restart" upgrade to the given version. Method blocks until the cluster is restarted and available.
-     *
-     * @param version version to upgrade to
-     */
-    void upgradeToVersion(Version version);
-
-    /**
-     * Cleans up any resources created by this cluster.
+     * Cleans up any resources created by this cluster. Calling this method will forcibly terminate any running nodes.
      */
     void close();
+
 }

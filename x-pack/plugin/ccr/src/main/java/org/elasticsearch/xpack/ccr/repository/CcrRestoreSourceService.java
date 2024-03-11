@@ -191,7 +191,7 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
 
     private Scheduler.Cancellable scheduleTimeout(String sessionUUID) {
         TimeValue idleTimeout = ccrSettings.getRecoveryActivityTimeout();
-        return threadPool.scheduleWithFixedDelay(() -> maybeTimeout(sessionUUID), idleTimeout, ThreadPool.Names.GENERIC);
+        return threadPool.scheduleWithFixedDelay(() -> maybeTimeout(sessionUUID), idleTimeout, threadPool.generic());
     }
 
     private void maybeTimeout(String sessionUUID) {

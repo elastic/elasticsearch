@@ -8,9 +8,10 @@
 
 package org.elasticsearch.ingest.geoip.stats;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
@@ -29,23 +30,16 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-public class GeoIpDownloaderStatsAction extends ActionType<GeoIpDownloaderStatsAction.Response> {
+public class GeoIpDownloaderStatsAction {
 
-    public static final GeoIpDownloaderStatsAction INSTANCE = new GeoIpDownloaderStatsAction();
-    public static final String NAME = "cluster:monitor/ingest/geoip/stats";
+    public static final ActionType<Response> INSTANCE = new ActionType<>("cluster:monitor/ingest/geoip/stats");
 
-    public GeoIpDownloaderStatsAction() {
-        super(NAME, Response::new);
-    }
+    private GeoIpDownloaderStatsAction() {/* no instances */}
 
     public static class Request extends BaseNodesRequest<Request> implements ToXContentObject {
 
         public Request() {
             super((String[]) null);
-        }
-
-        public Request(StreamInput in) throws IOException {
-            super(in);
         }
 
         @Override
@@ -58,7 +52,7 @@ public class GeoIpDownloaderStatsAction extends ActionType<GeoIpDownloaderStatsA
         @Override
         public int hashCode() {
             // Nothing to hash atm, so just use the action name
-            return Objects.hashCode(NAME);
+            return Objects.hashCode(INSTANCE.name());
         }
 
         @Override
@@ -71,6 +65,11 @@ public class GeoIpDownloaderStatsAction extends ActionType<GeoIpDownloaderStatsA
             }
             return true;
         }
+
+        @Override
+        public void writeTo(StreamOutput out) {
+            TransportAction.localOnly();
+        }
     }
 
     public static class NodeRequest extends TransportRequest {
@@ -78,9 +77,7 @@ public class GeoIpDownloaderStatsAction extends ActionType<GeoIpDownloaderStatsA
             super(in);
         }
 
-        public NodeRequest(Request request) {
-
-        }
+        public NodeRequest() {}
     }
 
     public static class Response extends BaseNodesResponse<NodeResponse> implements Writeable, ToXContentObject {
@@ -98,12 +95,12 @@ public class GeoIpDownloaderStatsAction extends ActionType<GeoIpDownloaderStatsA
 
         @Override
         protected List<NodeResponse> readNodesFrom(StreamInput in) throws IOException {
-            return in.readList(NodeResponse::new);
+            return in.readCollectionAsList(NodeResponse::new);
         }
 
         @Override
         protected void writeNodesTo(StreamOutput out, List<NodeResponse> nodes) throws IOException {
-            out.writeList(nodes);
+            out.writeCollection(nodes);
         }
 
         @Override
@@ -164,10 +161,10 @@ public class GeoIpDownloaderStatsAction extends ActionType<GeoIpDownloaderStatsA
         protected NodeResponse(StreamInput in) throws IOException {
             super(in);
             stats = in.readBoolean() ? new GeoIpDownloaderStats(in) : null;
-            databases = in.readImmutableSet(StreamInput::readString);
-            filesInTemp = in.readImmutableSet(StreamInput::readString);
-            configDatabases = in.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0)
-                ? in.readImmutableSet(StreamInput::readString)
+            databases = in.readCollectionAsImmutableSet(StreamInput::readString);
+            filesInTemp = in.readCollectionAsImmutableSet(StreamInput::readString);
+            configDatabases = in.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)
+                ? in.readCollectionAsImmutableSet(StreamInput::readString)
                 : null;
         }
 
@@ -208,10 +205,10 @@ public class GeoIpDownloaderStatsAction extends ActionType<GeoIpDownloaderStatsA
             if (stats != null) {
                 stats.writeTo(out);
             }
-            out.writeCollection(databases, StreamOutput::writeString);
-            out.writeCollection(filesInTemp, StreamOutput::writeString);
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0)) {
-                out.writeCollection(configDatabases, StreamOutput::writeString);
+            out.writeStringCollection(databases);
+            out.writeStringCollection(filesInTemp);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
+                out.writeStringCollection(configDatabases);
             }
         }
 

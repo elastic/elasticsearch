@@ -29,6 +29,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.BoostingQueryBuilder;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
@@ -49,7 +50,6 @@ import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilde
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportService;
@@ -105,7 +105,7 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
 
         transportService.registerRequestHandler(
             actionName,
-            ThreadPool.Names.SAME,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
             false,
             true,
             SearchRequest::new,
@@ -143,7 +143,7 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
                     );
                 }
             };
-            listener.onResponse(processResponses(rollupSearchContext, msearchResponse, reduceContextBuilder));
+            ActionListener.respondAndRelease(listener, processResponses(rollupSearchContext, msearchResponse, reduceContextBuilder));
         }, listener::onFailure));
     }
 
@@ -154,14 +154,16 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
     ) throws Exception {
         if (rollupContext.hasLiveIndices() && rollupContext.hasRollupIndices()) {
             // Both
-            return RollupResponseTranslator.combineResponses(msearchResponse.getResponses(), reduceContextBuilder);
+            return RollupResponseTranslator.combineResponses(msearchResponse, reduceContextBuilder);
         } else if (rollupContext.hasLiveIndices()) {
             // Only live
             assert msearchResponse.getResponses().length == 1;
-            return RollupResponseTranslator.verifyResponse(msearchResponse.getResponses()[0]);
+            var res = RollupResponseTranslator.verifyResponse(msearchResponse.getResponses()[0]);
+            res.mustIncRef();
+            return res;
         } else if (rollupContext.hasRollupIndices()) {
             // Only rollup
-            return RollupResponseTranslator.translateResponse(msearchResponse.getResponses(), reduceContextBuilder);
+            return RollupResponseTranslator.translateResponse(msearchResponse, reduceContextBuilder);
         }
         throw new RuntimeException("MSearch response was empty, cannot unroll RollupSearch results");
     }
@@ -270,10 +272,9 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
         NamedWriteableRegistry namedWriteableRegistry,
         Writeable.Reader<SearchSourceBuilder> reader
     ) throws IOException {
-        Writeable.Writer<SearchSourceBuilder> writer = (out, value) -> value.writeTo(out);
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             output.setTransportVersion(TransportVersion.current());
-            writer.write(output, original);
+            original.writeTo(output);
             try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
                 in.setTransportVersion(TransportVersion.current());
                 return reader.read(in);
@@ -453,6 +454,9 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
                         channel.sendResponse(response);
                     } catch (Exception e) {
                         onFailure(e);
+                    } finally {
+                        // TODO - avoid the implicit incref elsewhere and then replace this whole thing with a ChannelActionListener
+                        response.decRef();
                     }
                 }
 

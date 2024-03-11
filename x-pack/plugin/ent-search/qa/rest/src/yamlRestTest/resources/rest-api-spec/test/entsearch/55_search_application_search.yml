@@ -72,6 +72,7 @@ setup:
                   type: string
                 field_value:
                   type: string
+
   - do:
       search_application.put:
         name: test-search-application-with-list
@@ -80,6 +81,25 @@ setup:
           template:
             script:
               source: "{ \"query\": { \"multi_match\":{ \"query\": \"{{query_string}}\", \"fields\": [{{#text_fields}}\"{{name}}^{{boost}}\",{{/text_fields}}] } } }"
+              params:
+                query_string: "elastic"
+                text_fields:
+                  - name: field1
+                    boost: 1
+                  - name: field2
+                    boost: 2
+                  - name: field3
+                    boost: 3
+              lang: "mustache"
+
+  - do:
+      search_application.put:
+        name: test-search-application-with-list-invalid
+        body:
+          indices: [ "test-search-index1", "test-search-index2" ]
+          template:
+            script:
+              source: "{ \"query\": { \"multi_match\":{ \"query\": \"{{query_string}}\", \"fields\": [{{#text_fields}}\"{{name}}^{{boost}}\"{{/text_fields}}] } } }"
               params:
                 query_string: "elastic"
                 text_fields:
@@ -124,6 +144,11 @@ teardown:
   - do:
       search_application.delete:
         name: test-search-application-with-list
+        ignore: 404
+
+  - do:
+      search_application.delete:
+        name: test-search-application-with-list-invalid
         ignore: 404
 
   - do:
@@ -259,45 +284,37 @@ teardown:
             field_value: value3
 
 ---
-"Query Search Application - Warning returned when indices and aliases are inconsistent":
+"Search application search fails for unprivileged user":
   - skip:
-      features: ["warnings", "headers"]
+      features: headers
 
   - do:
-      indices.create:
-        index: test-index3
+      catch: unauthorized
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVucHJpdmlsZWdlZDplbnRzZWFyY2gtdW5wcml2aWxlZ2VkLXVzZXI=" }  # unprivileged
+      search_application.search:
+        name: test-search-application
         body:
-          settings:
-            index:
-              number_of_shards: 1
-              number_of_replicas: 0
+          params:
+            field_value: puggles
+
+---
+"Search application search fails on invalid rendered JSON":
+  - skip:
+      features: headers
 
   - do:
-      indices.update_aliases:
-        body:
-          actions:
-            - add:
-                index: test-search-index1
-                alias: test-search-application-1
-            - add:
-                index: test-search-index2
-                alias: test-search-application-1
-            - add:
-                index: test-index3
-                alias: test-search-application-1
-
-  - do:
-      indices.delete:
-        index: test-search-index2
-        ignore: 404
-
-  - do:
-      warnings:
-        - "test-search-index2 index is in search application but not in associated alias"
-        - "test-index3 index is in alias but not associcated with search application"
+      catch: "bad_request"
       headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # user
       search_application.search:
-        name: test-search-application-1
+        name: test-search-application-with-list-invalid
+        body:
+          params:
+            query_string: value3
+            text_fields:
+              - name: field1
+                boost: 1
+              - name: field2
+                boost: 2
+              - name: field3
+                boost: 3
 
-  - match: { hits.total.value: 1 }
-  - match: { hits.hits.0._id: "doc1" }

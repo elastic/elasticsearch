@@ -11,10 +11,11 @@ package org.elasticsearch.gateway;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
@@ -61,7 +62,7 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
     private static final Logger logger = LogManager.getLogger(TransportNodesListGatewayStartedShards.class);
 
     public static final String ACTION_NAME = "internal:gateway/local/started_shards";
-    public static final ActionType<NodesGatewayStartedShards> TYPE = new ActionType<>(ACTION_NAME, NodesGatewayStartedShards::new);
+    public static final ActionType<NodesGatewayStartedShards> TYPE = new ActionType<>(ACTION_NAME);
 
     private final Settings settings;
     private final NodeEnvironment nodeEnv;
@@ -81,13 +82,11 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
     ) {
         super(
             ACTION_NAME,
-            threadPool,
             clusterService,
             transportService,
             actionFilters,
-            Request::new,
             NodeRequest::new,
-            ThreadPool.Names.FETCH_SHARD_STARTED
+            threadPool.executor(ThreadPool.Names.FETCH_SHARD_STARTED)
         );
         this.settings = settings;
         this.nodeEnv = env;
@@ -187,16 +186,6 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
         @Nullable
         private final String customDataPath;
 
-        public Request(StreamInput in) throws IOException {
-            super(in);
-            shardId = new ShardId(in);
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_6_0)) {
-                customDataPath = in.readString();
-            } else {
-                customDataPath = null;
-            }
-        }
-
         public Request(ShardId shardId, String customDataPath, DiscoveryNode[] nodes) {
             super(nodes);
             this.shardId = Objects.requireNonNull(shardId);
@@ -219,19 +208,11 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            shardId.writeTo(out);
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_6_0)) {
-                out.writeString(customDataPath);
-            }
+            TransportAction.localOnly();
         }
     }
 
     public static class NodesGatewayStartedShards extends BaseNodesResponse<NodeGatewayStartedShards> {
-
-        public NodesGatewayStartedShards(StreamInput in) throws IOException {
-            super(in);
-        }
 
         public NodesGatewayStartedShards(
             ClusterName clusterName,
@@ -243,12 +224,12 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
 
         @Override
         protected List<NodeGatewayStartedShards> readNodesFrom(StreamInput in) throws IOException {
-            return in.readList(NodeGatewayStartedShards::new);
+            return TransportAction.localOnly();
         }
 
         @Override
         protected void writeNodesTo(StreamOutput out, List<NodeGatewayStartedShards> nodes) throws IOException {
-            out.writeList(nodes);
+            TransportAction.localOnly();
         }
     }
 
@@ -261,7 +242,7 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
         public NodeRequest(StreamInput in) throws IOException {
             super(in);
             shardId = new ShardId(in);
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_6_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_6_0)) {
                 customDataPath = in.readString();
             } else {
                 customDataPath = null;
@@ -277,7 +258,7 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             shardId.writeTo(out);
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_6_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_6_0)) {
                 assert customDataPath != null;
                 out.writeString(customDataPath);
             }

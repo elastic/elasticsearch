@@ -17,4 +17,4 @@ import org.gradle.api.tasks.CacheableTask;
  * conventional configured tasks of {@link RestIntegTestTask}
  */
 @CacheableTask
-public class RestIntegTestTask extends StandaloneRestIntegTestTask {}
+public abstract class RestIntegTestTask extends StandaloneRestIntegTestTask {}

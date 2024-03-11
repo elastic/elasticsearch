@@ -1,5 +1,0 @@
-pr: 93545
-summary: Improve error message when aggregation doesn't support counter field
-area: Aggregations
-type: enhancement
-issues: []

@@ -19,7 +19,6 @@ import com.maxmind.geoip2.record.Location;
 import com.maxmind.geoip2.record.Subdivision;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -49,7 +48,7 @@ import static org.elasticsearch.ingest.ConfigurationUtils.readStringProperty;
 
 public final class GeoIpProcessor extends AbstractProcessor {
 
-    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(GeoIpProcessor.class);
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(GeoIpProcessor.class);
     static final String DEFAULT_DATABASES_DEPRECATION_MESSAGE = "the [fallback_to_default_databases] has been deprecated, because "
         + "Elasticsearch no longer includes the default Maxmind geoip databases. This setting will be removed in Elasticsearch 9.0";
 
@@ -173,10 +172,8 @@ public final class GeoIpProcessor extends AbstractProcessor {
             geoData = retrieveCityGeoData(geoIpDatabase, ipAddress);
         } else if (databaseType.endsWith(COUNTRY_DB_SUFFIX)) {
             geoData = retrieveCountryGeoData(geoIpDatabase, ipAddress);
-
         } else if (databaseType.endsWith(ASN_DB_SUFFIX)) {
             geoData = retrieveAsnGeoData(geoIpDatabase, ipAddress);
-
         } else {
             throw new ElasticsearchParseException(
                 "Unsupported database type [" + geoIpDatabase.getDatabaseType() + "]",
@@ -369,10 +366,8 @@ public final class GeoIpProcessor extends AbstractProcessor {
         @Override
         public GeoIpDatabase get() throws IOException {
             GeoIpDatabase loader = geoIpDatabaseProvider.getDatabase(databaseFile);
-            if (Factory.useDatabaseUnavailableProcessor(loader, databaseFile)) {
+            if (loader == null) {
                 return null;
-            } else if (loader == null) {
-                throw new ResourceNotFoundException("database file [" + databaseFile + "] doesn't exist");
             }
 
             if (Assertions.ENABLED) {
@@ -434,14 +429,16 @@ public final class GeoIpProcessor extends AbstractProcessor {
             // noop, should be removed in 9.0
             Object value = config.remove("fallback_to_default_databases");
             if (value != null) {
-                DEPRECATION_LOGGER.warn(DeprecationCategory.OTHER, "default_databases_message", DEFAULT_DATABASES_DEPRECATION_MESSAGE);
+                deprecationLogger.warn(DeprecationCategory.OTHER, "default_databases_message", DEFAULT_DATABASES_DEPRECATION_MESSAGE);
             }
 
             GeoIpDatabase geoIpDatabase = geoIpDatabaseProvider.getDatabase(databaseFile);
-            if (useDatabaseUnavailableProcessor(geoIpDatabase, databaseFile)) {
+            if (geoIpDatabase == null) {
+                // It's possible that the database could be downloaded via the GeoipDownloader process and could become available
+                // at a later moment, so a processor impl is returned that tags documents instead. If a database cannot be sourced then the
+                // processor will continue to tag documents with a warning until it is remediated by providing a database or changing the
+                // pipeline.
                 return new DatabaseUnavailableProcessor(processorTag, description, databaseFile);
-            } else if (geoIpDatabase == null) {
-                throw newConfigurationException(TYPE, processorTag, "database_file", "database file [" + databaseFile + "] doesn't exist");
             }
             final String databaseType;
             try {
@@ -497,14 +494,6 @@ public final class GeoIpProcessor extends AbstractProcessor {
 
         public static boolean downloadDatabaseOnPipelineCreation(Map<String, Object> config, String processorTag) {
             return readBooleanProperty(GeoIpProcessor.TYPE, processorTag, config, "download_database_on_pipeline_creation", true);
-        }
-
-        private static boolean useDatabaseUnavailableProcessor(GeoIpDatabase database, String databaseName) {
-            // If there is no instance for a database we should fail with a config error, but
-            // if there is no instance for a builtin database that we manage via GeoipDownloader then don't fail.
-            // In the latter case the database should become available at a later moment, so a processor impl
-            // is returned that tags documents instead.
-            return database == null && IngestGeoIpPlugin.DEFAULT_DATABASE_FILENAMES.contains(databaseName);
         }
 
     }

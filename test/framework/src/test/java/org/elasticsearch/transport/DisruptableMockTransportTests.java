@@ -19,9 +19,11 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.ReleasableRef;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -36,6 +38,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -227,7 +230,9 @@ public class DisruptableMockTransportTests extends ESTestCase {
     private TransportRequestHandler<TestRequest> requestHandlerRepliesNormally() {
         return (request, channel, task) -> {
             logger.debug("got a dummy request, replying normally...");
-            channel.sendResponse(new TestResponse());
+            try (var responseRef = ReleasableRef.of(new TestResponse())) {
+                channel.sendResponse(responseRef.get());
+            }
         };
     }
 
@@ -253,6 +258,11 @@ public class DisruptableMockTransportTests extends ESTestCase {
             }
 
             @Override
+            public Executor executor() {
+                return TransportResponseHandler.TRANSPORT_WORKER;
+            }
+
+            @Override
             public void handleResponse(T response) {
                 throw new AssertionError("should not be called");
             }
@@ -269,6 +279,11 @@ public class DisruptableMockTransportTests extends ESTestCase {
             @Override
             public TestResponse read(StreamInput in) throws IOException {
                 return new TestResponse(in);
+            }
+
+            @Override
+            public Executor executor() {
+                return TransportResponseHandler.TRANSPORT_WORKER;
             }
 
             @Override
@@ -293,6 +308,11 @@ public class DisruptableMockTransportTests extends ESTestCase {
             }
 
             @Override
+            public Executor executor() {
+                return TransportResponseHandler.TRANSPORT_WORKER;
+            }
+
+            @Override
             public void handleResponse(T response) {
                 throw new AssertionError("should not be called");
             }
@@ -305,7 +325,12 @@ public class DisruptableMockTransportTests extends ESTestCase {
     }
 
     private void registerRequestHandler(TransportService transportService, TransportRequestHandler<TestRequest> handler) {
-        transportService.registerRequestHandler(TEST_ACTION, ThreadPool.Names.GENERIC, TestRequest::new, handler);
+        transportService.registerRequestHandler(
+            TEST_ACTION,
+            transportService.getThreadPool().executor(ThreadPool.Names.GENERIC),
+            TestRequest::new,
+            handler
+        );
     }
 
     private void send(
@@ -393,7 +418,9 @@ public class DisruptableMockTransportTests extends ESTestCase {
         assertNull(responseHandlerException.get());
 
         disconnectedLinks.add(Tuple.tuple(node2, node1));
-        responseHandlerChannel.get().sendResponse(new TestResponse());
+        try (var responseRef = ReleasableRef.of(new TestResponse())) {
+            responseHandlerChannel.get().sendResponse(responseRef.get());
+        }
         deterministicTaskQueue.runAllTasks();
         deliverBlackholedRequests.run();
         deterministicTaskQueue.runAllTasks();
@@ -431,7 +458,9 @@ public class DisruptableMockTransportTests extends ESTestCase {
         assertNotNull(responseHandlerChannel.get());
 
         blackholedLinks.add(Tuple.tuple(node2, node1));
-        responseHandlerChannel.get().sendResponse(new TestResponse());
+        try (var responseRef = ReleasableRef.of(new TestResponse())) {
+            responseHandlerChannel.get().sendResponse(responseRef.get());
+        }
         deterministicTaskQueue.runAllRunnableTasks();
     }
 
@@ -463,7 +492,9 @@ public class DisruptableMockTransportTests extends ESTestCase {
 
         blackholedRequestLinks.add(Tuple.tuple(node1, node2));
         blackholedRequestLinks.add(Tuple.tuple(node2, node1));
-        responseHandlerChannel.get().sendResponse(new TestResponse());
+        try (var responseRef = ReleasableRef.of(new TestResponse())) {
+            responseHandlerChannel.get().sendResponse(responseRef.get());
+        }
 
         deterministicTaskQueue.runAllRunnableTasks();
         assertTrue(responseHandlerCalled.get());
@@ -537,7 +568,7 @@ public class DisruptableMockTransportTests extends ESTestCase {
                     new CleanableResponseHandler<>(
                         ActionListener.running(() -> assertFalse(responseHandlerCalled.getAndSet(true))),
                         TestResponse::new,
-                        ThreadPool.Names.SAME,
+                        EsExecutors.DIRECT_EXECUTOR_SERVICE,
                         () -> assertFalse(responseHandlerReleased.getAndSet(true))
                     )
                 );

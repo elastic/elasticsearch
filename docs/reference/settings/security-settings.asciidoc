@@ -71,6 +71,11 @@ the sensitive nature of the information.
 (<<static-cluster-setting,Static>>)
 Enables fips mode of operation. Set this to `true` if you run this {es} instance in a FIPS 140-2 enabled JVM. For more information, see <<fips-140-compliance>>. Defaults to `false`.
 
+`xpack.security.fips_mode.required_providers`::
+(<<static-cluster-setting,Static>>)
+Optionally enforce specific Java JCE/JSSE security providers. For example, set this to `["BCFIPS", "BCJSSE"]` (case-insensitive) to require
+the Bouncy Castle FIPS JCE and JSSE security providers. Only applicable when `xpack.security.fips_mode.enabled` is set to `true`.
+
 [discrete]
 [[password-hashing-settings]]
 ==== Password hashing settings
@@ -197,11 +202,6 @@ You can set the following API key service settings in
 (<<static-cluster-setting,Static>>)
 Set to `false` to disable the built-in API key service. Defaults to `true`.
 
-`xpack.security.authc.api_key.hashing.algorithm`::
-(<<static-cluster-setting,Static>>)
-Specifies the hashing algorithm that is used for securing API key credentials.
-See <<password-hashing-algorithms>>. Defaults to `pbkdf2`.
-
 `xpack.security.authc.api_key.cache.ttl`::
 (<<static-cluster-setting,Static>>)
 The time-to-live for cached API key entries. A API key id and a hash of its
@@ -218,6 +218,39 @@ cache at any given time. Defaults to 10,000.
 The hashing algorithm that is used for the
 in-memory cached API key credentials. For possible values, see <<cache-hash-algo>>.
 Defaults to `ssha256`.
+
+[[api-key-service-settings-delete-retention-period]]
+`xpack.security.authc.api_key.delete.retention_period`::
+(<<dynamic-cluster-setting,Dynamic>>)
+Invalidated or expired API keys older than the retention period are eligible for deletion.
+Defaults to `7d`.
+
+--
+NOTE:  Large real-time clock inconsistency across cluster nodes can cause problems
+with evaluating the API key retention period. That is, if the clock on the node 
+invalidating the API key is significantly different than the one performing the deletion,
+the key may be retained for longer or shorter than the configured retention period.
+
+--
+
+`xpack.security.authc.api_key.delete.interval`::
+(<<dynamic-cluster-setting,Dynamic>>, Expert)
+Cluster nodes schedule the automatic deletion of invalidated or expired API keys
+that are older than the retention period.
+This setting controls the minimum time interval between two such deletion jobs.
+Defaults to `24h`.
++
+NOTE: This is a low-level setting that currently controls the interval between
+deletion jobs triggered per-node, not across the cluster.
+
+`xpack.security.authc.api_key.delete.timeout`::
+(<<static-cluster-setting,Static>>, Expert)
+Sets the timeout of the internal search and delete call.
+
+`xpack.security.authc.api_key.hashing.algorithm`::
+(<<static-cluster-setting,Static>>)
+Specifies the hashing algorithm that is used for securing API key credentials.
+See <<password-hashing-algorithms>>. Defaults to `pbkdf2`.
 
 [discrete]
 [[security-domain-settings]]
@@ -399,7 +432,7 @@ Defaults to Empty. Due to its potential security impact, `bind_password` is not
 exposed via the <<cluster-nodes-info,nodes info API>>.
 
 `secure_bind_password`::
-(<<secure-settings,Secure>>)
+(<<secure-settings,Secure>>, <<reloadable-secure-settings,Reloadable>>)
 The password for the user that is used to bind to the LDAP directory.
 Defaults to Empty.
 
@@ -430,6 +463,16 @@ NOTE: If any settings starting with `user_search` are specified, the
 Specifies the attribute to examine on the user for group membership.
 If any `group_search` settings are specified, this setting is ignored. Defaults
 to `memberOf`.
+
+`user_full_name_attribute`::
+(<<static-cluster-setting,Static>>)
+Specifies the attribute to examine on the user for the full name of the user.
+Defaults to `cn`.
+
+`user_email_attribute`::
+(<<static-cluster-setting,Static>>)
+Specifies the attribute to examine on the user for the email address of the user.
+Defaults to `mail`.
 
 `user_search.base_dn`::
 (<<static-cluster-setting,Static>>)
@@ -734,7 +777,7 @@ potential security impact, `bind_password` is not exposed via the
 <<cluster-nodes-info,nodes info API>>.
 
 `secure_bind_password`::
-(<<secure-settings,Secure>>)
+(<<secure-settings,Secure>>, <<reloadable-secure-settings,Reloadable>>)
 The password for the user that is used to bind to Active Directory.
 Defaults to Empty.
 
@@ -1000,8 +1043,10 @@ the following settings:
 `username_pattern`::
 (<<static-cluster-setting,Static>>)
 The regular expression pattern used to extract the username from the
-certificate DN. The first match group is the used as the username.
-Defaults to `CN=(.*?)(?:,\|$)`.
+certificate DN. The username is used for auditing and logging. The username can also be used
+with the <<role-mapping-resources, role mapping API>> and <<configuring-authorization-delegation, authorization delegation>>.
+The first match group is the used as the username.
+Defaults to `CN=(.*?)(?:,|$)`.
 
 `certificate_authorities`::
 (<<static-cluster-setting,Static>>)
@@ -1212,7 +1257,7 @@ _Distinguished Name_.
 `attribute_patterns.principal` {ess-icon}::
 (<<static-cluster-setting,Static>>)
 A Java regular expression that is matched against the SAML attribute specified
-by `attributes.pattern` before it is applied to the user's _principal_ property.
+by `attributes.principal` before it is applied to the user's _principal_ property.
 The attribute value must match the pattern and the value of the first
 _capturing group_ is used as the principal. For example, `^([^@]+)@example\\.com$`
 matches email addresses from the "example.com" domain and uses the local-part as
@@ -1242,6 +1287,20 @@ As per `attribute_patterns.principal`, but for the _mail_ property.
 (<<static-cluster-setting,Static>>)
 As per `attribute_patterns.principal`, but for the _dn_ property.
 // end::saml-attributes-patterns-dn-tag[]
+
+// tag::saml-attributes-delimiters-groups-tag[]
+`attribute_delimiters.groups` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+A plain string that is used as a delimiter to split a single-valued SAML
+attribute specified by `attributes.groups` before it is applied to the user's
+_groups_ property. For example, splitting the SAML attribute value
+`engineering,elasticsearch-admins,employees` on a delimiter value of `,` will
+result in `engineering`, `elasticsearch-admins`, and `employees` as the list of
+groups for the user. The delimiter will always be split on, regardless of
+escaping in the input string. This setting does not support multi-valued SAML
+attributes. It cannot be used together with the `attribute_patterns` setting.
+You can only configure this setting for the groups attribute.
+// end::saml-attributes-delimiters-groups-tag[]
 
 // tag::saml-nameid-format-tag[]
 `nameid_format` {ess-icon}::
@@ -1675,18 +1734,18 @@ Provider. The value for this setting should be provided by your OpenID Connect P
 // tag::oidc-op-jwkset-path-tag[]
 `op.jwkset_path` {ess-icon}::
 (<<static-cluster-setting,Static>>)
-The path or URL to a JSON Web Key Set with the key material that the OpenID Connect
-Provider uses for signing tokens and claims responses.
-If a path is provided, then it is resolved relative to the {es} config
-directory.
-If a URL is provided, then it must be either a `file` URL or a `https` URL.
-{es} automatically caches the retrieved JWK set to avoid unnecessary HTTP
-requests but will attempt to refresh the JWK upon signature verification
+
+The file name or URL to a JSON Web Key Set (JWKS) with the public key material used to verify
+tokens and claims responses signed by the OpenID Connect Provider. A value is considered a file name
+if it does not begin with `https` or `http`. The file name
+is resolved relative to the {es} configuration directory.  Changes to the file are polled
+at a frequency determined by the global {es} `resource.reload.interval.high`
+setting, which defaults to 5 seconds.
++
+If a URL is provided, then it must begin with `https://` or `http://`.
+{es} automatically caches the retrieved JWK and will attempt to refresh the JWK upon signature verification
 failure, as this might indicate that the OpenID Connect Provider has
 rotated the signing keys.
-+
-File-based resources are polled at a frequency determined by the global {es}
-`resource.reload.interval.high` setting, which defaults to 5 seconds.
 // end::oidc-op-jwkset-path-tag[]
 
 `authorization_realms`::
@@ -2266,10 +2325,19 @@ restricts which ones are allowed to submit those JWTs to {es}.
 
 // tag::jwt-client-authentication-shared-secret-tag[]
 `client_authentication.shared_secret` {ess-icon}::
-(<<secure-settings,Secure>>)
+(<<secure-settings,Secure>>, <<reloadable-secure-settings,reloadable>>)
 Secret value string for client authentication.
 Required if `client_authentication.type` is `shared_secret`.
 // end::jwt-client-authentication-shared-secret-tag[]
+
+// tag::jwt-client-authentication-rotation-grace-period-tag[]
+`client_authentication.rotation_grace_period`::
+(<<static-cluster-setting,Static>>)
+Sets the grace period for how long after rotating the `client_authentication.shared_secret`
+is valid. `client_authentication.shared_secret` can be rotated by updating the
+keystore then calling the <<cluster-nodes-reload-secure-settings, reload API>>.
+Defaults to `1m`.
+// end::jwt-client-authentication-rotation-grace-period-tag[]
 
 // tag::jwt-http-connect-timeout-tag[]
 `http.connect_timeout` {ess-icon}::
@@ -2320,19 +2388,14 @@ for every request, set to `0` to disable the JWT cache. Defaults to `20m`.
 // tag::jwt-pkc-jwkset-path-tag[]
 `pkc_jwkset_path` {ess-icon}::
 (<<static-cluster-setting,Static>>)
-The file path or URL to a JSON Web Key Set (JWKS) with the public key material that
-the JWT Realm uses for verifying token signatures. If a path is provided,
-then it is resolved relative to the {es} configuration directory. In {ecloud},
-use an absolute path starting with `/app/config/`.
-+
-If a URL is provided, then it must be either a `file` URL or an `https` URL.
-{es} automatically caches the retrieved JWK set to avoid unnecessary HTTP
-requests, but will attempt to refresh the JWK upon signature verification
-failure, as this might indicate that the JWT Provider has
+The file name or URL to a JSON Web Key Set (JWKS) with the public key material that
+the JWT Realm uses for verifying token signatures. A value is considered a file name
+if it does not begin with `https`. The file name
+is resolved relative to the {es} configuration directory. If a URL is provided, then
+it must begin with `https://` (`http://` is not supported).
+{es} automatically caches the JWK set and will attempt to refresh the
+JWK set upon signature verification failure, as this might indicate that the JWT Provider has
 rotated the signing keys.
-+
-File-based resources are polled at a frequency determined by the global {es}
-`resource.reload.interval.high` setting, which defaults to `5s`.
 // end::jwt-pkc-jwkset-path-tag[]
 
 // tag::jwt-hmac-jwkset-tag[]
@@ -2418,6 +2481,12 @@ include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-path]
 (<<static-cluster-setting,Static>>)
 include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-type-pkcs12]
 // end::jwt-ssl-keystore-type-tag[]
+
+// tag::jwt-ssl-keystore-password-tag[]
+`ssl.keystore.password` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-password]
+// end::jwt-ssl-keystore-password-tag[]
 
 `ssl.keystore.secure_password`::
 (<<secure-settings,Secure>>)
@@ -2568,6 +2637,38 @@ include::ssl-settings.asciidoc[]
 
 include::ssl-settings.asciidoc[]
 
+[[remote-cluster-server-tls-ssl-settings]]
+
+beta::[]
+
+:ssl-prefix:             xpack.security.remote_cluster_server
+:component:              Remote cluster server (API key based model)
+:enabled-by-default:
+:client-auth-default:    none
+:verifies!:
+:server:
+:secure-pass:
+:ssl-context:            security-remote-cluster-server
+:ssl-layer:              remote cluster server networking layer, which {es} uses to communicate with remote cluster clients
+
+include::ssl-settings.asciidoc[]
+
+[[remote-cluster-client-tls-ssl-settings]]
+
+beta::[]
+
+:ssl-prefix:             xpack.security.remote_cluster_client
+:component:              Remote cluster client (API key based model)
+:enabled-by-default:
+:client-auth-default:    none
+:verifies:
+:server!:
+:secure-pass:
+:ssl-context:            security-remote-cluster-client
+:ssl-layer:              remote cluster client networking layer, which {es} uses to communicate with remote cluster servers
+
+include::ssl-settings.asciidoc[]
+
 [[ssl-tls-profile-settings]]
 [discrete]
 ===== Transport profile TLS/SSL settings
@@ -2584,7 +2685,7 @@ setting, this would be `transport.profiles.$PROFILE.xpack.security.ssl.key`.
 
 [discrete]
 [[ip-filtering-settings]]
-==== IP filtering settings
+=== IP filtering settings
 You can configure the following settings for <<ip-filtering,IP filtering>>.
 
 `xpack.security.transport.filter.allow`::
@@ -2610,5 +2711,15 @@ List of IP addresses to allow for this profile.
 `transport.profiles.$PROFILE.xpack.security.filter.deny`::
 (<<dynamic-cluster-setting,Dynamic>>)
 List of IP addresses to deny for this profile.
+
+`xpack.security.remote_cluster.filter.allow`::
+(<<dynamic-cluster-setting,Dynamic>>)
+beta:[] List of IP addresses to allow just for the
+<<remote-clusters-api-key,remote cluster server configured with the API key based model>>.
+
+`xpack.security.remote_cluster.filter.deny`::
+(<<dynamic-cluster-setting,Dynamic>>)
+beta:[] List of IP addresses to deny just for the remote cluster server configured with
+the <<remote-clusters-api-key,API key based model>>.
 
 include::security-hash-settings.asciidoc[]

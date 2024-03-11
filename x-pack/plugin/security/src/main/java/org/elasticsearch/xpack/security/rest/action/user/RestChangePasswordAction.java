@@ -16,14 +16,15 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestRequestFilter;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
-import org.elasticsearch.xpack.core.security.action.user.ChangePasswordRequestBuilder;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
+import org.elasticsearch.xpack.security.action.user.ChangePasswordRequestBuilder;
 
 import java.io.IOException;
 import java.util.List;
@@ -32,7 +33,8 @@ import java.util.Set;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
-public class RestChangePasswordAction extends SecurityBaseRestHandler implements RestRequestFilter {
+@ServerlessScope(Scope.INTERNAL)
+public class RestChangePasswordAction extends NativeUserBaseRestHandler implements RestRequestFilter {
 
     private final SecurityContext securityContext;
     private final Hasher passwordHasher;

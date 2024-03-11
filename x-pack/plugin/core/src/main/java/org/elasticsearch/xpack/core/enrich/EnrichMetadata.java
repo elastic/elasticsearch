@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.enrich;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -83,7 +84,7 @@ public final class EnrichMetadata extends AbstractNamedDiffable<Metadata.Custom>
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.V_7_5_0;
+        return TransportVersions.V_7_5_0;
     }
 
     @Override
@@ -93,7 +94,7 @@ public final class EnrichMetadata extends AbstractNamedDiffable<Metadata.Custom>
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(policies, StreamOutput::writeString, (out1, value) -> value.writeTo(out1));
+        out.writeMap(policies, StreamOutput::writeWriteable);
     }
 
     @Override

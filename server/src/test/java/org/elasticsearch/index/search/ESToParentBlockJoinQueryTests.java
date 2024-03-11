@@ -10,7 +10,6 @@ package org.elasticsearch.index.search;
 
 import org.apache.lucene.index.MultiReader;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
@@ -89,7 +88,7 @@ public class ESToParentBlockJoinQueryTests extends ESTestCase {
             ScoreMode.Avg,
             "nested"
         );
-        Query rewritten = q.rewrite(new IndexSearcher(new MultiReader()));
+        Query rewritten = q.rewrite(newSearcher(new MultiReader()));
         assertEquals(expected, rewritten);
     }
 }

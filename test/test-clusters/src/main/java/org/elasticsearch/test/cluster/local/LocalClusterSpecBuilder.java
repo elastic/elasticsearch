@@ -51,19 +51,29 @@ public interface LocalClusterSpecBuilder<T extends ElasticsearchCluster> extends
     LocalClusterSpecBuilder<T> node(int index, Consumer<? super LocalNodeSpecBuilder> config);
 
     /**
-     * Register a user using the default test role.
+     * Register a user using the default test role, as an operator
      */
     LocalClusterSpecBuilder<T> user(String username, String password);
 
     /**
      * Register a user using the given role.
+     * @param operator If true, configure the user as an operator.
+     *                 <em>Note</em>: This does <strong>not</strong> automatically enable operator privileges on the cluster
      */
-    LocalClusterSpecBuilder<T> user(String username, String password, String role);
+    LocalClusterSpecBuilder<T> user(String username, String password, String role, boolean operator);
 
     /**
      * Register a roles file with cluster via the supplied {@link Resource}.
      */
     LocalClusterSpecBuilder<T> rolesFile(Resource rolesFile);
+
+    /**
+     * Configure whether this cluster should be shared across test suites (classes). If set to {@code true} then the cluster will not be
+     * shut down or recreated before the next test suite begins execution. This setting is {@code false} by default.
+     *
+     * @param isShared whether the cluster should be shared
+     */
+    LocalClusterSpecBuilder<T> shared(Boolean isShared);
 
     T build();
 }

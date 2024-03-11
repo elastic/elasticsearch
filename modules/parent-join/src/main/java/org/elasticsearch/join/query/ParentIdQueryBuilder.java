@@ -16,6 +16,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -50,8 +51,8 @@ public final class ParentIdQueryBuilder extends AbstractQueryBuilder<ParentIdQue
     private boolean ignoreUnmapped = DEFAULT_IGNORE_UNMAPPED;
 
     public ParentIdQueryBuilder(String type, String id) {
-        this.type = type;
-        this.id = id;
+        this.type = requireValue(type, "[" + NAME + "] requires '" + TYPE_FIELD.getPreferredName() + "' field");
+        this.id = requireValue(id, "[" + NAME + "] requires '" + ID_FIELD.getPreferredName() + "' field");
     }
 
     /**
@@ -193,6 +194,6 @@ public final class ParentIdQueryBuilder extends AbstractQueryBuilder<ParentIdQue
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.ZERO;
+        return TransportVersions.ZERO;
     }
 }

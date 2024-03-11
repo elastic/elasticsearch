@@ -13,8 +13,10 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.rest.ObjectPath;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -43,18 +45,14 @@ public class MonitoringInfoTransportActionTests extends ESTestCase {
     private final Exporters exporters = mock(Exporters.class);
 
     public void testAvailable() {
-        MonitoringInfoTransportAction featureSet = new MonitoringInfoTransportAction(
-            mock(TransportService.class),
-            mock(ActionFilters.class)
-        );
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
+        MonitoringInfoTransportAction featureSet = new MonitoringInfoTransportAction(transportService, mock(ActionFilters.class));
         assertThat(featureSet.available(), is(true));
     }
 
     public void testMonitoringEnabledByDefault() {
-        MonitoringInfoTransportAction featureSet = new MonitoringInfoTransportAction(
-            mock(TransportService.class),
-            mock(ActionFilters.class)
-        );
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
+        MonitoringInfoTransportAction featureSet = new MonitoringInfoTransportAction(transportService, mock(ActionFilters.class));
         assertThat(featureSet.enabled(), is(true));
     }
 
@@ -93,10 +91,12 @@ public class MonitoringInfoTransportActionTests extends ESTestCase {
         when(exporters.getEnabledExporters()).thenReturn(exporterList);
         when(monitoring.isMonitoringActive()).thenReturn(collectionEnabled);
 
+        ThreadPool threadPool = mock(ThreadPool.class);
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
         var usageAction = new MonitoringUsageTransportAction(
-            mock(TransportService.class),
+            transportService,
             null,
-            null,
+            threadPool,
             mock(ActionFilters.class),
             null,
             new MonitoringUsageServices(monitoring, exporters)

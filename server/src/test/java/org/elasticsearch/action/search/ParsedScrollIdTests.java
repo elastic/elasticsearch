@@ -26,7 +26,7 @@ public class ParsedScrollIdTests extends ESTestCase {
                 new ShardSearchContextId(randomAlphaOfLength(8), randomLong())
             );
         }
-        final ParsedScrollId parsedScrollId = new ParsedScrollId(randomAlphaOfLength(8), randomAlphaOfLength(8), searchContextIdForNodes);
+        final ParsedScrollId parsedScrollId = new ParsedScrollId(randomAlphaOfLength(8), searchContextIdForNodes);
 
         assertEquals(hasLocal, parsedScrollId.hasLocalIndices());
     }

@@ -1,0 +1,651 @@
+[[search-application-api]]
+=== Search Applications search API and templates
+
+++++
+<titleabbrev>Search API and templates</titleabbrev>
+++++
+
+Your <<search-application-overview,search applications>> use <<search-template,search templates>> to perform searches.
+Templates help reduce complexity by exposing only template parameters, while using the full power of {es}'s query DSL to formulate queries.
+Templates may be set when creating or updating a search application, and can be customized.
+This template can be edited or updated at any time using the <<put-search-application,Put Search Application API>> API call.
+
+In a nutshell, you create search templates with parameters instead of specific hardcoded search values.
+At search time, you pass in the actual values for these parameters, enabling customized searches without rewriting the entire query structure.
+Search Application templates:
+
+* Simplify query requests
+* Reduce request size
+* Ensure security and performance, as the query is predefined and can't be changed arbitrarily
+
+This document provides some sample templates to get you started using <<search-application-overview,search applications>> for additional use cases.
+These templates are designed to be easily modified to meet your needs.
+Once you've created a search application with a template, you can search your search application using this template.
+
+[TIP]
+====
+Search templates use the https://mustache.github.io/[Mustache] templating language.
+Mustache variables are typically enclosed in double curly brackets like this: `{{my-var}}`.
+
+Learn more by reading about <<search-template,search templates>>.
+====
+
+[discrete]
+[[search-application-api-default-template]]
+==== Default template example
+
+If no template is stored with a search application, a minimal <<search-application-api-default-template, default search template>> will be applied at search time.
+The default template implements a simple search use case.
+You can check your query parameters against the current template using the <<search-application-render-query,Render search application query>> API call.
+
+The default template is very minimal:
+
+[source,js]
+----
+{
+  "template": {
+    "script": {
+      "source": {
+        "query": {
+          "query_string": {
+            "query": "{{query_string}}",
+            "default_field": "{{default_field}}"
+          }
+        }
+      },
+      "params": {
+        "query_string": "*",
+        "default_field": "*"
+      }
+    }
+  }
+}
+----
+// NOTCONSOLE
+
+This may be useful for initial exploration of search templates, but you'll likely want to update this.
+
+Here are some things to note about this default template:
+
+* A call to `/_application/search_application/<your_search_application>` with no parameters will return all results, in a similar manner to a parameterless call to `/_search`.
+* Searching with the `query_string` and/or `default_field` parameters will perform a <<query-dsl-query-string-query,`query_string`>> query.
+* This template does not support additional parameters, including `from`, `size` or `boost`.
+
+[WARNING]
+====
+This template is subject to change in future versions of the Search Applications feature.
+====
+
+Try some of the other examples in this document to experiment with specific use cases, or try creating your own!
+
+[discrete]
+[[search-application-api-searching]]
+==== Searching a search application
+
+[discrete]
+[[search-application-api-searching-templates]]
+===== Template search
+
+The simplest way to interact with a search application is to use the search template that's created and stored with it.
+Each search application has a single template associated with it, which defines search criteria, parameters and defaults.
+
+You send search requests to a search application using the <<search-application-search,Search Application Search API>>.
+
+With the default template, a search looks like this:
+
+[source,console]
+----
+POST _application/search_application/<my_search_application>/_search
+{
+  "params": {
+    "query_string": "my first query"
+  }
+}
+----
+// TEST[skip:TODO]
+
+In this example, we've overridden the `query_string` parameter's default value of `*`.
+Since we didn't specify `default_field` the value of this parameter will still be `*`.
+
+[discrete]
+[[search-application-api-searching-alias]]
+===== Alias search
+
+If you don't want to set up a search template for your search application, an alias will be created with the same name as your search application.
+This may be helpful when experimenting with specific search queries that you want to use when building your search application's search template.
+
+If your search application's name is `my_search_application`, your alias will be `my_search_application`.
+You can search this using the <<search-search,search API>>.
+
+[NOTE]
+====
+You should use the Search Applications management APIs to update your application and _not_ directly use {es} APIs such as the alias API.
+For example, use <<put-search-application, PUT Search Application>> with the `indices` parameter.
+This will automatically keep the associated alias up to date and ensure that indices are added to the search application correctly.
+====
+
+[discrete]
+[[search-application-api-examples]]
+==== Search template examples
+
+We have created a number of examples to explore specific use cases.
+Use these as a starting point for creating your own search templates.
+
+[discrete]
+[[search-application-api-bm25-template]]
+===== Text search example
+
+The following template supports a `multi_match` search over specified fields and boosts:
+
+[source,console]
+----
+PUT _application/search_application/my_search_application
+{
+  "indices": ["my_index1", "my_index2"],
+  "template": {
+    "script": {
+      "lang": "mustache",
+      "source": """
+      {
+        "query": {
+          "multi_match": {
+            "query": "{{query_string}}",
+            "fields": [{{#text_fields}}"{{name}}^{{boost}}",{{/text_fields}}]
+          }
+        },
+        "explain": "{{explain}}",
+        "from": "{{from}}",
+        "size": "{{size}}"
+      }
+      """,
+      "params": {
+        "query_string": "*",
+        "text_fields": [
+          {"name": "title", "boost": 10},
+          {"name": "description", "boost": 5}
+        ],
+        "explain": false,
+        "from": 0,
+        "size": 10
+      }
+    }
+  }
+}
+----
+// TEST[skip:TODO]
+
+A search query using this template might look like this:
+[source,console]
+----
+POST _application/search_application/my_search_application/_search
+{
+  "params": {
+    "size": 5,
+    "query_string": "mountain climbing",
+    "text_fields": [
+          {"name": "title", "boost": 10},
+          {"name": "description", "boost": 2},
+          {"name": "state", "boost": 1}
+     ]
+  }
+}
+----
+// TEST[skip:TODO]
+
+The `text_fields` parameters can be overridden with new/different fields and boosts to experiment with the best configuration for your use case.
+This template also supports pagination and `explain` via parameters.
+
+[discrete]
+[[search-application-api-rrf-template]]
+===== Text search + ELSER with RRF
+
+This example supports the <<rrf,reciprocal rank fusion (RRF)]>> method for combining BM25 and {ml-docs}/ml-nlp-elser.html[ELSER] searches.
+Reciprocal Rank Fusion consistently improves the combined results of different search algorithms.
+It outperforms all other ranking algorithms, and often surpasses the best individual results, without calibration.
+
+[source,console]
+----
+PUT _application/search_application/my-search-app
+{
+  "indices": [
+    "search-my-crawler"
+  ],
+  "template": {
+    "script": {
+      "lang": "mustache",
+      "source": """
+      {
+        "sub_searches": [
+          {{#text_fields}}
+          {
+            "query": {
+              "match": {
+                "{{.}}": "{{query_string}}"
+              }
+            }
+          },
+          {{/text_fields}}
+          {{#elser_fields}}
+          {
+            "query": {
+              "text_expansion": {
+                "ml.inference.{{.}}_expanded.predicted_value": {
+                  "model_text": "{{query_string}}",
+                    "model_id": "<elser_model_id>"
+                }
+              }
+            }
+          },
+          {{/elser_fields}}
+        ],
+        "rank": {
+          "rrf": {
+            "window_size": {{rrf.window_size}},
+            "rank_constant": {{rrf.rank_constant}}
+          }
+        }
+      }
+      """,
+      "params": {
+        "elser_fields": ["title", "meta_description"],
+        "text_fields": ["title", "meta_description"],
+        "query_string": "",
+        "rrf": {
+          "window_size": 100,
+          "rank_constant": 60
+        }
+      }
+    }
+  }
+}
+----
+// TEST[skip:TODO]
+
+NOTE: Replace `<elser_model_id>` with the model ID of your ELSER deployment.
+
+A sample query for this template will look like the following example:
+
+[source,console]
+----
+POST _application/search_application/my-search-app/_search
+{
+  "params": {
+    "query_string": "What is the most popular brand of coffee sold in the United States?",
+    "elser_fields": ["title", "meta_description"],
+    "text_fields": ["title", "meta_description"],
+    "rrf": {
+      "window_size": 50,
+      "rank_constant": 25
+    }
+  }
+}
+----
+// TEST[skip:TODO]
+
+[discrete]
+[[search-application-api-catchall-template]]
+===== Text search + ELSER
+
+The Elastic Learned Sparse EncodeR ({ml-docs}/ml-nlp-elser.html[ELSER]) improves search relevance through text-expansion, which enables semantic search.
+This experimental template requires ELSER to be enabled for one or more fields.
+Refer to <<semantic-search-elser,Semantic search with ELSER>> for more information on how to use ELSER.
+In this case, ELSER is enabled on the `title` and `description` fields.
+
+This example provides a single template that you can use for various search application scenarios: text search, ELSER, or all of the above.
+It also provides a simple default `query_string` query if no parameters are specified.
+
+[source,console]
+----
+PUT _application/search_application/my_search_application
+{
+  "indices": [
+    "my_index1",
+    "my_index2"
+  ],
+  "template": {
+    "script": {
+      "lang": "mustache",
+      "source": """
+      {
+        "query": {
+          "bool": {
+            "should": [
+              {{#text}}
+              {
+                "multi_match": {
+                  "query": "{{query_string}}",
+                  "fields": [{{#text_fields}}"{{name}}^{{boost}}",{{/text_fields}}],
+                  "boost": "{{text_query_boost}}"
+                }
+              },
+              {{/text}}
+              {{#elser}}
+              {{#elser_fields}}
+              {
+                "text_expansion": {
+                  "ml.inference.{{name}}_expanded.predicted_value": {
+                    "model_text": "{{query_string}}",
+                    "model_id": ".elser_model_1",
+                    "boost": "{{boost}}"
+                  }
+                }
+              },
+              {{/elser_fields}}
+              { "bool": { "must": [] } },
+              {{/elser}}
+              {{^text}}
+              {{^elser}}
+              {
+                "query_string": {
+                  "query": "{{query_string}}",
+                  "default_field": "{{default_field}}",
+                  "default_operator": "{{default_operator}}",
+                  "boost": "{{text_query_boost}}"
+                }
+              },
+              {{/elser}}
+              {{/text}}
+              { "bool": { "must": [] } }
+              ],
+            "minimum_should_match": 1
+          }
+        },
+        "min_score": "{{min_score}}",
+        "explain": "{{explain}}",
+        "from": "{{from}}",
+        "size": "{{size}}"
+      }
+      """,
+      "params": {
+        "text": false,
+        "elser": false,
+        "elser_fields": [
+          {"name": "title", "boost": 1},
+          {"name": "description", "boost": 1}
+        ],
+        "text_fields": [
+          {"name": "title", "boost": 10},
+          {"name": "description", "boost": 5},
+          {"name": "state", "boost": 1}
+        ],
+        "query_string": "*",
+        "text_query_boost": 4,
+        "default_field": "*",
+        "default_operator": "OR",
+        "explain": false,
+        "from": 0,
+        "size": 10,
+        "min_score": 0
+      }
+    }
+  }
+}
+----
+// TEST[skip:TODO]
+
+A text search query using this template might look like this:
+[source,console]
+----
+POST _application/search_application/my_search_application/_search
+{
+  "params": {
+    "text": true,
+    "size": 5,
+    "query_string": "mountain climbing",
+    "text_fields": [
+          {"name": "title", "boost": 10},
+          {"name": "description", "boost": 5},
+          {"name": "state", "boost": 1}
+     ]
+  }
+}
+----
+// TEST[skip:TODO]
+
+An ELSER search query using this template will look like the following example:
+[source,console]
+----
+POST _application/search_application/my_search_application/_search
+{
+  "params": {
+    "elser": true,
+    "query_string": "where is the best mountain climbing?",
+    "elser_fields": [
+      {"name": "title", "boost": 1},
+      {"name": "description", "boost": 1}
+    ]
+  }
+}
+----
+// TEST[skip:TODO]
+
+A combined text search and ELSER search query using this template will look like the following example:
+[source,console]
+----
+POST _application/search_application/my_search_application/_search
+{
+  "params": {
+    "elser": true,
+    "text": true,
+    "query_string": "where is the best mountain climbing?",
+    "elser_fields": [
+      {"name": "title", "boost": 1},
+      {"name": "description", "boost": 1}
+    ],
+    "text_query_boost": 4,
+    "min_score": 10
+  }
+}
+----
+// TEST[skip:TODO]
+
+[TIP]
+====
+Text search results and ELSER search results are expected to have significantly different scores in some cases, which makes ranking challenging.
+To find the best search result mix for your dataset, we suggest experimenting with the boost values provided in the example template:
+
+* `text_query_boost` to boost the BM25 query as a whole
+* {ref}/query-dsl-query-string-query.html#_boosting[`boost`] fields to boost individual text search fields
+* <<search-api-min-score,`min_score`>> parameter to omit significantly low confidence results
+
+The above boosts should be sufficient for many use cases, but there are cases when adding a <<rescore,rescore>> query or <<index-boost,index boost>> to your template may be beneficial.
+Remember to update your search application to use the new template using the <<put-search-application,put search application command>>.
+====
+
+Finally, a parameterless search using this template would fall back to a default search returning all documents:
+
+[source,console]
+----
+POST _application/search_application/my_search_application/_search
+----
+// TEST[skip:TODO]
+
+[discrete]
+[[search-application-api-elser-template]]
+===== ELSER search
+This example supports a streamlined version of ELSER search.
+
+[source,console]
+----
+PUT _application/search_application/my_search_application
+{
+  "indices": [
+    "my_index1",
+    "my_index2"
+    ],
+    "template": {
+      "script": {
+        "lang": "mustache",
+        "source": """
+        {
+          "query": {
+            "bool": {
+              "should": [
+                {{#elser_fields}}
+                {
+                  "text_expansion": {
+                    "ml.inference.{{name}}_expanded.predicted_value": {
+                      "model_text": "{{query_string}}",
+                      "model_id": "<elser_model_id>"
+                    }
+                  }
+                },
+                {{/elser_fields}}
+                ]
+            }
+          },
+          "min_score": "{{min_score}}"
+        }
+        """,
+        "params": {
+          "query_string": "*",
+          "min_score": "10",
+          "elser_fields": [
+            {
+              "name": "title"
+            },
+            {
+              "name": "description"
+            }
+            ]
+        }
+      }
+    }
+}
+----
+// TEST[skip:TODO]
+
+NOTE: Replace `<elser_model_id>` with the model ID of your ELSER deployment.
+
+A sample query for this template will look like the following example:
+
+[source,console]
+----
+POST _application/search_application/my_search_application/_search
+  {
+    "params": {
+      "query_string": "Where is the best place for mountain climbing?"
+    }
+  }
+----
+// TEST[skip:TODO]
+
+
+[discrete]
+[[search-applications-knn-template]]
+===== kNN search
+This example supports <<knn-search,k-nearest neighbor (kNN) search>>
+
+A template supporting exact kNN search will look like the following example:
+
+[source,console]
+----
+PUT _application/search_application/my_search_application
+{
+  "indices": [
+    "my_product_index"
+  ],
+  "template": {
+    "script": {
+      "lang": "mustache",
+      "source": """
+        {
+          "query": {
+            "script_score": {
+              "query": {
+                "bool": {
+                  "filter": {
+                    "range": {
+                      "{{field}}": {
+                        "{{operator}}": {{value}}
+                      }
+                    }
+                  }
+                }
+              },
+              "script": {
+                "source": "cosineSimilarity({{#toJson}}query_vector{{/toJson}}, '{{dense_vector_field}}') + 1.0"
+              }
+            }
+          }
+        }
+        """,
+      "params": {
+        "field": "price",
+        "operator": "gte",
+        "value": 1000,
+        "dense_vector_field": "product-vector",
+        "query_vector": []
+      }
+    }
+  }
+}
+----
+// TEST[skip:TODO]
+
+A search query using this template will look like the following example:
+[source,console]
+----
+POST _application/search_application/my_search_application/_search
+{
+  "params": {
+    "field": "price",
+    "operator": "gte",
+    "value": 500
+  }
+}
+----
+// TEST[skip:TODO]
+
+A template supporting approximate kNN search will look like the following example:
+
+[source,console]
+----
+PUT _application/search_application/my_search_application
+{
+  "indices": [
+    "my_product_index"
+  ],
+  "template": {
+    "script": {
+      "lang": "mustache",
+      "source": """
+      {
+          "knn": {
+            "field": "{{knn_field}}",
+            "query_vector": {{#toJson}}query_vector{{/toJson}},
+            "k": "{{k}}",
+            "num_candidates": {{num_candidates}}
+          },
+          "fields": {{#toJson}}fields{{/toJson}}
+      }
+      """,
+      "params": {
+        "knn_field": "image-vector",
+        "query_vector": [],
+        "k": 10,
+        "num_candidates": 100,
+        "fields": ["title", "file-type"]
+      }
+    }
+  }
+}
+----
+// TEST[skip:TODO]
+
+A search query using this template will look like the following example:
+[source,console]
+----
+POST _application/search_application/my_search_application/_search
+{
+  "params": {
+    "knn_field": "image-vector",
+        "query_vector": [-5, 9, -12],
+        "k": 10,
+        "num_candidates": 100,
+        "fields": ["title", "file-type"]
+  }
+}
+
+----
+// TEST[skip:TODO]

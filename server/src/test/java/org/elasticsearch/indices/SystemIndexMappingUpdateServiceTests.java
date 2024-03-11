@@ -9,8 +9,8 @@
 package org.elasticsearch.indices;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
@@ -35,6 +35,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.SystemIndexMappingUpdateService.UpgradeStatus;
 import org.elasticsearch.test.ESTestCase;
@@ -52,6 +53,7 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -206,13 +208,16 @@ public class SystemIndexMappingUpdateServiceTests extends ESTestCase {
         );
     }
 
+    // TODO[wrb]: add test where we have the old mappings version but not the new one
+    // Is this where we "placeholder" a "distant future" version string?
+
     /**
      * Check that the manager will try to upgrade indices where their mappings are out-of-date.
      */
     public void testManagerProcessesIndicesWithOutdatedMappings() {
         assertThat(
             SystemIndexMappingUpdateService.getUpgradeStatus(
-                markShardsAvailable(createClusterState(Strings.toString(getMappings("1.0.0")))),
+                markShardsAvailable(createClusterState(Strings.toString(getMappings("1.0.0", 4)))),
                 DESCRIPTOR
             ),
             equalTo(UpgradeStatus.NEEDS_MAPPINGS_UPDATE)
@@ -238,7 +243,7 @@ public class SystemIndexMappingUpdateServiceTests extends ESTestCase {
     public void testManagerProcessesIndicesWithNullVersionMetadata() {
         assertThat(
             SystemIndexMappingUpdateService.getUpgradeStatus(
-                markShardsAvailable(createClusterState(Strings.toString(getMappings((String) null)))),
+                markShardsAvailable(createClusterState(Strings.toString(getMappings((String) null, null)))),
                 DESCRIPTOR
             ),
             equalTo(UpgradeStatus.NEEDS_MAPPINGS_UPDATE)
@@ -252,9 +257,9 @@ public class SystemIndexMappingUpdateServiceTests extends ESTestCase {
         SystemIndices systemIndices = new SystemIndices(List.of(FEATURE));
         SystemIndexMappingUpdateService manager = new SystemIndexMappingUpdateService(systemIndices, client);
 
-        manager.clusterChanged(event(markShardsAvailable(createClusterState(Strings.toString(getMappings("1.0.0"))))));
+        manager.clusterChanged(event(markShardsAvailable(createClusterState(Strings.toString(getMappings("1.0.0", 4))))));
 
-        verify(client, times(1)).execute(any(PutMappingAction.class), any(PutMappingRequest.class), any());
+        verify(client, times(1)).execute(same(TransportPutMappingAction.TYPE), any(PutMappingRequest.class), any());
     }
 
     /**
@@ -400,15 +405,18 @@ public class SystemIndexMappingUpdateServiceTests extends ESTestCase {
     }
 
     private static Settings getSettings() {
-        return indexSettings(Version.CURRENT, 1, 0).put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), 6).build();
+        return indexSettings(IndexVersion.current(), 1, 0).put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), 6).build();
     }
 
     private static XContentBuilder getMappings() {
-        return getMappings(Version.CURRENT.toString());
+        return getMappings(Version.CURRENT.toString(), 6);
     }
 
-    private static XContentBuilder getMappings(String version) {
-        return getMappings(builder -> builder.object("_meta", meta -> meta.field("version", version)));
+    private static XContentBuilder getMappings(String nodeVersion, Integer mappingsVersion) {
+        return getMappings(builder -> builder.object("_meta", meta -> {
+            meta.field("version", nodeVersion);
+            meta.field(SystemIndexDescriptor.VERSION_META_KEY, mappingsVersion);
+        }));
     }
 
     // Prior to 7.12.0, .tasks had _meta.version: 3 so we need to be sure we can handle that

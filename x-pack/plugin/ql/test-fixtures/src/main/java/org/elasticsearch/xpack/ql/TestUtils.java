@@ -74,6 +74,7 @@ import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
 
 import static java.util.Collections.emptyMap;
+import static org.elasticsearch.cluster.ClusterState.VERSION_INTRODUCING_TRANSPORT_VERSIONS;
 import static org.elasticsearch.test.ESTestCase.between;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
@@ -285,7 +286,7 @@ public final class TestUtils {
     public static Tuple<String, String> pathAndName(String string) {
         String folder = StringUtils.EMPTY;
         String file = string;
-        int lastIndexOf = string.lastIndexOf("/");
+        int lastIndexOf = string.lastIndexOf('/');
         if (lastIndexOf > 0) {
             folder = string.substring(0, lastIndexOf - 1);
             if (lastIndexOf + 1 < string.length()) {
@@ -295,22 +296,27 @@ public final class TestUtils {
         return new Tuple<>(folder, file);
     }
 
-    public static TestNodes buildNodeAndVersions(RestClient client) throws IOException {
+    public static TestNodes buildNodeAndVersions(RestClient client, String bwcNodesVersion) throws IOException {
         Response response = client.performRequest(new Request("GET", "_nodes"));
         ObjectPath objectPath = ObjectPath.createFromResponse(response);
         Map<String, Object> nodesAsMap = objectPath.evaluate("nodes");
-        TestNodes nodes = new TestNodes();
+        TestNodes nodes = new TestNodes(bwcNodesVersion);
         for (String id : nodesAsMap.keySet()) {
-            Version nodeVersion = Version.fromString(objectPath.evaluate("nodes." + id + ".version"));
+            String nodeVersion = objectPath.evaluate("nodes." + id + ".version");
 
             Object tvField;
             TransportVersion transportVersion = null;
-            if (nodeVersion.before(Version.V_8_8_0)) {
-                transportVersion = TransportVersion.fromId(nodeVersion.id);   // no transport_version field
-            } else if ((tvField = objectPath.evaluate("nodes." + id + ".transport_version")) != null) {
+            if ((tvField = objectPath.evaluate("nodes." + id + ".transport_version")) != null) {
                 // this json might be from a node <8.8.0, but about a node >=8.8.0
                 // in which case the transport_version field won't exist. Just ignore it for now.
                 transportVersion = TransportVersion.fromString(tvField.toString());
+            } else { // no transport_version field
+                // this json might be from a node <8.8.0, but about a node >=8.8.0
+                // In that case the transport_version field won't exist. Just ignore it for now.
+                Version version = Version.fromString(nodeVersion);
+                if (version.before(VERSION_INTRODUCING_TRANSPORT_VERSIONS)) {
+                    transportVersion = TransportVersion.fromId(version.id);
+                }
             }
 
             nodes.add(

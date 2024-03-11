@@ -57,7 +57,7 @@ public class GetJobsStatsAction extends ActionType<GetJobsStatsAction.Response> 
     private static final String TIMING_STATS = "timing_stats";
 
     private GetJobsStatsAction() {
-        super(NAME, GetJobsStatsAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends BaseTasksRequest<Request> {
@@ -78,7 +78,7 @@ public class GetJobsStatsAction extends ActionType<GetJobsStatsAction.Response> 
         public Request(StreamInput in) throws IOException {
             super(in);
             jobId = in.readString();
-            expandedJobsIds = in.readStringList();
+            expandedJobsIds = in.readStringCollectionAsList();
             allowNoMatch = in.readBoolean();
         }
 
@@ -334,7 +334,7 @@ public class GetJobsStatsAction extends ActionType<GetJobsStatsAction.Response> 
             }
         }
 
-        private QueryPage<JobStats> jobsStats;
+        private final QueryPage<JobStats> jobsStats;
 
         public Response(QueryPage<JobStats> jobsStats) {
             super(Collections.emptyList(), Collections.emptyList());

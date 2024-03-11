@@ -31,7 +31,6 @@ import org.junit.rules.TestRule;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
@@ -75,15 +74,18 @@ public class IngestGeoIpClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase 
             Map<String, Object> response = entityAsMap(client().performRequest(request));
 
             Map<?, ?> downloadStats = (Map<?, ?>) response.get("stats");
-            assertThat(downloadStats.get("databases_count"), equalTo(3));
+            assertThat(downloadStats.get("databases_count"), equalTo(4));
 
             Map<?, ?> nodes = (Map<?, ?>) response.get("nodes");
             assertThat(nodes.size(), equalTo(1));
             Map<?, ?> node = (Map<?, ?>) nodes.values().iterator().next();
             List<?> databases = ((List<?>) node.get("databases"));
             assertThat(databases, notNullValue());
-            List<String> databaseNames = databases.stream().map(o -> (String) ((Map<?, ?>) o).get("name")).collect(Collectors.toList());
-            assertThat(databaseNames, containsInAnyOrder("GeoLite2-City.mmdb", "GeoLite2-Country.mmdb", "GeoLite2-ASN.mmdb"));
+            List<String> databaseNames = databases.stream().map(o -> (String) ((Map<?, ?>) o).get("name")).toList();
+            assertThat(
+                databaseNames,
+                containsInAnyOrder("GeoLite2-City.mmdb", "GeoLite2-Country.mmdb", "GeoLite2-ASN.mmdb", "MyCustomGeoLite2-City.mmdb")
+            );
         });
     }
 

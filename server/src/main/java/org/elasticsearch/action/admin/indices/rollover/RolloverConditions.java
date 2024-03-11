@@ -113,11 +113,17 @@ public class RolloverConditions implements Writeable, ToXContentObject {
         return conditions.values().stream().anyMatch(c -> Condition.Type.MIN == c.type());
     }
 
+    /**
+     * Returns true if there is at least one condition of any type
+     */
+    public boolean hasConditions() {
+        return conditions.isEmpty() == false;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeCollection(
-            conditions.values().stream().filter(c -> c.includedInVersion(out.getTransportVersion())).toList(),
-            StreamOutput::writeNamedWriteable
+        out.writeNamedWriteableCollection(
+            conditions.values().stream().filter(c -> c.includedInVersion(out.getTransportVersion())).toList()
         );
     }
 

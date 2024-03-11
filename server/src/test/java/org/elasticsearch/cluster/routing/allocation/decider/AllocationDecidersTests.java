@@ -8,7 +8,6 @@
 
 package org.elasticsearch.cluster.routing.allocation.decider;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
@@ -23,7 +22,9 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.util.ArrayList;
@@ -113,7 +114,7 @@ public class AllocationDecidersTests extends ESAllocationTestCase {
     }
 
     private static Decision.Multi collectToMultiDecision(List<Decision> decisions) {
-        return collectToMultiDecision(decisions, ignored -> true);
+        return collectToMultiDecision(decisions, Predicates.always());
     }
 
     private static Decision.Multi collectToMultiDecision(List<Decision> decisions, Predicate<Decision> filter) {
@@ -128,7 +129,7 @@ public class AllocationDecidersTests extends ESAllocationTestCase {
         int expectedAllocationDecidersCalls,
         Decision expectedDecision
     ) {
-        IndexMetadata index = IndexMetadata.builder("index").settings(indexSettings(Version.CURRENT, 1, 0)).build();
+        IndexMetadata index = IndexMetadata.builder("index").settings(indexSettings(IndexVersion.current(), 1, 0)).build();
         ShardId shardId = new ShardId(index.getIndex(), 0);
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(Metadata.builder().put(index, false).build())

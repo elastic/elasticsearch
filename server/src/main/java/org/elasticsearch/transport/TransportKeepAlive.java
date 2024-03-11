@@ -48,7 +48,7 @@ final class TransportKeepAlive implements Closeable {
         }
     }
 
-    private final Logger logger = LogManager.getLogger(TransportKeepAlive.class);
+    private static final Logger logger = LogManager.getLogger(TransportKeepAlive.class);
     private final CounterMetric successfulPings = new CounterMetric();
     private final CounterMetric failedPings = new CounterMetric();
     private final ConcurrentMap<TimeValue, ScheduledPing> pingIntervals = ConcurrentCollections.newConcurrentMap();
@@ -140,7 +140,7 @@ final class TransportKeepAlive implements Closeable {
 
         void ensureStarted() {
             if (isStarted.get() == false && isStarted.compareAndSet(false, true)) {
-                threadPool.schedule(this, pingInterval, ThreadPool.Names.GENERIC);
+                threadPool.schedule(this, pingInterval, threadPool.generic());
             }
         }
 
@@ -175,7 +175,7 @@ final class TransportKeepAlive implements Closeable {
                 return;
             }
 
-            threadPool.scheduleUnlessShuttingDown(pingInterval, ThreadPool.Names.GENERIC, this);
+            threadPool.scheduleUnlessShuttingDown(pingInterval, threadPool.generic(), this);
         }
 
         @Override

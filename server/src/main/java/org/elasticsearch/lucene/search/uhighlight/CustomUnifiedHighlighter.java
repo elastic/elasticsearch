@@ -8,7 +8,6 @@
 
 package org.elasticsearch.lucene.search.uhighlight;
 
-import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.spans.SpanMultiTermQueryWrapper;
@@ -16,32 +15,31 @@ import org.apache.lucene.queries.spans.SpanNearQuery;
 import org.apache.lucene.queries.spans.SpanOrQuery;
 import org.apache.lucene.queries.spans.SpanQuery;
 import org.apache.lucene.queries.spans.SpanTermQuery;
-import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
+import org.apache.lucene.search.uhighlight.FieldHighlighter;
 import org.apache.lucene.search.uhighlight.FieldOffsetStrategy;
-import org.apache.lucene.search.uhighlight.LabelledCharArrayMatcher;
 import org.apache.lucene.search.uhighlight.NoOpOffsetStrategy;
 import org.apache.lucene.search.uhighlight.PassageFormatter;
-import org.apache.lucene.search.uhighlight.PhraseHelper;
-import org.apache.lucene.search.uhighlight.SplittingBreakIterator;
-import org.apache.lucene.search.uhighlight.UHComponents;
+import org.apache.lucene.search.uhighlight.PassageScorer;
 import org.apache.lucene.search.uhighlight.UnifiedHighlighter;
-import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
+import org.elasticsearch.search.runtime.AbstractScriptFieldQuery;
+import org.elasticsearch.search.vectors.KnnScoreDocQuery;
 
 import java.io.IOException;
 import java.text.BreakIterator;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.EnumSet;
 import java.util.Locale;
-import java.util.Set;
-import java.util.function.Predicate;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.search.fetch.subphase.highlight.AbstractHighlighterBuilder.MAX_ANALYZED_OFFSET_FIELD;
 
@@ -53,13 +51,11 @@ import static org.elasticsearch.search.fetch.subphase.highlight.AbstractHighligh
  * value as a discrete passage for highlighting (unless the whole content needs to be highlighted).
  * Supports both returning empty snippets and non highlighted snippets when no highlighting can be performed.
  */
-public class CustomUnifiedHighlighter extends UnifiedHighlighter {
+public final class CustomUnifiedHighlighter extends UnifiedHighlighter {
     public static final char MULTIVAL_SEP_CHAR = (char) 0;
     private static final Snippet[] EMPTY_SNIPPET = new Snippet[0];
 
     private final OffsetSource offsetSource;
-    private final PassageFormatter passageFormatter;
-    private final BreakIterator breakIterator;
     private final String index;
     private final String field;
     private final Locale breakIteratorLocale;
@@ -71,51 +67,45 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
     /**
      * Creates a new instance of {@link CustomUnifiedHighlighter}
      *
-     * @param analyzer the analyzer used for the field at index time, used for multi term queries internally.
+     * @param builder the {@link UnifiedHighlighter.Builder} for the underlying highlighter.
      * @param offsetSource the {@link OffsetSource} to used for offsets retrieval.
-     * @param passageFormatter our own {@link CustomPassageFormatter}
-     *                    which generates snippets in forms of {@link Snippet} objects.
      * @param breakIteratorLocale the {@link Locale} to use for dividing text into passages.
      *                    If null {@link Locale#ROOT} is used.
-     * @param breakIterator the {@link BreakIterator} to use for dividing text into passages.
-     *                    If null {@link BreakIterator#getSentenceInstance(Locale)} is used.
      * @param index the index we're highlighting, mostly used for error messages
      * @param field the name of the field we're highlighting
      * @param query the query we're highlighting
      * @param noMatchSize The size of the text that should be returned when no highlighting can be performed.
      * @param maxPassages the maximum number of passes to highlight
-     * @param fieldMatcher decides which terms should be highlighted
      * @param maxAnalyzedOffset if the field is more than this long we'll refuse to use the ANALYZED
      *                          offset source for it because it'd be super slow
+     * @param weightMatchesEnabled whether the {@link HighlightFlag#WEIGHT_MATCHES} should be enabled
      */
     public CustomUnifiedHighlighter(
-        IndexSearcher searcher,
-        Analyzer analyzer,
+        Builder builder,
         OffsetSource offsetSource,
-        PassageFormatter passageFormatter,
         @Nullable Locale breakIteratorLocale,
-        @Nullable BreakIterator breakIterator,
         String index,
         String field,
         Query query,
         int noMatchSize,
         int maxPassages,
-        Predicate<String> fieldMatcher,
         int maxAnalyzedOffset,
-        Integer queryMaxAnalyzedOffset
-    ) throws IOException {
-        super(searcher, analyzer);
+        Integer queryMaxAnalyzedOffset,
+        boolean requireFieldMatch,
+        boolean weightMatchesEnabled
+    ) {
+        super(builder);
         this.offsetSource = offsetSource;
-        this.breakIterator = breakIterator;
         this.breakIteratorLocale = breakIteratorLocale == null ? Locale.ROOT : breakIteratorLocale;
-        this.passageFormatter = passageFormatter;
         this.index = index;
         this.field = field;
         this.noMatchSize = noMatchSize;
-        this.setFieldMatcher(fieldMatcher);
         this.maxAnalyzedOffset = maxAnalyzedOffset;
         this.queryMaxAnalyzedOffset = queryMaxAnalyzedOffset;
-        fieldHighlighter = getFieldHighlighter(field, query, extractTerms(query), maxPassages);
+        if (weightMatchesEnabled == false || requireFieldMatch == false || weightMatchesUnsupported(query)) {
+            getFlags(field).remove(HighlightFlag.WEIGHT_MATCHES);
+        }
+        fieldHighlighter = (CustomFieldHighlighter) getFieldHighlighter(field, query, extractTerms(query), maxPassages);
     }
 
     /**
@@ -132,7 +122,7 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
         }
         int fieldValueLength = fieldValue.length();
         if (((queryMaxAnalyzedOffset == null || queryMaxAnalyzedOffset > maxAnalyzedOffset)
-            && (offsetSource == OffsetSource.ANALYSIS)
+            && (getOffsetSource(field) == OffsetSource.ANALYSIS)
             && (fieldValueLength > maxAnalyzedOffset))) {
             throw new IllegalArgumentException(
                 "The length ["
@@ -149,7 +139,7 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
                     + maxAnalyzedOffset
                     + "]. To avoid this error, set "
                     + "the query parameter ["
-                    + MAX_ANALYZED_OFFSET_FIELD.toString()
+                    + MAX_ANALYZED_OFFSET_FIELD
                     + "] to a value less than index setting ["
                     + maxAnalyzedOffset
                     + "] and this will tolerate long field values by truncating them."
@@ -159,34 +149,23 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
         return result == null ? EMPTY_SNIPPET : result;
     }
 
-    @Override
-    protected BreakIterator getBreakIterator(String field) {
-        return breakIterator;
-    }
-
     public PassageFormatter getFormatter() {
-        return passageFormatter;
+        return super.getFormatter(field);
     }
 
     @Override
-    protected PassageFormatter getFormatter(String field) {
-        return passageFormatter;
-    }
-
-    @Override
-    protected CustomFieldHighlighter getFieldHighlighter(String field, Query query, Set<Term> allTerms, int maxPassages) {
-        Predicate<String> fieldMatcher = getFieldMatcher(field);
-        BytesRef[] terms = filterExtractedTerms(fieldMatcher, allTerms);
-        Set<HighlightFlag> highlightFlags = getFlags(field);
-        PhraseHelper phraseHelper = getPhraseHelper(field, query, highlightFlags);
-        LabelledCharArrayMatcher[] automata = getAutomata(field, query, highlightFlags);
-        UHComponents components = new UHComponents(field, fieldMatcher, query, terms, phraseHelper, automata, false, highlightFlags);
-        OffsetSource offsetSource = getOptimizedOffsetSource(components);
-        BreakIterator breakIterator = new SplittingBreakIterator(getBreakIterator(field), UnifiedHighlighter.MULTIVAL_SEP_CHAR);
-        FieldOffsetStrategy strategy = getOffsetStrategy(offsetSource, components);
+    protected FieldHighlighter newFieldHighlighter(
+        String field,
+        FieldOffsetStrategy fieldOffsetStrategy,
+        BreakIterator breakIterator,
+        PassageScorer passageScorer,
+        int maxPassages,
+        int maxNoHighlightPassages,
+        PassageFormatter passageFormatter
+    ) {
         return new CustomFieldHighlighter(
             field,
-            strategy,
+            fieldOffsetStrategy,
             breakIteratorLocale,
             breakIterator,
             getScorer(field),
@@ -199,29 +178,7 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
     }
 
     @Override
-    protected Set<HighlightFlag> getFlags(String field) {
-        Set<HighlightFlag> highlightFlags = EnumSet.noneOf(HighlightFlag.class);
-        if (shouldHandleMultiTermQuery(field)) {
-            highlightFlags.add(HighlightFlag.MULTI_TERM_QUERY);
-        }
-        if (shouldHighlightPhrasesStrictly(field)) {
-            highlightFlags.add(HighlightFlag.PHRASES);
-        }
-        if (shouldPreferPassageRelevancyOverSpeed(field)) {
-            highlightFlags.add(HighlightFlag.PASSAGE_RELEVANCY_OVER_SPEED);
-        }
-        return highlightFlags;
-    }
-
-    @Override
     protected Collection<Query> preSpanQueryRewrite(Query query) {
-        return rewriteCustomQuery(query);
-    }
-
-    /**
-     * Translate custom queries in queries that are supported by the unified highlighter.
-     */
-    private static Collection<Query> rewriteCustomQuery(Query query) {
         if (query instanceof MultiPhrasePrefixQuery mpq) {
             Term[][] terms = mpq.getTerms();
             int[] positions = mpq.getPositions();
@@ -271,5 +228,74 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
             return super.getOffsetSource(field);
         }
         return offsetSource;
+    }
+
+    /**
+     * Returns true if the provided {@link Query} is not compatible with the {@link HighlightFlag#WEIGHT_MATCHES}
+     * mode of this highlighter.
+     *
+     * @param query The query to highlight
+     */
+    private boolean weightMatchesUnsupported(Query query) {
+        boolean[] hasUnknownLeaf = new boolean[1];
+        query.visit(new QueryVisitor() {
+            @Override
+            public void visitLeaf(Query leafQuery) {
+                /**
+                 * The parent-child query requires to load global ordinals and to access
+                 * documents outside of the scope of the highlighted doc.
+                 * We disable the {@link HighlightFlag#WEIGHT_MATCHES} mode in this case
+                 * in order to preserve the compatibility.
+                 */
+                if (leafQuery.getClass().getSimpleName().equals("LateParsingQuery")) {
+                    hasUnknownLeaf[0] = true;
+                }
+                /**
+                 * KnnScoreDocQuery requires the same reader that built the docs
+                 * When using {@link HighlightFlag#WEIGHT_MATCHES} different readers are used and isn't supported by this query
+                 */
+                if (leafQuery instanceof KnnScoreDocQuery) {
+                    hasUnknownLeaf[0] = true;
+                }
+                super.visitLeaf(query);
+            }
+
+            @Override
+            public void consumeTerms(Query leafQuery, Term... terms) {
+                if (leafQuery instanceof AbstractScriptFieldQuery) {
+                    /**
+                     * Queries on runtime fields don't support the matches API.
+                     * TODO: We should add the support for keyword runtime fields.
+                     *
+                     */
+                    hasUnknownLeaf[0] = true;
+                }
+                super.consumeTerms(query, terms);
+            }
+
+            @Override
+            public void consumeTermsMatching(Query leafQuery, String field, Supplier<ByteRunAutomaton> automaton) {
+                if (leafQuery instanceof AbstractScriptFieldQuery) {
+                    /**
+                     * Queries on runtime fields don't support the matches API.
+                     * TODO: We should add the support for keyword runtime fields.
+                     */
+                    hasUnknownLeaf[0] = true;
+                }
+                super.consumeTermsMatching(query, field, automaton);
+            }
+
+            @Override
+            public QueryVisitor getSubVisitor(BooleanClause.Occur occur, Query parent) {
+                /**
+                 * Nested queries don't support the matches API.
+                 */
+                if (parent instanceof ESToParentBlockJoinQuery) {
+                    hasUnknownLeaf[0] = true;
+                }
+                return super.getSubVisitor(occur, parent);
+            }
+        });
+        return hasUnknownLeaf[0];
     }
 }

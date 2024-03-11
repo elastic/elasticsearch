@@ -9,7 +9,6 @@
 package org.elasticsearch.index;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -51,7 +50,7 @@ public class MapperTestUtils {
     ) throws IOException {
         Settings.Builder settingsBuilder = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), tempDir).put(settings);
         if (settings.get(IndexMetadata.SETTING_VERSION_CREATED) == null) {
-            settingsBuilder.put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT);
+            settingsBuilder.put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current());
         }
         Settings finalSettings = settingsBuilder.build();
         MapperRegistry mapperRegistry = indicesModule.getMapperRegistry();

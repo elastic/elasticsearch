@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.action.datastreams;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -18,11 +18,13 @@ import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamAutoShardingEvent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -32,7 +34,11 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+
+import static org.elasticsearch.TransportVersions.V_8_11_X;
+import static org.elasticsearch.cluster.metadata.DataStream.AUTO_SHARDING_FIELD;
 
 public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response> {
 
@@ -40,7 +46,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
     public static final String NAME = "indices:admin/data_stream/get";
 
     private GetDataStreamAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
     public static class Request extends MasterNodeReadRequest<Request> implements IndicesRequest.Replaceable {
@@ -71,7 +77,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             super(in);
             this.names = in.readOptionalStringArray();
             this.indicesOptions = IndicesOptions.readIndicesOptions(in);
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_007)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
                 this.includeDefaults = in.readBoolean();
             } else {
                 this.includeDefaults = false;
@@ -83,7 +89,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             super.writeTo(out);
             out.writeOptionalStringArray(names);
             indicesOptions.writeIndicesOptions(out);
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_007)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
                 out.writeBoolean(includeDefaults);
             }
         }
@@ -142,22 +148,43 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
     }
 
     public static class Response extends ActionResponse implements ToXContentObject {
+
+        public enum ManagedBy {
+            ILM("Index Lifecycle Management"),
+            LIFECYCLE("Data stream lifecycle"),
+            UNMANAGED("Unmanaged");
+
+            public final String displayValue;
+
+            ManagedBy(String displayValue) {
+                this.displayValue = displayValue;
+            }
+        }
+
         public static final ParseField DATA_STREAMS_FIELD = new ParseField("data_streams");
 
         public static class DataStreamInfo implements SimpleDiffable<DataStreamInfo>, ToXContentObject {
 
             public static final ParseField STATUS_FIELD = new ParseField("status");
             public static final ParseField INDEX_TEMPLATE_FIELD = new ParseField("template");
+            public static final ParseField PREFER_ILM = new ParseField("prefer_ilm");
+            public static final ParseField MANAGED_BY = new ParseField("managed_by");
+            public static final ParseField NEXT_GENERATION_INDEX_MANAGED_BY = new ParseField("next_generation_managed_by");
             public static final ParseField ILM_POLICY_FIELD = new ParseField("ilm_policy");
             public static final ParseField LIFECYCLE_FIELD = new ParseField("lifecycle");
             public static final ParseField HIDDEN_FIELD = new ParseField("hidden");
             public static final ParseField SYSTEM_FIELD = new ParseField("system");
             public static final ParseField ALLOW_CUSTOM_ROUTING = new ParseField("allow_custom_routing");
             public static final ParseField REPLICATED = new ParseField("replicated");
+            public static final ParseField ROLLOVER_ON_WRITE = new ParseField("rollover_on_write");
             public static final ParseField TIME_SERIES = new ParseField("time_series");
             public static final ParseField TEMPORAL_RANGES = new ParseField("temporal_ranges");
             public static final ParseField TEMPORAL_RANGE_START = new ParseField("start");
             public static final ParseField TEMPORAL_RANGE_END = new ParseField("end");
+            public static final ParseField TIME_SINCE_LAST_AUTO_SHARD_EVENT = new ParseField("time_since_last_auto_shard_event");
+            public static final ParseField TIME_SINCE_LAST_AUTO_SHARD_EVENT_MILLIS = new ParseField(
+                "time_since_last_auto_shard_event_millis"
+            );
 
             private final DataStream dataStream;
             private final ClusterHealthStatus dataStreamStatus;
@@ -167,28 +194,37 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             private final String ilmPolicyName;
             @Nullable
             private final TimeSeries timeSeries;
+            private final Map<Index, IndexProperties> indexSettingsValues;
+            private final boolean templatePreferIlmValue;
 
             public DataStreamInfo(
                 DataStream dataStream,
                 ClusterHealthStatus dataStreamStatus,
                 @Nullable String indexTemplate,
                 @Nullable String ilmPolicyName,
-                @Nullable TimeSeries timeSeries
+                @Nullable TimeSeries timeSeries,
+                Map<Index, IndexProperties> indexSettingsValues,
+                boolean templatePreferIlmValue
             ) {
                 this.dataStream = dataStream;
                 this.dataStreamStatus = dataStreamStatus;
                 this.indexTemplate = indexTemplate;
                 this.ilmPolicyName = ilmPolicyName;
                 this.timeSeries = timeSeries;
+                this.indexSettingsValues = indexSettingsValues;
+                this.templatePreferIlmValue = templatePreferIlmValue;
             }
 
+            @SuppressWarnings("unchecked")
             DataStreamInfo(StreamInput in) throws IOException {
                 this(
                     new DataStream(in),
                     ClusterHealthStatus.readFrom(in),
                     in.readOptionalString(),
                     in.readOptionalString(),
-                    in.getTransportVersion().onOrAfter(TransportVersion.V_8_3_0) ? in.readOptionalWriteable(TimeSeries::new) : null
+                    in.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0) ? in.readOptionalWriteable(TimeSeries::new) : null,
+                    in.getTransportVersion().onOrAfter(V_8_11_X) ? in.readMap(Index::new, IndexProperties::new) : Map.of(),
+                    in.getTransportVersion().onOrAfter(V_8_11_X) ? in.readBoolean() : true
                 );
             }
 
@@ -215,14 +251,26 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 return timeSeries;
             }
 
+            public Map<Index, IndexProperties> getIndexSettingsValues() {
+                return indexSettingsValues;
+            }
+
+            public boolean templatePreferIlmValue() {
+                return templatePreferIlmValue;
+            }
+
             @Override
             public void writeTo(StreamOutput out) throws IOException {
                 dataStream.writeTo(out);
                 dataStreamStatus.writeTo(out);
                 out.writeOptionalString(indexTemplate);
                 out.writeOptionalString(ilmPolicyName);
-                if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_3_0)) {
+                if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0)) {
                     out.writeOptionalWriteable(timeSeries);
+                }
+                if (out.getTransportVersion().onOrAfter(V_8_11_X)) {
+                    out.writeMap(indexSettingsValues);
+                    out.writeBoolean(templatePreferIlmValue);
                 }
             }
 
@@ -242,8 +290,46 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                     .startObject()
                     .field(DataStream.NAME_FIELD.getPreferredName(), DataStream.TIMESTAMP_FIELD_NAME)
                     .endObject();
-                builder.xContentList(DataStream.INDICES_FIELD.getPreferredName(), dataStream.getIndices());
+
+                builder.field(DataStream.INDICES_FIELD.getPreferredName());
+                if (dataStream.getIndices() == null) {
+                    builder.nullValue();
+                } else {
+                    builder.startArray();
+                    for (Index index : dataStream.getIndices()) {
+                        builder.startObject();
+                        index.toXContentFragment(builder);
+                        IndexProperties indexProperties = indexSettingsValues.get(index);
+                        if (indexProperties != null) {
+                            builder.field(PREFER_ILM.getPreferredName(), indexProperties.preferIlm());
+                            if (indexProperties.ilmPolicyName() != null) {
+                                builder.field(ILM_POLICY_FIELD.getPreferredName(), indexProperties.ilmPolicyName());
+                            }
+                            builder.field(MANAGED_BY.getPreferredName(), indexProperties.managedBy.displayValue);
+                        }
+                        builder.endObject();
+                    }
+                    builder.endArray();
+                }
                 builder.field(DataStream.GENERATION_FIELD.getPreferredName(), dataStream.getGeneration());
+                if (DataStream.isFailureStoreEnabled()) {
+                    builder.field(DataStream.FAILURE_INDICES_FIELD.getPreferredName());
+                    builder.startArray();
+                    for (Index failureStore : dataStream.getFailureIndices()) {
+                        builder.startObject();
+                        failureStore.toXContentFragment(builder);
+                        IndexProperties indexProperties = indexSettingsValues.get(failureStore);
+                        if (indexProperties != null) {
+                            builder.field(PREFER_ILM.getPreferredName(), indexProperties.preferIlm());
+                            if (indexProperties.ilmPolicyName() != null) {
+                                builder.field(ILM_POLICY_FIELD.getPreferredName(), indexProperties.ilmPolicyName());
+                            }
+                            builder.field(MANAGED_BY.getPreferredName(), indexProperties.managedBy.displayValue);
+                        }
+                        builder.endObject();
+                    }
+                    builder.endArray();
+                }
                 if (dataStream.getMetadata() != null) {
                     builder.field(DataStream.METADATA_FIELD.getPreferredName(), dataStream.getMetadata());
                 }
@@ -258,10 +344,27 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 if (ilmPolicyName != null) {
                     builder.field(ILM_POLICY_FIELD.getPreferredName(), ilmPolicyName);
                 }
+                builder.field(NEXT_GENERATION_INDEX_MANAGED_BY.getPreferredName(), getNextGenerationManagedBy().displayValue);
+                builder.field(PREFER_ILM.getPreferredName(), templatePreferIlmValue);
                 builder.field(HIDDEN_FIELD.getPreferredName(), dataStream.isHidden());
                 builder.field(SYSTEM_FIELD.getPreferredName(), dataStream.isSystem());
                 builder.field(ALLOW_CUSTOM_ROUTING.getPreferredName(), dataStream.isAllowCustomRouting());
                 builder.field(REPLICATED.getPreferredName(), dataStream.isReplicated());
+                builder.field(ROLLOVER_ON_WRITE.getPreferredName(), dataStream.rolloverOnWrite());
+                if (DataStream.isFailureStoreEnabled()) {
+                    builder.field(DataStream.FAILURE_STORE_FIELD.getPreferredName(), dataStream.isFailureStore());
+                }
+                if (dataStream.getAutoShardingEvent() != null) {
+                    DataStreamAutoShardingEvent autoShardingEvent = dataStream.getAutoShardingEvent();
+                    builder.startObject(AUTO_SHARDING_FIELD.getPreferredName());
+                    autoShardingEvent.toXContent(builder, params);
+                    builder.humanReadableField(
+                        TIME_SINCE_LAST_AUTO_SHARD_EVENT_MILLIS.getPreferredName(),
+                        TIME_SINCE_LAST_AUTO_SHARD_EVENT.getPreferredName(),
+                        autoShardingEvent.getTimeSinceLastAutoShardingEvent(System::currentTimeMillis)
+                    );
+                    builder.endObject();
+                }
                 if (timeSeries != null) {
                     builder.startObject(TIME_SERIES.getPreferredName());
                     builder.startArray(TEMPORAL_RANGES.getPreferredName());
@@ -280,28 +383,62 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 return builder;
             }
 
+            /**
+             * Computes and returns which system will manage the next generation for this data stream.
+             */
+            public ManagedBy getNextGenerationManagedBy() {
+                // both ILM and DSL are configured so let's check the prefer_ilm setting to see which system takes precedence
+                if (ilmPolicyName != null && dataStream.getLifecycle() != null && dataStream.getLifecycle().isEnabled()) {
+                    return templatePreferIlmValue ? ManagedBy.ILM : ManagedBy.LIFECYCLE;
+                }
+
+                if (ilmPolicyName != null) {
+                    return ManagedBy.ILM;
+                }
+
+                if (dataStream.getLifecycle() != null && dataStream.getLifecycle().isEnabled()) {
+                    return ManagedBy.LIFECYCLE;
+                }
+
+                return ManagedBy.UNMANAGED;
+            }
+
             @Override
             public boolean equals(Object o) {
-                if (this == o) return true;
-                if (o == null || getClass() != o.getClass()) return false;
+                if (this == o) {
+                    return true;
+                }
+                if (o == null || getClass() != o.getClass()) {
+                    return false;
+                }
                 DataStreamInfo that = (DataStreamInfo) o;
-                return dataStream.equals(that.dataStream)
+                return templatePreferIlmValue == that.templatePreferIlmValue
+                    && Objects.equals(dataStream, that.dataStream)
                     && dataStreamStatus == that.dataStreamStatus
                     && Objects.equals(indexTemplate, that.indexTemplate)
                     && Objects.equals(ilmPolicyName, that.ilmPolicyName)
-                    && Objects.equals(timeSeries, that.timeSeries);
+                    && Objects.equals(timeSeries, that.timeSeries)
+                    && Objects.equals(indexSettingsValues, that.indexSettingsValues);
             }
 
             @Override
             public int hashCode() {
-                return Objects.hash(dataStream, dataStreamStatus, indexTemplate, ilmPolicyName, timeSeries);
+                return Objects.hash(
+                    dataStream,
+                    dataStreamStatus,
+                    indexTemplate,
+                    ilmPolicyName,
+                    timeSeries,
+                    indexSettingsValues,
+                    templatePreferIlmValue
+                );
             }
         }
 
         public record TimeSeries(List<Tuple<Instant, Instant>> temporalRanges) implements Writeable {
 
             TimeSeries(StreamInput in) throws IOException {
-                this(in.readList(in1 -> new Tuple<>(in1.readInstant(), in1.readInstant())));
+                this(in.readCollectionAsList(in1 -> new Tuple<>(in1.readInstant(), in1.readInstant())));
             }
 
             @Override
@@ -326,6 +463,23 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             }
         }
 
+        /**
+         * Encapsulates the configured properties we want to display for each backing index.
+         * They'll usually be settings values, but could also be additional properties derived from settings.
+         */
+        public record IndexProperties(boolean preferIlm, @Nullable String ilmPolicyName, ManagedBy managedBy) implements Writeable {
+            public IndexProperties(StreamInput in) throws IOException {
+                this(in.readBoolean(), in.readOptionalString(), in.readEnum(ManagedBy.class));
+            }
+
+            @Override
+            public void writeTo(StreamOutput out) throws IOException {
+                out.writeBoolean(preferIlm);
+                out.writeOptionalString(ilmPolicyName);
+                out.writeEnum(managedBy);
+            }
+        }
+
         private final List<DataStreamInfo> dataStreams;
         @Nullable
         private final RolloverConfiguration rolloverConfiguration;
@@ -341,10 +495,8 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
 
         public Response(StreamInput in) throws IOException {
             this(
-                in.readList(DataStreamInfo::new),
-                in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_007)
-                    ? in.readOptionalWriteable(RolloverConfiguration::new)
-                    : null
+                in.readCollectionAsList(DataStreamInfo::new),
+                in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X) ? in.readOptionalWriteable(RolloverConfiguration::new) : null
             );
         }
 
@@ -359,8 +511,8 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeList(dataStreams);
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_007)) {
+            out.writeCollection(dataStreams);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
                 out.writeOptionalWriteable(rolloverConfiguration);
             }
         }

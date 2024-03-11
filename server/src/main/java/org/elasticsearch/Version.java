@@ -9,12 +9,12 @@
 package org.elasticsearch;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.VersionId;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -29,10 +29,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.NavigableMap;
-import java.util.Objects;
 import java.util.TreeMap;
 
-public class Version implements Comparable<Version>, ToXContentFragment {
+public class Version implements VersionId<Version>, ToXContentFragment {
     /*
      * The logic for ID is: XXYYZZAA, where XX is major version, YY is minor version, ZZ is revision, and AA is alpha/beta/rc indicator AA
      * values below 25 are for alpha builder (since 5.0), and above 25 and below 50 are beta builds, and below 99 are RC builds, with 99
@@ -50,103 +49,127 @@ public class Version implements Comparable<Version>, ToXContentFragment {
      */
 
     public static final int V_EMPTY_ID = 0;
-    public static final Version V_EMPTY = new Version(V_EMPTY_ID, IndexVersion.ZERO);
-    public static final Version V_7_0_0 = new Version(7_00_00_99, IndexVersion.V_7_0_0);
-    public static final Version V_7_0_1 = new Version(7_00_01_99, IndexVersion.V_7_0_1);
-    public static final Version V_7_1_0 = new Version(7_01_00_99, IndexVersion.V_7_1_0);
-    public static final Version V_7_1_1 = new Version(7_01_01_99, IndexVersion.V_7_1_1);
-    public static final Version V_7_2_0 = new Version(7_02_00_99, IndexVersion.V_7_2_0);
-    public static final Version V_7_2_1 = new Version(7_02_01_99, IndexVersion.V_7_2_1);
-    public static final Version V_7_3_0 = new Version(7_03_00_99, IndexVersion.V_7_3_0);
-    public static final Version V_7_3_1 = new Version(7_03_01_99, IndexVersion.V_7_3_1);
-    public static final Version V_7_3_2 = new Version(7_03_02_99, IndexVersion.V_7_3_2);
-    public static final Version V_7_4_0 = new Version(7_04_00_99, IndexVersion.V_7_4_0);
-    public static final Version V_7_4_1 = new Version(7_04_01_99, IndexVersion.V_7_4_1);
-    public static final Version V_7_4_2 = new Version(7_04_02_99, IndexVersion.V_7_4_2);
-    public static final Version V_7_5_0 = new Version(7_05_00_99, IndexVersion.V_7_5_0);
-    public static final Version V_7_5_1 = new Version(7_05_01_99, IndexVersion.V_7_5_1);
-    public static final Version V_7_5_2 = new Version(7_05_02_99, IndexVersion.V_7_5_2);
-    public static final Version V_7_6_0 = new Version(7_06_00_99, IndexVersion.V_7_6_0);
-    public static final Version V_7_6_1 = new Version(7_06_01_99, IndexVersion.V_7_6_1);
-    public static final Version V_7_6_2 = new Version(7_06_02_99, IndexVersion.V_7_6_2);
-    public static final Version V_7_7_0 = new Version(7_07_00_99, IndexVersion.V_7_7_0);
-    public static final Version V_7_7_1 = new Version(7_07_01_99, IndexVersion.V_7_7_1);
-    public static final Version V_7_8_0 = new Version(7_08_00_99, IndexVersion.V_7_8_0);
-    public static final Version V_7_8_1 = new Version(7_08_01_99, IndexVersion.V_7_8_1);
-    public static final Version V_7_9_0 = new Version(7_09_00_99, IndexVersion.V_7_9_0);
-    public static final Version V_7_9_1 = new Version(7_09_01_99, IndexVersion.V_7_9_1);
-    public static final Version V_7_9_2 = new Version(7_09_02_99, IndexVersion.V_7_9_2);
-    public static final Version V_7_9_3 = new Version(7_09_03_99, IndexVersion.V_7_9_3);
-    public static final Version V_7_10_0 = new Version(7_10_00_99, IndexVersion.V_7_10_0);
-    public static final Version V_7_10_1 = new Version(7_10_01_99, IndexVersion.V_7_10_1);
-    public static final Version V_7_10_2 = new Version(7_10_02_99, IndexVersion.V_7_10_2);
-    public static final Version V_7_11_0 = new Version(7_11_00_99, IndexVersion.V_7_11_0);
-    public static final Version V_7_11_1 = new Version(7_11_01_99, IndexVersion.V_7_11_1);
-    public static final Version V_7_11_2 = new Version(7_11_02_99, IndexVersion.V_7_11_2);
-    public static final Version V_7_12_0 = new Version(7_12_00_99, IndexVersion.V_7_12_0);
-    public static final Version V_7_12_1 = new Version(7_12_01_99, IndexVersion.V_7_12_1);
-    public static final Version V_7_13_0 = new Version(7_13_00_99, IndexVersion.V_7_13_0);
-    public static final Version V_7_13_1 = new Version(7_13_01_99, IndexVersion.V_7_13_1);
-    public static final Version V_7_13_2 = new Version(7_13_02_99, IndexVersion.V_7_13_2);
-    public static final Version V_7_13_3 = new Version(7_13_03_99, IndexVersion.V_7_13_3);
-    public static final Version V_7_13_4 = new Version(7_13_04_99, IndexVersion.V_7_13_4);
-    public static final Version V_7_14_0 = new Version(7_14_00_99, IndexVersion.V_7_14_0);
-    public static final Version V_7_14_1 = new Version(7_14_01_99, IndexVersion.V_7_14_1);
-    public static final Version V_7_14_2 = new Version(7_14_02_99, IndexVersion.V_7_14_2);
-    public static final Version V_7_15_0 = new Version(7_15_00_99, IndexVersion.V_7_15_0);
-    public static final Version V_7_15_1 = new Version(7_15_01_99, IndexVersion.V_7_15_1);
-    public static final Version V_7_15_2 = new Version(7_15_02_99, IndexVersion.V_7_15_2);
-    public static final Version V_7_16_0 = new Version(7_16_00_99, IndexVersion.V_7_16_0);
-    public static final Version V_7_16_1 = new Version(7_16_01_99, IndexVersion.V_7_16_1);
-    public static final Version V_7_16_2 = new Version(7_16_02_99, IndexVersion.V_7_16_2);
-    public static final Version V_7_16_3 = new Version(7_16_03_99, IndexVersion.V_7_16_3);
-    public static final Version V_7_17_0 = new Version(7_17_00_99, IndexVersion.V_7_17_0);
-    public static final Version V_7_17_1 = new Version(7_17_01_99, IndexVersion.V_7_17_1);
-    public static final Version V_7_17_2 = new Version(7_17_02_99, IndexVersion.V_7_17_2);
-    public static final Version V_7_17_3 = new Version(7_17_03_99, IndexVersion.V_7_17_3);
-    public static final Version V_7_17_4 = new Version(7_17_04_99, IndexVersion.V_7_17_4);
-    public static final Version V_7_17_5 = new Version(7_17_05_99, IndexVersion.V_7_17_5);
-    public static final Version V_7_17_6 = new Version(7_17_06_99, IndexVersion.V_7_17_6);
-    public static final Version V_7_17_7 = new Version(7_17_07_99, IndexVersion.V_7_17_7);
-    public static final Version V_7_17_8 = new Version(7_17_08_99, IndexVersion.V_7_17_8);
-    public static final Version V_7_17_9 = new Version(7_17_09_99, IndexVersion.V_7_17_9);
-    public static final Version V_7_17_10 = new Version(7_17_10_99, IndexVersion.V_7_17_10);
-    public static final Version V_7_17_11 = new Version(7_17_11_99, IndexVersion.V_7_17_11);
-    public static final Version V_7_17_12 = new Version(7_17_12_99, IndexVersion.V_7_17_12);
-    public static final Version V_8_0_0 = new Version(8_00_00_99, IndexVersion.V_8_0_0);
-    public static final Version V_8_0_1 = new Version(8_00_01_99, IndexVersion.V_8_0_1);
-    public static final Version V_8_1_0 = new Version(8_01_00_99, IndexVersion.V_8_1_0);
-    public static final Version V_8_1_1 = new Version(8_01_01_99, IndexVersion.V_8_1_1);
-    public static final Version V_8_1_2 = new Version(8_01_02_99, IndexVersion.V_8_1_2);
-    public static final Version V_8_1_3 = new Version(8_01_03_99, IndexVersion.V_8_1_3);
-    public static final Version V_8_2_0 = new Version(8_02_00_99, IndexVersion.V_8_2_0);
-    public static final Version V_8_2_1 = new Version(8_02_01_99, IndexVersion.V_8_2_1);
-    public static final Version V_8_2_2 = new Version(8_02_02_99, IndexVersion.V_8_2_2);
-    public static final Version V_8_2_3 = new Version(8_02_03_99, IndexVersion.V_8_2_3);
-    public static final Version V_8_3_0 = new Version(8_03_00_99, IndexVersion.V_8_3_0);
-    public static final Version V_8_3_1 = new Version(8_03_01_99, IndexVersion.V_8_3_1);
-    public static final Version V_8_3_2 = new Version(8_03_02_99, IndexVersion.V_8_3_2);
-    public static final Version V_8_3_3 = new Version(8_03_03_99, IndexVersion.V_8_3_3);
-    public static final Version V_8_4_0 = new Version(8_04_00_99, IndexVersion.V_8_4_0);
-    public static final Version V_8_4_1 = new Version(8_04_01_99, IndexVersion.V_8_4_1);
-    public static final Version V_8_4_2 = new Version(8_04_02_99, IndexVersion.V_8_4_2);
-    public static final Version V_8_4_3 = new Version(8_04_03_99, IndexVersion.V_8_4_3);
-    public static final Version V_8_5_0 = new Version(8_05_00_99, IndexVersion.V_8_5_0);
-    public static final Version V_8_5_1 = new Version(8_05_01_99, IndexVersion.V_8_5_1);
-    public static final Version V_8_5_2 = new Version(8_05_02_99, IndexVersion.V_8_5_2);
-    public static final Version V_8_5_3 = new Version(8_05_03_99, IndexVersion.V_8_5_3);
-    public static final Version V_8_6_0 = new Version(8_06_00_99, IndexVersion.V_8_6_0);
-    public static final Version V_8_6_1 = new Version(8_06_01_99, IndexVersion.V_8_6_1);
-    public static final Version V_8_6_2 = new Version(8_06_02_99, IndexVersion.V_8_6_2);
-    public static final Version V_8_7_0 = new Version(8_07_00_99, IndexVersion.V_8_7_0);
-    public static final Version V_8_7_1 = new Version(8_07_01_99, IndexVersion.V_8_7_1);
-    public static final Version V_8_8_0 = new Version(8_08_00_99, IndexVersion.V_8_8_0);
-    public static final Version V_8_8_1 = new Version(8_08_01_99, IndexVersion.V_8_8_1);
-    public static final Version V_8_8_2 = new Version(8_08_02_99, IndexVersion.V_8_8_2);
-    public static final Version V_8_8_3 = new Version(8_08_03_99, IndexVersion.V_8_8_3);
-    public static final Version V_8_9_0 = new Version(8_09_00_99, IndexVersion.V_8_9_0);
-    public static final Version V_8_10_0 = new Version(8_10_00_99, IndexVersion.V_8_10_0);
-    public static final Version CURRENT = V_8_10_0;
+    public static final Version V_EMPTY = new Version(V_EMPTY_ID);
+    public static final Version V_7_0_0 = new Version(7_00_00_99);
+    public static final Version V_7_0_1 = new Version(7_00_01_99);
+    public static final Version V_7_1_0 = new Version(7_01_00_99);
+    public static final Version V_7_1_1 = new Version(7_01_01_99);
+    public static final Version V_7_2_0 = new Version(7_02_00_99);
+    public static final Version V_7_2_1 = new Version(7_02_01_99);
+    public static final Version V_7_3_0 = new Version(7_03_00_99);
+    public static final Version V_7_3_1 = new Version(7_03_01_99);
+    public static final Version V_7_3_2 = new Version(7_03_02_99);
+    public static final Version V_7_4_0 = new Version(7_04_00_99);
+    public static final Version V_7_4_1 = new Version(7_04_01_99);
+    public static final Version V_7_4_2 = new Version(7_04_02_99);
+    public static final Version V_7_5_0 = new Version(7_05_00_99);
+    public static final Version V_7_5_1 = new Version(7_05_01_99);
+    public static final Version V_7_5_2 = new Version(7_05_02_99);
+    public static final Version V_7_6_0 = new Version(7_06_00_99);
+    public static final Version V_7_6_1 = new Version(7_06_01_99);
+    public static final Version V_7_6_2 = new Version(7_06_02_99);
+    public static final Version V_7_7_0 = new Version(7_07_00_99);
+    public static final Version V_7_7_1 = new Version(7_07_01_99);
+    public static final Version V_7_8_0 = new Version(7_08_00_99);
+    public static final Version V_7_8_1 = new Version(7_08_01_99);
+    public static final Version V_7_9_0 = new Version(7_09_00_99);
+    public static final Version V_7_9_1 = new Version(7_09_01_99);
+    public static final Version V_7_9_2 = new Version(7_09_02_99);
+    public static final Version V_7_9_3 = new Version(7_09_03_99);
+    public static final Version V_7_10_0 = new Version(7_10_00_99);
+    public static final Version V_7_10_1 = new Version(7_10_01_99);
+    public static final Version V_7_10_2 = new Version(7_10_02_99);
+    public static final Version V_7_11_0 = new Version(7_11_00_99);
+    public static final Version V_7_11_1 = new Version(7_11_01_99);
+    public static final Version V_7_11_2 = new Version(7_11_02_99);
+    public static final Version V_7_12_0 = new Version(7_12_00_99);
+    public static final Version V_7_12_1 = new Version(7_12_01_99);
+    public static final Version V_7_13_0 = new Version(7_13_00_99);
+    public static final Version V_7_13_1 = new Version(7_13_01_99);
+    public static final Version V_7_13_2 = new Version(7_13_02_99);
+    public static final Version V_7_13_3 = new Version(7_13_03_99);
+    public static final Version V_7_13_4 = new Version(7_13_04_99);
+    public static final Version V_7_14_0 = new Version(7_14_00_99);
+    public static final Version V_7_14_1 = new Version(7_14_01_99);
+    public static final Version V_7_14_2 = new Version(7_14_02_99);
+    public static final Version V_7_15_0 = new Version(7_15_00_99);
+    public static final Version V_7_15_1 = new Version(7_15_01_99);
+    public static final Version V_7_15_2 = new Version(7_15_02_99);
+    public static final Version V_7_16_0 = new Version(7_16_00_99);
+    public static final Version V_7_16_1 = new Version(7_16_01_99);
+    public static final Version V_7_16_2 = new Version(7_16_02_99);
+    public static final Version V_7_16_3 = new Version(7_16_03_99);
+    public static final Version V_7_17_0 = new Version(7_17_00_99);
+    public static final Version V_7_17_1 = new Version(7_17_01_99);
+    public static final Version V_7_17_2 = new Version(7_17_02_99);
+    public static final Version V_7_17_3 = new Version(7_17_03_99);
+    public static final Version V_7_17_4 = new Version(7_17_04_99);
+    public static final Version V_7_17_5 = new Version(7_17_05_99);
+    public static final Version V_7_17_6 = new Version(7_17_06_99);
+    public static final Version V_7_17_7 = new Version(7_17_07_99);
+    public static final Version V_7_17_8 = new Version(7_17_08_99);
+    public static final Version V_7_17_9 = new Version(7_17_09_99);
+    public static final Version V_7_17_10 = new Version(7_17_10_99);
+    public static final Version V_7_17_11 = new Version(7_17_11_99);
+    public static final Version V_7_17_12 = new Version(7_17_12_99);
+    public static final Version V_7_17_13 = new Version(7_17_13_99);
+    public static final Version V_7_17_14 = new Version(7_17_14_99);
+    public static final Version V_7_17_15 = new Version(7_17_15_99);
+    public static final Version V_7_17_16 = new Version(7_17_16_99);
+    public static final Version V_7_17_17 = new Version(7_17_17_99);
+    public static final Version V_7_17_18 = new Version(7_17_18_99);
+    public static final Version V_7_17_19 = new Version(7_17_19_99);
+
+    public static final Version V_8_0_0 = new Version(8_00_00_99);
+    public static final Version V_8_0_1 = new Version(8_00_01_99);
+    public static final Version V_8_1_0 = new Version(8_01_00_99);
+    public static final Version V_8_1_1 = new Version(8_01_01_99);
+    public static final Version V_8_1_2 = new Version(8_01_02_99);
+    public static final Version V_8_1_3 = new Version(8_01_03_99);
+    public static final Version V_8_2_0 = new Version(8_02_00_99);
+    public static final Version V_8_2_1 = new Version(8_02_01_99);
+    public static final Version V_8_2_2 = new Version(8_02_02_99);
+    public static final Version V_8_2_3 = new Version(8_02_03_99);
+    public static final Version V_8_3_0 = new Version(8_03_00_99);
+    public static final Version V_8_3_1 = new Version(8_03_01_99);
+    public static final Version V_8_3_2 = new Version(8_03_02_99);
+    public static final Version V_8_3_3 = new Version(8_03_03_99);
+    public static final Version V_8_4_0 = new Version(8_04_00_99);
+    public static final Version V_8_4_1 = new Version(8_04_01_99);
+    public static final Version V_8_4_2 = new Version(8_04_02_99);
+    public static final Version V_8_4_3 = new Version(8_04_03_99);
+    public static final Version V_8_5_0 = new Version(8_05_00_99);
+    public static final Version V_8_5_1 = new Version(8_05_01_99);
+    public static final Version V_8_5_2 = new Version(8_05_02_99);
+    public static final Version V_8_5_3 = new Version(8_05_03_99);
+    public static final Version V_8_6_0 = new Version(8_06_00_99);
+    public static final Version V_8_6_1 = new Version(8_06_01_99);
+    public static final Version V_8_6_2 = new Version(8_06_02_99);
+    public static final Version V_8_7_0 = new Version(8_07_00_99);
+    public static final Version V_8_7_1 = new Version(8_07_01_99);
+    public static final Version V_8_8_0 = new Version(8_08_00_99);
+    public static final Version V_8_8_1 = new Version(8_08_01_99);
+    public static final Version V_8_8_2 = new Version(8_08_02_99);
+    public static final Version V_8_9_0 = new Version(8_09_00_99);
+    public static final Version V_8_9_1 = new Version(8_09_01_99);
+    public static final Version V_8_9_2 = new Version(8_09_02_99);
+    public static final Version V_8_10_0 = new Version(8_10_00_99);
+    public static final Version V_8_10_1 = new Version(8_10_01_99);
+    public static final Version V_8_10_2 = new Version(8_10_02_99);
+    public static final Version V_8_10_3 = new Version(8_10_03_99);
+    public static final Version V_8_10_4 = new Version(8_10_04_99);
+    public static final Version V_8_11_0 = new Version(8_11_00_99);
+    public static final Version V_8_11_1 = new Version(8_11_01_99);
+    public static final Version V_8_11_2 = new Version(8_11_02_99);
+    public static final Version V_8_11_3 = new Version(8_11_03_99);
+    public static final Version V_8_11_4 = new Version(8_11_04_99);
+    public static final Version V_8_12_0 = new Version(8_12_00_99);
+    public static final Version V_8_12_1 = new Version(8_12_01_99);
+    public static final Version V_8_12_2 = new Version(8_12_02_99);
+    public static final Version V_8_12_3 = new Version(8_12_03_99);
+    public static final Version V_8_13_0 = new Version(8_13_00_99);
+    public static final Version V_8_14_0 = new Version(8_14_00_99);
+    public static final Version CURRENT = V_8_14_0;
 
     private static final NavigableMap<Integer, Version> VERSION_IDS;
     private static final Map<String, Version> VERSION_STRINGS;
@@ -210,8 +233,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     }
 
     private static Version fromIdSlow(int id) {
-        // TODO: assume this is an old version that has index version == release version
-        return new Version(id, IndexVersion.fromId(id));
+        return new Version(id);
     }
 
     public static void writeVersion(Version version, StreamOutput out) throws IOException {
@@ -294,51 +316,27 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     public final byte minor;
     public final byte revision;
     public final byte build;
-    @Deprecated(forRemoval = true)
-    public final IndexVersion indexVersion;
     private final String toString;
     private final int previousMajorId;
 
-    Version(int id, IndexVersion indexVersion) {
+    Version(int id) {
         this.id = id;
         this.major = (byte) ((id / 1000000) % 100);
         this.minor = (byte) ((id / 10000) % 100);
         this.revision = (byte) ((id / 100) % 100);
         this.build = (byte) (id % 100);
-        this.indexVersion = Objects.requireNonNull(indexVersion);
         this.toString = major + "." + minor + "." + revision;
         this.previousMajorId = major > 0 ? (major - 1) * 1000000 + 99 : major;
     }
 
-    public boolean after(Version version) {
-        return version.id < id;
-    }
-
-    public boolean onOrAfter(Version version) {
-        return version.id <= id;
-    }
-
-    public boolean before(Version version) {
-        return version.id > id;
-    }
-
-    public boolean onOrBefore(Version version) {
-        return version.id >= id;
-    }
-
     @Override
-    public int compareTo(Version other) {
-        return Integer.compare(this.id, other.id);
+    public int id() {
+        return id;
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         return builder.value(toString());
-    }
-
-    @Deprecated(forRemoval = true)
-    public org.apache.lucene.util.Version luceneVersion() {
-        return indexVersion.luceneVersion();
     }
 
     /*
@@ -353,10 +351,6 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     // lazy initialized because we don't yet have the declared versions ready when instantiating the cached Version
     // instances
     private Version minCompatVersion;
-
-    // lazy initialized because we don't yet have the declared versions ready when instantiating the cached Version
-    // instances
-    private Version minIndexCompatVersion;
 
     /**
      * Returns the minimum compatible version based on the current
@@ -398,39 +392,6 @@ public class Version implements Comparable<Version>, ToXContentFragment {
         }
 
         return Version.min(this, fromId(major * 1000000 + 0 * 10000 + 99));
-    }
-
-    /**
-     * Returns the minimum created index version that this version supports. Indices created with lower versions
-     * can't be used with this version. This should also be used for file based serialization backwards compatibility ie. on serialization
-     * code that is used to read / write file formats like transaction logs, cluster state, and index metadata.
-     */
-    public Version minimumIndexCompatibilityVersion() {
-        Version res = minIndexCompatVersion;
-        if (res == null) {
-            res = computeMinIndexCompatVersion();
-            minIndexCompatVersion = res;
-        }
-        return res;
-    }
-
-    private Version computeMinIndexCompatVersion() {
-        final int bwcMajor;
-        if (major == 5) {
-            bwcMajor = 2; // we jumped from 2 to 5
-        } else {
-            bwcMajor = major - 1;
-        }
-        final int bwcMinor = 0;
-        return Version.min(this, fromId(bwcMajor * 1000000 + bwcMinor * 10000 + 99));
-    }
-
-    /**
-     * Whether the current version is older than the current minimum compatible index version,
-     * see {@link #minimumIndexCompatibilityVersion()}
-     */
-    public boolean isLegacyIndexVersion() {
-        return before(Version.CURRENT.minimumIndexCompatibilityVersion());
     }
 
     /**

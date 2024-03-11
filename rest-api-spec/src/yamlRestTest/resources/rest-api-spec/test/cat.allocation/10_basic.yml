@@ -28,6 +28,10 @@
 ---
 "One index":
 
+  - skip:
+      version: " - 8.11.99"
+      reason:  "node.role column shown by default from 8.12.0 onwards"
+
   - do:
         indices.create:
             index: test
@@ -47,19 +51,24 @@
                 (\d+                  \s+)  #always should return value since we filter out non data nodes by default
                 [-\w.]+                \s+
                 \d+(\.\d+){3}          \s+
-                [-\w.]+
+                [-\w.]+                \s+
+                [\w]+
                 \n
               )+
               (
                 \s*                          #allow leading spaces to account for right-justified text
                 \d+                    \s+
-                UNASSIGNED
+                UNASSIGNED             \s*
                 \n
               )?
             $/
 
 ---
 "Node ID":
+
+  - skip:
+      version: " - 8.11.99"
+      reason:  "node.role column shown by default from 8.12.0 onwards"
 
   - do:
         cat.allocation:
@@ -76,7 +85,8 @@
                 (\d+                  \s+)?  #no value from client nodes
                 [-\w.]+                \s+
                 \d+(\.\d+){3}          \s+
-                [-\w.]+
+                [-\w.]+                \s+
+                [\w]+
                 \n
               )
             $/
@@ -94,6 +104,10 @@
 
 "All Nodes":
 
+   - skip:
+      version: " - 8.11.99"
+      reason:  "node.role column shown by default from 8.12.0 onwards"
+
    - do:
          cat.allocation:
            node_id: "*"
@@ -110,19 +124,24 @@
                  (\d+                  \s+)?  #no value from client nodes
                  [-\w.]+                \s+
                  \d+(\.\d+){3}          \s+
-                 [-\w.]+
+                 [-\w.]+                \s+
+                 [\w]+
                  \n
                )+
                (
                  \s*                          #allow leading spaces to account for right-justified text
                  \d+                    \s+
-                 UNASSIGNED
+                 UNASSIGNED             \s*
                  \n
                )?
              $/
 
 ---
 "Column headers":
+
+  - skip:
+      version: " - 8.11.99"
+      reason:  "node.role column shown by default from 8.12.0 onwards"
 
   - do:
         cat.allocation:
@@ -138,7 +157,8 @@
                disk.percent            \s+
                host                    \s+
                ip                      \s+
-               node
+               node                    \s+
+               node.role
                \n
 
               ( \s*                          #allow leading spaces to account for right-justified text
@@ -150,7 +170,8 @@
                 (\d+                  \s+)  #always should return value since we filter out non data nodes by default
                 [-\w.]+                \s+
                 \d+(\.\d+){3}          \s+
-                [-\w.]+
+                [-\w.]+                \s+
+                [\w]+
                 \n
               )+
             $/
@@ -195,6 +216,10 @@
 
 "Bytes":
 
+  - skip:
+      version: " - 8.11.99"
+      reason:  "node.role column shown by default from 8.12.0 onwards"
+
   - do:
       cat.allocation:
         bytes: gb
@@ -210,7 +235,8 @@
                 (\d+                 \s+)  #always should return value since we filter out non data nodes by default
                 [-\w.]+             \s+
                 \d+(\.\d+){3}       \s+
-                [-\w.]+
+                [-\w.]+             \s+
+                [\w]+
                 \n
               )+
             $/

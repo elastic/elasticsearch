@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.sql.plugin;
 
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -25,11 +26,6 @@ public class SqlStatsRequest extends BaseNodesRequest<SqlStatsRequest> {
         super((String[]) null);
     }
 
-    public SqlStatsRequest(StreamInput in) throws IOException {
-        super(in);
-        includeStats = in.readBoolean();
-    }
-
     public boolean includeStats() {
         return includeStats;
     }
@@ -40,8 +36,7 @@ public class SqlStatsRequest extends BaseNodesRequest<SqlStatsRequest> {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeBoolean(includeStats);
+        TransportAction.localOnly();
     }
 
     @Override

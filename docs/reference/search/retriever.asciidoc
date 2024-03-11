@@ -113,7 +113,7 @@ Defines a <<knn-semantic-search, model>> to build a query vector.
 (Required, integer)
 +
 Number of nearest neighbors to return as top hits. This value must be fewer than
-`num_candidates`.
+or equal to `num_candidates`.
 
 `num_candidates`::
 (Required, integer)

@@ -4,8 +4,8 @@
 preview::["This functionality is in technical preview and may be changed or removed in a future release. The syntax will likely change before GA. Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features."]
 
 https://plg.uwaterloo.ca/~gvcormac/cormacksigir09-rrf.pdf[Reciprocal rank fusion (RRF)]
-is a method for combining multiple top documents sets with different relevance
-indicators into a single top documents set. RRF requires no tuning, and the different
+is a method for combining multiple result sets with different relevance
+indicators into a single result set. RRF requires no tuning, and the different
 relevance indicators do not have to be related to each other to achieve high-quality
 results.
 
@@ -32,9 +32,10 @@ return score
 ==== Reciprocal rank fusion API
 
 You can use RRF as part of a <<search-search, search>> to combine and rank
-documents using top documents sets from a combination of
-<<retriever, child retrievers>> using an <<rrf-retriever, RRF retriever>>.
-A minimum of *two* child retrievers is required for ranking.
+documents using separate sets of top documents (result sets) from a
+combination of <<retriever, child retrievers>> using an
+<<rrf-retriever, RRF retriever>>. A minimum of *two* child retrievers is
+required for ranking.
 
 An RRF retriever is an optional object defined as part of a search request's
 <<request-body-retriever, retriever parameter>>. The RRF retriever object contains
@@ -95,7 +96,7 @@ truncated to `window_size`. If `k` is smaller than `window_size`, the results ar
 [[rrf-supported-features]]
 ==== Reciprocal rank fusion supported features
 
-The `rrf` retriever does support:
+The `rrf` retriever supports:
 
 * <<search-aggregations, aggregations>>
 * <<search-from-param, from>>

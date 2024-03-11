@@ -28,7 +28,7 @@ import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.inference.ModelSettings;
+import org.elasticsearch.inference.SemanticTextModelSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.logging.LogManager;
@@ -168,7 +168,7 @@ public class SemanticTextInferenceResultFieldMapper extends MetadataFieldMapper 
         parser.nextToken();
         failIfTokenIsNot(parser, XContentParser.Token.START_OBJECT);
         parser.nextToken();
-        ModelSettings modelSettings = ModelSettings.parse(parser);
+        SemanticTextModelSettings modelSettings = SemanticTextModelSettings.parse(parser);
         for (XContentParser.Token token = parser.nextToken(); token != XContentParser.Token.END_OBJECT; token = parser.nextToken()) {
             failIfTokenIsNot(parser, XContentParser.Token.FIELD_NAME);
 
@@ -192,7 +192,7 @@ public class SemanticTextInferenceResultFieldMapper extends MetadataFieldMapper 
         DocumentParserContext context,
         MapperBuilderContext mapperBuilderContext,
         String fieldName,
-        ModelSettings modelSettings,
+        SemanticTextModelSettings modelSettings,
         NestedObjectMapper nestedObjectMapper
     ) throws IOException {
         XContentParser parser = context.parser();
@@ -209,7 +209,7 @@ public class SemanticTextInferenceResultFieldMapper extends MetadataFieldMapper 
     private static void parseFieldInferenceChunkElement(
         DocumentParserContext context,
         ObjectMapper objectMapper,
-        ModelSettings modelSettings
+        SemanticTextModelSettings modelSettings
     ) throws IOException {
         XContentParser parser = context.parser();
         DocumentParserContext childContext = context.createChildContext(objectMapper);
@@ -254,7 +254,7 @@ public class SemanticTextInferenceResultFieldMapper extends MetadataFieldMapper 
         DocumentParserContext context,
         MapperBuilderContext mapperBuilderContext,
         String fieldName,
-        ModelSettings modelSettings
+        SemanticTextModelSettings modelSettings
     ) {
         IndexVersion indexVersionCreated = context.indexSettings().getIndexVersionCreated();
         FieldMapper.Builder resultsBuilder;

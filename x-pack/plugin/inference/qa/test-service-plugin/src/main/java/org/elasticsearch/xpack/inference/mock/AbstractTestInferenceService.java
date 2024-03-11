@@ -56,7 +56,7 @@ public abstract class AbstractTestInferenceService implements InferenceService {
         var serviceSettingsMap = (Map<String, Object>) config.remove(ModelConfigurations.SERVICE_SETTINGS);
         var secretSettingsMap = (Map<String, Object>) secrets.remove(ModelSecrets.SECRET_SETTINGS);
 
-        var serviceSettings = TestDenseInferenceServiceExtension.TestServiceSettings.fromMap(serviceSettingsMap);
+        var serviceSettings = getServiceSettingsFromMap(serviceSettingsMap);
         var secretSettings = TestSecretSettings.fromMap(secretSettingsMap);
 
         var taskSettingsMap = getTaskSettingsMap(config);
@@ -70,13 +70,15 @@ public abstract class AbstractTestInferenceService implements InferenceService {
     public Model parsePersistedConfig(String modelId, TaskType taskType, Map<String, Object> config) {
         var serviceSettingsMap = (Map<String, Object>) config.remove(ModelConfigurations.SERVICE_SETTINGS);
 
-        var serviceSettings = TestDenseInferenceServiceExtension.TestServiceSettings.fromMap(serviceSettingsMap);
+        var serviceSettings = getServiceSettingsFromMap(serviceSettingsMap);
 
         var taskSettingsMap = getTaskSettingsMap(config);
         var taskSettings = TestTaskSettings.fromMap(taskSettingsMap);
 
         return new TestServiceModel(modelId, taskType, name(), serviceSettings, taskSettings, null);
     }
+
+    protected abstract ServiceSettings getServiceSettingsFromMap(Map<String, Object> serviceSettingsMap);
 
     @Override
     public void start(Model model, ActionListener<Boolean> listener) {
@@ -97,11 +99,6 @@ public abstract class AbstractTestInferenceService implements InferenceService {
             TestSecretSettings secretSettings
         ) {
             super(new ModelConfigurations(modelId, taskType, service, serviceSettings, taskSettings), new ModelSecrets(secretSettings));
-        }
-
-        @Override
-        public TestDenseInferenceServiceExtension.TestServiceSettings getServiceSettings() {
-            return (TestDenseInferenceServiceExtension.TestServiceSettings) super.getServiceSettings();
         }
 
         @Override

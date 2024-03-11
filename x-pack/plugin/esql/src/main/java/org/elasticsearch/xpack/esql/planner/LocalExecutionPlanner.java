@@ -716,6 +716,8 @@ public class LocalExecutionPlanner {
                 success = true;
                 return new Driver(
                     sessionId,
+                    System.currentTimeMillis(),
+                    System.nanoTime(),
                     driverContext,
                     physicalOperation::describe,
                     source,

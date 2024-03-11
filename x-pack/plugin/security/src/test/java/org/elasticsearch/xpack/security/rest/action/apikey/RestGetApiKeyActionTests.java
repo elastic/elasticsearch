@@ -144,7 +144,7 @@ public class RestGetApiKeyActionTests extends ESTestCase {
                     || getApiKeyRequest.getRealmName() != null && getApiKeyRequest.getRealmName().equals("realm-1")
                     || getApiKeyRequest.getUserName() != null && getApiKeyRequest.getUserName().equals("user-x")) {
                     if (replyEmptyResponse) {
-                        listener.onResponse((Response) GetApiKeyResponse.emptyResponse());
+                        listener.onResponse((Response) GetApiKeyResponse.EMPTY);
                     } else {
                         listener.onResponse((Response) getApiKeyResponseExpected);
                     }

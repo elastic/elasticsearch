@@ -2,8 +2,8 @@
 "Help":
 
   - skip:
-      version: " - 8.9.99"
-      reason:  "node.role, forecast.write_load and forecast.shard_size columns are added in 8.10.0"
+      version: " - 8.13.99"
+      reason:  "shards.undesired, forecast.write_load and forecast.shard_size columns are added in 8.14.0"
 
   - do:
       cat.allocation:
@@ -12,6 +12,7 @@
   - match:
       $body: |
                /^  shards              .+   \n
+                   shards.undesired    .+   \n
                    forecast.write_load .+   \n
                    forecast.shard_size .+   \n
                    disk.indices        .+   \n
@@ -265,17 +266,18 @@
 "Node forecasts":
 
   - skip:
-      version: " - 8.9.99"
-      reason:  "forecast.write_load and forecast.shard_size columns added in 8.10.0"
+      version: " - 8.13.99"
+      reason:  "forecast.write_load and forecast.shard_size columns added in 8.14.0"
 
   - do:
       cat.allocation:
-        h: [node, forecast.write_load, forecast.shard_size]
+        h: [node, shards.undesired, forecast.write_load, forecast.shard_size]
 
   - match:
       $body: |
         /^
           ( [-\w.]+                \s+
+            [-\w.]+                \s+
             [-\w.]+                \s+
             [\w]+
             \n

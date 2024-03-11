@@ -69,6 +69,7 @@ public class RestAllocationAction extends AbstractCatAction {
                 statsRequest.setIncludeShardsStats(false);
                 statsRequest.clear()
                     .addMetric(NodesStatsRequestParameters.Metric.FS.metricName())
+                    .addMetric(NodesStatsRequestParameters.Metric.ALLOCATIONS.metricName())
                     .indices(new CommonStatsFlags(CommonStatsFlags.Flag.Store));
 
                 client.admin().cluster().nodesStats(statsRequest, new RestResponseListener<>(channel) {
@@ -89,6 +90,11 @@ public class RestAllocationAction extends AbstractCatAction {
         table.startHeaders();
         table.addCell("shards", "alias:s;text-align:right;desc:number of shards on node");
         table.addCell(
+            "shards.undesired",
+            "default:false;text-align:right;desc:amount of shards that are scheduled to be moved elsewhere in the cluster "
+                + "or -1 other than desired balance allocator is used"
+        );
+        table.addCell(
             "forecast.write_load",
             "default:false;alias:fwl,forecastWriteLoad;text-align:right;desc:sum of index write load forecasts"
         );
@@ -107,23 +113,12 @@ public class RestAllocationAction extends AbstractCatAction {
     }
 
     private Table buildTable(RestRequest request, final ClusterStateResponse state, final NodesStatsResponse stats) {
-
-        var clusterState = state.getState();
-
         final Map<String, Integer> shardCounts = new HashMap<>();
-        final Map<String, Double> forecastedWriteLoads = new HashMap<>();
-        final Map<String, Long> forecastedShardSizes = new HashMap<>();
 
-        for (ShardRouting shard : clusterState.routingTable().allShardsIterator()) {
+        for (ShardRouting shard : state.getState().routingTable().allShardsIterator()) {
             String nodeId = shard.assignedToNode() ? shard.currentNodeId() : UNASSIGNED;
             shardCounts.merge(nodeId, 1, Integer::sum);
-            var metadata = clusterState.metadata().index(shard.index());
-            if (metadata != null) {
-                metadata.getForecastedWriteLoad().ifPresent(value -> forecastedWriteLoads.merge(nodeId, value, Double::sum));
-                metadata.getForecastedShardSizeInBytes().ifPresent(value -> forecastedShardSizes.merge(nodeId, value, Long::sum));
-            }
         }
-
         Table table = getTableWithHeader(request);
 
         for (NodeStats nodeStats : stats.getNodes()) {
@@ -143,8 +138,9 @@ public class RestAllocationAction extends AbstractCatAction {
 
             table.startRow();
             table.addCell(shardCounts.getOrDefault(node.getId(), 0));
-            table.addCell(forecastedWriteLoads.getOrDefault(node.getId(), 0.0));
-            table.addCell(ByteSizeValue.ofBytes(forecastedShardSizes.getOrDefault(node.getId(), 0L)));
+            table.addCell(nodeStats.getNodeAllocationStats() != null ? nodeStats.getNodeAllocationStats().undesiredShards() : null);
+            table.addCell(nodeStats.getNodeAllocationStats() != null ? nodeStats.getNodeAllocationStats().forecastedIngestLoad() : null);
+            table.addCell(nodeStats.getNodeAllocationStats() != null ? nodeStats.getNodeAllocationStats().forecastedDiskUsage() : null);
             table.addCell(nodeStats.getIndices().getStore().size());
             table.addCell(used < 0 ? null : ByteSizeValue.ofBytes(used));
             table.addCell(avail.getBytes() < 0 ? null : avail);
@@ -157,14 +153,12 @@ public class RestAllocationAction extends AbstractCatAction {
             table.endRow();
         }
 
-        var unassignedShardCount = shardCounts.get(UNASSIGNED);
-        var unassignedForecastedWriteLoad = forecastedWriteLoads.get(UNASSIGNED);
-        var unassignedForecastedShardSize = forecastedShardSizes.get(UNASSIGNED);
-        if (unassignedShardCount != null || unassignedForecastedWriteLoad != null || unassignedForecastedShardSize != null) {
+        if (shardCounts.containsKey(UNASSIGNED)) {
             table.startRow();
-            table.addCell(unassignedShardCount);
-            table.addCell(unassignedForecastedWriteLoad);
-            table.addCell(unassignedForecastedShardSize != null ? ByteSizeValue.ofBytes(unassignedForecastedShardSize) : null);
+            table.addCell(shardCounts.get(UNASSIGNED));
+            table.addCell(null);
+            table.addCell(null);
+            table.addCell(null);
             table.addCell(null);
             table.addCell(null);
             table.addCell(null);

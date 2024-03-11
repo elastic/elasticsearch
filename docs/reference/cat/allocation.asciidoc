@@ -57,6 +57,10 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-v]
 `shards`::
 Number of primary and replica shards assigned to the node.
 
+`shards.undesired`::
+Amount of shards that are scheduled to be moved elsewhere in the cluster
+or -1 other than desired balance allocator is used
+
 `forecast.write_load`, `fwl`, `forecastWriteLoad`::
 Sum of index write load forecasts
 

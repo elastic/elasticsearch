@@ -36,7 +36,6 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.ql.type.DataTypes.NULL;
-import static org.elasticsearch.xpack.ql.type.DataTypes.SOURCE;
 
 public final class Case extends EsqlScalarFunction {
     record Condition(Expression condition, Expression value) {}
@@ -83,31 +82,17 @@ public final class Case extends EsqlScalarFunction {
                 "version" }
         ) List<Expression> rest
     ) {
-        super(source, children(source, first, rest));
+        super(source, Stream.concat(Stream.of(first), rest.stream()).toList());
         int conditionCount = children().size() / 2;
         conditions = new ArrayList<>(conditionCount);
         for (int c = 0; c < conditionCount; c++) {
             conditions.add(new Condition(children().get(c * 2), children().get(c * 2 + 1)));
         }
-        elseValue = children().get(children().size() - 1);
+        elseValue = elseValueIsExplicit() ? children().get(children().size() - 1) : new Literal(source, null, NULL);
     }
 
-    /**
-     * Build the list of children including the {@code null} {@link Literal} if there isn't an
-     * 
-     * @param source
-     * @param first
-     * @param rest
-     * @return
-     */
-    private static List<Expression> children(Source source, Expression first, List<Expression> rest) {
-        List<Expression> children = new ArrayList<>();
-        children.add(first);
-        children.addAll(rest);
-        if (rest.size() % 2 == 0) {
-            children.add(new Literal(source, null, NULL));
-        }
-        return children;
+    private boolean elseValueIsExplicit() {
+        return children().size() % 2 == 1;
     }
 
     @Override
@@ -211,26 +196,18 @@ public final class Case extends EsqlScalarFunction {
      * Fold the arms of {@code CASE} statements.
      * <ol>
      *     <li>
-     *         Conditions that evaluator to {@code false} are removed so
-     * <pre>{@code
-     * EVAL c=CASE(false, foo, b, bar, bort)
-     * }</pre>
-     * becomes
-     * <pre>{@code
-     * EVAL c=CASE(b, bar, bort)
-     * }</pre>
+     *         Conditions that evaluate to {@code false} are removed so
+     *         {@code EVAL c=CASE(false, foo, b, bar, bort)} becomes
+     *         {@code EVAL c=CASE(b, bar, bort)}.
      *     </li>
      *     <li>
-     *         Conditions that
+     *         Conditions that evaluate to {@code true} stop evaluation and
+     *         return themselves so {@code EVAL c=CASE(true, foo, bar)} becomes
+     *         {@code EVAL c=foo}.
      *     </li>
      * </ol>
-     * <pre>{@code
-     * EVAL c=CASE(true, foo, bar)
-     * }</pre>
-     * becomes
-     * <pre>{@code
-     * EVAL c=foo
-     * }</pre>
+     * And those two combine so {@code EVAL c=CASE(false, foo, b, bar, true, bort, el)} becomes
+     * {@code EVAL c=CASE(b, bar, bort)}.
      */
     public Expression partiallyFold() {
         List<Expression> newChildren = new ArrayList<>(children().size());
@@ -246,7 +223,9 @@ public final class Case extends EsqlScalarFunction {
                 return replaceChildren(newChildren);
             }
         }
-        newChildren.add(elseValue);
+        if (elseValueIsExplicit()) {
+            newChildren.add(elseValue);
+        }
         return replaceChildren(newChildren);
     }
 

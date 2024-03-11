@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.esql.tree;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import com.carrotsearch.randomizedtesting.annotations.Seed;
+
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.dissect.DissectParser;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
@@ -49,6 +51,7 @@ import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 
+@Seed("8B720512D5FF3B4E")
 public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeSubclassTests<T, B> {
 
     private static final List<Class<?>> CLASSES_WITH_MIN_TWO_CHILDREN = List.of(Concat.class, CIDRMatch.class);

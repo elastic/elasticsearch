@@ -22,9 +22,9 @@ import org.elasticsearch.geometry.ShapeType;
 import org.elasticsearch.geometry.utils.GeographyValidator;
 import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.test.ESTestCase;
-import org.hamcrest.BaseMatcher;
 import org.hamcrest.Description;
 import org.hamcrest.Matcher;
+import org.hamcrest.TypeSafeMatcher;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -409,7 +409,7 @@ public abstract class CentroidCalculatorTests extends ESTestCase {
         return new CentroidMatcher(expectedCentroid.getX(), expectedCentroid.getY(), expectedCentroid.sumWeight(), weightFactor);
     }
 
-    private static class CentroidMatcher extends BaseMatcher<CentroidCalculator> {
+    private static class CentroidMatcher extends TypeSafeMatcher<CentroidCalculator> {
         private final double weightFactor;
         private final Matcher<Double> xMatcher;
         private final Matcher<Double> yMatcher;
@@ -432,24 +432,17 @@ public abstract class CentroidCalculatorTests extends ESTestCase {
         }
 
         @Override
-        public boolean matches(Object actual) {
-            if (actual instanceof CentroidCalculator actualCentroid) {
-                return xMatcher.matches(actualCentroid.getX())
-                    && yMatcher.matches(actualCentroid.getY())
-                    && wMatcher.matches(weightFactor * actualCentroid.sumWeight());
-            }
-            return false;
+        public boolean matchesSafely(CentroidCalculator actualCentroid) {
+            return xMatcher.matches(actualCentroid.getX())
+                && yMatcher.matches(actualCentroid.getY())
+                && wMatcher.matches(weightFactor * actualCentroid.sumWeight());
         }
 
         @Override
-        public void describeMismatch(Object item, Description description) {
-            if (item instanceof CentroidCalculator actualCentroid) {
-                describeSubMismatch(xMatcher, actualCentroid.getX(), "X value", description);
-                describeSubMismatch(yMatcher, actualCentroid.getY(), "Y value", description);
-                describeSubMismatch(wMatcher, weightFactor * actualCentroid.sumWeight(), "sumWeight", description);
-            } else {
-                super.describeMismatch(item, description);
-            }
+        public void describeMismatchSafely(CentroidCalculator actualCentroid, Description description) {
+            describeSubMismatch(xMatcher, actualCentroid.getX(), "X value", description);
+            describeSubMismatch(yMatcher, actualCentroid.getY(), "Y value", description);
+            describeSubMismatch(wMatcher, weightFactor * actualCentroid.sumWeight(), "sumWeight", description);
         }
 
         private void describeSubMismatch(Matcher<Double> matcher, double value, String name, Description description) {

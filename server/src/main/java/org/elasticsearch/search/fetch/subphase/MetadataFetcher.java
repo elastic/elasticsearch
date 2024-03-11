@@ -53,7 +53,7 @@ public class MetadataFetcher {
                 if (context.getFieldType(field) != null) {
                     MappedFieldType mappedFieldType = context.getFieldType(field);
                     // NOTE: some metadata fields are stored and we should not load them if `stored_fields = _none_`
-                    if (mappedFieldType.isStored() && fetchStoredFields == false) {
+                    if (mappedFieldType.isStored()) {
                         continue;
                     }
                     metadataFields.add(new MetadataFetcher.MetadataField(field, mappedFieldType, fieldAndFormat.format));

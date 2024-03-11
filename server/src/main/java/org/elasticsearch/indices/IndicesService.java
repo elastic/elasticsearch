@@ -1701,7 +1701,13 @@ public class IndicesService extends AbstractLifecycleComponent
         Index[] indices = indexNameExpressionResolver.concreteIndices(clusterService.state(), indicesRequest);
         Map<String, Set<String>> modelsForFields = new HashMap<>();
         for (Index index : indices) {
-            Map<String, Set<String>> fieldsForModels = indexService(index).getMetadata().getFieldsForModels();
+            IndexService indexService = indexService(index);
+            if (indexService == null) {
+                // TODO: OK to skip indices with no index service?
+                continue;
+            }
+
+            Map<String, Set<String>> fieldsForModels = indexService.getMetadata().getFieldsForModels();
             for (Map.Entry<String, Set<String>> entry : fieldsForModels.entrySet()) {
                 for (String fieldName : entry.getValue()) {
                     Set<String> models = modelsForFields.computeIfAbsent(fieldName, v -> new HashSet<>());

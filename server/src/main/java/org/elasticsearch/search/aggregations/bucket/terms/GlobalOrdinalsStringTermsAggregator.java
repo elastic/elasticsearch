@@ -19,6 +19,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.core.Nullable;
@@ -51,7 +52,6 @@ import java.util.function.LongPredicate;
 import java.util.function.LongUnaryOperator;
 
 import static org.apache.lucene.index.SortedSetDocValues.NO_MORE_ORDS;
-import static org.elasticsearch.common.util.BigArrays.NON_RECYCLING_INSTANCE;
 import static org.elasticsearch.search.aggregations.InternalOrder.isKeyOrder;
 
 /**
@@ -493,14 +493,18 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             if (excludeDeletedDocs) {
                 forEachExcludeDeletedDocs(consumer);
             } else {
-                for (long globalOrd = 0; globalOrd < valueCount; globalOrd++) {
-                    if (false == acceptedGlobalOrdinals.test(globalOrd)) {
-                        continue;
-                    }
-                    long docCount = bucketDocCount(globalOrd);
-                    if (bucketCountThresholds.getMinDocCount() == 0 || docCount > 0) {
-                        consumer.accept(globalOrd, globalOrd, docCount);
-                    }
+                forEachAllowDeletedDocs(consumer);
+            }
+        }
+
+        private void forEachAllowDeletedDocs(BucketInfoConsumer consumer) throws IOException {
+            for (long globalOrd = 0; globalOrd < valueCount; globalOrd++) {
+                if (false == acceptedGlobalOrdinals.test(globalOrd)) {
+                    continue;
+                }
+                long docCount = bucketDocCount(globalOrd);
+                if (bucketCountThresholds.getMinDocCount() == 0 || docCount > 0) {
+                    consumer.accept(globalOrd, globalOrd, docCount);
                 }
             }
         }
@@ -509,7 +513,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
          * Excludes deleted docs in the results by cross-checking with liveDocs.
          */
         private void forEachExcludeDeletedDocs(BucketInfoConsumer consumer) throws IOException {
-            try (LongHash accepted = new LongHash(20, NON_RECYCLING_INSTANCE)) {
+            try (LongHash accepted = new LongHash(20, new BigArrays(null, null, ""))) {
                 for (LeafReaderContext ctx : searcher().getTopReaderContext().leaves()) {
                     LeafReader reader = ctx.reader();
                     Bits liveDocs = reader.getLiveDocs();
@@ -591,21 +595,25 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             if (excludeDeletedDocs) {
                 forEachExcludeDeletedDocs(owningBucketOrd, consumer);
             } else {
-                if (bucketCountThresholds.getMinDocCount() == 0) {
-                    for (long globalOrd = 0; globalOrd < valueCount; globalOrd++) {
-                        if (false == acceptedGlobalOrdinals.test(globalOrd)) {
-                            continue;
-                        }
-                        addBucketForMinDocCountZero(owningBucketOrd, globalOrd, consumer, null);
+                forEachAllowDeletedDocs(owningBucketOrd, consumer);
+            }
+        }
+
+        void forEachAllowDeletedDocs(long owningBucketOrd, BucketInfoConsumer consumer) throws IOException {
+            if (bucketCountThresholds.getMinDocCount() == 0) {
+                for (long globalOrd = 0; globalOrd < valueCount; globalOrd++) {
+                    if (false == acceptedGlobalOrdinals.test(globalOrd)) {
+                        continue;
                     }
-                } else {
-                    LongKeyedBucketOrds.BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(owningBucketOrd);
-                    while (ordsEnum.next()) {
-                        if (false == acceptedGlobalOrdinals.test(ordsEnum.value())) {
-                            continue;
-                        }
-                        consumer.accept(ordsEnum.value(), ordsEnum.ord(), bucketDocCount(ordsEnum.ord()));
+                    addBucketForMinDocCountZero(owningBucketOrd, globalOrd, consumer, null);
+                }
+            } else {
+                LongKeyedBucketOrds.BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(owningBucketOrd);
+                while (ordsEnum.next()) {
+                    if (false == acceptedGlobalOrdinals.test(ordsEnum.value())) {
+                        continue;
                     }
+                    consumer.accept(ordsEnum.value(), ordsEnum.ord(), bucketDocCount(ordsEnum.ord()));
                 }
             }
         }
@@ -615,7 +623,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
          */
         void forEachExcludeDeletedDocs(long owningBucketOrd, BucketInfoConsumer consumer) throws IOException {
             assert bucketCountThresholds.getMinDocCount() == 0;
-            try (LongHash accepted = new LongHash(20, NON_RECYCLING_INSTANCE)) {
+            try (LongHash accepted = new LongHash(20, new BigArrays(null, null, ""))) {
                 for (LeafReaderContext ctx : searcher().getTopReaderContext().leaves()) {
                     LeafReader reader = ctx.reader();
                     Bits liveDocs = reader.getLiveDocs();

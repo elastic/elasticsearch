@@ -472,15 +472,17 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
                     conflictingNodeIds.add(nodeIdAndMappingsVersion.getKey());
                 }
             }
-            errors.add(
-                "System index ["
-                    + systemIndexName
-                    + "] with version ["
-                    + joiningVersion.version()
-                    + "] on nodes ["
-                    + String.join(", ", conflictingNodeIds)
-                    + "]"
-            );
+            if (conflictingNodeIds.isEmpty() == false) {
+                errors.add(
+                    "System index ["
+                        + systemIndexName
+                        + "] with version ["
+                        + joiningVersion.version()
+                        + "] on nodes ["
+                        + String.join(", ", conflictingNodeIds)
+                        + "]"
+                );
+            }
         }
 
         if (errors.isEmpty() == false) {

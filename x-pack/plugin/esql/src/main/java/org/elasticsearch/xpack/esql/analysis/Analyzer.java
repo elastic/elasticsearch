@@ -569,7 +569,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 if (resolved.equals(ua)) {
                     return enrich;
                 }
-                // I don't know why we added this before?
                 return new Enrich(
                     enrich.source(),
                     enrich.child(),

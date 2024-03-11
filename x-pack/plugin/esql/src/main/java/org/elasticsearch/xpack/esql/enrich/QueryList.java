@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.enrich;
 
+import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
@@ -17,9 +18,11 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 
+import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.IntFunction;
@@ -52,7 +55,7 @@ abstract class QueryList {
      */
     static QueryList termQueryList(MappedFieldType field, SearchExecutionContext searchExecutionContext, Block block) {
         return new QueryList(block) {
-            private final IntFunction<Object> blockValueReader = QueryList.blockToJavaObject(block);
+            private final IntFunction<Object> blockValueReader = QueryList.blockToJavaObject(block, field);
 
             @Override
             Query getQuery(int position) {
@@ -75,11 +78,11 @@ abstract class QueryList {
     }
 
     // Generate geo_match query for the input term here
-    static QueryList geoMatchQuery() {
-        throw new UnsupportedOperationException();
+    static QueryList geoMatchQuery(MappedFieldType field, SearchExecutionContext searchExecutionContext, Block block) {
+        throw new UnsupportedOperationException("ENRICH does not yet support the geo_match query");
     }
 
-    private static IntFunction<Object> blockToJavaObject(Block block) {
+    private static IntFunction<Object> blockToJavaObject(Block block, MappedFieldType field) {
         return switch (block.elementType()) {
             case BOOLEAN -> {
                 BooleanBlock booleanBlock = (BooleanBlock) block;
@@ -87,6 +90,20 @@ abstract class QueryList {
             }
             case BYTES_REF -> {
                 BytesRefBlock bytesRefBlock = (BytesRefBlock) block;
+                if (field instanceof RangeFieldMapper.RangeFieldType rangeFieldType) {
+                    // TODO: Should we use the FieldType.blockLoader method here?
+                    yield offset -> switch (rangeFieldType.rangeType()) {
+                        case IP -> {
+                            // TODO: We need to be re-allocating the byte[] a bit too many times here
+                            final BytesRef value = bytesRefBlock.getBytesRef(offset, new BytesRef());
+                            byte[] bytes = new byte[value.length];
+                            System.arraycopy(value.bytes, value.offset, bytes, 0, value.length);
+                            InetAddress ip = InetAddressPoint.decode(bytes);
+                            yield ip;
+                        }
+                        default -> bytesRefBlock.getBytesRef(offset, new BytesRef());
+                    };
+                }
                 yield offset -> bytesRefBlock.getBytesRef(offset, new BytesRef());
             }
             case DOUBLE -> {

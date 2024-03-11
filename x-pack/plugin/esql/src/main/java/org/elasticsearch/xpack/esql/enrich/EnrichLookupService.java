@@ -38,7 +38,6 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.OutputOperator;
 import org.elasticsearch.compute.operator.ProjectOperator;
-import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasables;
@@ -270,7 +269,11 @@ public class EnrichLookupService {
                 case "geo_match" -> QueryList.geoMatchQuery(fieldType, searchExecutionContext, inputBlock); //
                 default -> throw new EsqlIllegalArgumentException("illegal match type " + matchType);
             };
-            var sourceOperator = new EnrichQuerySourceOperator(driverContext.blockFactory(), queryList, searchExecutionContext.getIndexReader());
+            var queryOperator = new EnrichQuerySourceOperator(
+                driverContext.blockFactory(),
+                queryList,
+                searchExecutionContext.getIndexReader()
+            );
             List<Operator> intermediateOperators = new ArrayList<>(extractFields.size() + 2);
             final ElementType[] mergingTypes = new ElementType[extractFields.size()];
             // load the fields

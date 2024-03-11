@@ -115,9 +115,8 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
             throw new IllegalArgumentException("Field [" + fieldName + "] has multiple models associated with it");
         }
 
-        // TODO: How to determine task type?
         InferenceAction.Request inferenceRequest = new InferenceAction.Request(
-            TaskType.SPARSE_EMBEDDING,
+            TaskType.ANY,
             modelsForField.iterator().next(),
             List.of(query),
             Map.of(),

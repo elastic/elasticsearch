@@ -45,7 +45,10 @@ public class TupleMatchers {
      * For example:
      * <pre>assertThat(Tuple.tuple("myValue1", "myValue2"), isTuple(startsWith("my"), containsString("Val")))</pre>
      */
-    public static <V1, V2> TupleMatcher<? extends V1, ? extends V2> isTuple(Matcher<? super V1> v1Matcher, Matcher<? super V2> v2Matcher) {
+    public static <V1, V2> Matcher<Tuple<? extends V1, ? extends V2>> isTuple(
+        Matcher<? super V1> v1Matcher,
+        Matcher<? super V2> v2Matcher
+    ) {
         return new TupleMatcher<>(v1Matcher, v2Matcher);
     }
 }

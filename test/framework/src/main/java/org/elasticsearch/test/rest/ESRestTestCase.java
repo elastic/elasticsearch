@@ -1103,8 +1103,10 @@ public abstract class ESRestTestCase extends ESTestCase {
     protected static void wipeAllIndices(boolean preserveSecurityIndices) throws IOException {
         boolean includeHidden = clusterHasFeature(RestTestLegacyFeatures.HIDDEN_INDICES_SUPPORTED);
         try {
-            // remove all indices except ilm and slm history which can pop up after deleting all data streams but shouldn't interfere
-            final List<String> indexPatterns = new ArrayList<>(List.of("*", "-.ds-ilm-history-*", "-.ds-.slm-history-*"));
+            // remove all indices except some history indices which can pop up after deleting all data streams but shouldn't interfere
+            final List<String> indexPatterns = new ArrayList<>(
+                List.of("*", "-.ds-ilm-history-*", "-.ds-.slm-history-*", ".ds-.watcher-history-*")
+            );
             if (preserveSecurityIndices) {
                 indexPatterns.add("-.security-*");
             }

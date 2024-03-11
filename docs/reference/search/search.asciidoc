@@ -726,6 +726,27 @@ This param is in technical preview and may change in the future. The syntax will
 likely change before GA.
 +
 This parameter is deprecated and will be removed. Use <<retriever, retriever>> instead.
++
+(Optional, array of objects)
+An array of `sub_search` objects where each `sub_search` is evaluated
+independently, and their result sets are later combined as part of
+<<request-body-rank, ranking>>. Each `sub_search` object is required to
+contain a single `query`. `sub_searches` is only allowed with the
+<<request-body-rank,`rank`>> element, and is not allowed in conjunction
+with a top-level <<request-body-search-query, `query`>> element.
++
+`sub_searches` as part of a search:
+[source,js]
+----
+{
+  "sub_searches": [
+    { "query": {...} },
+    { "query": {...} }
+  ]
+  ...
+}
+----
+// NOTCONSOLE
 
 [[request-body-search-terminate-after]]
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=terminate_after]

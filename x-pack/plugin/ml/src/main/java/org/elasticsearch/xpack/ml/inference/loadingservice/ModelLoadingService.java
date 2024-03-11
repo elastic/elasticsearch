@@ -811,8 +811,7 @@ public class ModelLoadingService implements ClusterStateListener {
                 if (oldModelAliasesNotReferenced && newModelAliasesNotReferenced && modelIsNotReferenced) {
                     ModelAndConsumer modelAndConsumer = localModelCache.get(modelId);
                     if (modelAndConsumer != null
-                        && (modelAndConsumer.consumers.contains(Consumer.SEARCH_AGGS) == false
-                            || modelAndConsumer.consumers.contains(Consumer.SEARCH_RESCORER) == false)) {
+                        && modelAndConsumer.consumers.stream().noneMatch(c -> c.isAnyOf(Consumer.SEARCH_AGGS, Consumer.SEARCH_RESCORER))) {
                         logger.trace("[{} ({})] invalidated from cache", modelId, modelAliasOrId);
                         localModelCache.invalidate(modelId);
                     }
@@ -822,6 +821,8 @@ public class ModelLoadingService implements ClusterStateListener {
                     // Either way, we know we won't put it back in cache as we are synchronized on `loadingListeners`
                     if (modelAndConsumer == null) {
                         ML_MODEL_INFERENCE_FEATURE.stopTracking(licenseState, modelId);
+                    } else {
+
                     }
                 }
             }

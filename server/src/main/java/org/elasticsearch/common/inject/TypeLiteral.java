@@ -20,7 +20,6 @@ import org.elasticsearch.common.inject.internal.MoreTypes;
 import org.elasticsearch.common.inject.util.Types;
 
 import java.lang.reflect.Constructor;
-import java.lang.reflect.Field;
 import java.lang.reflect.GenericArrayType;
 import java.lang.reflect.Member;
 import java.lang.reflect.Method;
@@ -247,19 +246,6 @@ public class TypeLiteral<T> {
             throw new IllegalArgumentException(supertype + " is not a supertype of " + type);
         }
         return resolve(MoreTypes.getGenericSupertype(type, rawType, supertype));
-    }
-
-    /**
-     * Returns the resolved generic type of {@code field}.
-     *
-     * @param field a field defined by this or any superclass.
-     * @since 2.0
-     */
-    public TypeLiteral<?> getFieldType(Field field) {
-        if (field.getDeclaringClass().isAssignableFrom(rawType) == false) {
-            throw new IllegalArgumentException(field + " is not defined by a supertype of " + type);
-        }
-        return resolve(field.getGenericType());
     }
 
     /**

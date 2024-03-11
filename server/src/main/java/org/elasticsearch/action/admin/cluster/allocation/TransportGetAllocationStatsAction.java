@@ -66,6 +66,16 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
     }
 
     @Override
+    protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
+        if (clusterService.state().getMinTransportVersion().before(TransportVersions.ALLOCATION_STATS)) {
+            // The action is not available before ALLOCATION_STATS
+            listener.onResponse(new Response(Map.of()));
+            return;
+        }
+        super.doExecute(task, request, listener);
+    }
+
+    @Override
     protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
         listener.onResponse(new Response(allocationStatsService.stats()));
     }

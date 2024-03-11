@@ -64,6 +64,17 @@ ext.testArtifact = { p, String name = "test" ->
   };
 }
 
+class StepExpansion {
+  String templatePath
+  List<Version> versions
+  String variable
+}
+
+class ListExpansion {
+  List<Version> versions
+  String variable
+}
+
 tasks.register("updateCIBwcVersions") {
   def writeVersions = { File file, List<Version> versions ->
     file.text = ""
@@ -73,47 +84,60 @@ tasks.register("updateCIBwcVersions") {
     }
   }
 
-  def writeBuildkiteList = { String outputFilePath, String pipelineTemplatePath, List<Version> versions ->
+  def writeBuildkitePipeline = { String outputFilePath, String pipelineTemplatePath, List<ListExpansion> listExpansions, List<StepExpansion> stepExpansions = [] ->
     def outputFile = file(outputFilePath)
     def pipelineTemplate = file(pipelineTemplatePath)
 
-    def listString = "[" + versions.collect { "\"${it}\"" }.join(", ") + "]"
-    outputFile.text = "# This file is auto-generated. See ${pipelineTemplatePath}\n" + pipelineTemplate.text.replaceAll('\\$BWC_LIST', listString)
-  }
+    def pipeline = pipelineTemplate.text
 
-  def writeBuildkiteSteps = { String outputFilePath, String pipelineTemplatePath, String stepTemplatePath, List<Version> versions ->
-    def outputFile = file(outputFilePath)
-    def pipelineTemplate = file(pipelineTemplatePath)
-    def stepTemplate = file(stepTemplatePath)
-
-    def steps = ""
-    versions.each {
-      steps += "\n" + stepTemplate.text.replaceAll('\\$BWC_VERSION', it.toString())
+    listExpansions.each { expansion ->
+      def listString = "[" + expansion.versions.collect { "\"${it}\"" }.join(", ") + "]"
+      pipeline = pipeline.replaceAll('\\$' + expansion.variable, listString)
     }
 
-    outputFile.text = "# This file is auto-generated. See ${pipelineTemplatePath}\n" + pipelineTemplate.text.replaceAll(' *\\$BWC_STEPS', steps)
+    stepExpansions.each { expansion ->
+      def steps = ""
+      expansion.versions.each {
+        steps += "\n" + file(expansion.templatePath).text.replaceAll('\\$BWC_VERSION', it.toString())
+      }
+      pipeline = pipeline.replaceAll(' *\\$' + expansion.variable, steps)
+    }
+
+    outputFile.text = "# This file is auto-generated. See ${pipelineTemplatePath}\n" + pipeline
+  }
+
+  // Writes a Buildkite pipelime from a template, and replaces $BWC_LIST with an array of versions
+  // Useful for writing a list of versions in a matrix configuration
+  def expandBwcList = { String outputFilePath, String pipelineTemplatePath, List<Version> versions ->
+    writeBuildkitePipeline(outputFilePath, pipelineTemplatePath, [new ListExpansion(versions: versions, variable: "BWC_LIST")])
+  }
+
+  // Writes a Buildkite pipeline from a template, and replaces $BWC_STEPS with a list of steps, one for each version
+  // Useful when you need to configure more versions than are allowed in a matrix configuration
+  def expandBwcSteps = { String outputFilePath, String pipelineTemplatePath, String stepTemplatePath, List<Version> versions ->
+    writeBuildkitePipeline(outputFilePath, pipelineTemplatePath, [], [new StepExpansion(templatePath: stepTemplatePath, versions: versions, variable: "BWC_STEPS")])
   }
 
   doLast {
     writeVersions(file(".ci/bwcVersions"), BuildParams.bwcVersions.allIndexCompatible)
     writeVersions(file(".ci/snapshotBwcVersions"), BuildParams.bwcVersions.unreleasedIndexCompatible)
-    writeBuildkiteList(
+    expandBwcList(
       ".buildkite/pipelines/intake.yml",
       ".buildkite/pipelines/intake.template.yml",
       BuildParams.bwcVersions.unreleasedIndexCompatible
     )
-    writeBuildkiteSteps(
+    writeBuildkitePipeline(
       ".buildkite/pipelines/periodic.yml",
       ".buildkite/pipelines/periodic.template.yml",
-      ".buildkite/pipelines/periodic.bwc.template.yml",
-      BuildParams.bwcVersions.allIndexCompatible
+      [
+        new ListExpansion(versions: BuildParams.bwcVersions.unreleasedIndexCompatible, variable: "BWC_LIST"),
+      ],
+      [
+        new StepExpansion(templatePath: ".buildkite/pipelines/periodic.bwc.template.yml", versions: BuildParams.bwcVersions.allIndexCompatible, variable: "BWC_STEPS"),
+      ]
     )
-    writeBuildkiteList(
-      ".buildkite/pipelines/periodic.yml",
-      ".buildkite/pipelines/periodic.yml",
-      BuildParams.bwcVersions.unreleasedIndexCompatible
-    )
-    writeBuildkiteSteps(
+
+    expandBwcSteps(
       ".buildkite/pipelines/periodic-packaging.yml",
       ".buildkite/pipelines/periodic-packaging.template.yml",
       ".buildkite/pipelines/periodic-packaging.bwc.template.yml",

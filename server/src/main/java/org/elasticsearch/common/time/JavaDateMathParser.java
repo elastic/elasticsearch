@@ -201,7 +201,7 @@ public class JavaDateMathParser implements DateMathParser {
 
     private Instant parseDateTime(String value, ZoneId timeZone, boolean roundUpIfNoTime) {
         if (Strings.isNullOrEmpty(value)) {
-            throw new ElasticsearchParseException("cannot parse empty date");
+            throw new ElasticsearchParseException("cannot parse empty datetime");
         }
 
         Function<String, TemporalAccessor> formatter = roundUpIfNoTime ? roundupParser : this.parser;

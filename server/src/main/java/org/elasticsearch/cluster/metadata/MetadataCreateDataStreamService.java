@@ -54,7 +54,7 @@ public class MetadataCreateDataStreamService {
 
     private static final Logger logger = LogManager.getLogger(MetadataCreateDataStreamService.class);
 
-    public static final String FAILURE_STORES_REFRESH_INTERVAL_SETTING_NAME = "data_streams.failure_stores.refresh_interval";
+    public static final String FAILURE_STORE_REFRESH_INTERVAL_SETTING_NAME = "data_streams.failure_store.refresh_interval";
 
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
@@ -412,11 +412,14 @@ public class MetadataCreateDataStreamService {
             return currentState;
         }
 
-        var settingsBuilder = Settings.builder().put(IndexMetadata.SETTING_INDEX_HIDDEN, true);
+        var settings = MetadataRolloverService.HIDDEN_INDEX_SETTINGS;
         // Optionally set a custom refresh interval for the failure store index.
-        var refreshInterval = clusterService.getSettings().getAsTime(FAILURE_STORES_REFRESH_INTERVAL_SETTING_NAME, null);
+        var refreshInterval = getFailureStoreRefreshInterval(clusterService.getSettings());
         if (refreshInterval != null) {
-            settingsBuilder.put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), refreshInterval);
+            settings = Settings.builder()
+                .put(IndexMetadata.SETTING_INDEX_HIDDEN, true)
+                .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), refreshInterval)
+                .build();
         }
 
         CreateIndexClusterStateUpdateRequest createIndexRequest = new CreateIndexClusterStateUpdateRequest(
@@ -427,7 +430,7 @@ public class MetadataCreateDataStreamService {
             .nameResolvedInstant(request.getStartTime())
             .performReroute(false)
             .setMatchingTemplate(template)
-            .settings(settingsBuilder.build());
+            .settings(settings);
 
         try {
             currentState = metadataCreateIndexService.applyCreateIndexRequest(
@@ -476,4 +479,7 @@ public class MetadataCreateDataStreamService {
         fieldMapper.validate(mappingLookup);
     }
 
+    public static TimeValue getFailureStoreRefreshInterval(Settings settings) {
+        return settings.getAsTime(FAILURE_STORE_REFRESH_INTERVAL_SETTING_NAME, null);
+    }
 }

@@ -279,7 +279,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         final MetadataCreateIndexService metadataCreateIndexService = getMetadataCreateIndexService();
         var timeValue = randomTimeValue();
         var settings = Settings.builder()
-            .put(MetadataCreateDataStreamService.FAILURE_STORES_REFRESH_INTERVAL_SETTING_NAME, timeValue)
+            .put(MetadataCreateDataStreamService.FAILURE_STORE_REFRESH_INTERVAL_SETTING_NAME, timeValue)
             .build();
         var clusterService = new ClusterService(settings, ClusterSettings.createBuiltInClusterSettings(), threadPool, null);
         final String dataStreamName = "my-data-stream";

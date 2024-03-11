@@ -30,8 +30,8 @@
 "One index":
 
   - skip:
-      version: " - 8.11.99"
-      reason:  "node.role column shown by default from 8.12.0 onwards"
+      version: " - 8.13.99"
+      reason:  "shards.undesired, forecast.write_load and forecast.shard_size columns are added in 8.14.0"
 
   - do:
         indices.create:
@@ -45,6 +45,9 @@
             /^
               ( \s*                          #allow leading spaces to account for right-justified text
                 \d+                    \s+
+                \d+                    \s+
+                \d+(\.\d+)?            \s+
+                \d+(\.\d+)?[kmgt]?b    \s+
                 \d+(\.\d+)?[kmgt]?b    \s+
                 \d+(\.\d+)?[kmgt]?b    \s+
                 (\d+(\.\d+)?[kmgt]b   \s+)  #always should return value since we filter out non data nodes by default
@@ -68,8 +71,8 @@
 "Node ID":
 
   - skip:
-      version: " - 8.11.99"
-      reason:  "node.role column shown by default from 8.12.0 onwards"
+      version: " - 8.13.99"
+      reason:  "shards.undesired, forecast.write_load and forecast.shard_size columns are added in 8.14.0"
 
   - do:
         cat.allocation:
@@ -79,6 +82,9 @@
       $body: |
             /^
               ( \d+                    \s+   #usually 0, unless some system index has been recreated before this runs
+                \d+                    \s+
+                \d+(\.\d+)?            \s+
+                \d+(\.\d+)?[kmgt]?b    \s+
                 \d+(\.\d+)?[kmgt]?b    \s+
                 \d+(\.\d+)?[kmgt]?b    \s+
                 (\d+(\.\d+)?[kmgt]b   \s+)?  #no value from client nodes
@@ -102,12 +108,11 @@
             $/
 
 ---
-
 "All Nodes":
 
    - skip:
-      version: " - 8.11.99"
-      reason:  "node.role column shown by default from 8.12.0 onwards"
+      version: " - 8.13.99"
+      reason:  "shards.undesired, forecast.write_load and forecast.shard_size columns are added in 8.14.0"
 
    - do:
          cat.allocation:
@@ -118,6 +123,9 @@
              /^
                ( \s*                          #allow leading spaces to account for right-justified text
                  \d+                    \s+   #usually 0, unless some system index has been recreated before this runs
+                 \d+                    \s+
+                 \d+(\.\d+)?            \s+
+                 \d+(\.\d+)?[kmgt]?b    \s+
                  \d+(\.\d+)?[kmgt]?b    \s+
                  \d+(\.\d+)?[kmgt]?b    \s+
                  (\d+(\.\d+)?[kmgt]b   \s+)?  #no value from client nodes
@@ -141,8 +149,8 @@
 "Column headers":
 
   - skip:
-      version: " - 8.11.99"
-      reason:  "node.role column shown by default from 8.12.0 onwards"
+      version: " - 8.13.99"
+      reason:  "shards.undesired, forecast.write_load and forecast.shard_size columns are added in 8.14.0"
 
   - do:
         cat.allocation:
@@ -151,6 +159,9 @@
 
       $body: |
            /^  shards                  \s+
+               shards.undesired        \s+
+               forecast.write_load     \s+
+               forecast.shard_size     \s+
                disk.indices            \s+
                disk.used               \s+
                disk.avail              \s+
@@ -164,6 +175,9 @@
 
               ( \s*                          #allow leading spaces to account for right-justified text
                 \d+                    \s+   #usually 0, unless some system index has been recreated before this runs
+                \d+                    \s+
+                \d+(\.\d+)?            \s+
+                \d+(\.\d+)?[kmgt]?b    \s+
                 \d+(\.\d+)?[kmgt]?b    \s+
                 \d+(\.\d+)?[kmgt]?b    \s+
                 (\d+(\.\d+)?[kmgt]b   \s+)  #always should return value since we filter out non data nodes by default
@@ -214,12 +228,11 @@
 
 
 ---
-
 "Bytes":
 
   - skip:
-      version: " - 8.11.99"
-      reason:  "node.role column shown by default from 8.12.0 onwards"
+      version: " - 8.13.99"
+      reason:  "shards.undesired, forecast.write_load and forecast.shard_size columns are added in 8.14.0"
 
   - do:
       cat.allocation:
@@ -229,6 +242,9 @@
       $body: |
             /^
               ( \d+                 \s+    #usually 0, unless some system index has been recreated before this runs
+                \d+                 \s+
+                \d+(\.\d+)?         \s+
+                \d+                 \s+
                 0                   \s+
                 \d+                 \s+
                 (\d+                 \s+)  #always should return value since we filter out non data nodes by default
@@ -243,7 +259,6 @@
             $/
 
 ---
-
 "Node roles":
 
   - skip:
@@ -263,6 +278,7 @@
           )+
         $/
 
+---
 "Node forecasts":
 
   - skip:

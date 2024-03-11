@@ -18,6 +18,7 @@ import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.allocation.NodeAllocationStats;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -91,14 +92,14 @@ public class RestAllocationAction extends AbstractCatAction {
         table.addCell("shards", "alias:s;text-align:right;desc:number of shards on node");
         table.addCell(
             "shards.undesired",
-            "default:false;text-align:right;desc:amount of shards that are scheduled to be moved elsewhere in the cluster "
+            "text-align:right;desc:amount of shards that are scheduled to be moved elsewhere in the cluster "
                 + "or -1 other than desired balance allocator is used"
         );
         table.addCell(
             "forecast.write_load",
-            "default:false;alias:fwl,forecastWriteLoad;text-align:right;desc:sum of index write load forecasts"
+            "alias:fwl,forecastWriteLoad;text-align:right;desc:sum of index write load forecasts"
         );
-        table.addCell("forecast.shard_size", "default:false;alias:fd,forecastShardSize;text-align:right;desc:sum of shard size forecasts");
+        table.addCell("forecast.shard_size", "alias:fd,forecastShardSize;text-align:right;desc:sum of shard size forecasts");
         table.addCell("disk.indices", "alias:di,diskIndices;text-align:right;desc:disk used by ES indices");
         table.addCell("disk.used", "alias:du,diskUsed;text-align:right;desc:disk used (total, not just ES)");
         table.addCell("disk.avail", "alias:da,diskAvail;text-align:right;desc:disk available");
@@ -135,12 +136,13 @@ public class RestAllocationAction extends AbstractCatAction {
                     diskPercent = (short) (used * 100 / (used + avail.getBytes()));
                 }
             }
+            NodeAllocationStats nodeAllocationStats = nodeStats.getNodeAllocationStats();
 
             table.startRow();
             table.addCell(shardCounts.getOrDefault(node.getId(), 0));
-            table.addCell(nodeStats.getNodeAllocationStats() != null ? nodeStats.getNodeAllocationStats().undesiredShards() : null);
-            table.addCell(nodeStats.getNodeAllocationStats() != null ? nodeStats.getNodeAllocationStats().forecastedIngestLoad() : null);
-            table.addCell(nodeStats.getNodeAllocationStats() != null ? nodeStats.getNodeAllocationStats().forecastedDiskUsage() : null);
+            table.addCell(nodeAllocationStats != null ? nodeAllocationStats.undesiredShards() : null);
+            table.addCell(nodeAllocationStats != null ? nodeAllocationStats.forecastedIngestLoad() : null);
+            table.addCell(nodeAllocationStats != null ? ByteSizeValue.ofBytes(nodeAllocationStats.forecastedDiskUsage()) : null);
             table.addCell(nodeStats.getIndices().getStore().size());
             table.addCell(used < 0 ? null : ByteSizeValue.ofBytes(used));
             table.addCell(avail.getBytes() < 0 ? null : avail);

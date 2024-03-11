@@ -325,6 +325,7 @@ public class DiskHealthTrackerTests extends ESTestCase {
             null,
             null,
             null,
+            null,
             null
         );
     }

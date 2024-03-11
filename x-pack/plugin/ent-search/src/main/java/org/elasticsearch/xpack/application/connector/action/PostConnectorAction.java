@@ -46,6 +46,7 @@ public class PostConnectorAction {
 
         @Nullable
         private final String description;
+        @Nullable
         private final String indexName;
         @Nullable
         private final Boolean isNative;
@@ -68,7 +69,7 @@ public class PostConnectorAction {
         public Request(StreamInput in) throws IOException {
             super(in);
             this.description = in.readOptionalString();
-            this.indexName = in.readString();
+            this.indexName = in.readOptionalString();
             this.isNative = in.readOptionalBoolean();
             this.language = in.readOptionalString();
             this.name = in.readOptionalString();
@@ -116,7 +117,9 @@ public class PostConnectorAction {
                 if (description != null) {
                     builder.field("description", description);
                 }
-                builder.field("index_name", indexName);
+                if (indexName != null) {
+                    builder.field("index_name", indexName);
+                }
                 if (isNative != null) {
                     builder.field("is_native", isNative);
                 }
@@ -138,13 +141,12 @@ public class PostConnectorAction {
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = null;
 
-            if (Strings.isNullOrEmpty(getIndexName())) {
-                validationException = addValidationError("[index_name] cannot be [null] or [\"\"]", validationException);
-            }
-            try {
-                MetadataCreateIndexService.validateIndexOrAliasName(getIndexName(), InvalidIndexNameException::new);
-            } catch (InvalidIndexNameException e) {
-                validationException = addValidationError(e.toString(), validationException);
+            if (indexName != null) {
+                try {
+                    MetadataCreateIndexService.validateIndexOrAliasName(getIndexName(), InvalidIndexNameException::new);
+                } catch (InvalidIndexNameException e) {
+                    validationException = addValidationError(e.toString(), validationException);
+                }
             }
 
             return validationException;
@@ -154,7 +156,7 @@ public class PostConnectorAction {
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeOptionalString(description);
-            out.writeString(indexName);
+            out.writeOptionalString(indexName);
             out.writeOptionalBoolean(isNative);
             out.writeOptionalString(language);
             out.writeOptionalString(name);

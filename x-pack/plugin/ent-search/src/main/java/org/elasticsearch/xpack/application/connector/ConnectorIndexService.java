@@ -107,7 +107,6 @@ public class ConnectorIndexService {
         try {
             isDataIndexNameAlreadyInUse(indexName, connectorId, listener.delegateFailure((l, isIndexNameInUse) -> {
                 if (isIndexNameInUse) {
-
                     l.onFailure(
                         new ElasticsearchStatusException(
                             "Index name [" + indexName + "] is used by another connector.",
@@ -912,6 +911,10 @@ public class ConnectorIndexService {
      * @param listener     The listener for handling boolean responses and errors.
      */
     private void isDataIndexNameAlreadyInUse(String indexName, String connectorId, ActionListener<Boolean> listener) {
+        if (indexName == null) {
+            listener.onResponse(false);
+            return;
+        }
         try {
             BoolQueryBuilder boolFilterQueryBuilder = new BoolQueryBuilder();
 

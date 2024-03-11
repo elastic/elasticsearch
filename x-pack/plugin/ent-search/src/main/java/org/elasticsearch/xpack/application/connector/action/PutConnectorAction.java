@@ -49,6 +49,7 @@ public class PutConnectorAction {
 
         @Nullable
         private final String description;
+        @Nullable
         private final String indexName;
         @Nullable
         private final Boolean isNative;
@@ -81,7 +82,7 @@ public class PutConnectorAction {
             super(in);
             this.connectorId = in.readString();
             this.description = in.readOptionalString();
-            this.indexName = in.readString();
+            this.indexName = in.readOptionalString();
             this.isNative = in.readOptionalBoolean();
             this.language = in.readOptionalString();
             this.name = in.readOptionalString();
@@ -130,7 +131,9 @@ public class PutConnectorAction {
                 if (description != null) {
                     builder.field("description", description);
                 }
-                builder.field("index_name", indexName);
+                if (indexName != null) {
+                    builder.field("index_name", indexName);
+                }
                 if (isNative != null) {
                     builder.field("is_native", isNative);
                 }
@@ -156,13 +159,12 @@ public class PutConnectorAction {
             if (Strings.isNullOrEmpty(getConnectorId())) {
                 validationException = addValidationError("[connector_id] cannot be [null] or [\"\"]", validationException);
             }
-            if (Strings.isNullOrEmpty(getIndexName())) {
-                validationException = addValidationError("[index_name] cannot be [null] or [\"\"]", validationException);
-            }
-            try {
-                MetadataCreateIndexService.validateIndexOrAliasName(getIndexName(), InvalidIndexNameException::new);
-            } catch (InvalidIndexNameException e) {
-                validationException = addValidationError(e.toString(), validationException);
+            if (indexName != null) {
+                try {
+                    MetadataCreateIndexService.validateIndexOrAliasName(getIndexName(), InvalidIndexNameException::new);
+                } catch (InvalidIndexNameException e) {
+                    validationException = addValidationError(e.toString(), validationException);
+                }
             }
 
             return validationException;
@@ -173,7 +175,7 @@ public class PutConnectorAction {
             super.writeTo(out);
             out.writeString(connectorId);
             out.writeOptionalString(description);
-            out.writeString(indexName);
+            out.writeOptionalString(indexName);
             out.writeOptionalBoolean(isNative);
             out.writeOptionalString(language);
             out.writeOptionalString(name);

@@ -16,6 +16,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -41,6 +42,7 @@ public class UpdateConnectorIndexNameAction {
     public static class Request extends ConnectorActionRequest implements ToXContentObject {
 
         private final String connectorId;
+        @Nullable
         private final String indexName;
 
         public Request(String connectorId, String indexName) {
@@ -51,7 +53,7 @@ public class UpdateConnectorIndexNameAction {
         public Request(StreamInput in) throws IOException {
             super(in);
             this.connectorId = in.readString();
-            this.indexName = in.readString();
+            this.indexName = in.readOptionalString();
         }
 
         public String getConnectorId() {
@@ -70,7 +72,7 @@ public class UpdateConnectorIndexNameAction {
             );
 
         static {
-            PARSER.declareString(constructorArg(), Connector.INDEX_NAME_FIELD);
+            PARSER.declareStringOrNull(constructorArg(), Connector.INDEX_NAME_FIELD);
         }
 
         public static UpdateConnectorIndexNameAction.Request fromXContentBytes(
@@ -107,14 +109,12 @@ public class UpdateConnectorIndexNameAction {
                 validationException = addValidationError("[connector_id] cannot be [null] or [\"\"].", validationException);
             }
 
-            if (Strings.isNullOrEmpty(indexName)) {
-                validationException = addValidationError("[index_name] cannot be [null] or [\"\"].", validationException);
-            }
-
-            try {
-                MetadataCreateIndexService.validateIndexOrAliasName(indexName, InvalidIndexNameException::new);
-            } catch (InvalidIndexNameException e) {
-                validationException = addValidationError(e.toString(), validationException);
+            if (indexName != null) {
+                try {
+                    MetadataCreateIndexService.validateIndexOrAliasName(indexName, InvalidIndexNameException::new);
+                } catch (InvalidIndexNameException e) {
+                    validationException = addValidationError(e.toString(), validationException);
+                }
             }
 
             return validationException;
@@ -124,7 +124,7 @@ public class UpdateConnectorIndexNameAction {
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(connectorId);
-            out.writeString(indexName);
+            out.writeOptionalString(indexName);
         }
 
         @Override

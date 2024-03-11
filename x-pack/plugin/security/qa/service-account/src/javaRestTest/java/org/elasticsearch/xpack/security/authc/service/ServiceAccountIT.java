@@ -164,6 +164,20 @@ public class ServiceAccountIT extends ESRestTestCase {
                 },
                 {
                   "names": [
+                    ".fleet-agent-components*"
+                  ],
+                  "privileges": [
+                    "read",
+                    "write",
+                    "monitor",
+                    "create_index",
+                    "auto_configure",
+                    "maintenance"
+                  ],
+                  "allow_restricted_indices": true
+                },
+                {
+                  "names": [
                     ".fleet-artifacts*"
                   ],
                   "privileges": [

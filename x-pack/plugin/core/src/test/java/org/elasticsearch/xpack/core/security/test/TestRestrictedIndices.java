@@ -99,6 +99,7 @@ public class TestRestrictedIndices {
                 List.of(
                     SystemIndexDescriptorUtils.createUnmanaged(".fleet-actions~(-results*)", "fleet actions"),
                     SystemIndexDescriptorUtils.createUnmanaged(".fleet-agents*", "fleet agents"),
+                    SystemIndexDescriptorUtils.createUnmanaged(".fleet-agent-components*", "fleet agent components"),
                     SystemIndexDescriptorUtils.createUnmanaged(".fleet-enrollment-api-keys*", "fleet enrollment"),
                     SystemIndexDescriptorUtils.createUnmanaged(".fleet-policies-[0-9]+*", "fleet policies"),
                     SystemIndexDescriptorUtils.createUnmanaged(".fleet-policies-leader*", "fleet policies leader"),

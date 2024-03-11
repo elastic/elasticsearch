@@ -177,6 +177,7 @@ public class ElasticServiceAccountsTests extends ESTestCase {
         List.of(
             ".fleet-actions" + randomAlphaOfLengthBetween(1, 20),
             ".fleet-agents" + randomAlphaOfLengthBetween(1, 20),
+            ".fleet-agent-components" + randomAlphaOfLengthBetween(1, 20),
             ".fleet-enrollment-api-keys" + randomAlphaOfLengthBetween(1, 20),
             ".fleet-policies" + randomAlphaOfLengthBetween(1, 20),
             ".fleet-policies-leader" + randomAlphaOfLengthBetween(1, 20),

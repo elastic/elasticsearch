@@ -62,6 +62,22 @@ public class FleetSystemIndicesIT extends ESRestTestCase {
         assertThat(responseBody, containsString("access_api_key_id"));
     }
 
+    public void testCreationOfFleetAgentComponents() throws Exception {
+        Request request = new Request("PUT", ".fleet-agent-components");
+        Response response = client().performRequest(request);
+        assertEquals(200, response.getStatusLine().getStatusCode());
+
+        request = new Request("GET", ".fleet-agent-components/_mapping");
+        response = client().performRequest(request);
+        String responseBody = EntityUtils.toString(response.getEntity());
+        assertThat(responseBody, containsString("component"));
+
+        request = new Request("GET", ".fleet-agent-components-7/_mapping");
+        response = client().performRequest(request);
+        responseBody = EntityUtils.toString(response.getEntity());
+        assertThat(responseBody, containsString("component"));
+    }
+
     public void testCreationOfFleetActions() throws Exception {
         Request request = new Request("PUT", ".fleet-actions");
         Response response = client().performRequest(request);

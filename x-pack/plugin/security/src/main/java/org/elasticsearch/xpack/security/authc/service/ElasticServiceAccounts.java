@@ -102,6 +102,11 @@ final class ElasticServiceAccounts {
                     .privileges("read", "write", "monitor", "create_index", "auto_configure", "maintenance")
                     .allowRestrictedIndices(true)
                     .build(),
+                    RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".fleet-agent-components*")
+                    .privileges("read", "write", "monitor", "create_index", "auto_configure", "maintenance")
+                    .allowRestrictedIndices(true)
+                    .build(),
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(".fleet-artifacts*")
                     .privileges("read", "write", "monitor", "create_index", "auto_configure", "maintenance")

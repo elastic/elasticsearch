@@ -1,0 +1,55 @@
+{
+  "settings": {
+    "auto_expand_replicas": "0-1"
+  },
+  "mappings": {
+    "_doc": {
+      "dynamic": false,
+      "_meta": {
+        "version": "${fleet.version}",
+        "managed_index_mappings_version": ${fleet.managed.index.version}
+      },
+      "properties": {
+        "agent": {
+          "properties": {
+            "id": {
+              "type": "keyword"
+            }
+          }
+        },
+        "component": {
+          "properties": {
+            "id": {
+              "type": "keyword"
+            },
+            "type": {
+              "type": "keyword"
+            },
+             "status": {
+              "type": "keyword"
+            },
+            "message": {
+              "type": "text"
+            }
+          }
+        },
+        "unit": {
+          "properties": {
+            "id": {
+              "type": "keyword"
+            },
+            "type": {
+              "type": "keyword"
+            },
+            "status": {
+              "type": "keyword"
+            },
+            "message": {
+              "type": "text"
+            }
+          }
+        }
+      }
+    }
+  }
+}

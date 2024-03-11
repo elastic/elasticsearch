@@ -81,6 +81,7 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
     private static final List<String> ALLOWED_PRODUCTS = List.of("kibana", "fleet");
     private static final int FLEET_ACTIONS_MAPPINGS_VERSION = 1;
     private static final int FLEET_AGENTS_MAPPINGS_VERSION = 1;
+    private static final int FLEET_AGENT_COMPONENTS_MAPPINGS_VERSION = 1;
     private static final int FLEET_ENROLLMENT_API_KEYS_MAPPINGS_VERSION = 1;
     private static final int FLEET_SECRETS_MAPPINGS_VERSION = 1;
     private static final int FLEET_POLICIES_MAPPINGS_VERSION = 1;
@@ -107,6 +108,7 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
         return List.of(
             fleetActionsSystemIndexDescriptor(),
             fleetAgentsSystemIndexDescriptor(),
+            fleetAgentComponentsSystemIndexDescriptor(),
             fleetEnrollmentApiKeysSystemIndexDescriptor(),
             fleetSecretsSystemIndexDescriptor(),
             fleetPoliciesSystemIndexDescriptor(),
@@ -163,6 +165,24 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
             .setPrimaryIndex(".fleet-agents-" + CURRENT_INDEX_VERSION)
             .setIndexPattern(".fleet-agents*")
             .setAliasName(".fleet-agents")
+            .setDescription("Configuration of fleet servers")
+            .build();
+    }
+
+    private static SystemIndexDescriptor fleetAgentComponentsSystemIndexDescriptor() {
+        PutIndexTemplateRequest request = new PutIndexTemplateRequest();
+        request.source(loadTemplateSource("/fleet-agent-components.json", FLEET_AGENT_COMPONENTS_MAPPINGS_VERSION), XContentType.JSON);
+
+        return SystemIndexDescriptor.builder()
+            .setType(Type.EXTERNAL_MANAGED)
+            .setAllowedElasticProductOrigins(ALLOWED_PRODUCTS)
+            .setOrigin(FLEET_ORIGIN)
+            .setVersionMetaKey(VERSION_KEY)
+            .setMappings(request.mappings())
+            .setSettings(request.settings())
+            .setPrimaryIndex(".fleet-agent-components-" + CURRENT_INDEX_VERSION)
+            .setIndexPattern(".fleet-agent-components*")
+            .setAliasName(".fleet-agent-components")
             .setDescription("Configuration of fleet servers")
             .build();
     }

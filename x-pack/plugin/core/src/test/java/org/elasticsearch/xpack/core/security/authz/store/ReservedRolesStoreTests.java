@@ -860,6 +860,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         Arrays.asList(
             ".fleet-agents",
+            ".fleet-agent-components",
             ".fleet-actions",
             ".fleet-enrollment-api-keys",
             ".fleet-policies",

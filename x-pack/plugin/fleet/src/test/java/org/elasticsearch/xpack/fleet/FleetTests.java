@@ -41,6 +41,7 @@ public class FleetTests extends ESTestCase {
                 ".fleet-servers*",
                 ".fleet-policies-[0-9]+*",
                 ".fleet-agents*",
+                ".fleet-agent-components*",
                 ".fleet-actions~(-results*)",
                 ".fleet-policies-leader*",
                 ".fleet-enrollment-api-keys*",
@@ -55,6 +56,7 @@ public class FleetTests extends ESTestCase {
         assertTrue(fleetDescriptors.stream().anyMatch(d -> d.matchesIndexPattern(".fleet-policies-leader")));
 
         assertTrue(fleetDescriptors.stream().anyMatch(d -> d.matchesIndexPattern(".fleet-agents")));
+        assertTrue(fleetDescriptors.stream().anyMatch(d -> d.matchesIndexPattern(".fleet-agent-components")));
 
         assertTrue(fleetDescriptors.stream().anyMatch(d -> d.matchesIndexPattern(".fleet-actions")));
         assertFalse(fleetDescriptors.stream().anyMatch(d -> d.matchesIndexPattern(".fleet-actions-results")));

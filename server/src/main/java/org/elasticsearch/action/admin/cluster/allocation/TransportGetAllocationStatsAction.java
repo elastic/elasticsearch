@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.cluster.allocation;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
@@ -75,12 +76,19 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
     }
 
     public static class Request extends MasterNodeReadRequest<Request> {
+
         public Request(TaskId parentTaskId) {
             setParentTask(parentTaskId);
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            assert out.getTransportVersion().onOrAfter(TransportVersions.ALLOCATION_STATS);
+            super.writeTo(out);
         }
 
         @Override

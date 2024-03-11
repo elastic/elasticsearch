@@ -90,7 +90,7 @@ public class TransportNodesStatsAction extends TransportNodesAction<
             && clusterService.state().getMinTransportVersion().onOrAfter(TransportVersions.ALLOCATION_STATS)) {
             client.execute(
                 TransportGetAllocationStatsAction.TYPE,
-                new TransportGetAllocationStatsAction.Request(task.getParentTaskId()),
+                new TransportGetAllocationStatsAction.Request(new TaskId(clusterService.localNode().getId(), task.getId())),
                 listener.delegateFailure((l, r) -> {
                     ActionListener.respondAndRelease(l, newResponse(request, merge(responses, r.getNodeAllocationStats()), failures));
                 })

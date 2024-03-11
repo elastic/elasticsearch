@@ -449,9 +449,9 @@ public class SearchableSnapshotsPrewarmingIntegTests extends ESSingleNodeTestCas
                 (metadata) -> new FsRepository(metadata, env, namedXContentRegistry, clusterService, bigArrays, recoverySettings) {
 
                     @Override
-                    protected void assertSnapshotOrGenericThread() {
+                    protected void assertSnapshotOrGenericOrStatelessThread() {
                         if (enabled.get()) {
-                            super.assertSnapshotOrGenericThread();
+                            super.assertSnapshotOrGenericOrStatelessThread();
                         }
                     }
 

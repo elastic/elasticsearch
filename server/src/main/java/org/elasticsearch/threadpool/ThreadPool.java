@@ -59,13 +59,22 @@ import java.util.stream.Collectors;
 import static java.util.Map.entry;
 import static org.elasticsearch.core.Strings.format;
 
+/**
+ * Manages all the Java thread pools we create. {@link Names} contains a list of the thread pools, but plugins can dynamically add more
+ * thread pools to instantiate.
+ */
 public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
 
     private static final Logger logger = LogManager.getLogger(ThreadPool.class);
 
     public static class Names {
+        // Often used for quick operations not worth the costs of switching to another thread. Also used to avoid the cost of re-queuing
+        // work while leveraging the interface for ease of coding.
+        // This should not be used on Netty transport threads if the task may not always complete quickly.
         public static final String SAME = "same";
+        // All the tasks that do not fit into the other categories. Try to avoid this if possible.
         public static final String GENERIC = "generic";
+        // Important management tasks that keep the cluster from falling apart. We do not want these operations stalled.
         public static final String CLUSTER_COORDINATION = "cluster_coordination";
         public static final String GET = "get";
         public static final String ANALYZE = "analyze";
@@ -75,6 +84,8 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         public static final String SEARCH_COORDINATION = "search_coordination";
         public static final String AUTO_COMPLETE = "auto_complete";
         public static final String SEARCH_THROTTLED = "search_throttled";
+        // Important cluster management tasks. Tasks that manage data, and tasks that report on the cluster health via statistics etc.
+        // It is important that these tasks do not stall because that would block cluster diagnostics.
         public static final String MANAGEMENT = "management";
         public static final String FLUSH = "flush";
         public static final String REFRESH = "refresh";
@@ -194,6 +205,13 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         Setting.Property.NodeScope
     );
 
+    /**
+     * Defines and builds the many thread pools delineated in {@link Names}.
+     *
+     * @param settings
+     * @param meterRegistry
+     * @param customBuilders a list of additional thread pool builders that were defined elsewhere (like a Plugin).
+     */
     @SuppressWarnings({ "rawtypes", "unchecked" })
     public ThreadPool(final Settings settings, MeterRegistry meterRegistry, final ExecutorBuilder<?>... customBuilders) {
         assert Node.NODE_NAME_SETTING.exists(settings);
@@ -310,6 +328,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
 
         threadContext = new ThreadContext(settings);
 
+        // Now that all the thread pools have been defined, actually build them.
         final Map<String, ExecutorHolder> executors = new HashMap<>();
         for (final Map.Entry<String, ExecutorBuilder> entry : builders.entrySet()) {
             final ExecutorBuilder.ExecutorSettings executorSettings = entry.getValue().getSettings(settings);
@@ -892,6 +911,11 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         }
     }
 
+    /**
+     * Holds a thread pool and additional ES information ({@link Info}) about that Java thread pool ({@link ExecutorService}) instance.
+     *
+     * See {@link Names} for a list of thread pools, though there can be more dynamically added via plugins.
+     */
     static class ExecutorHolder {
         private final ExecutorService executor;
         public final Info info;
@@ -907,6 +931,9 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         }
     }
 
+    /**
+     * The settings used to create a Java ExecutorService thread pool.
+     */
     public static class Info implements Writeable, ToXContentFragment {
 
         private final String name;

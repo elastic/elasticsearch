@@ -248,7 +248,7 @@ public class SearchableSnapshotRecoveryStateIntegrationTests extends BaseSearcha
                 "test-fs",
                 (metadata) -> new FsRepository(metadata, env, namedXContentRegistry, clusterService, bigArrays, recoverySettings) {
                     @Override
-                    protected void assertSnapshotOrGenericThread() {
+                    protected void assertSnapshotOrGenericOrStatelessThread() {
                         // ignore
                     }
                 }

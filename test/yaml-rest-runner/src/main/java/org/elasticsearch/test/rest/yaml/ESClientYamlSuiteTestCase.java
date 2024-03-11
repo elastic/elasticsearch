@@ -153,7 +153,8 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
                 .collect(Collectors.toSet());
             final TestFeatureService testFeatureService = createTestFeatureService(
                 getClusterStateFeatures(adminClient()),
-                semanticNodeVersions
+                semanticNodeVersions,
+                List.of(new YamlTestLegacyFeatures())
             );
 
             logger.info("initializing client, node versions [{}], hosts {}, os [{}]", nodesVersions, hosts, os);

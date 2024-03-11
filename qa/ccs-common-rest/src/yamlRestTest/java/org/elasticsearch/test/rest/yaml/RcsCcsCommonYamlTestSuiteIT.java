@@ -292,7 +292,8 @@ public class RcsCcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
                 .collect(Collectors.toSet());
             final TestFeatureService searchTestFeatureService = createTestFeatureService(
                 getClusterStateFeatures(adminSearchClient),
-                semanticNodeVersions
+                semanticNodeVersions,
+                List.of()
             );
             final TestFeatureService combinedTestFeatureService = new TestFeatureService() {
                 @Override

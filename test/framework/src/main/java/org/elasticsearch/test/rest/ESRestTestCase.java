@@ -344,7 +344,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                 .collect(Collectors.toSet());
             assert semanticNodeVersions.isEmpty() == false || serverless;
 
-            testFeatureService = createTestFeatureService(getClusterStateFeatures(adminClient), semanticNodeVersions);
+            testFeatureService = createTestFeatureService(getClusterStateFeatures(adminClient), semanticNodeVersions, List.of());
         }
 
         assert testFeatureServiceInitialized();
@@ -357,14 +357,16 @@ public abstract class ESRestTestCase extends ESTestCase {
 
     protected TestFeatureService createTestFeatureService(
         Map<String, Set<String>> clusterStateFeatures,
-        Set<Version> semanticNodeVersions
+        Set<Version> semanticNodeVersions,
+        List<FeatureSpecification> additionalFeatureSpecifications
     ) {
         // Historical features information is unavailable when using legacy test plugins
         boolean hasHistoricalFeaturesInformation = System.getProperty("tests.features.metadata.path") != null;
 
-        final List<FeatureSpecification> featureSpecifications;
+        final List<FeatureSpecification> featureSpecifications = new ArrayList<>(additionalFeatureSpecifications);
+        featureSpecifications.add(new RestTestLegacyFeatures());
         if (hasHistoricalFeaturesInformation) {
-            featureSpecifications = List.of(new RestTestLegacyFeatures(), new ESRestTestCaseHistoricalFeatures());
+            featureSpecifications.add(new ESRestTestCaseHistoricalFeatures());
         } else {
             logger.warn(
                 "This test is running on the legacy test framework; historical features from production code will not be available. "
@@ -372,7 +374,6 @@ public abstract class ESRestTestCase extends ESTestCase {
                     + "If this is a legacy feature used only in tests, you can add it to a test-only FeatureSpecification such as {}.",
                 RestTestLegacyFeatures.class.getCanonicalName()
             );
-            featureSpecifications = List.of(new RestTestLegacyFeatures());
         }
 
         return new ESRestTestFeatureService(

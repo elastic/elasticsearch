@@ -20,7 +20,6 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.indices.EmptySystemIndices;
-import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.AfterClass;
@@ -315,7 +314,7 @@ public class MetadataMigrateToDataStreamServiceTests extends MapperServiceTestCa
                 TimeValue.ZERO
             ),
             getMetadataCreateIndexService(),
-            ClusterServiceUtils.createClusterService(threadPool),
+            Settings.EMPTY,
             ActionListener.noop()
         );
         IndexAbstraction ds = newState.metadata().getIndicesLookup().get(dataStreamName);
@@ -374,7 +373,7 @@ public class MetadataMigrateToDataStreamServiceTests extends MapperServiceTestCa
                 TimeValue.ZERO
             ),
             getMetadataCreateIndexService(),
-            ClusterServiceUtils.createClusterService(threadPool),
+            Settings.EMPTY,
             ActionListener.noop()
         );
         IndexAbstraction ds = newState.metadata().getIndicesLookup().get(dataStreamName);
@@ -435,7 +434,7 @@ public class MetadataMigrateToDataStreamServiceTests extends MapperServiceTestCa
                     TimeValue.ZERO
                 ),
                 getMetadataCreateIndexService(),
-                ClusterServiceUtils.createClusterService(threadPool),
+                Settings.EMPTY,
                 ActionListener.noop()
             )
         );

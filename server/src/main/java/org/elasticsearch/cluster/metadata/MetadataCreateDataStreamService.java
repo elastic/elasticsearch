@@ -102,7 +102,7 @@ public class MetadataCreateDataStreamService {
                 public ClusterState execute(ClusterState currentState) throws Exception {
                     ClusterState clusterState = createDataStream(
                         metadataCreateIndexService,
-                        clusterService,
+                        clusterService.getSettings(),
                         currentState,
                         isDslOnlyMode,
                         request,
@@ -129,7 +129,7 @@ public class MetadataCreateDataStreamService {
         ClusterState current,
         ActionListener<Void> rerouteListener
     ) throws Exception {
-        return createDataStream(metadataCreateIndexService, clusterService, current, isDslOnlyMode, request, rerouteListener);
+        return createDataStream(metadataCreateIndexService, clusterService.getSettings(), current, isDslOnlyMode, request, rerouteListener);
     }
 
     public static final class CreateDataStreamClusterStateUpdateRequest extends ClusterStateUpdateRequest<
@@ -189,7 +189,7 @@ public class MetadataCreateDataStreamService {
 
     static ClusterState createDataStream(
         MetadataCreateIndexService metadataCreateIndexService,
-        ClusterService clusterService,
+        Settings settings,
         ClusterState currentState,
         boolean isDslOnlyMode,
         CreateDataStreamClusterStateUpdateRequest request,
@@ -197,7 +197,7 @@ public class MetadataCreateDataStreamService {
     ) throws Exception {
         return createDataStream(
             metadataCreateIndexService,
-            clusterService,
+            settings,
             currentState,
             isDslOnlyMode,
             request,
@@ -219,7 +219,7 @@ public class MetadataCreateDataStreamService {
      */
     static ClusterState createDataStream(
         MetadataCreateIndexService metadataCreateIndexService,
-        ClusterService clusterService,
+        Settings settings,
         ClusterState currentState,
         boolean isDslOnlyMode,
         CreateDataStreamClusterStateUpdateRequest request,
@@ -276,7 +276,7 @@ public class MetadataCreateDataStreamService {
             String failureStoreIndexName = DataStream.getDefaultFailureStoreName(dataStreamName, 1, request.getStartTime());
             currentState = createFailureStoreIndex(
                 metadataCreateIndexService,
-                clusterService,
+                settings,
                 currentState,
                 request,
                 dataStreamName,
@@ -401,7 +401,7 @@ public class MetadataCreateDataStreamService {
 
     private static ClusterState createFailureStoreIndex(
         MetadataCreateIndexService metadataCreateIndexService,
-        ClusterService clusterService,
+        Settings settings,
         ClusterState currentState,
         CreateDataStreamClusterStateUpdateRequest request,
         String dataStreamName,
@@ -412,11 +412,11 @@ public class MetadataCreateDataStreamService {
             return currentState;
         }
 
-        var settings = MetadataRolloverService.HIDDEN_INDEX_SETTINGS;
+        var indexSettings = MetadataRolloverService.HIDDEN_INDEX_SETTINGS;
         // Optionally set a custom refresh interval for the failure store index.
-        var refreshInterval = getFailureStoreRefreshInterval(clusterService.getSettings());
+        var refreshInterval = getFailureStoreRefreshInterval(settings);
         if (refreshInterval != null) {
-            settings = Settings.builder()
+            indexSettings = Settings.builder()
                 .put(IndexMetadata.SETTING_INDEX_HIDDEN, true)
                 .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), refreshInterval)
                 .build();
@@ -430,7 +430,7 @@ public class MetadataCreateDataStreamService {
             .nameResolvedInstant(request.getStartTime())
             .performReroute(false)
             .setMatchingTemplate(template)
-            .settings(settings);
+            .settings(indexSettings);
 
         try {
             currentState = metadataCreateIndexService.applyCreateIndexRequest(

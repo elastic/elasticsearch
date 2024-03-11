@@ -81,7 +81,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         CreateDataStreamClusterStateUpdateRequest req = new CreateDataStreamClusterStateUpdateRequest(dataStreamName);
         ClusterState newState = MetadataCreateDataStreamService.createDataStream(
             metadataCreateIndexService,
-            clusterService,
+            Settings.EMPTY,
             cs,
             true,
             req,
@@ -103,7 +103,6 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
 
     public void testCreateDataStreamWithAliasFromTemplate() throws Exception {
         final MetadataCreateIndexService metadataCreateIndexService = getMetadataCreateIndexService();
-        var clusterService = ClusterServiceUtils.createClusterService(threadPool);
         final String dataStreamName = "my-data-stream";
         final int aliasCount = randomIntBetween(0, 3);
         Map<String, AliasMetadata> aliases = Maps.newMapWithExpectedSize(aliasCount);
@@ -122,7 +121,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         CreateDataStreamClusterStateUpdateRequest req = new CreateDataStreamClusterStateUpdateRequest(dataStreamName);
         ClusterState newState = MetadataCreateDataStreamService.createDataStream(
             metadataCreateIndexService,
-            clusterService,
+            Settings.EMPTY,
             cs,
             randomBoolean(),
             req,
@@ -158,7 +157,6 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
 
     public void testCreateDataStreamWithAliasFromComponentTemplate() throws Exception {
         final MetadataCreateIndexService metadataCreateIndexService = getMetadataCreateIndexService();
-        var clusterService = ClusterServiceUtils.createClusterService(threadPool);
         final String dataStreamName = "my-data-stream";
         final int componentTemplateCount = randomIntBetween(0, 3);
         final int aliasCount = randomIntBetween(0, 3);
@@ -200,7 +198,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         CreateDataStreamClusterStateUpdateRequest req = new CreateDataStreamClusterStateUpdateRequest(dataStreamName);
         ClusterState newState = MetadataCreateDataStreamService.createDataStream(
             metadataCreateIndexService,
-            clusterService,
+            Settings.EMPTY,
             cs,
             randomBoolean(),
             req,
@@ -243,7 +241,6 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
 
     public void testCreateDataStreamWithFailureStore() throws Exception {
         final MetadataCreateIndexService metadataCreateIndexService = getMetadataCreateIndexService();
-        var clusterService = ClusterServiceUtils.createClusterService(threadPool);
         final String dataStreamName = "my-data-stream";
         ComposableIndexTemplate template = new ComposableIndexTemplate.Builder().indexPatterns(List.of(dataStreamName + "*"))
             .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false, true))
@@ -254,7 +251,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         CreateDataStreamClusterStateUpdateRequest req = new CreateDataStreamClusterStateUpdateRequest(dataStreamName);
         ClusterState newState = MetadataCreateDataStreamService.createDataStream(
             metadataCreateIndexService,
-            clusterService,
+            Settings.EMPTY,
             cs,
             randomBoolean(),
             req,
@@ -281,7 +278,6 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         var settings = Settings.builder()
             .put(MetadataCreateDataStreamService.FAILURE_STORE_REFRESH_INTERVAL_SETTING_NAME, timeValue)
             .build();
-        var clusterService = new ClusterService(settings, ClusterSettings.createBuiltInClusterSettings(), threadPool, null);
         final String dataStreamName = "my-data-stream";
         ComposableIndexTemplate template = new ComposableIndexTemplate.Builder().indexPatterns(List.of(dataStreamName + "*"))
             .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false, true))
@@ -292,7 +288,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         CreateDataStreamClusterStateUpdateRequest req = new CreateDataStreamClusterStateUpdateRequest(dataStreamName);
         ClusterState newState = MetadataCreateDataStreamService.createDataStream(
             metadataCreateIndexService,
-            clusterService,
+            settings,
             cs,
             randomBoolean(),
             req,
@@ -312,7 +308,6 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
 
     public void testCreateSystemDataStream() throws Exception {
         final MetadataCreateIndexService metadataCreateIndexService = getMetadataCreateIndexService();
-        var clusterService = ClusterServiceUtils.createClusterService(threadPool);
         final String dataStreamName = ".system-data-stream";
         ClusterState cs = ClusterState.builder(new ClusterName("_name")).metadata(Metadata.builder().build()).build();
         CreateDataStreamClusterStateUpdateRequest req = new CreateDataStreamClusterStateUpdateRequest(
@@ -324,7 +319,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         );
         ClusterState newState = MetadataCreateDataStreamService.createDataStream(
             metadataCreateIndexService,
-            clusterService,
+            Settings.EMPTY,
             cs,
             randomBoolean(),
             req,
@@ -345,7 +340,6 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
 
     public void testCreateDuplicateDataStream() throws Exception {
         final MetadataCreateIndexService metadataCreateIndexService = getMetadataCreateIndexService();
-        var clusterService = ClusterServiceUtils.createClusterService(threadPool);
         final String dataStreamName = "my-data-stream";
         IndexMetadata idx = createFirstBackingIndex(dataStreamName).build();
         DataStream existingDataStream = newInstance(dataStreamName, List.of(idx.getIndex()));
@@ -358,7 +352,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
             ResourceAlreadyExistsException.class,
             () -> MetadataCreateDataStreamService.createDataStream(
                 metadataCreateIndexService,
-                clusterService,
+                Settings.EMPTY,
                 cs,
                 randomBoolean(),
                 req,
@@ -370,7 +364,6 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
 
     public void testCreateDataStreamWithInvalidName() throws Exception {
         final MetadataCreateIndexService metadataCreateIndexService = getMetadataCreateIndexService();
-        var clusterService = ClusterServiceUtils.createClusterService(threadPool);
         final String dataStreamName = "_My-da#ta- ,stream-";
         ClusterState cs = ClusterState.builder(new ClusterName("_name")).build();
         CreateDataStreamClusterStateUpdateRequest req = new CreateDataStreamClusterStateUpdateRequest(dataStreamName);
@@ -378,7 +371,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> MetadataCreateDataStreamService.createDataStream(
                 metadataCreateIndexService,
-                clusterService,
+                Settings.EMPTY,
                 cs,
                 randomBoolean(),
                 req,
@@ -390,7 +383,6 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
 
     public void testCreateDataStreamWithUppercaseCharacters() throws Exception {
         final MetadataCreateIndexService metadataCreateIndexService = getMetadataCreateIndexService();
-        var clusterService = ClusterServiceUtils.createClusterService(threadPool);
         final String dataStreamName = "MAY_NOT_USE_UPPERCASE";
         ClusterState cs = ClusterState.builder(new ClusterName("_name")).build();
         CreateDataStreamClusterStateUpdateRequest req = new CreateDataStreamClusterStateUpdateRequest(dataStreamName);
@@ -398,7 +390,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> MetadataCreateDataStreamService.createDataStream(
                 metadataCreateIndexService,
-                clusterService,
+                Settings.EMPTY,
                 cs,
                 randomBoolean(),
                 req,
@@ -410,7 +402,6 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
 
     public void testCreateDataStreamStartingWithPeriod() throws Exception {
         final MetadataCreateIndexService metadataCreateIndexService = getMetadataCreateIndexService();
-        var clusterService = ClusterServiceUtils.createClusterService(threadPool);
         final String dataStreamName = ".ds-may_not_start_with_ds";
         ClusterState cs = ClusterState.builder(new ClusterName("_name")).build();
         CreateDataStreamClusterStateUpdateRequest req = new CreateDataStreamClusterStateUpdateRequest(dataStreamName);
@@ -418,7 +409,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> MetadataCreateDataStreamService.createDataStream(
                 metadataCreateIndexService,
-                clusterService,
+                Settings.EMPTY,
                 cs,
                 randomBoolean(),
                 req,
@@ -430,7 +421,6 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
 
     public void testCreateDataStreamNoTemplate() throws Exception {
         final MetadataCreateIndexService metadataCreateIndexService = getMetadataCreateIndexService();
-        var clusterService = ClusterServiceUtils.createClusterService(threadPool);
         final String dataStreamName = "my-data-stream";
         ClusterState cs = ClusterState.builder(new ClusterName("_name")).build();
         CreateDataStreamClusterStateUpdateRequest req = new CreateDataStreamClusterStateUpdateRequest(dataStreamName);
@@ -438,7 +428,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> MetadataCreateDataStreamService.createDataStream(
                 metadataCreateIndexService,
-                clusterService,
+                Settings.EMPTY,
                 cs,
                 randomBoolean(),
                 req,
@@ -450,7 +440,6 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
 
     public void testCreateDataStreamNoValidTemplate() throws Exception {
         final MetadataCreateIndexService metadataCreateIndexService = getMetadataCreateIndexService();
-        var clusterService = ClusterServiceUtils.createClusterService(threadPool);
         final String dataStreamName = "my-data-stream";
         ComposableIndexTemplate template = ComposableIndexTemplate.builder().indexPatterns(List.of(dataStreamName + "*")).build();
         ClusterState cs = ClusterState.builder(new ClusterName("_name"))
@@ -461,7 +450,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> MetadataCreateDataStreamService.createDataStream(
                 metadataCreateIndexService,
-                clusterService,
+                Settings.EMPTY,
                 cs,
                 randomBoolean(),
                 req,
@@ -476,7 +465,6 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
 
     public static ClusterState createDataStream(final String dataStreamName, ThreadPool threadPool) throws Exception {
         final MetadataCreateIndexService metadataCreateIndexService = getMetadataCreateIndexService();
-        var clusterService = ClusterServiceUtils.createClusterService(threadPool);
         ComposableIndexTemplate template = ComposableIndexTemplate.builder()
             .indexPatterns(List.of(dataStreamName + "*"))
             .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
@@ -487,7 +475,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         CreateDataStreamClusterStateUpdateRequest req = new CreateDataStreamClusterStateUpdateRequest(dataStreamName);
         return MetadataCreateDataStreamService.createDataStream(
             metadataCreateIndexService,
-            clusterService,
+            Settings.EMPTY,
             cs,
             randomBoolean(),
             req,

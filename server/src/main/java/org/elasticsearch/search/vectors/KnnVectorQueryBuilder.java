@@ -118,15 +118,15 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         this(fieldName, queryVector, null, null, numCands, vectorSimilarity);
     }
 
-    public KnnVectorQueryBuilder(String fieldName, QueryVectorBuilder queryVectorBuilder, Integer numCands, Float vectorSimilarity) {
+    protected KnnVectorQueryBuilder(String fieldName, QueryVectorBuilder queryVectorBuilder, Integer numCands, Float vectorSimilarity) {
         this(fieldName, null, queryVectorBuilder, null, numCands, vectorSimilarity);
     }
 
-    public KnnVectorQueryBuilder(String fieldName, Supplier<float[]> queryVectorSupplier, Integer numCands, Float vectorSimilarity) {
+    private KnnVectorQueryBuilder(String fieldName, Supplier<float[]> queryVectorSupplier, Integer numCands, Float vectorSimilarity) {
         this(fieldName, null, null, queryVectorSupplier, numCands, vectorSimilarity);
     }
 
-    public KnnVectorQueryBuilder(
+    private KnnVectorQueryBuilder(
         String fieldName,
         float[] queryVector,
         QueryVectorBuilder queryVectorBuilder,

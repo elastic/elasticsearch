@@ -46,11 +46,16 @@ public class AllocationStatsService {
 
         var stats = Maps.<String, NodeAllocationStats>newMapWithExpectedSize(state.getRoutingNodes().size());
         for (RoutingNode node : state.getRoutingNodes()) {
+            int shards = 0;
             int undesiredShards = 0;
             double forecastedWriteLoad = 0.0;
             long forecastedDiskUsage = 0;
             long currentDiskUsage = 0;
             for (ShardRouting shardRouting : node) {
+                if (shardRouting.relocating()) {
+                    continue;
+                }
+                shards++;
                 IndexMetadata indexMetadata = state.metadata().getIndexSafe(shardRouting.index());
                 if (isDesiredAllocation(desiredBalance, shardRouting) == false) {
                     undesiredShards++;
@@ -63,7 +68,13 @@ public class AllocationStatsService {
             }
             stats.put(
                 node.nodeId(),
-                new NodeAllocationStats(node.size(), undesiredShards, forecastedWriteLoad, forecastedDiskUsage, currentDiskUsage)
+                new NodeAllocationStats(
+                    shards,
+                    desiredBalanceShardsAllocator != null ? undesiredShards : -1,
+                    forecastedWriteLoad,
+                    forecastedDiskUsage,
+                    currentDiskUsage
+                )
             );
         }
 

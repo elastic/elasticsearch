@@ -155,10 +155,6 @@ public final class Case extends EsqlScalarFunction {
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        if (newChildren.size() == 1) {
-            // The case is compacted to just an "elseValue" - so it's just the result.
-            return newChildren.get(0);
-        }
         return new Case(source(), newChildren.get(0), newChildren.subList(1, newChildren.size()));
     }
 

@@ -36,12 +36,7 @@ public class CaseExtraTests extends ESTestCase {
     public void testElseValueImplied() {
         assertThat(
             new Case(Source.synthetic("case"), field("first_cond", DataTypes.BOOLEAN), List.of(field("v", DataTypes.LONG))).children(),
-            equalTo(
-                List.of(
-                    field("first_cond", DataTypes.BOOLEAN),
-                    field("v", DataTypes.LONG)
-                )
-            )
+            equalTo(List.of(field("first_cond", DataTypes.BOOLEAN), field("v", DataTypes.LONG)))
         );
     }
 

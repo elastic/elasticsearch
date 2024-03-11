@@ -54,11 +54,11 @@ class ConstructorBindingImpl<T> extends BindingImpl<T> implements ConstructorBin
     }
 
     @Override
-    public <V> V acceptTargetVisitor(BindingTargetVisitor<? super T, V> visitor) {
+    public <V> void acceptTargetVisitor(BindingTargetVisitor<? super T, V> visitor) {
         if (factory.constructorInjector == null) {
             throw new IllegalStateException("not initialized");
         }
-        return visitor.visit();
+        visitor.visit();
     }
 
     @Override

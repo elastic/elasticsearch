@@ -88,7 +88,7 @@ public class TransportNodesStatsAction extends TransportNodesAction<
         if (NodesStatsRequestParameters.Metric.ALLOCATIONS.containedIn(metrics)) {
             client.execute(
                 TransportGetAllocationStatsAction.TYPE,
-                new TransportGetAllocationStatsAction.Request(),
+                new TransportGetAllocationStatsAction.Request(task.getParentTaskId()),
                 listener.delegateFailure((l, r) -> {
                     ActionListener.respondAndRelease(l, newResponse(request, merge(responses, r.getNodeAllocationStats()), failures));
                 })

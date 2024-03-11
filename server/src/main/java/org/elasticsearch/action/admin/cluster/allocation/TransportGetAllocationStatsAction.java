@@ -26,6 +26,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -74,7 +75,9 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
     }
 
     public static class Request extends MasterNodeReadRequest<Request> {
-        public Request() {}
+        public Request(TaskId parentTaskId) {
+            setParentTask(parentTaskId);
+        }
 
         public Request(StreamInput in) throws IOException {
             super(in);

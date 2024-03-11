@@ -821,8 +821,6 @@ public class ModelLoadingService implements ClusterStateListener {
                     // Either way, we know we won't put it back in cache as we are synchronized on `loadingListeners`
                     if (modelAndConsumer == null) {
                         ML_MODEL_INFERENCE_FEATURE.stopTracking(licenseState, modelId);
-                    } else {
-
                     }
                 }
             }

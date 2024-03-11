@@ -1,0 +1,6 @@
+pr: 106062
+summary: "During ML maintenance, reset jobs in the reset state without a corresponding\
+  \ task"
+area: Machine Learning
+type: bug
+issues: []

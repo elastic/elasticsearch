@@ -966,7 +966,13 @@ public class NodeJoinExecutorTests extends ESTestCase {
             )
         );
 
-        assertThat(e.getMessage(), equalTo("System indices [.my-system-index] have equal mapping versions but different mapping hashes"));
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "Joining node has system index mappings inconsistent with current cluster: "
+                    + "System index [.my-system-index] with version [1] on nodes [node1]"
+            )
+        );
     }
 
     private DesiredNodeWithStatus createActualizedDesiredNode() {

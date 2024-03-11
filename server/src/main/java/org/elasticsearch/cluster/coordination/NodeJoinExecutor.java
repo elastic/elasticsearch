@@ -438,7 +438,7 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
         Map<String, SystemIndexDescriptor.MappingsVersion> newMappingsVersions,
         Map<String, CompatibilityVersions> existingCompatibilityVersions
     ) {
-        // TODO[wrb]: Wow this is ugly...
+        // TODO[wrb]: Wow this is ugly... is this more work than just iterating over system indices on each node?
 
         // Swap the top two levels of the map
         Map<String, Map<String, SystemIndexDescriptor.MappingsVersion>> existingSystemIndexVersions = new HashMap<>();
@@ -447,9 +447,9 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
             for (Map.Entry<String, SystemIndexDescriptor.MappingsVersion> indexAndVersion : nodeCompatibility.getValue()
                 .systemIndexMappingsVersion()
                 .entrySet()) {
-                Map<String, SystemIndexDescriptor.MappingsVersion> smallMap = new HashMap<>();
-                smallMap.put(nodeId, indexAndVersion.getValue());
-                existingSystemIndexVersions.merge(indexAndVersion.getKey(), smallMap, (v1, v2) -> {
+                Map<String, SystemIndexDescriptor.MappingsVersion> nodeIdToMappingsVersion = new HashMap<>();
+                nodeIdToMappingsVersion.put(nodeId, indexAndVersion.getValue());
+                existingSystemIndexVersions.merge(indexAndVersion.getKey(), nodeIdToMappingsVersion, (v1, v2) -> {
                     v1.putAll(v2);
                     return v1;
                 });
@@ -457,25 +457,35 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
         }
 
         // For each system index in the join request, ensure system indices are okay
-        List<String> systemIndexNames = new ArrayList<>();
+        List<String> errors = new ArrayList<>();
         for (Map.Entry<String, SystemIndexDescriptor.MappingsVersion> newMappingsVersion : newMappingsVersions.entrySet()) {
             String systemIndexName = newMappingsVersion.getKey();
+            SystemIndexDescriptor.MappingsVersion joiningVersion = newMappingsVersion.getValue();
             Map<String, SystemIndexDescriptor.MappingsVersion> nodeIdToMappingsVersions = existingSystemIndexVersions.getOrDefault(
                 newMappingsVersion.getKey(),
                 Map.of()
             );
+            List<String> conflictingNodeIds = new ArrayList<>();
             for (Map.Entry<String, SystemIndexDescriptor.MappingsVersion> nodeIdAndMappingsVersion : nodeIdToMappingsVersions.entrySet()) {
                 SystemIndexDescriptor.MappingsVersion existingVersion = nodeIdAndMappingsVersion.getValue();
-                SystemIndexDescriptor.MappingsVersion joiningVersion = newMappingsVersion.getValue();
                 if (existingVersion.version() == joiningVersion.version() && existingVersion.hash() != joiningVersion.hash()) {
-                    systemIndexNames.add(systemIndexName);
+                    conflictingNodeIds.add(nodeIdAndMappingsVersion.getKey());
                 }
             }
+            errors.add(
+                "System index ["
+                    + systemIndexName
+                    + "] with version ["
+                    + joiningVersion.version()
+                    + "] on nodes ["
+                    + String.join(", ", conflictingNodeIds)
+                    + "]"
+            );
         }
 
-        if (systemIndexNames.isEmpty() == false) {
+        if (errors.isEmpty() == false) {
             throw new IllegalStateException(
-                "System indices [" + String.join(", ", systemIndexNames) + "] have equal mapping versions but different mapping hashes"
+                "Joining node has system index mappings inconsistent with current cluster: " + String.join(", ", errors)
             );
         }
     }

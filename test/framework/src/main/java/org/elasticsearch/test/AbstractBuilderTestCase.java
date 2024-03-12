@@ -405,6 +405,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
         private final ScriptService scriptService;
         private final Client client;
         private final long nowInMillis;
+        private final IndexMetadata indexMetadata;
 
         ServiceHolder(
             Settings nodeSettings,
@@ -549,6 +550,16 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                     }""", OBJECT_FIELD_NAME, DATE_FIELD_NAME, INT_FIELD_NAME)), MapperService.MergeReason.MAPPING_UPDATE);
                 testCase.initializeAdditionalMappings(mapperService);
             }
+
+            indexMetadata = IndexMetadata.builder(index.getName())
+                .settings(Settings.builder()
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                    .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID())
+                )
+                .numberOfShards(1)
+                .numberOfReplicas(0)
+                .fieldsForModels(mapperService.mappingLookup().getFieldsForModels())
+                .build();
         }
 
         public static Predicate<String> indexNameMatcher() {
@@ -602,7 +613,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 null,
                 () -> true,
                 scriptService,
-                null
+                Map.of(index.getName(), indexMetadata)
             );
         }
 

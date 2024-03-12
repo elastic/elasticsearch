@@ -38,7 +38,6 @@ import java.util.function.BiConsumer;
 import java.util.function.BooleanSupplier;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
 
 /**
  * Context object used to rewrite {@link QueryBuilder} instances into simplified version.

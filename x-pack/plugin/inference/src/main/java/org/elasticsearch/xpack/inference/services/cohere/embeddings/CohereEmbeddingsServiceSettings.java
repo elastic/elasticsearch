@@ -100,7 +100,13 @@ public class CohereEmbeddingsServiceSettings implements ServiceSettings {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         commonSettings.writeTo(out);
-        out.writeOptionalEnum(embeddingType);
+
+        if (out.getTransportVersion().before(TransportVersions.ML_INFERENCE_COHERE_EMBEDDINGS_BYTE_ADDED)
+            && embeddingType == CohereEmbeddingType.BYTE) {
+            out.writeOptionalEnum(CohereEmbeddingType.INT8);
+        } else {
+            out.writeOptionalEnum(embeddingType);
+        }
     }
 
     @Override

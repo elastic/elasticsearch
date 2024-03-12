@@ -8,13 +8,15 @@
 package org.elasticsearch.xpack.inference.services.cohere.embeddings;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.SimilarityMeasure;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.inference.InferenceNamedWriteablesProvider;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
@@ -33,7 +35,7 @@ import java.util.Map;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
-public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializingTestCase<CohereEmbeddingsServiceSettings> {
+public class CohereEmbeddingsServiceSettingsTests extends AbstractBWCWireSerializationTestCase<CohereEmbeddingsServiceSettings> {
     public static CohereEmbeddingsServiceSettings createRandom() {
         var commonSettings = CohereServiceSettingsTests.createRandom();
         var embeddingType = randomBoolean() ? randomFrom(CohereEmbeddingType.values()) : null;
@@ -221,6 +223,42 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
         );
     }
 
+    public void testSerializesEmbeddingTypeByteToInt8_WhenVersionIsPriorToChange() throws IOException {
+        var settings = new CohereEmbeddingsServiceSettings(
+            new CohereServiceSettings((URI) null, null, null, null, null),
+            CohereEmbeddingType.BYTE
+        );
+
+        var settingsForcedToInt8 = new CohereEmbeddingsServiceSettings(
+            new CohereServiceSettings((URI) null, null, null, null, null),
+            CohereEmbeddingType.INT8
+        );
+        var copy = copyWriteable(settings, getNamedWriteableRegistry(), instanceReader(), TransportVersions.ALLOCATION_STATS);
+        assertOnBWCObject(copy, settingsForcedToInt8, TransportVersions.ALLOCATION_STATS);
+    }
+
+    public void testSerializesEmbeddingTypeByteToInt8_WhenVersionIsAtChange() throws IOException {
+        var settings = new CohereEmbeddingsServiceSettings(
+            new CohereServiceSettings((URI) null, null, null, null, null),
+            CohereEmbeddingType.BYTE
+        );
+
+        var copy = copyWriteable(
+            settings,
+            getNamedWriteableRegistry(),
+            instanceReader(),
+            TransportVersions.ML_INFERENCE_COHERE_EMBEDDINGS_BYTE_ADDED
+        );
+        assertOnBWCObject(copy, settings, TransportVersions.ML_INFERENCE_COHERE_EMBEDDINGS_BYTE_ADDED);
+    }
+
+    public void testSerializesEmbeddingTypeNull_WhenVersionIsPriorToChange() throws IOException {
+        var settings = new CohereEmbeddingsServiceSettings(new CohereServiceSettings((URI) null, null, null, null, null), null);
+
+        var copy = copyWriteable(settings, getNamedWriteableRegistry(), instanceReader(), TransportVersions.ALLOCATION_STATS);
+        assertOnBWCObject(copy, settings, TransportVersions.ALLOCATION_STATS);
+    }
+
     @Override
     protected Writeable.Reader<CohereEmbeddingsServiceSettings> instanceReader() {
         return CohereEmbeddingsServiceSettings::new;
@@ -256,5 +294,15 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
         }
 
         return map;
+    }
+
+    @Override
+    protected CohereEmbeddingsServiceSettings mutateInstanceForVersion(CohereEmbeddingsServiceSettings instance, TransportVersion version) {
+        if (version.before(TransportVersions.ML_INFERENCE_COHERE_EMBEDDINGS_BYTE_ADDED)
+            && instance.getEmbeddingType() == CohereEmbeddingType.BYTE) {
+            return new CohereEmbeddingsServiceSettings(instance.getCommonSettings(), CohereEmbeddingType.INT8);
+        }
+
+        return instance;
     }
 }

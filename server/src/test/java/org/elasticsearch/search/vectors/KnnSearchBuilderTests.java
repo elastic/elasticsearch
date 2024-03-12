@@ -220,7 +220,7 @@ public class KnnSearchBuilderTests extends AbstractXContentSerializingTestCase<K
         assertThat(((RewriteableQuery) rewritten.filterQueries.get(0)).rewrites, equalTo(1));
     }
 
-    static float[] randomVector(int dim) {
+    public static float[] randomVector(int dim) {
         float[] vector = new float[dim];
         for (int i = 0; i < vector.length; i++) {
             vector[i] = randomFloat();

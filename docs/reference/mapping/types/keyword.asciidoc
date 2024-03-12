@@ -166,7 +166,6 @@ Dimension fields have the following constraints:
 * Field values cannot be an <<array,array or multi-value>>.
 // end::dimension[]
 * <<ignore-above,`ignore_above`>> mapping parameter is not supported.
-* Field values cannot be larger than 1024 bytes.
 * The field cannot use a <<normalizer,`normalizer`>>.
 --
 

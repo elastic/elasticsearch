@@ -8,12 +8,15 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.action.admin.indices.rollover.AutoShardCondition;
+import org.elasticsearch.action.admin.indices.rollover.IncreaseShardsDetails;
 import org.elasticsearch.action.admin.indices.rollover.MaxAgeCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxDocsCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxPrimaryShardDocsCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxPrimaryShardSizeCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxSizeCondition;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
+import org.elasticsearch.action.datastreams.autosharding.AutoShardingType;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -97,7 +100,8 @@ public class IndexMetadataTests extends ESTestCase {
                         new MaxDocsCondition(randomNonNegativeLong()),
                         new MaxSizeCondition(ByteSizeValue.ofBytes(randomNonNegativeLong())),
                         new MaxPrimaryShardSizeCondition(ByteSizeValue.ofBytes(randomNonNegativeLong())),
-                        new MaxPrimaryShardDocsCondition(randomNonNegativeLong())
+                        new MaxPrimaryShardDocsCondition(randomNonNegativeLong()),
+                        new AutoShardCondition(new IncreaseShardsDetails(AutoShardingType.INCREASE_SHARDS, 1, 3, TimeValue.ZERO, 4.0))
                     ),
                     randomNonNegativeLong()
                 )
@@ -128,6 +132,7 @@ public class IndexMetadataTests extends ESTestCase {
         assertEquals(metadata.getCreationVersion(), fromXContentMeta.getCreationVersion());
         assertEquals(metadata.getCompatibilityVersion(), fromXContentMeta.getCompatibilityVersion());
         assertEquals(metadata.getRoutingNumShards(), fromXContentMeta.getRoutingNumShards());
+        assertEquals(metadata.getRolloverInfos(), fromXContentMeta.getRolloverInfos());
         assertEquals(metadata.getCreationDate(), fromXContentMeta.getCreationDate());
         assertEquals(metadata.getRoutingFactor(), fromXContentMeta.getRoutingFactor());
         assertEquals(metadata.primaryTerm(0), fromXContentMeta.primaryTerm(0));

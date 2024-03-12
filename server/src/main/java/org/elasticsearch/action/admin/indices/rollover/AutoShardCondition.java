@@ -21,7 +21,6 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
-import static org.elasticsearch.action.datastreams.autosharding.AutoShardingType.INCREASE_SHARDS;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
@@ -96,7 +95,7 @@ public class AutoShardCondition extends Condition<IncreaseShardsDetails> {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeEnum(type);
+        out.writeEnum(value.type());
         out.writeVInt(value.currentNumberOfShards());
         out.writeVInt(value.targetNumberOfShards());
         out.writeTimeValue(value.coolDownRemaining());
@@ -107,7 +106,7 @@ public class AutoShardCondition extends Condition<IncreaseShardsDetails> {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         // we only save this representation in the cluster state as part of meet_conditions when this condition is met
         builder.startObject(NAME);
-        builder.field(AUTO_SHARDING_TYPE.getPreferredName(), INCREASE_SHARDS);
+        builder.field(AUTO_SHARDING_TYPE.getPreferredName(), value.type());
         builder.field(CURRENT_NUMBER_OF_SHARDS.getPreferredName(), value.currentNumberOfShards());
         builder.field(TARGET_NUMBER_OF_SHARDS.getPreferredName(), value.targetNumberOfShards());
         builder.field(COOLDOWN_REMAINING.getPreferredName(), value.coolDownRemaining().toHumanReadableString(2));

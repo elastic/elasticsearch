@@ -353,6 +353,22 @@ public class ConditionTests extends ESTestCase {
             condition -> new MinPrimaryShardDocsCondition(condition.value),
             condition -> new MinPrimaryShardDocsCondition(randomNonNegativeLong())
         );
+        AutoShardCondition autoShardCondition = new AutoShardCondition(
+            new IncreaseShardsDetails(AutoShardingType.INCREASE_SHARDS, 1, 3, TimeValue.ZERO, 3.0)
+        );
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
+            autoShardCondition,
+            condition -> new AutoShardCondition(condition.value),
+            condition -> new AutoShardCondition(
+                new IncreaseShardsDetails(
+                    AutoShardingType.COOLDOWN_PREVENTED_INCREASE,
+                    randomNonNegativeInt(),
+                    randomNonNegativeInt(),
+                    TimeValue.timeValueMillis(randomNonNegativeLong()),
+                    5.0
+                )
+            )
+        );
     }
 
     public void testAutoShardCondtionXContent() throws IOException {

@@ -85,7 +85,7 @@ public class TimeSeriesRoutingHashFieldMapper extends MetadataFieldMapper {
     public void postParse(DocumentParserContext context) {
         if (context.indexSettings().getMode() == IndexMode.TIME_SERIES
             && context.indexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.TIME_SERIES_ROUTING_HASH_IN_ID)) {
-            String routingHash = context.sourceToParse().routing();
+            String routingHash = context.routing();
             var field = new SortedDocValuesField(NAME, Uid.encodeId(routingHash != null ? routingHash : encode(0)));
             context.rootDoc().add(field);
         }

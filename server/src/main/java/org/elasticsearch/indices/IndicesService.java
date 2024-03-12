@@ -28,6 +28,7 @@ import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
 import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.RefCountAwareThreadedActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -1697,14 +1698,16 @@ public class IndicesService extends AbstractLifecycleComponent
      * Returns a new {@link QueryRewriteContext} with the given {@code now} provider
      */
     public QueryRewriteContext getRewriteContext(LongSupplier nowInMillis, IndicesRequest indicesRequest) {
-        // Skip indices on remote clusters for now
+        // Skip unavailable indices
         // TODO: Support metadata lookups for indices on remote clusters
-        String[] localIndexNames = Arrays.stream(indicesRequest.indices()).filter(s -> s.contains(":") == false).toArray(String[]::new);
-
-        // concreteIndices interprets an empty array as a wildcard, so don't call it in that case
-        Index[] indices = localIndexNames.length > 0 ?
-            indexNameExpressionResolver.concreteIndices(clusterService.state(), indicesRequest.indicesOptions(), true, localIndexNames) :
-            Index.EMPTY_ARRAY;
+        IndicesOptions.Builder indicesOptionsBuilder = IndicesOptions.builder(indicesRequest.indicesOptions())
+            .concreteTargetOptions(new IndicesOptions.ConcreteTargetOptions(true));
+        Index[] indices = indexNameExpressionResolver.concreteIndices(
+            clusterService.state(),
+            indicesOptionsBuilder.build(),
+            true,
+            indicesRequest.indices()
+        );
 
         Map<String, IndexMetadata> indexMetadataMap = new HashMap<>();
         for (Index index : indices) {

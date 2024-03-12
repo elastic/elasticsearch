@@ -129,9 +129,9 @@ public class AzureHttpHandler implements HttpHandler {
                     throw new AssertionError("Range header does not match expected format: " + range);
                 }
 
-                final int start = Integer.parseInt(matcher.group(1));
-                final int end = Integer.parseInt(matcher.group(2));
-                var responseBlob = blob.slice(start, Math.min(end - start + 1, blob.length() - start));
+                final long start = Long.parseLong(matcher.group(1));
+                final long end = Long.parseLong(matcher.group(2));
+                var responseBlob = blob.slice(Math.toIntExact(start), Math.toIntExact(Math.min(end - start + 1, blob.length() - start)));
 
                 exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
                 exchange.getResponseHeaders().add("x-ms-blob-content-length", String.valueOf(responseBlob.length()));

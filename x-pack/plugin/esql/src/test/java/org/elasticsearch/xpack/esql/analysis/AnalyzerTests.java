@@ -1489,6 +1489,12 @@ public class AnalyzerTests extends ESTestCase {
             | enrich languages on x with y = language_name
             | keep first_name, y
             """, "first_name", "y");
+
+        assertProjection(analyze("""
+            FROM sample_data
+            | ENRICH client_cidr ON client_ip WITH env
+            | KEEP client_ip, env
+            """, "sample_data", "mapping-sample_data.json"), "client_ip", "env");
     }
 
     public void testEnrichExcludesPolicyKey() {
@@ -1741,7 +1747,10 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     private void assertProjection(String query, String... names) {
-        var plan = analyze(query);
+        assertProjection(analyze(query), names);
+    }
+
+    private void assertProjection(LogicalPlan plan, String... names) {
         var limit = as(plan, Limit.class);
         assertThat(Expressions.names(limit.output()), contains(names));
     }

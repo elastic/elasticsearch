@@ -141,6 +141,7 @@ public class TransportVersions {
     public static final TransportVersion ESQL_SERIALIZE_ARRAY_VECTOR = def(8_601_00_0);
     public static final TransportVersion ESQL_SERIALIZE_ARRAY_BLOCK = def(8_602_00_0);
     public static final TransportVersion ADD_DATA_STREAM_GLOBAL_RETENTION = def(8_603_00_0);
+    public static final TransportVersion ALLOCATION_STATS = def(8_604_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

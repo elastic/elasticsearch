@@ -39,7 +39,6 @@ import org.elasticsearch.common.inject.util.Providers;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.GenericArrayType;
-import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Modifier;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
@@ -195,8 +194,8 @@ class InjectorImpl implements Injector, Lookups {
         }
 
         @Override
-        public <V> V acceptTargetVisitor(BindingTargetVisitor<? super Provider<T>, V> visitor) {
-            return visitor.visit();
+        public <V> void acceptTargetVisitor(BindingTargetVisitor<? super Provider<T>, V> visitor) {
+            visitor.visit();
         }
 
         @Override
@@ -270,8 +269,8 @@ class InjectorImpl implements Injector, Lookups {
         }
 
         @Override
-        public <V> V acceptTargetVisitor(BindingTargetVisitor<? super T, V> visitor) {
-            return visitor.visit();
+        public <V> void acceptTargetVisitor(BindingTargetVisitor<? super T, V> visitor) {
+            visitor.visit();
         }
 
         @Override
@@ -582,13 +581,6 @@ class InjectorImpl implements Injector, Lookups {
     <T> SingleParameterInjector<T> createParameterInjector(final Dependency<T> dependency, final Errors errors) throws ErrorsException {
         InternalFactory<? extends T> factory = getInternalFactory(dependency.getKey(), errors);
         return new SingleParameterInjector<>(dependency, factory);
-    }
-
-    /**
-     * Invokes a method.
-     */
-    interface MethodInvoker {
-        Object invoke(Object target, Object... parameters) throws IllegalAccessException, InvocationTargetException;
     }
 
     /**

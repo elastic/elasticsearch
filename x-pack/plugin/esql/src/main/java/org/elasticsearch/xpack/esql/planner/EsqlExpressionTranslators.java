@@ -137,10 +137,6 @@ public final class EsqlExpressionTranslators {
     public static class BinaryComparisons extends ExpressionTranslator<BinaryComparison> {
         @Override
         protected Query asQuery(BinaryComparison bc, TranslatorHandler handler) {
-            return doTranslate(bc, handler);
-        }
-
-        public static Query doTranslate(BinaryComparison bc, TranslatorHandler handler) {
             // TODO: Pretty sure this check is redundant with the one at the beginning of translate
             ExpressionTranslators.BinaryComparisons.checkBinaryComparison(bc);
             Query translated = translateOutOfRangeComparisons(bc);
@@ -168,9 +164,9 @@ public final class EsqlExpressionTranslators {
             boolean isDateLiteralComparison = false;
 
             // TODO: This type coersion layer is copied directly from the QL counterpart code. It's probably not necessary or desireable
-            // in the ESQL version. We should instead do the type conversions using our casting functions.
-            // for a date constant comparison, we need to use a format for the date, to make sure that the format is the same
-            // no matter the timezone provided by the user
+            //       in the ESQL version. We should instead do the type conversions using our casting functions.
+            //       for a date constant comparison, we need to use a format for the date, to make sure that the format is the same
+            //       no matter the timezone provided by the user
             if (value instanceof ZonedDateTime || value instanceof OffsetTime) {
                 DateFormatter formatter;
                 if (value instanceof ZonedDateTime) {
@@ -203,7 +199,6 @@ public final class EsqlExpressionTranslators {
             if (DataTypes.isDateTime(attribute.dataType())) {
                 zoneId = bc.zoneId();
             }
-            
             if (bc instanceof GreaterThan) {
                 return new RangeQuery(source, name, value, false, null, false, format, zoneId);
             }

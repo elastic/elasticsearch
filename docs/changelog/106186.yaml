@@ -1,5 +1,5 @@
 pr: 106186
-summary: ES|QL Expand support for ENRICH to full set supported by ES ingest processors
+summary: Expand support for ENRICH to full set supported by ES ingest processors
 area: ES|QL
 type: enhancement
 issues:

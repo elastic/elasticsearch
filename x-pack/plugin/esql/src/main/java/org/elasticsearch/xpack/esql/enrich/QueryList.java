@@ -54,73 +54,88 @@ abstract class QueryList {
      * Returns a list of term queries for the given field and the input block.
      */
     static QueryList termQueryList(MappedFieldType field, SearchExecutionContext searchExecutionContext, Block block) {
-        return new QueryList(block) {
-            private final IntFunction<Object> blockValueReader = QueryList.blockToJavaObject(block, field);
+        return new TermQueryList(field, searchExecutionContext, block);
+    }
 
-            @Override
-            Query getQuery(int position) {
-                final int first = block.getFirstValueIndex(position);
-                final int count = block.getValueCount(position);
-                return switch (count) {
-                    case 0 -> null;
-                    case 1 -> field.termQuery(blockValueReader.apply(first), searchExecutionContext);
-                    default -> {
-                        final List<Object> terms = new ArrayList<>(count);
-                        for (int i = 0; i < count; i++) {
-                            final Object value = blockValueReader.apply(first + i);
-                            terms.add(value);
-                        }
-                        yield field.termsQuery(terms, searchExecutionContext);
+    private static class TermQueryList extends QueryList {
+        private final BytesRef scratch = new BytesRef();
+        private final byte[] ipBytes = new byte[InetAddressPoint.BYTES];
+        private final MappedFieldType field;
+        private final SearchExecutionContext searchExecutionContext;
+        private final IntFunction<Object> blockValueReader;
+
+        private TermQueryList(MappedFieldType field, SearchExecutionContext searchExecutionContext, Block block) {
+            super(block);
+
+            this.field = field;
+            this.searchExecutionContext = searchExecutionContext;
+            this.blockValueReader = blockToJavaObject();
+        }
+
+        @Override
+        Query getQuery(int position) {
+            final int first = block.getFirstValueIndex(position);
+            final int count = block.getValueCount(position);
+            return switch (count) {
+                case 0 -> null;
+                case 1 -> field.termQuery(blockValueReader.apply(first), searchExecutionContext);
+                default -> {
+                    final List<Object> terms = new ArrayList<>(count);
+                    for (int i = 0; i < count; i++) {
+                        final Object value = blockValueReader.apply(first + i);
+                        terms.add(value);
                     }
-                };
-            }
-        };
+                    yield field.termsQuery(terms, searchExecutionContext);
+                }
+            };
+        }
+
+        private IntFunction<Object> blockToJavaObject() {
+            return switch (block.elementType()) {
+                case BOOLEAN -> {
+                    BooleanBlock booleanBlock = (BooleanBlock) block;
+                    yield booleanBlock::getBoolean;
+                }
+                case BYTES_REF -> {
+                    BytesRefBlock bytesRefBlock = (BytesRefBlock) block;
+                    if (field instanceof RangeFieldMapper.RangeFieldType rangeFieldType) {
+                        yield switch (rangeFieldType.rangeType()) {
+                            case IP -> offset -> {
+                                bytesRefBlock.getBytesRef(offset, scratch);
+                                if (ipBytes.length != scratch.length) {
+                                    // Lucene only support 16-byte IP addresses, even IPv4 is encoded in 16 bytes
+                                    throw new IllegalStateException("Cannot decode IP field from bytes of length " + scratch.length);
+                                }
+                                System.arraycopy(scratch.bytes, scratch.offset, ipBytes, 0, scratch.length);
+                                InetAddress ip = InetAddressPoint.decode(ipBytes);
+                                return ip;
+                            };
+                            default -> offset -> bytesRefBlock.getBytesRef(offset, new BytesRef());
+                        };
+                    }
+                    yield offset -> bytesRefBlock.getBytesRef(offset, new BytesRef());
+                }
+                case DOUBLE -> {
+                    DoubleBlock doubleBlock = ((DoubleBlock) block);
+                    yield doubleBlock::getDouble;
+                }
+                case INT -> {
+                    IntBlock intBlock = (IntBlock) block;
+                    yield intBlock::getInt;
+                }
+                case LONG -> {
+                    LongBlock longBlock = (LongBlock) block;
+                    yield longBlock::getLong;
+                }
+                case NULL -> offset -> null;
+                case DOC -> throw new EsqlIllegalArgumentException("can't read values from [doc] block");
+                case UNKNOWN -> throw new EsqlIllegalArgumentException("can't read values from [" + block + "]");
+            };
+        }
     }
 
     // Generate geo_match query for the input term here
     static QueryList geoMatchQuery(MappedFieldType field, SearchExecutionContext searchExecutionContext, Block block) {
         throw new UnsupportedOperationException("ENRICH does not yet support the geo_match query");
-    }
-
-    private static IntFunction<Object> blockToJavaObject(Block block, MappedFieldType field) {
-        return switch (block.elementType()) {
-            case BOOLEAN -> {
-                BooleanBlock booleanBlock = (BooleanBlock) block;
-                yield booleanBlock::getBoolean;
-            }
-            case BYTES_REF -> {
-                BytesRefBlock bytesRefBlock = (BytesRefBlock) block;
-                if (field instanceof RangeFieldMapper.RangeFieldType rangeFieldType) {
-                    // TODO: Should we use the FieldType.blockLoader method here?
-                    yield offset -> switch (rangeFieldType.rangeType()) {
-                        case IP -> {
-                            // TODO: We need to be re-allocating the byte[] a bit too many times here
-                            final BytesRef value = bytesRefBlock.getBytesRef(offset, new BytesRef());
-                            byte[] bytes = new byte[value.length];
-                            System.arraycopy(value.bytes, value.offset, bytes, 0, value.length);
-                            InetAddress ip = InetAddressPoint.decode(bytes);
-                            yield ip;
-                        }
-                        default -> bytesRefBlock.getBytesRef(offset, new BytesRef());
-                    };
-                }
-                yield offset -> bytesRefBlock.getBytesRef(offset, new BytesRef());
-            }
-            case DOUBLE -> {
-                DoubleBlock doubleBlock = ((DoubleBlock) block);
-                yield doubleBlock::getDouble;
-            }
-            case INT -> {
-                IntBlock intBlock = (IntBlock) block;
-                yield intBlock::getInt;
-            }
-            case LONG -> {
-                LongBlock longBlock = (LongBlock) block;
-                yield longBlock::getLong;
-            }
-            case NULL -> offset -> null;
-            case DOC -> throw new EsqlIllegalArgumentException("can't read values from [doc] block");
-            case UNKNOWN -> throw new EsqlIllegalArgumentException("can't read values from [" + block + "]");
-        };
     }
 }

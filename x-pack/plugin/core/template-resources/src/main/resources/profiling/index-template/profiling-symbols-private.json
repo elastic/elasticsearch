@@ -3,7 +3,11 @@
     ".profiling-symbols-private*"
   ],
   "composed_of": [
-    "profiling-symbols"
+    "profiling-symbols",
+    "profiling-symbols@custom"
+  ],
+  "ignore_missing_component_templates": [
+    "profiling-symbols@custom"
   ],
   "priority": 100,
   "_meta": {

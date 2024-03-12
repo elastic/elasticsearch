@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettingsTe
 import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -175,6 +176,16 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
         );
     }
 
+    public void testFromMap_EmbeddingTypeByte_ParsesCorrectly() {
+        assertThat(
+            CohereEmbeddingsServiceSettings.fromMap(
+                new HashMap<>(Map.of(CohereEmbeddingsServiceSettings.EMBEDDING_TYPE, CohereEmbeddingType.BYTE.toString())),
+                false
+            ),
+            is(new CohereEmbeddingsServiceSettings(new CohereServiceSettings((URI) null, null, null, null, null), CohereEmbeddingType.BYTE))
+        );
+    }
+
     public void testFromMap_InvalidEmbeddingType_ThrowsError() {
         var thrownException = expectThrows(
             ValidationException.class,
@@ -188,7 +199,8 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
             thrownException.getMessage(),
             is(
                 Strings.format(
-                    "Validation Failed: 1: [service_settings] Invalid value [abc] received. [embedding_type] must be one of [float, int8];"
+                    "Validation Failed: 1: [service_settings] Invalid value [abc] received. [embedding_type] must "
+                        + "be one of [byte, float, int8];"
                 )
             )
         );

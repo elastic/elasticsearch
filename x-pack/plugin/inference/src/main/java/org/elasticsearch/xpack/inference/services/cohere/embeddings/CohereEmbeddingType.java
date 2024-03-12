@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.inference.services.cohere.embeddings;
 
+import org.elasticsearch.core.Nullable;
+
 import java.util.Locale;
 
 /**
@@ -24,11 +26,34 @@ public enum CohereEmbeddingType {
     /**
      * Use this when you want to get back signed int8 embeddings. Valid for only v3 models.
      */
-    INT8;
+    INT8,
+    /**
+     * Same as int8, just using the name <i>byte</i> to match with the string that Elasticsearch uses in the mapping
+     */
+    BYTE(INT8.name());
+
+    private final String requestName;
+
+    CohereEmbeddingType(@Nullable String requestName) {
+        this.requestName = requestName;
+    }
+
+    CohereEmbeddingType() {
+        this(null);
+    }
 
     @Override
     public String toString() {
         return name().toLowerCase(Locale.ROOT);
+    }
+
+    public String toRequestString() {
+        String nameToUse = name();
+
+        if (requestName != null) {
+            nameToUse = requestName;
+        }
+        return nameToUse.toLowerCase(Locale.ROOT);
     }
 
     public static String toLowerCase(CohereEmbeddingType type) {

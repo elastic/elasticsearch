@@ -56,6 +56,22 @@ public class CohereEmbeddingsRequestEntityTests extends ESTestCase {
             {"texts":["abc"],"model":"model","input_type":"search_query","embedding_types":["int8"],"truncate":"none"}"""));
     }
 
+    public void testXContent_TranslatesByteToInt8() throws IOException {
+        var entity = new CohereEmbeddingsRequestEntity(
+            List.of("abc"),
+            new CohereEmbeddingsTaskSettings(InputType.SEARCH, CohereTruncation.NONE),
+            "model",
+            CohereEmbeddingType.BYTE
+        );
+
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        entity.toXContent(builder, null);
+        String xContentResult = Strings.toString(builder);
+
+        MatcherAssert.assertThat(xContentResult, is("""
+            {"texts":["abc"],"model":"model","input_type":"search_query","embedding_types":["int8"],"truncate":"none"}"""));
+    }
+
     public void testXContent_WritesNoOptionalFields_WhenTheyAreNotDefined() throws IOException {
         var entity = new CohereEmbeddingsRequestEntity(List.of("abc"), CohereEmbeddingsTaskSettings.EMPTY_SETTINGS, null, null);
 

@@ -552,9 +552,10 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
             }
 
             indexMetadata = IndexMetadata.builder(index.getName())
-                .settings(Settings.builder()
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
-                    .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID())
+                .settings(
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                        .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID())
                 )
                 .numberOfShards(1)
                 .numberOfReplicas(0)

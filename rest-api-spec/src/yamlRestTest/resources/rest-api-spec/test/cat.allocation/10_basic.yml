@@ -3,7 +3,7 @@
 
   - skip:
       version: " - 8.13.99"
-      reason:  "shards.undesired, forecast.write_load and forecast.shard_size columns are added in 8.14.0"
+      reason:  "shards.undesired, write_load.forecast and disk.indices.forecast are added in 8.14.0"
 
   - do:
       cat.allocation:
@@ -11,19 +11,19 @@
 
   - match:
       $body: |
-               /^  shards              .+   \n
-                   shards.undesired    .+   \n
-                   forecast.write_load .+   \n
-                   forecast.shard_size .+   \n
-                   disk.indices        .+   \n
-                   disk.used           .+   \n
-                   disk.avail          .+   \n
-                   disk.total          .+   \n
-                   disk.percent        .+   \n
-                   host                .+   \n
-                   ip                  .+   \n
-                   node                .+   \n
-                   node.role           .+   \n
+               /^  shards                .+   \n
+                   shards.undesired      .+   \n
+                   write_load.forecast   .+   \n
+                   disk.indices.forecast .+   \n
+                   disk.indices          .+   \n
+                   disk.used             .+   \n
+                   disk.avail            .+   \n
+                   disk.total            .+   \n
+                   disk.percent          .+   \n
+                   host                  .+   \n
+                   ip                    .+   \n
+                   node                  .+   \n
+                   node.role             .+   \n
                $/
 
 ---
@@ -31,7 +31,7 @@
 
   - skip:
       version: " - 8.13.99"
-      reason:  "shards.undesired, forecast.write_load and forecast.shard_size columns are added in 8.14.0"
+      reason:  "shards.undesired, write_load.forecast and disk.indices.forecast columns are added in 8.14.0"
 
   - do:
         indices.create:
@@ -72,7 +72,7 @@
 
   - skip:
       version: " - 8.13.99"
-      reason:  "shards.undesired, forecast.write_load and forecast.shard_size columns are added in 8.14.0"
+      reason:  "shards.undesired, write_load.forecast and disk.indices.forecast columns are added in 8.14.0"
 
   - do:
         cat.allocation:
@@ -112,7 +112,7 @@
 
    - skip:
       version: " - 8.13.99"
-      reason:  "shards.undesired, forecast.write_load and forecast.shard_size columns are added in 8.14.0"
+      reason:  "shards.undesired, write_load.forecast and disk.indices.forecast columns are added in 8.14.0"
 
    - do:
          cat.allocation:
@@ -150,7 +150,7 @@
 
   - skip:
       version: " - 8.13.99"
-      reason:  "shards.undesired, forecast.write_load and forecast.shard_size columns are added in 8.14.0"
+      reason:  "shards.undesired, write_load.forecast and disk.indices.forecast columns are added in 8.14.0"
 
   - do:
         cat.allocation:
@@ -160,8 +160,8 @@
       $body: |
            /^  shards                  \s+
                shards.undesired        \s+
-               forecast.write_load     \s+
-               forecast.shard_size     \s+
+               write_load.forecast     \s+
+               disk.indices.forecast   \s+
                disk.indices            \s+
                disk.used               \s+
                disk.avail              \s+
@@ -232,7 +232,7 @@
 
   - skip:
       version: " - 8.13.99"
-      reason:  "shards.undesired, forecast.write_load and forecast.shard_size columns are added in 8.14.0"
+      reason:  "shards.undesired, write_load.forecast and disk.indices.forecast columns are added in 8.14.0"
 
   - do:
       cat.allocation:
@@ -283,11 +283,11 @@
 
   - skip:
       version: " - 8.13.99"
-      reason:  "forecast.write_load and forecast.shard_size columns added in 8.14.0"
+      reason:  "write_load.forecast and disk.indices.forecast columns added in 8.14.0"
 
   - do:
       cat.allocation:
-        h: [node, shards.undesired, forecast.write_load, forecast.shard_size]
+        h: [node, shards.undesired, write_load.forecast, disk.indices.forecast]
 
   - match:
       $body: |

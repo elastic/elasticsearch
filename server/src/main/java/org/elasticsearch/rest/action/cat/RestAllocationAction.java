@@ -90,13 +90,9 @@ public class RestAllocationAction extends AbstractCatAction {
         final Table table = new Table();
         table.startHeaders();
         table.addCell("shards", "alias:s;text-align:right;desc:number of shards on node");
-        table.addCell(
-            "shards.undesired",
-            "text-align:right;desc:amount of shards that are scheduled to be moved elsewhere in the cluster "
-                + "if desired balance allocator is used or -1 if any other allocator is used"
-        );
-        table.addCell("forecast.write_load", "alias:fwl,forecastWriteLoad;text-align:right;desc:sum of index write load forecasts");
-        table.addCell("forecast.shard_size", "alias:fd,forecastShardSize;text-align:right;desc:sum of shard size forecasts");
+        table.addCell("shards.undesired", "text-align:right;desc:number of shards that are scheduled to be moved elsewhere in the cluster");
+        table.addCell("write_load.forecast", "alias:wlf,writeLoadForecast;text-align:right;desc:sum of index write load forecasts");
+        table.addCell("disk.indices.forecast", "alias:dif,diskIndicesForecast;text-align:right;desc:sum of shard size forecasts");
         table.addCell("disk.indices", "alias:di,diskIndices;text-align:right;desc:disk used by ES indices");
         table.addCell("disk.used", "alias:du,diskUsed;text-align:right;desc:disk used (total, not just ES)");
         table.addCell("disk.avail", "alias:da,diskAvail;text-align:right;desc:disk available");

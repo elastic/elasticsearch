@@ -44,7 +44,14 @@ import static org.hamcrest.Matchers.not;
 @WithoutSecurityManager
 public class JvmOptionsParserTests extends ESTestCase {
 
-    private static final Map<String, String> TEST_SYSPROPS = Map.of("os.name", "Linux", "os.arch", "aarch64", "java.library.path", "/usr/lib");
+    private static final Map<String, String> TEST_SYSPROPS = Map.of(
+        "os.name",
+        "Linux",
+        "os.arch",
+        "aarch64",
+        "java.library.path",
+        "/usr/lib"
+    );
 
     public void testSubstitution() {
         final List<String> jvmOptions = JvmOptionsParser.substitutePlaceholders(

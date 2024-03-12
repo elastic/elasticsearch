@@ -1698,7 +1698,15 @@ public class IndicesService extends AbstractLifecycleComponent
      * Returns a new {@link QueryRewriteContext} with the given {@code now} provider
      */
     public QueryRewriteContext getRewriteContext(LongSupplier nowInMillis, IndicesRequest indicesRequest) {
-        Index[] indices = indexNameExpressionResolver.concreteIndices(clusterService.state(), indicesRequest);
+        // Skip indices on remote clusters for now
+        // TODO: Support metadata lookups for indices on remote clusters
+        String[] localIndexNames = Arrays.stream(indicesRequest.indices()).filter(s -> s.contains(":") == false).toArray(String[]::new);
+
+        // concreteIndices interprets an empty array as a wildcard, so don't call it in that case
+        Index[] indices = localIndexNames.length > 0 ?
+            indexNameExpressionResolver.concreteIndices(clusterService.state(), indicesRequest.indicesOptions(), true, localIndexNames) :
+            Index.EMPTY_ARRAY;
+
         Map<String, Set<String>> modelsForFields = new HashMap<>();
         for (Index index : indices) {
             IndexService indexService = indexService(index);

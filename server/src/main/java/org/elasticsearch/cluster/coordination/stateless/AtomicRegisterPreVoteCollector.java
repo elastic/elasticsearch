@@ -35,7 +35,7 @@ public class AtomicRegisterPreVoteCollector extends PreVoteCollector {
             if (shouldRun.getAndSet(false)) {
                 startElection.run();
             }
-        }, heartbeat -> logger.info("skipping election since there is a recent heartbeat({}) from the leader", heartbeat));
+        }, heartbeat -> logger.info("skipping election since there is a recent heartbeat[{}] from the leader", heartbeat));
 
         return () -> shouldRun.set(false);
     }

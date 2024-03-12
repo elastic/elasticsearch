@@ -35,6 +35,8 @@ import org.elasticsearch.xpack.core.transform.transforms.AuthorizationState;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingInfo;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingInfo.TransformCheckpointingInfoBuilder;
+import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformEffectiveSettings;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPosition;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
@@ -47,8 +49,11 @@ import org.elasticsearch.xpack.transform.transforms.scheduling.TransformSchedule
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.core.Strings.format;
@@ -69,9 +74,10 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
     private final IndexerState initialIndexerState;
     private final TransformContext context;
     private final SetOnce<ClientTransformIndexer> indexer = new SetOnce<>();
+    private final TransformRetryableActions retryableActions;
 
     @SuppressWarnings("this-escape")
-    public TransformTask(
+    TransformTask(
         long id,
         String type,
         String action,
@@ -81,7 +87,8 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
         TransformScheduler transformScheduler,
         TransformAuditor auditor,
         ThreadPool threadPool,
-        Map<String, String> headers
+        Map<String, String> headers,
+        TransformRetryableActions retryableActions
     ) {
         super(id, type, action, TransformField.PERSISTENT_TASK_DESCRIPTION_PREFIX + transform.getId(), parentTask, headers);
         this.transform = transform;
@@ -118,6 +125,7 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
         if (state != null) {
             this.context.setAuthState(state.getAuthState());
         }
+        this.retryableActions = retryableActions;
     }
 
     public String getTransformId() {
@@ -358,6 +366,9 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
         );
 
         synchronized (context) {
+            // always stop retryable actions, even if we are in a Failed state
+            retryableActions.stopAll(getTransformId());
+
             if (context.getTaskState() == TransformTaskState.FAILED && force == false) {
                 throw new ElasticsearchStatusException(
                     TransformMessages.getMessage(CANNOT_STOP_FAILED_TRANSFORM, getTransformId(), context.getStateReason()),
@@ -481,6 +492,7 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
     public void shutdown() {
         logger.debug("[{}] shutdown of transform requested", transform.getId());
         transformScheduler.deregisterTransform(getTransformId());
+        retryableActions.stopAll(getTransformId());
         markAsCompleted();
     }
 
@@ -587,6 +599,77 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
 
     ThreadPool getThreadPool() {
         return threadPool;
+    }
+
+    /**
+     * <p>
+     * If this Transform is unattended, then it will attempt to run the `action` when the resulting
+     * {@link ActionListener#onResponse(Object)} is invoked. The first call happens immediately, the second call happens after 1 minute,
+     * and all subsequent retries happen every 2 minutes. Retries will continue for ~292 years. Calling the Stop API for this Transform will
+     * cancel the retries.</p>
+     * <br><p>
+     * If this Transform is not unattended, then there is no retry logic and the call is always on the same thread that calls the
+     * ActionListener.</p>
+     * @param name the name of this action, used for auditing and unique identification
+     * @param action the function to register.  The retryable action will continuously call this action by passing it the provided listener.
+     *               The listener in the consumer must be notified when the task succeeds or fails via the {@link ActionListener#onResponse}
+     *               and {@link ActionListener#onFailure} API respectively, or the retry logic will break.
+     * @param listener this listener will be notified via #onResponse when the task succeeds or via #onFailure when there are no more
+     *                 retries left.  When retries are stopped via the Stop API, onFailure will *not* be called.
+     * @param retryScheduledListener this listener will be notified after the first call. If true, another thread has started the retry
+     *                               process. If false, the original call was successful, and no retries will happen.
+     */
+    <Response> ActionListener<Void> maybeRegisterRetryableAsyncTask(
+        String name,
+        Consumer<ActionListener<Response>> action,
+        ActionListener<Response> listener,
+        ActionListener<Boolean> retryScheduledListener
+    ) {
+        if (shouldRetryUnattended()) {
+            return ActionListener.running(
+                retryableActions.register(
+                    getTransformId(),
+                    name,
+                    action,
+                    ignoreStopCallForUnattended(listener),
+                    retryScheduledListener,
+                    this::shouldRetryUnattended
+                )
+            );
+        } else {
+            return ActionListener.running(() -> {
+                retryScheduledListener.onResponse(false);
+                action.accept(listener);
+            });
+        }
+    }
+
+    private boolean shouldRetryUnattended() {
+        // if we cannot determine if this transform is unattended, assume that it is for the purpose of retrying
+        return Optional.ofNullable(getIndexer())
+            .map(TransformIndexer::getConfig)
+            .map(TransformConfig::getSettings)
+            .map(TransformEffectiveSettings::isUnattended)
+            .orElse(true);
+    }
+
+    /**
+     * For unattended transforms, we ignore the stop failures since the system will take care of cleaning up the actions.
+     * Retryables are stopped via the Transform's {@link #stop(boolean, boolean)} and {@link #shutdown()} API, which will take care of
+     * moving the Transform into the correct state.
+     */
+    private <Response> ActionListener<Response> ignoreStopCallForUnattended(ActionListener<Response> listener) {
+        return listener.delegateResponse((l, e) -> {
+            var isNotStopCall = retryableActions.isStopRetryableCall(e) == false;
+            var isNotUnattended = shouldRetryUnattended() == false;
+            if (isNotStopCall || isNotUnattended) {
+                listener.onFailure(e);
+            }
+        });
+    }
+
+    List<TransformRetryableActions.TransformRetryDescription> startupTasks() {
+        return retryableActions.retries(getTransformId());
     }
 
     public static PersistentTask<?> getTransformTask(String transformId, ClusterState clusterState) {

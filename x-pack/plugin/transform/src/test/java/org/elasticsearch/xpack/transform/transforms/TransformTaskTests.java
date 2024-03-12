@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.transform.transforms;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
@@ -35,6 +36,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 import org.elasticsearch.xpack.core.transform.transforms.AuthorizationState;
+import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingInfo;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
@@ -73,6 +75,8 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -130,7 +134,8 @@ public class TransformTaskTests extends ESTestCase {
             new TransformScheduler(clock, threadPool, Settings.EMPTY, TimeValue.ZERO),
             auditor,
             threadPool,
-            Collections.emptyMap()
+            Collections.emptyMap(),
+            mock(TransformRetryableActions.class)
         );
 
         TaskManager taskManager = mock(TaskManager.class);
@@ -192,7 +197,8 @@ public class TransformTaskTests extends ESTestCase {
             transformsConfigManager,
             transformsCheckpointService,
             auditor,
-            new TransformScheduler(clock, threadPool, Settings.EMPTY, TimeValue.ZERO)
+            new TransformScheduler(clock, threadPool, Settings.EMPTY, TimeValue.ZERO),
+            mock(TransformRetryableActions.class)
         );
     }
 
@@ -234,7 +240,8 @@ public class TransformTaskTests extends ESTestCase {
             new TransformScheduler(Clock.systemUTC(), threadPool, Settings.EMPTY, TimeValue.ZERO),
             auditor,
             threadPool,
-            Collections.emptyMap()
+            Collections.emptyMap(),
+            mock(TransformRetryableActions.class)
         );
 
         TaskManager taskManager = mock(TaskManager.class);
@@ -453,7 +460,8 @@ public class TransformTaskTests extends ESTestCase {
             new TransformScheduler(Clock.systemUTC(), threadPool, Settings.EMPTY, TimeValue.ZERO),
             auditor,
             threadPool,
-            Collections.emptyMap()
+            Collections.emptyMap(),
+            mock(TransformRetryableActions.class)
         );
         assertThat(transformTask.getContext().getAuthState().getStatus(), is(equalTo(HealthStatus.GREEN)));
 
@@ -478,6 +486,14 @@ public class TransformTaskTests extends ESTestCase {
     }
 
     private TransformTask createTransformTask(TransformConfig transformConfig, MockTransformAuditor auditor) {
+        return createTransformTask(transformConfig, auditor, mock(TransformRetryableActions.class));
+    }
+
+    private TransformTask createTransformTask(
+        TransformConfig transformConfig,
+        MockTransformAuditor auditor,
+        TransformRetryableActions retryableActions
+    ) {
         var threadPool = mock(ThreadPool.class);
 
         var transformState = new TransformState(
@@ -502,7 +518,8 @@ public class TransformTaskTests extends ESTestCase {
             new TransformScheduler(Clock.systemUTC(), threadPool, Settings.EMPTY, TimeValue.ZERO),
             auditor,
             threadPool,
-            Collections.emptyMap()
+            Collections.emptyMap(),
+            retryableActions
         );
     }
 
@@ -588,6 +605,97 @@ public class TransformTaskTests extends ESTestCase {
         testTriggered(TransformTaskState.STARTED, IndexerState.STARTED, times(1));
     }
 
+    public void testUnattendedTransformCanScheduleRetryableAction() {
+        var isUnattended = true;
+        var retryableActions = mockRetryableActions();
+        var task = createTransformTask(
+            TransformConfigTests.randomTransformConfigWithoutHeaders(),
+            MockTransformAuditor.createMockAuditor(),
+            retryableActions
+        );
+        task.initializeIndexer(createIndexer(isUnattended));
+
+        task.maybeRegisterRetryableAsyncTask(
+            "testRegularTransformCannotScheduleRetryableAction",
+            listener -> {},
+            ActionListener.noop(),
+            ActionListener.noop()
+        );
+
+        verify(retryableActions, atLeastOnce()).register(anyString(), anyString(), any(), any(), any(), any());
+    }
+
+    private TransformRetryableActions mockRetryableActions() {
+        var retryableActions = mock(TransformRetryableActions.class);
+        when(retryableActions.register(anyString(), anyString(), any(), any(), any(), any())).thenReturn(() -> {});
+        return retryableActions;
+    }
+
+    private ClientTransformIndexer createIndexer(boolean isUnattended) {
+        var settings = new SettingsConfig(
+            randomInt(),
+            randomFloat(),
+            randomBoolean(),
+            randomBoolean(),
+            randomBoolean(),
+            randomBoolean(),
+            randomInt(),
+            isUnattended
+        );
+        var config = TransformConfigTests.randomTransformConfigWithSettings(settings);
+        var indexer = mock(ClientTransformIndexer.class);
+        when(indexer.getConfig()).thenReturn(config);
+        return indexer;
+    }
+
+    public void testRegularTransformCannotScheduleRetryableAction() {
+        var isUnattended = false;
+        var retryableActions = mock(TransformRetryableActions.class);
+        var task = createTransformTask(
+            TransformConfigTests.randomTransformConfigWithoutHeaders(),
+            MockTransformAuditor.createMockAuditor(),
+            retryableActions
+        );
+        task.initializeIndexer(createIndexer(isUnattended));
+
+        // listener should run immediately
+        var listenerRan = new AtomicBoolean(false);
+
+        task.maybeRegisterRetryableAsyncTask(
+            "testRegularTransformCannotScheduleRetryableAction",
+            listener -> {},
+            ActionListener.noop(),
+            ActionListener.wrap(actual -> {
+                listenerRan.set(true);
+                assertFalse(actual);
+            }, e -> fail(e, "Listener failed"))
+        ).onResponse(null);
+
+        assertTrue(listenerRan.get());
+
+        verifyNoInteractions(retryableActions);
+    }
+
+    public void testUnknownTransformCanScheduleRetryableAction() {
+        var retryableActions = mockRetryableActions();
+
+        var task = createTransformTask(
+            TransformConfigTests.randomTransformConfigWithoutHeaders(),
+            MockTransformAuditor.createMockAuditor(),
+            retryableActions
+        );
+        // do not set Indexer
+
+        task.maybeRegisterRetryableAsyncTask(
+            "testRegularTransformCannotScheduleRetryableAction",
+            listener -> {},
+            ActionListener.noop(),
+            ActionListener.noop()
+        );
+
+        verify(retryableActions, atLeastOnce()).register(anyString(), anyString(), any(), any(), any(), any());
+    }
+
     private void testTriggered(TransformTaskState taskState, IndexerState indexerState, VerificationMode indexerVerificationMode) {
         String transformId = randomAlphaOfLengthBetween(1, 10);
         TransformState transformState = new TransformState(taskState, indexerState, null, 0L, "because", null, null, false, null);
@@ -603,7 +711,8 @@ public class TransformTaskTests extends ESTestCase {
             new TransformScheduler(mock(Clock.class), threadPool, Settings.EMPTY, TimeValue.ZERO),
             auditor,
             threadPool,
-            Collections.emptyMap()
+            Collections.emptyMap(),
+            mock(TransformRetryableActions.class)
         );
 
         ClientTransformIndexer indexer = mock(ClientTransformIndexer.class);

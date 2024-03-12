@@ -446,7 +446,8 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
             transformsConfigManager,
             transformCheckpointService,
             mockAuditor,
-            new TransformScheduler(Clock.systemUTC(), threadPool, Settings.EMPTY, TimeValue.ZERO)
+            new TransformScheduler(Clock.systemUTC(), threadPool, Settings.EMPTY, TimeValue.ZERO),
+            mock(TransformRetryableActions.class)
         );
 
         ClusterSettings cSettings = new ClusterSettings(Settings.EMPTY, Collections.singleton(Transform.NUM_FAILURE_RETRIES_SETTING));

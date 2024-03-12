@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformStoredDoc;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskParams;
+import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
 import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
 import org.elasticsearch.xpack.transform.Transform;
 import org.elasticsearch.xpack.transform.TransformExtension;
@@ -200,6 +201,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
 
         final SetOnce<TransformState> stateHolder = new SetOnce<>();
 
+        // <7> log the start result
         ActionListener<StartTransformAction.Response> startTaskListener = ActionListener.wrap(
             response -> logger.info("[{}] successfully completed and scheduled task in node operation", transformId),
             failure -> {
@@ -339,13 +341,11 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         });
 
         // <2> Get the transform config
-        ActionListener<Void> templateCheckListener = ActionListener.wrap(
-            aVoid -> transformServices.getConfigManager().getTransformConfiguration(transformId, getTransformConfigListener),
-            error -> {
-                Throwable cause = ExceptionsHelper.unwrapCause(error);
-                String msg = "Failed to create internal index mappings";
-                markAsFailed(buildTask, error, msg + "[" + cause + "]");
-            }
+        ActionListener<Void> templateCheckListener = buildTask.maybeRegisterRetryableAsyncTask(
+            "getTransformConfig",
+            l -> transformServices.getConfigManager().getTransformConfiguration(transformId, l),
+            getTransformConfigListener,
+            markAsRetrying(buildTask)
         );
 
         // <1> Check the latest internal index (IMPORTANT: according to _this_ node, which might be newer than master) is installed
@@ -353,7 +353,11 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
             clusterService,
             parentTaskClient,
             transformExtension.getTransformInternalIndexAdditionalSettings(),
-            templateCheckListener
+            templateCheckListener.delegateResponse((l, e) -> {
+                Throwable cause = ExceptionsHelper.unwrapCause(e);
+                String msg = "Failed to create internal index mappings";
+                markAsFailed(buildTask, e, msg + "[" + cause + "]");
+            })
         );
     }
 
@@ -390,6 +394,32 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         } catch (InterruptedException e) {
             logger.error("Timeout waiting for task [" + task.getTransformId() + "] to be marked as failed in cluster state", e);
         }
+    }
+
+    private ActionListener<Boolean> markAsRetrying(TransformTask task) {
+        return ActionListener.wrap(isRetrying -> {
+            if (isRetrying) {
+                var oldState = task.getState();
+                var newState = new TransformState(
+                    TransformTaskState.STARTED,
+                    oldState.getIndexerState(),
+                    oldState.getPosition(),
+                    oldState.getCheckpoint(),
+                    "Retrying transform start.",
+                    oldState.getProgress(),
+                    oldState.getNode(),
+                    oldState.shouldStopAtNextCheckpoint(),
+                    oldState.getAuthState()
+                );
+                task.persistStateToClusterState(
+                    newState,
+                    ActionListener.wrap(
+                        rr -> logger.debug("[{}] marked as retrying in TransformState.", task.getTransformId()),
+                        ee -> logger.warn(() -> format("[%s] failed to persist state.", task.getTransformId()), ee)
+                    )
+                );
+            }
+        }, e -> markAsFailed(task, e, "Failed to initiate retries for Transform."));
     }
 
     private void startTask(
@@ -431,7 +461,8 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
             transformServices.getScheduler(),
             auditor,
             threadPool,
-            headers
+            headers,
+            transformServices.getRetryableActions()
         );
     }
 }

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.transform;
 import org.elasticsearch.xpack.transform.checkpoint.TransformCheckpointService;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
+import org.elasticsearch.xpack.transform.transforms.TransformRetryableActions;
 import org.elasticsearch.xpack.transform.transforms.scheduling.TransformScheduler;
 
 import java.util.Objects;
@@ -26,17 +27,20 @@ public final class TransformServices {
     private final TransformCheckpointService checkpointService;
     private final TransformAuditor auditor;
     private final TransformScheduler scheduler;
+    private final TransformRetryableActions retryableActions;
 
     public TransformServices(
         TransformConfigManager configManager,
         TransformCheckpointService checkpointService,
         TransformAuditor auditor,
-        TransformScheduler scheduler
+        TransformScheduler scheduler,
+        TransformRetryableActions retryableActions
     ) {
         this.configManager = Objects.requireNonNull(configManager);
         this.checkpointService = Objects.requireNonNull(checkpointService);
         this.auditor = Objects.requireNonNull(auditor);
         this.scheduler = Objects.requireNonNull(scheduler);
+        this.retryableActions = retryableActions;
     }
 
     public TransformConfigManager getConfigManager() {
@@ -53,5 +57,9 @@ public final class TransformServices {
 
     public TransformScheduler getScheduler() {
         return scheduler;
+    }
+
+    public TransformRetryableActions getRetryableActions() {
+        return retryableActions;
     }
 }

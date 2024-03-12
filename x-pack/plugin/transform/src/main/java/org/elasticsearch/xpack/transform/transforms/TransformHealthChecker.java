@@ -38,7 +38,8 @@ public final class TransformHealthChecker {
         PRIVILEGES_CHECK_FAILED("Privileges check failed"),
         TRANSFORM_TASK_FAILED("Transform task state is [failed]"),
         TRANSFORM_INDEXER_FAILED("Transform indexer failed"),
-        TRANSFORM_INTERNAL_STATE_UPDATE_FAILED("Task encountered failures updating internal state");
+        TRANSFORM_INTERNAL_STATE_UPDATE_FAILED("Task encountered failures updating internal state"),
+        TRANSFORM_STARTING("Transform task is automatically retrying its startup process");
 
         private final String issue;
 
@@ -90,7 +91,8 @@ public final class TransformHealthChecker {
         if (TransformTaskState.FAILED.equals(transformTask.getState().getTaskState()) == false
             && transformTask.getContext().getFailureCount() == 0
             && transformTask.getContext().getStatePersistenceFailureCount() == 0
-            && AuthorizationState.isNullOrGreen(authState)) {
+            && AuthorizationState.isNullOrGreen(authState)
+            && transformTask.startupTasks().isEmpty()) {
             return TransformHealth.GREEN;
         }
 
@@ -143,6 +145,16 @@ public final class TransformHealthChecker {
                     transformContext.getLastStatePersistenceFailureStartTime()
                 )
             );
+        }
+
+        var startupTasks = transformTask.startupTasks();
+        if (startupTasks.isEmpty() == false) {
+            if (HealthStatus.RED.equals(maxStatus) == false) {
+                maxStatus = HealthStatus.YELLOW;
+            }
+            startupTasks.stream()
+                .map(task -> IssueType.TRANSFORM_STARTING.newIssue(task.message(), task.retryCount(), task.occurrence()))
+                .forEach(issues::add);
         }
 
         return new TransformHealth(maxStatus, issues);

@@ -140,7 +140,8 @@ public class ClientTransformIndexerTests extends ESTestCase {
                     mock(IndexBasedTransformConfigManager.class),
                     mock(TransformCheckpointService.class),
                     mock(TransformAuditor.class),
-                    new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY, TimeValue.ZERO)
+                    new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY, TimeValue.ZERO),
+                    mock(TransformRetryableActions.class)
                 ),
                 mock(CheckpointProvider.class),
                 new AtomicReference<>(IndexerState.STOPPED),
@@ -237,7 +238,8 @@ public class ClientTransformIndexerTests extends ESTestCase {
                     mock(IndexBasedTransformConfigManager.class),
                     mock(TransformCheckpointService.class),
                     mock(TransformAuditor.class),
-                    new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY, TimeValue.ZERO)
+                    new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY, TimeValue.ZERO),
+                    mock(TransformRetryableActions.class)
                 ),
                 mock(CheckpointProvider.class),
                 new AtomicReference<>(IndexerState.STOPPED),
@@ -323,7 +325,8 @@ public class ClientTransformIndexerTests extends ESTestCase {
                     mock(IndexBasedTransformConfigManager.class),
                     mock(TransformCheckpointService.class),
                     mock(TransformAuditor.class),
-                    new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY, TimeValue.ZERO)
+                    new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY, TimeValue.ZERO),
+                    mock(TransformRetryableActions.class)
                 ),
                 mock(CheckpointProvider.class),
                 new AtomicReference<>(IndexerState.STOPPED),
@@ -572,7 +575,8 @@ public class ClientTransformIndexerTests extends ESTestCase {
                 mock(IndexBasedTransformConfigManager.class),
                 mock(TransformCheckpointService.class),
                 mock(TransformAuditor.class),
-                new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY, TimeValue.ZERO)
+                new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY, TimeValue.ZERO),
+                mock(TransformRetryableActions.class)
             ),
             mock(CheckpointProvider.class),
             new AtomicReference<>(IndexerState.STOPPED),

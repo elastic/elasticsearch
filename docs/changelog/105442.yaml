@@ -1,0 +1,6 @@
+pr: 105442
+summary: Handling exceptions on watcher reload
+area: Watcher
+type: bug
+issues:
+ - 69842

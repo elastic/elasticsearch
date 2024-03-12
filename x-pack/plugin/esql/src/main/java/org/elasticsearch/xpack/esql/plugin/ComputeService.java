@@ -81,7 +81,6 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME;
 
 /**
@@ -116,7 +115,7 @@ public class ComputeService {
         this.transportService = transportService;
         this.bigArrays = bigArrays.withCircuitBreaking();
         this.blockFactory = blockFactory;
-        this.esqlExecutor = threadPool.executor(ESQL_THREAD_POOL_NAME);
+        this.esqlExecutor = threadPool.executor(ThreadPool.Names.SEARCH);
         transportService.registerRequestHandler(DATA_ACTION_NAME, this.esqlExecutor, DataNodeRequest::new, new DataNodeRequestHandler());
         transportService.registerRequestHandler(
             CLUSTER_ACTION_NAME,
@@ -196,7 +195,7 @@ public class ComputeService {
         final List<DriverProfile> collectedProfiles = configuration.profile() ? Collections.synchronizedList(new ArrayList<>()) : List.of();
         final var exchangeSource = new ExchangeSourceHandler(
             queryPragmas.exchangeBufferSize(),
-            transportService.getThreadPool().executor(ESQL_THREAD_POOL_NAME)
+            transportService.getThreadPool().executor(ThreadPool.Names.SEARCH)
         );
         try (
             Releasable ignored = exchangeSource.addEmptySink();
@@ -628,7 +627,7 @@ public class ComputeService {
             final int endBatchIndex = Math.min(startBatchIndex + maxConcurrentShards, request.shardIds().size());
             List<ShardId> shardIds = request.shardIds().subList(startBatchIndex, endBatchIndex);
             acquireSearchContexts(clusterAlias, shardIds, configuration, request.aliasFilters(), ActionListener.wrap(searchContexts -> {
-                assert ThreadPool.assertCurrentThreadPool(ESQL_THREAD_POOL_NAME, ESQL_WORKER_THREAD_POOL_NAME);
+                assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH, ESQL_WORKER_THREAD_POOL_NAME);
                 var computeContext = new ComputeContext(sessionId, clusterAlias, searchContexts, configuration, null, exchangeSink);
                 runCompute(
                     parentTask,
@@ -734,7 +733,7 @@ public class ComputeService {
         final String localSessionId = clusterAlias + ":" + globalSessionId;
         var exchangeSource = new ExchangeSourceHandler(
             configuration.pragmas().exchangeBufferSize(),
-            transportService.getThreadPool().executor(ESQL_THREAD_POOL_NAME)
+            transportService.getThreadPool().executor(ThreadPool.Names.SEARCH)
         );
         try (
             Releasable ignored = exchangeSource.addEmptySink();

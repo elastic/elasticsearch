@@ -68,7 +68,7 @@ public class RestGetSnapshotsAction extends BaseRestHandler {
         getSnapshotsRequest.offset(offset);
         final String afterString = request.param("after");
         if (afterString != null) {
-            getSnapshotsRequest.after(GetSnapshotsRequest.After.fromQueryParam(afterString));
+            getSnapshotsRequest.after(SnapshotSortKey.decodeAfterQueryParam(afterString));
         }
         final String fromSortValue = request.param("from_sort_value");
         if (fromSortValue != null) {

@@ -1004,12 +1004,15 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
 
     public void testZeroMinDocAggregation() throws Exception {
         assertAcked(
-            indicesAdmin().prepareCreate("test").setMapping("color", "type=keyword", "fruit", "type=keyword", "count", "type=integer")
+            indicesAdmin().prepareCreate("test")
+                .setMapping("color", "type=keyword", "fruit", "type=keyword", "count", "type=integer")
+                .setSettings(Map.of("index.number_of_shards", 1))
         );
         prepareIndex("test").setId("1").setSource("color", "red", "fruit", "apple", "count", -1).setRefreshPolicy(IMMEDIATE).get();
         prepareIndex("test").setId("2").setSource("color", "yellow", "fruit", "banana", "count", -2).setRefreshPolicy(IMMEDIATE).get();
         prepareIndex("test").setId("3").setSource("color", "green", "fruit", "grape", "count", -3).setRefreshPolicy(IMMEDIATE).get();
         prepareIndex("test").setId("4").setSource("color", "red", "fruit", "grape", "count", -4).setRefreshPolicy(IMMEDIATE).get();
+        indicesAdmin().prepareForceMerge("test").get();
 
         assertResponse(
             client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user6", USERS_PASSWD)))
@@ -1094,28 +1097,19 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
                 List<StringTerms.Bucket> innerFruitsBuckets = innerFruits.getBuckets();
                 assertTrue(innerFruitsBuckets.stream().anyMatch(b -> b.getKeyAsString().equals("apple") && b.getDocCount() == 1));
                 assertTrue(innerFruitsBuckets.stream().anyMatch(b -> b.getKeyAsString().equals("grape") && b.getDocCount() == 0));
-                String currentBucketKey = innerFruitsBuckets.get(0).getKeyAsString(); // don't rely on order
                 assertThat(innerFruitsBuckets.size(), equalTo(2));
-                LongTerms innerCounts = innerFruitsBuckets.get(0).getAggregations().get("counts");
-                assertThat(innerCounts.getBuckets().size(), equalTo(1));
-                List<LongTerms.Bucket> innerCountsBuckets = innerCounts.getBuckets();
-                if ("apple".equals(currentBucketKey)) {
-                    assertThat(innerCountsBuckets.get(0).getKeyAsString(), equalTo("-1"));
-                    assertThat(innerCountsBuckets.get(0).getDocCount(), equalTo(1L));
-                } else {
-                    assertThat(innerCountsBuckets.get(0).getKeyAsString(), equalTo("-4"));
-                    assertThat(innerCountsBuckets.get(0).getDocCount(), equalTo("0"));
-                }
-                LongTerms innerCounts2 = innerFruitsBuckets.get(0).getAggregations().get("counts");
-                assertThat(innerCounts2.getBuckets().size(), equalTo(1));
-                List<LongTerms.Bucket> innerCountsBuckets2 = innerCounts.getBuckets();
-                assertThat(innerCountsBuckets.size(), equalTo(1));
-                if ("apple".equals(currentBucketKey)) {
-                    assertThat(innerCountsBuckets2.get(0).getKeyAsString(), equalTo("-1"));
-                    assertThat(innerCountsBuckets2.get(0).getDocCount(), equalTo(1L));
-                } else {
-                    assertThat(innerCountsBuckets2.get(0).getKeyAsString(), equalTo("-4"));
-                    assertThat(innerCountsBuckets2.get(0).getDocCount(), equalTo("0"));
+
+                for (int i = 0; i <= 1; i++) {
+                    String parentBucketKey = innerFruitsBuckets.get(i).getKeyAsString();
+                    LongTerms innerCounts = innerFruitsBuckets.get(i).getAggregations().get("counts");
+                    assertThat(innerCounts.getBuckets().size(), equalTo(2));
+                    List<LongTerms.Bucket> icb = innerCounts.getBuckets();
+                    if ("apple".equals(parentBucketKey)) {
+                        assertTrue(icb.stream().anyMatch(bucket -> bucket.getKeyAsString().equals("-1") && bucket.getDocCount() == 1));
+                    } else {
+                        assertTrue(icb.stream().anyMatch(bucket -> bucket.getKeyAsString().equals("-1") && bucket.getDocCount() == 0));
+                    }
+                    assertTrue(icb.stream().anyMatch(bucket -> bucket.getKeyAsString().equals("-4") && bucket.getDocCount() == 0));
                 }
             }
         );

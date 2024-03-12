@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.esql.EsqlInfoTransportAction;
 import org.elasticsearch.xpack.esql.EsqlUsageTransportAction;
 import org.elasticsearch.xpack.esql.action.EsqlAsyncGetResultAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
+import org.elasticsearch.xpack.esql.action.EsqlQueryRequestBuilder;
 import org.elasticsearch.xpack.esql.action.RestEsqlAsyncQueryAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlDeleteAsyncResultAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlGetAsyncResultAction;
@@ -58,6 +59,7 @@ import org.elasticsearch.xpack.esql.session.EsqlIndexResolver;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
 import org.elasticsearch.xpack.ql.index.IndexResolver;
 
+import java.lang.invoke.MethodHandles;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
@@ -100,6 +102,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
         );
         BigArrays bigArrays = services.indicesService().getBigArrays().withCircuitBreaking();
         BlockFactory blockFactory = new BlockFactory(circuitBreaker, bigArrays, maxPrimitiveArrayBlockSize);
+        setupSharedSecrets();
         return List.of(
             new PlanExecutor(
                 new IndexResolver(
@@ -118,6 +121,15 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
             ),
             blockFactory
         );
+    }
+
+    private void setupSharedSecrets() {
+        try {
+            // EsqlQueryRequestBuilder.<clinit> initializes the shared secret access
+            MethodHandles.lookup().ensureInitialized(EsqlQueryRequestBuilder.class);
+        } catch (IllegalAccessException e) {
+            throw new AssertionError(e);
+        }
     }
 
     /**

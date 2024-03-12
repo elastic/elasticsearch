@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -34,7 +33,10 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
-public class EsqlQueryResponse extends ActionResponse implements ChunkedToXContentObject, Releasable {
+public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.EsqlQueryResponse
+    implements
+        ChunkedToXContentObject,
+        Releasable {
 
     @SuppressWarnings("this-escape")
     private final AbstractRefCounted counted = AbstractRefCounted.of(this::closeInternal);
@@ -117,6 +119,7 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
         out.writeBoolean(columnar);
     }
 
+    @Override
     public List<ColumnInfo> columns() {
         return columns;
     }
@@ -125,6 +128,7 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
         return pages;
     }
 
+    @Override
     public Iterator<Iterator<Object>> values() {
         List<String> dataTypes = columns.stream().map(ColumnInfo::type).toList();
         return ResponseValueUtils.pagesToValues(dataTypes, pages);

@@ -38,7 +38,7 @@ import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsNumber;
 import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.GEO;
 
-public record ColumnInfo(String name, String type) implements Writeable {
+public record ColumnInfo(String name, String type) implements org.elasticsearch.xpack.core.esql.action.ColumnInfo, Writeable {
 
     private static final InstantiatingObjectParser<ColumnInfo, Void> PARSER;
     static {

@@ -93,7 +93,7 @@ public class RestAllocationAction extends AbstractCatAction {
         table.addCell(
             "shards.undesired",
             "text-align:right;desc:amount of shards that are scheduled to be moved elsewhere in the cluster "
-                + "or -1 other than desired balance allocator is used"
+                + "if desired balance allocator is used or -1 if any other allocator is used"
         );
         table.addCell("forecast.write_load", "alias:fwl,forecastWriteLoad;text-align:right;desc:sum of index write load forecasts");
         table.addCell("forecast.shard_size", "alias:fd,forecastShardSize;text-align:right;desc:sum of shard size forecasts");

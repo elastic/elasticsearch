@@ -79,6 +79,13 @@ public final class GetApiKeyResponse extends ActionResponse implements ToXConten
     }
 
     @Override
+    public int hashCode() {
+        int result = Arrays.hashCode(foundApiKeysInfo);
+        result = 31 * result + Arrays.hashCode(ownerProfileUids);
+        return result;
+    }
+
+    @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.startArray("api_keys");

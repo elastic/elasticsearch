@@ -6,42 +6,33 @@
  */
 package org.elasticsearch.repositories.blobstore.testkit;
 
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
+import org.elasticsearch.common.settings.Settings;
 
-import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.local.distribution.DistributionType;
-import org.elasticsearch.test.fixtures.hdfs.HdfsFixture;
-import org.junit.ClassRule;
-import org.junit.rules.RuleChain;
-import org.junit.rules.TestRule;
+import static org.hamcrest.Matchers.blankOrNullString;
+import static org.hamcrest.Matchers.not;
 
-@ThreadLeakScope(ThreadLeakScope.Scope.NONE)
-public class HdfsSnapshotRepoTestKitIT extends AbstractHdfsSnapshotRepoTestKitIT {
-
-    public static HdfsFixture hdfsFixture = new HdfsFixture();
-
-    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
-        .distribution(DistributionType.DEFAULT)
-        .plugin("repository-hdfs")
-        .setting("xpack.license.self_generated.type", "trial")
-        .setting("xpack.security.enabled", "false")
-        .build();
-
-    @ClassRule
-    public static TestRule ruleChain = RuleChain.outerRule(hdfsFixture).around(cluster);
+public class HdfsSnapshotRepoTestKitIT extends AbstractSnapshotRepoTestKitRestTestCase {
 
     @Override
-    protected String getTestRestCluster() {
-        return cluster.getHttpAddresses();
+    protected String repositoryType() {
+        return "hdfs";
     }
 
     @Override
-    protected String getRepositoryPath() {
-        return "/user/elasticsearch/test/repository_test_kit/simple";
-    }
+    protected Settings repositorySettings() {
+        final String uri = System.getProperty("test.hdfs.uri");
+        assertThat(uri, not(blankOrNullString()));
 
-    @Override
-    protected int getHdfsPort() {
-        return hdfsFixture.getPort();
+        final String path = System.getProperty("test.hdfs.path");
+        assertThat(path, not(blankOrNullString()));
+
+        // Optional based on type of test
+        final String principal = System.getProperty("test.krb5.principal.es");
+
+        Settings.Builder repositorySettings = Settings.builder().put("client", "repository_test_kit").put("uri", uri).put("path", path);
+        if (principal != null) {
+            repositorySettings.put("security.principal", principal);
+        }
+        return repositorySettings.build();
     }
 }

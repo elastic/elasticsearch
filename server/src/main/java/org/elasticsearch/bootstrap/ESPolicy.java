@@ -8,6 +8,7 @@
 
 package org.elasticsearch.bootstrap;
 
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.SuppressForbidden;
 
 import java.io.FilePermission;
@@ -201,7 +202,10 @@ final class ESPolicy extends Policy {
     // from this policy file or further restrict it to code sources
     // that you specify, because Thread.stop() is potentially unsafe."
     // not even sure this method still works...
-    private static final Permission BAD_DEFAULT_NUMBER_ONE = new BadDefaultPermission(new RuntimePermission("stopThread"), p -> true);
+    private static final Permission BAD_DEFAULT_NUMBER_ONE = new BadDefaultPermission(
+        new RuntimePermission("stopThread"),
+        Predicates.always()
+    );
 
     // default policy file states:
     // "allows anyone to listen on dynamic ports"

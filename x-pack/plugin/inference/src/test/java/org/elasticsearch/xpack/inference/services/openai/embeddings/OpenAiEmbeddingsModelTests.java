@@ -52,6 +52,24 @@ public class OpenAiEmbeddingsModelTests extends ESTestCase {
         @Nullable String org,
         String apiKey,
         String modelName,
+        @Nullable String user,
+        String inferenceEntityId
+    ) {
+        return new OpenAiEmbeddingsModel(
+            inferenceEntityId,
+            TaskType.TEXT_EMBEDDING,
+            "service",
+            new OpenAiEmbeddingsServiceSettings(modelName, url, org, SimilarityMeasure.DOT_PRODUCT, 1536, null, false),
+            new OpenAiEmbeddingsTaskSettings(user),
+            new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
+        );
+    }
+
+    public static OpenAiEmbeddingsModel createModel(
+        String url,
+        @Nullable String org,
+        String apiKey,
+        String modelName,
         @Nullable String user
     ) {
         return new OpenAiEmbeddingsModel(

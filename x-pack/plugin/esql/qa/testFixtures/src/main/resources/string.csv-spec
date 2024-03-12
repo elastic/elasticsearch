@@ -696,6 +696,50 @@ ROW a=[10, 9, 8]
 // end::mv_concat-to_string-result[]
 ;
 
+mvSliceEmp#[skip:-8.13.99, reason:newly added in 8.14]
+from employees
+| eval a1 = mv_slice(salary_change.keyword, 0, 1)
+| keep emp_no, salary_change.keyword, a1
+| sort emp_no
+| limit 5;
+
+emp_no:integer | salary_change.keyword:keyword | a1:keyword
+10001          | 1.19                          | 1.19
+10002          | [-7.23,11.17]                 | [-7.23,11.17]
+10003          | [12.82,14.68]                 | [12.82,14.68]
+10004          | [-0.35,1.13,13.48,3.65]       | [-0.35,1.13]
+10005          | [-2.14,13.07]                 | [-2.14,13.07]
+;
+
+mvZip#[skip:-8.13.99, reason:newly added in 8.14]
+// tag::mv_zip[]
+ROW a = ["x", "y", "z"], b = ["1", "2"]
+| EVAL c = mv_zip(a, b, "-")
+| KEEP a, b, c
+// end::mv_zip[]
+;
+
+// tag::mv_zip-result[]
+a:keyword | b:keyword | c:keyword
+[x, y, z] | [1 ,2]    | [x-1, y-2, z]
+// end::mv_zip-result[]
+;
+
+mvZipEmp#[skip:-8.13.99, reason:newly added in 8.14]
+from employees
+| eval full_name = mv_zip(first_name, last_name, " "), full_name_2 = mv_zip(last_name, first_name), jobs = mv_zip(job_positions, salary_change.keyword, "#")
+| keep emp_no, full_name, full_name_2, job_positions, salary_change.keyword, jobs
+| sort emp_no
+| limit 5;
+
+emp_no:integer | full_name:keyword | full_name_2:keyword | job_positions:keyword                                                  | salary_change.keyword:keyword | jobs:keyword
+10001          | Georgi Facello    | Facello,Georgi      | [Accountant, Senior Python Developer]                                  | 1.19                          | [Accountant#1.19, Senior Python Developer]
+10002          | Bezalel Simmel    | Simmel,Bezalel      | Senior Team Lead                                                       | [-7.23,11.17]                 | [Senior Team Lead#-7.23, 11.17]
+10003          | Parto Bamford     | Bamford,Parto       | null                                                                   | [12.82, 14.68]                | [12.82, 14.68]
+10004          | Chirstian Koblick | Koblick,Chirstian   | [Head Human Resources, Reporting Analyst, Support Engineer, Tech Lead] | [-0.35, 1.13, 13.48, 3.65]    | [Head Human Resources#-0.35, Reporting Analyst#1.13, Support Engineer#13.48, Tech Lead#3.65]
+10005          | Kyoichi Maliniak  | Maliniak,Kyoichi    | null                                                                   | [-2.14,13.07]                 | [-2.14,13.07]
+;
+
 showTextFields
 from hosts | where host == "beta" | keep host, host_group, description;
 ignoreOrder:true

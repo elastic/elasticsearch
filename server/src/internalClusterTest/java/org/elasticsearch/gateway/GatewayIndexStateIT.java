@@ -9,7 +9,6 @@
 package org.elasticsearch.gateway;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
@@ -32,6 +31,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.env.BuildVersion;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.NodeMetadata;
 import org.elasticsearch.index.IndexVersions;
@@ -564,7 +564,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
                     .putCustom(IndexGraveyard.TYPE, IndexGraveyard.builder().addTombstone(metadata.index("test").getIndex()).build())
                     .build()
             );
-            NodeMetadata.FORMAT.writeAndCleanup(new NodeMetadata(nodeId, Version.CURRENT, metadata.oldestIndexVersion()), paths);
+            NodeMetadata.FORMAT.writeAndCleanup(new NodeMetadata(nodeId, BuildVersion.current(), metadata.oldestIndexVersion()), paths);
         });
 
         ensureGreen();

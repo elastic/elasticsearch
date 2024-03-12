@@ -184,6 +184,36 @@ client_ip:ip | env:keyword               | client_cidr:ip_range
 172.21.2.162 | [Development, QA]         | 172.21.2.0/24
 ;
 
+enrichAges#[skip:-8.13.99, reason:ENRICH extended in 8.14.0]
+FROM employees
+| WHERE birth_date > NOW() - 100 years
+| EVAL age = DATE_EXTRACT("year", NOW()) - DATE_EXTRACT("year", birth_date)
+| ENRICH ages_policy ON age WITH age_group = description
+| KEEP first_name, last_name, age, age_group
+| SORT age DESC
+| LIMIT 3
+;
+
+first_name:keyword | last_name:keyword | age:long | age_group:keyword
+Mayuko             | Warwick           | 72       | Senior
+Shahaf             | Famili            | 72       | Senior
+Sumant             | Peac              | 72       | Senior
+;
+
+enrichAgesStats#[skip:-8.13.99, reason:ENRICH extended in 8.14.0]
+FROM employees
+| WHERE birth_date > NOW() - 100 years
+| EVAL age = DATE_EXTRACT("year", NOW()) - DATE_EXTRACT("year", birth_date)
+| ENRICH ages_policy ON age WITH age_group = description
+| STATS count=count(age_group) BY age_group
+| SORT count DESC
+;
+
+count:long | age_group:keyword
+89         | Senior
+1          | Middle-aged
+;
+
 spatialEnrichmentKeywordMatch
 FROM airports
 | WHERE abbrev == "CPH"

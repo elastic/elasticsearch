@@ -86,8 +86,10 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_POINT;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_SHAPE;
 import static org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.resolveFunction;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
+import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
 import static org.elasticsearch.xpack.ql.type.DataTypes.IP;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
+import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.NESTED;
 
 public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerContext> {
@@ -576,7 +578,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
                 if (resolved.resolved()) {
                     final DataType dataType = resolved.dataType();
-                    DataType[] allowed = new DataType[] { KEYWORD, IP, GEO_POINT, GEO_SHAPE };
+                    DataType[] allowed = new DataType[] { KEYWORD, IP, GEO_POINT, GEO_SHAPE, LONG, INTEGER };
                     if (Arrays.asList(allowed).contains(dataType) == false) {
                         String suffix = "only " + Arrays.toString(allowed) + " allowed";
                         resolved = ua.withUnresolvedMessage(

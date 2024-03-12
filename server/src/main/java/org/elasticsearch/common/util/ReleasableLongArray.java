@@ -60,6 +60,11 @@ public class ReleasableLongArray implements LongArray {
     }
 
     @Override
+    public void fillWith(StreamInput in) throws IOException {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
     public void set(long index, byte[] buf, int offset, int len) {
         throw new UnsupportedOperationException();
     }

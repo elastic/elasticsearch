@@ -564,15 +564,19 @@ public class DesiredBalanceReconciler {
         }
 
         private void maybeLogUndesiredAllocationsWarning(int allAllocations, int undesiredAllocations, int nodeCount) {
-            // There are more shards in undesirable locations than the cluster can relocate with one reroute per shard.
-            final boolean moreThanOneReroutePerNode = undesiredAllocations > 2L * nodeCount;
             final boolean warningThresholdReached = undesiredAllocations > undesiredAllocationPercentageLogThreshold * allAllocations;
-            if (allAllocations > 0 && moreThanOneReroutePerNode && warningThresholdReached) {
+
+            // Check whether the balancer is planning to move a trivial number of shards compared to the number of nodes in the cluster, or
+            // the balancer has a plan to move a lot of shards around relative to the number of nodes in the cluster. This is an attempt to
+            // cut down on noise in small (in number of nodes and shards) clusters.
+            final boolean nonEmptyRelocationBacklog = undesiredAllocations > 2L * nodeCount;
+
+            if (allAllocations > 0 && warningThresholdReached && nonEmptyRelocationBacklog) {
                 undesiredAllocationLogInterval.maybeExecute(() -> {
                     logger.log(
                         // The first time a significant imbalance appears, this will log as a warning. But we only want info-level
                         // logging after that if the undesiredAllocations value moves in a healthy descending direction.
-                        undesiredAllocations > lastNumberOfUndesiredAllocations ? Level.WARN : Level.INFO,
+                        undesiredAllocations >= lastNumberOfUndesiredAllocations ? Level.WARN : Level.INFO,
                         "[{}] of assigned shards ({}/{}) are not on their desired nodes, which exceeds the logging threshold of [{}]."
                             + " If the number of shards on undesired nodes does not decrease over time, see [{}] for more information.",
                         Strings.format1Decimals(100.0 * undesiredAllocations / allAllocations, "%"),
@@ -581,7 +585,8 @@ public class DesiredBalanceReconciler {
                         Strings.format1Decimals(100.0 * undesiredAllocationPercentageLogThreshold, "%"),
                         ReferenceDocs.UNDESIRED_SHARD_ALLOCATION
                     );
-                    // Update this periodically, not every time, so it doesn't fluctuate crazily.
+
+                    // Update this periodically so it doesn't fluctuate crazily.
                     lastNumberOfUndesiredAllocations = undesiredAllocations;
                 });
             } else {

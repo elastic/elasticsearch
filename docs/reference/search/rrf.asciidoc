@@ -37,8 +37,8 @@ combination of <<retriever, child retrievers>> using an
 <<rrf-retriever, RRF retriever>>. A minimum of *two* child retrievers is
 required for ranking.
 
- An RRF retriever is an optional object defined as part of a search request's
- <<request-body-retriever, retriever parameter>>. The RRF retriever object contains
+An RRF retriever is an optional object defined as part of a search request's
+<<request-body-retriever, retriever parameter>>. The RRF retriever object contains
 the following parameters:
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=rrf-retrievers]

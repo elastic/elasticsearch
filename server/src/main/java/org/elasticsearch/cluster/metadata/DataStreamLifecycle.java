@@ -79,14 +79,12 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
 
     public static final ParseField ENABLED_FIELD = new ParseField("enabled");
     public static final ParseField DATA_RETENTION_FIELD = new ParseField("data_retention");
-    public static final ParseField EFFECTIVE_RETENTION_FIELD = new ParseField("effective_retention");
-    public static final ParseField RETENTION_SOURCE_FIELD = new ParseField("retention_determined_by");
     public static final ParseField DOWNSAMPLING_FIELD = new ParseField("downsampling");
     private static final ParseField ROLLOVER_FIELD = new ParseField("rollover");
 
     public static final ConstructingObjectParser<DataStreamLifecycle, Void> PARSER = new ConstructingObjectParser<>(
         "lifecycle",
-        true,
+        false,
         (args, unused) -> new DataStreamLifecycle((Retention) args[0], (Downsampling) args[1], (Boolean) args[2])
     );
 
@@ -298,18 +296,12 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         builder.startObject();
         builder.field(ENABLED_FIELD.getPreferredName(), enabled);
         if (dataRetention != null) {
-            if (dataRetention.value == null) {
+            if (dataRetention.value() == null) {
                 builder.nullField(DATA_RETENTION_FIELD.getPreferredName());
             } else {
-                builder.field(DATA_RETENTION_FIELD.getPreferredName(), dataRetention.value.getStringRep());
+                builder.field(DATA_RETENTION_FIELD.getPreferredName(), dataRetention.value().getStringRep());
             }
         }
-        Tuple<TimeValue, RetentionSource> effectiveRetention = getEffectiveDataRetentionWithSource(globalRetention);
-        if (effectiveRetention.v1() != null) {
-            builder.field(EFFECTIVE_RETENTION_FIELD.getPreferredName(), effectiveRetention.v1().getStringRep());
-            builder.field(RETENTION_SOURCE_FIELD.getPreferredName(), effectiveRetention.v2().displayName());
-        }
-
         if (downsampling != null) {
             builder.field(DOWNSAMPLING_FIELD.getPreferredName());
             downsampling.toXContent(builder, params);

@@ -606,13 +606,11 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
         }
 
         CoordinatorRewriteContext createCoordinatorContext(DateFieldMapper.DateFieldType dateFieldType, long min, long max) {
-            return new CoordinatorRewriteContext(
-                parserConfiguration,
-                this.client,
-                () -> nowInMillis,
-                IndexLongFieldRange.NO_SHARDS.extendWithShardRange(0, 1, ShardLongFieldRange.of(min, max)),
-                dateFieldType
+            var timestampRangeInfo = new CoordinatorRewriteContext.DateFieldRange(
+                dateFieldType,
+                IndexLongFieldRange.NO_SHARDS.extendWithShardRange(0, 1, ShardLongFieldRange.of(min, max))
             );
+            return new CoordinatorRewriteContext(parserConfiguration, this.client, () -> nowInMillis, timestampRangeInfo);
         }
 
         DataRewriteContext createDataContext() {

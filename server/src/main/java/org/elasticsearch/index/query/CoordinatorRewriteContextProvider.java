@@ -61,6 +61,8 @@ public class CoordinatorRewriteContextProvider {
             }
         }
 
-        return new CoordinatorRewriteContext(parserConfig, client, nowInMillis, timestampRange, dateFieldType);
+        /// MP TODO: add in eventIngestedRangeInfo
+        var atTimestampRangeInfo = new CoordinatorRewriteContext.DateFieldRange(dateFieldType, timestampRange);
+        return new CoordinatorRewriteContext(parserConfig, client, nowInMillis, atTimestampRangeInfo);
     }
 }

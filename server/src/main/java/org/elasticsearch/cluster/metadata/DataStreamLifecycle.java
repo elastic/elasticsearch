@@ -135,6 +135,17 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
     /**
      * The least amount of time data should be kept by elasticsearch.
      * @return the time period or null, null represents that data should never be deleted.
+     * @deprecated use {@link #getEffectiveDataRetention(DataStreamGlobalRetention)}
+     */
+    @Deprecated
+    @Nullable
+    public TimeValue getEffectiveDataRetention() {
+        return getEffectiveDataRetention(null);
+    }
+
+    /**
+     * The least amount of time data should be kept by elasticsearch.
+     * @return the time period or null, null represents that data should never be deleted.
      */
     @Nullable
     public TimeValue getEffectiveDataRetention(@Nullable DataStreamGlobalRetention globalRetention) {

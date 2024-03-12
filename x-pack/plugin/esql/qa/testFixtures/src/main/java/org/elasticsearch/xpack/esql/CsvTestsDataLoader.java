@@ -69,6 +69,11 @@ public class CsvTestsDataLoader {
         "mapping-countries_bbox_web.json",
         "countries_bbox_web.csv"
     );
+    private static final TestsDataset AIRPORT_CITY_BOUNDARIES = new TestsDataset(
+        "airport_city_boundaries",
+        "mapping-airport_city_boundaries.json",
+        "airport_city_boundaries.csv"
+    );
 
     public static final Map<String, TestsDataset> CSV_DATASET_MAP = Map.ofEntries(
         Map.entry(EMPLOYEES.indexName, EMPLOYEES),
@@ -82,15 +87,24 @@ public class CsvTestsDataLoader {
         Map.entry(AIRPORTS.indexName, AIRPORTS),
         Map.entry(AIRPORTS_WEB.indexName, AIRPORTS_WEB),
         Map.entry(COUNTRIES_BBOX.indexName, COUNTRIES_BBOX),
-        Map.entry(COUNTRIES_BBOX_WEB.indexName, COUNTRIES_BBOX_WEB)
+        Map.entry(COUNTRIES_BBOX_WEB.indexName, COUNTRIES_BBOX_WEB),
+        Map.entry(AIRPORT_CITY_BOUNDARIES.indexName, AIRPORT_CITY_BOUNDARIES)
     );
 
     private static final EnrichConfig LANGUAGES_ENRICH = new EnrichConfig("languages_policy", "enrich-policy-languages.json");
     private static final EnrichConfig CLIENT_IPS_ENRICH = new EnrichConfig("clientip_policy", "enrich-policy-clientips.json");
     private static final EnrichConfig CLIENT_CIDR_ENRICH = new EnrichConfig("client_cidr_policy", "enrich-policy-client_cidr.json");
+    private static final EnrichConfig CITY_NAMES_ENRICH = new EnrichConfig("city_names", "enrich-policy-city_names.json");
+    private static final EnrichConfig CITY_BOUNDARIES_ENRICH = new EnrichConfig("city_boundaries", "enrich-policy-city_boundaries.json");
 
     public static final List<String> ENRICH_SOURCE_INDICES = List.of("languages", "clientips", "client_cidr");
-    public static final List<EnrichConfig> ENRICH_POLICIES = List.of(LANGUAGES_ENRICH, CLIENT_IPS_ENRICH, CLIENT_CIDR_ENRICH);
+    public static final List<EnrichConfig> ENRICH_POLICIES = List.of(
+        LANGUAGES_ENRICH,
+        CLIENT_IPS_ENRICH,
+        CLIENT_CIDR_ENRICH,
+        CITY_NAMES_ENRICH,
+        CITY_BOUNDARIES_ENRICH
+    );
 
     /**
      * <p>

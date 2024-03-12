@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.enrich;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -17,6 +18,10 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.utils.GeometryValidator;
+import org.elasticsearch.geometry.utils.WellKnownBinary;
+import org.elasticsearch.index.mapper.GeoShapeQueryable;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -26,6 +31,8 @@ import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.IntFunction;
+
+import static org.elasticsearch.compute.data.ElementType.BYTES_REF;
 
 /**
  * Generates a list of Lucene queries based on the input block.
@@ -55,6 +62,13 @@ abstract class QueryList {
      */
     static QueryList termQueryList(MappedFieldType field, SearchExecutionContext searchExecutionContext, Block block) {
         return new TermQueryList(field, searchExecutionContext, block);
+    }
+
+    /**
+     * Returns a list of geo_shape queries for the given field and the input block.
+     */
+    static QueryList geoShapeQuery(MappedFieldType field, SearchExecutionContext searchExecutionContext, Block block) {
+        return new GeoShapeQueryList(field, searchExecutionContext, block);
     }
 
     private static class TermQueryList extends QueryList {
@@ -134,8 +148,55 @@ abstract class QueryList {
         }
     }
 
-    // Generate geo_match query for the input term here
-    static QueryList geoMatchQuery(MappedFieldType field, SearchExecutionContext searchExecutionContext, Block block) {
-        throw new UnsupportedOperationException("ENRICH does not yet support the geo_match query");
+    private static class GeoShapeQueryList extends QueryList {
+        private final BytesRef scratch = new BytesRef();
+        private final MappedFieldType field;
+        private final SearchExecutionContext searchExecutionContext;
+        private final IntFunction<Geometry> blockValueReader;
+        private final IntFunction<Query> shapeQuery;
+
+        private GeoShapeQueryList(MappedFieldType field, SearchExecutionContext searchExecutionContext, Block block) {
+            super(block);
+
+            this.field = field;
+            this.searchExecutionContext = searchExecutionContext;
+            if (block.elementType() != BYTES_REF) {
+                throw new EsqlIllegalArgumentException("can't read Geometry values from [" + block.elementType() + "] block");
+            }
+            this.blockValueReader = blockToGeometry((BytesRefBlock) block);
+            this.shapeQuery = shapeQuery();
+        }
+
+        @Override
+        Query getQuery(int position) {
+            final int first = block.getFirstValueIndex(position);
+            final int count = block.getValueCount(position);
+            return switch (count) {
+                case 0 -> null;
+                case 1 -> shapeQuery.apply(first);
+                // TODO: support multiple values
+                default -> throw new EsqlIllegalArgumentException("can't read multiple Geometry values from a single position");
+            };
+        }
+
+        private IntFunction<Geometry> blockToGeometry(BytesRefBlock bytesRefBlock) {
+            return offset -> {
+                var wkb = bytesRefBlock.getBytesRef(offset, scratch);
+                return WellKnownBinary.fromWKB(GeometryValidator.NOOP, false, wkb.bytes, wkb.offset, wkb.length);
+            };
+        }
+
+        private IntFunction<Query> shapeQuery() {
+            if (field instanceof GeoShapeQueryable geoShapeQueryable) {
+                return offset -> geoShapeQueryable.geoShapeQuery(
+                    searchExecutionContext,
+                    field.name(),
+                    ShapeRelation.INTERSECTS,
+                    blockValueReader.apply(offset)
+                );
+            }
+            // TODO: Support cartesian ShapeQueryable
+            throw new IllegalArgumentException("Unsupported field type for geo_match ENRICH: " + field.typeName());
+        }
     }
 }

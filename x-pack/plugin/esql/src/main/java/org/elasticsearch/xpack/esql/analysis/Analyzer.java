@@ -82,6 +82,8 @@ import java.util.stream.Collectors;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.stats.FeatureMetric.LIMIT;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_POINT;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_SHAPE;
 import static org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.resolveFunction;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
 import static org.elasticsearch.xpack.ql.type.DataTypes.IP;
@@ -574,7 +576,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
                 final DataType dataType = resolved.dataType();
                 if (resolved.resolved()) {
-                    DataType[] allowed = new DataType[] { KEYWORD, IP };
+                    DataType[] allowed = new DataType[] { KEYWORD, IP, GEO_POINT, GEO_SHAPE };
                     if (Arrays.asList(allowed).contains(dataType) == false) {
                         String suffix = "only " + Arrays.toString(allowed) + " allowed";
                         resolved = ua.withUnresolvedMessage(

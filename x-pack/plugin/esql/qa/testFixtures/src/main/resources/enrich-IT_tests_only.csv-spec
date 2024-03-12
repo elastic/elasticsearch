@@ -183,3 +183,27 @@ client_ip:ip | env:keyword               | client_cidr:ip_range
 172.21.2.113 | [Development, QA]         | 172.21.2.0/24
 172.21.2.162 | [Development, QA]         | 172.21.2.0/24
 ;
+
+spatialEnrichmentKeywordMatch
+FROM airports
+| WHERE abbrev == "CPH"
+| ENRICH city_names ON city WITH airport, region, city_boundary
+| EVAL boundary_wkt_length = LENGTH(TO_STRING(city_boundary))
+| KEEP abbrev, city, city_location, country, location, name, airport, region, boundary_wkt_length
+;
+
+abbrev:keyword  |  city:keyword  |  city_location:geo_point |  country:keyword  |  location:geo_point                       |  name:text   |  airport:text  |  region:text         |  boundary_wkt_length:integer
+CPH             |  Copenhagen    |  POINT(12.5683 55.6761)  |  Denmark          |  POINT(12.6493508684508 55.6285017221528) |  Copenhagen  |  Copenhagen    |  Københavns Kommune  |  265
+;
+
+spatialEnrichmentGeoMatch#[skip:-8.13.99, reason:ENRICH extended in 8.14.0]
+FROM airports
+| WHERE abbrev == "CPH"
+| ENRICH city_boundaries ON city_location WITH airport, region, city_boundary
+| EVAL boundary_wkt_length = LENGTH(TO_STRING(city_boundary))
+| KEEP abbrev, city, city_location, country, location, name, airport, region, boundary_wkt_length
+;
+
+abbrev:keyword  |  city:keyword  |  city_location:geo_point |  country:keyword  |  location:geo_point                       |  name:text   |  airport:text  |  region:text         |  boundary_wkt_length:integer
+CPH             |  Copenhagen    |  POINT(12.5683 55.6761)  |  Denmark          |  POINT(12.6493508684508 55.6285017221528) |  Copenhagen  |  Copenhagen    |  Københavns Kommune  |  265
+;

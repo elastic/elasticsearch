@@ -12,6 +12,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 
 import java.io.File;
+import java.nio.file.FileSystems;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
@@ -161,6 +162,6 @@ final class SystemJvmOptions {
         } else {
             arch = "unsupported_arch[" + archname + "]";
         }
-        return platformDir.resolve(os + "-" + arch).toAbsolutePath() + File.pathSeparator + existingPath;
+        return platformDir.resolve(os + "-" + arch).toAbsolutePath() + FileSystems.getDefault().getSeparator() + existingPath;
     }
 }

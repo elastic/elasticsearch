@@ -355,16 +355,21 @@ public abstract class ESRestTestCase extends ESTestCase {
         assert nodesVersions != null;
     }
 
-    protected TestFeatureService createTestFeatureService(
+    protected List<FeatureSpecification> createAdditionalFeatureSpecifications() {
+        return List.of();
+    }
+
+    protected final TestFeatureService createTestFeatureService(
         Map<String, Set<String>> clusterStateFeatures,
         Set<Version> semanticNodeVersions
     ) {
         // Historical features information is unavailable when using legacy test plugins
         boolean hasHistoricalFeaturesInformation = System.getProperty("tests.features.metadata.path") != null;
 
-        final List<FeatureSpecification> featureSpecifications;
+        final List<FeatureSpecification> featureSpecifications = new ArrayList<>(createAdditionalFeatureSpecifications());
+        featureSpecifications.add(new RestTestLegacyFeatures());
         if (hasHistoricalFeaturesInformation) {
-            featureSpecifications = List.of(new RestTestLegacyFeatures(), new ESRestTestCaseHistoricalFeatures());
+            featureSpecifications.add(new ESRestTestCaseHistoricalFeatures());
         } else {
             logger.warn(
                 "This test is running on the legacy test framework; historical features from production code will not be available. "
@@ -372,7 +377,6 @@ public abstract class ESRestTestCase extends ESTestCase {
                     + "If this is a legacy feature used only in tests, you can add it to a test-only FeatureSpecification such as {}.",
                 RestTestLegacyFeatures.class.getCanonicalName()
             );
-            featureSpecifications = List.of(new RestTestLegacyFeatures());
         }
 
         return new ESRestTestFeatureService(

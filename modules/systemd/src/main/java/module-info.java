@@ -12,5 +12,5 @@ module org.elasticsearch.systemd {
     requires org.elasticsearch.xcontent;
     requires org.apache.logging.log4j;
     requires org.apache.lucene.core;
-    requires com.sun.jna;
+    requires org.elasticsearch.nativeaccess;
 }

@@ -97,7 +97,9 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLast
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMax;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMedian;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMin;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSlice;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSum;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvZip;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StX;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StY;
@@ -419,7 +421,9 @@ public final class PlanNamedTypes {
             of(ScalarFunction.class, MvMax.class, PlanNamedTypes::writeMvFunction, PlanNamedTypes::readMvFunction),
             of(ScalarFunction.class, MvMedian.class, PlanNamedTypes::writeMvFunction, PlanNamedTypes::readMvFunction),
             of(ScalarFunction.class, MvMin.class, PlanNamedTypes::writeMvFunction, PlanNamedTypes::readMvFunction),
+            of(ScalarFunction.class, MvSlice.class, PlanNamedTypes::writeMvSlice, PlanNamedTypes::readMvSlice),
             of(ScalarFunction.class, MvSum.class, PlanNamedTypes::writeMvFunction, PlanNamedTypes::readMvFunction),
+            of(ScalarFunction.class, MvZip.class, PlanNamedTypes::writeMvZip, PlanNamedTypes::readMvZip),
             // Expressions (other)
             of(Expression.class, Literal.class, PlanNamedTypes::writeLiteral, PlanNamedTypes::readLiteral),
             of(Expression.class, Order.class, PlanNamedTypes::writeOrder, PlanNamedTypes::readOrder)
@@ -1830,5 +1834,31 @@ public final class PlanNamedTypes {
         assert fields.size() == 1 || fields.size() == 2;
         out.writeExpression(fields.get(0));
         out.writeOptionalWriteable(fields.size() == 2 ? o -> out.writeExpression(fields.get(1)) : null);
+    }
+
+    static MvSlice readMvSlice(PlanStreamInput in) throws IOException {
+        return new MvSlice(in.readSource(), in.readExpression(), in.readExpression(), in.readOptionalNamed(Expression.class));
+    }
+
+    static void writeMvSlice(PlanStreamOutput out, MvSlice fn) throws IOException {
+        out.writeNoSource();
+        List<Expression> fields = fn.children();
+        assert fields.size() == 2 || fields.size() == 3;
+        out.writeExpression(fields.get(0));
+        out.writeExpression(fields.get(1));
+        out.writeOptionalWriteable(fields.size() == 3 ? o -> out.writeExpression(fields.get(2)) : null);
+    }
+
+    static MvZip readMvZip(PlanStreamInput in) throws IOException {
+        return new MvZip(in.readSource(), in.readExpression(), in.readExpression(), in.readOptionalNamed(Expression.class));
+    }
+
+    static void writeMvZip(PlanStreamOutput out, MvZip fn) throws IOException {
+        out.writeNoSource();
+        List<Expression> fields = fn.children();
+        assert fields.size() == 2 || fields.size() == 3;
+        out.writeExpression(fields.get(0));
+        out.writeExpression(fields.get(1));
+        out.writeOptionalWriteable(fields.size() == 3 ? o -> out.writeExpression(fields.get(2)) : null);
     }
 }

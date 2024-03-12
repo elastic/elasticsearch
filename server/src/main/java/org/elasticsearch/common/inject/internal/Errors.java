@@ -21,13 +21,11 @@ import org.elasticsearch.common.inject.ConfigurationException;
 import org.elasticsearch.common.inject.CreationException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Key;
-import org.elasticsearch.common.inject.MembersInjector;
 import org.elasticsearch.common.inject.Provider;
 import org.elasticsearch.common.inject.ProvisionException;
 import org.elasticsearch.common.inject.Scope;
 import org.elasticsearch.common.inject.TypeLiteral;
 import org.elasticsearch.common.inject.spi.Dependency;
-import org.elasticsearch.common.inject.spi.InjectionListener;
 import org.elasticsearch.common.inject.spi.InjectionPoint;
 import org.elasticsearch.common.inject.spi.Message;
 
@@ -315,14 +313,6 @@ public final class Errors {
         return errorInUserCode(runtimeException, "Error in custom provider, %s", runtimeException);
     }
 
-    public Errors errorInUserInjector(MembersInjector<?> listener, TypeLiteral<?> type, RuntimeException cause) {
-        return errorInUserCode(cause, "Error injecting %s using %s.%n" + " Reason: %s", type, listener, cause);
-    }
-
-    public Errors errorNotifyingInjectionListener(InjectionListener<?> listener, TypeLiteral<?> type, RuntimeException cause) {
-        return errorInUserCode(cause, "Error notifying InjectionListener %s of %s.%n" + " Reason: %s", listener, type, cause);
-    }
-
     public static Collection<Message> getMessagesFromThrowable(Throwable throwable) {
         if (throwable instanceof ProvisionException) {
             return ((ProvisionException) throwable).getErrorMessages();
@@ -379,14 +369,6 @@ public final class Errors {
         }
 
         throw new ConfigurationException(getMessages());
-    }
-
-    public void throwProvisionExceptionIfErrorsExist() {
-        if (hasErrors() == false) {
-            return;
-        }
-
-        throw new ProvisionException(getMessages());
     }
 
     private Message merge(Message message) {

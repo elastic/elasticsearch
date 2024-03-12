@@ -374,10 +374,11 @@ public class PutJobStateMachineTests extends ESTestCase {
         doAnswer(invocation -> {
             requestCaptor.getValue().onFailure(new ResourceAlreadyExistsException(job.getConfig().getRollupIndex()));
             return null;
-        }).when(tasksService).sendStartRequest(eq(job.getConfig().getId()), eq(RollupField.TASK_NAME), eq(job), requestCaptor.capture());
+        }).when(tasksService)
+            .sendStartRequest(eq(job.getConfig().getId()), eq(RollupField.TASK_NAME), eq(job), eq(null), requestCaptor.capture());
 
         TransportPutRollupJobAction.startPersistentTask(job, testListener, tasksService);
-        verify(tasksService).sendStartRequest(eq(job.getConfig().getId()), eq(RollupField.TASK_NAME), eq(job), any());
+        verify(tasksService).sendStartRequest(eq(job.getConfig().getId()), eq(RollupField.TASK_NAME), eq(job), eq(null), any());
     }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
@@ -401,7 +402,8 @@ public class PutJobStateMachineTests extends ESTestCase {
             );
             requestCaptor.getValue().onResponse(response);
             return null;
-        }).when(tasksService).sendStartRequest(eq(job.getConfig().getId()), eq(RollupField.TASK_NAME), eq(job), requestCaptor.capture());
+        }).when(tasksService)
+            .sendStartRequest(eq(job.getConfig().getId()), eq(RollupField.TASK_NAME), eq(job), eq(null), requestCaptor.capture());
 
         ArgumentCaptor<PersistentTasksService.WaitForPersistentTaskListener> requestCaptor2 = ArgumentCaptor.forClass(
             PersistentTasksService.WaitForPersistentTaskListener.class
@@ -413,7 +415,7 @@ public class PutJobStateMachineTests extends ESTestCase {
         }).when(tasksService).waitForPersistentTaskCondition(eq(job.getConfig().getId()), any(), any(), requestCaptor2.capture());
 
         TransportPutRollupJobAction.startPersistentTask(job, testListener, tasksService);
-        verify(tasksService).sendStartRequest(eq(job.getConfig().getId()), eq(RollupField.TASK_NAME), eq(job), any());
+        verify(tasksService).sendStartRequest(eq(job.getConfig().getId()), eq(RollupField.TASK_NAME), eq(job), eq(null), any());
         verify(tasksService).waitForPersistentTaskCondition(eq(job.getConfig().getId()), any(), any(), any());
     }
 

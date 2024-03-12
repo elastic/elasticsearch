@@ -43,6 +43,7 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.http.HttpPreRequest;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.IndexModule;
@@ -83,6 +84,7 @@ import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestHeaderDefinition;
+import org.elasticsearch.rest.RestInterceptor;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.snapshots.Snapshot;
@@ -238,7 +240,8 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
         IndexScopedSettings indexScopedSettings,
         SettingsFilter settingsFilter,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<DiscoveryNodes> nodesInCluster
+        Supplier<DiscoveryNodes> nodesInCluster,
+        Predicate<NodeFeature> clusterSupportsFeature
     ) {
         List<RestHandler> handlers = new ArrayList<>(
             super.getRestHandlers(
@@ -249,7 +252,8 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
                 indexScopedSettings,
                 settingsFilter,
                 indexNameExpressionResolver,
-                nodesInCluster
+                nodesInCluster,
+                clusterSupportsFeature
             )
         );
         filterPlugins(ActionPlugin.class).forEach(
@@ -262,7 +266,8 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
                     indexScopedSettings,
                     settingsFilter,
                     indexNameExpressionResolver,
-                    nodesInCluster
+                    nodesInCluster,
+                    clusterSupportsFeature
                 )
             )
         );
@@ -384,10 +389,9 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
     }
 
     @Override
-    public UnaryOperator<RestHandler> getRestHandlerInterceptor(ThreadContext threadContext) {
-
+    public RestInterceptor getRestHandlerInterceptor(ThreadContext threadContext) {
         // There can be only one.
-        List<UnaryOperator<RestHandler>> items = filterPlugins(ActionPlugin.class).stream()
+        List<RestInterceptor> items = filterPlugins(ActionPlugin.class).stream()
             .filter(RestServerActionPlugin.class::isInstance)
             .map(RestServerActionPlugin.class::cast)
             .map(p -> p.getRestHandlerInterceptor(threadContext))

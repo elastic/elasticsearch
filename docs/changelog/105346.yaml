@@ -1,0 +1,5 @@
+pr: 105346
+summary: Allow GET inference models by user a with read only permission
+area: Machine Learning
+type: bug
+issues: []

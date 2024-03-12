@@ -139,6 +139,7 @@ public class TransportNodesActionTests extends ESTestCase {
                 successfulNodes.add(capturedRequest.node());
                 final var response = new TestNodeResponse(capturedRequest.node());
                 transport.handleResponse(capturedRequest.requestId(), response);
+                response.decRef();
                 assertFalse(response.hasReferences()); // response is copied (via the wire protocol) so this instance is released
             } else {
                 failedNodeIds.add(capturedRequest.node().getId());

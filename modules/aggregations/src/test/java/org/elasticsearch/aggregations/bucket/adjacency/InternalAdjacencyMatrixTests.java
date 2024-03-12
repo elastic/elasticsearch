@@ -10,9 +10,7 @@ package org.elasticsearch.aggregations.bucket.adjacency;
 
 import org.elasticsearch.aggregations.bucket.AggregationMultiBucketAggregationTestCase;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.xcontent.ContextParser;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -21,11 +19,6 @@ import java.util.Map;
 import java.util.TreeMap;
 
 public class InternalAdjacencyMatrixTests extends AggregationMultiBucketAggregationTestCase<InternalAdjacencyMatrix> {
-
-    @Override
-    protected Map.Entry<String, ContextParser<Object, Aggregation>> getParser() {
-        return Map.entry(AdjacencyMatrixAggregationBuilder.NAME, (p, c) -> ParsedAdjacencyMatrix.fromXContent(p, (String) c));
-    }
 
     private List<String> keys;
 
@@ -92,11 +85,6 @@ public class InternalAdjacencyMatrixTests extends AggregationMultiBucketAggregat
             actualCounts.compute(bucket.getKeyAsString(), (key, oldValue) -> (oldValue == null ? 0 : oldValue) + bucket.getDocCount());
         }
         assertEquals(expectedCounts, actualCounts);
-    }
-
-    @Override
-    protected Class<ParsedAdjacencyMatrix> implementationClass() {
-        return ParsedAdjacencyMatrix.class;
     }
 
     @Override

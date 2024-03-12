@@ -11,7 +11,6 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -294,8 +293,7 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
 
     public void testServiceAccountApiKey() throws IOException {
         @UpdateForV9
-        var originalClusterSupportsServiceAccounts = parseLegacyVersion(getOldClusterVersion()).map(v -> v.onOrAfter(Version.V_7_13_0))
-            .orElse(true);
+        var originalClusterSupportsServiceAccounts = oldClusterHasFeature(RestTestLegacyFeatures.SERVICE_ACCOUNTS_SUPPORTED);
         assumeTrue("no service accounts in versions before 7.13", originalClusterSupportsServiceAccounts);
 
         if (isRunningAgainstOldCluster()) {
@@ -506,8 +504,7 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
 
     public void testTransformLegacyTemplateCleanup() throws Exception {
         @UpdateForV9
-        var originalClusterSupportsTransform = parseLegacyVersion(getOldClusterVersion()).map(v -> v.onOrAfter(Version.V_7_2_0))
-            .orElse(true);
+        var originalClusterSupportsTransform = oldClusterHasFeature(RestTestLegacyFeatures.TRANSFORM_SUPPORTED);
         assumeTrue("Before 7.2 transforms didn't exist", originalClusterSupportsTransform);
 
         if (isRunningAgainstOldCluster()) {
@@ -589,7 +586,7 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
 
     public void testSlmPolicyAndStats() throws IOException {
         @UpdateForV9
-        var originalClusterSupportsSlm = parseLegacyVersion(getOldClusterVersion()).map(v -> v.onOrAfter(Version.V_7_4_0)).orElse(true);
+        var originalClusterSupportsSlm = oldClusterHasFeature(RestTestLegacyFeatures.SLM_SUPPORTED);
 
         SnapshotLifecyclePolicy slmPolicy = new SnapshotLifecyclePolicy(
             "test-policy",
@@ -942,12 +939,10 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
     public void testDataStreams() throws Exception {
 
         @UpdateForV9
-        var originalClusterSupportsDataStreams = parseLegacyVersion(getOldClusterVersion()).map(v -> v.onOrAfter(Version.V_7_9_0))
-            .orElse(true);
+        var originalClusterSupportsDataStreams = oldClusterHasFeature(RestTestLegacyFeatures.DATA_STREAMS_SUPPORTED);
 
         @UpdateForV9
-        var originalClusterDataStreamHasDateInIndexName = parseLegacyVersion(getOldClusterVersion()).map(v -> v.onOrAfter(Version.V_7_11_0))
-            .orElse(true);
+        var originalClusterDataStreamHasDateInIndexName = oldClusterHasFeature(RestTestLegacyFeatures.NEW_DATA_STREAMS_INDEX_NAME_FORMAT);
 
         assumeTrue("no data streams in versions before 7.9.0", originalClusterSupportsDataStreams);
         if (isRunningAgainstOldCluster()) {
@@ -995,8 +990,13 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
     /**
      * Tests that a single document survives. Super basic smoke test.
      */
+    @UpdateForV9 // Can be removed
     public void testDisableFieldNameField() throws IOException {
-        assumeTrue("can only disable field names field before 8.0", Version.fromString(getOldClusterVersion()).before(Version.V_8_0_0));
+        assumeFalse(
+            "can only disable field names field before 8.0",
+            oldClusterHasFeature(RestTestLegacyFeatures.DISABLE_FIELD_NAMES_FIELD_REMOVED)
+        );
+
         String docLocation = "/nofnf/_doc/1";
         String doc = """
             {

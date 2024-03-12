@@ -33,9 +33,8 @@ import org.elasticsearch.snapshots.RestoreInfo;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.hamcrest.Description;
+import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.hamcrest.Matcher;
-import org.hamcrest.TypeSafeMatcher;
 
 import java.util.Arrays;
 import java.util.Comparator;
@@ -50,8 +49,10 @@ import static org.elasticsearch.cluster.routing.RoutingNodesHelper.numberOfShard
 import static org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING;
 import static org.elasticsearch.index.store.Store.INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
@@ -94,7 +95,7 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
 
         // increase disk size of node 0 to allow just enough room for one shard, and check that it's rebalanced back
         getTestFileStore(dataNodeName).setTotalSpace(shardSizes.getSmallestShardSize() + WATERMARK_BYTES);
-        assertBusyWithDiskUsageRefresh(dataNode0Id, indexName, new ContainsExactlyOneOf<>(shardSizes.getSmallestShardIds()));
+        assertBusyWithDiskUsageRefresh(dataNode0Id, indexName, contains(in(shardSizes.getSmallestShardIds())));
     }
 
     public void testRestoreSnapshotAllocationDoesNotExceedWatermark() throws Exception {
@@ -114,7 +115,11 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
         internalCluster().getCurrentMasterNodeInstance(ClusterService.class).addListener(event -> {
             ClusterInfoServiceUtils.refresh(clusterInfoService);
             if (allowRelocations.get() == false) {
-                assertThat(numberOfShardsWithState(event.state().getRoutingNodes(), ShardRoutingState.RELOCATING), equalTo(0));
+                assertThat(
+                    "Expects no relocating shards but got: " + event.state().getRoutingNodes(),
+                    numberOfShardsWithState(event.state().getRoutingNodes(), ShardRoutingState.RELOCATING),
+                    equalTo(0)
+                );
             }
         });
 
@@ -153,9 +158,15 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
 
         // increase disk size of node 0 to allow just enough room for one shard, and check that it's rebalanced back
         getTestFileStore(dataNodeName).setTotalSpace(shardSizes.getSmallestShardSize() + WATERMARK_BYTES);
-        assertBusyWithDiskUsageRefresh(dataNode0Id, indexName, new ContainsExactlyOneOf<>(shardSizes.getSmallestShardIds()));
+        assertBusyWithDiskUsageRefresh(dataNode0Id, indexName, contains(in(shardSizes.getSmallestShardIds())));
     }
 
+    @TestIssueLogging(
+        value = "org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceComputer:TRACE,"
+            + "org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceReconciler:DEBUG,"
+            + "org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator:TRACE",
+        issueUrl = "https://github.com/elastic/elasticsearch/issues/105331"
+    )
     public void testRestoreSnapshotAllocationDoesNotExceedWatermarkWithMultipleShards() throws Exception {
         internalCluster().startMasterOnlyNode();
         internalCluster().startDataOnlyNode();
@@ -173,7 +184,11 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
         internalCluster().getCurrentMasterNodeInstance(ClusterService.class).addListener(event -> {
             ClusterInfoServiceUtils.refresh(clusterInfoService);
             if (allowRelocations.get() == false) {
-                assertThat(numberOfShardsWithState(event.state().getRoutingNodes(), ShardRoutingState.RELOCATING), equalTo(0));
+                assertThat(
+                    "Expects no relocating shards but got: " + event.state().getRoutingNodes(),
+                    numberOfShardsWithState(event.state().getRoutingNodes(), ShardRoutingState.RELOCATING),
+                    equalTo(0)
+                );
             }
         });
 
@@ -196,7 +211,7 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
 
         // reduce disk size of node 0 so that only 1 of 2 smallest shards can be allocated
         var usableSpace = shardSizes.sizes().get(1).size();
-        getTestFileStore(dataNodeName).setTotalSpace(usableSpace + WATERMARK_BYTES + 1L);
+        getTestFileStore(dataNodeName).setTotalSpace(usableSpace + WATERMARK_BYTES);
         refreshDiskUsage();
 
         final RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot("repo", "snap")
@@ -206,11 +221,7 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
         assertThat(restoreInfo.successfulShards(), is(snapshotInfo.totalShards()));
         assertThat(restoreInfo.failedShards(), is(0));
 
-        assertBusyWithDiskUsageRefresh(
-            dataNode0Id,
-            indexName,
-            new ContainsExactlyOneOf<>(shardSizes.getShardIdsWithSizeSmallerOrEqual(usableSpace))
-        );
+        assertBusyWithDiskUsageRefresh(dataNode0Id, indexName, contains(in(shardSizes.getShardIdsWithSizeSmallerOrEqual(usableSpace))));
     }
 
     private Set<ShardId> getShardIds(final String nodeId, final String indexName) {
@@ -294,14 +305,15 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
 
     private void refreshDiskUsage() {
         final ClusterInfoService clusterInfoService = internalCluster().getCurrentMasterNodeInstance(ClusterInfoService.class);
-        ClusterInfoServiceUtils.refresh(((InternalClusterInfoService) clusterInfoService));
+        var clusterInfo = ClusterInfoServiceUtils.refresh(((InternalClusterInfoService) clusterInfoService));
+        logger.info("Refreshed cluster info: {}", clusterInfo);
         // if the nodes were all under the low watermark already (but unbalanced) then a change in the disk usage doesn't trigger a reroute
         // even though it's now possible to achieve better balance, so we have to do an explicit reroute. TODO fix this?
         if (clusterInfoService.getClusterInfo()
             .getNodeMostAvailableDiskUsages()
             .values()
             .stream()
-            .allMatch(e -> e.getFreeBytes() > WATERMARK_BYTES)) {
+            .allMatch(e -> e.freeBytes() > WATERMARK_BYTES)) {
             assertAcked(clusterAdmin().prepareReroute());
         }
 
@@ -329,24 +341,5 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
 
     private InternalClusterInfoService getInternalClusterInfoService() {
         return (InternalClusterInfoService) internalCluster().getCurrentMasterNodeInstance(ClusterInfoService.class);
-    }
-
-    private static final class ContainsExactlyOneOf<T> extends TypeSafeMatcher<Set<T>> {
-
-        private final Set<T> expectedValues;
-
-        ContainsExactlyOneOf(Set<T> expectedValues) {
-            this.expectedValues = expectedValues;
-        }
-
-        @Override
-        protected boolean matchesSafely(Set<T> item) {
-            return item.size() == 1 && expectedValues.contains(item.iterator().next());
-        }
-
-        @Override
-        public void describeTo(Description description) {
-            description.appendText("Expected to contain exactly one value from ").appendValueList("[", ",", "]", expectedValues);
-        }
     }
 }

@@ -117,7 +117,7 @@ public class RestNodesHotThreadsAction extends BaseRestHandler {
             @Override
             public RestResponse buildResponse(NodesHotThreadsResponse response) {
                 response.mustIncRef();
-                return RestResponse.chunked(RestStatus.OK, fromTextChunks(TEXT_CONTENT_TYPE, response.getTextChunks(), response::decRef));
+                return RestResponse.chunked(RestStatus.OK, fromTextChunks(TEXT_CONTENT_TYPE, response.getTextChunks()), response::decRef);
             }
         });
     }

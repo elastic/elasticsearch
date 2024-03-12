@@ -100,6 +100,7 @@ final class BooleanBlockHash extends BlockHash {
         }
     }
 
+    @Override
     public BitArray seenGroupIds(BigArrays bigArrays) {
         BitArray seen = new BitArray(everSeen.length, bigArrays);
         for (int i = 0; i < everSeen.length; i++) {

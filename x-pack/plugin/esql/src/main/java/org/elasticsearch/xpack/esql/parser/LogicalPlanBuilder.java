@@ -10,8 +10,11 @@ package org.elasticsearch.xpack.esql.parser;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.ParseTree;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.dissect.DissectException;
 import org.elasticsearch.dissect.DissectParser;
+import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
+import org.elasticsearch.xpack.esql.parser.EsqlBaseParser.MetadataOptionContext;
 import org.elasticsearch.xpack.esql.parser.EsqlBaseParser.QualifiedNamePatternContext;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
@@ -53,8 +56,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
@@ -180,7 +183,21 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         TableIdentifier table = new TableIdentifier(source, null, visitFromIdentifiers(ctx.fromIdentifier()));
         Map<String, Attribute> metadataMap = new LinkedHashMap<>();
         if (ctx.metadata() != null) {
-            for (var c : ctx.metadata().fromIdentifier()) {
+            var deprecatedContext = ctx.metadata().deprecated_metadata();
+            MetadataOptionContext metadataOptionContext = null;
+            if (deprecatedContext != null) {
+                var s = source(deprecatedContext).source();
+                addWarning(
+                    "Line {}:{}: Square brackets '[]' need to be removed in FROM METADATA declaration",
+                    s.getLineNumber(),
+                    s.getColumnNumber()
+                );
+                metadataOptionContext = deprecatedContext.metadataOption();
+            } else {
+                metadataOptionContext = ctx.metadata().metadataOption();
+
+            }
+            for (var c : metadataOptionContext.fromIdentifier()) {
                 String id = visitFromIdentifier(c);
                 Source src = source(c);
                 if (MetadataAttribute.isSupported(id) == false) {
@@ -197,17 +214,17 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     @Override
     public PlanFactory visitStatsCommand(EsqlBaseParser.StatsCommandContext ctx) {
-        List<NamedExpression> aggregates = new ArrayList<>(visitFields(ctx.fields()));
-        List<NamedExpression> groupings = visitGrouping(ctx.grouping());
+        List<NamedExpression> aggregates = new ArrayList<>(visitFields(ctx.stats));
+        List<NamedExpression> groupings = visitGrouping(ctx.grouping);
         if (aggregates.isEmpty() && groupings.isEmpty()) {
             throw new ParsingException(source(ctx), "At least one aggregation or grouping expression required in [{}]", ctx.getText());
         }
         // grouping keys are automatically added as aggregations however the user is not allowed to specify them
         if (groupings.isEmpty() == false && aggregates.isEmpty() == false) {
-            var groupNames = Expressions.names(groupings);
+            var groupNames = new LinkedHashSet<>(Expressions.names(Expressions.references(groupings)));
 
             for (NamedExpression aggregate : aggregates) {
-                if (aggregate instanceof Alias a && a.child() instanceof UnresolvedAttribute ua && groupNames.contains(ua.name())) {
+                if (Alias.unwrap(aggregate) instanceof UnresolvedAttribute ua && groupNames.contains(ua.name())) {
                     throw new ParsingException(ua.source(), "Cannot specify grouping expression [{}] as an aggregate", ua.name());
                 }
             }
@@ -218,8 +235,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     @Override
     public PlanFactory visitInlinestatsCommand(EsqlBaseParser.InlinestatsCommandContext ctx) {
-        List<NamedExpression> aggregates = new ArrayList<>(visitFields(ctx.fields()));
-        List<NamedExpression> groupings = visitGrouping(ctx.grouping());
+        List<NamedExpression> aggregates = new ArrayList<>(visitFields(ctx.stats));
+        List<NamedExpression> groupings = visitGrouping(ctx.grouping);
         aggregates.addAll(groupings);
         return input -> new InlineStats(source(ctx), input, new ArrayList<>(groupings), aggregates);
     }
@@ -228,11 +245,6 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     public PlanFactory visitWhereCommand(EsqlBaseParser.WhereCommandContext ctx) {
         Expression expression = expression(ctx.booleanExpression());
         return input -> new Filter(source(ctx), input, expression);
-    }
-
-    @Override
-    public List<Alias> visitFields(EsqlBaseParser.FieldsContext ctx) {
-        return ctx != null ? visitList(this, ctx.field(), Alias.class) : new ArrayList<>();
     }
 
     @Override
@@ -279,9 +291,6 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     @Override
     public PlanFactory visitKeepCommand(EsqlBaseParser.KeepCommandContext ctx) {
-        if (ctx.PROJECT() != null) {
-            addWarning("PROJECT command is no longer supported, please use KEEP instead");
-        }
         var identifiers = ctx.qualifiedNamePattern();
         List<NamedExpression> projections = new ArrayList<>(identifiers.size());
         boolean hasSeenStar = false;
@@ -313,13 +322,14 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public PlanFactory visitEnrichCommand(EsqlBaseParser.EnrichCommandContext ctx) {
         return p -> {
-            String policyName = ctx.policyName.getText();
             var source = source(ctx);
-            Mode mode = enrichMode(ctx.setting());
+            Tuple<Mode, String> tuple = parsePolicyName(ctx.policyName);
+            Mode mode = tuple.v1();
+            String policyNameString = tuple.v2();
 
             NamedExpression matchField = ctx.ON() != null ? visitQualifiedNamePattern(ctx.matchField) : new EmptyAttribute(source);
-            if (matchField.name().contains("*")) {
-                throw new ParsingException(source, "Using wildcards (*) in ENRICH WITH projections is not allowed [{}]", matchField.name());
+            if (matchField instanceof UnresolvedNamePattern up) {
+                throw new ParsingException(source, "Using wildcards (*) in ENRICH WITH projections is not allowed [{}]", up.pattern());
             }
 
             List<NamedExpression> keepClauses = visitList(this, ctx.enrichWithClause(), NamedExpression.class);
@@ -327,7 +337,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 source,
                 p,
                 mode,
-                new Literal(source(ctx.policyName), policyName, DataTypes.KEYWORD),
+                new Literal(source(ctx.policyName), policyNameString, DataTypes.KEYWORD),
                 matchField,
                 null,
                 Map.of(),
@@ -336,34 +346,31 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         };
     }
 
-    private Mode enrichMode(List<EsqlBaseParser.SettingContext> setting) {
-        if (setting == null || setting.isEmpty()) {
-            return null;
-        }
-        var s = setting.get(0);
-        var source = source(s);
-        if (setting.size() > 1) {
-            throw new ParsingException(source, "Only one setting allowed for now in ENRICH");
-        }
-        String mode = "ccq.mode";
+    private static Tuple<Mode, String> parsePolicyName(Token policyToken) {
+        String stringValue = policyToken.getText();
+        int index = stringValue.indexOf(":");
+        Mode mode = null;
+        if (index >= 0) {
+            String modeValue = stringValue.substring(0, index);
 
-        var nameText = s.name.getText();
-        if (mode.equals(nameText.toLowerCase(Locale.ROOT)) == false) {
-            throw new ParsingException(source(s.name), "Unsupported setting [{}], expected [{}]", nameText, mode);
+            if (modeValue.startsWith("_")) {
+                mode = Mode.from(modeValue.substring(1));
+            }
+
+            if (mode == null) {
+                throw new ParsingException(
+                    source(policyToken),
+                    "Unrecognized value [{}], ENRICH policy qualifier needs to be one of {}",
+                    modeValue,
+                    Arrays.stream(Mode.values()).map(s -> "_" + s).toList()
+                );
+            }
+        } else {
+            mode = Mode.ANY;
         }
 
-        var valueText = s.value.getText();
-        Enrich.Mode m = Enrich.Mode.from(valueText);
-        if (m == null) {
-            throw new ParsingException(
-                source(s.value),
-                "Unrecognized value [{}], ENRICH [{}] needs to be one of {}",
-                valueText,
-                nameText,
-                Enrich.Mode.values()
-            );
-        }
-        return m;
+        String policyName = index < 0 ? stringValue : stringValue.substring(index + 1);
+        return new Tuple<>(mode, policyName);
     }
 
     interface PlanFactory extends Function<LogicalPlan, LogicalPlan> {}

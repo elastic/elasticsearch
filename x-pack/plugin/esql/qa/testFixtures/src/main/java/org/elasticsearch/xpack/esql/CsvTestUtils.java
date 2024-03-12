@@ -160,7 +160,7 @@ public final class CsvTestUtils {
                     if (columns == null) {
                         columns = new CsvColumn[entries.length];
                         for (int i = 0; i < entries.length; i++) {
-                            int split = entries[i].indexOf(":");
+                            int split = entries[i].indexOf(':');
                             String name, typeName;
 
                             if (split < 0) {
@@ -245,7 +245,7 @@ public final class CsvTestUtils {
         int pos = 0;          // current position in the csv String
         int commaPos;         // current "," character position
         int previousCommaPos = 0;
-        while ((commaPos = csvLine.indexOf(",", pos)) != -1 || pos <= csvLine.length()) {
+        while ((commaPos = csvLine.indexOf(',', pos)) != -1 || pos <= csvLine.length()) {
             if (commaPos > 0 && csvLine.charAt(commaPos - 1) == ESCAPE_CHAR) {// skip the escaped comma
                 pos = commaPos + 1;// moving on to the next character after comma
                 continue;

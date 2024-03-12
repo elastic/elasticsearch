@@ -56,7 +56,7 @@ GROK>> and <<esql-enrich-data,data enrichment with ENRICH>>.
 
 <<esql-using>>::
 An overview of using the <<esql-rest>>, <<esql-kibana>>,
-<<esql-elastic-security>>, and <<esql-task-management>>.
+<<esql-elastic-security>>, <<esql-cross-clusters>>, and <<esql-task-management>>.
 
 <<esql-limitations>>::
 The current limitations of {esql}.

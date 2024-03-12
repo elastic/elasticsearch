@@ -42,7 +42,7 @@ public class GetRollupJobsAction extends ActionType<GetRollupJobsAction.Response
     public static final ParseField STATS = new ParseField("stats");
 
     private GetRollupJobsAction() {
-        super(NAME, GetRollupJobsAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends BaseTasksRequest<Request> implements ToXContentObject {

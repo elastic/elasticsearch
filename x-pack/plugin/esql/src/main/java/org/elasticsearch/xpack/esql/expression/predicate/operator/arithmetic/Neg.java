@@ -11,7 +11,6 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.ExceptionUtils;
-import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.Warnings;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -31,7 +30,7 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isTemporalAmount;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
 
-public class Neg extends UnaryScalarFunction implements EvaluatorMapper {
+public class Neg extends UnaryScalarFunction {
 
     private final Warnings warnings;
 
@@ -92,14 +91,14 @@ public class Neg extends UnaryScalarFunction implements EvaluatorMapper {
                 throw ExceptionUtils.math(source(), e);
             }
         }
-        return EvaluatorMapper.super.fold();
+        return super.fold();
     }
 
     @Override
     protected TypeResolution resolveType() {
         return isType(
             field(),
-            dt -> dt.isNumeric() || isTemporalAmount(dt),
+            dt -> dt != DataTypes.UNSIGNED_LONG && (dt.isNumeric() || isTemporalAmount(dt)),
             sourceText(),
             DEFAULT,
             "numeric",

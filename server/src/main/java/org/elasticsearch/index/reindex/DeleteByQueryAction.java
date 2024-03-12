@@ -16,6 +16,6 @@ public class DeleteByQueryAction extends ActionType<BulkByScrollResponse> {
     public static final String NAME = "indices:data/write/delete/byquery";
 
     private DeleteByQueryAction() {
-        super(NAME, BulkByScrollResponse::new);
+        super(NAME);
     }
 }

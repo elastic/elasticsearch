@@ -1,0 +1,5 @@
+pr: 104433
+summary: Added 3 automatic restarts for `pytorch_inference` processes which stop unexpectedly
+area: Machine Learning
+type: enhancement
+issues: []

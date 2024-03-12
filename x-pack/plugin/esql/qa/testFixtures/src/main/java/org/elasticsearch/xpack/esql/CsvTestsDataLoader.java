@@ -48,6 +48,7 @@ import static org.elasticsearch.xpack.esql.CsvTestUtils.ESCAPED_COMMA_SEQUENCE;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.multiValuesAwareCsvToStringArray;
 
 public class CsvTestsDataLoader {
+    private static final int BULK_DATA_SIZE = 100_000;
     private static final TestsDataset EMPLOYEES = new TestsDataset("employees", "mapping-default.json", "employees.csv");
     private static final TestsDataset HOSTS = new TestsDataset("hosts", "mapping-hosts.json", "hosts.csv");
     private static final TestsDataset APPS = new TestsDataset("apps", "mapping-apps.json", "apps.csv");
@@ -85,6 +86,7 @@ public class CsvTestsDataLoader {
     private static final EnrichConfig LANGUAGES_ENRICH = new EnrichConfig("languages_policy", "enrich-policy-languages.json");
     private static final EnrichConfig CLIENT_IPS_ENRICH = new EnrichConfig("clientip_policy", "enrich-policy-clientips.json");
 
+    public static final List<String> ENRICH_SOURCE_INDICES = List.of("languages", "clientips");
     public static final List<EnrichConfig> ENRICH_POLICIES = List.of(LANGUAGES_ENRICH, CLIENT_IPS_ENRICH);
 
     /**
@@ -242,7 +244,6 @@ public class CsvTestsDataLoader {
         CheckedBiFunction<XContent, InputStream, XContentParser, IOException> p,
         Logger logger
     ) throws IOException {
-        Request request = new Request("POST", "/_bulk");
         StringBuilder builder = new StringBuilder();
         try (BufferedReader reader = org.elasticsearch.xpack.ql.TestUtils.reader(resource)) {
             String line;
@@ -259,7 +260,7 @@ public class CsvTestsDataLoader {
                     if (columns == null) {
                         columns = new String[entries.length];
                         for (int i = 0; i < entries.length; i++) {
-                            int split = entries[i].indexOf(":");
+                            int split = entries[i].indexOf(':');
                             String name, typeName;
 
                             if (split < 0) {
@@ -357,10 +358,22 @@ public class CsvTestsDataLoader {
                     }
                 }
                 lineNumber++;
+                if (builder.length() > BULK_DATA_SIZE) {
+                    sendBulkRequest(indexName, builder, client, logger);
+                    builder.setLength(0);
+                }
             }
-            builder.append("\n");
         }
+        if (builder.length() > 0) {
+            sendBulkRequest(indexName, builder, client, logger);
+        }
+    }
 
+    private static void sendBulkRequest(String indexName, StringBuilder builder, RestClient client, Logger logger) throws IOException {
+        // The indexName is optional for a bulk request, but we use it for routing in MultiClusterSpecIT.
+        builder.append("\n");
+        logger.debug("Sending bulk request of [{}] bytes for [{}]", builder.length(), indexName);
+        Request request = new Request("POST", "/" + indexName + "/_bulk");
         request.setJsonEntity(builder.toString());
         request.addParameter("refresh", "false"); // will be _forcemerge'd next
         Response response = client.performRequest(request);
@@ -371,7 +384,7 @@ public class CsvTestsDataLoader {
                 Map<String, Object> result = XContentHelper.convertToMap(xContentType.xContent(), content, false);
                 Object errors = result.get("errors");
                 if (Boolean.FALSE.equals(errors)) {
-                    logger.info("Data loading of [{}] OK", indexName);
+                    logger.info("Data loading of [{}] bytes into [{}] OK", builder.length(), indexName);
                 } else {
                     throw new IOException("Data loading of [" + indexName + "] failed with errors: " + errors);
                 }

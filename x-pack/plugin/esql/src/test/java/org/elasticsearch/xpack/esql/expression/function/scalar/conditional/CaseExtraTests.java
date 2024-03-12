@@ -16,6 +16,7 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase.field;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.sameInstance;
 
 /**
  * Extra tests for {@code CASE} that don't fit into the parameterized
@@ -51,6 +52,16 @@ public class CaseExtraTests extends ESTestCase {
             c.partiallyFold(),
             equalTo(new Case(Source.synthetic("case"), field("last_cond", DataTypes.BOOLEAN), List.of(field("last", DataTypes.LONG))))
         );
+    }
+
+    public void testPartialFoldNoop() {
+        Case c = new Case(
+            Source.synthetic("case"),
+            field("first_cond", DataTypes.BOOLEAN),
+            List.of(field("first", DataTypes.LONG), field("last", DataTypes.LONG))
+        );
+        assertThat(c.foldable(), equalTo(false));
+        assertThat(c.partiallyFold(), sameInstance(c));
     }
 
     public void testPartialFoldFirst() {

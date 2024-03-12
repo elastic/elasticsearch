@@ -207,20 +207,32 @@ public final class Case extends EsqlScalarFunction {
      */
     public Expression partiallyFold() {
         List<Expression> newChildren = new ArrayList<>(children().size());
+        boolean modified = false;
         for (Condition condition : conditions) {
             if (condition.condition.foldable() == false) {
                 newChildren.add(condition.condition);
                 newChildren.add(condition.value);
                 continue;
             }
+            modified = true;
             Boolean b = (Boolean) condition.condition.fold();
             if (b != null && b) {
                 newChildren.add(condition.value);
-                return replaceChildren(newChildren);
+                return finishPartialFold(newChildren);
             }
+        }
+        if (modified == false) {
+            return this;
         }
         if (elseValueIsExplicit()) {
             newChildren.add(elseValue);
+        }
+        return finishPartialFold(newChildren);
+    }
+
+    private Expression finishPartialFold(List<Expression> newChildren) {
+        if (newChildren.size() == 1) {
+            return newChildren.get(0);
         }
         return replaceChildren(newChildren);
     }

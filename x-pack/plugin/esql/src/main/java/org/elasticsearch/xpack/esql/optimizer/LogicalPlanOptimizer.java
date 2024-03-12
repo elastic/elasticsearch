@@ -85,7 +85,7 @@ import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutp
 import static org.elasticsearch.xpack.ql.expression.Expressions.asAttributes;
 import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PropagateEquals;
 import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.TransformDirection;
-import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.TransformDirection.UP;
+import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.TransformDirection.DOWN;
 
 public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan, LogicalOptimizerContext> {
 
@@ -1620,7 +1620,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
      */
     static class PartiallyFoldCase extends OptimizerRules.OptimizerExpressionRule<Case> {
         PartiallyFoldCase() {
-            super(UP);
+            super(DOWN);
         }
 
         @Override

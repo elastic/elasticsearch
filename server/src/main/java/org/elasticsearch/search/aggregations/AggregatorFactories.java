@@ -358,7 +358,7 @@ public class AggregatorFactories {
         /**
          * Force all min_doc_count=0 terms aggregations to exclude deleted docs.
          */
-        public void forceTermsAggsToExcludedDeletedDocs() {
+        public void forceTermsAggsToExcludeDeletedDocs() {
             assert hasZeroMinDocTermsAggregation();
             final Queue<AggregationBuilder> queue = new LinkedList<>(aggregationBuilders);
             while (queue.isEmpty() == false) {

@@ -39,8 +39,8 @@ replica shards. You can later re-add replica shards as part of the shrink
 operation.
 
 You can use the following <<indices-update-settings,update index settings API>>
-request to remove an index's replica shards, relocates the index's remaining
-shards to the same node, and make the index read-only.
+request to remove an index's replica shards, and relocate the index's remaining
+shards to the same node.
 
 [source,console]
 --------------------------------------------------
@@ -48,8 +48,7 @@ PUT /my_source_index/_settings
 {
   "settings": {
     "index.number_of_replicas": 0,                                <1>
-    "index.routing.allocation.require._name": "shrink_node_name", <2>
-    "index.blocks.write": true                                    <3>
+    "index.routing.allocation.require._name": "shrink_node_name"  <2>
   }
 }
 --------------------------------------------------
@@ -58,15 +57,20 @@ PUT /my_source_index/_settings
 <1> Removes replica shards for the index.
 <2> Relocates the index's shards to the `shrink_node_name` node.
     See <<shard-allocation-filtering>>.
-<3> Prevents write operations to this index. Metadata changes, such as deleting
-    the index, are still allowed.
-
 
 It can take a while to relocate the source index. Progress can be tracked
 with the <<cat-recovery,`_cat recovery` API>>, or the <<cluster-health,
 `cluster health` API>> can be used to wait until all shards have relocated
 with the `wait_for_no_relocating_shards` parameter.
 
+You can then make the index read-only with the following request using the
+<<add-index-block,add index block>> API:
+
+[source,console]
+--------------------------------------------------
+PUT /my_source_index/_block/write
+--------------------------------------------------
+// TEST[continued]
 
 [[shrink-index-api-desc]]
 ==== {api-description-title}

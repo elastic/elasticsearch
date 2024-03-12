@@ -108,7 +108,10 @@ public class WildcardServiceProviderRestIT extends IdpRestTestCase {
             .build();
         createRole(roleName, List.of(), List.of(), List.of(applicationPrivilege));
 
-        ResponseException exception = expectThrows(ResponseException.class, () -> initSso(entityId, acs, new UsernamePasswordToken(username, password)));
+        ResponseException exception = expectThrows(
+            ResponseException.class,
+            () -> initSso(entityId, acs, new UsernamePasswordToken(username, password))
+        );
         assertThat(exception.getResponse().getStatusLine().getStatusCode(), equalTo(RestStatus.BAD_REQUEST.getStatus()));
 
         deleteUser(username);

@@ -337,8 +337,22 @@ value `true`. All other values will raise an error.
 [discrete]
 === Number Values
 
-All REST APIs support providing numbered parameters as `string` on top
-of supporting the native JSON number types.
+When passing a numeric parameter in a request body, you may use a `string`
+containing the number instead of the native numeric type. For example:
+
+[source,console]
+--------------------------------------------------
+POST /_search
+{
+  "size": "1000"
+}
+--------------------------------------------------
+
+Integer-valued fields in a response body are described as `integer` (or
+occasionally `long`) in this manual, but there are generally no explicit bounds
+on such values. JSON, SMILE, CBOR and YAML all permit arbitrarily large integer
+values. Do not assume that `integer` fields in a response body will always fit
+into a 32-bit signed integer.
 
 [[byte-units]]
 [discrete]

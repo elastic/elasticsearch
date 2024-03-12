@@ -135,7 +135,7 @@ public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecut
         // If during re-assignment the source index was deleted, then we need to break out.
         // Returning NO_NODE_FOUND just keeps the persistent task until the source index appears again (which would never happen)
         // So let's return a node and then in the node operation we would just fail and stop this persistent task
-        var indexShardRouting = findShardRoutingTable(params.shardId(), clusterState);
+        var indexShardRouting = findShardRoutingTable(shardId, clusterState);
         if (indexShardRouting == null) {
             var node = selectLeastLoadedNode(clusterState, candidateNodes, DiscoveryNode::canContainData);
             return new PersistentTasksCustomMetadata.Assignment(node.getId(), "a node to fail and stop this persistent task");

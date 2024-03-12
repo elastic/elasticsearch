@@ -114,6 +114,7 @@ public class DownsampleShardPersistentTaskExecutorTests extends ESTestCase {
         );
         var result = executor.getAssignment(params, Set.of(node), clusterState);
         assertThat(result.getExecutorNode(), equalTo(node.getId()));
+        assertThat(result.getExplanation(), equalTo("a node to fail and stop this persistent task"));
     }
 
     private static DiscoveryNode newNode() {

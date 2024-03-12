@@ -50,6 +50,20 @@ setup:
           vector: [2.0]
 
   - do:
+      index:
+        index: test
+        id: "4"
+        body:
+          keyword: ["foo", "aardvark"]
+
+  - do:
+      index:
+        index: test
+        id: "5"
+        body:
+          keyword: "aardvark"
+
+  - do:
       indices.refresh: {}
 
 ---
@@ -185,3 +199,77 @@ setup:
   - match: { hits.hits.2._rank: 3 }
   - match: { hits.hits.2.fields.text.0: "other" }
   - match: { hits.hits.2.fields.keyword.0: "other" }
+
+
+---
+"Simple rank with bm25, knn and pagination":
+  - skip:
+      version: ' - 8.13.99'
+      reason: 'pagination support for rank added in 8.14'
+  - do:
+      search:
+        index: test
+        body:
+          track_total_hits: true
+          fields: [ "text", "keyword" ]
+          knn:
+            field: vector
+            query_vector: [2.0]
+            k: 3
+            num_candidates: 3
+          query:
+            term:
+              keyword: keyword
+          rank:
+            rrf:
+              window_size: 3
+              rank_constant: 1
+          from : 2
+          size : 1
+
+  - match: { hits.total.value : 3 }
+
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.0._rank: 3 }
+  - match: { hits.hits.0.fields.text.0: "term term" }
+  - match: { hits.hits.0.fields.keyword.0: "other" }
+
+---
+"Simple rank with sub-searches and pagination":
+  - skip:
+      version: ' - 8.13.99'
+      reason: 'pagination support for rank added in 8.14'
+  - do:
+      search:
+        index: test
+        body:
+          track_total_hits: true
+          fields: [ "text", "keyword" ]
+          sub_searches: [
+            {
+              "query": {
+                "match": {
+                  "keyword": "aardvark"
+                }
+              }
+            },
+            {
+              "query": {
+                "match": {
+                  "keyword": "foo"
+                }
+              }
+            }
+          ]
+          rank:
+            rrf:
+              window_size: 3
+              rank_constant: 1
+          from : 1
+          size : 1
+
+  - match: { hits.total.value : 2 }
+
+  - match: { hits.hits.0._id: "5" }
+  - match: { hits.hits.0._rank: 2 }
+  - match: { hits.hits.0.fields.keyword.0: "aardvark" }

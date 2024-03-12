@@ -153,7 +153,7 @@ public class RRFRankCoordinatorContext extends RankCoordinatorContext {
         });
         RRFRankDoc[] topResults = new RRFRankDoc[Math.min(size, sortedResults.length - from)];
         for (int rank = 0; rank < topResults.length; ++rank) {
-            topResults[rank] = sortedResults[rank];
+            topResults[rank] = sortedResults[from + rank];
             topResults[rank].rank = rank + 1 + from;
         }
         // update fetch hits for the fetch phase, so we gather any additional

@@ -394,16 +394,17 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             }
             if (source.rankBuilder() != null) {
                 int size = source.size() == -1 ? SearchService.DEFAULT_SIZE : source.size();
+                int from = source.from() == -1 ? 0 : source.from();
                 if (size == 0) {
                     validationException = addValidationError("[rank] requires [size] greater than [0]", validationException);
                 }
-                if (size > source.rankBuilder().windowSize()) {
+                if ((from + size) > source.rankBuilder().windowSize()) {
                     validationException = addValidationError(
                         "[rank] requires [window_size: "
                             + source.rankBuilder().windowSize()
                             + "]"
-                            + " be greater than or equal to [size: "
-                            + size
+                            + " be greater than or equal to [(from + size): "
+                            + (from + size)
                             + "]",
                         validationException
                     );

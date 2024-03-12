@@ -637,7 +637,10 @@ public final class SearchPhaseController {
             ? sortDocs(isScrollRequest, bufferedTopDocs, from, size, reducedCompletionSuggestions)
             : rankCoordinatorContext.rank(queryResults.stream().map(SearchPhaseResult::queryResult).toList(), topDocsStats);
         if (rankCoordinatorContext != null) {
+            // pagination & handling of from & size params has already taken place within the RankCoordinatorContext#rank method
+            // so, we reset their values as no further doc pruning is needed
             size = sortedTopDocs.scoreDocs.length;
+            from = 0;
         }
         final TotalHits totalHits = topDocsStats.getTotalHits();
         return new ReducedQueryPhase(

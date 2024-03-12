@@ -71,6 +71,14 @@ public final class GetApiKeyResponse extends ActionResponse implements ToXConten
     }
 
     @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        GetApiKeyResponse that = (GetApiKeyResponse) o;
+        return Arrays.equals(foundApiKeysInfo, that.foundApiKeysInfo) && Arrays.equals(ownerProfileUids, that.ownerProfileUids);
+    }
+
+    @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.startArray("api_keys");

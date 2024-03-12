@@ -27,31 +27,57 @@ import java.util.Objects;
  */
 public final class QueryApiKeyResponse extends ActionResponse implements ToXContentObject {
 
+    public static final QueryApiKeyResponse EMPTY = new QueryApiKeyResponse(0, List.of(), List.of(), List.of(), null);
+
     private final long total;
-    private final Item[] items;
+    private final ApiKey[] foundApiKeysInfo;
+    @Nullable
+    private final Object[][] sortValues;
+    @Nullable
+    private final String[] ownerProfileUids;
     private final @Nullable InternalAggregations aggregations;
 
-    public QueryApiKeyResponse(long total, Collection<Item> items, @Nullable InternalAggregations aggregations) {
+    public QueryApiKeyResponse(
+        long total,
+        Collection<ApiKey> foundApiKeysInfo,
+        @Nullable Collection<Object[]> sortValues,
+        @Nullable Collection<String> ownerProfileUids,
+        @Nullable InternalAggregations aggregations
+    ) {
         this.total = total;
-        Objects.requireNonNull(items, "items must be provided");
-        this.items = items.toArray(new Item[0]);
+        Objects.requireNonNull(foundApiKeysInfo, "found_api_keys_info must be provided");
+        this.foundApiKeysInfo = foundApiKeysInfo.toArray(new ApiKey[0]);
+        if (sortValues != null) {
+            if (foundApiKeysInfo.size() != sortValues.size()) {
+                throw new IllegalArgumentException("Every api key info must be associated to an (optional) sort value");
+            }
+            this.sortValues = sortValues.toArray(Object[][]::new);
+        } else {
+            this.sortValues = null;
+        }
+        if (ownerProfileUids != null) {
+            if (foundApiKeysInfo.size() != ownerProfileUids.size()) {
+                throw new IllegalArgumentException("Every api key info must be associated to an (optional) owner profile id");
+            }
+            this.ownerProfileUids = ownerProfileUids.toArray(new String[0]);
+        } else {
+            this.ownerProfileUids = null;
+        }
         this.aggregations = aggregations;
-    }
-
-    public static QueryApiKeyResponse emptyResponse() {
-        return new QueryApiKeyResponse(0, List.of(), null);
     }
 
     public long getTotal() {
         return total;
     }
 
-    public Item[] getItems() {
-        return items;
+    public ApiKey[] getApiKeyInfos() {
+        return foundApiKeysInfo;
     }
 
     public int getCount() {
-        return items.length;
+        assert sortValues == null || sortValues.length == foundApiKeysInfo.length;
+        assert ownerProfileUids == null || ownerProfileUids.length == foundApiKeysInfo.length;
+        return foundApiKeysInfo.length;
     }
 
     public InternalAggregations getAggregations() {
@@ -60,11 +86,24 @@ public final class QueryApiKeyResponse extends ActionResponse implements ToXCont
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject().field("total", total).field("count", items.length).array("api_keys", (Object[]) items);
-        if (aggregations != null) {
-            aggregations.toXContent(builder, params);
+        builder.startObject();
+        builder.field("total", total);
+        builder.field("count", foundApiKeysInfo.length);
+        builder.startArray("api_keys");
+        for (int i = 0; i < foundApiKeysInfo.length; i++) {
+            builder.startObject();
+            foundApiKeysInfo[i].innerToXContent(builder, params);
+            if (sortValues != null && sortValues[i] != null && sortValues[i].length > 0) {
+                builder.array("_sort", sortValues[i]);
+            }
+            if (ownerProfileUids != null && ownerProfileUids[i] != null) {
+                builder.field("profile_uid", ownerProfileUids[i]);
+            }
+            builder.endObject();
         }
-        return builder.endObject();
+        builder.endArray();
+        builder.endObject();
+        return builder;
     }
 
     @Override
@@ -77,69 +116,35 @@ public final class QueryApiKeyResponse extends ActionResponse implements ToXCont
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         QueryApiKeyResponse that = (QueryApiKeyResponse) o;
-        return total == that.total && Arrays.equals(items, that.items) && Objects.equals(aggregations, that.aggregations);
+        return total == that.total
+            && Arrays.equals(foundApiKeysInfo, that.foundApiKeysInfo)
+            && Arrays.equals(ownerProfileUids, that.ownerProfileUids)
+            && Arrays.deepEquals(sortValues, that.sortValues)
+            && Objects.equals(aggregations, that.aggregations);
     }
 
     @Override
     public int hashCode() {
         int result = Objects.hash(total);
-        result = 31 * result + Arrays.hashCode(items);
+        result = 31 * result + Arrays.hashCode(foundApiKeysInfo);
+        result = 31 * result + Arrays.hashCode(ownerProfileUids);
+        result = 31 * result + Arrays.deepHashCode(sortValues);
         result = 31 * result + Objects.hash(aggregations);
         return result;
     }
 
     @Override
     public String toString() {
-        return "QueryApiKeyResponse{total=" + total + ", items=" + Arrays.toString(items) + ", aggs=" + aggregations + "}";
-    }
-
-    public static class Item implements ToXContentObject {
-        private final ApiKey apiKey;
-        @Nullable
-        private final Object[] sortValues;
-
-        public Item(ApiKey apiKey, @Nullable Object[] sortValues) {
-            this.apiKey = apiKey;
-            this.sortValues = sortValues;
-        }
-
-        public ApiKey getApiKey() {
-            return apiKey;
-        }
-
-        public Object[] getSortValues() {
-            return sortValues;
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            apiKey.innerToXContent(builder, params);
-            if (sortValues != null && sortValues.length > 0) {
-                builder.array("_sort", sortValues);
-            }
-            builder.endObject();
-            return builder;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Item item = (Item) o;
-            return Objects.equals(apiKey, item.apiKey) && Arrays.equals(sortValues, item.sortValues);
-        }
-
-        @Override
-        public int hashCode() {
-            int result = Objects.hash(apiKey);
-            result = 31 * result + Arrays.hashCode(sortValues);
-            return result;
-        }
-
-        @Override
-        public String toString() {
-            return "Item{" + "apiKey=" + apiKey + ", sortValues=" + Arrays.toString(sortValues) + '}';
-        }
+        return "QueryApiKeyResponse{total="
+            + total
+            + ", foundApiKeysInfo="
+            + Arrays.toString(foundApiKeysInfo)
+            + ", sortValues="
+            + Arrays.toString(sortValues)
+            + ", ownerProfileUids="
+            + Arrays.toString(ownerProfileUids)
+            + ", aggs="
+            + aggregations
+            + "}";
     }
 }

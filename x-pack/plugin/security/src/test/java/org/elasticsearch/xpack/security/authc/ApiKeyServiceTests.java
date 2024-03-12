@@ -93,14 +93,12 @@ import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.apikey.CrossClusterApiKeyRoleDescriptorBuilder;
 import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyResponse;
-import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTests;
-import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmDomain;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
@@ -416,19 +414,15 @@ public class ApiKeyServiceTests extends ESTestCase {
             assertThat(getApiKeyResponse, hasItem(transformedMatch(ApiKey::getRealmType, nullValue())));
         }
         {
-            PlainActionFuture<QueryApiKeyResponse> queryApiKeyResponsePlainActionFuture = new PlainActionFuture<>();
-            service.queryApiKeys(new SearchRequest(".security"), false, queryApiKeyResponsePlainActionFuture);
-            QueryApiKeyResponse queryApiKeyResponse = queryApiKeyResponsePlainActionFuture.get();
-            assertThat(queryApiKeyResponse.getItems().length, is(2));
-            assertThat(queryApiKeyResponse.getItems()[0].getApiKey().getRealm(), is(realm1));
-            assertThat(queryApiKeyResponse.getItems()[0].getApiKey().getRealmType(), is(realm1Type));
-            assertThat(
-                queryApiKeyResponse.getItems()[0].getApiKey().getRealmIdentifier(),
-                is(new RealmConfig.RealmIdentifier(realm1Type, realm1))
-            );
-            assertThat(queryApiKeyResponse.getItems()[1].getApiKey().getRealm(), is(realm2));
-            assertThat(queryApiKeyResponse.getItems()[1].getApiKey().getRealmType(), nullValue());
-            assertThat(queryApiKeyResponse.getItems()[1].getApiKey().getRealmIdentifier(), nullValue());
+            PlainActionFuture<ApiKeyService.QueryApiKeysResult> queryApiKeysResultPlainActionFuture = new PlainActionFuture<>();
+            service.queryApiKeys(new SearchRequest(".security"), false, queryApiKeysResultPlainActionFuture);
+            ApiKeyService.QueryApiKeysResult queryApiKeysResult = queryApiKeysResultPlainActionFuture.get();
+            assertThat(queryApiKeysResult.apiKeyInfos().size(), is(2));
+            assertThat(queryApiKeysResult.sortValues().size(), is(2));
+            assertThat(queryApiKeysResult.apiKeyInfos(), hasItem(transformedMatch(ApiKey::getRealm, is(realm1))));
+            assertThat(queryApiKeysResult.apiKeyInfos(), hasItem(transformedMatch(ApiKey::getRealmType, is(realm1Type))));
+            assertThat(queryApiKeysResult.apiKeyInfos(), hasItem(transformedMatch(ApiKey::getRealm, is(realm2))));
+            assertThat(queryApiKeysResult.apiKeyInfos(), hasItem(transformedMatch(ApiKey::getRealmType, nullValue())));
         }
     }
 

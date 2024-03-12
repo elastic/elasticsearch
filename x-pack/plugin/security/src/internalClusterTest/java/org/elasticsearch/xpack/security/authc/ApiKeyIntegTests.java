@@ -2891,12 +2891,12 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             final PlainActionFuture<QueryApiKeyResponse> future = new PlainActionFuture<>();
             client.execute(
                 QueryApiKeyAction.INSTANCE,
-                new QueryApiKeyRequest(QueryBuilders.idsQuery().addIds(apiKeyId), null, null, null, null, null, withLimitedBy),
+                new QueryApiKeyRequest(QueryBuilders.idsQuery().addIds(apiKeyId), null, null, null, null, null, withLimitedBy, false),
                 future
             );
             final QueryApiKeyResponse queryApiKeyResponse = future.actionGet();
-            assertThat(queryApiKeyResponse.getItems(), arrayWithSize(1));
-            return queryApiKeyResponse.getItems()[0].getApiKey();
+            assertThat(queryApiKeyResponse.getApiKeyInfos().length, is(1));
+            return queryApiKeyResponse.getApiKeyInfos()[0];
         }
     }
 
@@ -2910,11 +2910,11 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             final PlainActionFuture<QueryApiKeyResponse> future = new PlainActionFuture<>();
             client.execute(
                 QueryApiKeyAction.INSTANCE,
-                new QueryApiKeyRequest(QueryBuilders.matchAllQuery(), null, null, 1000, null, null, withLimitedBy),
+                new QueryApiKeyRequest(QueryBuilders.matchAllQuery(), null, null, 1000, null, null, withLimitedBy, false),
                 future
             );
             final QueryApiKeyResponse queryApiKeyResponse = future.actionGet();
-            return Arrays.stream(queryApiKeyResponse.getItems()).map(QueryApiKeyResponse.Item::getApiKey).toArray(ApiKey[]::new);
+            return queryApiKeyResponse.getApiKeyInfos();
         }
     }
 

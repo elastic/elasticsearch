@@ -96,10 +96,7 @@ Either this or ``query_vector_builder`` must be provided.
 +
 --
 (Optional, object) Query vector builder.
-A configuration object indicating how to build a query_vector before executing
-the request. You must provide a `query_vector_builder` or `query_vector`, but
-not both. Refer to <<knn-semantic-search>> to learn more.
-Either this or ``query_vector`` must be provided.
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=knn-query-vector-builder]
 --
 
 

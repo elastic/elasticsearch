@@ -121,13 +121,9 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=knn-k]
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=knn-num-candidates]
 
 `query_vector`::
-(Optional, array of floats)
+(Required, array of floats)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=knn-query-vector]
 ====
-
-`query_vector_builder`::
-(Optional, object)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=knn-query-vector-builder]
 
 include::{es-repo-dir}/search/search.asciidoc[tag=docvalue-fields-def]
 include::{es-repo-dir}/search/search.asciidoc[tag=fields-param-def]

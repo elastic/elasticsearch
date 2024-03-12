@@ -602,8 +602,8 @@ end::knn-query-vector[]
 
 tag::knn-query-vector-builder[]
 A configuration object indicating how to build a query_vector before executing
-the request. You must provide a `query_vector_builder` or `query_vector`, but
-not both. Refer to <<knn-semantic-search>> to learn more.
+the request. You must provide either a `query_vector_builder` or `query_vector`,
+but not both. Refer to <<knn-semantic-search>> to learn more.
 end::knn-query-vector-builder[]
 
 

@@ -12,10 +12,18 @@ import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
 
 import java.util.Map;
+import java.util.Set;
 
 public class EsqlFeatures implements FeatureSpecification {
+    private static final NodeFeature MV = new NodeFeature("esql.mv");
+
+    @Override
+    public Set<NodeFeature> getFeatures() {
+        return Set.of(MV);
+    }
+
     @Override
     public Map<NodeFeature, Version> getHistoricalFeatures() {
-        return Map.of(TransportEsqlStatsAction.ESQL_STATS_FEATURE, Version.V_8_11_0);
+        return Map.ofEntries(Map.entry(TransportEsqlStatsAction.ESQL_STATS_FEATURE, Version.V_8_11_0), Map.entry(MV, Version.V_8_12_0));
     }
 }

@@ -147,6 +147,10 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
      */
     @Nullable
     public Tuple<TimeValue, RetentionSource> getEffectiveDataRetentionWithSource(@Nullable DataStreamGlobalRetention globalRetention) {
+        // If lifecycle is disabled there is no effective retention
+        if (enabled == false) {
+            return Tuple.tuple(null, RetentionSource.DATA_STREAM_CONFIGURATION);
+        }
         var dataStreamRetention = getDataStreamRetention();
         if (globalRetention == null) {
             return Tuple.tuple(dataStreamRetention, RetentionSource.DATA_STREAM_CONFIGURATION);

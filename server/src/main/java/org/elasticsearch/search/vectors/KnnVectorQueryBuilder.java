@@ -276,9 +276,14 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
+        if (queryVectorSupplier != null) {
+            throw new IllegalStateException("missing a rewriteAndFetch?");
+        }
         builder.startObject(NAME);
         builder.field(FIELD_FIELD.getPreferredName(), fieldName);
-        builder.field(QUERY_VECTOR_FIELD.getPreferredName(), queryVector);
+        if (queryVector != null) {
+            builder.field(QUERY_VECTOR_FIELD.getPreferredName(), queryVector);
+        }
         if (numCands != null) {
             builder.field(NUM_CANDS_FIELD.getPreferredName(), numCands);
         }

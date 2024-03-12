@@ -311,7 +311,7 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
         RoutingTable routingTable = RoutingTable.builder().add(indexRoutingTableBuilder.build()).build();
 
         IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(Watch.INDEX)
-            .settings(settings(IndexVersion.current()).put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), 6)) // the internal index format,
+            .settings(settings(Version.CURRENT).put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), 6)) // the internal index format,
             // required
             .numberOfShards(1)
             .numberOfReplicas(0);
@@ -322,12 +322,12 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
 
         ClusterState emptyState = ClusterState.builder(new ClusterName("my-cluster")).nodes(nodes).metadata(metadata).build();
         ClusterState stateWithMasterNode1 = ClusterState.builder(new ClusterName("my-cluster"))
-            .nodes(nodes.withMasterNodeId("node_1"))
+            .nodes(DiscoveryNodes.builder(nodes).masterNodeId("node_1"))
             .metadata(metadata)
             .routingTable(routingTable)
             .build();
         ClusterState stateWithMasterNode2 = ClusterState.builder(new ClusterName("my-cluster"))
-            .nodes(nodes.withMasterNodeId("node_2"))
+            .nodes(DiscoveryNodes.builder(nodes).masterNodeId("node_2"))
             .metadata(metadata)
             .routingTable(routingTable)
             .build();

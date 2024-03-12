@@ -626,6 +626,13 @@ public class Setting<T> implements ToXContentObject {
         return defaultValue.apply(settings);
     }
 
+    /**
+     * Returns the raw (string) settings value, which is for logging use
+     */
+    String getLogString(final Settings settings) {
+        return getRaw(settings);
+    }
+
     /** Logs a deprecation warning if the setting is deprecated and used. */
     void checkDeprecation(Settings settings) {
         // They're using the setting, so we need to tell them to stop
@@ -989,6 +996,7 @@ public class Setting<T> implements ToXContentObject {
 
                 @Override
                 public void apply(Map<String, T> value, Settings current, Settings previous) {
+                    Setting.logSettingUpdate(AffixSetting.this, current, previous, logger);
                     consumer.accept(value);
                 }
             };
@@ -1006,6 +1014,20 @@ public class Setting<T> implements ToXContentObject {
             throw new UnsupportedOperationException(
                 "affix settings can't return values" + " use #getConcreteSetting to obtain a concrete setting"
             );
+        }
+
+        @Override
+        public String getLogString(final Settings settings) {
+            Settings filteredAffixSetting = settings.filter(this::match);
+            try {
+                XContentBuilder builder = XContentFactory.jsonBuilder();
+                builder.startObject();
+                filteredAffixSetting.toXContent(builder, new MapParams(Collections.singletonMap("flat_settings", "true")));
+                builder.endObject();
+                return Strings.toString(builder);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
         }
 
         @Override
@@ -1811,7 +1833,7 @@ public class Setting<T> implements ToXContentObject {
             if (setting.isFiltered()) {
                 logger.info("updating [{}]", setting.key);
             } else {
-                logger.info("updating [{}] from [{}] to [{}]", setting.key, setting.getRaw(previous), setting.getRaw(current));
+                logger.info("updating [{}] from [{}] to [{}]", setting.key, setting.getLogString(previous), setting.getLogString(current));
             }
         }
     }

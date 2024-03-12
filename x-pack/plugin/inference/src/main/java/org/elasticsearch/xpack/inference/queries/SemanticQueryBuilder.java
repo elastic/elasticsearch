@@ -18,6 +18,7 @@ import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -40,6 +41,9 @@ import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 
 import java.io.IOException;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -116,8 +120,9 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
             return this;
         }
 
-        Set<String> modelsForField = queryRewriteContext.getModelsForField(fieldName);
-        if (modelsForField.isEmpty()) {
+        Map<String, Set<String>> modelsForFields = computeModelsForFields(queryRewriteContext.getIndexMetadataMap().values());
+        Set<String> modelsForField = modelsForFields.get(fieldName);
+        if (modelsForField == null || modelsForField.isEmpty()) {
             throw new IllegalArgumentException("Field [" + fieldName + "] is not a semantic_text field type");
         }
 
@@ -176,6 +181,21 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         }
 
         return semanticQuery(inferenceResults, context);
+    }
+
+    private Map<String, Set<String>> computeModelsForFields(Collection<IndexMetadata> indexMetadataCollection) {
+        Map<String, Set<String>> modelsForFields = new HashMap<>();
+        for (IndexMetadata indexMetadata : indexMetadataCollection) {
+            Map<String, Set<String>> fieldsForModels = indexMetadata.getFieldsForModels();
+            for (Map.Entry<String, Set<String>> entry : fieldsForModels.entrySet()) {
+                for (String fieldName : entry.getValue()) {
+                    Set<String> models = modelsForFields.computeIfAbsent(fieldName, v -> new HashSet<>());
+                    models.add(entry.getKey());
+                }
+            }
+        }
+
+        return modelsForFields;
     }
 
     private Query semanticQuery(InferenceResults inferenceResults, SearchExecutionContext context) {

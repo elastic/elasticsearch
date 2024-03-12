@@ -152,7 +152,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.EnumMap;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -1707,7 +1706,7 @@ public class IndicesService extends AbstractLifecycleComponent
             indexNameExpressionResolver.concreteIndices(clusterService.state(), indicesRequest.indicesOptions(), true, localIndexNames) :
             Index.EMPTY_ARRAY;
 
-        Map<String, Set<String>> modelsForFields = new HashMap<>();
+        Map<String, IndexMetadata> indexMetadataMap = new HashMap<>();
         for (Index index : indices) {
             IndexService indexService = indexService(index);
             if (indexService == null) {
@@ -1715,16 +1714,10 @@ public class IndicesService extends AbstractLifecycleComponent
                 continue;
             }
 
-            Map<String, Set<String>> fieldsForModels = indexService.getMetadata().getFieldsForModels();
-            for (Map.Entry<String, Set<String>> entry : fieldsForModels.entrySet()) {
-                for (String fieldName : entry.getValue()) {
-                    Set<String> models = modelsForFields.computeIfAbsent(fieldName, v -> new HashSet<>());
-                    models.add(entry.getKey());
-                }
-            }
+            indexMetadataMap.put(index.getName(), indexService.getMetadata());
         }
 
-        return new QueryRewriteContext(parserConfig, client, nowInMillis, modelsForFields);
+        return new QueryRewriteContext(parserConfig, client, nowInMillis, indexMetadataMap);
     }
 
     public DataRewriteContext getDataRewriteContext(LongSupplier nowInMillis) {

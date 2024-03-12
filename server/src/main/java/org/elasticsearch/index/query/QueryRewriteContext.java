@@ -9,6 +9,7 @@ package org.elasticsearch.index.query;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.regex.Regex;
@@ -60,7 +61,7 @@ public class QueryRewriteContext {
     protected boolean allowUnmappedFields;
     protected boolean mapUnmappedFieldAsString;
     protected Predicate<String> allowedFields;
-    private final Map<String, Set<String>> modelsForFields;
+    private final Map<String, IndexMetadata> indexMetadataMap;
 
     public QueryRewriteContext(
         final XContentParserConfiguration parserConfiguration,
@@ -77,7 +78,7 @@ public class QueryRewriteContext {
         final ValuesSourceRegistry valuesSourceRegistry,
         final BooleanSupplier allowExpensiveQueries,
         final ScriptCompiler scriptService,
-        final Map<String, Set<String>> modelsForFields
+        final Map<String, IndexMetadata> indexMetadataMap
     ) {
 
         this.parserConfiguration = parserConfiguration;
@@ -95,9 +96,7 @@ public class QueryRewriteContext {
         this.valuesSourceRegistry = valuesSourceRegistry;
         this.allowExpensiveQueries = allowExpensiveQueries;
         this.scriptService = scriptService;
-        this.modelsForFields = modelsForFields != null ?
-            modelsForFields.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> Set.copyOf(e.getValue()))) :
-            Collections.emptyMap();
+        this.indexMetadataMap = indexMetadataMap != null ? Map.copyOf(indexMetadataMap) : Collections.emptyMap();
     }
 
     public QueryRewriteContext(final XContentParserConfiguration parserConfiguration, final Client client, final LongSupplier nowInMillis) {
@@ -124,7 +123,7 @@ public class QueryRewriteContext {
         final XContentParserConfiguration parserConfiguration,
         final Client client,
         final LongSupplier nowInMillis,
-        final Map<String, Set<String>> modelsForFields
+        final Map<String, IndexMetadata> indexMetadataMap
     ) {
         this(
             parserConfiguration,
@@ -141,7 +140,7 @@ public class QueryRewriteContext {
             null,
             null,
             null,
-            modelsForFields
+            indexMetadataMap
         );
     }
 
@@ -378,8 +377,7 @@ public class QueryRewriteContext {
             : () -> Iterators.concat(allFromMapping.iterator(), runtimeMappings.keySet().iterator());
     }
 
-    public Set<String> getModelsForField(String fieldName) {
-        Set<String> models = modelsForFields.get(fieldName);
-        return models != null ? models : Collections.emptySet();
+    public Map<String, IndexMetadata> getIndexMetadataMap() {
+        return indexMetadataMap;
     }
 }

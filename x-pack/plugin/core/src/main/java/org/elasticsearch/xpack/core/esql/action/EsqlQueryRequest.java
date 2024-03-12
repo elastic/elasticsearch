@@ -12,7 +12,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.query.QueryBuilder;
 
 import java.io.IOException;
-import java.util.Locale;
 
 public abstract class EsqlQueryRequest extends ActionRequest {
 
@@ -24,13 +23,7 @@ public abstract class EsqlQueryRequest extends ActionRequest {
 
     public abstract String query();
 
-    public abstract boolean async();
-
     public abstract boolean columnar();
-
-    public abstract boolean profile();
-
-    public abstract Locale locale();
 
     public abstract QueryBuilder filter();
 }

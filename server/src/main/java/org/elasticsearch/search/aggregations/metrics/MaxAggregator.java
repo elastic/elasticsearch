@@ -11,6 +11,7 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.Bits;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
@@ -28,6 +29,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
@@ -120,6 +122,28 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue {
     @Override
     public InternalAggregation buildEmptyAggregation() {
         return Max.createEmptyMax(name, formatter, metadata());
+    }
+
+    @Override
+    public void merge(Map<Long, List<AggregationAndBucket>> toMerge, BigArrays bigArrays) {
+        for (Map.Entry<Long, List<AggregationAndBucket>> mergeRow : toMerge.entrySet()) {
+            mergeBucket(mergeRow.getValue(), mergeRow.getKey());
+        }
+    }
+
+    public void mergeBucket(List<AggregationAndBucket> others, long thisBucket) {
+        if (thisBucket >= maxes.size()) {
+            long from = maxes.size();
+            maxes = bigArrays().grow(maxes, thisBucket + 1);
+            maxes.fill(from, maxes.size(), Double.NEGATIVE_INFINITY);
+        }
+        double max = maxes.get(thisBucket);
+        for (AggregationAndBucket other : others) {
+            MaxAggregator maxAggregator = (MaxAggregator) other.aggregator();
+            final double value = maxAggregator.maxes.get(other.bucketOrdinal());
+            max = Math.max(max, value);
+        }
+        maxes.set(thisBucket, max);
     }
 
     @Override

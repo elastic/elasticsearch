@@ -24,6 +24,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 class AvgAggregator extends NumericMetricsAggregator.SingleValue {
@@ -110,6 +111,41 @@ class AvgAggregator extends NumericMetricsAggregator.SingleValue {
     @Override
     public InternalAggregation buildEmptyAggregation() {
         return InternalAvg.empty(name, format, metadata());
+    }
+
+    @Override
+    public void merge(Map<Long, List<AggregationAndBucket>> toMerge, BigArrays bigArrays) {
+        for (Map.Entry<Long, List<AggregationAndBucket>> mergeRow : toMerge.entrySet()) {
+            mergeBucket(mergeRow.getValue(), mergeRow.getKey());
+        }
+    }
+    public void mergeBucket(List<AggregationAndBucket> others, long thisBucket) {
+        // TODO: Don't create a new compensated sum every time this is called.  That's a lot of wasted object creation overhead, and the
+        //       reset method exists to fix that. (NOCOMMIT)
+        final CompensatedSum kahanSummation = new CompensatedSum(0, 0);
+        double sum = sums.get(thisBucket);
+        double compensation = compensations.get(thisBucket);
+        kahanSummation.reset(sum, compensation);
+
+        // We don't always want to grow here, because we might already have this element
+        if (thisBucket >= counts.size()) {
+            counts = bigArrays().grow(counts, thisBucket + 1);
+            sums = bigArrays().grow(sums, thisBucket + 1);
+            compensations = bigArrays().grow(compensations, thisBucket + 1);
+        }
+        assert(thisBucket <= counts.size());
+
+        for (AggregationAndBucket other : others) {
+            AvgAggregator avgAggregator = (AvgAggregator) other.aggregator();
+
+            final long valueCount = avgAggregator.counts.get(other.bucketOrdinal());
+            counts.increment(thisBucket, valueCount);
+            // Compute the sum of double values with Kahan summation algorithm which is more
+            // accurate than naive summation.
+            kahanSummation.add(sums.get(other.bucketOrdinal()));
+        }
+        sums.set(thisBucket, kahanSummation.value());
+        compensations.set(thisBucket, kahanSummation.delta());
     }
 
     @Override

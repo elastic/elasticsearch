@@ -40,7 +40,8 @@ import java.util.function.ToLongFunction;
 
 public abstract class BucketsAggregator extends AggregatorBase {
     private final CircuitBreaker breaker;
-    private LongArray docCounts;
+    // NOCOMMIT - This needs an actual API, can't just make it public
+    public LongArray docCounts;
     protected final DocCountProvider docCountProvider;
     private int callCount;
 
@@ -413,5 +414,17 @@ public abstract class BucketsAggregator extends AggregatorBase {
         super.preGetSubLeafCollectors(ctx);
         // Set LeafReaderContext to the doc_count provider
         docCountProvider.setLeafReaderContext(ctx);
+    }
+    public class IteratorAndAggregator extends IteratorAndCurrent<Long> {
+        private final Aggregator aggregator;
+
+        public Aggregator getAggregator() {
+            return aggregator;
+        }
+
+        public IteratorAndAggregator(Iterator<Long> iterator, Aggregator aggregator) {
+            super(iterator);
+            this.aggregator = aggregator;
+        }
     }
 }

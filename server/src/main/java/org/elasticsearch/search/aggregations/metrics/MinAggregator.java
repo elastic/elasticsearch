@@ -12,6 +12,7 @@ import org.apache.lucene.index.PointValues;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.Bits;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
@@ -28,6 +29,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
@@ -119,6 +121,29 @@ public class MinAggregator extends NumericMetricsAggregator.SingleValue {
     @Override
     public InternalAggregation buildEmptyAggregation() {
         return Min.createEmptyMin(name, format, metadata());
+    }
+
+    @Override
+    public void merge(Map<Long, List<AggregationAndBucket>> toMerge, BigArrays bigArrays) {
+        for (Map.Entry<Long, List<AggregationAndBucket>> mergeRow : toMerge.entrySet()) {
+            mergeBucket(mergeRow.getValue(), mergeRow.getKey());
+        }
+    }
+
+    public void mergeBucket(List<AggregationAndBucket> others, long thisBucket) {
+        if (thisBucket >= mins.size()) {
+            long from = mins.size();
+            mins = bigArrays().grow(mins, thisBucket + 1);
+            mins.fill(from, mins.size(), Double.POSITIVE_INFINITY);
+        }
+        double min = mins.get(thisBucket);
+
+        for (AggregationAndBucket other : others) {
+            MinAggregator minAggregator = (MinAggregator) other.aggregator();
+            final double value = minAggregator.mins.get(other.bucketOrdinal());
+            min = Math.min(min, value);
+        }
+        mins.set(thisBucket, min);
     }
 
     @Override

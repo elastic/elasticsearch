@@ -28,6 +28,10 @@ public final class Zstd {
     public int compress(ByteBuffer dst, ByteBuffer src, int level) {
         Objects.requireNonNull(dst, "Null destination buffer");
         Objects.requireNonNull(src, "Null source buffer");
+        assert dst.isDirect();
+        assert dst.isReadOnly() == false;
+        assert src.isDirect();
+        assert src.isReadOnly() == false;
         long ret = zstdLib.compress(dst, src, level);
         if (zstdLib.isError(ret)) {
             throw new IllegalArgumentException(zstdLib.getErrorName(ret));
@@ -44,6 +48,10 @@ public final class Zstd {
     public int decompress(ByteBuffer dst, ByteBuffer src) {
         Objects.requireNonNull(dst, "Null destination buffer");
         Objects.requireNonNull(src, "Null source buffer");
+        assert dst.isDirect();
+        assert dst.isReadOnly() == false;
+        assert src.isDirect();
+        assert src.isReadOnly() == false;
         long ret = zstdLib.decompress(dst, src);
         if (zstdLib.isError(ret)) {
             throw new IllegalArgumentException(zstdLib.getErrorName(ret));

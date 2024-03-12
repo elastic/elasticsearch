@@ -50,8 +50,6 @@ class JdkZstdLibrary implements ZstdLibrary {
 
     @Override
     public long compress(ByteBuffer dst, ByteBuffer src, int compressionLevel) {
-        assert dst.isDirect();
-        assert src.isDirect();
         var nativeDst = MemorySegment.ofBuffer(dst);
         var nativeSrc = MemorySegment.ofBuffer(src);
         try {
@@ -82,8 +80,6 @@ class JdkZstdLibrary implements ZstdLibrary {
 
     @Override
     public long decompress(ByteBuffer dst, ByteBuffer src) {
-        assert dst.isDirect();
-        assert src.isDirect();
         var nativeDst = MemorySegment.ofBuffer(dst);
         var nativeSrc = MemorySegment.ofBuffer(src);
         try {

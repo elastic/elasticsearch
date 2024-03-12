@@ -10,10 +10,12 @@ package org.elasticsearch.common.util;
 
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefIterator;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.PreallocatedCircuitBreakerService;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.core.Nullable;
@@ -141,6 +143,27 @@ public class BigArrays {
             assert indexIsInt(fromIndex);
             assert indexIsInt(toIndex);
             Arrays.fill(array, (int) fromIndex, (int) toIndex, value);
+        }
+
+        @Override
+        public BytesRefIterator iterator() {
+            return new BytesRefIterator() {
+                boolean visited = false;
+
+                @Override
+                public BytesRef next() {
+                    if (visited) {
+                        return null;
+                    }
+                    visited = true;
+                    return new BytesRef(array, 0, Math.toIntExact(size()));
+                }
+            };
+        }
+
+        @Override
+        public void fillWith(StreamInput in) throws IOException {
+            in.readBytes(array, 0, Math.toIntExact(size()));
         }
 
         @Override

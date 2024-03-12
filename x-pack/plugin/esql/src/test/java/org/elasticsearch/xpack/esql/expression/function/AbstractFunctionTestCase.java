@@ -446,7 +446,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
 
     // TODO cranky time
 
-    public final void testSimpleWithNulls() { // TODO replace this with nulls inserted into the test case like anyNullIsNull
+    public void testSimpleWithNulls() { // TODO replace this with nulls inserted into the test case like anyNullIsNull
         assumeTrue("nothing to do if a type error", testCase.getExpectedTypeError() == null);
         assumeTrue("All test data types must be representable in order to build fields", testCase.allTypesAreRepresentable());
         List<Object> simpleData = testCase.getDataValues();
@@ -967,7 +967,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         Map.entry(
             Set.of(EsqlDataTypes.CARTESIAN_POINT, EsqlDataTypes.CARTESIAN_SHAPE, DataTypes.KEYWORD, DataTypes.TEXT, DataTypes.NULL),
             "cartesian_point or cartesian_shape or string"
-        )
+        ),
+        Map.entry(Set.of(EsqlDataTypes.GEO_POINT, EsqlDataTypes.CARTESIAN_POINT, DataTypes.NULL), "geo_point or cartesian_point")
     );
 
     // TODO: generate this message dynamically, a la AbstractConvertFunction#supportedTypesNames()?
@@ -1088,7 +1089,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             renderTypesTable(EsqlFunctionRegistry.description(definition).argNames());
             return;
         }
-        LogManager.getLogger(getTestClass()).info("Skipping rendering types because the function isn't registered");
+        LogManager.getLogger(getTestClass()).info("Skipping rendering types because the function '" + name + "' isn't registered");
     }
 
     private static void renderTypesTable(List<String> argNames) throws IOException {
@@ -1116,12 +1117,18 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             [%header.monospaced.styled,format=dsv,separator=|]
             |===
             """ + header + "\n" + table.stream().collect(Collectors.joining("\n")) + "\n|===\n";
-        LogManager.getLogger(getTestClass()).info("Writing function types:\n{}", rendered);
+        LogManager.getLogger(getTestClass()).info("Writing function types for [{}]:\n{}", functionName(), rendered);
         writeToTempDir("types", rendered, "asciidoc");
     }
 
     private static String functionName() {
-        return StringUtils.camelCaseToUnderscore(getTestClass().getSimpleName().replace("Tests", "")).toLowerCase(Locale.ROOT);
+        Class<?> testClass = getTestClass();
+        if (testClass.isAnnotationPresent(FunctionName.class)) {
+            FunctionName functionNameAnnotation = testClass.getAnnotation(FunctionName.class);
+            return functionNameAnnotation.value();
+        } else {
+            return StringUtils.camelCaseToUnderscore(testClass.getSimpleName().replace("Tests", "")).toLowerCase(Locale.ROOT);
+        }
     }
 
     private static FunctionDefinition definition(String name) {
@@ -1178,6 +1185,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         Files.createDirectories(dir);
         Path file = dir.resolve(functionName() + "." + extension);
         Files.writeString(file, str);
+        LogManager.getLogger(getTestClass()).info("Wrote function types for [{}] to file: {}", functionName(), file);
     }
 
     private final List<CircuitBreaker> breakers = Collections.synchronizedList(new ArrayList<>());

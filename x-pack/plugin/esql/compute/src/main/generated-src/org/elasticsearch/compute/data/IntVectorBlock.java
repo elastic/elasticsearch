@@ -21,7 +21,6 @@ public final class IntVectorBlock extends AbstractVectorBlock implements IntBloc
      * @param vector considered owned by the current block; must not be used in any other {@code Block}
      */
     IntVectorBlock(IntVector vector) {
-        super(vector.getPositionCount(), vector.blockFactory());
         this.vector = vector;
     }
 
@@ -36,7 +35,7 @@ public final class IntVectorBlock extends AbstractVectorBlock implements IntBloc
     }
 
     @Override
-    public int getTotalValueCount() {
+    public int getPositionCount() {
         return vector.getPositionCount();
     }
 

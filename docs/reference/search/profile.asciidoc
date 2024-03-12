@@ -198,17 +198,6 @@ The API returns the following result:
           },
           "children": [
             {
-              "type" : "FetchFieldsPhase",
-              "description" : "",
-              "time_in_nanos" : 306754,
-              "breakdown" : {
-                "process_count" : 4,
-                "process" : 271916,
-                "next_reader" : 34838,
-                "next_reader_count" : 1
-              }
-            },
-            {
               "type": "FetchSourcePhase",
               "description": "",
               "time_in_nanos": 20443,
@@ -1054,17 +1043,6 @@ And here is the fetch profile:
             "stored_fields": ["_id", "_routing", "_source"]
           },
           "children": [
-            {
-              "type" : "FetchFieldsPhase",
-              "description" : "",
-              "time_in_nanos" : 306754,
-              "breakdown" : {
-                "process_count" : 4,
-                "process" : 271916,
-                "next_reader" : 34838,
-                "next_reader_count" : 1
-              }
-            },
             {
               "type": "FetchSourcePhase",
               "description": "",

@@ -120,8 +120,8 @@ teardown:
 ---
 profile fetch:
   - skip:
-      version: ' - 8.13.99'
-      reason: FetchFieldsPhase modified in 8.14
+      version: ' - 7.15.99'
+      reason:  fetch profiling implemented in 7.16.0
 
   - do:
       search:
@@ -141,20 +141,15 @@ profile fetch:
   - gt: { profile.shards.0.fetch.breakdown.load_stored_fields_count: 0 }
   - gt: { profile.shards.0.fetch.breakdown.load_stored_fields: 0 }
   - match: { profile.shards.0.fetch.debug.stored_fields: [_id, _routing, _source] }
-  - length: { profile.shards.0.fetch.children: 4 }
-  - match: { profile.shards.0.fetch.children.0.type: FetchFieldsPhase }
+  - length: { profile.shards.0.fetch.children: 3 }
+  - match: { profile.shards.0.fetch.children.0.type: FetchSourcePhase }
   - gt: { profile.shards.0.fetch.children.0.breakdown.next_reader_count: 0 }
   - gt: { profile.shards.0.fetch.children.0.breakdown.next_reader: 0 }
   - gt: { profile.shards.0.fetch.children.0.breakdown.next_reader_count: 0 }
   - gt: { profile.shards.0.fetch.children.0.breakdown.next_reader: 0 }
-  - match: { profile.shards.0.fetch.children.1.type: FetchSourcePhase }
+  - match: { profile.shards.0.fetch.children.1.type: InnerHitsPhase }
   - gt: { profile.shards.0.fetch.children.1.breakdown.next_reader_count: 0 }
   - gt: { profile.shards.0.fetch.children.1.breakdown.next_reader: 0 }
   - gt: { profile.shards.0.fetch.children.1.breakdown.next_reader_count: 0 }
   - gt: { profile.shards.0.fetch.children.1.breakdown.next_reader: 0 }
-  - match: { profile.shards.0.fetch.children.2.type: InnerHitsPhase }
-  - gt: { profile.shards.0.fetch.children.2.breakdown.next_reader_count: 0 }
-  - gt: { profile.shards.0.fetch.children.2.breakdown.next_reader: 0 }
-  - gt: { profile.shards.0.fetch.children.2.breakdown.next_reader_count: 0 }
-  - gt: { profile.shards.0.fetch.children.2.breakdown.next_reader: 0 }
-  - match: { profile.shards.0.fetch.children.3.type: StoredFieldsPhase }
+  - match: { profile.shards.0.fetch.children.2.type: StoredFieldsPhase }

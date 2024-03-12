@@ -41,6 +41,7 @@ public class FieldFetcher {
      * Build a FieldFetcher for a given search context and collection of fields and formats
      */
     public static FieldFetcher create(SearchExecutionContext context, Collection<FieldAndFormat> fieldAndFormats) {
+
         List<String> unmappedFetchPattern = new ArrayList<>();
         List<ResolvedField> resolvedFields = new ArrayList<>();
 

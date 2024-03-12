@@ -118,8 +118,22 @@ public final class EsqlExpressionTranslators {
         }
     }
 
-    // TODO: Probably don't need this; I just pulled everything form the QL version for a first draft
-
+    /**
+     * This class is responsible for pushing the ES|QL Binary Comparison operators into Lucene.  It covers:
+     *  <ul>
+     *      <li>{@link Equals}</li>
+     *      <li>{@link NotEquals}</li>
+     *      <li>{@link NullEquals}</li>
+     *      <li>{@link GreaterThanOrEqual}</li>
+     *      <li>{@link GreaterThan}</li>
+     *      <li>{@link LessThanOrEqual}</li>
+     *      <li>{@link LessThan}</li>
+     *  </ul>
+     *
+     *  In general, we are able to push these down when one of the arguments is a constant (i.e. is foldable).  This class assumes
+     *  that an earlier pass through the query has rearranged things so that the foldable value will be the right hand side
+     *  input to the operation.
+     */
     public static class BinaryComparisons extends ExpressionTranslator<BinaryComparison> {
         @Override
         protected Query asQuery(BinaryComparison bc, TranslatorHandler handler) {
@@ -127,6 +141,7 @@ public final class EsqlExpressionTranslators {
         }
 
         public static Query doTranslate(BinaryComparison bc, TranslatorHandler handler) {
+            // TODO: Pretty sure this check is redundant with the one at the beginning of translate
             ExpressionTranslators.BinaryComparisons.checkBinaryComparison(bc);
             Query translated = translateOutOfRangeComparisons(bc);
             if (translated != null) {
@@ -188,6 +203,7 @@ public final class EsqlExpressionTranslators {
             if (DataTypes.isDateTime(attribute.dataType())) {
                 zoneId = bc.zoneId();
             }
+            
             if (bc instanceof GreaterThan) {
                 return new RangeQuery(source, name, value, false, null, false, format, zoneId);
             }

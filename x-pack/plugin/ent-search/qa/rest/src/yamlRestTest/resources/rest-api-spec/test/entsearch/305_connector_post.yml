@@ -106,6 +106,16 @@ setup:
 
 
 ---
+'Create Connector - Without index attached':
+  - do:
+      connector.post:
+        body:
+          service_type: super-connector
+
+  - set:  { id: id }
+  - match: { id: $id }
+
+---
 "Post connector fails for unprivileged user":
   - skip:
       features: headers

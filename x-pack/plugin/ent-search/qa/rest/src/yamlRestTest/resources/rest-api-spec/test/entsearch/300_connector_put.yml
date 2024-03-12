@@ -135,6 +135,15 @@ setup:
         body:
           index_name: search-test
 
+---
+'Create Connector - Without index attached':
+  - do:
+      connector.put:
+        connector_id: test-connector-1
+        body:
+          service_type: super-connector
+
+  - match: { result: 'created' }
 
 ---
 "Put connector fails for unprivileged user":

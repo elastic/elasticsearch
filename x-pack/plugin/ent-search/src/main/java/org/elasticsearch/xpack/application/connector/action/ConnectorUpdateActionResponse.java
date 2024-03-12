@@ -32,7 +32,7 @@ public class ConnectorUpdateActionResponse extends ActionResponse implements ToX
         result = DocWriteResponse.Result.readFrom(in);
     }
 
-    public  ConnectorUpdateActionResponse(DocWriteResponse.Result result) {
+    public ConnectorUpdateActionResponse(DocWriteResponse.Result result) {
         this.result = result;
     }
 

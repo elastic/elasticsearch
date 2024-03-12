@@ -58,6 +58,7 @@ import org.elasticsearch.xpack.application.connector.action.UpdateConnectorStatu
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -693,7 +694,7 @@ public class ConnectorIndexService {
     }
 
     /**
-     * Updates the index name property of a {@link Connector}.
+     * Updates the index name property of a {@link Connector}. Index name can be null to detach an index from connector.
      *
      * @param request  The request for updating the connector's index name.
      * @param listener The listener for handling responses, including successful updates or errors.
@@ -719,8 +720,11 @@ public class ConnectorIndexService {
                     new IndexRequest(CONNECTOR_INDEX_NAME).opType(DocWriteRequest.OpType.INDEX)
                         .id(connectorId)
                         .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                        .source(Map.of(Connector.INDEX_NAME_FIELD.getPreferredName(), request.getIndexName()))
-
+                        .source(new HashMap<>() {
+                            {
+                                put(Connector.INDEX_NAME_FIELD.getPreferredName(), request.getIndexName());
+                            }
+                        })
                 );
                 client.update(updateRequest, new DelegatingIndexNotFoundActionListener<>(connectorId, listener, (ll, updateResponse) -> {
                     if (updateResponse.getResult() == UpdateResponse.Result.NOT_FOUND) {

@@ -12,7 +12,6 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -32,7 +31,6 @@ import java.io.IOException;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class PostConnectorAction {
@@ -91,7 +89,7 @@ public class PostConnectorAction {
 
         static {
             PARSER.declareString(optionalConstructorArg(), new ParseField("description"));
-            PARSER.declareString(constructorArg(), new ParseField("index_name"));
+            PARSER.declareString(optionalConstructorArg(), new ParseField("index_name"));
             PARSER.declareBoolean(optionalConstructorArg(), new ParseField("is_native"));
             PARSER.declareString(optionalConstructorArg(), new ParseField("language"));
             PARSER.declareString(optionalConstructorArg(), new ParseField("name"));

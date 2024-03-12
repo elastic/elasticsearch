@@ -38,7 +38,7 @@ public class Concat extends EsqlScalarFunction {
 
     static final long MAX_CONCAT_LENGTH = MB.toBytes(1);
 
-    @FunctionInfo(returnType = "keyword", description = "Concatenates two or more strings.")
+    @FunctionInfo(returnType = "keyword", description = "Concatenates two or more strings.", minArgs = "2")
     public Concat(
         Source source,
         @Param(name = "first", type = { "keyword", "text" }) Expression first,

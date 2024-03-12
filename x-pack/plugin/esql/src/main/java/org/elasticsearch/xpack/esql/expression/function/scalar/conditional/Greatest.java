@@ -38,7 +38,8 @@ public class Greatest extends EsqlScalarFunction implements OptionalArgument {
 
     @FunctionInfo(
         returnType = { "integer", "long", "double", "boolean", "keyword", "text", "ip", "version" },
-        description = "Returns the maximum value from many columns."
+        description = "Returns the maximum value from many columns.",
+        minArgs = "1"
     )
     public Greatest(
         Source source,

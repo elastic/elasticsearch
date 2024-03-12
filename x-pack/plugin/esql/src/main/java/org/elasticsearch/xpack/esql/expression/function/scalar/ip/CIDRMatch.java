@@ -49,7 +49,11 @@ public class CIDRMatch extends EsqlScalarFunction {
     private final Expression ipField;
     private final List<Expression> matches;
 
-    @FunctionInfo(returnType = "boolean", description = "Returns true if the provided IP is contained in one of the provided CIDR blocks.")
+    @FunctionInfo(
+        returnType = "boolean",
+        description = "Returns true if the provided IP is contained in one of the provided CIDR blocks.",
+        minArgs = "2"
+    )
     public CIDRMatch(
         Source source,
         @Param(name = "ip", type = { "ip" }) Expression ipField,

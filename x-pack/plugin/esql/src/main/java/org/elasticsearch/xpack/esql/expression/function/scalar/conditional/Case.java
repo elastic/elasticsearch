@@ -60,7 +60,8 @@ public final class Case extends EsqlScalarFunction {
             "version" },
         description = """
             Accepts pairs of conditions and values.
-            The function returns the value that belongs to the first condition that evaluates to true."""
+            The function returns the value that belongs to the first condition that evaluates to true.""",
+        minArgs = "3"
     )
     public Case(
         Source source,

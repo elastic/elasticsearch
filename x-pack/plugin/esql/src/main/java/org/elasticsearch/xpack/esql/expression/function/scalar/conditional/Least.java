@@ -38,7 +38,8 @@ public class Least extends EsqlScalarFunction implements OptionalArgument {
 
     @FunctionInfo(
         returnType = { "integer", "long", "double", "boolean", "keyword", "text", "ip", "version" },
-        description = "Returns the minimum value from many columns."
+        description = "Returns the minimum value from many columns.",
+        minArgs = "1"
     )
     public Least(
         Source source,

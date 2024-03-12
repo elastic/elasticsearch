@@ -23,4 +23,6 @@ public @interface FunctionInfo {
     String description() default "";
 
     boolean isAggregation() default false;
+
+    String minArgs() default "";
 }

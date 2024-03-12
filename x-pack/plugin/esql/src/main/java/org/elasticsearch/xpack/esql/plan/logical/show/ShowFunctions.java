@@ -39,9 +39,9 @@ public class ShowFunctions extends LeafPlan {
         for (var name : List.of("name", "synopsis", "argNames", "argTypes", "argDescriptions", "returnType", "description")) {
             attributes.add(new ReferenceAttribute(Source.EMPTY, name, KEYWORD));
         }
-        for (var name : List.of("optionalArgs", "variadic", "isAggregation")) {
-            attributes.add(new ReferenceAttribute(Source.EMPTY, name, BOOLEAN));
-        }
+        attributes.add(new ReferenceAttribute(Source.EMPTY, "optionalArgs", BOOLEAN));
+        attributes.add(new ReferenceAttribute(Source.EMPTY, "minArgs", KEYWORD));
+        attributes.add(new ReferenceAttribute(Source.EMPTY, "isAggregation", BOOLEAN));
     }
 
     @Override
@@ -62,7 +62,7 @@ public class ShowFunctions extends LeafPlan {
             row.add(withPipes(signature.returnType()));
             row.add(signature.description());
             row.add(collect(signature, EsqlFunctionRegistry.ArgSignature::optional));
-            row.add(signature.variadic());
+            row.add(asBytesRefOrNull(signature.minArgs()));
             row.add(signature.isAggregation());
             rows.add(row);
         }

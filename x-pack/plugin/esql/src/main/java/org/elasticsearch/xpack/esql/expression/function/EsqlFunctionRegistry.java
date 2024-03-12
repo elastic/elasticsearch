@@ -232,7 +232,7 @@ public final class EsqlFunctionRegistry extends FunctionRegistry {
         List<ArgSignature> args,
         String[] returnType,
         String description,
-        boolean variadic,
+        String minArgs,
         boolean isAggregation
     ) {
         public String fullSignature() {
@@ -250,7 +250,7 @@ public final class EsqlFunctionRegistry extends FunctionRegistry {
                     builder.append("?");
                 }
                 builder.append(arg.name());
-                if (i == args.size() - 1 && variadic) {
+                if (i == args.size() - 1 && minArgs.equals("") == false) {
                     builder.append("...");
                 }
                 builder.append(":");
@@ -269,22 +269,21 @@ public final class EsqlFunctionRegistry extends FunctionRegistry {
     public static FunctionDescription description(FunctionDefinition def) {
         var constructors = def.clazz().getConstructors();
         if (constructors.length == 0) {
-            return new FunctionDescription(def.name(), List.of(), null, null, false, false);
+            return new FunctionDescription(def.name(), List.of(), null, null, null, false);
         }
         Constructor<?> constructor = constructors[0];
         FunctionInfo functionInfo = constructor.getAnnotation(FunctionInfo.class);
         String functionDescription = functionInfo == null ? "" : functionInfo.description().replace('\n', ' ');
         String[] returnType = functionInfo == null ? new String[] { "?" } : functionInfo.returnType();
+        String minArgs = functionInfo == null ? "" : functionInfo.minArgs();
         var params = constructor.getParameters(); // no multiple c'tors supported
 
         List<EsqlFunctionRegistry.ArgSignature> args = new ArrayList<>(params.length);
-        boolean variadic = false;
         boolean isAggregation = functionInfo == null ? false : functionInfo.isAggregation();
         for (int i = 1; i < params.length; i++) { // skipping 1st argument, the source
             if (Configuration.class.isAssignableFrom(params[i].getType()) == false) {
                 Param paramInfo = params[i].getAnnotation(Param.class);
                 String name = paramInfo == null ? params[i].getName() : paramInfo.name();
-                variadic |= List.class.isAssignableFrom(params[i].getType());
                 String[] type = paramInfo == null ? new String[] { "?" } : paramInfo.type();
                 String desc = paramInfo == null ? "" : paramInfo.description().replace('\n', ' ');
                 boolean optional = paramInfo == null ? false : paramInfo.optional();
@@ -292,7 +291,7 @@ public final class EsqlFunctionRegistry extends FunctionRegistry {
                 args.add(new EsqlFunctionRegistry.ArgSignature(name, type, desc, optional));
             }
         }
-        return new FunctionDescription(def.name(), args, returnType, functionDescription, variadic, isAggregation);
+        return new FunctionDescription(def.name(), args, returnType, functionDescription, minArgs, isAggregation);
     }
 
 }

@@ -1051,7 +1051,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                         new ColumnInfo("returnType", "keyword"),
                         new ColumnInfo("description", "keyword"),
                         new ColumnInfo("optionalArgs", "boolean"),
-                        new ColumnInfo("variadic", "boolean"),
+                        new ColumnInfo("minArgs", "keyword"),
                         new ColumnInfo("isAggregation", "boolean")
                     )
                 )

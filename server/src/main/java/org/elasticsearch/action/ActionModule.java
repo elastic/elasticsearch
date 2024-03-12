@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.cluster.allocation.TransportClusterAllocationExplainAction;
 import org.elasticsearch.action.admin.cluster.allocation.TransportDeleteDesiredBalanceAction;
+import org.elasticsearch.action.admin.cluster.allocation.TransportGetAllocationStatsAction;
 import org.elasticsearch.action.admin.cluster.allocation.TransportGetDesiredBalanceAction;
 import org.elasticsearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.cluster.configuration.TransportClearVotingConfigExclusionsAction;
@@ -645,6 +646,7 @@ public class ActionModule extends AbstractModule {
         actions.register(TransportAddVotingConfigExclusionsAction.TYPE, TransportAddVotingConfigExclusionsAction.class);
         actions.register(TransportClearVotingConfigExclusionsAction.TYPE, TransportClearVotingConfigExclusionsAction.class);
         actions.register(TransportClusterAllocationExplainAction.TYPE, TransportClusterAllocationExplainAction.class);
+        actions.register(TransportGetAllocationStatsAction.TYPE, TransportGetAllocationStatsAction.class);
         actions.register(TransportGetDesiredBalanceAction.TYPE, TransportGetDesiredBalanceAction.class);
         actions.register(TransportDeleteDesiredBalanceAction.TYPE, TransportDeleteDesiredBalanceAction.class);
         actions.register(ClusterStatsAction.INSTANCE, TransportClusterStatsAction.class);

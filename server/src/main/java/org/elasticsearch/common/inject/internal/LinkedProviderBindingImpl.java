@@ -44,8 +44,8 @@ public final class LinkedProviderBindingImpl<T> extends BindingImpl<T> implement
     }
 
     @Override
-    public <V> V acceptTargetVisitor(BindingTargetVisitor<? super T, V> visitor) {
-        return visitor.visit(this);
+    public <V> void acceptTargetVisitor(BindingTargetVisitor<? super T, V> visitor) {
+        visitor.visit(this);
     }
 
     @Override

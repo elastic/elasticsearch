@@ -52,7 +52,7 @@ equal to `1`. Defaults to `60`.
 (Optional, integer) This value determines the size of the individual result sets per
 query. A higher value will improve result relevance at the cost of performance. The final
 ranked result set is pruned down to the search request's <<search-size-param, size>>.
-`window_size` must be greater than or equal to `size` and greater than or equal to `1`.
+`window_size` must be greater than or equal to (`from` + `size`) and greater than or equal to `1`.
 Defaults to `100`.
 
 An example request using RRF:

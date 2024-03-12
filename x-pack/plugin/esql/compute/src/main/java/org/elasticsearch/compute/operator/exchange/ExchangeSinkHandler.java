@@ -49,10 +49,10 @@ public final class ExchangeSinkHandler {
         this.lastUpdatedInMillis = new AtomicLong(nowInMillis.getAsLong());
     }
 
-    private class LocalExchangeSink implements ExchangeSink {
+    private class ExchangeSinkImpl implements ExchangeSink {
         boolean finished;
 
-        LocalExchangeSink() {
+        ExchangeSinkImpl() {
             onChanged();
             outstandingSinks.incrementAndGet();
         }
@@ -155,7 +155,7 @@ public final class ExchangeSinkHandler {
      * @see ExchangeSinkOperator
      */
     public ExchangeSink createExchangeSink() {
-        return new LocalExchangeSink();
+        return new ExchangeSinkImpl();
     }
 
     /**

@@ -417,8 +417,8 @@ public class Realms extends AbstractLifecycleComponent implements Iterable<Realm
             .orElseThrow(() -> new IllegalStateException("reserved realm realm ref not found"));
     }
 
-    // to be used in tests only
-    protected int getRealmRefsCount() {
+    // useful only for testing
+    int getRealmRefsCount() {
         return realmRefs.size();
     }
 

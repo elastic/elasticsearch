@@ -289,7 +289,7 @@ public abstract class PackagingTestCase extends Assert {
     protected void assertWhileRunning(Platforms.PlatformAction assertions) throws Exception {
         try {
             awaitElasticsearchStartup(runElasticsearchStartCommand(null, true, false));
-        } catch (Exception e) {
+        } catch (AssertionError|Exception e) {
             dumpDebug();
             throw e;
         }

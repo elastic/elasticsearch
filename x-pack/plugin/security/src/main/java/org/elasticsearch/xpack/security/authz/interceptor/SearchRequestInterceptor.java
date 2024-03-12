@@ -52,7 +52,7 @@ public class SearchRequestInterceptor extends FieldAndDocumentLevelSecurityReque
             } else {
                 if (hasZeroMinDocTermsAggregation(request)) {
                     assert request.source() != null && request.source().aggregations() != null;
-                    request.source().aggregations().forceTermsAggsToExcludedDeletedDocs();
+                    request.source().aggregations().forceTermsAggsToExcludeDeletedDocs();
                 }
 
                 listener.onResponse(null);

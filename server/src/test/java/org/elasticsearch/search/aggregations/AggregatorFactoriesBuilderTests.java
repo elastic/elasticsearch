@@ -138,7 +138,7 @@ public class AggregatorFactoriesBuilderTests extends AbstractXContentSerializing
         assertFalse(builder.hasZeroMinDocTermsAggregation());
         termsAggregationBuilder.minDocCount(0);
         assertTrue(builder.hasZeroMinDocTermsAggregation());
-        builder.forceTermsAggsToExcludedDeletedDocs();
+        builder.forceTermsAggsToExcludeDeletedDocs();
         assertTrue(termsAggregationBuilder.excludeDeletedDocs());
 
         // nested
@@ -154,7 +154,7 @@ public class AggregatorFactoriesBuilderTests extends AbstractXContentSerializing
         }
         if (hasZeroMinDocTermsAggregation) {
             assertTrue(nested.hasZeroMinDocTermsAggregation());
-            nested.forceTermsAggsToExcludedDeletedDocs();
+            nested.forceTermsAggsToExcludeDeletedDocs();
             for (AggregationBuilder agg : nested.getAggregatorFactories()) {
                 if (agg instanceof TermsAggregationBuilder) {
                     assertTrue(((TermsAggregationBuilder) agg).excludeDeletedDocs());

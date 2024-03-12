@@ -50,11 +50,7 @@ public class DownsampleShardPersistentTaskExecutorTests extends ESTestCase {
         Instant start = now.minus(2, ChronoUnit.HOURS);
         Instant end = now.plus(40, ChronoUnit.MINUTES);
         initialClusterState = DataStreamTestHelper.getClusterStateWithDataStream("metrics-app1", List.of(new Tuple<>(start, end)));
-        executor = new DownsampleShardPersistentTaskExecutor(
-            mock(Client.class),
-            DownsampleShardTask.TASK_NAME,
-            mock(Executor.class)
-        );
+        executor = new DownsampleShardPersistentTaskExecutor(mock(Client.class), DownsampleShardTask.TASK_NAME, mock(Executor.class));
     }
 
     public void testGetAssignment() {

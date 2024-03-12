@@ -8,6 +8,8 @@
 
 package org.elasticsearch.nativeaccess.jdk;
 
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.nativeaccess.lib.SystemdLibrary;
 
 import java.io.IOException;
@@ -24,6 +26,8 @@ import static java.lang.foreign.ValueLayout.JAVA_INT;
 import static org.elasticsearch.nativeaccess.jdk.LinkerHelper.downcallHandle;
 
 class JdkSystemdLibrary implements SystemdLibrary {
+    private static final Logger logger = LogManager.getLogger(JdkSystemdLibrary.class);
+
     static {
         System.load(findLibSystemd());
     }
@@ -36,9 +40,16 @@ class JdkSystemdLibrary implements SystemdLibrary {
         for (String basepathStr : libpath.split(":")) {
             var basepath = Paths.get(basepathStr);
             if (Files.exists(basepath) == false) {
+                logger.info("Library path [" + basepathStr + "] does not exist");
                 continue;
             }
             try (var stream = Files.walk(basepath)) {
+                stream.filter(Files::isRegularFile).forEach(p -> logger.info("Library file: " + p));
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+            try (var stream = Files.walk(basepath)) {
+
                 var foundpath = stream.filter(Files::isDirectory).map(p -> p.resolve(libsystemd)).filter(Files::exists).findAny();
                 if (foundpath.isPresent()) {
                     return foundpath.get().toAbsolutePath().toString();

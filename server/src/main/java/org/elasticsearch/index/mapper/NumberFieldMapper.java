@@ -227,7 +227,7 @@ public class NumberFieldMapper extends FieldMapper {
             if (this.script.get() == null) {
                 return null;
             }
-            return type.compile(name, script.get(), scriptCompiler);
+            return type.compile(name(), script.get(), scriptCompiler);
         }
 
         public Builder dimension(boolean dimension) {
@@ -271,8 +271,8 @@ public class NumberFieldMapper extends FieldMapper {
                 dimension.setValue(true);
             }
 
-            MappedFieldType ft = new NumberFieldType(context.buildFullName(name), this);
-            return new NumberFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo, context.isSourceSynthetic(), this);
+            MappedFieldType ft = new NumberFieldType(context.buildFullName(name()), this);
+            return new NumberFieldMapper(name(), ft, multiFieldsBuilder.build(this, context), copyTo, context.isSourceSynthetic(), this);
         }
     }
 

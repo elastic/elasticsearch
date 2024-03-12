@@ -4121,7 +4121,6 @@ public class EsqlBaseParser extends Parser {
   @SuppressWarnings("CheckReturnValue")
   public static class ComparisonOperatorContext extends ParserRuleContext {
     public TerminalNode EQ() { return getToken(EsqlBaseParser.EQ, 0); }
-    public TerminalNode CIEQ() { return getToken(EsqlBaseParser.CIEQ, 0); }
     public TerminalNode NEQ() { return getToken(EsqlBaseParser.NEQ, 0); }
     public TerminalNode LT() { return getToken(EsqlBaseParser.LT, 0); }
     public TerminalNode LTE() { return getToken(EsqlBaseParser.LTE, 0); }
@@ -4156,7 +4155,7 @@ public class EsqlBaseParser extends Parser {
       {
       setState(467);
       _la = _input.LA(1);
-      if ( !((((_la) & ~0x3f) == 0 && ((1L << _la) & 285978576338026496L) != 0)) ) {
+      if ( !((((_la) & ~0x3f) == 0 && ((1L << _la) & 281474976710656000L) != 0)) ) {
       _errHandler.recoverInline(this);
       }
       else {
@@ -4657,7 +4656,7 @@ public class EsqlBaseParser extends Parser {
     "\u0002\u0004\u0006\b\n\f\u000e\u0010\u0012\u0014\u0016\u0018\u001a\u001c"+
     "\u001e \"$&(*,.02468:<>@BDFHJLNPRTVXZ\\^`b\u0000\b\u0001\u0000:;\u0001"+
     "\u0000<>\u0002\u0000BBGG\u0001\u0000AB\u0002\u0000\u001f\u001f\"\"\u0001"+
-    "\u0000%&\u0002\u0000$$22\u0001\u000039\u0215\u0000d\u0001\u0000\u0000"+
+    "\u0000%&\u0002\u0000$$22\u0002\u00003359\u0215\u0000d\u0001\u0000\u0000"+
     "\u0000\u0002g\u0001\u0000\u0000\u0000\u0004v\u0001\u0000\u0000\u0000\u0006"+
     "\u0085\u0001\u0000\u0000\u0000\b\u0087\u0001\u0000\u0000\u0000\n\u00a6"+
     "\u0001\u0000\u0000\u0000\f\u00c1\u0001\u0000\u0000\u0000\u000e\u00c8\u0001"+

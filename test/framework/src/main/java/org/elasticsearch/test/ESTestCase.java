@@ -169,6 +169,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -499,6 +500,7 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     @Before
     public final void before() {
+        LeakTracker.setContextHint(getTestName());
         logger.info("{}before test", getTestParamsForLogging());
         assertNull("Thread context initialized twice", threadContext);
         if (enableWarningsCheck()) {
@@ -530,6 +532,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         ensureAllSearchContextsReleased();
         ensureCheckIndexPassed();
         logger.info("{}after test", getTestParamsForLogging());
+        LeakTracker.setContextHint("");
     }
 
     private String getTestParamsForLogging() {
@@ -702,7 +705,6 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     // separate method so that this can be checked again after suite scoped cluster is shut down
     protected static void checkStaticState() throws Exception {
-        LeakTracker.INSTANCE.reportLeak();
         MockBigArrays.ensureAllArraysAreReleased();
 
         // ensure no one changed the status logger level on us
@@ -2079,6 +2081,15 @@ public abstract class ESTestCase extends LuceneTestCase {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             fail(e, "safeAwait: interrupted waiting for CountDownLatch to reach zero");
+        }
+    }
+
+    public static void safeAcquire(Semaphore semaphore) {
+        try {
+            assertTrue("safeAcquire: Semaphore did not acquire permit within the timeout", semaphore.tryAcquire(10, TimeUnit.SECONDS));
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            fail(e, "safeAcquire: interrupted waiting for Semaphore to acquire permit");
         }
     }
 

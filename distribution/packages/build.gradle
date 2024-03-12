@@ -143,7 +143,7 @@ def commonPackageConfig(String type, String architecture) {
         with libFiles
       }
       into('modules') {
-        with modulesFiles('linux-' + ((architecture == 'x64') ? 'x86_64' : architecture))
+        with modulesFiles('linux', architecture)
       }
       into('jdk') {
         with jdkFiles(project, 'linux', architecture)

@@ -9,6 +9,7 @@ package org.elasticsearch.blobcache;
 
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.blobcache.common.ByteRange;
+import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.core.Streams;
 
@@ -29,6 +30,17 @@ public class BlobCacheUtils {
      */
     public static int toIntBytes(long l) {
         return ByteSizeUnit.BYTES.toIntBytes(l);
+    }
+
+    /**
+     * Rounds the length up so that it is aligned on the next page size (defined by SharedBytes.PAGE_SIZE). For example
+     */
+    public static long toPageAlignedSize(long length) {
+        int remainder = (int) length % SharedBytes.PAGE_SIZE;
+        if (remainder > 0L) {
+            return length + (SharedBytes.PAGE_SIZE - remainder);
+        }
+        return length;
     }
 
     public static void throwEOF(long channelPos, long len) throws EOFException {

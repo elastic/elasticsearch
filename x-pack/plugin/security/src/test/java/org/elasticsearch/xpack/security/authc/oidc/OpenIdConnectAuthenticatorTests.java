@@ -1065,6 +1065,7 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
         final MockLogAppender appender = new MockLogAppender();
         appender.start();
         Loggers.addAppender(logger, appender);
+        // Note: Setting an org.apache.http logger to DEBUG requires es.insecure_network_trace_enabled=true
         Loggers.setLevel(logger, Level.DEBUG);
         try {
             appender.addExpectation(

@@ -1,0 +1,33 @@
+[discrete]
+[[esql-st_y]]
+=== `ST_Y`
+
+*Syntax*
+
+[.text-center]
+image::esql/functions/signature/st_y.svg[Embedded,opts=inline]
+
+*Parameters*
+
+`point`::
+Expression of type `geo_point` or `cartesian_point`. If `null`, the function returns `null`.
+
+*Description*
+
+Extracts the `y` coordinate from the supplied point.
+If the points is of type `geo_point` this is equivalent to extracting the `latitude` value.
+
+*Supported types*
+
+include::types/st_y.asciidoc[]
+
+*Example*
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/spatial.csv-spec[tag=st_x_y]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/spatial.csv-spec[tag=st_x_y-result]
+|===

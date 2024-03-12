@@ -3837,7 +3837,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         @Override
         public void onFailure(Exception e) {
             final var logLevel = snapshotFailureLogLevel(e);
-            if (logLevel == Level.INFO && logger.isDebugEnabled() == false) {
+            if (logLevel == Level.INFO) {
                 // suppress stack trace at INFO unless extra verbosity is configured
                 logger.info(
                     format(

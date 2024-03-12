@@ -49,7 +49,7 @@ public class TestFixturesDeployPlugin implements Plugin<Project> {
                     );
                     task.getPush().set(BuildParams.isCi());
                     task.getPlatforms().addAll(Arrays.stream(Architecture.values()).map(a -> a.dockerPlatform).toList());
-                    task.setGroup("test fixtures");
+                    task.setGroup("Deploy TestFixtures");
                     task.setDescription("Deploys the " + fixture.getName() + " test fixture");
                 })
         );

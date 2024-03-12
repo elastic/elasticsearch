@@ -224,6 +224,21 @@ row a = [1.1, 2.1, 2.1] | eval da = mv_dedupe(a);
 [1.1, 2.1, 2.1] | [1.1, 2.1]
 ;
 
+mvSliceEmp#[skip:-8.13.99, reason:newly added in 8.14]
+from employees
+| eval a1 = mv_slice(salary_change, 0, 1)
+| keep emp_no, salary_change, a1
+| sort emp_no
+| limit 5;
+
+emp_no:integer | salary_change:double    | a1:double
+10001          | 1.19                    | 1.19
+10002          | [-7.23,11.17]           | [-7.23,11.17]
+10003          | [12.82,14.68]           | [12.82,14.68]
+10004          | [-0.35,1.13,3.65,13.48] | [-0.35, 1.13]
+10005          | [-2.14,13.07]           | [-2.14,13.07]
+;
+
 autoBucket
 FROM employees
 | WHERE hire_date >= "1985-01-01T00:00:00Z" AND hire_date < "1986-01-01T00:00:00Z"

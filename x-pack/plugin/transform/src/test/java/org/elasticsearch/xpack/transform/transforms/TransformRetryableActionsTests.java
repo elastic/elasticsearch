@@ -91,7 +91,7 @@ public class TransformRetryableActionsTests extends ESTestCase {
     }
 
     private ActionListener<Boolean> retryListener() {
-        return ActionListener.<Boolean>noop().delegateResponse((l,e) -> fail(e, "Retry Listener is never expected to fail."));
+        return ActionListener.<Boolean>noop().delegateResponse((l, e) -> fail(e, "Retry Listener is never expected to fail."));
     }
 
     private ActionListener<Void> responseListener() {

@@ -40,11 +40,11 @@ class JdkSystemdLibrary implements SystemdLibrary {
         for (String basepathStr : libpath.split(":")) {
             var basepath = Paths.get(basepathStr);
             if (Files.exists(basepath) == false) {
-                logger.info("Library path [" + basepathStr + "] does not exist");
+                logger.warn("Library path [" + basepathStr + "] does not exist");
                 continue;
             }
             try (var stream = Files.walk(basepath)) {
-                stream.filter(Files::isRegularFile).forEach(p -> logger.info("Library file: " + p));
+                stream.filter(Files::isRegularFile).forEach(p -> logger.warn("Library file: " + p));
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }

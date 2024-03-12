@@ -30,10 +30,10 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasItem;
@@ -44,7 +44,7 @@ import static org.hamcrest.Matchers.not;
 @WithoutSecurityManager
 public class JvmOptionsParserTests extends ESTestCase {
 
-    private static final Map<String, String> TEST_SYSPROPS = Map.of("os.name", "Linux", "os.arch", "aarch64");
+    private static final Map<String, String> TEST_SYSPROPS = Map.of("os.name", "Linux", "os.arch", "aarch64", "java.library.path", "/usr/lib");
 
     public void testSubstitution() {
         final List<String> jvmOptions = JvmOptionsParser.substitutePlaceholders(
@@ -395,7 +395,8 @@ public class JvmOptionsParserTests extends ESTestCase {
     }
 
     private void assertLibraryPath(String os, String arch, String expected) {
-        var sysprops = Map.of("os.name", os, "os.arch", arch);
+        String existingPath = "/usr/lib";
+        var sysprops = Map.of("os.name", os, "os.arch", arch, "java.library.path", existingPath);
         final List<String> jvmOptions = SystemJvmOptions.systemJvmOptions(Settings.EMPTY, sysprops);
         Map<String, String> options = new HashMap<>();
         for (var jvmOption : jvmOptions) {
@@ -406,7 +407,13 @@ public class JvmOptionsParserTests extends ESTestCase {
             }
         }
         String separator = FileSystems.getDefault().getSeparator();
-        assertThat(options, hasEntry(equalTo("java.library.path"), endsWith("platform" + separator + expected)));
-        assertThat(options, hasEntry(equalTo("jna.library.path"), endsWith("platform" + separator + expected)));
+        assertThat(
+            options,
+            hasEntry(equalTo("java.library.path"), allOf(containsString("platform" + separator + expected), containsString(existingPath)))
+        );
+        assertThat(
+            options,
+            hasEntry(equalTo("jna.library.path"), allOf(containsString("platform" + separator + expected), containsString(existingPath)))
+        );
     }
 }

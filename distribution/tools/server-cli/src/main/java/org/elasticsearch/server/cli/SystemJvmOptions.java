@@ -11,6 +11,7 @@ package org.elasticsearch.server.cli;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 
+import java.io.File;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
@@ -23,7 +24,7 @@ final class SystemJvmOptions {
     static List<String> systemJvmOptions(Settings nodeSettings, final Map<String, String> sysprops) {
         String distroType = sysprops.get("es.distribution.type");
         boolean isHotspot = sysprops.getOrDefault("sun.management.compiler", "").contains("HotSpot");
-        Path libraryPath = findLibraryPath(sysprops);
+        String libraryPath = findLibraryPath(sysprops);
 
         return Stream.of(
             /*
@@ -134,9 +135,11 @@ final class SystemJvmOptions {
         return "";
     }
 
-    private static Path findLibraryPath(Map<String, String> sysprops) {
+    private static String findLibraryPath(Map<String, String> sysprops) {
         // working dir is ES installation, so we use relative path here
         Path platformDir = Paths.get("lib", "platform");
+        String existingPath = sysprops.get("java.library.path");
+        assert existingPath != null;
 
         String osname = sysprops.get("os.name");
         String os;
@@ -158,6 +161,6 @@ final class SystemJvmOptions {
         } else {
             arch = "unsupported_arch[" + archname + "]";
         }
-        return platformDir.resolve(os + "-" + arch).toAbsolutePath();
+        return platformDir.resolve(os + "-" + arch).toAbsolutePath() + File.pathSeparator + existingPath;
     }
 }

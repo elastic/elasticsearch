@@ -21,6 +21,8 @@ import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.LevenshteinAutomata;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.common.geo.ShapeRelation;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.time.DateMathParser;
@@ -62,6 +64,8 @@ import java.util.stream.Stream;
  */
 public class ConstantKeywordFieldMapper extends FieldMapper {
 
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(ConstantKeywordFieldMapper.class);
+
     public static final String CONTENT_TYPE = "constant_keyword";
 
     private static ConstantKeywordFieldMapper toType(FieldMapper in) {
@@ -98,6 +102,13 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
 
         @Override
         public ConstantKeywordFieldMapper build(MapperBuilderContext context) {
+            if (multiFieldsBuilder.hasMultiFields()) {
+                DEPRECATION_LOGGER.warn(
+                    DeprecationCategory.MAPPINGS,
+                    CONTENT_TYPE + "_multifields",
+                    "Adding multifields to [" + CONTENT_TYPE + "] mappers has no effect and will be forbidden in future"
+                );
+            }
             return new ConstantKeywordFieldMapper(
                 name(),
                 new ConstantKeywordFieldType(context.buildFullName(name()), value.getValue(), meta.getValue())

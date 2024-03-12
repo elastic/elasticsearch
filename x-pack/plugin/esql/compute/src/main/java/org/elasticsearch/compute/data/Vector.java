@@ -75,4 +75,11 @@ public interface Vector extends Accountable, RefCounted, Releasable {
      * Whether this vector was released
      */
     boolean isReleased();
+
+    /**
+     * The serialization type of vectors: 0 and 1 replaces the boolean false/true in pre-8.14.
+     */
+    byte SERIALIZE_VECTOR_VALUES = 0;
+    byte SERIALIZE_VECTOR_CONSTANT = 1;
+    byte SERIALIZE_VECTOR_ARRAY = 2;
 }

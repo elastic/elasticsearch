@@ -446,7 +446,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
 
     // TODO cranky time
 
-    public final void testSimpleWithNulls() { // TODO replace this with nulls inserted into the test case like anyNullIsNull
+    public void testSimpleWithNulls() { // TODO replace this with nulls inserted into the test case like anyNullIsNull
         assumeTrue("nothing to do if a type error", testCase.getExpectedTypeError() == null);
         assumeTrue("All test data types must be representable in order to build fields", testCase.allTypesAreRepresentable());
         List<Object> simpleData = testCase.getDataValues();
@@ -967,7 +967,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         Map.entry(
             Set.of(EsqlDataTypes.CARTESIAN_POINT, EsqlDataTypes.CARTESIAN_SHAPE, DataTypes.KEYWORD, DataTypes.TEXT, DataTypes.NULL),
             "cartesian_point or cartesian_shape or string"
-        )
+        ),
+        Map.entry(Set.of(EsqlDataTypes.GEO_POINT, EsqlDataTypes.CARTESIAN_POINT, DataTypes.NULL), "geo_point or cartesian_point")
     );
 
     // TODO: generate this message dynamically, a la AbstractConvertFunction#supportedTypesNames()?

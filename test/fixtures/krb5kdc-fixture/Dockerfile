@@ -5,7 +5,5 @@ RUN bash /fixture/src/main/resources/provision/installkdc.sh
 
 EXPOSE 88
 EXPOSE 88/udp
-EXPOSE 4444
 
-# RUN bash /fixture/src/main/resources/provision/hdfs.sh
 CMD sleep infinity

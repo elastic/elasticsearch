@@ -2,8 +2,6 @@
 
 set -e
 
-echo "/etc/hosts"
-echo $(cat "/etc/hosts")
 addprinc.sh "elasticsearch"
 addprinc.sh "hdfs/hdfs.build.elastic.co"
 

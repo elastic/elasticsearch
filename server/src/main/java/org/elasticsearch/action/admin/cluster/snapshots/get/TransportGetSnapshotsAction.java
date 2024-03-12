@@ -21,11 +21,18 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.util.concurrent.AbstractThrottledTaskRunner;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
+import org.elasticsearch.common.util.concurrent.ThrottledIterator;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
@@ -40,6 +47,7 @@ import org.elasticsearch.snapshots.SnapshotMissingException;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -55,6 +63,7 @@ import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiPredicate;
+import java.util.function.BooleanSupplier;
 import java.util.function.Predicate;
 import java.util.function.ToLongFunction;
 import java.util.stream.Stream;
@@ -63,6 +72,8 @@ import java.util.stream.Stream;
  * Transport Action for get snapshots operation
  */
 public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSnapshotsRequest, GetSnapshotsResponse> {
+
+    private static final Logger logger = LogManager.getLogger(TransportGetSnapshotsAction.class);
 
     private final RepositoriesService repositoriesService;
 
@@ -163,6 +174,9 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         private final boolean verbose;
         private final boolean indices;
 
+        // snapshot info throttling
+        private final GetSnapshotInfoExecutor getSnapshotInfoExecutor;
+
         // results
         private final Map<String, ElasticsearchException> failuresByRepository = ConcurrentCollections.newConcurrentMap();
         private final Queue<List<SnapshotInfo>> allSnapshotInfos = ConcurrentCollections.newQueue();
@@ -201,6 +215,11 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             this.snapshotsInProgress = snapshotsInProgress;
             this.verbose = verbose;
             this.indices = indices;
+
+            this.getSnapshotInfoExecutor = new GetSnapshotInfoExecutor(
+                threadPool.info(ThreadPool.Names.SNAPSHOT_META).getMax(),
+                cancellableTask::isCancelled
+            );
 
             for (final var missingRepo : resolvedRepositories.missing()) {
                 failuresByRepository.put(missingRepo, new RepositoryMissingException(missingRepo));
@@ -433,11 +452,34 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                 // only need to synchronize accesses related to reading SnapshotInfo from the repo
                 final List<SnapshotInfo> syncSnapshots = Collections.synchronizedList(snapshots);
 
-                repository.getSnapshotInfo(snapshotIdsToIterate, ignoreUnavailable == false, cancellableTask::isCancelled, snapshotInfo -> {
-                    if (predicates.test(snapshotInfo)) {
-                        syncSnapshots.add(snapshotInfo.maybeWithoutIndices(indices));
-                    }
-                }, listeners.acquire());
+                ThrottledIterator.run(
+                    Iterators.failFast(snapshotIdsToIterate.iterator(), () -> cancellableTask.isCancelled() || listeners.isFailing()),
+                    (ref, snapshotId) -> {
+                        final var refListener = ActionListener.runBefore(listeners.acquire(), ref::close);
+                        getSnapshotInfoExecutor.getSnapshotInfo(repository, snapshotId, new ActionListener<>() {
+                            @Override
+                            public void onResponse(SnapshotInfo snapshotInfo) {
+                                if (predicates.test(snapshotInfo)) {
+                                    syncSnapshots.add(snapshotInfo.maybeWithoutIndices(indices));
+                                }
+                                refListener.onResponse(null);
+                            }
+
+                            @Override
+                            public void onFailure(Exception e) {
+                                if (ignoreUnavailable) {
+                                    logger.warn(Strings.format("failed to fetch snapshot info for [%s:%s]", repository, snapshotId), e);
+                                    refListener.onResponse(null);
+                                } else {
+                                    refListener.onFailure(e);
+                                }
+                            }
+                        });
+                    },
+                    getSnapshotInfoExecutor.getMaxRunningTasks(),
+                    () -> {},
+                    () -> {}
+                );
             }
         }
 
@@ -726,5 +768,35 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
 
     private record SnapshotsInRepo(List<SnapshotInfo> snapshotInfos, int totalCount, int remaining) {
         private static final SnapshotsInRepo EMPTY = new SnapshotsInRepo(List.of(), 0, 0);
+    }
+
+    /**
+     * Throttling executor for retrieving {@link SnapshotInfo} instances from the repository without spamming the SNAPSHOT_META threadpool
+     * and starving other users of access to it. Similar to {@link Repository#getSnapshotInfo} but allows for finer-grained control over
+     * which snapshots are retrieved.
+     */
+    private static class GetSnapshotInfoExecutor extends AbstractThrottledTaskRunner<ActionListener<Releasable>> {
+        private final int maxRunningTasks;
+        private final BooleanSupplier isCancelledSupplier;
+
+        GetSnapshotInfoExecutor(int maxRunningTasks, BooleanSupplier isCancelledSupplier) {
+            super(GetSnapshotsAction.NAME, maxRunningTasks, EsExecutors.DIRECT_EXECUTOR_SERVICE, ConcurrentCollections.newBlockingQueue());
+            this.maxRunningTasks = maxRunningTasks;
+            this.isCancelledSupplier = isCancelledSupplier;
+        }
+
+        int getMaxRunningTasks() {
+            return maxRunningTasks;
+        }
+
+        void getSnapshotInfo(Repository repository, SnapshotId snapshotId, ActionListener<SnapshotInfo> listener) {
+            enqueueTask(listener.delegateFailure((l, ref) -> {
+                if (isCancelledSupplier.getAsBoolean()) {
+                    l.onFailure(new TaskCancelledException("task cancelled"));
+                } else {
+                    repository.getSnapshotInfo(snapshotId, ActionListener.releaseAfter(l, ref));
+                }
+            }));
+        }
     }
 }

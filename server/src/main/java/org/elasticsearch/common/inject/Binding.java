@@ -31,9 +31,7 @@ import org.elasticsearch.common.inject.spi.Element;
  * <pre>
  *     bind(Service.class).annotatedWith(Red.class).to(ServiceImpl.class);
  *     bindConstant().annotatedWith(ServerHost.class).to(args[0]);</pre></li>
- * <li>Implicitly by the Injector by following a type's {@link ImplementedBy
- * pointer} {@link ProvidedBy annotations} or by using its {@link Inject annotated} or
- * default constructor.</li>
+ * <li>Implicitly by the Injector by using its {@link Inject annotated} or default constructor.</li>
  * <li>By converting a bound instance to a different type.</li>
  * <li>For {@link Provider providers}, by delegating to the binding for the provided type.</li>
  * </ul>

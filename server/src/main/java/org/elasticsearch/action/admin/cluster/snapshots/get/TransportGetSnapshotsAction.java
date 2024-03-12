@@ -46,7 +46,6 @@ import org.elasticsearch.transport.TransportService;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -487,7 +486,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
 
         private SnapshotsInRepo sortSnapshots(Stream<SnapshotInfo> snapshotInfoStream, int totalCount, int offset, int size) {
             final var resultsStream = snapshotInfoStream.filter(sortBy.getAfterPredicate(after, order))
-                .sorted(buildComparator())
+                .sorted(sortBy.getSnapshotInfoComparator(order))
                 .skip(offset);
             if (size == GetSnapshotsRequest.NO_LIMIT) {
                 return new SnapshotsInRepo(resultsStream.toList(), totalCount, 0);
@@ -505,11 +504,6 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                 }
                 return new SnapshotsInRepo(results, totalCount, remaining);
             }
-        }
-
-        private Comparator<SnapshotInfo> buildComparator() {
-            final var comparator = sortBy.getSnapshotInfoComparator();
-            return order == SortOrder.DESC ? comparator.reversed() : comparator;
         }
     }
 

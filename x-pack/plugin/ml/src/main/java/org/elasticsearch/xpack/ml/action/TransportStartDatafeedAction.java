@@ -345,6 +345,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                     MlTasks.datafeedTaskId(params.getDatafeedId()),
                     MlTasks.DATAFEED_TASK_NAME,
                     params,
+                    null,
                     listener
                 ),
                 listener::onFailure
@@ -407,7 +408,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         Exception exception,
         ActionListener<NodeAcknowledgedResponse> listener
     ) {
-        persistentTasksService.sendRemoveRequest(persistentTask.getId(), new ActionListener<>() {
+        persistentTasksService.sendRemoveRequest(persistentTask.getId(), null, new ActionListener<>() {
             @Override
             public void onResponse(PersistentTasksCustomMetadata.PersistentTask<?> task) {
                 // We succeeded in cancelling the persistent task, but the

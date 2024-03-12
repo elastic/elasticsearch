@@ -398,23 +398,23 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         return recoveryRangeSize;
     }
 
-    private int getRegion(long position) {
+    protected int getRegion(long position) {
         return (int) (position / regionSize);
     }
 
-    private int getRegionRelativePosition(long position) {
+    protected int getRegionRelativePosition(long position) {
         return (int) (position % regionSize);
     }
 
-    private long getRegionStart(int region) {
+    protected long getRegionStart(int region) {
         return (long) region * regionSize;
     }
 
-    private long getRegionEnd(int region) {
+    protected long getRegionEnd(int region) {
         return (long) (region + 1) * regionSize;
     }
 
-    private int getEndingRegion(long position) {
+    protected int getEndingRegion(long position) {
         return getRegion(position - (position % regionSize == 0 ? 1 : 0));
     }
 
@@ -683,6 +683,23 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         }
     }
 
+    protected boolean assertOffsetsWithinFileLength(long offset, long length, long fileLength) {
+        assert offset >= 0L;
+        assert length > 0L;
+        assert fileLength > 0L;
+        assert offset + length <= fileLength
+            : "accessing ["
+                + length
+                + "] bytes at offset ["
+                + offset
+                + "] in cache file ["
+                + this
+                + "] would be beyond file length ["
+                + fileLength
+                + ']';
+        return true;
+    }
+
     /**
      * While this class has incRef and tryIncRef methods, incRefEnsureOpen and tryIncrefEnsureOpen should
      * always be used, ensuring the right ordering between incRef/tryIncRef and ensureOpen
@@ -698,6 +715,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         CacheFileRegion(RegionKey<KeyType> regionKey, int regionSize) {
             this.regionKey = regionKey;
             assert regionSize > 0;
+            // NOTE we use a constant string for description to avoid consume extra heap space
             tracker = new SparseFileTracker("file", regionSize);
         }
 
@@ -955,6 +973,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         }
 
         public boolean tryRead(ByteBuffer buf, long offset) throws IOException {
+            assert assertOffsetsWithinFileLength(offset, buf.remaining(), length);
             final int startRegion = getRegion(offset);
             final long end = offset + buf.remaining();
             final int endRegion = getEndingRegion(end);
@@ -984,6 +1003,8 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             final RangeAvailableHandler reader,
             final RangeMissingHandler writer
         ) throws Exception {
+            assert assertOffsetsWithinFileLength(rangeToWrite.start(), rangeToWrite.length(), length);
+            assert assertOffsetsWithinFileLength(rangeToRead.start(), rangeToRead.length(), length);
             // We are interested in the total time that the system spends when fetching a result (including time spent queuing), so we start
             // our measurement here.
             final long startTime = threadPool.relativeTimeInNanos();

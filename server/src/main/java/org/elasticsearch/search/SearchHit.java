@@ -204,7 +204,7 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
         this.innerHits = innerHits;
         this.documentFields = documentFields;
         this.metaFields = metaFields;
-        this.refCounted = refCounted == null ? LeakTracker.wrap(new SimpleRefCounted()) : ALWAYS_REFERENCED;
+        this.refCounted = refCounted == null ? LeakTracker.wrap(new SimpleRefCounted()) : refCounted;
     }
 
     public static SearchHit readFrom(StreamInput in, boolean pooled) throws IOException {
@@ -233,8 +233,10 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
         }
         final Map<String, DocumentField> documentFields = in.readMap(DocumentField::new);
         final Map<String, DocumentField> metaFields = in.readMap(DocumentField::new);
-        final Map<String, HighlightField> highlightFields = in.readMapValues(HighlightField::new, HighlightField::name);
-        final SearchSortValues sortValues = new SearchSortValues(in);
+        Map<String, HighlightField> highlightFields = in.readMapValues(HighlightField::new, HighlightField::name);
+        highlightFields = highlightFields.isEmpty() ? null : unmodifiableMap(highlightFields);
+
+        final SearchSortValues sortValues = SearchSortValues.readFrom(in);
 
         final Map<String, Float> matchedQueries;
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
@@ -257,12 +259,17 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
             index = shardTarget.getIndex();
             clusterAlias = shardTarget.getClusterAlias();
         }
+
+        boolean isPooled = pooled && source != null;
         final Map<String, SearchHits> innerHits;
         int size = in.readVInt();
         if (size > 0) {
             innerHits = Maps.newMapWithExpectedSize(size);
             for (int i = 0; i < size; i++) {
-                innerHits.put(in.readString(), SearchHits.readFrom(in, pooled));
+                var key = in.readString();
+                var nestedHits = SearchHits.readFrom(in, pooled);
+                innerHits.put(key, nestedHits);
+                isPooled = isPooled || nestedHits.isPooled();
             }
         } else {
             innerHits = null;
@@ -277,7 +284,7 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
             seqNo,
             primaryTerm,
             source,
-            unmodifiableMap(highlightFields),
+            highlightFields,
             sortValues,
             matchedQueries,
             explanation,
@@ -288,7 +295,7 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
             innerHits,
             documentFields,
             metaFields,
-            pooled ? null : ALWAYS_REFERENCED
+            isPooled ? null : ALWAYS_REFERENCED
         );
     }
 

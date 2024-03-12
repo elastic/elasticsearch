@@ -381,6 +381,7 @@ module org.elasticsearch.server {
     opens org.elasticsearch.common.logging to org.apache.logging.log4j.core;
 
     exports org.elasticsearch.action.datastreams.lifecycle;
+    exports org.elasticsearch.action.datastreams.autosharding;
     exports org.elasticsearch.action.downsample;
     exports org.elasticsearch.plugins.internal
         to

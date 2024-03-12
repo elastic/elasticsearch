@@ -105,7 +105,7 @@ public class PutConnectorAction {
 
         static {
             PARSER.declareString(optionalConstructorArg(), new ParseField("description"));
-            PARSER.declareString(optionalConstructorArg(), new ParseField("index_name"));
+            PARSER.declareStringOrNull(optionalConstructorArg(), new ParseField("index_name"));
             PARSER.declareBoolean(optionalConstructorArg(), new ParseField("is_native"));
             PARSER.declareString(optionalConstructorArg(), new ParseField("language"));
             PARSER.declareString(optionalConstructorArg(), new ParseField("name"));

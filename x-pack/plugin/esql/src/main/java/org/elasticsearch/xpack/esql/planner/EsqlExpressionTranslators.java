@@ -164,9 +164,9 @@ public final class EsqlExpressionTranslators {
             boolean isDateLiteralComparison = false;
 
             // TODO: This type coersion layer is copied directly from the QL counterpart code. It's probably not necessary or desireable
-            //       in the ESQL version. We should instead do the type conversions using our casting functions.
-            //       for a date constant comparison, we need to use a format for the date, to make sure that the format is the same
-            //       no matter the timezone provided by the user
+            // in the ESQL version. We should instead do the type conversions using our casting functions.
+            // for a date constant comparison, we need to use a format for the date, to make sure that the format is the same
+            // no matter the timezone provided by the user
             if (value instanceof ZonedDateTime || value instanceof OffsetTime) {
                 DateFormatter formatter;
                 if (value instanceof ZonedDateTime) {

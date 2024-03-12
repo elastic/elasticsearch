@@ -29,24 +29,18 @@ import static org.mockito.Mockito.when;
 
 public class TransformRetryableActionsTests extends ESTestCase {
     public void testFirstRunPasses() {
-        var retryListener = retryListener();
-        var responseListener = responseListener();
+        var retryResult = new AtomicReference<Boolean>();
+        var retryListener = ActionListener.wrap(retryResult::set, e -> fail("Retry Listener is never expected to fail."));
+        var responseResult = new AtomicBoolean(false);
+        var responseListener = ActionListener.<Void>wrap(r -> responseResult.set(true), e -> {});
 
         Consumer<ActionListener<Void>> immediatelyReturn = callOnResponse();
 
         transformRetryableActions().register("transformId", "name", immediatelyReturn, responseListener, retryListener, runTwice()).run();
 
-        assertTrue("Retry Listener should be called.", retryListener.listenerWasCalled());
-        assertFalse("Retries should not be scheduled.", retryListener.getResponse());
-        assertTrue("Response Listener should be called.", responseListener.listenerWasCalled());
-    }
-
-    private TestListener<Boolean> retryListener() {
-        return new TestListener<>(e -> fail(e, "Retry Listener is never expected to fail."));
-    }
-
-    private TestListener<Void> responseListener() {
-        return new TestListener<>(e -> {});
+        assertNotNull("Retry Listener should be called.", retryResult.get());
+        assertFalse("Retries should not be scheduled.", retryResult.get());
+        assertTrue("Response Listener should be called.", responseResult.get());
     }
 
     private Consumer<ActionListener<Void>> callOnResponse() {
@@ -63,15 +57,17 @@ public class TransformRetryableActionsTests extends ESTestCase {
     }
 
     public void testFirstRunFails() {
-        var retryListener = retryListener();
-        var responseListener = responseListener();
+        var retryResult = new AtomicReference<Boolean>();
+        var retryListener = ActionListener.wrap(retryResult::set, e -> fail("Retry Listener is never expected to fail."));
+        var responseResult = new AtomicBoolean(false);
+        var responseListener = ActionListener.<Void>wrap(r -> responseResult.set(true), e -> {});
 
         var failOnceThenReturn = failOnceThen(callOnResponse());
         transformRetryableActions().register("transformId", "name", failOnceThenReturn, responseListener, retryListener, runTwice()).run();
 
-        assertTrue("Retry Listener should be called.", retryListener.listenerWasCalled());
-        assertTrue("Retries should be scheduled.", retryListener.getResponse());
-        assertTrue("Response Listener should be called.", responseListener.listenerWasCalled());
+        assertNotNull("Retry Listener should be called.", retryResult.get());
+        assertTrue("Retries should be scheduled.", retryResult.get());
+        assertTrue("Response Listener should be called.", responseResult.get());
     }
 
     private Consumer<ActionListener<Void>> failOnceThen(Consumer<ActionListener<Void>> followup) {
@@ -94,13 +90,21 @@ public class TransformRetryableActionsTests extends ESTestCase {
         assertSame("When we register two actions under the same transform id and name, then we return the same object.", run1, run2);
     }
 
+    private ActionListener<Boolean> retryListener() {
+        return ActionListener.<Boolean>noop().delegateResponse((l,e) -> fail(e, "Retry Listener is never expected to fail."));
+    }
+
+    private ActionListener<Void> responseListener() {
+        return ActionListener.noop();
+    }
+
     public void testDifferentNamedActionsShouldNotDedupe() {
         var retryableActions = transformRetryableActions();
 
         var run1 = retryableActions.register("id1", "name", callOnResponse(), responseListener(), retryListener(), runTwice());
         var run2 = retryableActions.register("id2", "name", callOnResponse(), responseListener(), retryListener(), runTwice());
 
-        assertNotSame("When we register two actions under a different transform id and name, then we return the new objects.", run1, run2);
+        assertNotSame("When we register two actions under a different transform id and name, then we return new objects.", run1, run2);
     }
 
     public void testRetryableIsReported() {
@@ -180,35 +184,5 @@ public class TransformRetryableActionsTests extends ESTestCase {
         }
         assertTrue(retryableActions.retries("id1").isEmpty());
         assertFalse(retryableActions.retries("id2").isEmpty());
-    }
-
-    private static class TestListener<R> implements ActionListener<R> {
-        private final AtomicBoolean testRan = new AtomicBoolean(false);
-        private final Consumer<Exception> onFailure;
-        private final AtomicReference<R> capturedValue = new AtomicReference<>();
-
-        private TestListener(Consumer<Exception> onFailure) {
-            this.onFailure = onFailure;
-        }
-
-        public boolean listenerWasCalled() {
-            return testRan.get();
-        }
-
-        public R getResponse() {
-            return capturedValue.get();
-        }
-
-        @Override
-        public void onResponse(R response) {
-            testRan.set(true);
-            capturedValue.set(response);
-        }
-
-        @Override
-        public void onFailure(Exception e) {
-            testRan.set(true);
-            onFailure.accept(e);
-        }
     }
 }

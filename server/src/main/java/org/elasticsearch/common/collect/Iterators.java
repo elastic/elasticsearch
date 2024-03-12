@@ -227,6 +227,24 @@ public class Iterators {
         }
     }
 
+    /**
+     * Zips the elements of an iterator together with their index, using a function to combine the pair together into the final items
+     * produced by the iterator.
+     * <p>
+     * An example of its usage to zip a list of names together with their positional index in the list:
+     * </p>
+     * <pre><code>
+     * Iterator&lt;String&gt; nameIterator = ...;
+     * Iterator&lt;Tuple&lt;Integer, String&gt;&gt; zippedNames = Iterators.zip(nameIterator, Tuple::new);
+     * zippedNames.forEachRemaining(tuple -> System.out.println("Index: " + t.v1() + ", Name: " + t.v2()));
+     * </code></pre>
+     *
+     * @param input The iterator to wrap
+     * @param fn A function that takes the index for an entry and the entry itself, returning an item that combines them together
+     * @return An iterator that zips elements together with their indices in the underlying collection
+     * @param <T> The object type contained in the original iterator
+     * @param <U> The object type that results from combining the original entry with its index in the iterator
+     */
     public static <T, U> Iterator<U> zip(Iterator<? extends T> input, BiFunction<Integer, T, ? extends U> fn) {
         return new ZipIterator<>(Objects.requireNonNull(input), Objects.requireNonNull(fn));
     }
@@ -258,6 +276,25 @@ public class Iterators {
         }
     }
 
+    /**
+     * Adapts a {@link Supplier} object into an iterator. The resulting iterator will return values from the delegate Supplier until the
+     * delegate returns a <code>null</code> value. Once the delegate returns <code>null</code>, the iterator will claim to be empty.
+     * <p>
+     * An example of its usage to iterate over a queue while draining it at the same time:
+     * </p>
+     * <pre><code>
+     *     LinkedList&lt;String&gt; names = ...;
+     *     assert names.size() != 0;
+     *
+     *     Iterator&lt;String&gt; nameIterator = Iterator.fromSupplier(names::pollFirst);
+     *     nameIterator.forEachRemaining(System.out::println)
+     *     assert names.size() == 0;
+     * </code></pre>
+     *
+     * @param input A {@link Supplier} that returns null when no more elements should be returned from the iterator
+     * @return An iterator that returns elements by calling the supplier until a null value is returned
+     * @param <T> The object type returned from the supplier function
+     */
     public static <T> Iterator<T> fromSupplier(Supplier<? extends T> input) {
         return new SupplierIterator<>(Objects.requireNonNull(input));
     }

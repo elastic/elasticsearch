@@ -158,7 +158,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         if (handleBlockExceptions(clusterState, ActionRunnable.run(listener, this::doRedirectFailures), this::discardRedirectsAndFinish)) {
             return;
         }
-        Map<ShardId, List<BulkItemRequest>> requestsByShard = groupRedirectsByShards(clusterState);
+        Map<ShardId, List<BulkItemRequest>> requestsByShard = drainAndGroupRedirectsByShards(clusterState);
         executeBulkRequestsByShard(requestsByShard, clusterState, this::completeBulkOperation);
     }
 
@@ -174,7 +174,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         );
     }
 
-    private Map<ShardId, List<BulkItemRequest>> groupRedirectsByShards(ClusterState clusterState) {
+    private Map<ShardId, List<BulkItemRequest>> drainAndGroupRedirectsByShards(ClusterState clusterState) {
         return groupRequestsByShards(
             clusterState,
             Iterators.fromSupplier(failureStoreRedirects::poll),
@@ -300,7 +300,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
     }
 
     private void redirectFailuresOrCompleteBulkOperation() {
-        if (failureStoreRedirects.isEmpty() == false) {
+        if (DataStream.isFailureStoreEnabled() && failureStoreRedirects.isEmpty() == false) {
             doRedirectFailures();
         } else {
             completeBulkOperation();
@@ -351,12 +351,12 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
             public void onResponse(BulkShardResponse bulkShardResponse) {
                 for (int idx = 0; idx < bulkShardResponse.getResponses().length; idx++) {
                     // We zip the requests and responses together so that we can identify failed documents and potentially store them
-                    BulkItemRequest bulkItemRequest = bulkShardRequest.items()[idx];
                     BulkItemResponse bulkItemResponse = bulkShardResponse.getResponses()[idx];
 
-                    assert bulkItemRequest.id() == bulkItemResponse.getItemId() : "Bulk items were returned out of order";
-
                     if (bulkItemResponse.isFailed()) {
+                        BulkItemRequest bulkItemRequest = bulkShardRequest.items()[idx];
+                        assert bulkItemRequest.id() == bulkItemResponse.getItemId() : "Bulk items were returned out of order";
+
                         String failureStoreReference = getRedirectTarget(bulkItemRequest.request(), getClusterState().metadata());
                         if (failureStoreReference != null) {
                             addDocumentToRedirectRequests(bulkItemRequest, bulkItemResponse.getFailure().getCause(), failureStoreReference);

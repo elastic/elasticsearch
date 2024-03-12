@@ -14,19 +14,18 @@ import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
-import java.util.function.Supplier;
 
 public class FileResource implements Resource {
-    private final Supplier<Path> file;
+    private final Path file;
 
-    FileResource(Supplier<Path> file) {
+    FileResource(Path file) {
         this.file = file;
     }
 
     @Override
     public InputStream asStream() {
         try {
-            return Files.newInputStream(file.get(), StandardOpenOption.READ);
+            return Files.newInputStream(file, StandardOpenOption.READ);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

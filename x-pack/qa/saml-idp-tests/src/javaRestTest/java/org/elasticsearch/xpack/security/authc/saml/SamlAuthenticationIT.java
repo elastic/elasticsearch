@@ -73,7 +73,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-
 import javax.net.ssl.KeyManager;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManager;
@@ -251,7 +250,6 @@ public class SamlAuthenticationIT extends ESRestTestCase {
      * <li>Uses that token to verify the user details</li>
      * </ol>
      */
-    // @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/103595")
     public void testLoginUserWithSamlRoleMapping() throws Exception {
         final Tuple<String, String> authTokens = loginViaSaml("shibboleth");
         verifyElasticsearchAccessTokenForRoleMapping(authTokens.v1());
@@ -262,7 +260,6 @@ public class SamlAuthenticationIT extends ESRestTestCase {
         verifyElasticsearchAccessTokenInvalidated(accessToken);
     }
 
-    // @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/103595")
     public void testLoginUserWithAuthorizingRealm() throws Exception {
         final Tuple<String, String> authTokens = loginViaSaml("shibboleth_native");
         verifyElasticsearchAccessTokenForAuthorizingRealms(authTokens.v1());
@@ -273,7 +270,6 @@ public class SamlAuthenticationIT extends ESRestTestCase {
         verifyElasticsearchAccessTokenInvalidated(accessToken);
     }
 
-    // @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/103595")
     public void testLoginWithWrongRealmFails() throws Exception {
         final BasicHttpContext context = new BasicHttpContext();
         try (CloseableHttpClient client = getHttpClient()) {

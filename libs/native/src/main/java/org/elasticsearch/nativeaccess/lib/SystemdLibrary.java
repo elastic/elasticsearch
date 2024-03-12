@@ -6,12 +6,8 @@
  * Side Public License, v 1.
  */
 
-esplugin {
-  description 'Integrates Elasticsearch with systemd'
-  classname 'org.elasticsearch.systemd.SystemdPlugin'
-}
+package org.elasticsearch.nativeaccess.lib;
 
-dependencies {
-  implementation project(':libs:elasticsearch-native')
+public non-sealed interface SystemdLibrary extends NativeLibrary {
+    int sd_notify(int unset_environment, String state);
 }
-

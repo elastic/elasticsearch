@@ -155,47 +155,55 @@ GET my-index/_search
 ----
 // TEST[skip: TBD]
 
-This can also be achieved by using sub searches combined with <<rrf>>.
+This can also be achieved using <<rrf, reciprocal rank fusion (RRF)>>,
+through an <<rrf-retriever, `rrf` retriever>> with multiple
+<<standard-retriever, `standard` retrievers>>.
 
 [source,console]
 ----
 GET my-index/_search
 {
-  "sub_searches": [
-    {
-      "query": {
-        "multi_match": {
-          "query": "How is the weather in Jamaica?",
-          "fields": [
-            "title",
-            "description"
-          ]
-        }
-      }
-    },
-    {
-      "query": {
-        "text_expansion": {
-          "ml.inference.title_expanded.predicted_value": {
-            "model_id": ".elser_model_2",
-            "model_text": "How is the weather in Jamaica?"
-          }
-        }
-      }
-    },
-    {
-      "query": {
-        "text_expansion": {
-          "ml.inference.description_expanded.predicted_value": {
-            "model_id": ".elser_model_2",
-            "model_text": "How is the weather in Jamaica?"
-          }
-        }
-      }
-    }
-  ],
-  "rank": {
+  "retriever": {
     "rrf": {
+      "retrievers": [
+        {
+          "standard": {
+            "query": {
+              "multi_match": {
+                "query": "How is the weather in Jamaica?",
+                "fields": [
+                  "title",
+                  "description"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "standard": {
+            "query": {
+              "text_expansion": {
+                "ml.inference.title_expanded.predicted_value": {
+                  "model_id": ".elser_model_2",
+                  "model_text": "How is the weather in Jamaica?"
+                }
+              }
+            }
+          }
+        },
+        {
+          "standard": {
+            "query": {
+              "text_expansion": {
+                "ml.inference.description_expanded.predicted_value": {
+                  "model_id": ".elser_model_2",
+                  "model_text": "How is the weather in Jamaica?"
+                }
+              }
+            }
+          }
+        }
+      ],
       "window_size": 10,
       "rank_constant": 20
     }

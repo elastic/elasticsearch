@@ -11,6 +11,7 @@ package org.elasticsearch.nativeaccess.jna;
 import org.elasticsearch.nativeaccess.lib.JavaLibrary;
 import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
 import org.elasticsearch.nativeaccess.lib.PosixCLibrary;
+import org.elasticsearch.nativeaccess.lib.SystemdLibrary;
 import org.elasticsearch.nativeaccess.lib.ZstdLibrary;
 
 import java.util.Map;
@@ -25,6 +26,8 @@ public class JnaNativeLibraryProvider extends NativeLibraryProvider {
                 JnaJavaLibrary::new,
                 PosixCLibrary.class,
                 JnaPosixCLibrary::new,
+                SystemdLibrary.class,
+                JnaSystemdLibrary::new,
                 ZstdLibrary.class,
                 JnaZstdLibrary::new
             )

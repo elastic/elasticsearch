@@ -1,8 +1,8 @@
 
 ---
 "Help":
-  - skip:
-      version: " - 7.3.99"
+  - requires:
+      cluster_features: "cat_aliases_show_write_index"
       reason:  "is_write_index is shown in cat.aliases starting version 7.4.0"
 
   - do:
@@ -22,7 +22,7 @@
 ---
 "Help (pre 7.4.0)":
   - skip:
-      version: "7.4.0 - "
+      cluster_features: "cat_aliases_show_write_index"
       reason:  "is_write_index is shown in cat.aliases starting version 7.4.0"
 
   - do:
@@ -51,8 +51,8 @@
 
 ---
 "Simple alias":
-  - skip:
-      version: " - 7.3.99"
+  - requires:
+      cluster_features: "cat_aliases_show_write_index"
       reason:  "is_write_index is shown in cat.aliases starting version 7.4.0"
 
   - do:
@@ -81,7 +81,7 @@
 ---
 "Simple alias (pre 7.4.0)":
   - skip:
-      version: "7.4.0 - "
+      cluster_features: "cat_aliases_show_write_index"
       reason:  "is_write_index is shown in cat.aliases starting version 7.4.0"
 
   - do:
@@ -108,8 +108,8 @@
 
 ---
 "Complex alias":
-  - skip:
-      version: " - 7.3.99"
+  - requires:
+      cluster_features: "cat_aliases_show_write_index"
       reason:  "is_write_index is shown in cat.aliases starting version 7.4.0"
 
   - do:
@@ -149,7 +149,7 @@
 ---
 "Complex alias (pre 7.4.0)":
   - skip:
-      version: "7.4.0 - "
+      cluster_features: "cat_aliases_show_write_index"
       reason:  "is_write_index is shown in cat.aliases starting version 7.4.0"
 
   - do:
@@ -269,8 +269,8 @@
 
 ---
 "Column headers":
-  - skip:
-      version: " - 7.3.99"
+  - requires:
+      cluster_features: "cat_aliases_show_write_index"
       reason:  "is_write_index is shown in cat.aliases starting version 7.4.0"
 
   - do:
@@ -307,7 +307,7 @@
 ---
 "Column headers (pre 7.4.0)":
   - skip:
-      version: "7.4.0 - "
+      cluster_features: "cat_aliases_show_write_index"
       reason:  "is_write_index is shown in cat.aliases starting version 7.4.0"
 
   - do:
@@ -373,10 +373,10 @@
 
 ---
 "Alias against closed index":
-  - skip:
-      version: " - 7.3.99"
+  - requires:
+      cluster_features: "cat_aliases_show_write_index"
       reason:  "is_write_index is shown in cat.aliases starting version 7.4.0"
-      features: ["allowed_warnings"]
+      test_runner_features: ["allowed_warnings"]
 
   - do:
       indices.create:
@@ -409,9 +409,11 @@
 ---
 "Alias against closed index (pre 7.4.0)":
   - skip:
-      version: "7.4.0 - "
-      features: ["allowed_warnings"]
+      cluster_features: "cat_aliases_show_write_index"
       reason:  "is_write_index is shown in cat.aliases starting version 7.4.0"
+
+  - requires:
+      test_runner_features: ["allowed_warnings"]
 
   - do:
       indices.create:

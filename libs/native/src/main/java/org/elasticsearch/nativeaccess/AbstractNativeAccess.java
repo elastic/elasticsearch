@@ -33,6 +33,11 @@ abstract class AbstractNativeAccess implements NativeAccess {
     }
 
     @Override
+    public Systemd systemd() {
+        return null;
+    }
+
+    @Override
     public Zstd getZstd() {
         return zstd;
     }

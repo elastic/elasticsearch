@@ -24,6 +24,12 @@ class NoopNativeAccess implements NativeAccess {
     }
 
     @Override
+    public Systemd systemd() {
+        logger.warn("Cannot get systemd access because native access is not available");
+        return null;
+    }
+
+    @Override
     public Zstd getZstd() {
         logger.warn("cannot compress with zstd because native access is not available");
         return null;

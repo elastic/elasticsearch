@@ -25,7 +25,6 @@ import org.elasticsearch.common.inject.internal.InternalFactory;
 import org.elasticsearch.common.inject.internal.LinkedBindingImpl;
 import org.elasticsearch.common.inject.internal.LinkedProviderBindingImpl;
 import org.elasticsearch.common.inject.internal.ProviderInstanceBindingImpl;
-import org.elasticsearch.common.inject.internal.ProviderMethod;
 import org.elasticsearch.common.inject.internal.Scoping;
 import org.elasticsearch.common.inject.internal.UntargettedBindingImpl;
 import org.elasticsearch.common.inject.spi.BindingTargetVisitor;
@@ -62,12 +61,7 @@ class BindingProcessor extends AbstractProcessor {
         final Object source = command.getSource();
 
         if (Void.class.equals(command.getKey().getRawType())) {
-            if (command instanceof ProviderInstanceBinding
-                && ((ProviderInstanceBinding<?>) command).getProviderInstance() instanceof ProviderMethod) {
-                errors.voidProviderMethod();
-            } else {
-                errors.missingConstantValues();
-            }
+            errors.missingConstantValues();
             return true;
         }
 

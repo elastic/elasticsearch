@@ -386,7 +386,7 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
                 final GetSnapshotsResponse getSnapshotsResponse = sortedWithLimit(
                     repoName,
                     sort,
-                    GetSnapshotsRequest.After.from(after, sort).asQueryParam(),
+                    sort.encodeAfterQueryParam(after),
                     i,
                     order,
                     includeIndexNames

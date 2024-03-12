@@ -198,6 +198,7 @@ For instance
 bin/elasticsearch-keystore add xpack.security.authc.realms.oidc.oidc1.rp.client_secret
 ----
 
+NOTE: Changes to the `client_secret` requires a restart of the {es} nodes to pick up the change.
 
 NOTE: According to the OpenID Connect specification, the OP should also make their configuration
 available at a well known URL, which is the concatenation of their `Issuer` value with the

@@ -22,6 +22,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.xcontent.AbstractObjectParser;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -34,6 +35,7 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
@@ -77,12 +79,14 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
 
     public static final ParseField ENABLED_FIELD = new ParseField("enabled");
     public static final ParseField DATA_RETENTION_FIELD = new ParseField("data_retention");
+    public static final ParseField EFFECTIVE_RETENTION_FIELD = new ParseField("effective_retention");
+    public static final ParseField RETENTION_SOURCE_FIELD = new ParseField("retention_determined_by");
     public static final ParseField DOWNSAMPLING_FIELD = new ParseField("downsampling");
     private static final ParseField ROLLOVER_FIELD = new ParseField("rollover");
 
     public static final ConstructingObjectParser<DataStreamLifecycle, Void> PARSER = new ConstructingObjectParser<>(
         "lifecycle",
-        false,
+        true,
         (args, unused) -> new DataStreamLifecycle((Retention) args[0], (Downsampling) args[1], (Boolean) args[2])
     );
 
@@ -133,13 +137,39 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
      * @return the time period or null, null represents that data should never be deleted.
      */
     @Nullable
-    public TimeValue getEffectiveDataRetention() {
-        return getDataStreamRetention();
+    public TimeValue getEffectiveDataRetention(@Nullable DataStreamGlobalRetention globalRetention) {
+        return getEffectiveDataRetentionWithSource(globalRetention).v1();
+    }
+
+    /**
+     * The least amount of time data should be kept by elasticsearch.
+     * @return the time period or null, null represents that data should never be deleted.
+     */
+    @Nullable
+    public Tuple<TimeValue, RetentionSource> getEffectiveDataRetentionWithSource(@Nullable DataStreamGlobalRetention globalRetention) {
+        // If lifecycle is disabled there is no effective retention
+        if (enabled == false) {
+            return Tuple.tuple(null, RetentionSource.DATA_STREAM_CONFIGURATION);
+        }
+        var dataStreamRetention = getDataStreamRetention();
+        if (globalRetention == null) {
+            return Tuple.tuple(dataStreamRetention, RetentionSource.DATA_STREAM_CONFIGURATION);
+        }
+        if (dataStreamRetention == null) {
+            return globalRetention.getDefaultRetention() != null
+                ? Tuple.tuple(globalRetention.getDefaultRetention(), RetentionSource.DEFAULT_GLOBAL_RETENTION)
+                : Tuple.tuple(globalRetention.getMaxRetention(), RetentionSource.MAX_GLOBAL_RETENTION);
+        }
+        if (globalRetention.getMaxRetention() != null && globalRetention.getMaxRetention().getMillis() < dataStreamRetention.getMillis()) {
+            return Tuple.tuple(globalRetention.getMaxRetention(), RetentionSource.MAX_GLOBAL_RETENTION);
+        } else {
+            return Tuple.tuple(dataStreamRetention, RetentionSource.DATA_STREAM_CONFIGURATION);
+        }
     }
 
     /**
      * The least amount of time data the data stream is requesting es to keep the data.
-     * NOTE: this can be overriden by the {@link DataStreamLifecycle#getEffectiveDataRetention()}.
+     * NOTE: this can be overridden by the {@link DataStreamLifecycle#getEffectiveDataRetention(DataStreamGlobalRetention)}.
      * @return the time period or null, null represents that data should never be deleted.
      */
     @Nullable
@@ -232,30 +262,50 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return toXContent(builder, params, null);
+        return toXContent(builder, params, null, null);
     }
 
     /**
      * Converts the data stream lifecycle to XContent and injects the RolloverConditions if they exist.
+     * @deprecated use {@link #toXContent(XContentBuilder, Params, RolloverConfiguration, DataStreamGlobalRetention)}
      */
+    @Deprecated
     public XContentBuilder toXContent(XContentBuilder builder, Params params, @Nullable RolloverConfiguration rolloverConfiguration)
         throws IOException {
+        return toXContent(builder, params, rolloverConfiguration, null);
+    }
+
+    /**
+     * Converts the data stream lifecycle to XContent and injects the RolloverConditions and the global retention if they exist.
+     */
+    public XContentBuilder toXContent(
+        XContentBuilder builder,
+        Params params,
+        @Nullable RolloverConfiguration rolloverConfiguration,
+        @Nullable DataStreamGlobalRetention globalRetention
+    ) throws IOException {
         builder.startObject();
         builder.field(ENABLED_FIELD.getPreferredName(), enabled);
         if (dataRetention != null) {
-            if (dataRetention.value() == null) {
+            if (dataRetention.value == null) {
                 builder.nullField(DATA_RETENTION_FIELD.getPreferredName());
             } else {
-                builder.field(DATA_RETENTION_FIELD.getPreferredName(), dataRetention.value().getStringRep());
+                builder.field(DATA_RETENTION_FIELD.getPreferredName(), dataRetention.value.getStringRep());
             }
         }
+        Tuple<TimeValue, RetentionSource> effectiveRetention = getEffectiveDataRetentionWithSource(globalRetention);
+        if (effectiveRetention.v1() != null) {
+            builder.field(EFFECTIVE_RETENTION_FIELD.getPreferredName(), effectiveRetention.v1().getStringRep());
+            builder.field(RETENTION_SOURCE_FIELD.getPreferredName(), effectiveRetention.v2().displayName());
+        }
+
         if (downsampling != null) {
             builder.field(DOWNSAMPLING_FIELD.getPreferredName());
             downsampling.toXContent(builder, params);
         }
         if (rolloverConfiguration != null) {
             builder.field(ROLLOVER_FIELD.getPreferredName());
-            rolloverConfiguration.evaluateAndConvertToXContent(builder, params, getEffectiveDataRetention());
+            rolloverConfiguration.evaluateAndConvertToXContent(builder, params, getEffectiveDataRetention(globalRetention));
         }
         builder.endObject();
         return builder;
@@ -464,6 +514,19 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
                 builder.endArray();
             }
             return builder;
+        }
+    }
+
+    /**
+     * This enum represents all configuration sources that can influence the retention of a data stream.
+     */
+    public enum RetentionSource {
+        DATA_STREAM_CONFIGURATION,
+        DEFAULT_GLOBAL_RETENTION,
+        MAX_GLOBAL_RETENTION;
+
+        public String displayName() {
+            return this.toString().toLowerCase(Locale.ROOT);
         }
     }
 }

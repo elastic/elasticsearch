@@ -10,6 +10,7 @@ package org.elasticsearch.server.cli;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.SuppressForbidden;
 
 import java.io.File;
 import java.nio.file.FileSystems;
@@ -162,6 +163,11 @@ final class SystemJvmOptions {
         } else {
             arch = "unsupported_arch[" + archname + "]";
         }
-        return platformDir.resolve(os + "-" + arch).toAbsolutePath() + FileSystems.getDefault().getSeparator() + existingPath;
+        return platformDir.resolve(os + "-" + arch).toAbsolutePath() + getPathSeparator() + existingPath;
+    }
+
+    @SuppressForbidden(reason = "no way to get path separator with nio")
+    private static String getPathSeparator() {
+        return File.pathSeparator;
     }
 }

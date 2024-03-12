@@ -1465,10 +1465,7 @@ public class AnalyzerTests extends ESTestCase {
             | enrich languages on languages
             | keep first_name, language_name, id
             """));
-        assertThat(
-            e.getMessage(),
-            containsString("Unsupported type [INTEGER] for enrich matching field [languages]; only KEYWORD allowed")
-        );
+        assertThat(e.getMessage(), containsString("Unsupported type [INTEGER] for enrich matching field [languages]; only [KEYWORD,"));
     }
 
     public void testValidEnrich() {

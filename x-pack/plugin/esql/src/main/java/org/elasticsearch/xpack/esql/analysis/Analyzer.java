@@ -574,8 +574,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 if (resolved.equals(ua)) {
                     return enrich;
                 }
-                final DataType dataType = resolved.dataType();
                 if (resolved.resolved()) {
+                    final DataType dataType = resolved.dataType();
                     DataType[] allowed = new DataType[] { KEYWORD, IP, GEO_POINT, GEO_SHAPE };
                     if (Arrays.asList(allowed).contains(dataType) == false) {
                         String suffix = "only " + Arrays.toString(allowed) + " allowed";

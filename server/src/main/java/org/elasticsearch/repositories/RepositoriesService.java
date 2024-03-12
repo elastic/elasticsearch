@@ -71,7 +71,7 @@ import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE
 /**
  * Service responsible for maintaining and providing access to multiple repositories.
  *
- * The elected master creates new repositories on request and persists the repository information in the cluster state. The cluster state
+ * The elected master creates new repositories on request and persists the {@link RepositoryMetadata} in the cluster state. The cluster state
  * update then goes out to the rest of the cluster nodes so that all nodes know how to access the new repository. This class contains
  * factory information to create new repositories, and provides access to and maintains the lifecycle of repositories. New nodes can easily
  * find all the repositories via the cluster state after joining a cluster.

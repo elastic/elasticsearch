@@ -1,5 +1,5 @@
 pr: 106243
-summary: "[Transforms] Auto retry unattended Transform start"
-area: "Machine Learning, Transform"
+summary: "[Transform] Auto retry Transform start"
+area: "Transform"
 type: bug
 issues: []

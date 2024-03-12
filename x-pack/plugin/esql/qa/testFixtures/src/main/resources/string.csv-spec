@@ -740,6 +740,33 @@ emp_no:integer | full_name:keyword | full_name_2:keyword | job_positions:keyword
 10005          | Kyoichi Maliniak  | Maliniak,Kyoichi    | null                                                                   | [-2.14,13.07]                 | [-2.14,13.07]
 ;
 
+mvFind#[skip:-8.13.99, reason:newly added in 8.14]
+// tag::mv_find[]
+ROW a = ["Facello", "Simmel", "Bamford", "Koblick", "Maliniak"]
+| eval match = mv_find(a, "m+")
+// end::mv_find[]
+;
+
+// tag::mv_find-result[]
+a:keyword                                               | match:integer
+["Facello", "Simmel", "Bamford", "Koblick", "Maliniak"] | 1
+// end::mv_find-result[]
+;
+
+mvFindEmp#[skip:-8.13.99, reason:newly added in 8.14]
+from employees
+| eval match = mv_find(job_positions, "Senior")
+| sort emp_no
+| keep emp_no, job_positions, match
+| limit 3
+;
+
+emp_no:integer | job_positions:keyword                 | match:integer
+10001          | [Accountant, Senior Python Developer] | 1
+10002          | Senior Team Lead                      | 0
+10003          | null                                  | null
+;
+
 showTextFields
 from hosts | where host == "beta" | keep host, host_group, description;
 ignoreOrder:true

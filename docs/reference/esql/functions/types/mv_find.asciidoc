@@ -1,0 +1,6 @@
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+field | pattern | result
+keyword | keyword | integer
+text | text | integer
+|===

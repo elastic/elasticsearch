@@ -12,6 +12,7 @@
 * <<esql-mv_concat>>
 * <<esql-mv_count>>
 * <<esql-mv_dedupe>>
+* <<esql-mv_find>>
 * <<esql-mv_first>>
 * <<esql-mv_last>>
 * <<esql-mv_max>>
@@ -26,6 +27,7 @@ include::mv_avg.asciidoc[]
 include::mv_concat.asciidoc[]
 include::mv_count.asciidoc[]
 include::mv_dedupe.asciidoc[]
+include::mv_find.asciidoc[]
 include::mv_first.asciidoc[]
 include::mv_last.asciidoc[]
 include::mv_max.asciidoc[]

@@ -1,0 +1,35 @@
+[discrete]
+[[esql-mv_find]]
+=== `MV_FIND`
+
+*Syntax*
+
+[.text-center]
+image::esql/functions/signature/mv_find.svg[Embedded,opts=inline]
+
+*Parameters*
+
+`field`::
+Multivalue expression.
+
+`pattern`::
+Regular expression.
+
+*Description*
+
+Returns the index for the first value in a multivalued field that matches a regular expression.
+
+*Supported types*
+
+include::types/mv_find.asciidoc[]
+
+*Example*
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/string.csv-spec[tag=mv_find]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/string.csv-spec[tag=mv_find-result]
+|===

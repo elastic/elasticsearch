@@ -585,6 +585,8 @@ public class ShardStateAction {
         }
     }
 
+    record ClusterStateTimeRanges(IndexLongFieldRange timestampRange, IndexLongFieldRange eventIngestedRange) {}
+
     public static class ShardStartedClusterStateTaskExecutor implements ClusterStateTaskExecutor<StartedShardUpdateTask> {
         private final AllocationService allocationService;
         private final RerouteService rerouteService;
@@ -599,7 +601,7 @@ public class ShardStateAction {
             List<TaskContext<StartedShardUpdateTask>> tasksToBeApplied = new ArrayList<>();
             List<ShardRouting> shardRoutingsToBeApplied = new ArrayList<>(batchExecutionContext.taskContexts().size());
             Set<ShardRouting> seenShardRoutings = new HashSet<>(); // to prevent duplicates
-            final Map<Index, IndexLongFieldRange> updatedTimestampRanges = new HashMap<>();
+            final Map<Index, ClusterStateTimeRanges> updatedTimestampRanges = new HashMap<>();
             final ClusterState initialState = batchExecutionContext.initialState();
             for (var taskContext : batchExecutionContext.taskContexts()) {
                 final var task = taskContext.getTask();
@@ -664,7 +666,11 @@ public class ShardStateAction {
 
                             // expand the timestamp range recorded in the index metadata if needed
                             final Index index = entry.shardId.getIndex();
-                            IndexLongFieldRange currentTimestampMillisRange = updatedTimestampRanges.get(index);
+                            ClusterStateTimeRanges clusterStateTimeRanges = updatedTimestampRanges.get(index);
+                            IndexLongFieldRange currentTimestampMillisRange = clusterStateTimeRanges == null
+                                ? null
+                                : clusterStateTimeRanges.timestampRange();
+                            /// MP TODO: add in support for eventIngestedRange
                             final IndexMetadata indexMetadata = initialState.metadata().index(index);
                             if (currentTimestampMillisRange == null) {
                                 currentTimestampMillisRange = indexMetadata.getTimestampRange();
@@ -676,7 +682,11 @@ public class ShardStateAction {
                                 entry.timestampRange
                             );
                             if (newTimestampMillisRange != currentTimestampMillisRange) {
-                                updatedTimestampRanges.put(index, newTimestampMillisRange);
+                                /// MP TODO: add in support for eventIngestedRange
+                                updatedTimestampRanges.put(
+                                    index,
+                                    new ClusterStateTimeRanges(newTimestampMillisRange, IndexLongFieldRange.UNKNOWN)
+                                );
                             }
                         }
                     }
@@ -690,12 +700,15 @@ public class ShardStateAction {
 
                 if (updatedTimestampRanges.isEmpty() == false) {
                     final Metadata.Builder metadataBuilder = Metadata.builder(maybeUpdatedState.metadata());
-                    for (Map.Entry<Index, IndexLongFieldRange> updatedTimestampRangeEntry : updatedTimestampRanges.entrySet()) {
+                    for (Map.Entry<Index, ClusterStateTimeRanges> updatedTimestampRangeEntry : updatedTimestampRanges.entrySet()) {
+                        ClusterStateTimeRanges timeRanges = updatedTimestampRangeEntry.getValue();
                         metadataBuilder.put(
                             IndexMetadata.builder(metadataBuilder.getSafe(updatedTimestampRangeEntry.getKey()))
-                                .timestampRange(updatedTimestampRangeEntry.getValue())
+                                .timestampRange(timeRanges.timestampRange())
+                                .eventIngestedRange(timeRanges.eventIngestedRange())
                         );
                     }
+
                     maybeUpdatedState = ClusterState.builder(maybeUpdatedState).metadata(metadataBuilder).build();
                 }
 

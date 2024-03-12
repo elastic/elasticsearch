@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ResultDeduplicator;
 import org.elasticsearch.action.support.ChannelActionListener;
@@ -585,6 +586,11 @@ public class ShardStateAction {
         }
     }
 
+    /**
+     * TODO DOCUMENT ME
+     * @param timestampRange
+     * @param eventIngestedRange
+     */
     record ClusterStateTimeRanges(IndexLongFieldRange timestampRange, IndexLongFieldRange eventIngestedRange) {}
 
     public static class ShardStartedClusterStateTaskExecutor implements ClusterStateTaskExecutor<StartedShardUpdateTask> {
@@ -605,33 +611,38 @@ public class ShardStateAction {
             final ClusterState initialState = batchExecutionContext.initialState();
             for (var taskContext : batchExecutionContext.taskContexts()) {
                 final var task = taskContext.getTask();
-                StartedShardEntry entry = task.getEntry();
-                final ShardRouting matched = initialState.getRoutingTable().getByAllocationId(entry.shardId, entry.allocationId);
+                StartedShardEntry startedShardEntry = task.getEntry();
+                final ShardRouting matched = initialState.getRoutingTable()
+                    .getByAllocationId(startedShardEntry.shardId, startedShardEntry.allocationId);
                 if (matched == null) {
                     // tasks that correspond to non-existent shards are marked as successful. The reason is that we resend shard started
                     // events on every cluster state publishing that does not contain the shard as started yet. This means that old stale
                     // requests might still be in flight even after the shard has already been started or failed on the master. We just
                     // ignore these requests for now.
-                    logger.debug("{} ignoring shard started task [{}] (shard does not exist anymore)", entry.shardId, entry);
+                    logger.debug(
+                        "{} ignoring shard started task [{}] (shard does not exist anymore)",
+                        startedShardEntry.shardId,
+                        startedShardEntry
+                    );
                     taskContext.success(task::onSuccess);
                 } else {
-                    if (matched.primary() && entry.primaryTerm > 0) {
-                        final IndexMetadata indexMetadata = initialState.metadata().index(entry.shardId.getIndex());
+                    if (matched.primary() && startedShardEntry.primaryTerm > 0) {
+                        final IndexMetadata indexMetadata = initialState.metadata().index(startedShardEntry.shardId.getIndex());
                         assert indexMetadata != null;
-                        final long currentPrimaryTerm = indexMetadata.primaryTerm(entry.shardId.id());
-                        if (currentPrimaryTerm != entry.primaryTerm) {
-                            assert currentPrimaryTerm > entry.primaryTerm
+                        final long currentPrimaryTerm = indexMetadata.primaryTerm(startedShardEntry.shardId.id());
+                        if (currentPrimaryTerm != startedShardEntry.primaryTerm) {
+                            assert currentPrimaryTerm > startedShardEntry.primaryTerm
                                 : "received a primary term with a higher term than in the "
                                     + "current cluster state (received ["
-                                    + entry.primaryTerm
+                                    + startedShardEntry.primaryTerm
                                     + "] but current is ["
                                     + currentPrimaryTerm
                                     + "])";
                             logger.debug(
                                 "{} ignoring shard started task [{}] (primary term {} does not match current term {})",
-                                entry.shardId,
-                                entry,
-                                entry.primaryTerm,
+                                startedShardEntry.shardId,
+                                startedShardEntry,
+                                startedShardEntry.primaryTerm,
                                 currentPrimaryTerm
                             );
                             taskContext.success(task::onSuccess);
@@ -639,12 +650,12 @@ public class ShardStateAction {
                         }
                     }
                     if (matched.initializing() == false) {
-                        assert matched.active() : "expected active shard routing for task " + entry + " but found " + matched;
+                        assert matched.active() : "expected active shard routing for task " + startedShardEntry + " but found " + matched;
                         // same as above, this might have been a stale in-flight request, so we just ignore.
                         logger.debug(
                             "{} ignoring shard started task [{}] (shard exists but is not initializing: {})",
-                            entry.shardId,
-                            entry,
+                            startedShardEntry.shardId,
+                            startedShardEntry,
                             matched
                         );
                         taskContext.success(task::onSuccess);
@@ -653,39 +664,55 @@ public class ShardStateAction {
                         if (seenShardRoutings.contains(matched)) {
                             logger.trace(
                                 "{} ignoring shard started task [{}] (already scheduled to start {})",
-                                entry.shardId,
-                                entry,
+                                startedShardEntry.shardId,
+                                startedShardEntry,
                                 matched
                             );
                             tasksToBeApplied.add(taskContext);
                         } else {
-                            logger.debug("{} starting shard {} (shard started task: [{}])", entry.shardId, matched, entry);
+                            logger.debug(
+                                "{} starting shard {} (shard started task: [{}])",
+                                startedShardEntry.shardId,
+                                matched,
+                                startedShardEntry
+                            );
                             tasksToBeApplied.add(taskContext);
                             shardRoutingsToBeApplied.add(matched);
                             seenShardRoutings.add(matched);
 
-                            // expand the timestamp range recorded in the index metadata if needed
-                            final Index index = entry.shardId.getIndex();
+                            // expand the timestamp range(s) recorded in the index metadata if needed
+                            final Index index = startedShardEntry.shardId.getIndex();
                             ClusterStateTimeRanges clusterStateTimeRanges = updatedTimestampRanges.get(index);
                             IndexLongFieldRange currentTimestampMillisRange = clusterStateTimeRanges == null
                                 ? null
                                 : clusterStateTimeRanges.timestampRange();
-                            /// MP TODO: add in support for eventIngestedRange
+                            IndexLongFieldRange currentEventIngestedMillisRange = clusterStateTimeRanges == null
+                                ? null
+                                : clusterStateTimeRanges.eventIngestedRange();
+
                             final IndexMetadata indexMetadata = initialState.metadata().index(index);
                             if (currentTimestampMillisRange == null) {
                                 currentTimestampMillisRange = indexMetadata.getTimestampRange();
                             }
-                            final IndexLongFieldRange newTimestampMillisRange;
-                            newTimestampMillisRange = currentTimestampMillisRange.extendWithShardRange(
-                                entry.shardId.id(),
+                            if (currentEventIngestedMillisRange == null) {
+                                currentEventIngestedMillisRange = indexMetadata.getEventIngestedRange();
+                            }
+
+                            final IndexLongFieldRange newTimestampMillisRange = currentTimestampMillisRange.extendWithShardRange(
+                                startedShardEntry.shardId.id(),
                                 indexMetadata.getNumberOfShards(),
-                                entry.timestampRange
+                                startedShardEntry.timestampRange
                             );
-                            if (newTimestampMillisRange != currentTimestampMillisRange) {
-                                /// MP TODO: add in support for eventIngestedRange
+                            final IndexLongFieldRange newEventIngestedMillisRange = currentEventIngestedMillisRange.extendWithShardRange(
+                                startedShardEntry.shardId.id(),
+                                indexMetadata.getNumberOfShards(),
+                                startedShardEntry.eventIngestedRange
+                            );
+                            if (newTimestampMillisRange != currentTimestampMillisRange
+                                || newEventIngestedMillisRange != currentEventIngestedMillisRange) {
                                 updatedTimestampRanges.put(
                                     index,
-                                    new ClusterStateTimeRanges(newTimestampMillisRange, IndexLongFieldRange.UNKNOWN)
+                                    new ClusterStateTimeRanges(newTimestampMillisRange, newEventIngestedMillisRange)
                                 );
                             }
                         }
@@ -761,6 +788,7 @@ public class ShardStateAction {
         final long primaryTerm;
         final String message;
         final ShardLongFieldRange timestampRange;
+        final ShardLongFieldRange eventIngestedRange;
 
         StartedShardEntry(StreamInput in) throws IOException {
             super(in);
@@ -769,6 +797,11 @@ public class ShardStateAction {
             primaryTerm = in.readVLong();
             this.message = in.readString();
             this.timestampRange = ShardLongFieldRange.readFrom(in);
+            if (in.getTransportVersion().onOrAfter(TransportVersions.EVENT_INGESTED_RANGE_IN_CLUSTER_STATE)) {
+                this.eventIngestedRange = ShardLongFieldRange.readFrom(in);
+            } else {
+                this.eventIngestedRange = ShardLongFieldRange.UNKNOWN;
+            }
         }
 
         public StartedShardEntry(
@@ -776,13 +809,14 @@ public class ShardStateAction {
             final String allocationId,
             final long primaryTerm,
             final String message,
-            final ShardLongFieldRange timestampRange
+            final ShardLongFieldRange timestampRange  // TODO: add eventIngestedRange here
         ) {
             this.shardId = shardId;
             this.allocationId = allocationId;
             this.primaryTerm = primaryTerm;
             this.message = message;
             this.timestampRange = timestampRange;
+            this.eventIngestedRange = ShardLongFieldRange.UNKNOWN;  /// MP TODO set from incoming arg (optional?)
         }
 
         @Override
@@ -793,6 +827,9 @@ public class ShardStateAction {
             out.writeVLong(primaryTerm);
             out.writeString(message);
             timestampRange.writeTo(out);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.EVENT_INGESTED_RANGE_IN_CLUSTER_STATE)) {
+                eventIngestedRange.writeTo(out);
+            }
         }
 
         @Override
@@ -815,12 +852,12 @@ public class ShardStateAction {
                 && shardId.equals(that.shardId)
                 && allocationId.equals(that.allocationId)
                 && message.equals(that.message)
-                && timestampRange.equals(that.timestampRange);
+                && timestampRange.equals(that.timestampRange);  /// MP TODO: add eventIngestedRange here
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(shardId, allocationId, primaryTerm, message, timestampRange);
+            return Objects.hash(shardId, allocationId, primaryTerm, message, timestampRange);   /// MP TODO: add eventIngestedRange here
         }
     }
 

@@ -118,22 +118,27 @@ tasks.register("updateCIBwcVersions") {
     writeBuildkitePipeline(outputFilePath, pipelineTemplatePath, [], [new StepExpansion(templatePath: stepTemplatePath, versions: versions, variable: "BWC_STEPS")])
   }
 
+  // Filters out intermediate patch releases to reduce the load of CI testing
+  def filterIntermediatePatches = { List<Version> versions ->
+    versions.groupBy {"${it.major}.${it.minor}"}.values().collect {it.max()}
+  }
+
   doLast {
-    writeVersions(file(".ci/bwcVersions"), BuildParams.bwcVersions.allIndexCompatible)
-    writeVersions(file(".ci/snapshotBwcVersions"), BuildParams.bwcVersions.unreleasedIndexCompatible)
+    writeVersions(file(".ci/bwcVersions"), filterIntermediatePatches(BuildParams.bwcVersions.allIndexCompatible))
+    writeVersions(file(".ci/snapshotBwcVersions"), filterIntermediatePatches(BuildParams.bwcVersions.unreleasedIndexCompatible))
     expandBwcList(
       ".buildkite/pipelines/intake.yml",
       ".buildkite/pipelines/intake.template.yml",
-      BuildParams.bwcVersions.unreleasedIndexCompatible
+      filterIntermediatePatches(BuildParams.bwcVersions.unreleasedIndexCompatible)
     )
     writeBuildkitePipeline(
       ".buildkite/pipelines/periodic.yml",
       ".buildkite/pipelines/periodic.template.yml",
       [
-        new ListExpansion(versions: BuildParams.bwcVersions.unreleasedIndexCompatible, variable: "BWC_LIST"),
+        new ListExpansion(versions: filterIntermediatePatches(BuildParams.bwcVersions.unreleasedIndexCompatible), variable: "BWC_LIST"),
       ],
       [
-        new StepExpansion(templatePath: ".buildkite/pipelines/periodic.bwc.template.yml", versions: BuildParams.bwcVersions.allIndexCompatible, variable: "BWC_STEPS"),
+        new StepExpansion(templatePath: ".buildkite/pipelines/periodic.bwc.template.yml", versions: filterIntermediatePatches(BuildParams.bwcVersions.allIndexCompatible), variable: "BWC_STEPS"),
       ]
     )
 
@@ -141,7 +146,7 @@ tasks.register("updateCIBwcVersions") {
       ".buildkite/pipelines/periodic-packaging.yml",
       ".buildkite/pipelines/periodic-packaging.template.yml",
       ".buildkite/pipelines/periodic-packaging.bwc.template.yml",
-      BuildParams.bwcVersions.allIndexCompatible
+      filterIntermediatePatches(BuildParams.bwcVersions.allIndexCompatible)
     )
   }
 }

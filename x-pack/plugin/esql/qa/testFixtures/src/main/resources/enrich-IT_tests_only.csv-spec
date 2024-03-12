@@ -214,7 +214,7 @@ count:long | age_group:keyword
 1          | Middle-aged
 ;
 
-spatialEnrichmentKeywordMatch
+spatialEnrichmentKeywordMatch#[skip:-8.12.99, reason:geo_shape added in 8.13.0]
 FROM airports
 | WHERE abbrev == "CPH"
 | ENRICH city_names ON city WITH airport, region, city_boundary

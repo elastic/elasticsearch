@@ -200,10 +200,12 @@ PUT _index_template/dsl-data-stream-template
   "template": {
     "settings": {
       "index.lifecycle.name": "pre-dsl-ilm-policy",
-      "index.lifecycle.prefer_ilm": false             <1>
+      "index.lifecycle.prefer_ilm": false                       <1>
     },
-    "lifecycle": {
-      "data_retention": "7d"                          <2>
+    "lifecycle": {                                              <2>
+      "data_retention": "7d",                                   <3>
+      "effective_retention": "7d",                              <4>
+      "retention_determined_by": "data_stream_configuration"    <5>
     }
   }
 }
@@ -215,6 +217,11 @@ PUT _index_template/dsl-data-stream-template
 precedence over data stream lifecycle.
 <2> We're configuring the data stream lifecycle so _new_ data streams will be 
 managed by data stream lifecycle.
+<3> The retention desired by the user, meaning the user desired their data to be
+kept for at least "7d".
+<4> The effective retention is the least amount of time data will be kept by {es}.
+<5> This field displays which configuration determined the effective retention. In this case
+it was the desired retention defined by the user.
 
 We've now made sure that new data streams will be managed by data stream lifecycle.
 
@@ -268,7 +275,9 @@ GET _data_stream/dsl-data-stream
       "template": "dsl-data-stream-template",
       "lifecycle": {
         "enabled": true,
-        "data_retention": "7d"
+        "data_retention": "7d",
+        "effective_retention": "7d",
+        "retention_determined_by": "data_stream_configuration"
       },
       "ilm_policy": "pre-dsl-ilm-policy",
       "next_generation_managed_by": "Data stream lifecycle",         <3>
@@ -346,7 +355,9 @@ GET _data_stream/dsl-data-stream
       "template": "dsl-data-stream-template",
       "lifecycle": {
         "enabled": true,
-        "data_retention": "7d"
+        "data_retention": "7d",
+        "effective_retention": "7d",
+        "retention_determined_by": "data_stream_configuration"
       },
       "ilm_policy": "pre-dsl-ilm-policy",
       "next_generation_managed_by": "Data stream lifecycle",

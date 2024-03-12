@@ -93,11 +93,11 @@ The result will look like this:
 {
   "data_streams": [
     {
-      "name": "my-data-stream",<1>
+      "name": "my-data-stream",                                   <1>
       "lifecycle": {
-        "enabled": true,       <2>
-        "data_retention": "7d" <3>
-        "effective_retention": "7d"                               <4>
+        "enabled": true,                                          <2>
+        "data_retention": "7d",                                   <3>
+        "effective_retention": "7d",                              <4>
         "retention_determined_by": "data_stream_configuration"    <5>
       }
     }
@@ -133,8 +133,8 @@ The result will look like this:
       "time_since_index_creation": "1.6m",                  <3>
       "lifecycle": {                                        <4>
         "enabled": true,
-        "data_retention": "7d"
-        "effective_retention": "7d"
+        "data_retention": "7d",
+        "effective_retention": "7d",
         "retention_determined_by": "data_stream_configuration"
       }
     }

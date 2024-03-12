@@ -92,10 +92,10 @@ public class AtomicRegisterPreVoteCollectorTests extends ESTestCase {
             Loggers.addAppender(logger, appender);
             appender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
-                    "warning emitted when skipping prevoting",
+                    "log emitted when skipping election",
                     AtomicRegisterPreVoteCollector.class.getCanonicalName(),
                     Level.INFO,
-                    "skip election since there is a recent heartbeat*"
+                    "skipping election since there is a recent heartbeat*"
                 )
             );
             final var fakeClock = new AtomicLong();

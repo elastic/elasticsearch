@@ -105,6 +105,9 @@ setup:
 
 ---
 "Test vector search with query_vector_builder":
+  - skip:
+      version: " - 8.13.99"
+      reason: "introduced after 8.13"
   - do:
       search:
         index: index-with-embedded-text

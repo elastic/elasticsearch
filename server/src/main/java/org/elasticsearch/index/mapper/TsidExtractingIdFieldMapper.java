@@ -85,11 +85,15 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
             int routingHash = TimeSeriesRoutingHashFieldMapper.decode(context.sourceToParse().routing());
             id = createId(routingHash, tsid, timestamp);
         } else {
-            throw new IllegalArgumentException(
-                "_ts_routing_hash was null but must be set because index ["
-                    + context.indexSettings().getIndexMetadata().getIndex().getName()
-                    + "] is in time_series mode"
-            );
+            if (context.sourceToParse().id() == null) {
+                throw new IllegalArgumentException(
+                    "_ts_routing_hash was null but must be set because index ["
+                        + context.indexSettings().getIndexMetadata().getIndex().getName()
+                        + "] is in time_series mode"
+                );
+            }
+            // In Translog operations, the id has already been generated based on the routing hash while the latter is no longer.
+            id = context.sourceToParse().id();
         }
         context.id(id);
 

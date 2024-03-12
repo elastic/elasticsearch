@@ -29,7 +29,6 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
@@ -66,8 +65,6 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
 
     private final IndexVersion indexVersionCreated;
 
-    private final IndexMode indexMode;
-
     private int storedFieldsReaderOrd = -1;
     private StoredFieldsReader storedFieldsReader = null;
 
@@ -93,8 +90,7 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
         boolean requiredFullRange,
         boolean singleConsumer,
         boolean accessStats,
-        IndexVersion indexVersionCreated,
-        IndexMode indexMode
+        IndexVersion indexVersionCreated
     ) throws IOException {
         if (fromSeqNo < 0 || toSeqNo < 0 || fromSeqNo > toSeqNo) {
             throw new IllegalArgumentException("Invalid range; from_seqno [" + fromSeqNo + "], to_seqno [" + toSeqNo + "]");
@@ -121,8 +117,6 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
         this.accessStats = accessStats;
         this.parallelArray = new ParallelArray(this.searchBatchSize);
         this.indexVersionCreated = indexVersionCreated;
-        this.indexMode = indexMode;
-
         final TopDocs topDocs = searchOperations(null, accessStats);
         this.totalHits = Math.toIntExact(topDocs.totalHits.value);
         this.scoreDocs = topDocs.scoreDocs;
@@ -326,7 +320,7 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
         final String sourceField = parallelArray.hasRecoverySource[docIndex]
             ? SourceFieldMapper.RECOVERY_SOURCE_NAME
             : SourceFieldMapper.NAME;
-        final FieldsVisitor fields = new FieldsVisitor(true, sourceField, indexMode);
+        final FieldsVisitor fields = new FieldsVisitor(true, sourceField);
 
         if (parallelArray.useSequentialStoredFieldsReader) {
             if (storedFieldsReaderOrd != leaf.ord) {

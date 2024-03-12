@@ -42,9 +42,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         mapperService.merge(
             "_doc",
             new CompressedXContent(
-                Strings.toString(
-                    PutMappingRequest.simpleMapping(SEMANTIC_TEXT_SPARSE_FIELD, "type=semantic_text,model_id=test_service")
-                )
+                Strings.toString(PutMappingRequest.simpleMapping(SEMANTIC_TEXT_SPARSE_FIELD, "type=semantic_text,model_id=test_service"))
             ),
             MapperService.MergeReason.MAPPING_UPDATE
         );

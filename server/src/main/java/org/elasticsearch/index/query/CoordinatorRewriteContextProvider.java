@@ -10,12 +10,14 @@ package org.elasticsearch.index.query;
 
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
+import java.util.Map;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
@@ -25,14 +27,14 @@ public class CoordinatorRewriteContextProvider {
     private final Client client;
     private final LongSupplier nowInMillis;
     private final Supplier<ClusterState> clusterStateSupplier;
-    private final Function<Index, DateFieldMapper.DateFieldType> mappingSupplier;
+    private final Function<Index, Map<String, DateFieldMapper.DateFieldType>> mappingSupplier;
 
     public CoordinatorRewriteContextProvider(
         XContentParserConfiguration parserConfig,
         Client client,
         LongSupplier nowInMillis,
         Supplier<ClusterState> clusterStateSupplier,
-        Function<Index, DateFieldMapper.DateFieldType> mappingSupplier
+        Function<Index, Map<String, DateFieldMapper.DateFieldType>> mappingSupplier
     ) {
         this.parserConfig = parserConfig;
         this.client = client;
@@ -49,20 +51,26 @@ public class CoordinatorRewriteContextProvider {
         if (indexMetadata == null) {
             return null;
         }
-        DateFieldMapper.DateFieldType dateFieldType = mappingSupplier.apply(index);
-        if (dateFieldType == null) {
+        Map<String, DateFieldMapper.DateFieldType> dateFieldMap = mappingSupplier.apply(index);
+        if (dateFieldMap == null) {
             return null;
         }
+
+        DateFieldMapper.DateFieldType timestampFieldType = dateFieldMap.get(DataStream.TIMESTAMP_FIELD_NAME);
         IndexLongFieldRange timestampRange = indexMetadata.getTimestampRange();
-        if (timestampRange.containsAllShardRanges() == false) {
-            timestampRange = indexMetadata.getTimeSeriesTimestampRange(dateFieldType);
+        if (timestampRange.containsAllShardRanges() == false) { /// MP TODO: is this logic needed for event.ingested? Not clear what this is
+            timestampRange = indexMetadata.getTimeSeriesTimestampRange(timestampFieldType);
             if (timestampRange == null) {
+                /// MP TODO: this logic has to change now, right? - can't short circuit until we've checked for event.ingested
                 return null;
             }
         }
 
-        /// MP TODO: add in eventIngestedRangeInfo
-        var atTimestampRangeInfo = new CoordinatorRewriteContext.DateFieldRange(dateFieldType, timestampRange);
-        return new CoordinatorRewriteContext(parserConfig, client, nowInMillis, atTimestampRangeInfo);
+        DateFieldMapper.DateFieldType eventIngestedFieldType = dateFieldMap.get("event.ingested");
+        IndexLongFieldRange eventIngestedRange = indexMetadata.getEventIngestedRange();
+
+        var atTimestampRangeInfo = new CoordinatorRewriteContext.DateFieldRange(timestampFieldType, timestampRange);
+        var eventIngestedRangeInfo = new CoordinatorRewriteContext.DateFieldRange(eventIngestedFieldType, eventIngestedRange);
+        return new CoordinatorRewriteContext(parserConfig, client, nowInMillis, atTimestampRangeInfo, eventIngestedRangeInfo);
     }
 }

@@ -848,8 +848,9 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
 
     private static class StaticCoordinatorRewriteContextProviderBuilder {
         private ClusterState clusterState = ClusterState.EMPTY_STATE;
-        private final Map<Index, DateFieldMapper.DateFieldType> fields = new HashMap<>();
+        private final Map<Index, Map<String, DateFieldMapper.DateFieldType>> fields = new HashMap<>();
 
+        /// MP TODO: why is fieldName a free variable here? Isn't it constrained to be @timestamp (before my changes)?
         private void addIndexMinMaxTimestamps(Index index, String fieldName, long minTimeStamp, long maxTimestamp) {
             if (clusterState.metadata().index(index) != null) {
                 throw new IllegalArgumentException("Min/Max timestamps for " + index + " were already defined");
@@ -873,7 +874,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
 
             clusterState = ClusterState.builder(clusterState).metadata(metadataBuilder).build();
 
-            fields.put(index, new DateFieldMapper.DateFieldType(fieldName));
+            fields.put(index, Map.of(fieldName, new DateFieldMapper.DateFieldType(fieldName)));
         }
 
         private void addIndexMinMaxTimestamps(Index index, long minTimestamp, long maxTimestamp) {
@@ -894,7 +895,8 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
 
             Metadata.Builder metadataBuilder = Metadata.builder(clusterState.metadata()).put(indexMetadataBuilder);
             clusterState = ClusterState.builder(clusterState).metadata(metadataBuilder).build();
-            fields.put(index, new DateFieldMapper.DateFieldType("@timestamp"));
+
+            fields.put(index, Map.of(DataStream.TIMESTAMP_FIELD_NAME, new DateFieldMapper.DateFieldType(DataStream.TIMESTAMP_FIELD_NAME)));
         }
 
         private void addIndex(Index index) {
@@ -910,7 +912,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
 
             Metadata.Builder metadataBuilder = Metadata.builder(clusterState.metadata()).put(indexMetadataBuilder);
             clusterState = ClusterState.builder(clusterState).metadata(metadataBuilder).build();
-            fields.put(index, new DateFieldMapper.DateFieldType("@timestamp"));
+            fields.put(index, Map.of(DataStream.TIMESTAMP_FIELD_NAME, new DateFieldMapper.DateFieldType(DataStream.TIMESTAMP_FIELD_NAME)));
         }
 
         public CoordinatorRewriteContextProvider build() {

@@ -9,6 +9,7 @@
 package org.elasticsearch.index.query;
 
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -28,17 +29,29 @@ import java.util.function.LongSupplier;
  */
 public class CoordinatorRewriteContext extends QueryRewriteContext {
     private final DateFieldRange atTimestampInfo; // Refers to '@timestamp' field
-    // Refers to 'event.ingested' field
-    private DateFieldRange eventIngestedInfo;  // TODO: make final
+    private final DateFieldRange eventIngestedInfo; // Refers to 'event.ingested' field
 
-    /// MP TODO: do we need to add in fieldName to this record?
+    /**
+     * TODO DOCUMENT ME
+     * @param fieldType
+     * @param fieldRange
+     */
     public record DateFieldRange(DateFieldMapper.DateFieldType fieldType, IndexLongFieldRange fieldRange) {}
 
+    /**
+     * TODO DOCUMENT ME
+     * @param parserConfig
+     * @param client
+     * @param nowInMillis
+     * @param atTimestampRange
+     * @param eventIngestedRange
+     */
     public CoordinatorRewriteContext(
         XContentParserConfiguration parserConfig,
         Client client,
         LongSupplier nowInMillis,
-        DateFieldRange atTimestampRange  // MP TODO: add eventIngestedRange
+        DateFieldRange atTimestampRange,
+        DateFieldRange eventIngestedRange
     ) {
         super(
             parserConfig,
@@ -57,11 +70,12 @@ public class CoordinatorRewriteContext extends QueryRewriteContext {
             null
         );
         this.atTimestampInfo = atTimestampRange;
+        this.eventIngestedInfo = eventIngestedRange;
     }
 
     long getMinTimestamp(String fieldName) {
         /// MP TODO: are there static final entries for these field names somewhere?
-        if (fieldName.equals("@timestamp")) {
+        if (fieldName.equals(DataStream.TIMESTAMP_FIELD_NAME)) {
             return atTimestampInfo.fieldRange().getMin();
         } else if (fieldName.equals("event.ingested")) {
             return eventIngestedInfo.fieldRange.getMin();
@@ -73,10 +87,10 @@ public class CoordinatorRewriteContext extends QueryRewriteContext {
     }
 
     long getMaxTimestamp(String fieldName) {
-        /// MP TODO: are there static final entries for these field names somewhere?
-        if (fieldName.equals("@timestamp")) {
+        if (fieldName.equals(DataStream.TIMESTAMP_FIELD_NAME)) {
             return atTimestampInfo.fieldRange().getMax();
-        } else if (fieldName.equals("event.ingested")) {
+        } else if (fieldName.equals("event.ingested")) { /// MP TODO: is there a static final entry for this field name somewhere?
+
             return eventIngestedInfo.fieldRange.getMax();
         } else {
             throw new IllegalArgumentException(
@@ -86,7 +100,7 @@ public class CoordinatorRewriteContext extends QueryRewriteContext {
     }
 
     boolean hasTimestampData(String fieldName) {
-        if (fieldName.equals("@timestamp")) {
+        if (fieldName.equals(DataStream.TIMESTAMP_FIELD_NAME)) {
             return atTimestampInfo.fieldRange().isComplete() && atTimestampInfo.fieldRange() != IndexLongFieldRange.EMPTY;
         } else if (fieldName.equals("event.ingested")) {
             return eventIngestedInfo.fieldRange().isComplete() && eventIngestedInfo.fieldRange() != IndexLongFieldRange.EMPTY;
@@ -99,7 +113,7 @@ public class CoordinatorRewriteContext extends QueryRewriteContext {
 
     @Nullable  /// MP TODO: why is this nullable? can we remove this?
     public MappedFieldType getFieldType(String fieldName) {
-        if (fieldName.equals("@timestamp")) {
+        if (fieldName.equals(DataStream.TIMESTAMP_FIELD_NAME)) {
             return atTimestampInfo.fieldType();
         } else if (fieldName.equals("event.ingested")) {
             return eventIngestedInfo.fieldType();

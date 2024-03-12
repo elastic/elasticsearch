@@ -610,7 +610,8 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 dateFieldType,
                 IndexLongFieldRange.NO_SHARDS.extendWithShardRange(0, 1, ShardLongFieldRange.of(min, max))
             );
-            return new CoordinatorRewriteContext(parserConfiguration, this.client, () -> nowInMillis, timestampRangeInfo);
+            /// MP TODO: FIXME - need to adjust these tests to specify which timestamp field is being used, not just assume @timestamp
+            return new CoordinatorRewriteContext(parserConfiguration, this.client, () -> nowInMillis, timestampRangeInfo, null);
         }
 
         DataRewriteContext createDataContext() {

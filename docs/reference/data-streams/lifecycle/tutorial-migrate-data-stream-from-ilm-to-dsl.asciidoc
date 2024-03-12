@@ -217,8 +217,8 @@ PUT _index_template/dsl-data-stream-template
 precedence over data stream lifecycle.
 <2> We're configuring the data stream lifecycle so _new_ data streams will be 
 managed by data stream lifecycle.
-<3> The retention desired by the user, meaning the user desired their data to be
-kept for at least "7d".
+<3> The desired retention, meaning that this data stream should keep the data for at least 7 days,
+if this retention is possible.
 <4> The effective retention is the least amount of time data will be kept by {es}.
 <5> This field displays which configuration determined the effective retention. In this case
 it was the desired retention defined by the user.

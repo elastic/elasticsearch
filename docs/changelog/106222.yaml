@@ -1,0 +1,5 @@
+pr: 106222
+summary: "[ES|QL][SHOW FUNCTION] Change variadic annotation to `minArgs`"
+area: ES|QL
+type: enhancement
+issues: []

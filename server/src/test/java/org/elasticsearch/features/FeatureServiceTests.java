@@ -92,7 +92,7 @@ public class FeatureServiceTests extends ESTestCase {
 
         assertThat(
             expectThrows(IllegalArgumentException.class, () -> new FeatureService(List.of(fs))).getMessage(),
-            containsString("cannot be both a regular and historical feature")
+            containsString("cannot be declared as both a regular and historical feature")
         );
     }
 

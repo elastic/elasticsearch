@@ -47,7 +47,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return List.of(InferencePlugin.class, TestInferenceServicePlugin.class);
+        return List.of(InferencePlugin.class);
     }
 
     @Override

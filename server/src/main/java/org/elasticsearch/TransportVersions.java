@@ -142,7 +142,9 @@ public class TransportVersions {
     public static final TransportVersion ESQL_SERIALIZE_ARRAY_BLOCK = def(8_602_00_0);
     public static final TransportVersion ADD_DATA_STREAM_GLOBAL_RETENTION = def(8_603_00_0);
     public static final TransportVersion ALLOCATION_STATS = def(8_604_00_0);
-    public static final TransportVersion KNN_QUERY_VECTOR_BUILDER = def(8_605_00_0);
+    public static final TransportVersion ESQL_EXTENDED_ENRICH_TYPES = def(8_605_00_0);
+    public static final TransportVersion KNN_EXPLICIT_BYTE_QUERY_VECTOR_PARSING = def(8_606_00_0);
+    public static final TransportVersion KNN_QUERY_VECTOR_BUILDER = def(8_607_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

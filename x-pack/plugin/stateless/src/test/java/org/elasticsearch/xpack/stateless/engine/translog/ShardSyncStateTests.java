@@ -30,7 +30,6 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 import java.util.function.LongConsumer;
 
@@ -43,14 +42,14 @@ public class ShardSyncStateTests extends ESTestCase {
 
     public void testActiveTranslogFileIsReleasedAfterCommit() throws IOException {
         ShardId shardId = new ShardId(new Index("name", "uuid"), 0);
+        long generation = 2;
         long primaryTerm = randomLongBetween(0, 20);
         ShardSyncState shardSyncState = getShardSyncState(shardId, primaryTerm);
         shardSyncState.writeToBuffer(new BytesArray(new byte[10]), 0, new Translog.Location(0, 0, 10));
-        ShardSyncState.SyncState syncState = shardSyncState.pollSync();
-        ShardSyncState.SyncMarker syncMarker = syncState.buffer().syncMarker();
+        ShardSyncState.SyncState syncState = shardSyncState.pollSync(generation);
 
         TranslogReplicator.BlobTranslogFile activeTranslogFile = new TranslogReplicator.BlobTranslogFile(
-            2,
+            generation,
             "",
             Map.of(shardId, syncState.metadata(0, 10)),
             Collections.singleton(shardId)
@@ -59,7 +58,7 @@ public class ShardSyncStateTests extends ESTestCase {
             protected void closeInternal() {}
         };
 
-        shardSyncState.markSyncFinished(activeTranslogFile, syncMarker);
+        shardSyncState.markSyncStarting(primaryTerm, activeTranslogFile);
 
         shardSyncState.markCommitUploaded(1L);
         shardSyncState.markCommitUploaded(2L);
@@ -69,16 +68,71 @@ public class ShardSyncStateTests extends ESTestCase {
         assertFalse(activeTranslogFile.hasReferences());
     }
 
-    public void testActiveTranslogFileIsReleasedIfCommitAlreadyHappened() throws IOException {
+    public void testActiveTranslogFileIsReferencedInNextSync() throws IOException {
         ShardId shardId = new ShardId(new Index("name", "uuid"), 0);
         long primaryTerm = randomLongBetween(0, 20);
         ShardSyncState shardSyncState = getShardSyncState(shardId, primaryTerm);
+
         shardSyncState.writeToBuffer(new BytesArray(new byte[10]), 0, new Translog.Location(0, 0, 10));
-        ShardSyncState.SyncState syncState = shardSyncState.pollSync();
-        ShardSyncState.SyncMarker syncMarker = syncState.buffer().syncMarker();
+        shardSyncState.markSyncStarting(
+            primaryTerm,
+            new TranslogReplicator.BlobTranslogFile(
+                1,
+                "",
+                Map.of(shardId, shardSyncState.pollSync(1).metadata(0, 10)),
+                Collections.singleton(shardId)
+            ) {
+                @Override
+                protected void closeInternal() {}
+            }
+        );
+
+        shardSyncState.writeToBuffer(new BytesArray(new byte[10]), 0, new Translog.Location(0, 10, 10));
+        shardSyncState.markSyncStarting(
+            primaryTerm,
+            new TranslogReplicator.BlobTranslogFile(
+                2,
+                "",
+                Map.of(shardId, shardSyncState.pollSync(2).metadata(0, 10)),
+                Collections.singleton(shardId)
+            ) {
+                @Override
+                protected void closeInternal() {}
+            }
+        );
+
+        shardSyncState.writeToBuffer(new BytesArray(new byte[10]), 0, new Translog.Location(0, 20, 10));
+        shardSyncState.markSyncStarting(
+            primaryTerm,
+            new TranslogReplicator.BlobTranslogFile(
+                4,
+                "",
+                Map.of(shardId, shardSyncState.pollSync(4).metadata(0, 10)),
+                Collections.singleton(shardId)
+            ) {
+                @Override
+                protected void closeInternal() {}
+            }
+        );
+
+        shardSyncState.markCommitUploaded(2);
+
+        shardSyncState.writeToBuffer(new BytesArray(new byte[10]), 0, new Translog.Location(0, 30, 10));
+        ShardSyncState.SyncState syncState2 = shardSyncState.pollSync(5);
+        assertThat(syncState2.estimatedOps(), equalTo(3L));
+        assertThat(syncState2.referencedTranslogFileOffsets(), equalTo(new int[] { 3, 1 }));
+    }
+
+    public void testActiveTranslogFileIsReleasedIfCommitAlreadyHappened() throws IOException {
+        ShardId shardId = new ShardId(new Index("name", "uuid"), 0);
+        long primaryTerm = randomLongBetween(0, 20);
+        long generation = 2;
+        ShardSyncState shardSyncState = getShardSyncState(shardId, primaryTerm);
+        shardSyncState.writeToBuffer(new BytesArray(new byte[10]), 0, new Translog.Location(0, 0, 10));
+        ShardSyncState.SyncState syncState = shardSyncState.pollSync(generation);
 
         TranslogReplicator.BlobTranslogFile activeTranslogFile = new TranslogReplicator.BlobTranslogFile(
-            2,
+            generation,
             "",
             Map.of(shardId, syncState.metadata(0, 10)),
             Collections.singleton(shardId)
@@ -91,7 +145,7 @@ public class ShardSyncStateTests extends ESTestCase {
 
         assertTrue(activeTranslogFile.hasReferences());
 
-        shardSyncState.markSyncFinished(activeTranslogFile, syncMarker);
+        shardSyncState.markSyncStarting(primaryTerm, activeTranslogFile);
 
         assertFalse(activeTranslogFile.hasReferences());
     }
@@ -99,13 +153,13 @@ public class ShardSyncStateTests extends ESTestCase {
     public void testActiveTranslogFileIsNotReleasedAfterShardClose() throws IOException {
         ShardId shardId = new ShardId(new Index("name", "uuid"), 0);
         long primaryTerm = randomLongBetween(0, 20);
+        long generation = randomLongBetween(1, 5);
         ShardSyncState shardSyncState = getShardSyncState(shardId, primaryTerm);
         shardSyncState.writeToBuffer(new BytesArray(new byte[10]), 0, new Translog.Location(0, 0, 10));
-        ShardSyncState.SyncState syncState = shardSyncState.pollSync();
-        ShardSyncState.SyncMarker syncMarker = syncState.buffer().syncMarker();
+        ShardSyncState.SyncState syncState = shardSyncState.pollSync(generation);
 
         TranslogReplicator.BlobTranslogFile activeTranslogFile = new TranslogReplicator.BlobTranslogFile(
-            2,
+            generation,
             "",
             Map.of(shardId, syncState.metadata(0, 10)),
             Collections.singleton(shardId)
@@ -114,7 +168,7 @@ public class ShardSyncStateTests extends ESTestCase {
             protected void closeInternal() {}
         };
 
-        shardSyncState.markSyncFinished(activeTranslogFile, syncMarker);
+        shardSyncState.markSyncStarting(primaryTerm, activeTranslogFile);
 
         assertTrue(activeTranslogFile.hasReferences());
 
@@ -126,13 +180,13 @@ public class ShardSyncStateTests extends ESTestCase {
     public void testActiveTranslogFileIsNotReleasedWhenNodeShuttingDown() throws IOException {
         ShardId shardId = new ShardId(new Index("name", "uuid"), 0);
         long primaryTerm = randomLongBetween(0, 20);
+        long generation = randomLongBetween(1, 5);
         ShardSyncState shardSyncState = getShardSyncState(shardId, primaryTerm);
         shardSyncState.writeToBuffer(new BytesArray(new byte[10]), 0, new Translog.Location(0, 0, 10));
-        ShardSyncState.SyncState syncState = shardSyncState.pollSync();
-        ShardSyncState.SyncMarker syncMarker = syncState.buffer().syncMarker();
+        ShardSyncState.SyncState syncState = shardSyncState.pollSync(generation);
 
         TranslogReplicator.BlobTranslogFile activeTranslogFile = new TranslogReplicator.BlobTranslogFile(
-            2,
+            generation,
             "",
             Map.of(shardId, syncState.metadata(0, 10)),
             Collections.singleton(shardId)
@@ -141,7 +195,7 @@ public class ShardSyncStateTests extends ESTestCase {
             protected void closeInternal() {}
         };
 
-        shardSyncState.markSyncFinished(activeTranslogFile, syncMarker);
+        shardSyncState.markSyncStarting(primaryTerm, activeTranslogFile);
 
         assertTrue(activeTranslogFile.hasReferences());
 
@@ -153,13 +207,13 @@ public class ShardSyncStateTests extends ESTestCase {
     public void testActiveTranslogFileCannotBeQueuedAfterShardClose() throws IOException {
         ShardId shardId = new ShardId(new Index("name", "uuid"), 0);
         long primaryTerm = randomLongBetween(0, 20);
+        long generation = randomLongBetween(1, 5);
         ShardSyncState shardSyncState = getShardSyncState(shardId, primaryTerm);
         shardSyncState.writeToBuffer(new BytesArray(new byte[10]), 0, new Translog.Location(0, 0, 10));
-        ShardSyncState.SyncState syncState = shardSyncState.pollSync();
-        ShardSyncState.SyncMarker syncMarker = syncState.buffer().syncMarker();
+        ShardSyncState.SyncState syncState = shardSyncState.pollSync(generation);
 
         TranslogReplicator.BlobTranslogFile activeTranslogFile = new TranslogReplicator.BlobTranslogFile(
-            2,
+            generation,
             "",
             Map.of(shardId, syncState.metadata(0, 10)),
             Collections.singleton(shardId)
@@ -172,7 +226,7 @@ public class ShardSyncStateTests extends ESTestCase {
 
         shardSyncState.close(nodeClosing);
 
-        shardSyncState.markSyncFinished(activeTranslogFile, syncMarker);
+        shardSyncState.markSyncStarting(primaryTerm, activeTranslogFile);
 
         assertTrue(activeTranslogFile.hasReferences());
     }
@@ -180,13 +234,13 @@ public class ShardSyncStateTests extends ESTestCase {
     public void testActiveTranslogFileCannotBeQueuedWithDifferentPrimaryTerm() throws IOException {
         ShardId shardId = new ShardId(new Index("name", "uuid"), 0);
         long primaryTerm = randomLongBetween(1, 20);
+        long generation = randomLongBetween(1, 5);
         ShardSyncState shardSyncState = getShardSyncState(shardId, primaryTerm);
         shardSyncState.writeToBuffer(new BytesArray(new byte[10]), 0, new Translog.Location(0, 0, 10));
-        ShardSyncState.SyncState syncState = shardSyncState.pollSync();
-        ShardSyncState.SyncMarker syncMarker = syncState.buffer().syncMarker();
+        ShardSyncState.SyncState syncState = shardSyncState.pollSync(generation);
 
         TranslogReplicator.BlobTranslogFile activeTranslogFile = new TranslogReplicator.BlobTranslogFile(
-            2,
+            generation,
             "",
             Map.of(shardId, syncState.metadata(0, 10)),
             Collections.singleton(shardId)
@@ -195,10 +249,7 @@ public class ShardSyncStateTests extends ESTestCase {
             protected void closeInternal() {}
         };
 
-        shardSyncState.markSyncFinished(
-            activeTranslogFile,
-            new ShardSyncState.SyncMarker(syncMarker.primaryTerm() - 1, syncMarker.location(), List.of(0L))
-        );
+        shardSyncState.markSyncStarting(primaryTerm - 1, activeTranslogFile);
 
         assertFalse(activeTranslogFile.hasReferences());
     }
@@ -206,17 +257,18 @@ public class ShardSyncStateTests extends ESTestCase {
     public void testPersistedSeqNoConsumerCalledAfterSync() throws IOException {
         ShardId shardId = new ShardId(new Index("name", "uuid"), 0);
         long primaryTerm = randomLongBetween(0, 20);
+        long generation = randomLongBetween(1, 5);
         ArrayList<Long> seqNos = new ArrayList<>();
         ShardSyncState shardSyncState = getShardSyncState(shardId, primaryTerm, seqNos::add);
         shardSyncState.writeToBuffer(new BytesArray(new byte[10]), 0, new Translog.Location(0, 0, 10));
         shardSyncState.writeToBuffer(new BytesArray(new byte[10]), 1, new Translog.Location(0, 10, 20));
         shardSyncState.writeToBuffer(new BytesArray(new byte[10]), 2, new Translog.Location(0, 20, 30));
-        ShardSyncState.SyncState syncState = shardSyncState.pollSync();
+        ShardSyncState.SyncState syncState = shardSyncState.pollSync(generation);
         ShardSyncState.SyncMarker syncMarker = syncState.buffer().syncMarker();
         shardSyncState.writeToBuffer(new BytesArray(new byte[10]), 3, new Translog.Location(0, 30, 40));
 
         TranslogReplicator.BlobTranslogFile activeTranslogFile = new TranslogReplicator.BlobTranslogFile(
-            2,
+            generation,
             "",
             Map.of(shardId, syncState.metadata(0, 30)),
             Collections.singleton(shardId)
@@ -227,7 +279,8 @@ public class ShardSyncStateTests extends ESTestCase {
 
         assertThat(seqNos, empty());
 
-        shardSyncState.markSyncFinished(activeTranslogFile, syncMarker);
+        shardSyncState.markSyncStarting(primaryTerm, activeTranslogFile);
+        shardSyncState.markSyncFinished(syncMarker);
         shardSyncState.notifyListeners();
 
         assertThat(seqNos, contains(0L, 1L, 2L));
@@ -237,6 +290,7 @@ public class ShardSyncStateTests extends ESTestCase {
     public void testPersistedSeqNoConsumerCalledFirst() throws IOException {
         ShardId shardId = new ShardId(new Index("name", "uuid"), 0);
         long primaryTerm = randomLongBetween(0, 20);
+        long generation = randomLongBetween(1, 5);
         ArrayList<Long> seqNos = new ArrayList<>();
         ShardSyncState shardSyncState = getShardSyncState(shardId, primaryTerm, seqNos::add);
         shardSyncState.writeToBuffer(new BytesArray(new byte[10]), 0, new Translog.Location(0, 0, 10));
@@ -254,12 +308,12 @@ public class ShardSyncStateTests extends ESTestCase {
             }
         });
 
-        ShardSyncState.SyncState syncState = shardSyncState.pollSync();
+        ShardSyncState.SyncState syncState = shardSyncState.pollSync(generation);
         ShardSyncState.SyncMarker syncMarker = syncState.buffer().syncMarker();
         assertThat(syncMarker.location(), equalTo(manualSync));
 
         TranslogReplicator.BlobTranslogFile activeTranslogFile = new TranslogReplicator.BlobTranslogFile(
-            2,
+            generation,
             "",
             Map.of(shardId, syncState.metadata(0, 30)),
             Collections.singleton(shardId)
@@ -270,7 +324,9 @@ public class ShardSyncStateTests extends ESTestCase {
 
         assertThat(seqNos, empty());
 
-        shardSyncState.markSyncFinished(activeTranslogFile, syncMarker);
+        shardSyncState.markSyncStarting(primaryTerm, activeTranslogFile);
+        shardSyncState.markSyncFinished(syncMarker);
+        ;
         shardSyncState.notifyListeners();
 
         assertThat(seqNos, contains(0L));

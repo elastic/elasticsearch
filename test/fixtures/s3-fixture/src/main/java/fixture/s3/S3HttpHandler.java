@@ -270,8 +270,8 @@ public class S3HttpHandler implements HttpHandler {
                 if (groupStart == null || groupEnd == null) {
                     throw new AssertionError("Bytes range does not match expected pattern: " + range);
                 }
-                int start = Integer.parseInt(groupStart);
-                int end = Integer.parseInt(groupEnd);
+                long start = Long.parseLong(groupStart);
+                long end = Long.parseLong(groupEnd);
                 if (end < start) {
                     exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
                     exchange.sendResponseHeaders(RestStatus.OK.getStatus(), blob.length());
@@ -279,13 +279,12 @@ public class S3HttpHandler implements HttpHandler {
                     return;
                 } else if (blob.length() <= start) {
                     exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
-                    exchange.sendResponseHeaders(RestStatus.REQUESTED_RANGE_NOT_SATISFIED.getStatus(), blob.length());
+                    exchange.sendResponseHeaders(RestStatus.REQUESTED_RANGE_NOT_SATISFIED.getStatus(), -1);
                     return;
                 }
-
-                var responseBlob = blob.slice(start, Math.min(end - start + 1, blob.length() - start));
-                exchange.getResponseHeaders()
-                    .add("Content-Range", String.format(Locale.ROOT, "bytes %d-%d/%d", start, end, responseBlob.length()));
+                var responseBlob = blob.slice(Math.toIntExact(start), Math.toIntExact(Math.min(end - start + 1, blob.length() - start)));
+                end = start + responseBlob.length() - 1;
+                exchange.getResponseHeaders().add("Content-Range", String.format(Locale.ROOT, "bytes %d-%d/%d", start, end, blob.length()));
                 exchange.sendResponseHeaders(RestStatus.PARTIAL_CONTENT.getStatus(), responseBlob.length());
                 responseBlob.writeTo(exchange.getResponseBody());
 

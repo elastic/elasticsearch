@@ -196,9 +196,10 @@ index without timestamp with pipeline:
 dynamic templates:
   - skip:
       version: " - 8.12.99"
-      features: "default_shards"
       reason: "Support for dynamic fields was added in 8.13"
   - do:
+      allowed_warnings:
+        - "index template [my-dynamic-template] has index patterns [k9s*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-dynamic-template] will take precedence during new index creation"
       indices.put_index_template:
         name: my-dynamic-template
         body:
@@ -326,9 +327,10 @@ dynamic templates:
 dynamic templates - conflicting aliases:
   - skip:
       version: " - 8.12.99"
-      features: "default_shards"
       reason: "Support for dynamic fields was added in 8.13"
   - do:
+      allowed_warnings:
+        - "index template [my-dynamic-template] has index patterns [k9s*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-dynamic-template] will take precedence during new index creation"
       indices.put_index_template:
         name: my-dynamic-template
         body:
@@ -422,9 +424,10 @@ dynamic templates - conflicting aliases:
 dynamic templates with nesting:
   - skip:
       version: " - 8.12.99"
-      features: "default_shards"
       reason: "Support for dynamic fields was added in 8.13"
   - do:
+      allowed_warnings:
+        - "index template [my-dynamic-template] has index patterns [k9s*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-dynamic-template] will take precedence during new index creation"
       indices.put_index_template:
         name: my-dynamic-template
         body:
@@ -561,6 +564,8 @@ subobject in passthrough object auto flatten:
       version: " - 8.12.99"
       reason: "Support for passthrough fields was added in 8.13"
   - do:
+      allowed_warnings:
+        - "index template [my-passthrough-template] has index patterns [k9s*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-passthrough-template] will take precedence during new index creation"
       indices.put_index_template:
         name: my-passthrough-template
         body:

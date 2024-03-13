@@ -13,7 +13,7 @@ import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
 class WindowsNativeAccess extends AbstractNativeAccess {
 
     WindowsNativeAccess(NativeLibraryProvider libraryProvider) {
-        super("Windows");
+        super("Windows", libraryProvider);
     }
 
     @Override

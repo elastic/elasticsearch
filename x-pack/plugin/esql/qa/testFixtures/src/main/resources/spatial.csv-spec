@@ -2,7 +2,9 @@
 # Tests for GEO_POINT type
 #
 
-convertFromStringQuantize#[skip:-8.11.99, reason:spatial type geo_point only added in 8.12]
+convertFromStringQuantize
+required_feature: esql.geo_point
+
 row wkt = "POINT(42.97109629958868 14.7552534006536)"
 | eval pt = to_geopoint(wkt);
 
@@ -115,6 +117,7 @@ stXFromAirportsSupportsNull#[skip:-8.13.99, reason:st_x and st_y added in 8.14]
 FROM airports
 | EVAL x = FLOOR(ABS(ST_X(city_location))/200), y = FLOOR(ABS(ST_Y(city_location))/100)
 | STATS c = count(*) BY x, y
+| SORT c DESC
 ;
 
 c:long  | x:double  | y:double

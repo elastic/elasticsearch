@@ -21,6 +21,7 @@ import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutp
 public class EnrichExec extends UnaryExec implements EstimatesRowSize {
 
     private final Enrich.Mode mode;
+    private final String matchType;
     private final NamedExpression matchField;
     private final String policyName;
     private final String policyMatchField;
@@ -41,6 +42,7 @@ public class EnrichExec extends UnaryExec implements EstimatesRowSize {
         Source source,
         PhysicalPlan child,
         Enrich.Mode mode,
+        String matchType,
         NamedExpression matchField,
         String policyName,
         String policyMatchField,
@@ -49,6 +51,7 @@ public class EnrichExec extends UnaryExec implements EstimatesRowSize {
     ) {
         super(source, child);
         this.mode = mode;
+        this.matchType = matchType;
         this.matchField = matchField;
         this.policyName = policyName;
         this.policyMatchField = policyMatchField;
@@ -63,6 +66,7 @@ public class EnrichExec extends UnaryExec implements EstimatesRowSize {
             EnrichExec::new,
             child(),
             mode,
+            matchType,
             matchField,
             policyName,
             policyMatchField,
@@ -73,11 +77,15 @@ public class EnrichExec extends UnaryExec implements EstimatesRowSize {
 
     @Override
     public EnrichExec replaceChild(PhysicalPlan newChild) {
-        return new EnrichExec(source(), newChild, mode, matchField, policyName, policyMatchField, concreteIndices, enrichFields);
+        return new EnrichExec(source(), newChild, mode, matchType, matchField, policyName, policyMatchField, concreteIndices, enrichFields);
     }
 
     public Enrich.Mode mode() {
         return mode;
+    }
+
+    public String matchType() {
+        return matchType;
     }
 
     public NamedExpression matchField() {
@@ -118,6 +126,7 @@ public class EnrichExec extends UnaryExec implements EstimatesRowSize {
         if (super.equals(o) == false) return false;
         EnrichExec that = (EnrichExec) o;
         return mode.equals(that.mode)
+            && Objects.equals(matchType, that.matchType)
             && Objects.equals(matchField, that.matchField)
             && Objects.equals(policyName, that.policyName)
             && Objects.equals(policyMatchField, that.policyMatchField)
@@ -127,6 +136,6 @@ public class EnrichExec extends UnaryExec implements EstimatesRowSize {
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), mode, matchField, policyName, policyMatchField, concreteIndices, enrichFields);
+        return Objects.hash(super.hashCode(), mode, matchType, matchField, policyName, policyMatchField, concreteIndices, enrichFields);
     }
 }

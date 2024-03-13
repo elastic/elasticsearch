@@ -1267,8 +1267,8 @@ public class MetadataCreateIndexService {
         if (mapper != null) {
             MappingMetadata mappingMd = new MappingMetadata(mapper);
             mappingsMetadata.put(mapper.type(), mappingMd);
-
-            indexMetadataBuilder.fieldsForModels(mapper.mappers().getFieldsForModels());
+            FieldInferenceMetadata fieldInferenceMetadata = new FieldInferenceMetadata(mapper.mappers());
+            indexMetadataBuilder.fieldInferenceMetadata(fieldInferenceMetadata);
         }
 
         for (MappingMetadata mappingMd : mappingsMetadata.values()) {

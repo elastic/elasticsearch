@@ -23,7 +23,6 @@ import org.apache.lucene.codecs.FlatFieldVectorsWriter;
 import org.apache.lucene.codecs.FlatVectorsWriter;
 import org.apache.lucene.codecs.KnnFieldVectorsWriter;
 import org.apache.lucene.codecs.KnnVectorsReader;
-import org.apache.lucene.codecs.KnnVectorsWriter;
 import org.apache.lucene.codecs.lucene95.OrdToDocDISIReaderConfiguration;
 import org.apache.lucene.codecs.lucene99.OffHeapQuantizedByteVectorValues;
 import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
@@ -68,6 +67,8 @@ import java.util.List;
 
 import static org.apache.lucene.codecs.lucene99.Lucene99ScalarQuantizedVectorsFormat.QUANTIZED_VECTOR_COMPONENT;
 import static org.apache.lucene.codecs.lucene99.Lucene99ScalarQuantizedVectorsFormat.calculateDefaultConfidenceInterval;
+import static org.apache.lucene.codecs.lucene99.Lucene99ScalarQuantizedVectorsWriter.mergeAndRecalculateQuantiles;
+import static org.apache.lucene.codecs.lucene99.Lucene99ScalarQuantizedVectorsWriter.writeQuantizedVectorData;
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 import static org.apache.lucene.util.RamUsageEstimator.shallowSizeOfInstance;
 
@@ -81,14 +82,6 @@ public final class ES814ScalarQuantizedVectorsWriter extends FlatVectorsWriter {
 
     private static final long SHALLOW_RAM_BYTES_USED = shallowSizeOfInstance(ES814ScalarQuantizedVectorsWriter.class);
 
-    // Used for determining when merged quantiles shifted too far from individual segment quantiles.
-    // When merging quantiles from various segments, we need to ensure that the new quantiles
-    // are not exceptionally different from an individual segments quantiles.
-    // This would imply that the quantization buckets would shift too much
-    // for floating point values and justify recalculating the quantiles. This helps preserve
-    // accuracy of the calculated quantiles, even in adversarial cases such as vector clustering.
-    // This number was determined via empirical testing
-    private static final float QUANTILE_RECOMPUTE_LIMIT = 32;
     // Used for determining if a new quantization state requires a re-quantization
     // for a given segment.
     // This ensures that in expectation 4/5 of the vector would be unchanged by requantization.
@@ -329,7 +322,7 @@ public final class ES814ScalarQuantizedVectorsWriter extends FlatVectorsWriter {
         final int[] docIdOffsets = new int[sortMap.size()];
         int offset = 1; // 0 means no vector for this (field, document)
         DocIdSetIterator iterator = fieldData.docsWithField.iterator();
-        for (int docID = iterator.nextDoc(); docID != DocIdSetIterator.NO_MORE_DOCS; docID = iterator.nextDoc()) {
+        for (int docID = iterator.nextDoc(); docID != NO_MORE_DOCS; docID = iterator.nextDoc()) {
             int newDocID = sortMap.oldToNew(docID);
             docIdOffsets[newDocID] = offset++;
         }
@@ -486,53 +479,6 @@ public final class ES814ScalarQuantizedVectorsWriter extends FlatVectorsWriter {
         org.apache.lucene.util.IOUtils.deleteFilesIgnoringExceptions(dir, files);
     }
 
-    static ScalarQuantizer mergeQuantiles(List<ScalarQuantizer> quantizationStates, List<Integer> segmentSizes, float confidenceInterval) {
-        assert quantizationStates.size() == segmentSizes.size();
-        if (quantizationStates.isEmpty()) {
-            return null;
-        }
-        float lowerQuantile = 0f;
-        float upperQuantile = 0f;
-        int totalCount = 0;
-        for (int i = 0; i < quantizationStates.size(); i++) {
-            if (quantizationStates.get(i) == null) {
-                return null;
-            }
-            lowerQuantile += quantizationStates.get(i).getLowerQuantile() * segmentSizes.get(i);
-            upperQuantile += quantizationStates.get(i).getUpperQuantile() * segmentSizes.get(i);
-            totalCount += segmentSizes.get(i);
-        }
-        lowerQuantile /= totalCount;
-        upperQuantile /= totalCount;
-        return new ScalarQuantizer(lowerQuantile, upperQuantile, confidenceInterval);
-    }
-
-    /**
-     * Returns true if the quantiles of the merged state are too far from the quantiles of the
-     * individual states.
-     *
-     * @param mergedQuantizationState The merged quantization state
-     * @param quantizationStates The quantization states of the individual segments
-     * @return true if the quantiles should be recomputed
-     */
-    static boolean shouldRecomputeQuantiles(ScalarQuantizer mergedQuantizationState, List<ScalarQuantizer> quantizationStates) {
-        // calculate the limit for the quantiles to be considered too far apart
-        // We utilize upper & lower here to determine if the new upper and merged upper would
-        // drastically
-        // change the quantization buckets for floats
-        // This is a fairly conservative check.
-        float limit = (mergedQuantizationState.getUpperQuantile() - mergedQuantizationState.getLowerQuantile()) / QUANTILE_RECOMPUTE_LIMIT;
-        for (ScalarQuantizer quantizationState : quantizationStates) {
-            if (Math.abs(quantizationState.getUpperQuantile() - mergedQuantizationState.getUpperQuantile()) > limit) {
-                return true;
-            }
-            if (Math.abs(quantizationState.getLowerQuantile() - mergedQuantizationState.getLowerQuantile()) > limit) {
-                return true;
-            }
-        }
-        return false;
-    }
-
     private static QuantizedVectorsReader getQuantizedKnnVectorsReader(KnnVectorsReader vectorsReader, String fieldName) {
         if (vectorsReader instanceof PerFieldKnnVectorsFormat.FieldsReader) {
             vectorsReader = ((PerFieldKnnVectorsFormat.FieldsReader) vectorsReader).getFieldReader(fieldName);
@@ -541,60 +487,6 @@ public final class ES814ScalarQuantizedVectorsWriter extends FlatVectorsWriter {
             return (QuantizedVectorsReader) vectorsReader;
         }
         return null;
-    }
-
-    private static ScalarQuantizer getQuantizedState(KnnVectorsReader vectorsReader, String fieldName) {
-        QuantizedVectorsReader reader = getQuantizedKnnVectorsReader(vectorsReader, fieldName);
-        if (reader != null) {
-            return reader.getQuantizationState(fieldName);
-        }
-        return null;
-    }
-
-    /**
-     * Merges the quantiles of the segments and recalculates the quantiles if necessary.
-     *
-     * @param mergeState The merge state
-     * @param fieldInfo The field info
-     * @param confidenceInterval The confidence interval
-     * @return The merged quantiles
-     * @throws IOException If there is a low-level I/O error
-     */
-    public static ScalarQuantizer mergeAndRecalculateQuantiles(MergeState mergeState, FieldInfo fieldInfo, float confidenceInterval)
-        throws IOException {
-        List<ScalarQuantizer> quantizationStates = new ArrayList<>(mergeState.liveDocs.length);
-        List<Integer> segmentSizes = new ArrayList<>(mergeState.liveDocs.length);
-        for (int i = 0; i < mergeState.liveDocs.length; i++) {
-            FloatVectorValues fvv;
-            if (mergeState.knnVectorsReaders[i] != null
-                && (fvv = mergeState.knnVectorsReaders[i].getFloatVectorValues(fieldInfo.name)) != null
-                && fvv.size() > 0) {
-                ScalarQuantizer quantizationState = getQuantizedState(mergeState.knnVectorsReaders[i], fieldInfo.name);
-                // If we have quantization state, we can utilize that to make merging cheaper
-                quantizationStates.add(quantizationState);
-                segmentSizes.add(fvv.size());
-            }
-        }
-        ScalarQuantizer mergedQuantiles = mergeQuantiles(quantizationStates, segmentSizes, confidenceInterval);
-        // Segments no providing quantization state indicates that their quantiles were never
-        // calculated.
-        // To be safe, we should always recalculate given a sample set over all the float vectors in the
-        // merged
-        // segment view
-        if (mergedQuantiles == null || shouldRecomputeQuantiles(mergedQuantiles, quantizationStates)) {
-            int numVectors = 0;
-            FloatVectorValues vectorValues = KnnVectorsWriter.MergedVectorValues.mergeFloatVectorValues(fieldInfo, mergeState);
-            // iterate vectorValues and increment numVectors
-            for (int doc = vectorValues.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = vectorValues.nextDoc()) {
-                numVectors++;
-            }
-            mergedQuantiles = ScalarQuantizer.fromVectors(
-                KnnVectorsWriter.MergedVectorValues.mergeFloatVectorValues(fieldInfo, mergeState),
-                confidenceInterval,
-                numVectors
-            );
-        }
-        return mergedQuantiles;
     }
 
     /**
@@ -612,24 +504,6 @@ public final class ES814ScalarQuantizedVectorsWriter extends FlatVectorsWriter {
             return true;
         }
         return Math.abs(existingQuantiles.getLowerQuantile() - newQuantiles.getLowerQuantile()) > tol;
-    }
-
-    /**
-     * Writes the vector values to the output and returns a set of documents that contains vectors.
-     */
-    public static DocsWithFieldSet writeQuantizedVectorData(IndexOutput output, QuantizedByteVectorValues quantizedByteVectorValues)
-        throws IOException {
-        DocsWithFieldSet docsWithField = new DocsWithFieldSet();
-        for (int docV = quantizedByteVectorValues.nextDoc(); docV != NO_MORE_DOCS; docV = quantizedByteVectorValues.nextDoc()) {
-            // write vector
-            byte[] binaryValue = quantizedByteVectorValues.vectorValue();
-            assert binaryValue.length == quantizedByteVectorValues.dimension()
-                : "dim=" + quantizedByteVectorValues.dimension() + " len=" + binaryValue.length;
-            output.writeBytes(binaryValue, binaryValue.length);
-            output.writeInt(Float.floatToIntBits(quantizedByteVectorValues.getScoreCorrectionConstant()));
-            docsWithField.add(docV);
-        }
-        return docsWithField;
     }
 
     @Override

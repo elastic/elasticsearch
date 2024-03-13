@@ -9,9 +9,9 @@ package org.elasticsearch.xpack.inference.services.openai.embeddings;
 
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.inference.common.SimilarityMeasure;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
 import java.util.Map;
@@ -45,6 +45,24 @@ public class OpenAiEmbeddingsModelTests extends ESTestCase {
 
         var overriddenModel = OpenAiEmbeddingsModel.of(model, null);
         assertThat(overriddenModel, sameInstance(model));
+    }
+
+    public static OpenAiEmbeddingsModel createModel(
+        String url,
+        @Nullable String org,
+        String apiKey,
+        String modelName,
+        @Nullable String user,
+        String inferenceEntityId
+    ) {
+        return new OpenAiEmbeddingsModel(
+            inferenceEntityId,
+            TaskType.TEXT_EMBEDDING,
+            "service",
+            new OpenAiEmbeddingsServiceSettings(modelName, url, org, SimilarityMeasure.DOT_PRODUCT, 1536, null, false),
+            new OpenAiEmbeddingsTaskSettings(user),
+            new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
+        );
     }
 
     public static OpenAiEmbeddingsModel createModel(

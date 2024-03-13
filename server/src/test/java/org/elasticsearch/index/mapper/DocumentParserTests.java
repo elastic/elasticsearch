@@ -2273,6 +2273,39 @@ public class DocumentParserTests extends MapperServiceTestCase {
         assertNull(doc.dynamicMappingsUpdate());
     }
 
+    public void testSubobjectsFalseFlattened() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> {
+            b.startObject("attributes");
+            {
+                b.field("dynamic", false);
+                b.field("subobjects", false);
+                b.startObject("properties");
+                {
+                    b.startObject("simple.attribute");
+                    b.field("type", "keyword");
+                    b.endObject();
+                    b.startObject("complex.attribute");
+                    b.field("type", "flattened");
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }));
+        ParsedDocument doc = mapper.parse(source("""
+            {
+              "attributes": {
+                "complex.attribute": {
+                  "foo" : "bar"
+                },
+                "simple.attribute": "foo"
+              }
+            }
+            """));
+        assertNotNull(doc.rootDoc().getField("attributes.complex.attribute"));
+        assertNotNull(doc.rootDoc().getField("attributes.simple.attribute"));
+    }
+
     public void testWriteToFieldAlias() throws Exception {
         DocumentMapper mapper = createDocumentMapper(mapping(b -> {
             b.startObject("alias-field");

@@ -10,6 +10,7 @@ package org.elasticsearch.compute.data;
 $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
 $endif$
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -64,10 +65,19 @@ $endif$
     }
 
     private static $Type$Block readFrom(BlockStreamInput in) throws IOException {
-        final boolean isVector = in.readBoolean();
-        if (isVector) {
-            return $Type$Vector.readFrom(in.blockFactory(), in).asBlock();
-        }
+        final byte serializationType = in.readByte();
+        return switch (serializationType) {
+            case SERIALIZE_BLOCK_VALUES -> $Type$Block.readValues(in);
+            case SERIALIZE_BLOCK_VECTOR -> $Type$Vector.readFrom(in.blockFactory(), in).asBlock();
+            case SERIALIZE_BLOCK_ARRAY -> $Type$ArrayBlock.readArrayBlock(in.blockFactory(), in);
+            default -> {
+                assert false : "invalid block serialization type " + serializationType;
+                throw new IllegalStateException("invalid serialization type " + serializationType);
+            }
+        };
+    }
+
+    private static $Type$Block readValues(BlockStreamInput in) throws IOException {
         final int positions = in.readVInt();
         try ($Type$Block.Builder builder = in.blockFactory().new$Type$BlockBuilder(positions)) {
             for (int i = 0; i < positions; i++) {
@@ -89,26 +99,38 @@ $endif$
     @Override
     default void writeTo(StreamOutput out) throws IOException {
         $Type$Vector vector = asVector();
-        out.writeBoolean(vector != null);
+        final var version = out.getTransportVersion();
         if (vector != null) {
+            out.writeByte(SERIALIZE_BLOCK_VECTOR);
             vector.writeTo(out);
+        } else if (version.onOrAfter(TransportVersions.ESQL_SERIALIZE_ARRAY_BLOCK) && this instanceof $Type$ArrayBlock b) {
+            out.writeByte(SERIALIZE_BLOCK_ARRAY);
+            b.writeArrayBlock(out);
         } else {
-            final int positions = getPositionCount();
-            out.writeVInt(positions);
-            for (int pos = 0; pos < positions; pos++) {
-                if (isNull(pos)) {
-                    out.writeBoolean(true);
-                } else {
-                    out.writeBoolean(false);
-                    final int valueCount = getValueCount(pos);
-                    out.writeVInt(valueCount);
-                    for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
+            out.writeByte(SERIALIZE_BLOCK_VALUES);
+            $Type$Block.writeValues(this, out);
+        }
+    }
+
+    private static void writeValues($Type$Block block, StreamOutput out) throws IOException {
+        final int positions = block.getPositionCount();
+        out.writeVInt(positions);
+        for (int pos = 0; pos < positions; pos++) {
+            if (block.isNull(pos)) {
+                out.writeBoolean(true);
+            } else {
+                out.writeBoolean(false);
+                final int valueCount = block.getValueCount(pos);
+                out.writeVInt(valueCount);
 $if(BytesRef)$
-                        out.write$Type$(get$Type$(getFirstValueIndex(pos) + valueIndex, new BytesRef()));
-$else$
-                        out.write$Type$(get$Type$(getFirstValueIndex(pos) + valueIndex));
+                var scratch = new BytesRef();
 $endif$
-                    }
+                for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
+$if(BytesRef)$
+                    out.write$Type$(block.get$Type$(block.getFirstValueIndex(pos) + valueIndex, scratch));
+$else$
+                    out.write$Type$(block.get$Type$(block.getFirstValueIndex(pos) + valueIndex));
+$endif$
                 }
             }
         }

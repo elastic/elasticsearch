@@ -114,6 +114,7 @@ public final class ConnectorTestUtils {
             .setFilteringRules(randomFrom(new Boolean[] { null, randomBoolean() }))
             .setFilteringAdvancedConfig(randomFrom(new Boolean[] { null, randomBoolean() }))
             .setIncrementalSyncEnabled(randomBoolean() ? randomConnectorFeatureEnabled() : null)
+            .setNativeConnectorAPIKeysEnabled(randomBoolean() ? randomConnectorFeatureEnabled() : null)
             .setSyncRulesFeatures(randomBoolean() ? randomSyncRulesFeatures() : null)
             .build();
     }
@@ -152,7 +153,7 @@ public final class ConnectorTestUtils {
                             .setId(randomAlphaOfLength(10))
                             .setOrder(randomInt())
                             .setPolicy(getRandomFilteringPolicy())
-                            .setRule(getRandomFilteringRule())
+                            .setRule(getRandomFilteringRuleCondition())
                             .setUpdatedAt(currentTimestamp)
                             .setValue(randomAlphaOfLength(10))
                             .build()
@@ -180,7 +181,7 @@ public final class ConnectorTestUtils {
                                 .setId(randomAlphaOfLength(10))
                                 .setOrder(randomInt())
                                 .setPolicy(getRandomFilteringPolicy())
-                                .setRule(getRandomFilteringRule())
+                                .setRule(getRandomFilteringRuleCondition())
                                 .setUpdatedAt(currentTimestamp)
                                 .setValue(randomAlphaOfLength(10))
                                 .build()
@@ -378,32 +379,32 @@ public final class ConnectorTestUtils {
         return values[randomInt(values.length - 1)];
     }
 
-    private static FilteringPolicy getRandomFilteringPolicy() {
+    public static FilteringPolicy getRandomFilteringPolicy() {
         FilteringPolicy[] values = FilteringPolicy.values();
         return values[randomInt(values.length - 1)];
     }
 
-    private static FilteringRuleCondition getRandomFilteringRule() {
+    public static FilteringRuleCondition getRandomFilteringRuleCondition() {
         FilteringRuleCondition[] values = FilteringRuleCondition.values();
         return values[randomInt(values.length - 1)];
     }
 
-    private static FilteringValidationState getRandomFilteringValidationState() {
+    public static FilteringValidationState getRandomFilteringValidationState() {
         FilteringValidationState[] values = FilteringValidationState.values();
         return values[randomInt(values.length - 1)];
     }
 
-    private static ConfigurationDisplayType getRandomConfigurationDisplayType() {
+    public static ConfigurationDisplayType getRandomConfigurationDisplayType() {
         ConfigurationDisplayType[] values = ConfigurationDisplayType.values();
         return values[randomInt(values.length - 1)];
     }
 
-    private static ConfigurationFieldType getRandomConfigurationFieldType() {
+    public static ConfigurationFieldType getRandomConfigurationFieldType() {
         ConfigurationFieldType[] values = ConfigurationFieldType.values();
         return values[randomInt(values.length - 1)];
     }
 
-    private static ConfigurationValidationType getRandomConfigurationValidationType() {
+    public static ConfigurationValidationType getRandomConfigurationValidationType() {
         ConfigurationValidationType[] values = ConfigurationValidationType.values();
         return values[randomInt(values.length - 1)];
     }

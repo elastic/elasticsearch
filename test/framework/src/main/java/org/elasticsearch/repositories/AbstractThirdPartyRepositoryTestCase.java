@@ -35,7 +35,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.Executor;
 
@@ -282,7 +281,7 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
         }
     }
 
-    private static <T> T executeOnBlobStore(BlobStoreRepository repository, CheckedFunction<BlobContainer, T, IOException> fn) {
+    protected static <T> T executeOnBlobStore(BlobStoreRepository repository, CheckedFunction<BlobContainer, T, IOException> fn) {
         final var future = new PlainActionFuture<T>();
         repository.threadPool().generic().execute(ActionRunnable.supply(future, () -> {
             var blobContainer = repository.blobStore().blobContainer(repository.basePath());
@@ -291,7 +290,7 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
         return future.actionGet();
     }
 
-    private static BytesReference readBlob(BlobStoreRepository repository, String blobName, long position, long length) {
+    protected static BytesReference readBlob(BlobStoreRepository repository, String blobName, long position, long length) {
         return executeOnBlobStore(repository, blobContainer -> {
             try (var input = blobContainer.readBlob(randomPurpose(), blobName, position, length); var output = new BytesStreamOutput()) {
                 Streams.copy(input, output);

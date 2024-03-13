@@ -3405,6 +3405,17 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         }
     }
 
+    public void testPartiallyFoldCase() {
+        var plan = optimizedPlan("""
+              FROM test
+            | EVAL c = CASE(true, emp_no, salary)
+            """);
+
+        var eval = as(plan, Eval.class);
+        var languages = as(Alias.unwrap(eval.expressions().get(0)), FieldAttribute.class);
+        assertThat(languages.name(), is("emp_no"));
+    }
+
     private LogicalPlan optimizedPlan(String query) {
         return plan(query);
     }

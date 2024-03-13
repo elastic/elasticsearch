@@ -162,11 +162,12 @@ class FieldCapabilitiesFetcher {
         var fieldInfos = indexShard.getFieldInfos();
         includeEmptyFields = includeEmptyFields || enableFieldHasValue == false;
         Map<String, IndexFieldCapabilities> responseMap = new HashMap<>();
-        for (String field : context.getAllFieldNames()) {
+        for (Map.Entry<String, MappedFieldType> entry : context.getAllFields()) {
+            final String field = entry.getKey();
             if (fieldNameFilter.test(field) == false) {
                 continue;
             }
-            MappedFieldType ft = context.getFieldType(field);
+            MappedFieldType ft = entry.getValue();
             if ((includeEmptyFields || ft.fieldHasValue(fieldInfos))
                 && (indexFieldfilter.test(ft.name()) || context.isMetadataField(ft.name()))
                 && (filter == null || filter.test(ft))) {

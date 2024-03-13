@@ -70,6 +70,10 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
 
         @Override
         public Query existsQuery(SearchExecutionContext context) {
+            // This query is not performance sensitive, it only helps assess
+            // quality of the data, so we may use a slow query. It shouldn't
+            // be too slow in practice since the number of unique terms in this
+            // field is bounded by the number of fields in the mappings.
             return new TermRangeQuery(name(), null, null, true, true);
         }
 
@@ -123,8 +127,8 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
     public void postParse(DocumentParserContext context) {
         if (context.indexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.DOC_VALUES_FOR_IGNORED_META_FIELD)) {
             for (String ignoredField : context.getIgnoredFields()) {
-                context.doc().add(new SortedSetDocValuesField(fieldType().name(), new BytesRef(ignoredField)));
-                context.doc().add(new StringField(fieldType().name(), ignoredField, Field.Store.NO));
+                context.doc().add(new SortedSetDocValuesField(NAME, new BytesRef(ignoredField)));
+                context.doc().add(new StringField(NAME, ignoredField, Field.Store.NO));
             }
         } else {
             for (String ignoredField : context.getIgnoredFields()) {

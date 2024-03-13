@@ -20,6 +20,7 @@ import org.elasticsearch.search.lookup.Source;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -34,7 +35,7 @@ public class MetadataFetcher {
     );
     private final Map<String, FieldContext> fieldContexts;
 
-    public MetadataFetcher(Map<String, FieldContext> fieldContexts) {
+    public MetadataFetcher(final Map<String, FieldContext> fieldContexts) {
         this.fieldContexts = fieldContexts;
     }
 
@@ -43,20 +44,19 @@ public class MetadataFetcher {
     private record FieldContext(String fieldName, ValueFetcher valueFetcher) {}
 
     public static MetadataFetcher create(
-        SearchExecutionContext context,
-        boolean fetchStoredFields,
+        final SearchExecutionContext context,
+        boolean fetchFields,
         final List<FieldAndFormat> additionalFields
     ) {
         final List<MetadataField> metadataFields = new ArrayList<>(3);
+        if (fetchFields == false) {
+            return new MetadataFetcher(Collections.emptyMap());
+        }
         for (FieldAndFormat fieldAndFormat : Stream.concat(METADATA_FIELDS.stream(), additionalFields.stream()).toList()) {
             for (final String field : context.getMatchingFieldNames(fieldAndFormat.field)) {
-                if (context.getFieldType(field) != null) {
-                    MappedFieldType mappedFieldType = context.getFieldType(field);
-                    // NOTE: some metadata fields are stored and we should not load them if `stored_fields = _none_`
-                    if (mappedFieldType.isStored()) {
-                        continue;
-                    }
-                    metadataFields.add(new MetadataFetcher.MetadataField(field, mappedFieldType, fieldAndFormat.format));
+                final MappedFieldType ft = context.getFieldType(field);
+                if (ft != null) {
+                    metadataFields.add(new MetadataFetcher.MetadataField(field, ft, fieldAndFormat.format));
                 }
             }
         }

@@ -10,7 +10,6 @@ package org.elasticsearch.search.fetch.subphase;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.document.DocumentField;
-import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
@@ -33,8 +32,8 @@ public final class FetchFieldsPhase implements FetchSubPhase {
     public FetchSubPhaseProcessor getProcessor(FetchContext fetchContext) {
         final FetchFieldsContext fetchFieldsContext = fetchContext.fetchFieldsContext();
         final StoredFieldsContext storedFieldsContext = fetchContext.storedFieldsContext();
-        final List<FieldAndFormat> fieldAndFormatList = fetchFieldsContext == null ? Collections.emptyList() : fetchFieldsContext.fields();
-        final FieldFetcher fieldFetcher = FieldFetcher.create(fetchContext.getSearchExecutionContext(), fieldAndFormatList);
+        final List<FieldAndFormat> fetchFields = fetchFieldsContext == null ? Collections.emptyList() : fetchFieldsContext.fields();
+        final FieldFetcher fieldFetcher = FieldFetcher.create(fetchContext.getSearchExecutionContext(), fetchFields);
         final List<FieldAndFormat> additionalFields = getAdditionalFields(storedFieldsContext);
         boolean fetchStoredFields = storedFieldsContext != null && storedFieldsContext.fetchFields();
         final MetadataFetcher metadataFetcher = MetadataFetcher.create(
@@ -58,12 +57,9 @@ public final class FetchFieldsPhase implements FetchSubPhase {
 
             @Override
             public void process(HitContext hitContext) throws IOException {
-                SearchHit hit = hitContext.hit();
-                Map<String, DocumentField> documentFields = fieldFetcher.fetch(hitContext.source(), hitContext.docId());
-                for (Map.Entry<String, DocumentField> entry : documentFields.entrySet()) {
-                    hit.setDocumentField(entry.getKey(), entry.getValue());
-                }
-                hit.addDocumentFields(Collections.emptyMap(), metadataFetcher.fetch(hitContext.source(), hitContext.docId()));
+                final Map<String, DocumentField> documentFields = fieldFetcher.fetch(hitContext.source(), hitContext.docId());
+                final Map<String, DocumentField> metadataFields = metadataFetcher.fetch(hitContext.source(), hitContext.docId());
+                hitContext.hit().addDocumentFields(documentFields, metadataFields);
             }
         };
     }

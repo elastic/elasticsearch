@@ -15,7 +15,6 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.hamcrest.Matchers;
@@ -24,35 +23,55 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-public class IgnoreMalformedMixedClusterUpgradeIT extends ParameterizedRollingUpgradeTestCase {
-    private static Map<?, ?> oldHits;
+public class IgnoredFieldMixedClusterUpgradeIT extends ParameterizedRollingUpgradeTestCase {
+    private static List<?> oldHits;
 
-    public IgnoreMalformedMixedClusterUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
+    public IgnoredFieldMixedClusterUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
         super(upgradedNodes);
     }
 
-    public void testTermQueryIgnoredMetaField() throws IOException {
+    @SuppressWarnings("unchecked")
+    public void testIgnoredMetaField() throws IOException {
         if (isOldCluster()) {
             assertRestStatus(client().performRequest(createNewIndex("test")), RestStatus.OK);
             assertRestStatus(client().performRequest(indexDocument("1", "foofoo")), RestStatus.CREATED);
             assertRestStatus(client().performRequest(indexDocument("2", "barbar")), RestStatus.CREATED);
-            assertRestStatus(client().performRequest(indexDocument("3", "foo")), RestStatus.CREATED);
-            assertRestStatus(client().performRequest(indexDocument("4", "bar")), RestStatus.CREATED);
-            oldHits = (Map<?, ?>) ((List<?>) (XContentMapValues.extractValue("hits.hits", entityAsMap(termQuery())))).get(0);
+            assertRestStatus(client().performRequest(indexDocument("3", "fooooo")), RestStatus.CREATED);
+            assertRestStatus(client().performRequest(indexDocument("4", "barbaz")), RestStatus.CREATED);
+            final List<Map<String, Object>> allDocs = (List<Map<String, Object>>) XContentMapValues.extractValue(
+                "hits.hits",
+                entityAsMap(matchAll())
+            );
+            assertThat(allDocs.size(), Matchers.equalTo(4));
+            allDocs.forEach(doc -> assertThat((List<String>) doc.get("_ignored"), Matchers.contains("keyword")));
+            oldHits = (List<?>) XContentMapValues.extractValue("hits.hits", entityAsMap(existsQuery()));
+            assertThat(oldHits.size(), Matchers.equalTo(4));
         } else if (isUpgradedCluster()) {
-            final Map<?, ?> hits = (Map<?, ?>) ((List<?>) (XContentMapValues.extractValue("hits.hits", entityAsMap(termQuery())))).get(0);
-            assertThat(oldHits, MapMatcher.matchesMap(hits));
+            assertRestStatus(client().performRequest(indexDocument("5", "foobar")), RestStatus.CREATED);
+            assertRestStatus(client().performRequest(indexDocument("6", "bazfoo")), RestStatus.CREATED);
+            final List<Map<String, Object>> allDocs = (List<Map<String, Object>>) XContentMapValues.extractValue(
+                "hits.hits",
+                entityAsMap(existsQuery())
+            );
+            assertThat(allDocs.size(), Matchers.equalTo(6));
+            allDocs.forEach(doc -> assertThat((List<String>) doc.get("_ignored"), Matchers.contains("keyword")));
+            final List<?> hits = (List<?>) XContentMapValues.extractValue("hits.hits", entityAsMap(existsQuery()));
+            assertThat(hits.size(), Matchers.equalTo(6));
+            assertThat(oldHits, Matchers.containsInAnyOrder(hits));
         }
     }
 
-    private static Response termQuery() throws IOException {
+    private static Response matchAll() throws IOException {
+        return client().performRequest(new Request("POST", "/test/_search"));
+    }
+
+    private static Response existsQuery() throws IOException {
         final Request request = new Request("POST", "/test/_search");
-        request.addParameter("size", "3");
         final String format = Strings.format("""
             {
               "query": {
-                "ids": {
-                  "values": [ "2", "3" ]
+                "exists": {
+                  "field": "_ignored"
                 }
               }
             }""");

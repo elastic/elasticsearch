@@ -296,6 +296,31 @@ public class BigArraysTests extends ESTestCase {
         Releasables.close(array1, array2, array3);
     }
 
+    public void testSerializeIntArray() throws Exception {
+        int len = randomIntBetween(1, 100_000);
+        IntArray array1 = bigArrays.newIntArray(len, randomBoolean());
+        for (int i = 0; i < len; ++i) {
+            array1.set(i, randomInt());
+        }
+        if (randomBoolean()) {
+            len = randomIntBetween(len, len * 3 / 2);
+            array1 = bigArrays.resize(array1, len);
+        }
+        BytesStreamOutput out = new BytesStreamOutput();
+        array1.writeTo(out);
+        final IntArray array2 = bigArrays.newIntArray(len, randomBoolean());
+        array2.fillWith(out.bytes().streamInput());
+        for (int i = 0; i < len; i++) {
+            assertThat(array2.get(i), equalTo(array1.get(i)));
+        }
+        final IntArray array3 = IntArray.readFrom(out.bytes().streamInput());
+        assertThat(array3.size(), equalTo((long) len));
+        for (int i = 0; i < len; i++) {
+            assertThat(array3.get(i), equalTo(array1.get(i)));
+        }
+        Releasables.close(array1, array2, array3);
+    }
+
     public void testByteArrayBulkGet() {
         final byte[] array1 = new byte[randomIntBetween(1, 4000000)];
         random().nextBytes(array1);

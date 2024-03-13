@@ -18,6 +18,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiPredicate;
 import java.util.function.ToIntFunction;
@@ -213,6 +214,31 @@ public class IteratorsTests extends ESTestCase {
         final var index = new AtomicInteger();
         Iterators.map(Iterators.forArray(array), i -> i * 2)
             .forEachRemaining(i -> assertEquals(array[index.getAndIncrement()] * 2, (long) i));
+        assertEquals(array.length, index.get());
+    }
+
+    public void testFailFast() {
+        final var array = randomIntegerArray();
+        assertEmptyIterator(Iterators.failFast(Iterators.forArray(array), () -> true));
+
+        final var index = new AtomicInteger();
+        Iterators.failFast(Iterators.forArray(array), () -> false).forEachRemaining(i -> assertEquals(array[index.getAndIncrement()], i));
+        assertEquals(array.length, index.get());
+
+        final var isFailing = new AtomicBoolean();
+        index.set(0);
+        Iterators.failFast(Iterators.concat(Iterators.forArray(array), new Iterator<>() {
+            @Override
+            public boolean hasNext() {
+                isFailing.set(true);
+                return true;
+            }
+
+            @Override
+            public Integer next() {
+                return 0;
+            }
+        }), isFailing::get).forEachRemaining(i -> assertEquals(array[index.getAndIncrement()], i));
         assertEquals(array.length, index.get());
     }
 

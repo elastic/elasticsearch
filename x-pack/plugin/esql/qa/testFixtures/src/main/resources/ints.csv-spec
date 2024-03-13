@@ -384,6 +384,151 @@ row a = [1, 2, 2, 3] | eval da = mv_dedupe(a);
 [1, 2, 2, 3] | [1, 2, 3]
 ;
 
+mvSlice#[skip:-8.13.99, reason:newly added in 8.14]
+// tag::mv_slice_positive[]
+row a = [1, 2, 2, 3]
+| eval a1 = mv_slice(a, 1), a2 = mv_slice(a, 2, 3)
+// end::mv_slice_positive[]
+;
+// tag::mv_slice_positive-result[]
+a:integer    | a1:integer | a2:integer
+[1, 2, 2, 3] | 2          | [2, 3]
+// end::mv_slice_positive-result[]
+;
+
+mvSliceNegativeOffset#[skip:-8.13.99, reason:newly added in 8.14]
+// tag::mv_slice_negative[]
+row a = [1, 2, 2, 3]
+| eval a1 = mv_slice(a, -2), a2 = mv_slice(a, -3, -1)
+// end::mv_slice_negative[]
+;
+// tag::mv_slice_negative-result[]
+a:integer    | a1:integer | a2:integer
+[1, 2, 2, 3] | 2          | [2, 2, 3]
+// end::mv_slice_negative-result[]
+;
+
+mvSliceSingle#[skip:-8.13.99, reason:newly added in 8.14]
+row a = 1
+| eval a1 = mv_slice(a, 0);
+
+a:integer | a1:integer
+1         | 1
+;
+
+mvSliceOutOfBound#[skip:-8.13.99, reason:newly added in 8.14]
+row a = [1, 2, 2, 3]
+| eval a1 = mv_slice(a, 4), a2 = mv_slice(a, 2, 6), a3 = mv_slice(a, 4, 6);
+
+a:integer    | a1:integer | a2:integer | a3:integer
+[1, 2, 2, 3] | null          | [2, 3]     | null
+;
+
+mvSliceEmpInt#[skip:-8.13.99, reason:newly added in 8.14]
+from employees
+| eval a1 = mv_slice(salary_change.int, 0, 1)
+| keep emp_no, salary_change.int, a1
+| sort emp_no
+| limit 5;
+
+emp_no:integer | salary_change.int:integer | a1:integer
+10001          | 1                         | 1
+10002          | [-7, 11]                  | [-7, 11]
+10003          | [12, 14]                  | [12, 14]
+10004          | [0, 1, 3, 13]             | [0, 1]
+10005          | [-2, 13]                  | [-2, 13]
+;
+
+mvSliceEmpIntSingle#[skip:-8.13.99, reason:newly added in 8.14]
+from employees
+| eval a1 = mv_slice(salary_change.int, 1)
+| keep emp_no, salary_change.int, a1
+| sort emp_no
+| limit 5;
+
+emp_no:integer | salary_change.int:integer | a1:integer
+10001          | 1                         | null
+10002          | [-7, 11]                  | 11
+10003          | [12, 14]                  | 14
+10004          | [0, 1, 3, 13]             | 1
+10005          | [-2, 13]                  | 13
+;
+
+mvSliceEmpIntEndOutOfBound#[skip:-8.13.99, reason:newly added in 8.14]
+from employees
+| eval a1 = mv_slice(salary_change.int, 1, 4)
+| keep emp_no, salary_change.int, a1
+| sort emp_no
+| limit 5;
+
+emp_no:integer | salary_change.int:integer | a1:integer
+10001          | 1                         | null
+10002          | [-7, 11]                  | 11
+10003          | [12, 14]                  | 14
+10004          | [0, 1, 3, 13]             | [1, 3, 13]
+10005          | [-2, 13]                  | 13
+;
+
+mvSliceEmpIntOutOfBound#[skip:-8.13.99, reason:newly added in 8.14]
+from employees
+| eval a1 = mv_slice(salary_change.int, 2, 4)
+| keep emp_no, salary_change.int, a1
+| sort emp_no
+| limit 5;
+
+emp_no:integer | salary_change.int:integer | a1:integer
+10001          | 1                         | null
+10002          | [-7, 11]                  | null
+10003          | [12, 14]                  | null
+10004          | [0, 1, 3, 13]             | [3, 13]
+10005          | [-2, 13]                  | null
+;
+
+mvSliceEmpIntStartOutOfBoundNegative#[skip:-8.13.99, reason:newly added in 8.14]
+from employees
+| eval a1 = mv_slice(salary_change.int, -5, -2)
+| keep emp_no, salary_change.int, a1
+| sort emp_no
+| limit 5;
+
+emp_no:integer | salary_change.int:integer | a1:integer
+10001          | 1                         | null
+10002          | [-7, 11]                  | -7
+10003          | [12, 14]                  | 12
+10004          | [0, 1, 3, 13]             | [0, 1, 3]
+10005          | [-2, 13]                  | -2
+;
+
+mvSliceEmpIntOutOfBoundNegative#[skip:-8.13.99, reason:newly added in 8.14]
+from employees
+| eval a1 = mv_slice(salary_change.int, -5, -3)
+| keep emp_no, salary_change.int, a1
+| sort emp_no
+| limit 5;
+
+emp_no:integer | salary_change.int:integer | a1:integer
+10001          | 1                         | null
+10002          | [-7, 11]                  | null
+10003          | [12, 14]                  | null
+10004          | [0, 1, 3, 13]             | [0, 1]
+10005          | [-2, 13]                  | null
+;
+
+mvSliceEmpLong#[skip:-8.13.99, reason:newly added in 8.14]
+from employees
+| eval a1 = mv_slice(salary_change.long, 0, 1)
+| keep emp_no, salary_change.long, a1
+| sort emp_no
+| limit 5;
+
+emp_no:integer | salary_change.long:long | a1:long
+10001          | 1                       | 1
+10002          | [-7, 11]                | [-7, 11]
+10003          | [12, 14]                | [12, 14]
+10004          | [0, 1, 3, 13]           | [0, 1]
+10005          | [-2, 13]                | [-2, 13]
+;
+
 autoBucket
 // tag::auto_bucket[]
 FROM employees

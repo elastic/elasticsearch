@@ -57,6 +57,7 @@ public class DataStreamLifecycleDownsampleDisruptionIT extends ESIntegTestCase {
         return settings.build();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105577")
     @TestLogging(value = "org.elasticsearch.datastreams.lifecycle:TRACE", reason = "debugging")
     public void testDataStreamLifecycleDownsampleRollingRestart() throws Exception {
         final InternalTestCluster cluster = internalCluster();

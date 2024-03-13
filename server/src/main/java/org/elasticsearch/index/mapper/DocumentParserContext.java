@@ -12,6 +12,7 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.xcontent.FilterXContentParserWrapper;
@@ -229,6 +230,10 @@ public abstract class DocumentParserContext {
 
     public final SourceToParse sourceToParse() {
         return this.sourceToParse;
+    }
+
+    public final String routing() {
+        return mappingParserContext.getIndexSettings().getMode() == IndexMode.TIME_SERIES ? null : sourceToParse.routing();
     }
 
     /**

@@ -7,11 +7,9 @@
 
 package org.elasticsearch.xpack.profiling;
 
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermQueryBuilder;
-import org.elasticsearch.index.shard.ShardId;
 
 import java.util.List;
 
@@ -92,7 +90,6 @@ public class GetStackTracesActionIT extends ProfilingTestCase {
 
     public void testGetStackTracesFromAPMWithMatchAndDownsampling() throws Exception {
         TermQueryBuilder query = QueryBuilders.termQuery("transaction.name", "encodeSha1");
-        Index apmTest = resolveIndex("apm-test-001");
 
         GetStackTracesRequest request = new GetStackTracesRequest(
             1,
@@ -107,28 +104,9 @@ public class GetStackTracesActionIT extends ProfilingTestCase {
             null,
             null,
             null
-        ) {
-            @Override
-            public boolean equals(Object o) {
-                return super.equals(o);
-            }
-
-            @Override
-            public int hashCode() {
-                // The random sampler aggregation takes a user-provided seed as well as the index UUID into account for randomness. This is
-                // fine for a production use case but here we need full control over the internal seed so test results are stable. As
-                // the index UUID changes between test runs, and we have no control over it, we will instead modify the user provided seed
-                // so that the random number generator is always initialized the same, regardless of the index UUID.
-                //
-                // See org.elasticsearch.search.aggregations.bucket.sampler.random.RandomSamplingQuery#createWeight(), specifically the
-                // initialization of SplittableRandom(), which uses both the "seed" (user-provided) and a "hash", which is built from
-                // ShardId#hashCode(). By using the same hash code, the XOR will always evaluate to 0, thus producing a consistent seed for
-                // SplittableRandom().
-                int baseSeed = new ShardId(apmTest, 0).hashCode();
-                // a seed of zero won't return results for our test scenario, so we toggle one bit to generate a consistent non-zero seed.
-                return baseSeed ^ 2;
-            }
-        };
+        );
+        // ensures consistent results in the random sampler aggregation that is used internally
+        request.setShardSeed(42);
 
         GetStackTracesResponse response = client().execute(GetStackTracesAction.INSTANCE, request).get();
         assertEquals(49, response.getTotalFrames());

@@ -263,8 +263,20 @@ public final class DataStreamTestHelper {
             + "    }";
     }
 
+    /**
+     * @return a list of random indices. NOTE: the list can be empty, if you do not want an empty list use
+     * {@link DataStreamTestHelper#randomNonEmptyIndexInstances()}
+     */
     public static List<Index> randomIndexInstances() {
-        int numIndices = ESTestCase.randomIntBetween(0, 128);
+        return randomIndexInstances(0, 128);
+    }
+
+    public static List<Index> randomNonEmptyIndexInstances() {
+        return randomIndexInstances(1, 128);
+    }
+
+    public static List<Index> randomIndexInstances(int min, int max) {
+        int numIndices = ESTestCase.randomIntBetween(min, max);
         List<Index> indices = new ArrayList<>(numIndices);
         for (int i = 0; i < numIndices; i++) {
             indices.add(new Index(randomAlphaOfLength(10).toLowerCase(Locale.ROOT), UUIDs.randomBase64UUID(LuceneTestCase.random())));
@@ -296,7 +308,7 @@ public final class DataStreamTestHelper {
         List<Index> failureIndices = List.of();
         boolean failureStore = randomBoolean();
         if (failureStore) {
-            failureIndices = randomIndexInstances();
+            failureIndices = randomNonEmptyIndexInstances();
         }
 
         return new DataStream(

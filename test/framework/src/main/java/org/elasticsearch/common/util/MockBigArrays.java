@@ -539,6 +539,11 @@ public class MockBigArrays extends BigArrays {
         public void writeTo(StreamOutput out) throws IOException {
             in.writeTo(out);
         }
+
+        @Override
+        public void fillWith(StreamInput streamInput) throws IOException {
+            in.fillWith(streamInput);
+        }
     }
 
     private class FloatArrayWrapper extends AbstractArrayWrapper implements FloatArray {

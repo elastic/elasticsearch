@@ -1281,3 +1281,34 @@ Default: 1, the primary shard.
 See <<index-wait-for-active-shards>>.
 --
 end::wait_for_active_shards[]
+
+tag::rrf-retrievers[]
+`retrievers`::
+(Required, array of retriever objects)
++
+A list of child retrievers to specify which sets of returned top documents
+will have the RRF formula applied to them. Each child retriever carries an
+equal weight as part of the RRF formula. Two or more child retrievers are
+required.
+end::rrf-retrievers[]
+
+tag::rrf-rank-constant[]
+`rank_constant`::
+(Optional, integer)
++
+This value determines how much influence documents in individual
+result sets per query have over the final ranked result set. A higher value indicates
+that lower ranked documents have more influence. This value must be greater than or
+equal to `1`. Defaults to `60`.
+end::rrf-rank-constant[]
+
+tag::rrf-window-size[]
+`window_size`::
+(Optional, integer)
++
+This value determines the size of the individual result sets per
+query. A higher value will improve result relevance at the cost of performance. The final
+ranked result set is pruned down to the search request's <<search-size-param, size>>.
+`window_size` must be greater than or equal to `size` and greater than or equal to `1`.
+Defaults to the `size` parameter.
+end::rrf-window-size[]

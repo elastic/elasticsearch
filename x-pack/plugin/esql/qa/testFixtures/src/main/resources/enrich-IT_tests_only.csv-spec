@@ -218,6 +218,22 @@ count:long | age_group:keyword
 12         | Middle-aged
 ;
 
+enrichHeightsStats#[skip:-8.13.99, reason:ENRICH extended in 8.14.0]
+FROM employees
+| ENRICH heights_policy ON height WITH height_group = description
+| STATS count=count(height_group), min=min(height), max=max(height) BY height_group
+| KEEP height_group, min, max, count
+| SORT min ASC
+;
+
+height_group:k | min:double | max:double | count:long
+Very Short     | 1.41       | 1.48       | 9
+Short          | 1.5        | 1.59       | 20
+Medium Height  | 1.61       | 1.79       | 26
+Tall           | 1.8        | 1.99       | 25
+Very Tall      | 2.0        | 2.1        | 20
+;
+
 spatialEnrichmentKeywordMatch#[skip:-8.12.99, reason:geo_shape added in 8.13.0]
 FROM airports
 | WHERE abbrev == "CPH"

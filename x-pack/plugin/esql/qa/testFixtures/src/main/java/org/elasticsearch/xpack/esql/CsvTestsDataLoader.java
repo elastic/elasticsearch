@@ -58,6 +58,7 @@ public class CsvTestsDataLoader {
     private static final TestsDataset CLIENT_IPS = new TestsDataset("clientips", "mapping-clientips.json", "clientips.csv");
     private static final TestsDataset CLIENT_CIDR = new TestsDataset("client_cidr", "mapping-client_cidr.json", "client_cidr.csv");
     private static final TestsDataset AGES = new TestsDataset("ages", "mapping-ages.json", "ages.csv");
+    private static final TestsDataset HEIGHTS = new TestsDataset("heights", "mapping-heights.json", "heights.csv");
     private static final TestsDataset AIRPORTS = new TestsDataset("airports", "mapping-airports.json", "airports.csv");
     private static final TestsDataset AIRPORTS_WEB = new TestsDataset("airports_web", "mapping-airports_web.json", "airports_web.csv");
     private static final TestsDataset COUNTRIES_BBOX = new TestsDataset(
@@ -86,6 +87,7 @@ public class CsvTestsDataLoader {
         Map.entry(CLIENT_IPS.indexName, CLIENT_IPS),
         Map.entry(CLIENT_CIDR.indexName, CLIENT_CIDR),
         Map.entry(AGES.indexName, AGES),
+        Map.entry(HEIGHTS.indexName, HEIGHTS),
         Map.entry(AIRPORTS.indexName, AIRPORTS),
         Map.entry(AIRPORTS_WEB.indexName, AIRPORTS_WEB),
         Map.entry(COUNTRIES_BBOX.indexName, COUNTRIES_BBOX),
@@ -97,15 +99,23 @@ public class CsvTestsDataLoader {
     private static final EnrichConfig CLIENT_IPS_ENRICH = new EnrichConfig("clientip_policy", "enrich-policy-clientips.json");
     private static final EnrichConfig CLIENT_CIDR_ENRICH = new EnrichConfig("client_cidr_policy", "enrich-policy-client_cidr.json");
     private static final EnrichConfig AGES_ENRICH = new EnrichConfig("ages_policy", "enrich-policy-ages.json");
+    private static final EnrichConfig HEIGHTS_ENRICH = new EnrichConfig("heights_policy", "enrich-policy-heights.json");
     private static final EnrichConfig CITY_NAMES_ENRICH = new EnrichConfig("city_names", "enrich-policy-city_names.json");
     private static final EnrichConfig CITY_BOUNDARIES_ENRICH = new EnrichConfig("city_boundaries", "enrich-policy-city_boundaries.json");
 
-    public static final List<String> ENRICH_SOURCE_INDICES = List.of("languages", "clientips", "client_cidr", "ages_policy");
+    public static final List<String> ENRICH_SOURCE_INDICES = List.of(
+        "languages",
+        "clientips",
+        "client_cidr",
+        "ages_policy",
+        "heights_policy"
+    );
     public static final List<EnrichConfig> ENRICH_POLICIES = List.of(
         LANGUAGES_ENRICH,
         CLIENT_IPS_ENRICH,
         CLIENT_CIDR_ENRICH,
         AGES_ENRICH,
+        HEIGHTS_ENRICH,
         CITY_NAMES_ENRICH,
         CITY_BOUNDARIES_ENRICH
     );

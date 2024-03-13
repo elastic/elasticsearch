@@ -86,6 +86,8 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_POINT;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_SHAPE;
 import static org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.resolveFunction;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
+import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
+import static org.elasticsearch.xpack.ql.type.DataTypes.FLOAT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
 import static org.elasticsearch.xpack.ql.type.DataTypes.IP;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
@@ -578,13 +580,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
                 if (resolved.resolved()) {
                     final DataType dataType = resolved.dataType();
-                    DataType[] allowed = new DataType[] { KEYWORD, IP, GEO_POINT, GEO_SHAPE, LONG, INTEGER };
+                    DataType[] allowed = new DataType[] { KEYWORD, IP, GEO_POINT, GEO_SHAPE, LONG, INTEGER, FLOAT, DOUBLE };
                     if (Arrays.asList(allowed).contains(dataType) == false) {
                         String suffix = "only " + Arrays.toString(allowed) + " allowed";
                         resolved = ua.withUnresolvedMessage(
                             "Unsupported type [" + resolved.dataType() + "] for enrich matching field [" + ua.name() + "]; " + suffix
                         );
                     }
+                    // TODO: Even if we support the type, we should check if the type matches the enrich policy
                 }
                 return new Enrich(
                     enrich.source(),

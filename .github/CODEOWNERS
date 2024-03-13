@@ -39,3 +39,9 @@ build-tools-internal @elastic/es-delivery
 distribution/src @elastic/es-delivery
 distribution/packages/src @elastic/es-delivery
 distribution/docker/src @elastic/es-delivery
+
+# Core/Infra
+server/src/main/java/org/elasticsearch/bootstrap @elastic/es-core-infra
+server/src/main/java/org/elasticsearch/node @elastic/es-core-infra
+server/src/main/java/org/elasticsearch/plugins @elastic/es-core-infra
+server/src/main/java/org/elasticsearch/threadpool @elastic/es-core-infra

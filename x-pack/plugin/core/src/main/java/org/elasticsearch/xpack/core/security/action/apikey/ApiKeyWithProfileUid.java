@@ -14,6 +14,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
@@ -38,6 +39,25 @@ public class ApiKeyWithProfileUid extends ApiKey {
         if (profileUid != null) {
             builder.field("profile_uid", profileUid);
         }
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        return super.equals(o) && Objects.equals(profileUid, ((ApiKeyWithProfileUid) o).getProfileUid());
+    }
+
+    @Override
+    public int hashCode() {
+        int result = super.hashCode();
+        result = 31 * result + Objects.hashCode(profileUid);
+        return result;
+    }
+
+    @Override
+    public String toString() {
+        return "ApiKeyWithProfileUid [apiKey=" + super.toString() + ", profileUid=" + profileUid + ']';
     }
 
     static final ConstructingObjectParser<ApiKeyWithProfileUid, Void> PARSER;

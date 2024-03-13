@@ -76,6 +76,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
     private final Map<String, IndexNotFoundException> indicesThatCannotBeCreated;
     private final String executorName;
     private final LongSupplier relativeTimeProvider;
+    private final FailureStoreDocumentConverter failureStoreDocumentConverter;
     private IndexNameExpressionResolver indexNameExpressionResolver;
     private NodeClient client;
 
@@ -106,7 +107,8 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
             relativeTimeProvider,
             startTimeNanos,
             listener,
-            new ClusterStateObserver(clusterService, bulkRequest.timeout(), logger, threadPool.getThreadContext())
+            new ClusterStateObserver(clusterService, bulkRequest.timeout(), logger, threadPool.getThreadContext()),
+            new FailureStoreDocumentConverter()
         );
     }
 
@@ -123,7 +125,8 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         LongSupplier relativeTimeProvider,
         long startTimeNanos,
         ActionListener<BulkResponse> listener,
-        ClusterStateObserver observer
+        ClusterStateObserver observer,
+        FailureStoreDocumentConverter failureStoreDocumentConverter
     ) {
         super(listener);
         this.task = task;
@@ -139,6 +142,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.client = client;
         this.observer = observer;
+        this.failureStoreDocumentConverter = failureStoreDocumentConverter;
     }
 
     @Override
@@ -467,7 +471,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         // Convert the document into a failure document
         IndexRequest failureStoreRequest;
         try {
-            failureStoreRequest = FailureStoreDocument.transformFailedRequest(
+            failureStoreRequest = failureStoreDocumentConverter.transformFailedRequest(
                 TransportBulkAction.getIndexWriteRequest(request.request()),
                 cause,
                 failureStoreReference,

@@ -44,7 +44,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.features.FeatureService;
@@ -57,8 +56,6 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -67,6 +64,7 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.common.ResultsAndErrors;
 import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
+import org.elasticsearch.xpack.core.security.action.apikey.ApiKeyWithProfileUid;
 import org.elasticsearch.xpack.core.security.action.profile.Profile;
 import org.elasticsearch.xpack.core.security.action.profile.SuggestProfilesRequest;
 import org.elasticsearch.xpack.core.security.action.profile.SuggestProfilesResponse;
@@ -104,7 +102,6 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.action.bulk.TransportSingleItemBulkWriteAction.toSingleItemBulkRequest;
 import static org.elasticsearch.common.Strings.collectionToCommaDelimitedString;
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_PROFILE_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -1106,49 +1103,6 @@ public class ProfileService {
             doc.labels(),
             doc.applicationData()
         );
-    }
-
-    public static class ApiKeyWithProfileUid extends ApiKey {
-
-        @Nullable
-        private final String profileUid;
-
-        ApiKeyWithProfileUid(ApiKey apiKey, @Nullable String profileUid) {
-            super(apiKey);
-            this.profileUid = profileUid;
-        }
-
-        @Nullable
-        public String getProfileUid() {
-            return profileUid;
-        }
-
-        @Override
-        public void innerToXContent(XContentBuilder builder, Params params) throws IOException {
-            super.innerToXContent(builder, params);
-            if (profileUid != null) {
-                builder.field("profile_uid", profileUid);
-            }
-        }
-
-        static final ConstructingObjectParser<ApiKeyWithProfileUid, Void> PARSER;
-        static {
-            int nFieldsForParsingApiKeys = 13; // this must be changed whenever ApiKey#initializeParser is changed for the number of parsers
-            PARSER = new ConstructingObjectParser<>(
-                "api_key_with_profile_uid",
-                true,
-                args -> new ApiKeyWithProfileUid(new ApiKey(args), (String) args[nFieldsForParsingApiKeys])
-            );
-            int nParsedFields = ApiKey.initializeParser(PARSER);
-            if (nFieldsForParsingApiKeys != nParsedFields) {
-                throw new IllegalStateException("Unexpected fields for parsing API Keys");
-            }
-            PARSER.declareStringOrNull(optionalConstructorArg(), new ParseField("profile_uid"));
-        }
-
-        public static ApiKeyWithProfileUid fromXContent(XContentParser parser) throws IOException {
-            return PARSER.parse(parser, null);
-        }
     }
 
     // Package private for testing

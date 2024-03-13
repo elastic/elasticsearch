@@ -23,7 +23,7 @@ public class ApiKeyWithProfileUid extends ApiKey {
     @Nullable
     private final String profileUid;
 
-    ApiKeyWithProfileUid(ApiKey apiKey, @Nullable String profileUid) {
+    public ApiKeyWithProfileUid(ApiKey apiKey, @Nullable String profileUid) {
         super(apiKey);
         this.profileUid = profileUid;
     }

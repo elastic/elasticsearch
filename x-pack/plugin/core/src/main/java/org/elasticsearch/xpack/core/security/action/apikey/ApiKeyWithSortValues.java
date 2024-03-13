@@ -18,7 +18,7 @@ public class ApiKeyWithSortValues extends ApiKey {
     @Nullable
     private final Object[] sortValues;
 
-    ApiKeyWithSortValues(ApiKey apiKey, @Nullable Object[] sortValues) {
+    public ApiKeyWithSortValues(ApiKey apiKey, @Nullable Object[] sortValues) {
         super(apiKey);
         this.sortValues = sortValues;
     }

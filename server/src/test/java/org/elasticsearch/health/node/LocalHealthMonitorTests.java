@@ -393,7 +393,6 @@ public class LocalHealthMonitorTests extends ESTestCase {
 
         @Override
         protected void addToRequestBuilder(UpdateHealthInfoCacheAction.Request.Builder builder, DiskHealthInfo healthInfo) {
-            System.out.println("HEALTH INFO " + healthInfo);
             builder.diskHealthInfo(healthInfo);
         }
 

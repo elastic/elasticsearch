@@ -155,10 +155,7 @@ public class DownsampleActionIT extends ESRestTestCase {
 
     @Before
     public void updatePollInterval() throws IOException {
-        updateClusterSettings(
-            client(),
-            Settings.builder().put("indices.lifecycle.poll_interval", "5s").put("time_series.poll_interval", "10m").build()
-        );
+        updateClusterSettings(client(), Settings.builder().put("indices.lifecycle.poll_interval", "5s").build());
     }
 
     private void createIndex(String index, String alias, boolean isTimeSeries) throws IOException {

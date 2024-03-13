@@ -59,6 +59,7 @@ FROM airport_city_boundaries
 | WHERE abbrev == "CPH"
 | EVAL boundary_wkt_length = LENGTH(TO_STRING(city_boundary))
 | KEEP abbrev, region, city_location, airport, boundary_wkt_length
+| LIMIT 1
 ;
 
 abbrev:keyword  |  region:text         |  city_location:geo_point |  airport:text  |  boundary_wkt_length:integer

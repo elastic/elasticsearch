@@ -172,6 +172,7 @@ enrichCidr2#[skip:-8.99.99, reason:ip_range support not added yet]
 FROM sample_data
 | ENRICH client_cidr_policy ON client_ip WITH env, client_cidr
 | KEEP client_ip, env, client_cidr
+| SORT client_ip
 ;
 
 client_ip:ip | env:keyword               | client_cidr:ip_range

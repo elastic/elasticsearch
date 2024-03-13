@@ -186,6 +186,10 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
 
     @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
+        if (inferenceResults == null) {
+            throw new IllegalStateException("Query builder must be rewritten first");
+        }
+
         List<? extends InferenceResults> inferenceResultsList = inferenceResults.transformToCoordinationFormat();
         if (inferenceResultsList.isEmpty()) {
             throw new IllegalArgumentException("No inference results retrieved for field [" + fieldName + "]");

@@ -115,4 +115,12 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
 
         return null;
     }
+
+    @Override
+    public void testMustRewrite() throws IOException {
+        SearchExecutionContext context = createSearchExecutionContext();
+        SemanticQueryBuilder builder = new SemanticQueryBuilder("foo", "bar");
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> builder.toQuery(context));
+        assertThat(e.getMessage(), equalTo("Query builder must be rewritten first"));
+    }
 }

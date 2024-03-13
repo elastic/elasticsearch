@@ -14,7 +14,7 @@ as long as they are assigned with the shards with greater ingest load forecast.
 
 Use <<cat-allocation,cat allocation command>> to list workloads per node:
 
-[source,console,id=cat-allocation-example]
+[source,console]
 --------------------------------------------------
 GET /_cat/allocation?v
 --------------------------------------------------

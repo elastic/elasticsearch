@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.IntBlock;
@@ -63,6 +64,9 @@ public class MultivalueDedupeBoolean {
         }
     }
 
+    /**
+     * Sort values from each position and write the results to a {@link Block}.
+     */
     public BooleanBlock sortToBlock(BlockFactory blockFactory, boolean ascending) {
         try (BooleanBlock.Builder builder = blockFactory.newBooleanBlockBuilder(block.getPositionCount())) {
             for (int p = 0; p < block.getPositionCount(); p++) {

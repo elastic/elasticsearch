@@ -65,7 +65,11 @@ public class FeatureData {
 
                 if (specFeatures.contains(hfe.getKey())) {
                     throw new IllegalArgumentException(
-                        Strings.format("Feature [%s] cannot be both a regular and historical feature by [%s]", hfe.getKey().id(), spec)
+                        Strings.format(
+                            "Feature [%s] cannot be declared as both a regular and historical feature by [%s]",
+                            hfe.getKey().id(),
+                            spec
+                        )
                     );
                 }
 

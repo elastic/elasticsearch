@@ -9,10 +9,12 @@ package org.elasticsearch.index.query;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.metadata.FieldInferenceMetadata;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.concurrent.CountDown;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
@@ -64,7 +66,7 @@ public class QueryRewriteContext {
     protected Predicate<String> allowedFields;
     private final ModelRegistry modelRegistry;
     private final InferenceServiceRegistry inferenceServiceRegistry;
-    private final Map<String, Set<String>> modelsForFields;
+    private final Map<String, FieldInferenceMetadata> fieldInferenceMetadataForIndices;
 
     public QueryRewriteContext(
         final XContentParserConfiguration parserConfiguration,
@@ -83,8 +85,8 @@ public class QueryRewriteContext {
         final ScriptCompiler scriptService,
         final ModelRegistry modelRegistry,
         final InferenceServiceRegistry inferenceServiceRegistry,
-        final Map<String, Set<String>> modelsForFields
-    ) {
+        @Nullable final Map<String, FieldInferenceMetadata> fieldInferenceMetadataForIndices
+        ) {
 
         this.parserConfiguration = parserConfiguration;
         this.client = client;
@@ -103,9 +105,7 @@ public class QueryRewriteContext {
         this.scriptService = scriptService;
         this.modelRegistry = modelRegistry;
         this.inferenceServiceRegistry = inferenceServiceRegistry;
-        this.modelsForFields = modelsForFields != null ?
-            modelsForFields.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> Set.copyOf(e.getValue()))) :
-            Collections.emptyMap();
+        this.fieldInferenceMetadataForIndices = Objects.requireNonNullElse(fieldInferenceMetadataForIndices, Map.of());
     }
 
     public QueryRewriteContext(final XContentParserConfiguration parserConfiguration, final Client client, final LongSupplier nowInMillis) {
@@ -136,7 +136,7 @@ public class QueryRewriteContext {
         final LongSupplier nowInMillis,
         final ModelRegistry modelRegistry,
         final InferenceServiceRegistry inferenceServiceRegistry,
-        final Map<String, Set<String>> modelsForFields
+        final Map<String, FieldInferenceMetadata> fieldInferenceMetadataMap
     ) {
         this(
             parserConfiguration,
@@ -155,7 +155,7 @@ public class QueryRewriteContext {
             null,
             modelRegistry,
             inferenceServiceRegistry,
-            modelsForFields
+            fieldInferenceMetadataMap
         );
     }
 
@@ -400,8 +400,7 @@ public class QueryRewriteContext {
         return inferenceServiceRegistry;
     }
 
-    public Set<String> getModelsForField(String fieldName) {
-        Set<String> models = modelsForFields.get(fieldName);
-        return models != null ? models : Collections.emptySet();
+    public Set<String> getInferenceIdsForField(String fieldName) {
+        return fieldInferenceMetadataForIndices.values().stream().map(v -> v.getInferenceIdForField(fieldName)).collect(Collectors.toSet());
     }
 }

@@ -472,7 +472,7 @@ public class BulkOperationTests extends ESTestCase {
     ) {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build();
         IndexMetadata indexMetadata = IndexMetadata.builder(INDEX_NAME)
-            .fieldsForModels(fieldsForModels)
+            .fieldInferenceMetadata(fieldsForModels)
             .settings(settings)
             .numberOfShards(1)
             .numberOfReplicas(0)

@@ -108,7 +108,7 @@ public class IndexMetadataTests extends ESTestCase {
             .stats(indexStats)
             .indexWriteLoadForecast(indexWriteLoadForecast)
             .shardSizeInBytesForecast(shardSizeInBytesForecast)
-            .fieldsForModels(fieldsForModels)
+            .fieldInferenceMetadata(fieldsForModels)
             .build();
         assertEquals(system, metadata.isSystem());
 
@@ -556,7 +556,7 @@ public class IndexMetadataTests extends ESTestCase {
         assertThat(idxMeta1.getFieldsForModels(), equalTo(Map.of()));
 
         Map<String, Set<String>> fieldsForModels = randomFieldsForModels(false);
-        IndexMetadata idxMeta2 = IndexMetadata.builder(idxMeta1).fieldsForModels(fieldsForModels).build();
+        IndexMetadata idxMeta2 = IndexMetadata.builder(idxMeta1).fieldInferenceMetadata(fieldsForModels).build();
         assertThat(idxMeta2.getFieldsForModels(), equalTo(fieldsForModels));
     }
 

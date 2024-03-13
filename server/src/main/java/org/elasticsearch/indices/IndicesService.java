@@ -32,6 +32,7 @@ import org.elasticsearch.action.support.RefCountAwareThreadedActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.FieldInferenceMetadata;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -1702,18 +1703,21 @@ public class IndicesService extends AbstractLifecycleComponent
     public QueryRewriteContext getRewriteContext(LongSupplier nowInMillis, IndicesRequest indicesRequest, ModelRegistry modelRegistry,
                                                  InferenceServiceRegistry inferenceServiceRegistry) {
         Index[] indices = indexNameExpressionResolver.concreteIndices(clusterService.state(), indicesRequest);
-        Map<String, Set<String>> modelsForFields = new HashMap<>();
+        Map<String, FieldInferenceMetadata> fieldInferenceMetadataMap = Arrays.stream(indices)
+            .collect(Collectors.toMap(Index::getName, index -> indexServiceSafe(index).getMetadata().getFieldInferenceMetadata()));
+
+        Map<String, Set<String>> inferenceIdsForFields = new HashMap<>();
+        // Collect all index inference ids for each field
         for (Index index : indices) {
-            Map<String, Set<String>> fieldsForModels = indexService(index).getMetadata().getFieldsForModels();
-            for (Map.Entry<String, Set<String>> entry : fieldsForModels.entrySet()) {
-                for (String fieldName : entry.getValue()) {
-                    Set<String> models = modelsForFields.computeIfAbsent(fieldName, v -> new HashSet<>());
-                    models.add(entry.getKey());
-                }
-            }
+            Map<String, String> inferenceIdForFieldsInIndex = indexService(index).getMetadata()
+                .getFieldInferenceMetadata()
+                .getInferenceIdForFields();
+            inferenceIdForFieldsInIndex.entrySet().forEach(entry -> {
+                inferenceIdsForFields.computeIfAbsent(entry.getKey(), k -> new HashSet<>()).add(entry.getValue());
+            });
         }
 
-        return new QueryRewriteContext(parserConfig, client, nowInMillis, modelRegistry, inferenceServiceRegistry, modelsForFields);
+        return new QueryRewriteContext(parserConfig, client, nowInMillis, modelRegistry, inferenceServiceRegistry, fieldInferenceMetadataMap);
     }
 
     public DataRewriteContext getDataRewriteContext(LongSupplier nowInMillis) {

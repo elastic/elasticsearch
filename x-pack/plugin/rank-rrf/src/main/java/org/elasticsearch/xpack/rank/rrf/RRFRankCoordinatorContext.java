@@ -128,7 +128,7 @@ public class RRFRankCoordinatorContext extends RankCoordinatorContext {
         }
 
         // return if pagination requested is outside the results
-        if (results.values().size()  - from <= 0) {
+        if (results.values().size() - from <= 0) {
             return SortedTopDocs.EMPTY;
         }
 

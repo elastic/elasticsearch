@@ -110,7 +110,7 @@ public class S3HttpHandlerTests extends ESTestCase {
             handleRequest(handler, "GET", blobPath, BytesArray.EMPTY, bytesRangeHeader(0, end))
         );
 
-        var start = randomFrom(blobBytes.length(), Integer.MAX_VALUE - 1);
+        var start = randomIntBetween(blobBytes.length(), Integer.MAX_VALUE - 1);
         end = randomIntBetween(start, Integer.MAX_VALUE);
         assertEquals(
             "Invalid Range: bytes=" + start + '-' + end,
@@ -118,7 +118,7 @@ public class S3HttpHandlerTests extends ESTestCase {
             handleRequest(handler, "GET", blobPath, BytesArray.EMPTY, bytesRangeHeader(start, end))
         );
 
-        start = randomFrom(2, Integer.MAX_VALUE - 1);
+        start = randomIntBetween(2, Integer.MAX_VALUE - 1);
         end = randomIntBetween(0, start - 1);
         assertEquals(
             "Weird Valid Range: bytes=" + start + '-' + end,

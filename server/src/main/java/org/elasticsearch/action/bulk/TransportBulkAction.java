@@ -291,7 +291,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     }
 
     private void forkAndExecute(Task task, BulkRequest bulkRequest, String executorName, ActionListener<BulkResponse> releasingListener) {
-        threadPool.executor(Names.WRITE).execute(new ActionRunnable<>(releasingListener) {
+        threadPool.executor(executorName).execute(new ActionRunnable<>(releasingListener) {
             @Override
             protected void doRun() {
                 doInternalExecute(task, bulkRequest, executorName, releasingListener);

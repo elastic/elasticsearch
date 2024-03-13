@@ -75,6 +75,10 @@ final class FetchLookupFieldsPhase extends SearchPhase {
             context.sendSearchResponse(searchResponse, queryResults);
             return;
         }
+        doRun(clusters);
+    }
+
+    private void doRun(List<Cluster> clusters) {
         final MultiSearchRequest multiSearchRequest = new MultiSearchRequest();
         for (Cluster cluster : clusters) {
             // Do not prepend the clusterAlias to the targetIndex if the search request is already on the remote cluster.

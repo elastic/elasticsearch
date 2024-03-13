@@ -18,7 +18,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.http.HttpServerTransport;
-import org.elasticsearch.http.netty4.Netty4HttpServerTransport;
 import org.elasticsearch.transport.TcpTransport;
 
 import java.util.concurrent.TimeUnit;
@@ -29,7 +28,7 @@ import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadF
 /**
  * Creates and returns {@link io.netty.channel.EventLoopGroup} instances. It will return a shared group for
  * both {@link #getHttpGroup()} and {@link #getTransportGroup()} if
- * {@link org.elasticsearch.http.netty4.Netty4HttpServerTransport#SETTING_HTTP_WORKER_COUNT} is configured to be 0.
+ * {@link Netty4Plugin#SETTING_HTTP_WORKER_COUNT} is configured to be 0.
  * If that setting is not 0, then it will return a different group in the {@link #getHttpGroup()} call.
  */
 public final class SharedGroupFactory {
@@ -45,8 +44,8 @@ public final class SharedGroupFactory {
 
     public SharedGroupFactory(Settings settings) {
         this.settings = settings;
-        this.workerCount = Netty4Transport.WORKER_COUNT.get(settings);
-        this.httpWorkerCount = Netty4HttpServerTransport.SETTING_HTTP_WORKER_COUNT.get(settings);
+        this.workerCount = Netty4Plugin.WORKER_COUNT.get(settings);
+        this.httpWorkerCount = Netty4Plugin.SETTING_HTTP_WORKER_COUNT.get(settings);
     }
 
     public Settings getSettings() {

@@ -163,7 +163,6 @@ public class LocalExecutionPlanner {
             AggregateExec.class,
             a -> a.getMode() == AggregateExec.Mode.FINAL ? new ProjectExec(a.source(), a, Expressions.asAttributes(a.aggregates())) : a
         );
-
         PhysicalOperation physicalOperation = plan(node, context);
 
         final TimeValue statusInterval = configuration.pragmas().statusInterval();
@@ -716,6 +715,8 @@ public class LocalExecutionPlanner {
                 success = true;
                 return new Driver(
                     sessionId,
+                    System.currentTimeMillis(),
+                    System.nanoTime(),
                     driverContext,
                     physicalOperation::describe,
                     source,

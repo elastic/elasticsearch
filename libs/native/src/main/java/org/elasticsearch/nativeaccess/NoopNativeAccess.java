@@ -19,4 +19,10 @@ class NoopNativeAccess extends AbstractNativeAccess {
         logger.warn("Cannot check if running as root because native access is not available");
         return false;
     }
+
+    @Override
+    public Systemd systemd() {
+        logger.warn("Cannot get systemd access because native access is not available");
+        return null;
+    }
 }

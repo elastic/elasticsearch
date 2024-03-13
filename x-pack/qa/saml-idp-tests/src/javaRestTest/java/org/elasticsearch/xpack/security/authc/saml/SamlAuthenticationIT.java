@@ -251,7 +251,7 @@ public class SamlAuthenticationIT extends ESRestTestCase {
      * <li>Uses that token to verify the user details</li>
      * </ol>
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/103595")
+    // @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/103595")
     public void testLoginUserWithSamlRoleMapping() throws Exception {
         final Tuple<String, String> authTokens = loginViaSaml("shibboleth");
         verifyElasticsearchAccessTokenForRoleMapping(authTokens.v1());
@@ -262,7 +262,7 @@ public class SamlAuthenticationIT extends ESRestTestCase {
         verifyElasticsearchAccessTokenInvalidated(accessToken);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/103595")
+    // @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/103595")
     public void testLoginUserWithAuthorizingRealm() throws Exception {
         final Tuple<String, String> authTokens = loginViaSaml("shibboleth_native");
         verifyElasticsearchAccessTokenForAuthorizingRealms(authTokens.v1());
@@ -273,7 +273,7 @@ public class SamlAuthenticationIT extends ESRestTestCase {
         verifyElasticsearchAccessTokenInvalidated(accessToken);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/103595")
+    // @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/103595")
     public void testLoginWithWrongRealmFails() throws Exception {
         final BasicHttpContext context = new BasicHttpContext();
         try (CloseableHttpClient client = getHttpClient()) {

@@ -234,7 +234,7 @@ Tall           | 1.8        | 1.99       | 25
 Very Tall      | 2.0        | 2.1        | 20
 ;
 
-spatialEnrichmentKeywordMatch#[skip:-8.12.99, reason:geo_shape added in 8.13.0]
+spatialEnrichmentKeywordMatch#[skip:-8.13.99, reason:ENRICH extended in 8.14.0]
 FROM airports
 | WHERE abbrev == "CPH"
 | ENRICH city_names ON city WITH airport, region, city_boundary

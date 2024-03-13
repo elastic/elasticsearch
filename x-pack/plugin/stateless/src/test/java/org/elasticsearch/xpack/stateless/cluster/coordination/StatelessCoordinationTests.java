@@ -44,12 +44,14 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.util.concurrent.Executor;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
@@ -217,13 +219,13 @@ public class StatelessCoordinationTests extends AtomicRegisterCoordinatorTests {
                     CompatibilityVersionsUtils.staticCurrent()
                 ) {
                     @Override
-                    protected String getClusterStateUploadsThreadPool() {
-                        return ThreadPool.Names.SAME;
+                    protected Executor getClusterStateUploadsThreadPool() {
+                        return EsExecutors.DIRECT_EXECUTOR_SERVICE;
                     }
 
                     @Override
-                    protected String getClusterStateDownloadsThreadPool() {
-                        return ThreadPool.Names.SAME;
+                    protected Executor getClusterStateDownloadsThreadPool() {
+                        return EsExecutors.DIRECT_EXECUTOR_SERVICE;
                     }
                 };
                 return new FilterPersistedState(persistedClusterStateService.createPersistedState(Settings.EMPTY, localNode)) {

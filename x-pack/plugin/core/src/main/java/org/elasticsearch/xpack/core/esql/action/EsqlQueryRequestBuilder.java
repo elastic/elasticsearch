@@ -30,8 +30,6 @@ public abstract class EsqlQueryRequestBuilder<Request extends EsqlQueryRequest, 
 
     public abstract EsqlQueryRequestBuilder<Request, Response> query(String query);
 
-    public abstract EsqlQueryRequestBuilder<Request, Response> columnar(boolean columnar);
-
     public abstract EsqlQueryRequestBuilder<Request, Response> filter(QueryBuilder filter);
 
 }

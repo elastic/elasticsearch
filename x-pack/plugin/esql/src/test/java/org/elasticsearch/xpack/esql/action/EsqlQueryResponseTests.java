@@ -56,6 +56,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
@@ -67,6 +68,7 @@ import static org.elasticsearch.xpack.esql.action.EsqlQueryResponse.DROP_NULL_CO
 import static org.elasticsearch.xpack.esql.action.ResponseValueUtils.valuesToPage;
 import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.GEO;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 
 public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<EsqlQueryResponse> {
@@ -512,5 +514,76 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
     @Override
     protected void dispose(EsqlQueryResponse esqlQueryResponse) {
         esqlQueryResponse.close();
+    }
+
+    public void testValuesAndColumns() {
+        var intBlk1 = blockFactory.newIntArrayVector(new int[] { 10, 20 }, 2).asBlock();
+        var intBlk2 = blockFactory.newIntArrayVector(new int[] { 30, 40, 50 }, 3).asBlock();
+        var longBlk1 = blockFactory.newLongArrayVector(new long[] { 100L, 200L }, 2).asBlock();
+        var longBlk2 = blockFactory.newLongArrayVector(new long[] { 300L, 400L, 500L }, 3).asBlock();
+        var columnInfo = List.of(new ColumnInfo("foo", "integer"), new ColumnInfo("bar", "long"));
+        var pages = List.of(new Page(intBlk1, longBlk1), new Page(intBlk2, longBlk2));
+        try (var response = new EsqlQueryResponse(columnInfo, pages, null, false, null, false, false)) {
+            assertThat(columnValues(response.column(0)), contains(10, 20, 30, 40, 50));
+            assertThat(columnValues(response.column(1)), contains(100L, 200L, 300L, 400L, 500L));
+            expectThrows(IllegalArgumentException.class, () -> response.column(-1));
+            expectThrows(IllegalArgumentException.class, () -> response.column(2));
+        }
+    }
+
+    public void testColumnsIllegalArg() {
+        var intBlk1 = blockFactory.newIntArrayVector(new int[] { 10 }, 1).asBlock();
+        var columnInfo = List.of(new ColumnInfo("foo", "integer"));
+        var pages = List.of(new Page(intBlk1));
+        try (var response = new EsqlQueryResponse(columnInfo, pages, null, false, null, false, false)) {
+            expectThrows(IllegalArgumentException.class, () -> response.column(-1));
+            expectThrows(IllegalArgumentException.class, () -> response.column(1));
+        }
+    }
+
+    public void testValuesAndColumnsWithNull() {
+        IntBlock blk1, blk2, blk3;
+        try (
+            var bb1 = blockFactory.newIntBlockBuilder(2);
+            var bb2 = blockFactory.newIntBlockBuilder(4);
+            var bb3 = blockFactory.newIntBlockBuilder(4)
+        ) {
+            blk1 = bb1.appendInt(10).appendNull().build();
+            blk2 = bb2.appendInt(30).appendNull().appendNull().appendInt(60).build();
+            blk3 = bb3.appendNull().appendInt(80).appendInt(90).appendNull().build();
+        }
+        var columnInfo = List.of(new ColumnInfo("foo", "integer"));
+        var pages = List.of(new Page(blk1), new Page(blk2), new Page(blk3));
+        try (var response = new EsqlQueryResponse(columnInfo, pages, null, false, null, false, false)) {
+            assertThat(columnValues(response.column(0)), contains(10, null, 30, null, null, 60, null, 80, 90, null));
+            expectThrows(IllegalArgumentException.class, () -> response.column(-1));
+            expectThrows(IllegalArgumentException.class, () -> response.column(2));
+        }
+    }
+
+    public void testValuesAndColumnsWithMultiValue() {
+        IntBlock blk1, blk2, blk3;
+        try (
+            var bb1 = blockFactory.newIntBlockBuilder(2);
+            var bb2 = blockFactory.newIntBlockBuilder(4);
+            var bb3 = blockFactory.newIntBlockBuilder(4)
+        ) {
+            blk1 = bb1.beginPositionEntry().appendInt(10).appendInt(20).endPositionEntry().appendNull().build();
+            blk2 = bb2.beginPositionEntry().appendInt(40).appendInt(50).endPositionEntry().build();
+            blk3 = bb3.appendNull().appendInt(70).appendInt(80).appendNull().build();
+        }
+        var columnInfo = List.of(new ColumnInfo("foo", "integer"));
+        var pages = List.of(new Page(blk1), new Page(blk2), new Page(blk3));
+        try (var response = new EsqlQueryResponse(columnInfo, pages, null, false, null, false, false)) {
+            assertThat(columnValues(response.column(0)), contains(List.of(10, 20), null, List.of(40, 50), null, 70, 80, null));
+            expectThrows(IllegalArgumentException.class, () -> response.column(-1));
+            expectThrows(IllegalArgumentException.class, () -> response.column(2));
+        }
+    }
+
+    static List<Object> columnValues(Iterator<Object> values) {
+        List<Object> l = new ArrayList<>();
+        values.forEachRemaining(l::add);
+        return l;
     }
 }

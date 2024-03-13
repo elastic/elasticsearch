@@ -129,9 +129,20 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
     }
 
     @Override
+    public Iterator<Iterator<Object>> rows() {
+        return values();
+    }
+
+    // TODO: eventually refactor usages of values to rows, then remove values
     public Iterator<Iterator<Object>> values() {
         List<String> dataTypes = columns.stream().map(ColumnInfo::type).toList();
         return ResponseValueUtils.pagesToValues(dataTypes, pages);
+    }
+
+    @Override
+    public Iterator<Object> column(int columnIndex) {
+        if (columnIndex < 0 || columnIndex >= columns.size()) throw new IllegalArgumentException();
+        return ResponseValueUtils.valuesForColumn(columnIndex, columns.get(columnIndex).type(), pages);
     }
 
     public Profile profile() {

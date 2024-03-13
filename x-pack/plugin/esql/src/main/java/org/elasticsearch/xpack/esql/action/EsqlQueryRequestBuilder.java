@@ -35,7 +35,6 @@ public class EsqlQueryRequestBuilder extends org.elasticsearch.xpack.core.esql.a
         return this;
     }
 
-    @Override
     public EsqlQueryRequestBuilder columnar(boolean columnar) {
         request.columnar(columnar);
         return this;

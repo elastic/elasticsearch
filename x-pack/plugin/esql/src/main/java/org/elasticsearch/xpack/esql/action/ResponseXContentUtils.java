@@ -78,8 +78,11 @@ final class ResponseXContentUtils {
             return Iterators.concat(
                 Iterators.single(((builder, params) -> builder.startArray())),
                 Iterators.flatMap(pages.iterator(), page -> {
-                    PositionToXContent toXContent = PositionToXContent
-                            .positionToXContent(columns.get(column), page.getBlock(column), scratch);
+                    PositionToXContent toXContent = PositionToXContent.positionToXContent(
+                        columns.get(column),
+                        page.getBlock(column),
+                        scratch
+                    );
                     return Iterators.forRange(
                         0,
                         page.getPositionCount(),

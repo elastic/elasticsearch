@@ -84,6 +84,30 @@ public final class ResponseValueUtils {
         );
     }
 
+    /**
+     * Returns an iterator of values for the given column.
+     */
+    static Iterator<Object> valuesForColumn(int columnIndex, String dataType, List<Page> pages) {
+        BytesRef scratch = new BytesRef();
+        return Iterators.flatMap(pages.iterator(), page -> Iterators.forRange(0, page.getPositionCount(), pos -> {
+            Block block = page.getBlock(columnIndex);
+            if (block.isNull(pos)) {
+                return null;
+            }
+            int count = block.getValueCount(pos);
+            int start = block.getFirstValueIndex(pos);
+            if (count == 1) {
+                return valueAt(dataType, block, start, scratch);
+            }
+            List<Object> thisResult = new ArrayList<>(count);
+            int end = count + start;
+            for (int i = start; i < end; i++) {
+                thisResult.add(valueAt(dataType, block, i, scratch));
+            }
+            return thisResult;
+        }));
+    }
+
     private static Object valueAt(String dataType, Block block, int offset, BytesRef scratch) {
         return switch (dataType) {
             case "unsigned_long" -> unsignedLongAsNumber(((LongBlock) block).getLong(offset));

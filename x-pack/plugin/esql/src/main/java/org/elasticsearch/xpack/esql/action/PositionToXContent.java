@@ -57,35 +57,35 @@ public abstract class PositionToXContent {
     }
 
     protected abstract XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
-            throws IOException;
+        throws IOException;
 
     public static PositionToXContent positionToXContent(ColumnInfo columnInfo, Block block, BytesRef scratch) {
         return switch (columnInfo.type()) {
             case "long" -> new PositionToXContent(block) {
                 @Override
                 protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
-                        throws IOException {
+                    throws IOException {
                     return builder.value(((LongBlock) block).getLong(valueIndex));
                 }
             };
             case "integer" -> new PositionToXContent(block) {
                 @Override
                 protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
-                        throws IOException {
+                    throws IOException {
                     return builder.value(((IntBlock) block).getInt(valueIndex));
                 }
             };
             case "double" -> new PositionToXContent(block) {
                 @Override
                 protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
-                        throws IOException {
+                    throws IOException {
                     return builder.value(((DoubleBlock) block).getDouble(valueIndex));
                 }
             };
             case "unsigned_long" -> new PositionToXContent(block) {
                 @Override
                 protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
-                        throws IOException {
+                    throws IOException {
                     long l = ((LongBlock) block).getLong(valueIndex);
                     return builder.value(unsignedLongAsNumber(l));
                 }
@@ -93,7 +93,7 @@ public abstract class PositionToXContent {
             case "keyword", "text" -> new PositionToXContent(block) {
                 @Override
                 protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
-                        throws IOException {
+                    throws IOException {
                     BytesRef val = ((BytesRefBlock) block).getBytesRef(valueIndex, scratch);
                     if (builder.contentType() == XContentType.CBOR && val.offset != 0) {
                         // cbor needs a zero offset because of a bug in jackson
@@ -106,7 +106,7 @@ public abstract class PositionToXContent {
             case "ip" -> new PositionToXContent(block) {
                 @Override
                 protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
-                        throws IOException {
+                    throws IOException {
                     BytesRef val = ((BytesRefBlock) block).getBytesRef(valueIndex, scratch);
                     return builder.value(DocValueFormat.IP.format(val));
                 }
@@ -114,7 +114,7 @@ public abstract class PositionToXContent {
             case "date" -> new PositionToXContent(block) {
                 @Override
                 protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
-                        throws IOException {
+                    throws IOException {
                     long longVal = ((LongBlock) block).getLong(valueIndex);
                     return builder.value(UTC_DATE_TIME_FORMATTER.formatMillis(longVal));
                 }
@@ -122,28 +122,28 @@ public abstract class PositionToXContent {
             case "geo_point", "geo_shape" -> new PositionToXContent(block) {
                 @Override
                 protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
-                        throws IOException {
+                    throws IOException {
                     return builder.value(GEO.wkbToWkt(((BytesRefBlock) block).getBytesRef(valueIndex, scratch)));
                 }
             };
             case "cartesian_point", "cartesian_shape" -> new PositionToXContent(block) {
                 @Override
                 protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
-                        throws IOException {
+                    throws IOException {
                     return builder.value(CARTESIAN.wkbToWkt(((BytesRefBlock) block).getBytesRef(valueIndex, scratch)));
                 }
             };
             case "boolean" -> new PositionToXContent(block) {
                 @Override
                 protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
-                        throws IOException {
+                    throws IOException {
                     return builder.value(((BooleanBlock) block).getBoolean(valueIndex));
                 }
             };
             case "version" -> new PositionToXContent(block) {
                 @Override
                 protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
-                        throws IOException {
+                    throws IOException {
                     BytesRef val = ((BytesRefBlock) block).getBytesRef(valueIndex, scratch);
                     return builder.value(new Version(val).toString());
                 }
@@ -151,21 +151,21 @@ public abstract class PositionToXContent {
             case "null" -> new PositionToXContent(block) {
                 @Override
                 protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
-                        throws IOException {
+                    throws IOException {
                     return builder.nullValue();
                 }
             };
             case "unsupported" -> new PositionToXContent(block) {
                 @Override
                 protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
-                        throws IOException {
+                    throws IOException {
                     return builder.value(UnsupportedValueSource.UNSUPPORTED_OUTPUT);
                 }
             };
             case "_source" -> new PositionToXContent(block) {
                 @Override
                 protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
-                        throws IOException {
+                    throws IOException {
                     BytesRef val = ((BytesRefBlock) block).getBytesRef(valueIndex, scratch);
                     try (XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, new BytesArray(val))) {
                         parser.nextToken();

@@ -23,7 +23,5 @@ public abstract class EsqlQueryRequest extends ActionRequest {
 
     public abstract String query();
 
-    public abstract boolean columnar();
-
     public abstract QueryBuilder filter();
 }

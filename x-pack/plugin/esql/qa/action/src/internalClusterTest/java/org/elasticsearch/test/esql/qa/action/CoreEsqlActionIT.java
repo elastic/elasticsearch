@@ -54,10 +54,10 @@ public class CoreEsqlActionIT extends ESIntegTestCase {
         var query = "row a = 1, b = \"x\", c = 1000000000000, d = 1.1";
         var request = EsqlQueryRequestBuilder.newRequestBuilder(client()).query(query);
         try (var resp = run(request)) {
-            logger.info("response= " + resp);
+            logger.info("response=" + resp);
             assertThat(resp.columns().stream().map(ColumnInfo::name).toList(), contains("a", "b", "c", "d"));
             assertThat(resp.columns().stream().map(ColumnInfo::type).toList(), contains("integer", "keyword", "long", "double"));
-            assertThat(getValuesList(resp.values()), contains(List.of(1, "x", 1000000000000L, 1.1d)));
+            assertThat(getValuesList(resp.rows()), contains(List.of(1, "x", 1000000000000L, 1.1d)));
         }
     }
 
@@ -65,24 +65,25 @@ public class CoreEsqlActionIT extends ESIntegTestCase {
         var query = "row a = 1, b = 2 | stats count(b) by a | keep a";
         var request = EsqlQueryRequestBuilder.newRequestBuilder(client()).query(query);
         try (var resp = run(request)) {
-            logger.info("response= " + resp);
+            logger.info("response=" + resp);
             assertThat(resp.columns().stream().map(ColumnInfo::name).toList(), contains("a"));
             assertThat(resp.columns().stream().map(ColumnInfo::type).toList(), contains("integer"));
-            assertThat(getValuesList(resp.values()), contains(List.of(1)));
+            assertThat(getValuesList(resp.rows()), contains(List.of(1)));
         }
     }
 
-    public void testWithDate() {
-        var query = "from test | keep count, color";
-        var req1 = EsqlQueryRequestBuilder.newRequestBuilder(client()).query(query).columnar(false);
-        var req2 = EsqlQueryRequestBuilder.newRequestBuilder(client()).query(query).columnar(true);
-        try (var resp1 = req1.execute().actionGet(30, SECONDS);
-             var resp2 = req2.execute().actionGet(30, SECONDS)) {
-            logger.info("response1= " + resp1);
-            logger.info("response2= " + resp2);
-            assertThat(resp1.columns().stream().map(ColumnInfo::name).toList(), contains("count", "color"));
-            assertThat(resp1.columns().stream().map(ColumnInfo::type).toList(), contains("long", "keyword"));
-            assertThat(getValuesList(resp1.values()), contains(List.of(1, "x", 1000000000000L, 1.1d)));
+    public void testFrom() {
+        var query = "from test | keep item, cost, color, sale | sort item";
+        var request = EsqlQueryRequestBuilder.newRequestBuilder(client()).query(query);
+        try (var resp = run(request)) {
+            logger.info("response=" + resp);
+            assertThat(resp.columns().stream().map(ColumnInfo::name).toList(), contains("item", "cost", "color", "sale"));
+            assertThat(resp.columns().stream().map(ColumnInfo::type).toList(), contains("long", "double", "keyword", "date"));
+            assertThat(columnValues(resp.column(0)), contains(1L, 2L, 3L, 4L));
+            assertThat(columnValues(resp.column(1)), contains(1.1d, 2.1d, 3.1d, 4.1d));
+            assertThat(columnValues(resp.column(2)), contains("red", "blue", "green", "red"));
+            var d = List.of("2004-03-02T00:00:00.000Z", "1992-06-01T00:00:00.000Z", "1965-06-01T00:00:00.000Z", "2000-03-15T00:00:00.000Z");
+            assertThat(columnValues(resp.column(3)), contains(d.toArray()));
         }
     }
 
@@ -96,15 +97,23 @@ public class CoreEsqlActionIT extends ESIntegTestCase {
         return valuesList;
     }
 
+    static List<Object> columnValues(Iterator<Object> values) {
+        List<Object> l = new ArrayList<>();
+        values.forEachRemaining(l::add);
+        return l;
+    }
+
     protected EsqlQueryResponse run(EsqlQueryRequestBuilder<? extends EsqlQueryRequest, ? extends EsqlQueryResponse> request) {
         try {
             if (randomBoolean()) {
                 return request.execute().actionGet(30, SECONDS);
             } else {
                 return ClientHelper.executeWithHeaders(
-                        Map.of("Foo", "bar"),
-                        "origin", client(),
-                        () -> request.execute().actionGet(30, SECONDS));
+                    Map.of("Foo", "bar"),
+                    "origin",
+                    client(),
+                    () -> request.execute().actionGet(30, SECONDS)
+                );
             }
         } catch (ElasticsearchTimeoutException e) {
             throw new AssertionError("timeout", e);
@@ -113,27 +122,17 @@ public class CoreEsqlActionIT extends ESIntegTestCase {
 
     private void createAndPopulateIndex(String indexName) {
         var client = client().admin().indices();
-        var request = client.prepareCreate(indexName)
+        var CreateRequest = client.prepareCreate(indexName)
             .setSettings(Settings.builder().put("index.number_of_shards", 1))
-            .setMapping("count", "type=long", "cost", "type=double", "color", "type=keyword", "hire_date", "type=date");
-        assertAcked(request);
-        for (int i = 0; i < 1; i++) {
-            client().prepareBulk()
-                .add(new IndexRequest(indexName).id("1" + i)
-                   .source("count", 1, "cost", 1d, "color", "red", "hire_date", "1953-09-02T00:00:00Z")
-                )
-                .add(new IndexRequest(indexName).id("2" + i)
-                   .source("count", 2, "cost", 2d, "color", "blue", "hire_date", "1420070400001")
-                )
-                .add(new IndexRequest(indexName).id("3" + i)
-                   .source("count", 3, "cost", 1d, "color", "green", "hire_date", "2023-04-03T00:00:00Z")
-                )
-                .add(new IndexRequest(indexName).id("4" + i)
-                    .source("count", 4, "cost", 2d, "color", "red", "hire_date", "5420070400001")
-                )
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                .get();
-        }
+            .setMapping("item", "type=long", "cost", "type=double", "color", "type=keyword", "sale", "type=date");
+        assertAcked(CreateRequest);
+        client().prepareBulk()
+            .add(new IndexRequest(indexName).id("1").source("item", 1, "cost", 1.1d, "color", "red", "sale", "2004-03-02T00:00:00.000Z"))
+            .add(new IndexRequest(indexName).id("2").source("item", 2, "cost", 2.1d, "color", "blue", "sale", "1992-06-01T00:00:00.000Z"))
+            .add(new IndexRequest(indexName).id("3").source("item", 3, "cost", 3.1d, "color", "green", "sale", "1965-06-01T00:00:00.000Z"))
+            .add(new IndexRequest(indexName).id("4").source("item", 4, "cost", 4.1d, "color", "red", "sale", "2000-03-15T00:00:00.000Z"))
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
         ensureYellow(indexName);
     }
 }

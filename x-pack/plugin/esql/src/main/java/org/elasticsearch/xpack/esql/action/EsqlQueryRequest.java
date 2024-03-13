@@ -94,7 +94,6 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
         this.columnar = columnar;
     }
 
-    @Override
     public boolean columnar() {
         return columnar;
     }

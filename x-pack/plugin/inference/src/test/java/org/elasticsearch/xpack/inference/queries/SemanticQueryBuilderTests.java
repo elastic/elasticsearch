@@ -15,6 +15,7 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
@@ -25,6 +26,7 @@ import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
+import org.elasticsearch.xpack.inference.InferenceNamedWriteablesProvider;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 
 import java.io.IOException;
@@ -47,6 +49,11 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return List.of(InferencePlugin.class);
+    }
+
+    @Override
+    protected List<NamedWriteableRegistry.Entry> getNamedWriteables() {
+        return InferenceNamedWriteablesProvider.getNamedWriteables();
     }
 
     @Override
@@ -97,7 +104,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         assertThat(input.size(), equalTo(1));
 
         List<TextExpansionResults.WeightedToken> weightedTokens = Arrays.stream(input.get(0).split("\\s+"))
-            .map(s -> new TextExpansionResults.WeightedToken(s, randomFloat()))
+            .map(s -> new TextExpansionResults.WeightedToken(s, 0.5f))
             .toList();
         TextExpansionResults textExpansionResults = new TextExpansionResults(DEFAULT_RESULTS_FIELD, weightedTokens, false);
         InferenceAction.Response response = new InferenceAction.Response(SparseEmbeddingResults.of(List.of(textExpansionResults)));

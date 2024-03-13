@@ -62,6 +62,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
     private final String query;
 
     private SetOnce<InferenceServiceResults> inferenceResultsSupplier;
+    private InferenceServiceResults inferenceResults;
 
     public SemanticQueryBuilder(String fieldName, String query) {
         if (fieldName == null) {
@@ -78,6 +79,12 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         super(in);
         this.fieldName = in.readString();
         this.query = in.readString();
+        if (in.readBoolean()) {
+            inferenceResults = in.readNamedWriteable(InferenceServiceResults.class);
+            // The supplier is generally not used after the results are set, but set the supplier to maintain equality when serializing
+            // & deserializing
+            inferenceResultsSupplier = new SetOnce<>(inferenceResults);
+        }
     }
 
     private SemanticQueryBuilder(SemanticQueryBuilder other, SetOnce<InferenceServiceResults> inferenceResultsSupplier) {
@@ -100,8 +107,19 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
+        if (inferenceResultsSupplier != null && inferenceResults == null) {
+            throw new IllegalStateException(
+                "Inference results supplier is set, but inference results is null. Missing a rewriteAndFetch?"
+            );
+        }
         out.writeString(fieldName);
         out.writeString(query);
+        if (inferenceResults != null) {
+            out.writeBoolean(true);
+            out.writeNamedWriteable(inferenceResults);
+        } else {
+            out.writeBoolean(false);
+        }
     }
 
     @Override
@@ -116,7 +134,19 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
 
     @Override
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) {
+        // We cannot fully rewrite the query to a NestedQueryBuilder here because that query builder validates that the path is
+        // registered as a nested object. This is not the case for semantic_text fields; the SemanticTextInferenceResultFieldMapper
+        // metafield mapper indexes inference results for the field using a "shadow" nested field mapping that is coordinated between
+        // this query and the mapper. This "shadow" mapping is not registered with the ES index mappings.
+        //
+        // Instead, we extract the inference results from the supplier in a serializable format and handle creation of the Lucene query
+        // in this class in doToQuery.
+        if (inferenceResults != null) {
+            return this;
+        }
+
         if (inferenceResultsSupplier != null) {
+            inferenceResults = inferenceResultsSupplier.get();
             return this;
         }
 
@@ -158,12 +188,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
 
     @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
-        InferenceServiceResults inferenceServiceResults = inferenceResultsSupplier.get();
-        if (inferenceServiceResults == null) {
-            throw new IllegalArgumentException("Inference results supplier for field [" + fieldName + "] is empty");
-        }
-
-        List<? extends InferenceResults> inferenceResultsList = inferenceServiceResults.transformToCoordinationFormat();
+        List<? extends InferenceResults> inferenceResultsList = inferenceResults.transformToCoordinationFormat();
         if (inferenceResultsList.isEmpty()) {
             throw new IllegalArgumentException("No inference results retrieved for field [" + fieldName + "]");
         } else if (inferenceResultsList.size() > 1) {
@@ -225,12 +250,40 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
     protected boolean doEquals(SemanticQueryBuilder other) {
         return Objects.equals(fieldName, other.fieldName)
             && Objects.equals(query, other.query)
-            && Objects.equals(inferenceResultsSupplier, other.inferenceResultsSupplier);
+            && Objects.equals(inferenceResults, other.inferenceResults)
+            && inferenceResultsSuppliersEqual(inferenceResultsSupplier, other.inferenceResultsSupplier);
+    }
+
+    /**
+     * SetOnce does not implement equals, so use this method to determine if two inference results suppliers contain the same results.
+     *
+     * @param thisSupplier The supplier for this instance
+     * @param otherSupplier The supplier for the other instance
+     * @return True if the suppliers contain the same results
+     */
+    private boolean inferenceResultsSuppliersEqual(
+        SetOnce<InferenceServiceResults> thisSupplier,
+        SetOnce<InferenceServiceResults> otherSupplier
+    ) {
+        if (thisSupplier == otherSupplier) {
+            return true;
+        }
+
+        InferenceServiceResults thisResults = null;
+        InferenceServiceResults otherResults = null;
+        if (thisSupplier != null) {
+            thisResults = thisSupplier.get();
+        }
+        if (otherSupplier != null) {
+            otherResults = otherSupplier.get();
+        }
+
+        return Objects.equals(thisResults, otherResults);
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(fieldName, query, inferenceResultsSupplier);
+        return Objects.hash(fieldName, query, inferenceResults, inferenceResultsSupplier != null ? inferenceResultsSupplier.get() : null);
     }
 
     public static SemanticQueryBuilder fromXContent(XContentParser parser) throws IOException {

@@ -468,7 +468,7 @@ public class LocalExecutionPlanner {
                 source.layout.get(enrich.matchField().id()).channel(),
                 enrichLookupService,
                 enrichIndex,
-                "match", // TODO: enrich should also resolve the match_type
+                enrich.matchType(),
                 enrich.policyMatchField(),
                 enrich.enrichFields()
             ),

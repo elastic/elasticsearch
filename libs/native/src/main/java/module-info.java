@@ -14,7 +14,7 @@ module org.elasticsearch.nativeaccess {
     requires org.elasticsearch.base;
     requires org.elasticsearch.logging;
 
-    exports org.elasticsearch.nativeaccess to org.elasticsearch.server;
+    exports org.elasticsearch.nativeaccess to org.elasticsearch.server, org.elasticsearch.systemd;
     // allows jna to implement a library provider, and ProviderLocator to load it
     exports org.elasticsearch.nativeaccess.lib to org.elasticsearch.nativeaccess.jna, org.elasticsearch.base;
 

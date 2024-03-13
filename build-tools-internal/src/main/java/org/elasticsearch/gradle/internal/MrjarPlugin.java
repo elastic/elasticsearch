@@ -30,6 +30,9 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -56,24 +59,41 @@ public class MrjarPlugin implements Plugin<Project> {
         var javaExtension = project.getExtensions().getByType(JavaPluginExtension.class);
 
         var srcDir = project.getProjectDir().toPath().resolve("src");
+        List<Integer> mainVersions = new ArrayList<>();
         try (var subdirStream = Files.list(srcDir)) {
             for (Path sourceset : subdirStream.toList()) {
                 assert Files.isDirectory(sourceset);
                 String sourcesetName = sourceset.getFileName().toString();
                 Matcher sourcesetMatcher = MRJAR_SOURCESET_PATTERN.matcher(sourcesetName);
                 if (sourcesetMatcher.matches()) {
-                    int javaVersion = Integer.parseInt(sourcesetMatcher.group(1));
-                    addMrjarSourceset(project, javaExtension, sourcesetName, javaVersion);
+                    mainVersions.add(Integer.parseInt(sourcesetMatcher.group(1)));
                 }
             }
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
+
+        Collections.sort(mainVersions);
+        List<String> parentSourceSets = new ArrayList<>();
+        parentSourceSets.add(SourceSet.MAIN_SOURCE_SET_NAME);
+        for (int javaVersion : mainVersions) {
+            String sourcesetName = "main" + javaVersion;
+            addMrjarSourceset(project, javaExtension, sourcesetName, parentSourceSets, javaVersion);
+            parentSourceSets.add(sourcesetName);
+        }
     }
 
-    private void addMrjarSourceset(Project project, JavaPluginExtension javaExtension, String sourcesetName, int javaVersion) {
+    private void addMrjarSourceset(
+        Project project,
+        JavaPluginExtension javaExtension,
+        String sourcesetName,
+        List<String> parentSourceSets,
+        int javaVersion
+    ) {
         SourceSet sourceSet = javaExtension.getSourceSets().maybeCreate(sourcesetName);
-        GradleUtils.extendSourceSet(project, SourceSet.MAIN_SOURCE_SET_NAME, sourcesetName);
+        for (String parentSourceSetName : parentSourceSets) {
+            GradleUtils.extendSourceSet(project, parentSourceSetName, sourcesetName);
+        }
 
         var jarTask = project.getTasks().withType(Jar.class).named(JavaPlugin.JAR_TASK_NAME);
         jarTask.configure(task -> {

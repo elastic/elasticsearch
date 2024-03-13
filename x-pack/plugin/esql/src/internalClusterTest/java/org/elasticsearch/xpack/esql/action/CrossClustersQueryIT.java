@@ -121,6 +121,7 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/106273")
     public void testProfile() {
         assumeTrue("pragmas only enabled on snapshot builds", Build.current().isSnapshot());
         final int localOnlyProfiles;

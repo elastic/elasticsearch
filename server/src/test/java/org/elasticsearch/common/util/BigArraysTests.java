@@ -14,6 +14,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.PreallocatedCircuitBreakerService;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -243,6 +244,22 @@ public class BigArraysTests extends ESTestCase {
             assertEquals(array1[i], array2.get(i));
         }
         array2.close();
+    }
+
+    public void testSerializeLongArray() throws Exception {
+        final int len = randomIntBetween(1, 1000_000);
+        final LongArray array1 = bigArrays.newLongArray(len, randomBoolean());
+        for (int i = 0; i < len; ++i) {
+            array1.set(i, randomLong());
+        }
+        BytesStreamOutput out = new BytesStreamOutput();
+        array1.writeTo(out);
+        final LongArray array2 = bigArrays.newLongArray(len, randomBoolean());
+        array2.fillWith(out.bytes().streamInput());
+        for (int i = 0; i < len; i++) {
+            assertThat(array2.get(i), equalTo(array1.get(i)));
+        }
+        Releasables.close(array1, array2);
     }
 
     public void testByteArrayBulkGet() {

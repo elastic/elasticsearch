@@ -44,9 +44,9 @@ public class ApiKeyWithProfileUid extends ApiKey {
     static {
         int nFieldsForParsingApiKeys = 13; // this must be changed whenever ApiKey#initializeParser is changed for the number of parsers
         PARSER = new ConstructingObjectParser<>(
-                "api_key_with_profile_uid",
-                true,
-                args -> new ApiKeyWithProfileUid(new ApiKey(args), (String) args[nFieldsForParsingApiKeys])
+            "api_key_with_profile_uid",
+            true,
+            args -> new ApiKeyWithProfileUid(new ApiKey(args), (String) args[nFieldsForParsingApiKeys])
         );
         int nParsedFields = ApiKey.initializeParser(PARSER);
         if (nFieldsForParsingApiKeys != nParsedFields) {

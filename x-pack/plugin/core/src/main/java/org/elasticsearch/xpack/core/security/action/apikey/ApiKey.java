@@ -185,19 +185,19 @@ public class ApiKey implements ToXContentObject {
     @SuppressWarnings("unchecked")
     public ApiKey(Object[] parsed) {
         this(
-                (String) parsed[0],
-                (String) parsed[1],
-                (Type) parsed[2],
-                Instant.ofEpochMilli((Long) parsed[3]),
-                (parsed[4] == null) ? null : Instant.ofEpochMilli((Long) parsed[4]),
-                (Boolean) parsed[5],
-                (parsed[6] == null) ? null : Instant.ofEpochMilli((Long) parsed[6]),
-                (String) parsed[7],
-                (String) parsed[8],
-                (String) parsed[9],
-                (parsed[10] == null) ? null : (Map<String, Object>) parsed[10],
-                (List<RoleDescriptor>) parsed[11],
-                (RoleDescriptorsIntersection) parsed[12]
+            (String) parsed[0],
+            (String) parsed[1],
+            (Type) parsed[2],
+            Instant.ofEpochMilli((Long) parsed[3]),
+            (parsed[4] == null) ? null : Instant.ofEpochMilli((Long) parsed[4]),
+            (Boolean) parsed[5],
+            (parsed[6] == null) ? null : Instant.ofEpochMilli((Long) parsed[6]),
+            (String) parsed[7],
+            (String) parsed[8],
+            (String) parsed[9],
+            (parsed[10] == null) ? null : (Map<String, Object>) parsed[10],
+            (List<RoleDescriptor>) parsed[11],
+            (RoleDescriptorsIntersection) parsed[12]
         );
     }
 
@@ -437,10 +437,10 @@ public class ApiKey implements ToXContentObject {
             return RoleDescriptor.parse(n, p, false);
         }, new ParseField("role_descriptors"));
         parser.declareField(
-                optionalConstructorArg(),
-                (p, c) -> RoleDescriptorsIntersection.fromXContent(p),
-                new ParseField("limited_by"),
-                ObjectParser.ValueType.OBJECT_ARRAY
+            optionalConstructorArg(),
+            (p, c) -> RoleDescriptorsIntersection.fromXContent(p),
+            new ParseField("limited_by"),
+            ObjectParser.ValueType.OBJECT_ARRAY
         );
         return 13; // the number of fields to parse
     }

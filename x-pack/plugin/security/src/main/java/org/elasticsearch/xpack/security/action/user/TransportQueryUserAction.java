@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.core.security.action.user.QueryUserRequest;
 import org.elasticsearch.xpack.core.security.action.user.QueryUserResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Subject;
-import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.profile.ProfileService;

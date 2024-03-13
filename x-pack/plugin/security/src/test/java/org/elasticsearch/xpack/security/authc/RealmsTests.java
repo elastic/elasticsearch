@@ -250,16 +250,16 @@ public class RealmsTests extends ESTestCase {
         // reserved, file, native and custom realms
         assertThat(realms.getRealmRefsCount(), is(3 + randomRealmTypesCount));
         assertThat(
-                realms.getRealmRef(new RealmConfig.RealmIdentifier("reserved", "reserved")),
-                is(buildRealmRef("reserved", "reserved", nodeName))
+            realms.getRealmRef(new RealmConfig.RealmIdentifier("reserved", "reserved")),
+            is(buildRealmRef("reserved", "reserved", nodeName))
         );
         assertThat(
-                realms.getRealmRef(new RealmConfig.RealmIdentifier("file", "default_file")),
-                is(buildRealmRef("default_file", "file", nodeName))
+            realms.getRealmRef(new RealmConfig.RealmIdentifier("file", "default_file")),
+            is(buildRealmRef("default_file", "file", nodeName))
         );
         assertThat(
-                realms.getRealmRef(new RealmConfig.RealmIdentifier("native", "default_native")),
-                is(buildRealmRef("default_native", "native", nodeName))
+            realms.getRealmRef(new RealmConfig.RealmIdentifier("native", "default_native")),
+            is(buildRealmRef("default_native", "native", nodeName))
         );
         IntStream.range(0, randomRealmTypesCount)
             .forEach(
@@ -606,12 +606,12 @@ public class RealmsTests extends ESTestCase {
             is(buildRealmRef("reserved", "reserved", ""))
         );
         assertThat(
-                realms.getRealmRef(new RealmConfig.RealmIdentifier("file", "default_file")),
-                is(buildRealmRef("default_file", "file", ""))
+            realms.getRealmRef(new RealmConfig.RealmIdentifier("file", "default_file")),
+            is(buildRealmRef("default_file", "file", ""))
         );
         assertThat(
-                realms.getRealmRef(new RealmConfig.RealmIdentifier("native", "default_native")),
-                is(buildRealmRef("default_native", "native", ""))
+            realms.getRealmRef(new RealmConfig.RealmIdentifier("native", "default_native")),
+            is(buildRealmRef("default_native", "native", ""))
         );
     }
 
@@ -667,9 +667,9 @@ public class RealmsTests extends ESTestCase {
         assertThat(realms.getUnlicensedRealms(), empty());
         assertThat(realms.getActiveRealms(), hasSize(9)); // 0..7 configured + reserved
         Map<RealmConfig.RealmIdentifier, Authentication.RealmRef> beforeRealmRefs = realms.getActiveRealms()
-                .stream()
-                .map(r -> new RealmConfig.RealmIdentifier(r.type(), r.name()))
-                .collect(Collectors.toMap(Function.identity(), realms::getRealmRef));
+            .stream()
+            .map(r -> new RealmConfig.RealmIdentifier(r.type(), r.name()))
+            .collect(Collectors.toMap(Function.identity(), realms::getRealmRef));
         assertThat(realms.getRealmRefsCount(), is(9));
         assertThat(beforeRealmRefs.size(), is(9));
 

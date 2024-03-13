@@ -205,7 +205,16 @@ public final class GetApiKeyRequest extends ActionRequest {
         }
 
         public GetApiKeyRequest build() {
-            return new GetApiKeyRequest(realmName, userName, apiKeyId, apiKeyName, ownedByAuthenticatedUser, withLimitedBy, activeOnly, withProfileUid);
+            return new GetApiKeyRequest(
+                realmName,
+                userName,
+                apiKeyId,
+                apiKeyName,
+                ownedByAuthenticatedUser,
+                withLimitedBy,
+                activeOnly,
+                withProfileUid
+            );
         }
     }
 }

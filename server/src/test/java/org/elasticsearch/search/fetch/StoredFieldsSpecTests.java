@@ -8,6 +8,12 @@
 
 package org.elasticsearch.search.fetch;
 
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourcePhase;
@@ -27,6 +33,13 @@ public class StoredFieldsSpecTests extends ESTestCase {
         SearchSourceBuilder search = new SearchSourceBuilder();
         // defaults - return source and metadata fields
         FetchContext fc = new FetchContext(searchContext(search));
+        SearchExecutionContext sec = mock(SearchExecutionContext.class);
+        Settings settings = settings(
+            randomFrom(IndexVersion.current(), IndexVersions.DOC_VALUES_FOR_IGNORED_META_FIELD, IndexVersions.TIME_SERIES_ID_HASHING)
+        ).build();
+        IndexMetadata indexMetadata = new IndexMetadata.Builder("foo").settings(settings).numberOfShards(1).numberOfReplicas(0).build();
+        when(sec.getIndexSettings()).thenReturn(new IndexSettings(indexMetadata, Settings.EMPTY));
+        when(fc.getSearchExecutionContext()).thenReturn(sec);
 
         FetchSubPhaseProcessor sourceProcessor = new FetchSourcePhase().getProcessor(fc);
         assertNotNull(sourceProcessor);

@@ -115,6 +115,13 @@ setup:
   - set:  { id: id }
   - match: { id: $id }
 
+  - do:
+      connector.get:
+        connector_id: $id
+
+  - match: { index_name: null }
+  - match: { service_type: super-connector }
+
 ---
 "Post connector fails for unprivileged user":
   - skip:

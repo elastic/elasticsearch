@@ -91,12 +91,6 @@ public class ConnectorSyncJobIndexService {
         String connectorId = request.getId();
         try {
             getSyncJobConnectorInfo(connectorId, listener.delegateFailure((l, connector) -> {
-                Instant now = Instant.now();
-                ConnectorSyncJobType jobType = Objects.requireNonNullElse(request.getJobType(), ConnectorSyncJob.DEFAULT_JOB_TYPE);
-                ConnectorSyncJobTriggerMethod triggerMethod = Objects.requireNonNullElse(
-                    request.getTriggerMethod(),
-                    ConnectorSyncJob.DEFAULT_TRIGGER_METHOD
-                );
 
                 if (Strings.isNullOrEmpty(connector.getIndexName())) {
                     l.onFailure(
@@ -111,8 +105,14 @@ public class ConnectorSyncJobIndexService {
                     return;
                 }
 
-                try {
+                Instant now = Instant.now();
+                ConnectorSyncJobType jobType = Objects.requireNonNullElse(request.getJobType(), ConnectorSyncJob.DEFAULT_JOB_TYPE);
+                ConnectorSyncJobTriggerMethod triggerMethod = Objects.requireNonNullElse(
+                    request.getTriggerMethod(),
+                    ConnectorSyncJob.DEFAULT_TRIGGER_METHOD
+                );
 
+                try {
                     final IndexRequest indexRequest = new IndexRequest(CONNECTOR_SYNC_JOB_INDEX_NAME).opType(DocWriteRequest.OpType.INDEX)
                         .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 

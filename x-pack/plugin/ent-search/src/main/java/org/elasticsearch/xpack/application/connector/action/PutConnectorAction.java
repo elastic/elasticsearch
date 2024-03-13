@@ -13,14 +13,12 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -159,13 +157,8 @@ public class PutConnectorAction {
             if (Strings.isNullOrEmpty(getConnectorId())) {
                 validationException = addValidationError("[connector_id] cannot be [null] or [\"\"]", validationException);
             }
-            if (indexName != null) {
-                try {
-                    MetadataCreateIndexService.validateIndexOrAliasName(getIndexName(), InvalidIndexNameException::new);
-                } catch (InvalidIndexNameException e) {
-                    validationException = addValidationError(e.toString(), validationException);
-                }
-            }
+
+            validationException = validateIndexName(indexName, validationException);
 
             return validationException;
         }

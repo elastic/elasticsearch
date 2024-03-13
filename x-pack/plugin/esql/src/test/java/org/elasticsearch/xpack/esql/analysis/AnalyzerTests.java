@@ -1462,10 +1462,11 @@ public class AnalyzerTests extends ESTestCase {
     public void testEnrichWrongMatchFieldType() {
         var e = expectThrows(VerificationException.class, () -> analyze("""
             from test
-            | enrich languages on languages
+            | eval x = to_boolean(languages)
+            | enrich languages on x
             | keep first_name, language_name, id
             """));
-        assertThat(e.getMessage(), containsString("Unsupported type [INTEGER] for enrich matching field [languages]; only [KEYWORD,"));
+        assertThat(e.getMessage(), containsString("Unsupported type [BOOLEAN] for enrich matching field [x]; only [KEYWORD,"));
     }
 
     public void testValidEnrich() {

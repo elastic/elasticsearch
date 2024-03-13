@@ -230,6 +230,9 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
+        if (queryVectorSupplier != null) {
+            throw new IllegalStateException("missing a rewriteAndFetch?");
+        }
         out.writeString(fieldName);
         if (out.getTransportVersion().onOrAfter(TransportVersions.KNN_QUERY_NUMCANDS_AS_OPTIONAL_PARAM)) {
             out.writeOptionalVInt(numCands);

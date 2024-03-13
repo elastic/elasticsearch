@@ -1299,6 +1299,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
             );
         }, DesiredBalanceComputer.class, expectation);
     }
+
     private static ShardId findShardId(ClusterState clusterState, String name) {
         return clusterState.getRoutingTable().index(name).shard(0).shardId();
     }

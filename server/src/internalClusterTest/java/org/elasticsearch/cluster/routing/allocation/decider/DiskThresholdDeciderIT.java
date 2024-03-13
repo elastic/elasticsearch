@@ -166,7 +166,8 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
             + "org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceReconciler:DEBUG,"
             + "org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator:TRACE,"
             + "org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator:TRACE,"
-            + "org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders:TRACE",
+            + "org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders:TRACE,"
+            + "org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider:TRACE",
         issueUrl = "https://github.com/elastic/elasticsearch/issues/105331"
     )
     public void testRestoreSnapshotAllocationDoesNotExceedWatermarkWithMultipleShards() throws Exception {

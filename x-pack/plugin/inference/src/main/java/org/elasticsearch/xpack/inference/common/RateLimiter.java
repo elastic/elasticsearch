@@ -7,9 +7,12 @@
 
 package org.elasticsearch.xpack.inference.common;
 
+import org.elasticsearch.common.Strings;
+
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
@@ -18,11 +21,10 @@ import java.util.concurrent.TimeUnit;
  */
 public class RateLimiter {
 
-    private double tokensPerTimeUnit;
+    private double tokensPerNanos;
     private double accumulatedTokensLimit;
     private double accumulatedTokens;
     private Instant nextTokenAvailability;
-    private TimeUnit unit;
     private final Sleeper sleeper;
     private final Clock clock;
 
@@ -44,19 +46,34 @@ public class RateLimiter {
     }
 
     public final synchronized void setRate(double newAccumulatedTokensLimit, double newTokensPerTimeUnit, TimeUnit newUnit) {
+        Objects.requireNonNull(newUnit);
+
         if (newAccumulatedTokensLimit < 0) {
             throw new IllegalArgumentException("Accumulated tokens limit must be greater than or equal to 0");
+        }
+
+        if (newAccumulatedTokensLimit == Double.POSITIVE_INFINITY) {
+            throw new IllegalArgumentException(
+                Strings.format("Accumulated tokens limit must be less than or equal to %s", Double.MAX_VALUE)
+            );
         }
 
         if (newTokensPerTimeUnit <= 0) {
             throw new IllegalArgumentException("Tokens per time unit must be greater than 0");
         }
 
+        if (newTokensPerTimeUnit == Double.POSITIVE_INFINITY) {
+            throw new IllegalArgumentException(Strings.format("Tokens per time unit must be less than or equal to %s", Double.MAX_VALUE));
+        }
+
         accumulatedTokens = Math.min(accumulatedTokens, newAccumulatedTokensLimit);
 
         accumulatedTokensLimit = newAccumulatedTokensLimit;
-        tokensPerTimeUnit = newTokensPerTimeUnit;
-        unit = Objects.requireNonNull(newUnit);
+
+        var unitsInNanos = newUnit.toNanos(1);
+        tokensPerNanos = newTokensPerTimeUnit / unitsInNanos;
+        assert tokensPerNanos != Double.POSITIVE_INFINITY : "Tokens per nanosecond should not be infinity";
+
         accumulateTokens();
     }
 
@@ -75,9 +92,7 @@ public class RateLimiter {
             accumulateTokens();
             var accumulatedTokensToUse = Math.min(tokens, accumulatedTokens);
             var additionalTokensRequired = tokens - accumulatedTokensToUse;
-            var timeUnitsToWait = additionalTokensRequired / tokensPerTimeUnit;
-            var unitsInNanos = unit.toNanos(1);
-            nanosToWait = timeUnitsToWait * unitsInNanos;
+            nanosToWait = additionalTokensRequired / tokensPerNanos;
             accumulatedTokens -= accumulatedTokensToUse;
             nextTokenAvailability = nextTokenAvailability.plus(Duration.ofNanos((long) nanosToWait));
         }
@@ -88,10 +103,22 @@ public class RateLimiter {
     private void accumulateTokens() {
         var now = Instant.now(clock);
         if (now.isAfter(nextTokenAvailability)) {
-            var elapsedTime = unit.toChronoUnit().between(nextTokenAvailability, now);
-            var newTokens = tokensPerTimeUnit * elapsedTime;
+            var elapsedTimeNanos = nanosBetweenExact(nextTokenAvailability, now);
+            var newTokens = tokensPerNanos * elapsedTimeNanos;
             accumulatedTokens = Math.min(accumulatedTokensLimit, newTokens);
             nextTokenAvailability = now;
+        }
+    }
+
+    private static double nanosBetweenExact(Instant start, Instant end) {
+        try {
+            return ChronoUnit.NANOS.between(start, end);
+        } catch (ArithmeticException e) {
+            if (end.isAfter(start)) {
+                return Double.POSITIVE_INFINITY;
+            }
+
+            return Double.NEGATIVE_INFINITY;
         }
     }
 

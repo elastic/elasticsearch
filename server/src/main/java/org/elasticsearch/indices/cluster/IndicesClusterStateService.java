@@ -981,10 +981,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         @Nullable
         ShardLongFieldRange getTimestampRange();
 
-        /// MP TODO: change this to no longer be default - require underlying Shard classes to implement it
-        default ShardLongFieldRange getEventIngestedRange() {
-            return ShardLongFieldRange.UNKNOWN;
-        }
+        @Nullable
+        ShardLongFieldRange getEventIngestedRange();
 
         /**
          * Updates the shard state based on an incoming cluster state:

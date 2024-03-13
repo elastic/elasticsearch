@@ -351,6 +351,12 @@ public class BigArrays {
         }
 
         @Override
+        public void fillWith(StreamInput in) throws IOException {
+            int numBytes = in.readVInt();
+            in.readBytes(array, 0, numBytes);
+        }
+
+        @Override
         public void set(long index, byte[] buf, int offset, int len) {
             assert index >= 0 && index < size();
             System.arraycopy(buf, offset << 3, array, (int) index << 3, len << 3);

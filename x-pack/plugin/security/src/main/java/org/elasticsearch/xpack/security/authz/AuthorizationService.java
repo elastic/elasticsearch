@@ -140,6 +140,8 @@ public class AuthorizationService {
     private final boolean isAnonymousEnabled;
     private final boolean anonymousAuthzExceptionEnabled;
 
+    private final AuthorizationDenialMessages authorizationDenialMessages;
+
     public AuthorizationService(
         Settings settings,
         CompositeRolesStore rolesStore,
@@ -178,6 +180,7 @@ public class AuthorizationService {
         this.licenseState = licenseState;
         this.operatorPrivilegesService = operatorPrivilegesService;
         this.indicesAccessControlWrapper = new DlsFlsFeatureTrackingIndicesAccessControlWrapper(settings, licenseState);
+        this.authorizationDenialMessages = new AuthorizationDenialMessages();
     }
 
     public void checkPrivileges(
@@ -922,7 +925,7 @@ public class AuthorizationService {
         return denialException(
             authentication,
             action,
-            () -> AuthorizationDenialMessages.runAsDenied(authentication, authorizationInfo, action),
+            () -> authorizationDenialMessages.runAsDenied(authentication, authorizationInfo, action),
             null
         );
     }
@@ -932,7 +935,7 @@ public class AuthorizationService {
         return denialException(
             authentication,
             action,
-            () -> AuthorizationDenialMessages.remoteActionDenied(authentication, authorizationInfo, action, clusterAlias),
+            () -> authorizationDenialMessages.remoteActionDenied(authentication, authorizationInfo, action, clusterAlias),
             null
         );
     }
@@ -967,7 +970,7 @@ public class AuthorizationService {
         return denialException(
             authentication,
             action,
-            () -> AuthorizationDenialMessages.actionDenied(authentication, authorizationInfo, action, request, context),
+            () -> authorizationDenialMessages.actionDenied(authentication, authorizationInfo, action, request, context),
             cause
         );
     }

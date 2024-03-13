@@ -30,10 +30,11 @@ import static org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail.P
 import static org.elasticsearch.xpack.security.authz.AuthorizationService.isIndexAction;
 
 class AuthorizationDenialMessages {
+    static AuthorizationDenialMessages INSTANCE = new AuthorizationDenialMessages();
 
-    private AuthorizationDenialMessages() {}
+    protected AuthorizationDenialMessages() {}
 
-    static String runAsDenied(Authentication authentication, @Nullable AuthorizationInfo authorizationInfo, String action) {
+    String runAsDenied(Authentication authentication, @Nullable AuthorizationInfo authorizationInfo, String action) {
         assert authentication.isRunAs() : "constructing run as denied message but authentication for action was not run as";
 
         String userText = authenticatedUserDescription(authentication);
@@ -51,7 +52,7 @@ class AuthorizationDenialMessages {
             + unauthorizedToRunAsMessage;
     }
 
-    static String actionDenied(
+    String actionDenied(
         Authentication authentication,
         @Nullable AuthorizationInfo authorizationInfo,
         String action,
@@ -66,7 +67,7 @@ class AuthorizationDenialMessages {
         }
 
         if (ClusterPrivilegeResolver.isClusterAction(action)) {
-            final Collection<String> privileges = ClusterPrivilegeResolver.findPrivilegesThatGrant(action, request, authentication);
+            final Collection<String> privileges = findClusterPrivilegesThatGrant(authentication, action, request);
             if (privileges != null && privileges.size() > 0) {
                 message = message
                     + ", this action is granted by the cluster privileges ["
@@ -74,7 +75,7 @@ class AuthorizationDenialMessages {
                     + "]";
             }
         } else if (isIndexAction(action)) {
-            final Collection<String> privileges = IndexPrivilege.findPrivilegesThatGrant(action);
+            final Collection<String> privileges = findIndexPrivilegesThatGrant(action);
             if (privileges != null && privileges.size() > 0) {
                 message = message
                     + ", this action is granted by the index privileges ["
@@ -86,7 +87,15 @@ class AuthorizationDenialMessages {
         return message;
     }
 
-    static String remoteActionDenied(
+    protected Collection<String> findClusterPrivilegesThatGrant(Authentication authentication, String action, TransportRequest request) {
+        return ClusterPrivilegeResolver.findPrivilegesThatGrant(action, request, authentication);
+    }
+
+    protected Collection<String> findIndexPrivilegesThatGrant(String action) {
+        return IndexPrivilege.findPrivilegesThatGrant(action);
+    }
+
+    String remoteActionDenied(
         Authentication authentication,
         @Nullable AuthorizationInfo authorizationInfo,
         String action,
@@ -99,11 +108,11 @@ class AuthorizationDenialMessages {
             + " because no remote indices privileges apply for the target cluster";
     }
 
-    private static String remoteClusterText(@Nullable String clusterAlias) {
+    private String remoteClusterText(@Nullable String clusterAlias) {
         return Strings.format("towards remote cluster%s ", clusterAlias == null ? "" : " [" + clusterAlias + "]");
     }
 
-    private static String authenticatedUserDescription(Authentication authentication) {
+    private String authenticatedUserDescription(Authentication authentication) {
         String userText = (authentication.isServiceAccount() ? "service account" : "user")
             + " ["
             + authentication.getAuthenticatingSubject().getUser().principal()
@@ -125,7 +134,7 @@ class AuthorizationDenialMessages {
         return userText;
     }
 
-    static String rolesDescription(Subject subject, @Nullable AuthorizationInfo authorizationInfo) {
+    String rolesDescription(Subject subject, @Nullable AuthorizationInfo authorizationInfo) {
         // We cannot print the roles if it's an API key or a service account (both do not have roles, but privileges)
         if (subject.getType() != Subject.Type.USER) {
             return "";
@@ -149,7 +158,7 @@ class AuthorizationDenialMessages {
         return sb.toString();
     }
 
-    static String successfulAuthenticationDescription(Authentication authentication, @Nullable AuthorizationInfo authorizationInfo) {
+    String successfulAuthenticationDescription(Authentication authentication, @Nullable AuthorizationInfo authorizationInfo) {
         String userText = authenticatedUserDescription(authentication);
 
         if (authentication.isRunAs()) {
@@ -160,7 +169,7 @@ class AuthorizationDenialMessages {
         return userText;
     }
 
-    private static List<String> extractEffectiveRoleNames(@Nullable AuthorizationInfo authorizationInfo) {
+    private List<String> extractEffectiveRoleNames(@Nullable AuthorizationInfo authorizationInfo) {
         if (authorizationInfo == null) {
             return null;
         }
@@ -176,11 +185,11 @@ class AuthorizationDenialMessages {
         return Arrays.stream((String[]) roleNames).sorted().toList();
     }
 
-    private static String actionIsUnauthorizedMessage(String action, String userText) {
+    private String actionIsUnauthorizedMessage(String action, String userText) {
         return actionIsUnauthorizedMessage(action, "", userText);
     }
 
-    private static String actionIsUnauthorizedMessage(String action, String remoteClusterText, String userText) {
+    private String actionIsUnauthorizedMessage(String action, String remoteClusterText, String userText) {
         return "action [" + action + "] " + remoteClusterText + "is unauthorized for " + userText;
     }
 }

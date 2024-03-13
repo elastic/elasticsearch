@@ -2896,7 +2896,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             );
             final QueryApiKeyResponse queryApiKeyResponse = future.actionGet();
             assertThat(queryApiKeyResponse.getItems(), arrayWithSize(1));
-            return queryApiKeyResponse.getItems()[0].getApiKey();
+            return queryApiKeyResponse.getItems()[0];
         }
     }
 
@@ -2914,7 +2914,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
                 future
             );
             final QueryApiKeyResponse queryApiKeyResponse = future.actionGet();
-            return Arrays.stream(queryApiKeyResponse.getItems()).map(QueryApiKeyResponse.Item::getApiKey).toArray(ApiKey[]::new);
+            return queryApiKeyResponse.getItems();
         }
     }
 

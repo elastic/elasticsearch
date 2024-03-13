@@ -9,6 +9,7 @@
 package org.elasticsearch.action.admin.indices.rollover;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.datastreams.autosharding.AutoShardingResult;
 import org.elasticsearch.action.datastreams.autosharding.AutoShardingType;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -133,6 +134,6 @@ public class AutoShardCondition extends Condition<String> {
 
     @Override
     boolean includedInVersion(TransportVersion version) {
-        return version.onOrAfter(DataStream.ADDED_AUTO_SHARDING_EVENT_VERSION);
+        return version.onOrAfter(TransportVersions.AUTO_SHARDING_ROLLOVER_CONDITION);
     }
 }

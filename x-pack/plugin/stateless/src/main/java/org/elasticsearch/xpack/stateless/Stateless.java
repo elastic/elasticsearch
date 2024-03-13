@@ -73,6 +73,7 @@ import co.elastic.elasticsearch.stateless.recovery.RecoveryCommitRegistrationHan
 import co.elastic.elasticsearch.stateless.recovery.TransportRegisterCommitForRecoveryAction;
 import co.elastic.elasticsearch.stateless.recovery.TransportSendRecoveryCommitRegistrationAction;
 import co.elastic.elasticsearch.stateless.recovery.TransportStatelessPrimaryRelocationAction;
+import co.elastic.elasticsearch.stateless.recovery.metering.RecoveryMetricsCollector;
 import co.elastic.elasticsearch.stateless.xpack.DummyESQLInfoTransportAction;
 import co.elastic.elasticsearch.stateless.xpack.DummyEsqlUsageTransportAction;
 import co.elastic.elasticsearch.stateless.xpack.DummyILMInfoTransportAction;
@@ -253,6 +254,7 @@ public class Stateless extends Plugin
     private final SetOnce<ShardSizeCollector> shardSizeCollector = new SetOnce<>();
     private final SetOnce<IndicesMappingSizeCollector> indicesMappingSizeCollector = new SetOnce<>();
     private final SetOnce<RecoveryCommitRegistrationHandler> recoveryCommitRegistrationHandler = new SetOnce<>();
+    private final SetOnce<RecoveryMetricsCollector> recoveryMetricsCollector = new SetOnce<>();
 
     private final boolean sharedCachedSettingExplicitlySet;
 
@@ -500,6 +502,7 @@ public class Stateless extends Plugin
                 new BlobStoreHealthIndicator(settings, clusterService, electionStrategy.get(), threadPool::relativeTimeInMillis).init()
             )
         );
+        components.add(setAndGet(recoveryMetricsCollector, new RecoveryMetricsCollector(services.telemetryProvider())));
         return components;
     }
 
@@ -822,6 +825,7 @@ public class Stateless extends Plugin
                 sharedBlobCacheWarmingService::get
             )
         );
+        indexModule.addIndexEventListener(recoveryMetricsCollector.get());
     }
 
     protected IndexEngine newIndexEngine(

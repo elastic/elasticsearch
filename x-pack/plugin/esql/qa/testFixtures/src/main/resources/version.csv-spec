@@ -315,11 +315,11 @@ values
 required_feature: esql.agg_values
 
   FROM apps
-| STATS version=VALUES(version)
+| STATS version=MV_SORT(VALUES(version))
 ;
 
    version:version
-[1, 2.1, 2.3.4, 2.12.0, 1.11.0, 5.2.9, 5.2.9-SNAPSHOT, 1.2.3.4, bad]
+[1, 1.2.3.4, 1.11.0, 2.1, 2.3.4, 2.12.0, 5.2.9-SNAPSHOT, 5.2.9, bad]
 ;
 
 valuesGrouped
@@ -327,7 +327,7 @@ required_feature: esql.agg_values
 
   FROM apps
 | EVAL name=SUBSTRING(name, 0, 1)
-| STATS version=VALUES(version) BY name
+| STATS version=MV_SORT(VALUES(version)) BY name
 | SORT name
 ;
 
@@ -351,7 +351,7 @@ valuesGroupedByOrdinals
 required_feature: esql.agg_values
 
   FROM apps
-| STATS version=VALUES(version) BY name
+| STATS version=MV_SORT(VALUES(version)) BY name
 | SORT name
 ;
 

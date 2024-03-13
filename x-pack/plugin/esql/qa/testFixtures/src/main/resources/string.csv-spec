@@ -1104,11 +1104,11 @@ required_feature: esql.agg_values
 
   FROM employees
 | WHERE emp_no <= 10009
-| STATS first_name=VALUES(first_name)
+| STATS first_name=MV_SORT(VALUES(first_name))
 ;
 
    first_name:keyword
-[Georgi, Bezalel, Parto, Chirstian, Kyoichi, Anneke, Tzvetan, Saniya, Sumant]
+[Anneke, Bezalel, Chirstian, Georgi, Kyoichi, Parto, Saniya, Sumant, Tzvetan]
 ;
 
 valuesGrouped
@@ -1117,36 +1117,36 @@ required_feature: esql.agg_values
 // tag::values-grouped[]
   FROM employees
 | EVAL first_letter = SUBSTRING(first_name, 0, 1)
-| STATS first_name=VALUES(first_name) BY first_letter
+| STATS first_name=MV_SORT(VALUES(first_name)) BY first_letter
 | SORT first_letter
 // end::values-grouped[]
 ;
 
 // tag::values-grouped-result[]
                                                                                first_name:keyword | first_letter:keyword
-                                                   [Anneke, Alejandro, Anoosh, Amabile, Arumugam] | A
-                                       [Bezalel, Berni, Bojan, Basil, Brendon, Berhard, Breannda] | B
-                                                         [Chirstian, Cristinel, Claudi, Charlene] | C
-                                                             [Duangkaew, Divier, Domenick, Danel] | D
-                                                                          [Eberhardt, Ebbe, Erez] | E
+                                                   [Alejandro, Amabile, Anneke, Anoosh, Arumugam] | A
+                                       [Basil, Berhard, Berni, Bezalel, Bojan, Breannda, Brendon] | B
+                                                         [Charlene, Chirstian, Claudi, Cristinel] | C
+                                                             [Danel, Divier, Domenick, Duangkaew] | D
+                                                                          [Ebbe, Eberhardt, Erez] | E
                                                                                           Florian | F
-                                                            [Georgi, Guoxiang, Georgy, Gino, Gao] | G
-                                            [Hidefumi, Heping, Hisao, Hironoby, Hilari, Hironobu] | H
-                                                                               [Jungsoon, Jayson] | J
-                                    [Kyoichi, Kazuhito, Kazuhide, Kwee, Kshitij, Kenroku, Kendra] | K
+                                                            [Gao, Georgi, Georgy, Gino, Guoxiang] | G
+                                            [Heping, Hidefumi, Hilari, Hironobu, Hironoby, Hisao] | H
+                                                                               [Jayson, Jungsoon] | J
+                                    [Kazuhide, Kazuhito, Kendra, Kenroku, Kshitij, Kwee, Kyoichi] | K
                                                                                 [Lillian, Lucien] | L
-                            [Mary, Mayuko, Magy, Mingsen, Moss, Mayumi, Margareta, Mokhtar, Mona] | M
+                            [Magy, Margareta, Mary, Mayuko, Mayumi, Mingsen, Mokhtar, Mona, Moss] | M
                                                                                             Otmar | O
-                                                     [Parto, Patricio, Prasadram, Premal, Parviz] | P
-                                                                           [Ramzi, Reuven, Remzi] | R
-[Saniya, Sumant, Shahaf, Suzette, Sanjiv, Satosi, Shir, Somnath, Sudharsan, Sailaja, Sreekrishna] | S
-                                                                            [Tzvetan, Tse, Tuval] | T
-                                                                                       [Uri, Udi] | U
-                                                                       [Vishv, Valdiodio, Valter] | V
+                                                     [Parto, Parviz, Patricio, Prasadram, Premal] | P
+                                                                           [Ramzi, Remzi, Reuven] | R
+[Sailaja, Saniya, Sanjiv, Satosi, Shahaf, Shir, Somnath, Sreekrishna, Sudharsan, Sumant, Suzette] | S
+                                                                            [Tse, Tuval, Tzvetan] | T
+                                                                                       [Udi, Uri] | U
+                                                                       [Valdiodio, Valter, Vishv] | V
                                                                                             Weiyi | W
                                                                                           Xinglin | X
-                                                                      [Yongqiao, Yishay, Yinghua] | Y
-                                                                               [Zvonko, Zhongwei] | Z
+                                                                      [Yinghua, Yishay, Yongqiao] | Y
+                                                                               [Zhongwei, Zvonko] | Z
                                                                                              null | null
 // end::values-grouped-result[]
 ;
